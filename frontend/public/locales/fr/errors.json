@@ -245,6 +245,7 @@
   "TRASH_UNKNOWN_ENTITY_TYPE": "Type d'élément de la corbeille inconnu.",
   "PROJECT_EXPORT_SCHEMA_VERSION_UNSUPPORTED": "Cette exportation de projet a été créée par une version plus récente d'Initiative et ne peut pas être importée ici.",
   "PROJECT_EXPORT_INVALID_PAYLOAD": "Le fichier d'exportation du projet est invalide ou endommagé.",
+  "PROJECT_EXPORT_INITIATIVE_NOT_FOUND": "Initiative cible introuvable.",
   "PROJECT_EXPORT_NO_TASK_STATUSES": "L'exportation du projet ne contient aucun statut de tâche, qui est obligatoire pour l'importer.",
   "EXPORT_UNKNOWN_SOURCE": "Ces données ne peuvent pas être exportées.",
   "EXPORT_INVALID_FORMAT": "Ce format d’export n’est pas pris en charge pour ces données.",

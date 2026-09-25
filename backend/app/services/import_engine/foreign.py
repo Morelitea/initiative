@@ -12,7 +12,7 @@ here rather than at the route, so every caller gets the same answer.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Protocol
 
 from app.core.messages import ImportEngineMessages
 from app.services.import_engine import (
@@ -22,6 +22,14 @@ from app.services.import_engine import (
 )
 from app.services.import_engine.contract import ImportEngineError
 from app.services.import_engine.mapping import MappedProject, SourceOption
+
+
+class _Mapper(Protocol):
+    def preview(self, content: str) -> list[SourceOption]: ...
+
+    def build_project_envelope(
+        self, content: str, *, selection: str, app_version: str
+    ) -> MappedProject: ...
 
 
 @dataclass(frozen=True)

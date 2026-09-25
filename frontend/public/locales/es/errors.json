@@ -245,6 +245,7 @@
   "TRASH_UNKNOWN_ENTITY_TYPE": "Tipo de elemento de papelera desconocido.",
   "PROJECT_EXPORT_SCHEMA_VERSION_UNSUPPORTED": "Esta exportación de proyecto fue creada por una versión más nueva de Initiative y no se puede importar aquí.",
   "PROJECT_EXPORT_INVALID_PAYLOAD": "El archivo de exportación del proyecto no es válido o está dañado.",
+  "PROJECT_EXPORT_INITIATIVE_NOT_FOUND": "Iniciativa de destino no encontrada.",
   "PROJECT_EXPORT_NO_TASK_STATUSES": "La exportación del proyecto no tiene estados de tarea, que son obligatorios para importar.",
   "EXPORT_UNKNOWN_SOURCE": "Estos datos no se pueden exportar.",
   "EXPORT_INVALID_FORMAT": "Este formato de exportación no es compatible con estos datos.",

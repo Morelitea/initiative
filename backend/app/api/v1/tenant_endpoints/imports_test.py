@@ -1,6 +1,5 @@
 """Tests for the import engine: envelopes, foreign files, Jira, backups."""
 
-import asyncio
 import io
 import json
 import zipfile
@@ -384,7 +383,7 @@ async def test_large_envelope_becomes_job_and_worker_applies_it(
 
     user_session = await role_session("app_user")
     monkeypatch.setattr(import_worker, "_open_user_session", lambda: user_session)
-    await _drain_import_jobs()
+    await import_worker.process_import_jobs()
 
     status_resp = await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
     job = status_resp.json()
@@ -447,7 +446,7 @@ async def test_worker_fails_closed_on_revoked_permission(
 
     user_session = await role_session("app_user")
     monkeypatch.setattr(import_worker, "_open_user_session", lambda: user_session)
-    await _drain_import_jobs()
+    await import_worker.process_import_jobs()
 
     job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
     assert job["status"] == ImportJobStatus.failed.value
@@ -487,7 +486,7 @@ async def test_stale_running_import_fails_closed_not_reapplied(
 
     user_session = await role_session("app_user")
     monkeypatch.setattr(import_worker, "_open_user_session", lambda: user_session)
-    await _drain_import_jobs()
+    await import_worker.process_import_jobs()
 
     await session.refresh(job)
     assert job.status == ImportJobStatus.failed
@@ -696,19 +695,10 @@ async def _apply_backup(client, actor, zip_bytes, monkeypatch, role_session) -> 
     ).json()
 
 
-async def _drain_import_jobs() -> None:
-    """Run worker passes until one starts nothing, waiting for each pass's jobs."""
-    while True:
-        started = await import_worker.dispatch_import_jobs()
-        if not started:
-            return
-        await asyncio.gather(*started)
-
-
 async def _run_import_worker(monkeypatch, role_session):
     user_session = await role_session("app_user")
     monkeypatch.setattr(import_worker, "_open_user_session", lambda: user_session)
-    await _drain_import_jobs()
+    await import_worker.process_import_jobs()
 
 
 async def test_backup_import_end_to_end_with_assets(
@@ -1917,7 +1907,7 @@ async def test_an_unmatched_author_keeps_their_name_and_no_account(
     assert confirm.status_code == 200, confirm.text
     user_session = await role_session("app_user")
     monkeypatch.setattr(import_worker, "_open_user_session", lambda: user_session)
-    await _drain_import_jobs()
+    await import_worker.process_import_jobs()
 
     comment = (
         await session.exec(
@@ -1977,7 +1967,7 @@ async def test_mentions_link_to_whoever_the_people_step_names(
     assert confirm.status_code == 200, confirm.text
     user_session = await role_session("app_user")
     monkeypatch.setattr(import_worker, "_open_user_session", lambda: user_session)
-    await _drain_import_jobs()
+    await import_worker.process_import_jobs()
 
     imported = (
         await session.exec(select(Task).where(Task.title == "Fit the door"))
@@ -2271,7 +2261,7 @@ async def test_the_people_map_decides_who_an_envelopes_assignee_is(
     assert confirm.status_code == 200, confirm.text
     user_session = await role_session("app_user")
     monkeypatch.setattr(import_worker, "_open_user_session", lambda: user_session)
-    await _drain_import_jobs()
+    await import_worker.process_import_jobs()
 
     task = (await session.exec(select(Task).where(Task.title == "Fit the door"))).one()
     assignees = (
@@ -5518,7 +5508,7 @@ async def test_a_community_runs_one_import_at_a_time(
     assert await _status(client, a, first) == ImportJobStatus.done.value
     assert await _status(client, a, second) == ImportJobStatus.queued.value
 
-    await _drain_import_jobs()
+    await import_worker.process_import_jobs()
     assert await _status(client, a, second) == ImportJobStatus.done.value
 
 
@@ -5539,7 +5529,7 @@ async def test_a_process_starts_no_more_than_its_slots(
 
     assert len(started) == 1
     await asyncio.gather(*started)
-    await _drain_import_jobs()
+    await import_worker.process_import_jobs()
 
 
 async def test_the_sweep_leaves_a_job_this_process_is_running(

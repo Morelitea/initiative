@@ -108,6 +108,19 @@ def _free_slot(kind: str) -> bool:
     return sum(1 for held, _task in _running.values() if held == kind) < _slots(kind)
 
 
+async def process_import_jobs() -> None:
+    """Run passes until one starts nothing, waiting for each pass's jobs.
+
+    Everything queued is dealt with by the time this returns. The background
+    loop calls :func:`dispatch_import_jobs` instead, which does not wait.
+    """
+    while True:
+        started = await dispatch_import_jobs()
+        if not started:
+            return
+        await asyncio.gather(*started)
+
+
 async def dispatch_import_jobs() -> list[asyncio.Task]:
     """One pass: sweep every community's stale rows, then start what the free
     slots can take, at most one job per community. Returns the tasks it

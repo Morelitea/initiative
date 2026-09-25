@@ -266,6 +266,19 @@ async def iter_issue_pages(
         token = cursor
 
 
+async def fetch_issues(
+    credential: AtlassianCredential,
+    project_key: str,
+    **kwargs: Any,
+) -> list[Any]:
+    """:func:`iter_issue_pages`, every page in one list."""
+    return [
+        issue
+        async for page in iter_issue_pages(credential, project_key, **kwargs)
+        for issue in page
+    ]
+
+
 async def fetch_field_catalog(credential: AtlassianCredential) -> list[Any]:
     """Every field the site defines, with the schema that says its type.
 
@@ -579,6 +592,37 @@ class JiraFetched:
     rows_used: int
     #: Attached files that are not pictures, each a document of its own.
     files: list[jira_attachments.StoredImage] = field(default_factory=list)
+
+
+async def fetch_projects_bundle(
+    credential: AtlassianCredential,
+    *,
+    guild_id: int,
+    guild_name: str,
+    target_initiative_id: int,
+    **kwargs: Any,
+) -> tuple[bytes, FetchReport]:
+    """:func:`fetch_projects`, written into a bundle of its own and read back
+    whole — a convenience for small reads, not the job's path."""
+    from app.services.import_engine.atlassian_bundle import BundleWriter
+
+    with BundleWriter() as writer:
+        fetched = await fetch_projects(
+            credential, guild_id=guild_id, store=writer.put_asset, **kwargs
+        )
+        bundle = writer.finish(
+            projects=fetched.envelopes,
+            task_files=fetched.files,
+            calendars=fetched.calendars,
+            images=fetched.images,
+            people=fetched.people,
+            guild_id=guild_id,
+            guild_name=guild_name,
+            target_initiative_id=target_initiative_id,
+            app_version=kwargs["app_version"],
+            site_url=credential.site_url,
+        ).read_bytes()
+    return bundle, fetched.report
 
 
 async def fetch_projects(
