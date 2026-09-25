@@ -10,7 +10,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
-from app.models.platform.notification import Notification
+from app.models.platform.notification import Notification, NotificationType
 from app.services import notifications as notifications_service
 from app.services.platform import user_notifications
 from app.testing import create_guild, create_user
@@ -136,7 +136,7 @@ async def test_a_notification_with_no_initiative_still_names_its_community(
     await user_notifications.create_notification(
         session,
         user_id=member.id,
-        notification_type=notifications_service.NotificationType.initiative_added,
+        notification_type=NotificationType.initiative_added,
         data={"guild_id": guild.id},
     )
     await session.commit()
@@ -251,7 +251,7 @@ async def test_an_event_notification_names_its_calendar_initiative(
 async def test_a_fan_out_asks_for_the_calendar_once(session: AsyncSession):
     """Every recipient gets their own notification, and they all share one
     lookup — an event with fifty attendees must not ask fifty times."""
-    from app.services.notifications import _CALENDAR_INITIATIVES
+    from app.services.notifications.notifiers import _CALENDAR_INITIATIVES
     from app.testing import create_calendar, create_calendar_event, create_initiative
 
     organizer = await create_user(session, email="fanout-organizer@example.com")
@@ -285,7 +285,10 @@ async def test_two_communities_do_not_share_one_calendar_answer(
     """Per-guild schemas mean two calendars can hold the same id, so the memo
     is keyed by guild as well — answering one community from another's entry
     would put a notification under the wrong initiative."""
-    from app.services.notifications import _CALENDAR_INITIATIVES, _calendar_initiative
+    from app.services.notifications.notifiers import (
+        _CALENDAR_INITIATIVES,
+        _calendar_initiative,
+    )
 
     memo = session.info.setdefault(_CALENDAR_INITIATIVES, {})
     memo[(1, 7)] = 100

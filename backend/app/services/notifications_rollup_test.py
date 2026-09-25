@@ -13,10 +13,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.notification import Notification
 from app.services import notifications as notifications_service
-from app.services.notifications import (
-    MAX_ROLLED_UP_COMMENTERS,
-    _rolled_up_comment,
-)
+from app.services.notifications import MAX_ROLLED_UP_COMMENTERS
+from app.services.notifications.rollup import _rolled_up_comment
 from app.testing import create_guild, create_user
 
 

@@ -558,6 +558,26 @@ def email_due_at(
 # --- Loading -----------------------------------------------------------------
 
 
+#: Where :func:`app.services.platform.accounts.load` leaves a recipient's
+#: settings document on the detached row, read in the same system session as the
+#: account itself. A plain attribute, not a column.
+DELIVERY_PREFS_ATTR = "_delivery_prefs"
+
+
+async def prefs_for_delivery(recipient: Any) -> dict[str, Any]:
+    """A recipient's settings, as read when the account was resolved.
+
+    A recipient loaded through ``accounts.load`` carries its document already,
+    so a fan-out over fifty people reads fifty documents in the one query that
+    loaded them rather than opening fifty sessions. Anything else — a row a
+    sweep reloaded to read it fresh — is read now.
+    """
+    attached = getattr(recipient, DELIVERY_PREFS_ATTR, None)
+    if attached is not None:
+        return attached
+    return await load_prefs_for_delivery(recipient.id)
+
+
 async def load_prefs_for_delivery(user_id: int) -> dict[str, Any]:
     """One recipient's settings, read on the system engine.
 

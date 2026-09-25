@@ -34,6 +34,7 @@ from app.models.tenant.comment import Comment
 from app.models.tenant.reaction import Reaction
 from app.models.platform.user import User
 from app.services.platform import accounts as accounts_service
+from app.services.tenant import audience as audience_service
 from app.schemas.tenant.reaction import ReactionGroup, ReactionSummary, ReactionUser
 
 logger = logging.getLogger(__name__)
@@ -88,6 +89,8 @@ class TargetContext:
     #: Where a notification about this belongs in the navigation.
     initiative_id: Optional[int] = None
     tool: Optional[str] = None
+    #: The tool row whose sharing decides who may hear about it.
+    anchor: Optional[audience_service.Anchor] = None
 
 
 #: Resolver signature: load + authorize one target, or raise.
@@ -126,6 +129,7 @@ async def _resolve_comment(
         target_path=comments_service.comment_target_path(comment, ctx),
         author_id=comment.created_by,
         initiative_id=ctx.initiative_id,
+        anchor=ctx.anchor,
         # A tool comment names its own tool; a task comment belongs to the
         # Projects list the task lives in.
         tool=(
@@ -188,6 +192,7 @@ async def _resolve_post(
         author_id=post.created_by,
         initiative_id=post.initiative_id,
         tool=Tool.post.value,
+        anchor=(Tool.post, cast(int, post.id)),
     )
 
 
@@ -430,6 +435,10 @@ async def _queue_reaction_notification(
     from app.services import notifications
 
     if ctx.author_id is None or ctx.author_id == reactor.id:
+        return
+    # The line names what was reacted to, so it goes only to an author who can
+    # still open it.
+    if not await audience_service.may_be_told(session, ctx.anchor, [ctx.author_id]):
         return
     # On the system engine: whether they want to hear about this, and where to
     # write to, are facts about their account rather than about this guild.

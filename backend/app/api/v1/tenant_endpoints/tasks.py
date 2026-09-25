@@ -87,6 +87,7 @@ from app.services.platform import accounts as accounts_service
 from app.api import resource_access
 from app.services import permissions as permissions_service
 from app.services.tenant.recurrence import get_next_due_date
+from app.services.tenant import audience as audience_service
 from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant import task_creation as task_creation_service
 from app.services.tenant.task_completion import sync_completed_at
@@ -1912,8 +1913,14 @@ async def create_task(
         assigned_by = await notifications_service.author_of(
             session, guild_context, current_user
         )
+        # The notice names the task, so only an assignee who can open it hears.
         assignees = await accounts_service.load_all(
-            [assignee.id for assignee in task.assignees]
+            await audience_service.may_be_told(
+                session,
+                (Tool.project, project.id),
+                [assignee.id for assignee in task.assignees],
+            ),
+            excluding_ignorers_of=guild_context.user_id,
         )
         for assignee in assignees:
             await notifications_service.enqueue_task_assignment_event(
@@ -2098,7 +2105,12 @@ async def update_task(
             session, guild_context, current_user
         )
         newly_assigned = await accounts_service.load_all(
-            [assignee.id for assignee in new_assignees]
+            await audience_service.may_be_told(
+                session,
+                (Tool.project, project.id),
+                [assignee.id for assignee in new_assignees],
+            ),
+            excluding_ignorers_of=guild_context.user_id,
         )
         for assignee in newly_assigned:
             await notifications_service.enqueue_task_assignment_event(

@@ -584,6 +584,18 @@ async def test_unassigning_withdraws_the_pending_digest_item(
         initiative=user.initiative,
         initiative_role="member",
     )
+    # The assignment notice names the task, so the assignee has to reach it.
+    await route_session_to_guild(session, user.guild.id)
+    session.add(
+        ResourceGrant(
+            resource_type="project",
+            resource_id=user.project.id,
+            all_initiative_members=True,
+            level=ResourceAccessLevel.write,
+            initiative_id=user.project.initiative_id,
+        )
+    )
+    await session.commit()
     task = await _create_task(session, user.project)
 
     assign = await client.patch(

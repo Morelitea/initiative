@@ -68,6 +68,7 @@ from app.core.tools import Tool
 from app.db.session import require_guild_context
 from app.models.tenant.resource_grant import ResourceGrant
 from app.services import permissions as permissions_service
+from app.services.tenant import audience as audience_service
 from app.services.tenant import calendar_events as events_service
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import content_references
@@ -153,13 +154,24 @@ async def _refetch_event(session: ActorSessionDep, event_id: int) -> CalendarEve
     return event
 
 
-async def _notify_targets(user_ids: list[int]) -> list[User]:
+async def _notify_targets(
+    session: AsyncSession,
+    event: CalendarEvent,
+    user_ids: list[int | None],
+    *,
+    actor_id: int | None,
+) -> list[User]:
     """Who to tell, with the preferences and address a notice needs.
 
-    On the system engine: an account's notification settings and address are
-    not a guild's to read.
+    Only people who can open the event's calendar: every notice names the
+    event. Accounts are read on the system engine — an account's notification
+    settings and address are not a guild's to read — and anybody who ignores
+    whoever acted drops out there.
     """
-    return await accounts_service.load_all(user_ids)
+    told = await audience_service.may_be_told(
+        session, (Tool.calendar, event.calendar_id), user_ids
+    )
+    return await accounts_service.load_all(told, excluding_ignorers_of=actor_id)
 
 
 async def _notify_invited(
@@ -171,7 +183,9 @@ async def _notify_invited(
 ) -> None:
     """Tell each of ``user_ids`` they were invited to ``event``, by whoever
     invited them: the person, or an installed app by its name."""
-    attendees = await _notify_targets(user_ids)
+    attendees = await _notify_targets(
+        session, event, list(user_ids), actor_id=guild_context.user_id
+    )
     if not attendees:
         return
     organizer = await notifications_service.author_of(
@@ -861,7 +875,9 @@ async def update_calendar_event(
                 and attendee.user_id != guild_context.user_id
                 and attendee.rsvp_status != RSVPStatus.declined
             ]
-            notify_targets = await _notify_targets(notify_ids)
+            notify_targets = await _notify_targets(
+                session, event, notify_ids, actor_id=guild_context.user_id
+            )
             if notify_targets:
                 # The person who edited it, or an installed app by its name.
                 editor = await notifications_service.author_of(
@@ -911,7 +927,9 @@ async def delete_calendar_event(
         and attendee.user_id != current_user.id
         and attendee.rsvp_status != RSVPStatus.declined
     ]
-    for attendee_user in await _notify_targets(cancel_ids):
+    for attendee_user in await _notify_targets(
+        session, event, cancel_ids, actor_id=current_user.id
+    ):
         await notifications_service.notify_event_cancelled(
             session,
             attendee=attendee_user,
@@ -995,7 +1013,9 @@ async def update_rsvp(
     session.add(attendee)
 
     if event.created_by != current_user.id:
-        organizers = await _notify_targets([event.created_by])
+        organizers = await _notify_targets(
+            session, event, [event.created_by], actor_id=current_user.id
+        )
         if organizers:
             await notifications_service.notify_event_rsvp(
                 session,

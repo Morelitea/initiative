@@ -82,6 +82,7 @@ from app.schemas.tenant.document import (
 from app.schemas.ai_generation import GenerateDocumentSummaryResponse
 from app.schemas.tenant.property import PropertyValuesSetRequest
 from app.services.tenant import attachments as attachments_service
+from app.services.tenant import audience as audience_service
 from app.services import storage_config
 from app.services.storage import build_upload_response, get_guild_storage
 from app.api import resource_access
@@ -1376,19 +1377,16 @@ async def notify_mentions(
         access="write",
         hydrated=True,
     )
-    memberships = await initiatives_service.initiative_roster(
-        session, document.initiative_id
+    # The notice names the document, so it goes only to people who can open it.
+    told = await audience_service.may_be_told(
+        session, (Tool.document, document.id), mentioned_user_ids
     )
-    member_ids = {
-        membership.user_id for membership in memberships if membership.user_id
-    }
     # Who to tell is a question about their account, so it is asked where an
     # account may be read.
     recipients = await accounts_service.load(
-        (user_id for user_id in mentioned_user_ids if user_id in member_ids),
-        excluding_ignorers_of=current_user.id,
+        told, excluding_ignorers_of=current_user.id
     )
-    for user_id in mentioned_user_ids:
+    for user_id in told:
         mentioned_user = recipients.get(user_id)
         if not mentioned_user:
             continue

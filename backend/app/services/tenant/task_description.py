@@ -11,8 +11,8 @@ thing. Saving one does two things with those:
   mention that was already there when the description was last saved is not
   news, so editing a sentence around it does not notify again.
 
-Only members of the task's initiative are told — the mention picker offers
-nobody else, and a notice names the task to whoever gets it.
+Only people who can open the task are told — a notice names the task to
+whoever gets it.
 """
 
 from __future__ import annotations
@@ -22,12 +22,13 @@ from typing import cast
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.search import SearchEntityType
+from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.task import Task
 from app.services import notifications as notifications_service
 from app.services.platform import accounts as accounts_service
 from app.services.tenant import content_references
-from app.services.tenant import initiatives as initiatives_service
+from app.services.tenant import audience as audience_service
 from app.services.tenant.mention_parser import extract_mentioned_user_ids
 from app.services.tenant.relationships import Endpoint
 
@@ -84,14 +85,13 @@ async def description_saved(
     if not added:
         return
 
-    roster = await initiatives_service.initiative_roster(session, initiative_id)
-    member_ids = {membership.user_id for membership in roster if membership.user_id}
+    # The notice names the task, so it goes only to people who can open it.
+    told = await audience_service.may_be_told(
+        session, (Tool.project, task.project_id), sorted(added)
+    )
     # Who to tell is a question about their account, so it is asked where an
     # account may be read.
-    recipients = await accounts_service.load(
-        (user_id for user_id in added if user_id in member_ids),
-        excluding_ignorers_of=author.id,
-    )
+    recipients = await accounts_service.load(told, excluding_ignorers_of=author.id)
     for user_id in sorted(recipients):
         await notifications_service.notify_task_description_mention(
             session,

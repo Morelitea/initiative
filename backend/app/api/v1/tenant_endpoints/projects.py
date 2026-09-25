@@ -68,6 +68,7 @@ from app.services import audit as audit_service
 from app.services import notifications as notifications_service
 from app.services.platform import accounts as accounts_service
 from app.services.platform import users as users_service
+from app.services.tenant import audience as audience_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import ownership as ownership_service
 from app.services import permissions as permissions_service
@@ -190,6 +191,19 @@ async def _attach_task_summaries(session: SessionDep, projects: List[Project]) -
     for project in projects:
         summary = summary_map.get(project.id or 0, ProjectTaskSummary())
         setattr(project, "_task_summary", summary)
+
+
+async def _shared_with(
+    session: AsyncSession, project_id: int, *, actor_id: int
+) -> list[User]:
+    """Everybody a project is shared with, other than whoever shared it — the
+    people told it was added. Read from the project's own grants, so a copy
+    shared with three people tells three people."""
+    shared = await audience_service.audience(session, Tool.project, project_id)
+    shared.discard(actor_id)
+    return await accounts_service.load_all(
+        sorted(shared), excluding_ignorers_of=actor_id
+    )
 
 
 async def _get_project_or_404(
@@ -1089,34 +1103,16 @@ async def create_project(
         project.id, session, guild_context.guild_id, user_id=guild_context.user_id
     )
     if project.initiative_id and current_user is not None:
-        # Notify every member the project is shared with, derived from the grants:
-        # all members, members of a granted role, or a directly granted user.
-        share_all = any(g.all_initiative_members for g in project_in.grants)
-        granted_roles = {g.role_id for g in project_in.grants if g.role_id is not None}
-        granted_users = {g.user_id for g in project_in.grants if g.user_id is not None}
-        shared_with = [
-            membership.user_id
-            for membership in await initiatives_service.initiative_roster(
-                session, project.initiative_id
-            )
-            if membership.user_id
-            and membership.user_id != current_user.id
-            and (
-                share_all
-                or membership.role_id in granted_roles
-                or membership.user_id in granted_users
-            )
-        ]
-        for member in await accounts_service.load_all(shared_with):
-            await notifications_service.notify_project_added(
-                session,
-                member,
-                initiative_name=project.initiative.name,
-                project_name=project.name,
-                project_id=project.id,
-                initiative_id=project.initiative.id,
-                guild_id=guild_context.guild_id,
-            )
+        await notifications_service.notify_project_added(
+            session,
+            await _shared_with(session, project.id, actor_id=current_user.id),
+            initiative_name=project.initiative.name,
+            project_name=project.name,
+            project_id=project.id,
+            initiative_id=project.initiative.id,
+            guild_id=guild_context.guild_id,
+        )
+        await session.commit()
     await _attach_task_summaries(session, [project])
     return await _project_read_for_user(
         session,
@@ -1248,23 +1244,16 @@ async def duplicate_project(
         new_project.id, session, guild_context.guild_id, user_id=current_user.id
     )
     if new_project.initiative_id:
-        notify_ids = [
-            membership.user_id
-            for membership in await initiatives_service.initiative_roster(
-                session, new_project.initiative_id
-            )
-            if membership.user_id and membership.user_id != current_user.id
-        ]
-        for member in await accounts_service.load_all(notify_ids):
-            await notifications_service.notify_project_added(
-                session,
-                member,
-                initiative_name=new_project.initiative.name,
-                project_name=new_project.name,
-                project_id=new_project.id,
-                initiative_id=new_project.initiative.id,
-                guild_id=guild_context.guild_id,
-            )
+        await notifications_service.notify_project_added(
+            session,
+            await _shared_with(session, new_project.id, actor_id=current_user.id),
+            initiative_name=new_project.initiative.name,
+            project_name=new_project.name,
+            project_id=new_project.id,
+            initiative_id=new_project.initiative.id,
+            guild_id=guild_context.guild_id,
+        )
+        await session.commit()
     await _attach_task_summaries(session, [new_project])
     return await _project_read_for_user(
         session,

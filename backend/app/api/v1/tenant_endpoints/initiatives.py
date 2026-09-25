@@ -529,6 +529,7 @@ async def _resolve_join_request(
         guild_id=routed_guild_id(session),
         approved=approved,
     )
+    await session.commit()
 
     rows = await initiatives_service.list_join_requests(
         session,
@@ -613,6 +614,7 @@ async def create_join_request(
             requester=current_user,
             message=payload.message,
         )
+        await session.commit()
 
     rows = await initiatives_service.list_join_requests(
         session, initiative_id=initiative_id, status=None, user_id=current_user.id
@@ -1601,6 +1603,7 @@ async def add_initiative_member(
             initiative_name=initiative.name,
             guild_id=routed_guild_id(session),
         )
+        await session.commit()
     return serialize_initiative(initiative, context=guild_context)
 
 

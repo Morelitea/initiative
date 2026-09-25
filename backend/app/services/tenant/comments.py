@@ -22,7 +22,7 @@ import logging
 from dataclasses import dataclass
 from collections.abc import Sequence
 from datetime import datetime, timezone
-from typing import Any, Optional, Set, cast
+from typing import Any, Optional, cast
 
 from sqlalchemy import ColumnElement, func
 from sqlalchemy.orm import selectinload, undefer
@@ -53,11 +53,11 @@ from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue
 from app.models.tenant.wiki import Wiki, WikiPage
-from app.models.tenant.task import Task
+from app.models.tenant.task import Task, TaskAssignee
 from app.models.platform.user import User
-from app.models.platform.user_profile_view import MemberProfile
 from app.services import rls as rls_service
 from app.services.tenant import attachments as attachments_service
+from app.services.tenant import audience as audience_service
 from app.services.tenant import content_references
 from app.services import notifications
 from app.services import permissions as permissions_service
@@ -270,6 +270,16 @@ class _ParentContext:
         if self.extra is not None:
             return self.extra.kind
         return self.tool.value if self.tool is not None else None
+
+    @property
+    def anchor(self) -> Optional[audience_service.Anchor]:
+        """The tool row whose sharing answers for this thread: a task's
+        project, an extra's tool, or the tool entity itself."""
+        if self.project is not None:
+            return Tool.project, cast(int, self.project.id)
+        if self.tool is None or self.resource is None:
+            return None
+        return self.tool, cast(int, self.resource.id)
 
     @property
     def address(self) -> Optional[tuple[str, int]]:
@@ -770,41 +780,17 @@ async def create_comment(
     return comment
 
 
-async def _notify_target(
-    user_id: int | None, *, actor_id: int | None = None
-) -> User | None:
-    """Who to tell, with the preferences and address a notice needs.
-
-    On the system engine: an account's notification settings and address are
-    not a guild's to read. ``actor_id`` drops anybody who ignores whoever is
-    doing this, so they are simply not a recipient."""
-    return await accounts_service.load_one(user_id, excluding_ignorers_of=actor_id)
-
-
-async def _notify_targets(
-    user_ids: list[int], *, actor_id: int | None = None
-) -> list[User]:
-    """The same, for the several people one comment can reach."""
-    return await accounts_service.load_all(user_ids, excluding_ignorers_of=actor_id)
-
-
-async def _load_task_with_assignees(
-    session: AsyncSession, task_id: int, guild_id: int
-) -> tuple[Task, list[MemberProfile], str] | None:
-    """Load a task with its assignees and project name."""
-    stmt = (
-        select(Task, Project, Initiative)
-        .join(Project, Project.id == Task.project_id)
-        .join(Initiative, Initiative.id == Project.initiative_id)
-        .where(Task.id == task_id)
-        .options(selectinload(Task.assignees))
+async def _task_assignee_ids(session: AsyncSession, task_id: int) -> list[int]:
+    """Who a task is assigned to, in assignment order."""
+    return list(
+        (
+            await session.exec(
+                select(TaskAssignee.user_id)
+                .where(TaskAssignee.task_id == task_id)
+                .order_by(TaskAssignee.user_id)
+            )
+        ).all()
     )
-    result = await session.exec(stmt)
-    row = result.one_or_none()
-    if not row:
-        return None
-    task, project, _ = row
-    return task, list(task.assignees), project.name
 
 
 async def _process_comment_notifications(
@@ -824,8 +810,12 @@ async def _process_comment_notifications(
     3. #task mentions → notify assignees
     4. Task comment → notify assignees
     5. Tool comment → notify the entity's creator
+
+    Every one of them names the thread, so each goes only to somebody who could
+    open it now (:func:`audience.readers`); a ``#task`` notice names the
+    mentioned task too, so its assignees must also reach that task's project.
+    Recipients are decided first and their accounts read in one load.
     """
-    notified_user_ids: Set[int] = set()
     content = comment.content
     context_title = ctx.title
     # Which sidebar row this comment belongs under. A tool comment names its
@@ -847,17 +837,79 @@ async def _process_comment_notifications(
         extra_entity_type = ctx.ref_type
         extra_entity_id = ctx.entity_id
 
-    # 1. Reply to comment → notify parent comment author
-    if parent_comment and parent_comment.created_by != author.id:
-        parent_author = await _notify_target(
-            parent_comment.created_by, actor_id=author.id
+    anchor = ctx.anchor
+    if anchor is None:  # pragma: no cover - every parent resolves to one
+        return
+    readers = await audience_service.readers(session, *anchor)
+    if author.id is not None:
+        readers.discard(author.id)
+
+    # Each class claims its recipients in priority order; a person is told once,
+    # by the first class that names them.
+    claimed: dict[int, str] = {}
+
+    def claim(kind: str, user_ids: Sequence[int | None], allowed: set[int]) -> None:
+        for user_id in user_ids:
+            if user_id is not None and user_id in allowed and user_id not in claimed:
+                claimed[user_id] = kind
+
+    if parent_comment is not None:
+        claim("reply", [parent_comment.created_by], readers)
+    claim("mention", sorted(extract_mentioned_user_ids(content)), readers)
+
+    mentioned_tasks: dict[int, tuple[int, str]] = {}
+    for mentioned_task_id in extract_mentioned_task_ids(content):
+        mentioned = (
+            await session.exec(
+                select(Task.project_id, Task.title).where(Task.id == mentioned_task_id)
+            )
+        ).first()
+        if mentioned is None:
+            continue
+        project_id, title = mentioned
+        mentioned_readers = readers & await audience_service.readers(
+            session, Tool.project, project_id
         )
-        if parent_author:
+        before = set(claimed)
+        claim(
+            "task_mention",
+            await _task_assignee_ids(session, mentioned_task_id),
+            mentioned_readers,
+        )
+        for user_id in set(claimed) - before:
+            mentioned_tasks[user_id] = (mentioned_task_id, title)
+
+    if ctx.task is not None:
+        claim(
+            "task_comment",
+            await _task_assignee_ids(session, cast(int, ctx.task.id)),
+            readers,
+        )
+
+    # A comment on a tool entity, or on an extra that tells its author, reaches
+    # whoever wrote it. The row is the one the thread hangs off, so a note on a
+    # page reaches the page's author rather than whoever started the wiki.
+    owner_row = ctx.extra_row if ctx.extra is not None else ctx.resource
+    if owner_row is not None and (ctx.extra is None or ctx.extra.notifies_author):
+        claim("owner", [getattr(owner_row, "created_by", None)], readers)
+
+    if not claimed:
+        return
+    # On the system engine: an account's notification settings and address are
+    # not a guild's to read. Anybody who ignores the author drops out here.
+    recipients = await accounts_service.load(claimed, excluding_ignorers_of=author.id)
+
+    comment_id = cast(int, comment.id)
+    for user_id, kind in claimed.items():
+        recipient = recipients.get(user_id)
+        if recipient is None:
+            continue
+        if kind == "reply":
             await notifications.notify_comment_reply(
                 session,
-                parent_author=parent_author,
+                parent_author=recipient,
                 replier=author,
-                comment_id=cast(int, comment.id),
+                comment_id=comment_id,
                 task_id=comment.task_id,
                 document_id=comment.document_id,
                 entity_type=extra_entity_type,
@@ -867,56 +919,30 @@ async def _process_comment_notifications(
                 initiative_id=ctx.initiative_id,
                 tool=comment_tool,
             )
-            notified_user_ids.add(parent_comment.created_by)
-
-    # 2. Process @user mentions
-    mentioned_user_ids = extract_mentioned_user_ids(content)
-    for user_id in mentioned_user_ids:
-        if user_id == author.id:
-            continue
-        if user_id in notified_user_ids:
-            continue
-        mentioned_user = await _notify_target(user_id, actor_id=author.id)
-        if not mentioned_user:
-            continue
-        await notifications.notify_comment_mention(
-            session,
-            mentioned_user=mentioned_user,
-            mentioned_by=author,
-            comment_id=cast(int, comment.id),
-            task_id=comment.task_id,
-            document_id=comment.document_id,
-            entity_type=extra_entity_type,
-            entity_id=extra_entity_id,
-            context_title=context_title,
-            guild_id=guild_id,
-            initiative_id=ctx.initiative_id,
-            tool=comment_tool,
-        )
-        notified_user_ids.add(user_id)
-
-    # 3. Process #task mentions → notify assignees
-    mentioned_task_ids = extract_mentioned_task_ids(content)
-    for mentioned_task_id in mentioned_task_ids:
-        task_data = await _load_task_with_assignees(
-            session, mentioned_task_id, guild_id
-        )
-        if not task_data:
-            continue
-        mentioned_task, assignees, _ = task_data
-        wanted = [
-            assignee.id
-            for assignee in assignees
-            if assignee.id != author.id and assignee.id not in notified_user_ids
-        ]
-        for assignee in await _notify_targets(wanted, actor_id=author.id):
+        elif kind == "mention":
+            await notifications.notify_comment_mention(
+                session,
+                mentioned_user=recipient,
+                mentioned_by=author,
+                comment_id=comment_id,
+                task_id=comment.task_id,
+                document_id=comment.document_id,
+                entity_type=extra_entity_type,
+                entity_id=extra_entity_id,
+                context_title=context_title,
+                guild_id=guild_id,
+                initiative_id=ctx.initiative_id,
+                tool=comment_tool,
+            )
+        elif kind == "task_mention":
+            mentioned_task_id, mentioned_title = mentioned_tasks[user_id]
             await notifications.notify_task_mentioned_in_comment(
                 session,
-                assignee=assignee,
+                assignee=recipient,
                 mentioned_by=author,
-                comment_id=cast(int, comment.id),
+                comment_id=comment_id,
                 mentioned_task_id=mentioned_task_id,
-                mentioned_task_title=mentioned_task.title,
+                mentioned_task_title=mentioned_title,
                 context_task_id=comment.task_id,
                 context_document_id=comment.document_id,
                 context_entity_type=extra_entity_type,
@@ -926,49 +952,27 @@ async def _process_comment_notifications(
                 initiative_id=ctx.initiative_id,
                 tool=comment_tool,
             )
-            notified_user_ids.add(assignee.id)
-
-    # 4. Task comment → notify assignees (who haven't been notified yet)
-    if ctx.task is not None:
-        task_with_assignees = await _load_task_with_assignees(
-            session, cast(int, ctx.task.id), guild_id
-        )
-        if task_with_assignees:
-            task, assignees, project_name = task_with_assignees
-            wanted = [
-                assignee.id
-                for assignee in assignees
-                if assignee.id != author.id and assignee.id not in notified_user_ids
-            ]
-            for assignee in await _notify_targets(wanted, actor_id=author.id):
-                await notifications.notify_comment_on_task(
-                    session,
-                    assignee=assignee,
-                    commenter=author,
-                    comment_id=cast(int, comment.id),
-                    task_id=task.id,
-                    task_title=task.title,
-                    project_name=project_name,
-                    project_id=task.project_id,
-                    guild_id=guild_id,
-                    initiative_id=ctx.initiative_id,
-                    tool=comment_tool,
-                )
-                notified_user_ids.add(assignee.id)
-
-    # 5. Comment on a tool entity, or on an extra that tells its author →
-    #    notify whoever wrote it (if not already notified). The row is the one
-    #    the thread hangs off, so a note on a page reaches the page's author
-    #    rather than whoever started the wiki.
-    owner_row = ctx.extra_row if ctx.extra is not None else ctx.resource
-    if owner_row is not None and (ctx.extra is None or ctx.extra.notifies_author):
-        owner = await _notify_target(owner_row.created_by, actor_id=author.id)
-        if owner and owner.id != author.id and owner.id not in notified_user_ids:
+        elif kind == "task_comment":
+            task = cast(Task, ctx.task)
+            await notifications.notify_comment_on_task(
+                session,
+                assignee=recipient,
+                commenter=author,
+                comment_id=comment_id,
+                task_id=cast(int, task.id),
+                task_title=task.title,
+                project_name=cast(Project, ctx.project).name,
+                project_id=task.project_id,
+                guild_id=guild_id,
+                initiative_id=ctx.initiative_id,
+                tool=comment_tool,
+            )
+        else:
             await notifications.notify_comment_on_resource(
                 session,
-                owner=owner,
+                owner=recipient,
                 commenter=author,
-                comment_id=cast(int, comment.id),
+                comment_id=comment_id,
                 entity_type=cast(str, ctx.ref_type),
                 entity_id=ctx.entity_id,
                 entity_name=ctx.title,
@@ -979,7 +983,6 @@ async def _process_comment_notifications(
                 # is what has an address. Rolled up per thread all the same.
                 target=ctx.address,
             )
-            notified_user_ids.add(cast(int, owner.id))
 
 
 async def list_comments(

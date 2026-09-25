@@ -109,7 +109,7 @@ async def enqueue(
         # keeps it rather than treating this as delivered.
         return False
     if prefs is None:
-        prefs = await notification_prefs.load_prefs_for_delivery(recipient.id)
+        prefs = await notification_prefs.prefs_for_delivery(recipient)
 
     due = notification_prefs.email_due_at(
         prefs,

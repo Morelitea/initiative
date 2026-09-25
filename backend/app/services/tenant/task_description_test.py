@@ -15,6 +15,7 @@ from app.core.search import SearchEntityType
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.relationship import EntityRelationship
+from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.tenant.relationships import Endpoint
 from app.services.tenant.task_description import newly_mentioned
 from app.testing import create_document, create_task, create_user
@@ -53,8 +54,9 @@ async def _references(session: AsyncSession, guild_id: int, task_id: int) -> set
     return set(rows.all())
 
 
-async def _workspace(acting_user):
-    """A writer, and a teammate in the same initiative for them to name."""
+async def _workspace(acting_user, session: AsyncSession):
+    """A writer, and a teammate in the same initiative for them to name, in a
+    project every member of it can read."""
     writer = await acting_user(
         guild_role=GuildRole.member, initiative=True, project=True
     )
@@ -64,6 +66,17 @@ async def _workspace(acting_user):
         initiative=writer.initiative,
         initiative_role="member",
     )
+    await route_session_to_guild(session, writer.guild.id)
+    session.add(
+        ResourceGrant(
+            resource_type="project",
+            resource_id=writer.project.id,
+            all_initiative_members=True,
+            level=ResourceAccessLevel.read,
+            initiative_id=writer.project.initiative_id,
+        )
+    )
+    await session.commit()
     return writer, teammate
 
 
@@ -71,7 +84,7 @@ async def _workspace(acting_user):
 async def test_creating_a_task_tells_whoever_its_description_names(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    writer, teammate = await _workspace(acting_user)
+    writer, teammate = await _workspace(acting_user, session)
 
     response = await client.post(
         writer.g("/tasks/"),
@@ -87,7 +100,8 @@ async def test_creating_a_task_tells_whoever_its_description_names(
 
     [notice] = await _mentions_for(session, teammate.user.id)
     assert notice["task_id"] == task_id
-    assert notice["task_title"] == "Ship it"
+    # The title is guild content: the bell reads it back from ``task_id``.
+    assert "task_title" not in notice
     assert notice["target_path"] == f"/go/task/{task_id}"
 
 
@@ -95,7 +109,7 @@ async def test_creating_a_task_tells_whoever_its_description_names(
 async def test_an_edit_tells_only_the_people_it_adds(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    writer, teammate = await _workspace(acting_user)
+    writer, teammate = await _workspace(acting_user, session)
     newcomer = await acting_user(
         guild_role=GuildRole.member,
         guild=writer.guild,
@@ -208,7 +222,7 @@ async def test_a_description_s_hash_becomes_the_task_s_reference(
 async def test_a_duplicate_points_where_its_original_does_and_tells_nobody(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    writer, teammate = await _workspace(acting_user)
+    writer, teammate = await _workspace(acting_user, session)
     doc = await create_document(session, writer.initiative, writer.user)
     task = await create_task(
         session,

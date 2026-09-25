@@ -77,6 +77,13 @@ class Notification(SQLModel, table=True):
             "tool",
             postgresql_where=text("read_at IS NULL"),
         ),
+        # What the retention sweep asks for: read rows by when they were read.
+        # Partial, so the unread rows it never touches stay out of it.
+        Index(
+            "ix_notifications_read_at",
+            "read_at",
+            postgresql_where=text("read_at IS NOT NULL"),
+        ),
     )
 
     id: Optional[int] = Field(default=None, primary_key=True)

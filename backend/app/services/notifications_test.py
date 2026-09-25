@@ -37,12 +37,16 @@ from app.services.notifications import (
     ASSIGNMENT_ITEM_RETENTION,
     ASSIGNMENT_MAX_WINDOW,
     ASSIGNMENT_QUIET_PERIOD,
-    _format_event_when,
+    notify_initiative_membership,
+)
+from app.services.notifications.digests import (
     _run_assignment_digest_pass,
     _run_assignment_gc_pass,
+)
+from app.services.notifications.notifiers import _format_event_when
+from app.services.notifications.sweeps import (
     _run_event_reminder_pass,
     _run_overdue_pass,
-    notify_initiative_membership,
 )
 from app.models.platform.guild import Guild, GuildRole
 from app.testing import (
@@ -1055,7 +1059,7 @@ async def test_reaction_digest_gathers_across_guilds_and_marks_processed(
     so it must show the same cross-guild behaviour: gather from every guild the
     user belongs to, send once, mark processed in each schema."""
     from app.models.tenant.reaction_digest import ReactionDigestItem
-    from app.services.notifications import _run_reaction_digest_pass
+    from app.services.notifications.reactions import _run_reaction_digest_pass
 
     user = await create_user(session, email="reaction-digest@example.com")
     guild_a = await _reaction_item_in_new_guild(session, user, label="Alpha")
@@ -1097,7 +1101,7 @@ async def test_reaction_digest_waits_for_the_flurry_to_end(
 ):
     """Reactions arrive in bursts more than anything else in the app, so the
     quiet period matters most here."""
-    from app.services.notifications import _run_reaction_digest_pass
+    from app.services.notifications.reactions import _run_reaction_digest_pass
 
     user = await create_user(session, email="reaction-debounce@example.com")
     await _reaction_item_in_new_guild(session, user, label="Alpha")
@@ -1135,7 +1139,7 @@ async def test_reaction_digest_waits_for_the_flurry_to_end(
 async def test_reaction_digest_respects_the_opt_out(session: AsyncSession, monkeypatch):
     """The reaction gate is its own: switching reactions off must not need the
     mention or assignment preferences touched, and must not silence them."""
-    from app.services.notifications import _run_reaction_digest_pass
+    from app.services.notifications.reactions import _run_reaction_digest_pass
 
     user = await create_user(
         session,
@@ -1171,7 +1175,10 @@ class TestReactionBellRollup:
     makes of a line written before reactions rolled up at all."""
 
     def test_a_pre_rollup_line_counts_as_the_one_reaction_it_named(self):
-        from app.services.notifications import _rolled_up_count, _rolled_up_reactions
+        from app.services.notifications.reactions import (
+            _rolled_up_count,
+            _rolled_up_reactions,
+        )
 
         legacy = {
             "emoji": "\N{THUMBS UP SIGN}",
@@ -1189,7 +1196,10 @@ class TestReactionBellRollup:
         ]
 
     def test_an_empty_payload_stands_for_nothing(self):
-        from app.services.notifications import _rolled_up_count, _rolled_up_reactions
+        from app.services.notifications.reactions import (
+            _rolled_up_count,
+            _rolled_up_reactions,
+        )
 
         assert _rolled_up_count({}) == 0
         assert _rolled_up_reactions({}) == []
@@ -1197,10 +1207,8 @@ class TestReactionBellRollup:
     def test_the_named_reactions_are_capped_but_the_counts_are_not(self):
         """The detail rolls off; what the sentence says must not. A line that
         forgot its oldest reactions still knows how big its crowd is."""
-        from app.services.notifications import (
-            MAX_ROLLED_UP_REACTIONS,
-            _reaction_line,
-        )
+        from app.services.notifications import MAX_ROLLED_UP_REACTIONS
+        from app.services.notifications.reactions import _reaction_line
 
         entries = [
             {
@@ -1215,7 +1223,6 @@ class TestReactionBellRollup:
             entries,
             count=len(entries),
             reactor_ids=[entry["reactor_id"] for entry in entries],
-            context_title="a task",
             target_path="/go/task/1",
             smart_link=None,
             target_type="comment",
@@ -1231,10 +1238,8 @@ class TestReactionBellRollup:
     def test_the_roster_keeps_growing_after_the_detail_rolls_off(self):
         """A cap on the roster would be a cap on the truth — the count would
         freeze on exactly the comment where the number matters most."""
-        from app.services.notifications import (
-            MAX_ROLLED_UP_REACTIONS,
-            _reaction_line,
-        )
+        from app.services.notifications import MAX_ROLLED_UP_REACTIONS
+        from app.services.notifications.reactions import _reaction_line
 
         crowd = list(range(MAX_ROLLED_UP_REACTIONS * 10))
         line = _reaction_line(
@@ -1249,7 +1254,6 @@ class TestReactionBellRollup:
             ],
             count=len(crowd),
             reactor_ids=crowd,
-            context_title="a task",
             target_path="/go/task/1",
             smart_link=None,
             target_type="comment",
@@ -1260,7 +1264,7 @@ class TestReactionBellRollup:
         assert len(line["reactions"]) == MAX_ROLLED_UP_REACTIONS
 
     def test_a_pre_roster_line_reads_its_crowd_off_the_reactions_it_kept(self):
-        from app.services.notifications import _rolled_up_reactor_ids
+        from app.services.notifications.reactions import _rolled_up_reactor_ids
 
         assert _rolled_up_reactor_ids(
             {
@@ -1279,7 +1283,7 @@ class TestReactionBellRollup:
     def test_a_pre_rollup_gesture_is_matched_by_who_reacted_and_with_what(self):
         """Such a line carries no reaction id, so an un-react would never match
         it on id alone and the line would keep claiming the reaction stands."""
-        from app.services.notifications import _matches_withdrawn
+        from app.services.notifications.reactions import _matches_withdrawn
 
         legacy = {
             "id": None,
