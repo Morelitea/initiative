@@ -4,7 +4,7 @@
  * The panel has always split connections by who supplies them. The newer split
  * is inside the guild half: some are a form an admin fills in, and some are
  * granted at the vendor — an organization-wide install on the vendor's own
- * page, which no text box can express. A connection with a `connect_path` gets
+ * page, which no text box can express. A connection that runs a flow gets
  * a button instead of inputs, and what came back is shown rather than reduced
  * to "Set", because an admin who just chose an account needs to be able to see
  * which one they chose.
@@ -38,13 +38,14 @@ const base: AppConnection = {
   values: {},
   has_value: {},
   satisfied: false,
+  runs_flow: false,
   blocked: false,
 };
 
 /** The community's own credential, granted at the vendor rather than typed. */
 const vendorFlow: AppConnection = {
   ...base,
-  connect_path: "/install/github",
+  runs_flow: true,
   fields: [{ key: "owner", type: "string", label: { en: "Owner" }, required: true, managed: true }],
 };
 
@@ -74,8 +75,8 @@ describe("a community credential granted at the vendor", () => {
     render(vendorFlow);
 
     expect(await screen.findByRole("button", { name: "Connect" })).toBeInTheDocument();
-    // Every field is written back by the app, so there is nothing to type and
-    // nothing to save.
+    // Every field is filled when the flow finishes, so there is nothing to type
+    // and nothing to save.
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
   });
@@ -126,5 +127,30 @@ describe("a community credential that is typed", () => {
     expect(await screen.findByLabelText(/Shop domain/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Connect" })).not.toBeInTheDocument();
+  });
+});
+
+describe("a member's own account", () => {
+  const personal: AppConnection = {
+    ...base,
+    id: "account",
+    scope: "interactive",
+    label: { en: "GitHub account" },
+    runs_flow: true,
+    fields: [{ key: "login", type: "string", label: { en: "Login" }, managed: true }],
+  };
+
+  it("says an expired connection has to be made again, and offers to", async () => {
+    render({ ...personal, status: "expired", account_label: "@alice" });
+
+    expect(await screen.findByText(/connect again/i)).toBeInTheDocument();
+    expect(screen.queryByText(/@alice/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reconnect" })).toBeInTheDocument();
+  });
+
+  it("names the account a working connection is for", async () => {
+    render({ ...personal, status: "connected", account_label: "@alice" });
+
+    expect(await screen.findByText(/@alice/)).toBeInTheDocument();
   });
 });

@@ -35,7 +35,7 @@ export interface AppConnectionField {
   label: LocalizedText;
   required?: boolean;
   options?: string[];
-  /** Written by the app itself when it finishes a vendor flow — never typed. */
+  /** Returned by the app when a vendor flow finishes — never typed. */
   managed?: boolean;
 }
 
@@ -58,8 +58,10 @@ export interface AppConnection {
   /** Which fields hold a value. The whole of what a read discloses. */
   has_value: Record<string, boolean>;
   satisfied: boolean;
-  connect_path?: string | null;
-  /** The *viewer's own* state, for an interactive connection. */
+  /** Established through the vendor's own flow, which Initiative runs. */
+  runs_flow: boolean;
+  /** The *viewer's own* state, for an interactive connection: `pending`,
+   *  `connected`, `expired` (connect again) or `blocked`. */
   status?: string | null;
   account_label?: string | null;
   blocked: boolean;
@@ -128,15 +130,13 @@ export interface GuildAppDetail {
 
 export interface AppConnectStart {
   connection_id: string;
-  connection_ref: string;
-  connect_path: string;
   /**
-   * Where to send the member: the app's own address, assembled server-side from
-   * the deployment's registration plus the manifest's path, carrying the opaque
-   * handle the app stores its result against. Absent when this deployment has
-   * no live registration for the app — there is nowhere to send anyone.
+   * Where to send the person: the vendor's authorization page, or its install
+   * page for a connection an organization installs. Initiative runs the flow
+   * and the vendor returns the person to Initiative's callback.
    */
-  connect_url?: string | null;
+  connect_url: string;
+  /** The viewer's state on this connection before the flow runs. */
   status: string;
 }
 

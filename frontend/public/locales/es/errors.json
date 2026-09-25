@@ -754,5 +754,11 @@
   "GUILD_RESTORE_STATUS_SET_BY_BILLING": "La facturación fija el estado de esta comunidad. Restáurala con el estado que la facturación fijó por última vez, o suspendida.",
   "OPERATOR_USER_NOT_DELETED": "Esa cuenta no se ha eliminado, así que no hay nada que restaurar.",
   "CONNECTION_NEEDS_NARROWING": "Indica qué cuentas de este proveedor son tuyas antes de activar la conexión.",
-  "SUPPORT_INTAKE_NOT_CONFIGURED": "Configure la recepción de soporte antes de ofrecer solicitudes de ayuda: vincule el flujo de soporte a un proyecto en Configuración de la plataforma › Entradas."
+  "SUPPORT_INTAKE_NOT_CONFIGURED": "Configure la recepción de soporte antes de ofrecer solicitudes de ayuda: vincule el flujo de soporte a un proyecto en Configuración de la plataforma › Entradas.",
+  "GUILD_APP_CONNECTION_VENDOR_NOT_CONFIGURED": "La conexión de esta app aún no está configurada en este servidor. Avisa a quien lo administra.",
+  "APP_SERVICE_UNKNOWN_VENDOR_FIELD": "Ese valor no es uno que pida la ficha de esta app.",
+  "APP_SERVICE_INVALID_VENDOR_VALUE": "Ese valor no es válido. Revisa su longitud y que una dirección empiece por https:// o http://.",
+  "APP_CHANNEL_CONNECTION_EXPIRED": "Esa conexión ha caducado y el miembro tiene que volver a conectar.",
+  "APP_CHANNEL_CONNECTION_NO_TOKEN": "Esa conexión no tiene ningún token que entregar.",
+  "APP_CHANNEL_TOKEN_UNAVAILABLE": "El proveedor no entregó un token. Inténtalo de nuevo en un momento."
 }

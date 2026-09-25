@@ -754,5 +754,11 @@
   "GUILD_RESTORE_STATUS_SET_BY_BILLING": "La facturation fixe le statut de cette communauté. Restaurez-la avec le statut que la facturation a fixé en dernier, ou suspendue.",
   "OPERATOR_USER_NOT_DELETED": "Ce compte n'a pas été supprimé, il n'y a donc rien à restaurer.",
   "CONNECTION_NEEDS_NARROWING": "Indiquez quels comptes de ce fournisseur sont les vôtres avant d'activer la connexion.",
-  "SUPPORT_INTAKE_NOT_CONFIGURED": "Configurez la réception du support avant de proposer les demandes d’aide : reliez le flux de support à un projet dans Paramètres de la plateforme › Réception."
+  "SUPPORT_INTAKE_NOT_CONFIGURED": "Configurez la réception du support avant de proposer les demandes d’aide : reliez le flux de support à un projet dans Paramètres de la plateforme › Réception.",
+  "GUILD_APP_CONNECTION_VENDOR_NOT_CONFIGURED": "La connexion de cette app n'est pas encore configurée sur ce serveur. Prévenez la personne qui l'administre.",
+  "APP_SERVICE_UNKNOWN_VENDOR_FIELD": "Cette valeur n'est pas demandée par la fiche de cette app.",
+  "APP_SERVICE_INVALID_VENDOR_VALUE": "Cette valeur n'est pas valide. Vérifiez sa longueur, et qu'une adresse commence par https:// ou http://.",
+  "APP_CHANNEL_CONNECTION_EXPIRED": "Cette connexion a expiré et le membre doit se reconnecter.",
+  "APP_CHANNEL_CONNECTION_NO_TOKEN": "Cette connexion ne détient aucun jeton à fournir.",
+  "APP_CHANNEL_TOKEN_UNAVAILABLE": "Le fournisseur n'a pas fourni de jeton. Réessayez dans un instant."
 }

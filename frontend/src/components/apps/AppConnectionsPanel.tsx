@@ -11,7 +11,7 @@
  *   admin fills it in; everyone else sees whether it is set, because whether an
  *   app can do its job is not a secret. Some are typed and some are not: where
  *   the vendor authorizes an organization through a page of its own, the admin
- *   is sent there and the app writes down what came back, so the form has
+ *   is sent there and Initiative records what came back, so the form has
  *   nothing in it and a button instead.
  * - A **personal connection** is each member's own account at a vendor that
  *   authorizes people rather than organizations. Every member sees their own
@@ -149,13 +149,13 @@ function GuildConnection({
   // untouched keys would clear the values the admin came here to keep.
   const touched = Object.keys(draft);
 
-  // A field the app writes back itself is never typed here, so a connection
-  // whose every field is managed has no form at all — which is exactly the
-  // case a `connect_path` exists for.
+  // A managed field is filled when a vendor flow finishes, never typed here,
+  // so a connection whose every field is managed has no form at all — which is
+  // exactly the case a flow exists for.
   const typed = connection.fields.filter((field) => !field.managed);
-  const vendorFlow = Boolean(connection.connect_path);
+  const vendorFlow = connection.runs_flow;
 
-  // What the app wrote back, shown rather than reduced to "Set". Otherwise the
+  // What the flow recorded, shown rather than reduced to "Set". Otherwise the
   // admin who just chose an account at a vendor has no way to see which one
   // they chose — and no way to notice they chose the wrong one. Secrets are
   // absent by construction: `values` carries the non-secret half and the other
@@ -168,8 +168,9 @@ function GuildConnection({
     connect.mutate(connection.id, {
       onSuccess: (started) => {
         // A new tab rather than a redirect, so the admin comes back to where
-        // they were; `noopener` keeps the app's page from reaching into this
-        // one. The address is the server's to build — see PersonalConnection.
+        // they were; `noopener` keeps the vendor's page from reaching into
+        // this one. The address is the server's to build — see
+        // PersonalConnection.
         if (started.connect_url) {
           window.open(started.connect_url, "_blank", "noopener,noreferrer");
           toast.success(t("apps:connections.connectOpened"));
@@ -374,19 +375,15 @@ function PersonalConnection({ appId, connection }: { appId: number; connection: 
   const start = () =>
     connect.mutate(connection.id, {
       onSuccess: (started) => {
-        // The vendor's flow runs at the app's own URL, which the server
-        // assembles from the deployment's registration — the client never
-        // builds that address and never needs to know it. A new tab rather
-        // than a redirect, so the member comes back to where they were, and
-        // `noopener` keeps the app's page from reaching into this one.
+        // The server builds the vendor's address; the client never does. A
+        // new tab rather than a redirect, so the member comes back to where
+        // they were, and `noopener` keeps the vendor's page from reaching into
+        // this one.
         if (started.connect_url) {
           window.open(started.connect_url, "_blank", "noopener,noreferrer");
           toast.success(t("apps:connections.connectOpened"));
           return;
         }
-        // Nowhere to send them: this deployment has no live registration for
-        // the app. The connection row and its handle still exist, which is why
-        // this is a message rather than a failure.
         toast.error(t("apps:connections.connectUnavailable"));
       },
       onError: (error) => toast.error(getErrorMessage(error, "apps:error")),
@@ -407,7 +404,14 @@ function PersonalConnection({ appId, connection }: { appId: number; connection: 
         </p>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
-          {connection.status ? (
+          {connection.status === "expired" ? (
+            // The vendor would not renew it: nothing reaches it until the
+            // member connects again.
+            <span className="flex items-center gap-1.5 text-amber-600 text-sm dark:text-amber-400">
+              <TriangleAlert className="h-4 w-4" aria-hidden />
+              {t("apps:connections.expired")}
+            </span>
+          ) : connection.status ? (
             <span className="flex items-center gap-1.5 text-sm">
               <ShieldCheck className="h-4 w-4 text-muted-foreground" aria-hidden />
               {connection.account_label

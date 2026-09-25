@@ -90,8 +90,10 @@
     "status": {
       "pending": "Waiting to finish",
       "connected": "Connected",
-      "blocked": "Blocked"
-    }
+      "blocked": "Blocked",
+      "expired": "Expired"
+    },
+    "expired": "This connection has run out. Connect again to keep using it."
   },
   "members": {
     "title": "Members",

@@ -754,5 +754,11 @@
   "GUILD_RESTORE_STATUS_SET_BY_BILLING": "Billing sets this community's status. Restore it at the status billing last set, or suspended.",
   "OPERATOR_USER_NOT_DELETED": "That account has not been deleted, so there is nothing to restore.",
   "CONNECTION_NEEDS_NARROWING": "Say which accounts on this provider are yours before turning the connection on.",
-  "SUPPORT_INTAKE_NOT_CONFIGURED": "Set up support intake before offering help requests — bind the support stream to a project under Platform settings › Intake."
+  "SUPPORT_INTAKE_NOT_CONFIGURED": "Set up support intake before offering help requests — bind the support stream to a project under Platform settings › Intake.",
+  "GUILD_APP_CONNECTION_VENDOR_NOT_CONFIGURED": "This app's connection isn't set up on this server yet. Let whoever runs it know.",
+  "APP_SERVICE_UNKNOWN_VENDOR_FIELD": "That value isn't one this app's listing asks for.",
+  "APP_SERVICE_INVALID_VENDOR_VALUE": "That value isn't valid. Check its length, and that an address starts with https:// or http://.",
+  "APP_CHANNEL_CONNECTION_EXPIRED": "That connection has run out, and the member has to connect again.",
+  "APP_CHANNEL_CONNECTION_NO_TOKEN": "That connection holds no token to give.",
+  "APP_CHANNEL_TOKEN_UNAVAILABLE": "The vendor didn't give a token. Try again shortly."
 }

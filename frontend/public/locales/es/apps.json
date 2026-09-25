@@ -90,8 +90,10 @@
     "status": {
       "pending": "Pendiente de terminar",
       "connected": "Conectada",
-      "blocked": "Bloqueada"
-    }
+      "blocked": "Bloqueada",
+      "expired": "Caducada"
+    },
+    "expired": "Esta conexión ha caducado. Vuelve a conectar para seguir usándola."
   },
   "members": {
     "title": "Miembros",

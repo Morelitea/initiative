@@ -85,6 +85,10 @@ export const SettingsAppServicesPage = () => {
             // Always sent, so emptying the field clears the address.
             jwks_uri: values.jwksUri,
             mandatory: values.mandatory,
+            // Only the values that were typed; a secret left alone is kept.
+            ...(Object.keys(values.vendorValues).length > 0
+              ? { vendor_values: values.vendorValues }
+              : {}),
           },
         },
         {
@@ -302,6 +306,7 @@ export const SettingsAppServicesPage = () => {
                       </p>
                     )}
                     {keysMissing && <p>{t("appServices.noKeysHelp")}</p>}
+                    {!registration.vendor_ready && <p>{t("appServices.vendorMissingHelp")}</p>}
                     {registration.mandatory && <p>{t("appServices.mandatoryHelp")}</p>}
                   </div>
                 </li>

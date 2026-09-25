@@ -754,5 +754,11 @@
   "GUILD_RESTORE_STATUS_SET_BY_BILLING": "Die Abrechnung legt den Status dieser Community fest. Stelle sie mit dem zuletzt von der Abrechnung gesetzten Status oder als gesperrt wieder her.",
   "OPERATOR_USER_NOT_DELETED": "Dieses Konto wurde nicht gelöscht, es gibt also nichts wiederherzustellen.",
   "CONNECTION_NEEDS_NARROWING": "Gib an, welche Konten bei diesem Anbieter deine sind, bevor du die Verbindung einschaltest.",
-  "SUPPORT_INTAKE_NOT_CONFIGURED": "Richten Sie zuerst die Support-Annahme ein, bevor Sie Hilfeanfragen anbieten – verknüpfen Sie den Support-Stream unter Plattformeinstellungen › Eingang mit einem Projekt."
+  "SUPPORT_INTAKE_NOT_CONFIGURED": "Richten Sie zuerst die Support-Annahme ein, bevor Sie Hilfeanfragen anbieten – verknüpfen Sie den Support-Stream unter Plattformeinstellungen › Eingang mit einem Projekt.",
+  "GUILD_APP_CONNECTION_VENDOR_NOT_CONFIGURED": "Die Verbindung dieser App ist auf diesem Server noch nicht eingerichtet. Gib der Person Bescheid, die ihn betreibt.",
+  "APP_SERVICE_UNKNOWN_VENDOR_FIELD": "Diesen Wert verlangt der Eintrag dieser App nicht.",
+  "APP_SERVICE_INVALID_VENDOR_VALUE": "Dieser Wert ist ungültig. Prüfe seine Länge und dass eine Adresse mit https:// oder http:// beginnt.",
+  "APP_CHANNEL_CONNECTION_EXPIRED": "Diese Verbindung ist abgelaufen, und das Mitglied muss sich erneut verbinden.",
+  "APP_CHANNEL_CONNECTION_NO_TOKEN": "Diese Verbindung hält kein Token, das ausgegeben werden kann.",
+  "APP_CHANNEL_TOKEN_UNAVAILABLE": "Der Anbieter hat kein Token ausgegeben. Versuche es gleich noch einmal."
 }

@@ -438,7 +438,7 @@ export function useReadAppServiceApiV1AppServicesRegistrationIdGet<
 
 /**
  * Enable/disable, change the listing, repoint either address, replace the
- * keys, or change the powers conferred.
+ * keys, change the powers conferred, or set the vendor values.
  * @summary Update App Service
  */
 export const updateAppServiceApiV1AppServicesRegistrationIdPatch = (

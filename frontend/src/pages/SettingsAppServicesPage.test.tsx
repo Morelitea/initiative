@@ -24,6 +24,12 @@ const buildRegistration = (
   scope_ceiling: [],
   mandatory: false,
   enabled: true,
+  vendor_fields: [],
+  vendor_values: {},
+  vendor_set: [],
+  vendor_ready: true,
+  connection_callback_url: "https://initiative.example.com/api/v1/app-connections/callback",
+  connection_setup_url: "https://initiative.example.com/api/v1/app-connections/setup",
   live: true,
   created_at: "2026-08-01T00:00:00.000Z",
   updated_at: "2026-08-12T09:00:00.000Z",
@@ -241,6 +247,49 @@ describe("SettingsAppServicesPage", () => {
       // The stored key set is shown in the box and sent back as it was.
       expect(data.jwks).toEqual(registrations[0].jwks);
       expect(data).not.toHaveProperty("secret");
+    });
+
+    it("asks for the vendor values the listing declares, keeping a secret left alone", async () => {
+      const user = userEvent.setup();
+      registrations = [
+        buildRegistration({
+          vendor_fields: [
+            { key: "client_id", type: "string", required: true, label: { en: "Client id" } },
+            { key: "client_secret", type: "secret", required: true, label: { en: "Secret" } },
+          ],
+          vendor_values: { client_id: "gh-app" },
+          vendor_set: ["client_id", "client_secret"],
+        }),
+      ];
+      renderAsOperator();
+
+      await user.click(screen.getByRole("button", { name: "Edit" }));
+      const clientId = await screen.findByLabelText(/Client id/);
+      expect(clientId).toHaveValue("gh-app");
+      // A stored secret is never sent back, only that it is set.
+      const secret = screen.getByLabelText(/Secret/);
+      expect(secret).toHaveValue("");
+      expect(secret).toHaveAttribute("placeholder", "Set. Type to replace it.");
+      // Where the vendor sends people back, to register with it.
+      expect(screen.getByLabelText("Callback address")).toHaveValue(
+        "https://initiative.example.com/api/v1/app-connections/callback"
+      );
+      expect(screen.getByLabelText("Setup address")).toHaveValue(
+        "https://initiative.example.com/api/v1/app-connections/setup"
+      );
+
+      await user.clear(clientId);
+      await user.type(clientId, "gh-app-2");
+      await user.click(screen.getByRole("button", { name: "Save" }));
+
+      expect(updateMutate.mock.calls[0][0].data.vendor_values).toEqual({ client_id: "gh-app-2" });
+    });
+
+    it("says a registration waits on its vendor values", () => {
+      registrations = [buildRegistration({ vendor_ready: false, live: false })];
+      renderAsOperator();
+
+      expect(screen.getByText(/Not live until its vendor client is set/)).toBeInTheDocument();
     });
 
     it("clears the pasted key set when the box is emptied", async () => {

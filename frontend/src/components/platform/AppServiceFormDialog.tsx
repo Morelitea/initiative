@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { parseAllowedOrigins } from "@/lib/appServices";
+import { localized } from "@/lib/widgets/widgetMeta";
 
 /** What the operator stated, before it is shaped into a create or a patch. */
 export interface AppServiceFormValues {
@@ -31,6 +32,8 @@ export interface AppServiceFormValues {
   /** Where the app publishes its key set, or "" for none. */
   jwksUri: string;
   mandatory: boolean;
+  /** Vendor values that were typed, by key. "" clears one; a key left out is kept. */
+  vendorValues: Record<string, string>;
 }
 
 interface FormState {
@@ -42,6 +45,7 @@ interface FormState {
   jwks: string;
   jwksUri: string;
   mandatory: boolean;
+  vendorValues: Record<string, string>;
 }
 
 const EMPTY_FORM: FormState = {
@@ -53,6 +57,7 @@ const EMPTY_FORM: FormState = {
   jwks: "",
   jwksUri: "",
   mandatory: false,
+  vendorValues: {},
 };
 
 export interface AppServiceFormDialogProps {
@@ -67,8 +72,10 @@ export interface AppServiceFormDialogProps {
 /**
  * Register or edit one app service.
  *
- * Nothing on a registration is secret: its keys are public keys, either
- * pasted as a key set or fetched from the address the app publishes them at.
+ * Its keys are public keys, either pasted as a key set or fetched from the
+ * address the app publishes them at. The one secret a registration holds is
+ * what the operator supplies for the app's vendor client, as the app's listing
+ * asks for it: a secret value is written here and never shown again.
  */
 export const AppServiceFormDialog = ({
   open,
@@ -77,7 +84,7 @@ export const AppServiceFormDialog = ({
   saving,
   onSubmit,
 }: AppServiceFormDialogProps) => {
-  const { t } = useTranslation("settings");
+  const { t, i18n } = useTranslation("settings");
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   // Only whether the paste is JSON at all. Whether it is a key set we could
   // verify against is the server's answer, and it gives a message code.
@@ -97,6 +104,7 @@ export const AppServiceFormDialog = ({
         jwks: editing.jwks ? JSON.stringify(editing.jwks, null, 2) : "",
         jwksUri: editing.jwks_uri ?? "",
         mandatory: editing.mandatory,
+        vendorValues: {},
       });
     } else {
       setForm(EMPTY_FORM);
@@ -133,8 +141,13 @@ export const AppServiceFormDialog = ({
       allowedOrigins: parseAllowedOrigins(form.allowedOrigins),
       jwksUri: form.jwksUri.trim(),
       mandatory: form.mandatory,
+      vendorValues: Object.fromEntries(
+        Object.entries(form.vendorValues).map(([key, value]) => [key, value.trim()])
+      ),
     });
   };
+
+  const vendorFields = editing?.vendor_fields ?? [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -265,6 +278,97 @@ export const AppServiceFormDialog = ({
               </div>
             </div>
           </fieldset>
+
+          {editing && vendorFields.length > 0 && (
+            <fieldset className="rounded-md border p-3">
+              <legend className="float-left w-full font-medium text-sm">
+                {t("appServices.vendorTitle")}
+              </legend>
+              <div className="clear-both space-y-3">
+                <p className="text-muted-foreground text-xs">{t("appServices.vendorHelp")}</p>
+
+                {vendorFields.map((field) => {
+                  const id = `app-service-vendor-${field.key}`;
+                  const isSecret = field.type === "secret";
+                  const isSet = editing.vendor_set.includes(field.key);
+                  const typed = form.vendorValues[field.key];
+                  const value = typed ?? (isSecret ? "" : (editing.vendor_values[field.key] ?? ""));
+                  return (
+                    <div key={field.key} className="space-y-2">
+                      <Label htmlFor={id}>
+                        {localized(field.label, i18n.language) ?? field.key}
+                        {field.required && <span aria-hidden> *</span>}
+                      </Label>
+                      {/* A secret may be a PEM key, which spans lines. */}
+                      {isSecret ? (
+                        <Textarea
+                          id={id}
+                          value={value}
+                          onChange={(event) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              vendorValues: {
+                                ...prev.vendorValues,
+                                [field.key]: event.target.value,
+                              },
+                            }))
+                          }
+                          rows={3}
+                          className="font-mono text-xs"
+                          placeholder={
+                            isSet ? t("appServices.vendorSecretSet") : t("appServices.vendorEmpty")
+                          }
+                          autoComplete="off"
+                          spellCheck={false}
+                        />
+                      ) : (
+                        <Input
+                          id={id}
+                          type={field.type === "url" ? "url" : "text"}
+                          value={value}
+                          onChange={(event) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              vendorValues: {
+                                ...prev.vendorValues,
+                                [field.key]: event.target.value,
+                              },
+                            }))
+                          }
+                          placeholder={t("appServices.vendorEmpty")}
+                          autoComplete="off"
+                          spellCheck={false}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+
+                <div className="space-y-2">
+                  <p className="font-medium text-sm">{t("appServices.redirectTitle")}</p>
+                  <p className="text-muted-foreground text-xs">{t("appServices.redirectHelp")}</p>
+                  <Label htmlFor="app-service-callback-url">
+                    {t("appServices.callbackUrlLabel")}
+                  </Label>
+                  <Input
+                    id="app-service-callback-url"
+                    value={editing.connection_callback_url}
+                    readOnly
+                    className="font-mono text-xs"
+                    onFocus={(event) => event.target.select()}
+                  />
+                  <Label htmlFor="app-service-setup-url">{t("appServices.setupUrlLabel")}</Label>
+                  <Input
+                    id="app-service-setup-url"
+                    value={editing.connection_setup_url}
+                    readOnly
+                    className="font-mono text-xs"
+                    onFocus={(event) => event.target.select()}
+                  />
+                </div>
+              </div>
+            </fieldset>
+          )}
 
           <div className="space-y-2 rounded-md border border-amber-500/50 p-3">
             <div className="flex items-start justify-between gap-3">
