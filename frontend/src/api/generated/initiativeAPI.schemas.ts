@@ -2168,6 +2168,22 @@ export const ClientKind = {
   unknown: "unknown",
 } as const;
 
+export type CollaborationHandoverContent = { [key: string]: unknown } | null;
+
+/**
+ * Edits a tab made while its room's socket was closed, handed over as the
+ * tab leaves.
+ *
+ * ``update`` is the Yjs update the room has not seen and ``state_vector`` is
+ * the tab's own, so the room can tell whether ``content`` — the editor's
+ * rendering of the tab's document — also describes the merged one.
+ */
+export interface CollaborationHandover {
+  update: Blob;
+  state_vector: Blob;
+  content?: CollaborationHandoverContent;
+}
+
 /**
  * How a profile is dressed: a banner, a frame, trophies under it.
  *
@@ -10945,10 +10961,12 @@ export type ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams = {
   user_id?: number[] | null;
 };
 
-export type GetDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet200Item =
-  { [key: string]: unknown };
+export type HandOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePostParams =
+  {
+    token?: string | null;
+  };
 
-export type SyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostParams =
+export type HandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostParams =
   {
     token?: string | null;
   };

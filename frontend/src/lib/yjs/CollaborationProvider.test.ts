@@ -318,3 +318,43 @@ describe("joining a connection that already exists", () => {
     expect(first.destroyed).toBe(true);
   });
 });
+
+describe("edits made without a socket", () => {
+  it("has nothing to hand over while the socket is open", () => {
+    const doc = new Y.Doc();
+    const { provider, socket } = connect(doc);
+    socket.deliver(MSG_SYNC_STEP2, Y.encodeStateAsUpdate(new Y.Doc()));
+    doc.getMap("cells").set("A1", "sent live");
+
+    expect(provider.unsentEdits()).toBeNull();
+  });
+
+  it("hands over what was written after the socket dropped", () => {
+    const doc = new Y.Doc();
+    const { provider, socket } = connect(doc);
+    socket.deliver(MSG_SYNC_STEP1, stateVectorOf(new Y.Doc()));
+    socket.deliver(MSG_SYNC_STEP2, Y.encodeStateAsUpdate(new Y.Doc()));
+    socket.drop();
+    expect(provider.unsentEdits()).toBeNull();
+
+    doc.getMap("cells").set("A1", "written offline");
+    const unsent = provider.unsentEdits();
+
+    expect(unsent).not.toBeNull();
+    const room = new Y.Doc();
+    Y.applyUpdate(room, (unsent as { update: Uint8Array }).update);
+    expect(room.getMap("cells").get("A1")).toBe("written offline");
+  });
+
+  it("has nothing further once they are handed over", () => {
+    const doc = new Y.Doc();
+    const { provider, socket } = connect(doc);
+    socket.deliver(MSG_SYNC_STEP2, Y.encodeStateAsUpdate(new Y.Doc()));
+    socket.drop();
+    doc.getMap("cells").set("A1", "written offline");
+
+    provider.handedOver((provider.unsentEdits() as { stateVector: Uint8Array }).stateVector);
+
+    expect(provider.unsentEdits()).toBeNull();
+  });
+});

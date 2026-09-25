@@ -312,7 +312,7 @@ async def test_a_room_is_clean_once_its_revision_reaches_the_row() -> None:
     room.apply_update(_an_update())
     assert room.is_dirty is True
 
-    await manager.persist_room(1, DOC, 5, RecordingSession())
+    await manager._write_room(room, RecordingSession())
 
     assert room.is_dirty is False
 
@@ -329,7 +329,7 @@ async def test_a_write_that_reaches_no_row_leaves_the_room_unsaved() -> None:
     manager._rooms[(1, DOC, 5)] = room
     room.apply_update(_an_update())
 
-    await manager.persist_room(1, DOC, 5, RecordingSession(rowcount=0))
+    await manager._write_room(room, RecordingSession(rowcount=0))
 
     assert room.is_dirty is True
 
@@ -380,6 +380,77 @@ async def test_an_unchanged_room_is_not_rewritten(monkeypatch) -> None:
 
     assert await manager.persist_dirty_rooms() == 1
     assert written == [6]
+    # Nobody is in either, and both are saved: the sweep retires them.
+    assert manager._rooms == {}
+
+
+@pytest.mark.unit
+async def test_the_sweep_keeps_a_room_somebody_is_in(authority, monkeypatch) -> None:
+    manager = CollaborationManager()
+    occupied, arriving = loaded_room(1, 5), loaded_room(1, 6)
+    manager._rooms[(1, DOC, 5)] = occupied
+    manager._rooms[(1, DOC, 6)] = arriving
+    authority.add(1, 5, member(7))
+    arriving.hold()
+
+    await manager.persist_dirty_rooms()
+
+    assert set(manager._rooms) == {(1, DOC, 5), (1, DOC, 6)}
+
+
+@pytest.mark.unit
+async def test_leaving_saves_then_retires_an_empty_room(monkeypatch) -> None:
+    manager = CollaborationManager()
+    room = loaded_room(1, 5)
+    manager._rooms[(1, DOC, 5)] = room
+    room.apply_update(_an_update())
+    saved: list[int] = []
+
+    async def fake_save(saving):
+        saved.append(saving.resource_id)
+        saving.mark_persisted(saving._revision)
+
+    monkeypatch.setattr(manager, "save", fake_save)
+
+    await manager.leave(1, DOC, 5)
+
+    assert saved == [5]
+    assert manager._rooms == {}
+
+
+@pytest.mark.unit
+async def test_a_failed_save_on_leaving_keeps_the_room_for_the_sweep(
+    monkeypatch,
+) -> None:
+    manager = CollaborationManager()
+    room = loaded_room(1, 5)
+    manager._rooms[(1, DOC, 5)] = room
+    room.apply_update(_an_update())
+
+    async def failing_save(_room):
+        raise RuntimeError("database away")
+
+    monkeypatch.setattr(manager, "save", failing_save)
+
+    await manager.leave(1, DOC, 5)
+
+    assert manager._rooms.get((1, DOC, 5)) is room
+
+
+@pytest.mark.unit
+async def test_a_room_knows_whether_a_client_has_everything_it_has() -> None:
+    from pycrdt import Doc, Text
+
+    room = loaded_room(1, 5)
+    tab = Doc()
+    tab.get("body", type=Text).insert(0, "mine")
+    room.apply_update(bytes(tab.get_update()))
+    assert room.known_to(bytes(tab.get_state())) is True
+
+    peer = Doc()
+    peer.get("body", type=Text).insert(0, "theirs")
+    room.apply_update(bytes(peer.get_update()))
+    assert room.known_to(bytes(tab.get_state())) is False
 
 
 def _an_update() -> bytes:
@@ -477,8 +548,8 @@ async def test_two_writes_of_one_room_do_not_interleave() -> None:
             return None
 
     await asyncio.gather(
-        manager.persist_room(1, DOC, 5, SlowWriteSession()),
-        manager.persist_room(1, DOC, 5, SlowWriteSession()),
+        manager._write_room(room, SlowWriteSession()),
+        manager._write_room(room, SlowWriteSession()),
     )
 
     assert max(concurrent) == 1

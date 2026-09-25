@@ -14,6 +14,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 
+import { toBase64 } from "@/lib/base64";
+import { resolveHeaderlessApiUrl } from "@/lib/uploadUrl";
 import { buildGuildWsUrl } from "@/lib/wsUrl";
 import {
   type CollaborationProvider,
@@ -26,6 +28,9 @@ import { useAuth } from "./useAuth";
 import { useGuilds } from "./useGuilds";
 
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
+
+/** Browsers refuse a keepalive request whose body is past 64 KiB. */
+const KEEPALIVE_LIMIT = 60_000;
 
 export interface UseCollaborationOptions {
   /**
@@ -43,9 +48,9 @@ export interface UseCollaborationOptions {
   onSynced?: () => void;
   onError?: (error: Error) => void;
   /** The editor's rendering of the document as the page leaves, or
-   *  ``undefined`` for none. Handed to the room just before the socket
-   *  closes, so the room's last save carries it: a page's own unmount
-   *  cleanup runs after this hook's, when the socket is already gone. */
+   *  ``undefined`` for none. Handed to the room as the page is hidden or
+   *  left — over the socket, or with the handed-over edits when the socket
+   *  is gone — so the room's last save carries it. */
   finalContent?: () => unknown;
 }
 
@@ -101,6 +106,8 @@ export function useCollaboration({
   const currentWsUrlRef = useRef<string | null>(null);
   // Sync timeout to detect stuck connections
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Where edits made without a socket are handed over: the room's own path.
+  const handoverPathRef = useRef<string | null>(null);
 
   // Create stable callback refs. Allow undefined so we can clear them in the
   // unmount cleanup — otherwise an in-flight reconnect that resolves after
@@ -128,11 +135,59 @@ export function useCollaboration({
     return buildGuildWsUrl(activeGuildId, `collaboration/${socketPath}`);
   }, [isReady, activeGuildId, socketPath]);
 
+  // Hand the room anything this tab has that it has not seen, as the page is
+  // hidden or left. Over the socket when it is open — the rendering is all
+  // the room lacks — and otherwise as a keepalive request that outlives the
+  // page: the edits made while the socket was gone, merged into the room
+  // there, and the rendering with them when it fits.
+  const handOver = useCallback(() => {
+    const provider = providerRef.current;
+    const path = handoverPathRef.current;
+    if (!provider || !path) return;
+    const rendering = finalContentRef.current?.();
+    if (provider.connected) {
+      if (rendering !== undefined) provider.sendContent(rendering);
+      return;
+    }
+    const unsent = provider.unsentEdits();
+    if (!unsent) return;
+    const edits = {
+      update: toBase64(unsent.update),
+      state_vector: toBase64(unsent.stateVector),
+    };
+    let body = JSON.stringify({ ...edits, content: rendering ?? null });
+    if (body.length > KEEPALIVE_LIMIT) body = JSON.stringify(edits);
+    fetch(resolveHeaderlessApiUrl(path), {
+      method: "POST",
+      body,
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      keepalive: body.length <= KEEPALIVE_LIMIT,
+    })
+      .then((response) => {
+        if (response.ok) provider.handedOver(unsent.stateVector);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const onHidden = () => {
+      if (document.visibilityState === "hidden") handOver();
+    };
+    window.addEventListener("pagehide", handOver);
+    document.addEventListener("visibilitychange", onHidden);
+    return () => {
+      window.removeEventListener("pagehide", handOver);
+      document.removeEventListener("visibilitychange", onHidden);
+    };
+  }, [handOver]);
+
   // Clean up provider when URL changes (a guild change, or a move to another
   // body entirely). A renewed credential is not a change: the socket reads it
   // as it writes each first frame.
   useEffect(() => {
     if (currentWsUrlRef.current && currentWsUrlRef.current !== wsUrl) {
+      handOver();
       providerRef.current?.destroy();
       providerRef.current = null;
       // Reset state when switching bodies - critical for navigation
@@ -142,7 +197,9 @@ export function useCollaboration({
       setCollaboratorsReady(false);
     }
     currentWsUrlRef.current = wsUrl;
-  }, [wsUrl]);
+    handoverPathRef.current =
+      wsUrl && activeGuildId ? `/api/v1/c/${activeGuildId}/collaboration/${socketPath}` : null;
+  }, [wsUrl, activeGuildId, socketPath, handOver]);
 
   // Create the provider factory that Lexical's CollaborationPlugin will call
   const providerFactory = useMemo(() => {
@@ -324,9 +381,8 @@ export function useCollaboration({
   // The Strict-Mode cost is just one extra WS setup in dev — acceptable.
   useEffect(() => {
     return () => {
-      // The last rendering goes to the room while the socket is still open.
-      const last = finalContentRef.current?.();
-      if (last !== undefined) providerRef.current?.sendContent(last);
+      // Whatever the room lacks goes to it before the socket closes.
+      handOver();
       providerRef.current?.destroy();
       providerRef.current = null;
       currentWsUrlRef.current = null;
@@ -338,7 +394,7 @@ export function useCollaboration({
       onSyncedRef.current = undefined;
       onErrorRef.current = undefined;
     };
-  }, []);
+  }, [handOver]);
 
   const resume = useCallback(() => {
     providerRef.current?.resume();

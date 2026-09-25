@@ -900,7 +900,7 @@ async def test_upload_token_copies_session_satisfied_providers(
     client: AsyncClient, session: AsyncSession
 ):
     """POST /auth/upload-token mirrors the minting session's ``sat`` claim into
-    the scoped token, so native media loads and the sync-content keepalive pass
+    the scoped token, so native media loads and the collaboration handover pass
     a policy-gated guild exactly when the session itself would — and a legacy
     session mints an empty (fail-closed) set."""
     user = await create_user(session)

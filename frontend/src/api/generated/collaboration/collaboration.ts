@@ -4,335 +4,44 @@
  * Initiative API
  * OpenAPI spec version: 0.72.0
  */
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import type {
-  DataTag,
-  DefinedInitialDataOptions,
-  DefinedUseQueryResult,
   MutationFunction,
   QueryClient,
-  QueryFunction,
-  QueryKey,
-  UndefinedInitialDataOptions,
   UseMutationOptions,
   UseMutationResult,
-  UseQueryOptions,
-  UseQueryResult,
 } from "@tanstack/react-query";
 
 import type {
-  GetDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet200Item,
+  CollaborationHandover,
   HTTPValidationError,
-  SyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostParams,
+  HandOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePostParams,
+  HandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostParams,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
-import type { ErrorType } from "../../mutator";
+import type { ErrorType, BodyType } from "../../mutator";
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
-const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKey: K } => {
-  const result = { queryKey } as T & { queryKey: K };
-  for (const key of Object.keys(query)) {
-    // The explicit queryKey always wins, matching the previous
-    // `{ ...query, queryKey }` spread where it was set last.
-    if (key === "queryKey") continue;
-    Object.defineProperty(result, key, {
-      enumerable: true,
-      configurable: true,
-      get: () => (query as Record<string, unknown>)[key],
-    });
-  }
-  return result;
-};
-
 /**
- * Get the list of current collaborators on a document.
- * @summary Get Document Collaborators
+ * Merge edits a tab made while its socket was closed into the document.
+ * @summary Hand Over Document Edits
  */
-export const getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet =
-  (
-    guildId: number,
-    documentId: number,
-    options?: SecondParameter<typeof apiMutator>,
-    signal?: AbortSignal
-  ) => {
-    return apiMutator<
-      GetDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet200Item[]
-    >(
-      {
-        url: `/api/v1/c/${guildId}/collaboration/documents/${documentId}/collaborators`,
-        method: "GET",
-        signal,
-      },
-      options
-    );
-  };
-
-export const getGetDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGetQueryKey =
-  (guildId: number, documentId: number) => {
-    return [`/api/v1/c/${guildId}/collaboration/documents/${documentId}/collaborators`] as const;
-  };
-
-export const getGetDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGetQueryOptions =
-  <
-    TData = Awaited<
-      ReturnType<
-        typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
-      >
-    >,
-    TError = ErrorType<HTTPValidationError>,
-  >(
-    guildId: number,
-    documentId: number,
-    options?: {
-      query?: Partial<
-        UseQueryOptions<
-          Awaited<
-            ReturnType<
-              typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
-            >
-          >,
-          TError,
-          TData
-        >
-      >;
-      request?: SecondParameter<typeof apiMutator>;
-    }
-  ) => {
-    const { query: queryOptions, request: requestOptions } = options ?? {};
-
-    const queryKey =
-      queryOptions?.queryKey ??
-      getGetDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGetQueryKey(
-        guildId,
-        documentId
-      );
-
-    const queryFn: QueryFunction<
-      Awaited<
-        ReturnType<
-          typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
-        >
-      >
-    > = ({ signal }) =>
-      getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet(
-        guildId,
-        documentId,
-        requestOptions,
-        signal
-      );
-
-    return {
-      queryKey,
-      queryFn,
-      enabled:
-        guildId !== null &&
-        guildId !== undefined &&
-        documentId !== null &&
-        documentId !== undefined,
-      ...queryOptions,
-    } as UseQueryOptions<
-      Awaited<
-        ReturnType<
-          typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
-        >
-      >,
-      TError,
-      TData
-    > & { queryKey: DataTag<QueryKey, TData, TError> };
-  };
-
-export type GetDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGetQueryResult =
-  NonNullable<
-    Awaited<
-      ReturnType<
-        typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
-      >
-    >
-  >;
-export type GetDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGetQueryError =
-  ErrorType<HTTPValidationError>;
-
-export function useGetDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet<
-  TData = Awaited<
-    ReturnType<
-      typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
-    >
-  >,
-  TError = ErrorType<HTTPValidationError>,
->(
+export const handOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePost = (
   guildId: number,
   documentId: number,
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<
-            typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
-          >
-        >,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<
-            ReturnType<
-              typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
-            >
-          >,
-          TError,
-          Awaited<
-            ReturnType<
-              typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
-            >
-          >
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet<
-  TData = Awaited<
-    ReturnType<
-      typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
-    >
-  >,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  documentId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<
-            typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
-          >
-        >,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<
-            ReturnType<
-              typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
-            >
-          >,
-          TError,
-          Awaited<
-            ReturnType<
-              typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
-            >
-          >
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet<
-  TData = Awaited<
-    ReturnType<
-      typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
-    >
-  >,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  documentId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<
-            typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
-          >
-        >,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary Get Document Collaborators
- */
-
-export function useGetDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet<
-  TData = Awaited<
-    ReturnType<
-      typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
-    >
-  >,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  documentId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<
-            typeof getDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet
-          >
-        >,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions =
-    getGetDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGetQueryOptions(
-      guildId,
-      documentId,
-      options
-    );
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
- * Sync Lexical content from the frontend to the database.
- *
- * Called via a ``keepalive`` fetch on page unload to keep the content column
- * in sync with yjs_state. Authenticates with the same header-less scheme as
- * ``/uploads/*`` and document downloads (``UploadUserDep``): the HttpOnly
- * session cookie on web, a short-lived uploads-scoped ``?token=`` on native —
- * so the long-lived session JWT never rides in a URL (SEC-12), unlike the
- * earlier ``?token=<session jwt>`` version. The guild comes from the
- * ``/c/{guild_id}`` path — the document being synced was open inside it.
- *
- * The request body should contain the Lexical serialized state as JSON.
- * @summary Sync Document Content
- */
-export const syncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPost = (
-  guildId: number,
-  documentId: number,
-  params?: SyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostParams,
+  collaborationHandover: BodyType<CollaborationHandover>,
+  params?: HandOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePostParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<unknown>(
+  return apiMutator<void>(
     {
-      url: `/api/v1/c/${guildId}/collaboration/documents/${documentId}/sync-content`,
+      url: `/api/v1/c/${guildId}/collaboration/documents/${documentId}/collaborate`,
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: collaborationHandover,
       params,
       signal,
     },
@@ -340,35 +49,35 @@ export const syncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyn
   );
 };
 
-export const getSyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationKey =
+export const getHandOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePostMutationKey =
   () =>
-    ["syncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPost"] as const;
+    ["handOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePost"] as const;
 
-export const getSyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationOptions =
+export const getHandOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePostMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof syncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPost
+          typeof handOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePost
         >
       >,
       TError,
-      SyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationVariables,
+      HandOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
       ReturnType<
-        typeof syncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPost
+        typeof handOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePost
       >
     >,
     TError,
-    SyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationVariables,
+    HandOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePostMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getSyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationKey();
+      getHandOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePostMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -378,16 +87,17 @@ export const getSyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentId
     const mutationFn: MutationFunction<
       Awaited<
         ReturnType<
-          typeof syncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPost
+          typeof handOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePost
         >
       >,
-      SyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationVariables
+      HandOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePostMutationVariables
     > = (props) => {
-      const { guildId, documentId, params } = props ?? {};
+      const { guildId, documentId, data, params } = props ?? {};
 
-      return syncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPost(
+      return handOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePost(
         guildId,
         documentId,
+        data,
         params,
         requestOptions
       );
@@ -396,59 +106,203 @@ export const getSyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentId
     return { mutationFn, ...mutationOptions };
   };
 
-export type SyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationResult =
+export type HandOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePostMutationResult =
   NonNullable<
     Awaited<
       ReturnType<
-        typeof syncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPost
+        typeof handOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePost
       >
     >
   >;
-
-export type SyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationError =
+export type HandOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePostMutationBody =
+  BodyType<CollaborationHandover>;
+export type HandOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePostMutationError =
   ErrorType<HTTPValidationError>;
-export type SyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationVariables =
+export type HandOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePostMutationVariables =
   {
     guildId: number;
     documentId: number;
-    params?: SyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostParams;
+    data: BodyType<CollaborationHandover>;
+    params?: HandOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePostParams;
   };
 
 /**
- * @summary Sync Document Content
+ * @summary Hand Over Document Edits
  */
-export const useSyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
+export const useHandOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePost =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+    options?: {
+      mutation?: UseMutationOptions<
+        Awaited<
+          ReturnType<
+            typeof handOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePost
+          >
+        >,
+        TError,
+        HandOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePostMutationVariables,
+        TContext
+      >;
+      request?: SecondParameter<typeof apiMutator>;
+    },
+    queryClient?: QueryClient
+  ): UseMutationResult<
+    Awaited<
+      ReturnType<
+        typeof handOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePost
+      >
+    >,
+    TError,
+    HandOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePostMutationVariables,
+    TContext
+  > => {
+    return useMutation(
+      getHandOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePostMutationOptions(
+        options
+      ),
+      queryClient
+    );
+  };
+/**
+ * Merge edits a tab made while its socket was closed into the page.
+ * @summary Hand Over Wiki Page Edits
+ */
+export const handOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePost =
+  (
+    guildId: number,
+    wikiId: number,
+    pageId: number,
+    collaborationHandover: BodyType<CollaborationHandover>,
+    params?: HandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostParams,
+    options?: SecondParameter<typeof apiMutator>,
+    signal?: AbortSignal
+  ) => {
+    return apiMutator<void>(
+      {
+        url: `/api/v1/c/${guildId}/collaboration/wikis/${wikiId}/pages/${pageId}/collaborate`,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        data: collaborationHandover,
+        params,
+        signal,
+      },
+      options
+    );
+  };
+
+export const getHandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostMutationKey =
+  () =>
+    [
+      "handOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePost",
+    ] as const;
+
+export const getHandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof syncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPost
+          typeof handOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePost
         >
       >,
       TError,
-      SyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationVariables,
+      HandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<
-    ReturnType<
-      typeof syncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPost
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof handOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePost
+      >
+    >,
+    TError,
+    HandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostMutationVariables,
+    TContext
+  > => {
+    const mutationKey =
+      getHandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostMutationKey();
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof handOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePost
+        >
+      >,
+      HandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostMutationVariables
+    > = (props) => {
+      const { guildId, wikiId, pageId, data, params } = props ?? {};
+
+      return handOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePost(
+        guildId,
+        wikiId,
+        pageId,
+        data,
+        params,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type HandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof handOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePost
+      >
     >
-  >,
-  TError,
-  SyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getSyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostMutationOptions(
-      options
-    ),
-    queryClient
-  );
-};
+  >;
+export type HandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostMutationBody =
+  BodyType<CollaborationHandover>;
+export type HandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostMutationError =
+  ErrorType<HTTPValidationError>;
+export type HandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostMutationVariables =
+  {
+    guildId: number;
+    wikiId: number;
+    pageId: number;
+    data: BodyType<CollaborationHandover>;
+    params?: HandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostParams;
+  };
+
+/**
+ * @summary Hand Over Wiki Page Edits
+ */
+export const useHandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePost =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+    options?: {
+      mutation?: UseMutationOptions<
+        Awaited<
+          ReturnType<
+            typeof handOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePost
+          >
+        >,
+        TError,
+        HandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostMutationVariables,
+        TContext
+      >;
+      request?: SecondParameter<typeof apiMutator>;
+    },
+    queryClient?: QueryClient
+  ): UseMutationResult<
+    Awaited<
+      ReturnType<
+        typeof handOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePost
+      >
+    >,
+    TError,
+    HandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostMutationVariables,
+    TContext
+  > => {
+    return useMutation(
+      getHandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostMutationOptions(
+        options
+      ),
+      queryClient
+    );
+  };

@@ -74,6 +74,9 @@ type ReloadCallback = (doc: Y.Doc) => void;
 type CollaboratorsCallback = (collaborators: CollaboratorInfo[]) => void;
 type ErrorCallback = (error: Error) => void;
 
+const sameBytes = (a: Uint8Array, b: Uint8Array): boolean =>
+  a.length === b.length && a.every((byte, i) => byte === b[i]);
+
 // The provider serving each address, so a remount joins the connection in
 // progress rather than opening a second one.
 const activeProviders = new Map<string, CollaborationProvider>();
@@ -134,6 +137,14 @@ export class CollaborationProvider implements Provider {
    *  however long the outage runs. */
   private closesSinceOpen = 0;
   private lostConnectionReported = false;
+  /** This doc's state vector when its socket last stopped carrying, once it
+   *  had synced: anything past it was made with nowhere to send it. Cleared
+   *  when the room has it — a new sync, or a handover. */
+  private sentUpTo: Uint8Array | null = null;
+  /** The room's state vector as it asked at join — the last state it is
+   *  known to have had. What a handover is measured from, so edits sent on a
+   *  connection that had quietly stopped are carried too. */
+  private roomState: Uint8Array | null = null;
 
   // Typed event handlers
   private syncHandlers: Set<SyncCallback> = new Set();
@@ -472,6 +483,7 @@ export class CollaborationProvider implements Provider {
       return;
     }
     if (this._synced) {
+      this.sentUpTo = Y.encodeStateVector(this.doc);
       this._synced = false;
       this.emitSync(false);
     }
@@ -500,6 +512,7 @@ export class CollaborationProvider implements Provider {
 
     switch (msgType) {
       case MSG_SYNC_STEP1: {
+        this.roomState = payload;
         // The server is asking for whatever we have that it doesn't. This is
         // the other half of the handshake, and the one path by which state
         // this client already holds travels upstream — every other frame we
@@ -518,6 +531,9 @@ export class CollaborationProvider implements Provider {
         // Apply server state - always call applyUpdate, Yjs handles empty updates gracefully
         Y.applyUpdate(this.doc, payload, this);
         if (!this._synced) {
+          // The room has asked for, and been sent, whatever this doc made
+          // while it was away.
+          this.sentUpTo = null;
           this._synced = true;
           this.emitSync(true);
         }
@@ -645,6 +661,29 @@ export class CollaborationProvider implements Provider {
         break;
       }
     }
+  }
+
+  /**
+   * The edits this doc made while its socket was gone, for a tab leaving
+   * before the socket is back to carry them: the update the room has not seen,
+   * and this doc's state vector. `null` while the socket is open, before a
+   * first sync, or when nothing was made meanwhile.
+   */
+  unsentEdits(): { update: Uint8Array; stateVector: Uint8Array } | null {
+    if (this._open || this.sentUpTo === null) return null;
+    const stateVector = Y.encodeStateVector(this.doc);
+    if (sameBytes(stateVector, this.sentUpTo)) return null;
+    return {
+      update: Y.encodeStateAsUpdate(this.doc, this.roomState ?? this.sentUpTo),
+      stateVector,
+    };
+  }
+
+  /** The room has the edits up to `stateVector`, handed over another way. */
+  handedOver(stateVector: Uint8Array): void {
+    if (this.sentUpTo === null) return;
+    this.sentUpTo = stateVector;
+    this.roomState = stateVector;
   }
 
   /**
