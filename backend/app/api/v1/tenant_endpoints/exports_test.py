@@ -1036,6 +1036,46 @@ async def test_gc_expires_the_job_row_and_releases_its_artifact(
     assert refreshed.artifact_ref is None
 
 
+async def test_an_artifact_past_its_expiry_is_not_served(
+    client: AsyncClient, acting_user, session
+):
+    """Past ``expires_at`` a finished export is refused with 410 and reads as
+    ``expired`` — before GC has swept it as well as after."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    storage = get_guild_storage(a.guild.id)
+    key = "exports/515151.pdf"
+    storage.write(key, b"%PDF-fake", content_type="application/pdf")
+    now = datetime.now(timezone.utc)
+    due = ExportJob(
+        created_by=a.user.id,
+        source="tasks",
+        template_id="task-table",
+        format="pdf",
+        status=ExportJobStatus.done,
+        artifact_ref=key,
+        expires_at=now - timedelta(minutes=1),
+    )
+    swept = ExportJob(
+        created_by=a.user.id,
+        source="tasks",
+        template_id="task-table",
+        format="pdf",
+        status=ExportJobStatus.expired,
+        artifact_ref=None,
+        expires_at=now - timedelta(days=1),
+    )
+    session.add_all([due, swept])
+    await session.commit()
+
+    for job in (due, swept):
+        dl = await client.get(a.g(f"/exports/{job.id}/download"), headers=a.headers)
+        assert dl.status_code == 410, job.status
+        assert dl.json()["detail"] == "EXPORT_EXPIRED"
+        assert (await _job(client, a, job.id))["status"] == (
+            ExportJobStatus.expired.value
+        )
+
+
 # ---------------------------------------------------------------------------
 # Queue exports
 # ---------------------------------------------------------------------------

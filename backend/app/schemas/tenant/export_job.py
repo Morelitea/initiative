@@ -2,7 +2,7 @@
 selector (echoed back so a client can re-run the export); the row never
 carries exported content — the artifact is fetched via the download route."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from pydantic import ConfigDict, Field, computed_field
@@ -44,17 +44,35 @@ class ExportJobRead(SanitizedBaseModel):
     updated_at: datetime
 
 
+def artifact_expired(job: ExportJob, now: Optional[datetime] = None) -> bool:
+    """Whether the job's artifact is past its expiry: swept already, or
+    finished with an ``expires_at`` that has passed and waiting for the next
+    GC pass to delete it."""
+    if job.status == ExportJobStatus.expired:
+        return True
+    if job.status != ExportJobStatus.done or job.expires_at is None:
+        return False
+    expires_at = job.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    return expires_at <= (now or datetime.now(timezone.utc))
+
+
 def serialize_export_job(job: ExportJob, *, guild_id: int) -> ExportJobRead:
     """The wire shape of one job row.
 
     The row lives in its guild's schema and carries no guild column of its
-    own, so the guild is handed in by whoever routed the session.
+    own, so the guild is handed in by whoever routed the session. A finished
+    job whose artifact is past its expiry reads as ``expired`` before GC has
+    swept it, as the download route treats it.
     """
     fields = {
         name: getattr(job, name)
         for name in ExportJobRead.model_fields
         if name != "guild_id"
     }
+    if artifact_expired(job):
+        fields["status"] = ExportJobStatus.expired
     return ExportJobRead(guild_id=guild_id, **fields)
 
 

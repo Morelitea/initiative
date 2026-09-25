@@ -27,6 +27,8 @@ from html.parser import HTMLParser
 from typing import Any, Callable, Optional, Union
 from urllib.parse import quote, urlsplit
 
+from app.services.import_engine.limits import MAX_NESTING_DEPTH
+
 # --- Lexical text format bits, as the editor defines them ---------------------
 
 BOLD = 1
@@ -291,10 +293,19 @@ class _Element:
 
 
 class _TreeBuilder(HTMLParser):
+    """The body as a tree, at most :data:`MAX_NESTING_DEPTH` elements deep.
+
+    An element that opens past the limit is kept where it sits, but nothing
+    nests inside it: what it holds joins its parent's children instead, so
+    the text survives and every walk over the tree stays within the limit.
+    """
+
     def __init__(self, cdata: list[str]) -> None:
         super().__init__(convert_charrefs=True)
         self.root = _Element("root", {})
         self.stack = [self.root]
+        #: Tags opened past the depth limit and not yet closed.
+        self.overflow: list[str] = []
         self.cdata = cdata
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
@@ -305,7 +316,11 @@ class _TreeBuilder(HTMLParser):
             return
         element = _Element(tag, {name: value or "" for name, value in attrs})
         self.stack[-1].children.append(element)
-        if tag not in _VOID:
+        if tag in _VOID:
+            return
+        if len(self.stack) > MAX_NESTING_DEPTH:
+            self.overflow.append(tag)
+        else:
             self.stack.append(element)
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
@@ -318,9 +333,14 @@ class _TreeBuilder(HTMLParser):
 
     def handle_endtag(self, tag: str) -> None:
         # Close back to the matching element; a stray end tag closes nothing.
+        for depth in range(len(self.overflow) - 1, -1, -1):
+            if self.overflow[depth] == tag:
+                del self.overflow[depth:]
+                return
         for depth in range(len(self.stack) - 1, 0, -1):
             if self.stack[depth].tag == tag:
                 del self.stack[depth:]
+                self.overflow.clear()
                 return
 
     def handle_data(self, data: str) -> None:

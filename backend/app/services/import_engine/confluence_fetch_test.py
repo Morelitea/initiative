@@ -12,6 +12,7 @@ import pytest
 
 from app.core.messages import ImportEngineMessages
 from app.services.import_engine import atlassian, confluence_fetch
+from app.services.import_engine.atlassian_bundle import BundleWriter, merge_people
 from app.services.import_engine.contract import ImportEngineError
 from app.services.import_engine.jira_attachments import bundle_budget
 
@@ -149,15 +150,29 @@ def _site(
 
 
 async def _bundle(**kw):
-    return await confluence_fetch.fetch_spaces_bundle(
-        CREDENTIAL,
-        space_keys=kw.pop("space_keys", ["DOCS"]),
-        guild_id=1,
-        guild_name="acme.atlassian.net",
-        target_initiative_id=42,
-        app_version="0.0.0-test",
-        **kw,
-    )
+    """:func:`fetch_spaces`, written into a bundle of its own and read back
+    whole."""
+    with BundleWriter() as writer:
+        fetched = await confluence_fetch.fetch_spaces(
+            CREDENTIAL,
+            space_keys=kw.pop("space_keys", ["DOCS"]),
+            guild_id=1,
+            app_version="0.0.0-test",
+            store=writer.put_asset,
+            **kw,
+        )
+        bundle = writer.finish(
+            images=fetched.images,
+            wikis=fetched.envelopes,
+            wiki_files=fetched.files,
+            people=merge_people([], fetched.people),
+            guild_id=1,
+            guild_name="acme.atlassian.net",
+            target_initiative_id=42,
+            app_version="0.0.0-test",
+            site_url=CREDENTIAL.site_url,
+        ).read_bytes()
+    return bundle, fetched.report
 
 
 def _open(bundle: bytes) -> tuple[dict, dict[str, dict]]:

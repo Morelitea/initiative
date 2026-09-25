@@ -24,6 +24,7 @@ from app.models.platform.user import User
 from app.services.export.contract import RenderItem, RenderRequest
 from app.services.export.engine import ExportError
 from app.services.export.i18n import localize_now
+from app.services.permissions import EXPORT_ACCESS
 from app.services.platform.csv_export import safe_filename_component
 
 # Bound on a single selection: page-size multiples, not initiative dumps —
@@ -80,8 +81,9 @@ class ToolExportAdapter:
     """The per-tool export source: a selection of entities, each rendered as
     one item.
 
-    A subclass names its ``Tool`` and fills in the three tool-shaped hooks —
+    A subclass names its ``Tool`` and fills in the tool-shaped hooks —
     :meth:`fetch` (which rows, and the RLS seam that authorizes them),
+    :meth:`initiative_ids` (which of them one initiative holds),
     :meth:`rows` (how many rows one entity is worth) and :meth:`item` (how one
     entity serialises). Everything else — the registry key, the selection
     params, counting, and the ``RenderRequest`` — is the same for every tool
@@ -93,7 +95,10 @@ class ToolExportAdapter:
     # Required by the SourceAdapter protocol; a json envelope renders no
     # template. A tool with report formats names its own.
     template_id: str = "data-table"
-    formats: frozenset[str] = frozenset({"json"})
+    #: The formats this tool exports in, in the order its route publishes
+    #: them. ``formats`` is derived from it for membership checks.
+    format_choices: tuple[str, ...] = ("json",)
+    formats: frozenset[str] = frozenset(format_choices)
     #: What a marketplace listing of this tool shows beside what it installs.
     #: A tool made of content previews with an example the publisher filled in;
     #: a tool made of queries over the community's data previews with sample
@@ -104,15 +109,37 @@ class ToolExportAdapter:
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         cls.source = tool_export_source(cls.tool)
+        cls.formats = frozenset(cls.format_choices)
 
     # -- what a tool states --------------------------------------------------
 
     async def fetch(
-        self, session: AsyncSession, user: User, guild_id: int, entity_id: int, /
+        self,
+        session: AsyncSession,
+        user: User,
+        guild_id: int,
+        entity_id: int,
+        /,
+        *,
+        access: str = EXPORT_ACCESS,
     ) -> Any:
         """Load and authorize one selected entity under the caller's RLS
-        session — that query IS the access check."""
+        session — that query IS the access check. ``access`` is the rung the
+        seam asks for: the owner rung for an export of the entity itself, and
+        ``"read"`` from an initiative or community backup."""
         raise NotImplementedError
+
+    async def initiative_ids(
+        self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
+    ) -> list[int]:
+        """The ids of this tool's entities in one initiative that an initiative
+        or community export may include, in a stable order."""
+        raise NotImplementedError
+
+    def title(self, entity: Any, /) -> str:
+        """The entity's own name — what its archive entry is titled and its
+        file is named after."""
+        return entity.name
 
     def rows(self, entity: Any, /) -> int:
         """How many rows one entity is worth, for the inline-vs-job decision
@@ -132,6 +159,12 @@ class ToolExportAdapter:
         """Anything the item builders need across the whole batch, loaded in
         one pass (they are synchronous and hold no session)."""
         return None
+
+    @property
+    def prepares(self) -> bool:
+        """Whether :meth:`prepare` loads anything — whether a caller building
+        many entities gains by loading them all before building any."""
+        return type(self).prepare is not ToolExportAdapter.prepare
 
     # -- the shape every tool shares -----------------------------------------
 

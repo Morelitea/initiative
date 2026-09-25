@@ -30,6 +30,7 @@ from app.services.export.adapters._common import (
 )
 from app.services.export.contract import RenderItem
 from app.services.export.i18n import et, export_locale
+from app.services.permissions import EXPORT_ACCESS
 from app.core.user_display import display_name
 
 # (row key, ``exports`` label key, Typst width hint) — labels resolve to the
@@ -53,7 +54,7 @@ def _columns(locale: str) -> list[dict]:
 class ProjectAdapter(ToolExportAdapter):
     tool = Tool.project
     template_id = "project-report"
-    formats = frozenset({"json", "pdf", "csv", "xlsx"})
+    format_choices = ("json", "pdf", "csv", "xlsx")
 
     async def count(
         self,
@@ -77,15 +78,34 @@ class ProjectAdapter(ToolExportAdapter):
         return total
 
     async def fetch(
-        self, session: AsyncSession, user: User, guild_id: int, project_id: int, /
+        self,
+        session: AsyncSession,
+        user: User,
+        guild_id: int,
+        project_id: int,
+        /,
+        *,
+        access: str = EXPORT_ACCESS,
     ) -> ProjectExportEnvelope:
         from app.api.v1.tenant_endpoints.projects import build_project_export_for_user
 
-        # The seam enforces WRITE per project — one read-only project in
+        # The seam enforces the rung per project — one project short of it in
         # the selection fails the whole export, never a silent gap.
         return await build_project_export_for_user(
-            session, user, guild_id, project_id=project_id
+            session, user, guild_id, project_id=project_id, access=access
         )
+
+    async def initiative_ids(
+        self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
+    ) -> list[int]:
+        from app.services.tenant.project_export import list_project_ids_for_export
+
+        return await list_project_ids_for_export(
+            session, user, guild_id, initiative_ids=[initiative_id]
+        )
+
+    def title(self, envelope: ProjectExportEnvelope, /) -> str:
+        return envelope.project.name
 
     def item(self, envelope: ProjectExportEnvelope, ctx: BuildContext, /) -> RenderItem:
         return build_project_item(envelope, ctx.format, ctx.user, ctx.now)

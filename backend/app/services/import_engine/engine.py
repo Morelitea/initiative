@@ -18,7 +18,7 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, BinaryIO
 
 from sqlalchemy import func, text
 from sqlmodel import select
@@ -221,9 +221,7 @@ async def start_envelope_import(
 
     await count_active_jobs_locked(session, user=user)
 
-    payload_ref = stage_payload(
-        guild_id, json.dumps(envelope).encode("utf-8"), suffix="json"
-    )
+    payload_ref = await asyncio.to_thread(_stage_envelope, guild_id, envelope)
     job = ImportJob(
         created_by=user.id,
         source=envelope_type,
@@ -337,6 +335,11 @@ def stage_payload(guild_id: int, payload: bytes, *, suffix: str) -> str:
     return key
 
 
+def _stage_envelope(guild_id: int, envelope: dict[str, Any]) -> str:
+    """Serialize an envelope and stage it. Blocking; run it in a thread."""
+    return stage_payload(guild_id, json.dumps(envelope).encode("utf-8"), suffix="json")
+
+
 def stage_payload_file(guild_id: int, path: Path, *, suffix: str) -> str:
     """:func:`stage_payload` for a payload already on disk, which is copied
     to storage without being read into memory. Blocking; run it in a
@@ -347,6 +350,53 @@ def stage_payload_file(guild_id: int, path: Path, *, suffix: str) -> str:
     content_type = "application/json" if suffix == "json" else "application/zip"
     get_guild_storage(guild_id).write_file(key, path, content_type=content_type)
     return key
+
+
+#: How much of an upload is copied at a time.
+_SPOOL_CHUNK_BYTES = 1024 * 1024
+
+
+def _spool_to_file(source: BinaryIO, max_bytes: int) -> Path:
+    """Copy ``source`` to a temporary file a chunk at a time, stopping with
+    ``IMPORT_TOO_LARGE`` once it passes ``max_bytes``."""
+    import tempfile
+
+    handle = tempfile.NamedTemporaryFile(
+        prefix="import-upload-", suffix=".zip", delete=False
+    )
+    path = Path(handle.name)
+    try:
+        with handle:
+            total = 0
+            while True:
+                chunk = source.read(min(_SPOOL_CHUNK_BYTES, max_bytes + 1 - total))
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > max_bytes:
+                    raise ImportEngineError(
+                        ImportEngineMessages.IMPORT_TOO_LARGE, status_code=413
+                    )
+                handle.write(chunk)
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
+    return path
+
+
+@asynccontextmanager
+async def spooled_upload(source: BinaryIO, *, max_bytes: int) -> AsyncIterator[Path]:
+    """An uploaded file as a local file for the length of the block.
+
+    Copied off the event loop a chunk at a time, so no more than one chunk is
+    in memory, and refused with ``IMPORT_TOO_LARGE`` (413) once it passes
+    ``max_bytes``. The copy is removed after the block.
+    """
+    path = await asyncio.to_thread(_spool_to_file, source, max_bytes)
+    try:
+        yield path
+    finally:
+        path.unlink(missing_ok=True)
 
 
 def _spool_payload(guild_id: int, payload_ref: str) -> tuple[Path, bool] | None:

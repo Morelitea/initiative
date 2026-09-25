@@ -5,7 +5,7 @@ import io
 import pytest
 from httpx import AsyncClient
 
-from app.api.v1.tenant_endpoints.attachments import _detect_content_type
+from app.services.tenant.attachments import detect_document_image_type
 from app.models.platform.guild import GuildRole
 
 #: A real 1x1 PNG — the header reader walks IHDR, so a stub signature is not
@@ -154,7 +154,7 @@ async def test_upload_refuses_bytes_that_are_no_image(client: AsyncClient, actin
 def test_an_svg_root_is_found_behind_its_prolog(contents: bytes):
     """Whatever an SVG carries ahead of its root element, the root is what
     decides."""
-    assert _detect_content_type(contents) == "image/svg+xml"
+    assert detect_document_image_type(contents) == "image/svg+xml"
 
 
 @pytest.mark.unit
@@ -172,13 +172,13 @@ def test_an_svg_root_is_found_behind_its_prolog(contents: bytes):
 def test_markup_that_is_not_an_svg_is_not_an_image(contents: bytes):
     """Naming the element somewhere in the file is not being it — the root
     element is, so none of these are stored as pictures."""
-    assert _detect_content_type(contents) is None
+    assert detect_document_image_type(contents) is None
 
 
 @pytest.mark.unit
 def test_a_raster_is_identified_before_markup():
     """A raster signature settles it; nothing goes looking for markup in a PNG."""
-    assert _detect_content_type(TINY_PNG) == "image/png"
+    assert detect_document_image_type(TINY_PNG) == "image/png"
 
 
 # ---------------------------------------------------------------------------

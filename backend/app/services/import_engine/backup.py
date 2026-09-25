@@ -9,16 +9,17 @@ manager) — never merges — and dispatches every entry to the per-type
 importer registry, so an envelope imports identically whether it arrives
 alone or inside a backup.
 
-Safety model:
-* zip-bomb bounds (member count, total declared uncompressed size, no
-  absolute/traversal paths) are checked before anything is read beyond the
-  central directory;
-* the plan step reads ONLY ``manifest.json`` — milliseconds, so it runs
-  synchronously in the upload request;
+How it runs:
+* the zip is opened and each member read through ``zip_bounds``: the central
+  directory is checked (member count, total declared size, relative names)
+  before any member is read, and every member is read up to its cap;
+* the plan step reads ONLY ``manifest.json`` — milliseconds, so it runs in
+  the upload request (off the event loop);
 * apply re-verifies the creator is a REAL guild admin (fail closed on
   revocation), restores assets under their original storage keys (embedded
-  editor-state references resolve without rewriting) with per-key dedup and
-  storage-quota enforcement, and applies entries in per-entry savepoints —
+  editor-state references resolve without rewriting) through
+  ``archive_assets`` — each file checked for what it is, per-key dedup,
+  storage-quota enforcement — and applies entries in per-entry savepoints —
   one corrupt entry fails alone, the job still completes with a report;
 * long applies commit per chunk and refresh ``establish_guild_access``
   (RLS context is valid for at most RLS_CONTEXT_MAX_AGE_SECONDS).
@@ -26,8 +27,7 @@ Safety model:
 
 from __future__ import annotations
 
-import io
-import json
+import asyncio
 import logging
 import zipfile
 from pathlib import Path
@@ -58,6 +58,11 @@ from app.schemas.tenant.import_job import (
     EntryResult,
 )
 from app.services.import_engine import engine as import_engine
+from app.services.import_engine.archive_assets import (
+    ArchiveAsset,
+    remove_written,
+    restore_assets,
+)
 from app.services.import_engine.common import handle_key, unique_name
 from app.services.import_engine.contract import (
     EnvelopeImportResult,
@@ -70,8 +75,8 @@ from app.services.import_engine.context import (
 )
 from app.services.import_engine.links import resolve_page_links
 from app.services.import_engine.references import resolve_references
+from app.services.import_engine.zip_bounds import json_cap, open_zip, read_json_member
 from app.services.tenant import tags as tags_service
-from app.services.import_engine import limits as import_limits
 
 # Apply order within an initiative — convention, not correctness (cross-tool
 # references in envelopes are display text only).
@@ -131,52 +136,23 @@ def _entry_kind(entry: ManifestEntry) -> SearchEntityType | None:
 logger = logging.getLogger(__name__)
 
 
-def open_backup_zip(payload: bytes | Path, *, fetched: bool = False) -> zipfile.ZipFile:
-    """Open + bound-check a backup zip, held in memory or read from a file.
-    Raises IMPORT_ZIP_INVALID / IMPORT_TOO_LARGE before anything beyond the
-    central directory is read.
+#: A backup is opened like any zip the engine reads; the name callers know.
+open_backup_zip = open_zip
 
-    ``fetched`` is a bundle this app wrote itself from a foreign source, which
-    is held to the fetch's bounds rather than an upload's."""
-    max_members = (
-        import_limits.IMPORT_FETCH_MAX_ZIP_MEMBERS
-        if fetched
-        else import_limits.IMPORT_MAX_ZIP_MEMBERS
-    )
-    max_bytes = (
-        import_limits.IMPORT_FETCH_MAX_BUNDLE_BYTES
-        if fetched
-        else import_limits.IMPORT_MAX_BACKUP_UNCOMPRESSED_BYTES
-    )
+
+def read_manifest(archive: zipfile.ZipFile, *, fetched: bool = False) -> BackupManifest:
+    """The backup's manifest, read up to the JSON cap and checked.
+
+    ``fetched`` is as for :func:`zip_bounds.open_zip`."""
     try:
-        archive = zipfile.ZipFile(
-            payload if isinstance(payload, Path) else io.BytesIO(payload)
+        raw = read_json_member(
+            archive,
+            _MANIFEST_NAME,
+            max_bytes=json_cap(fetched=fetched),
+            invalid=ImportEngineMessages.IMPORT_ZIP_INVALID,
         )
-    except Exception as exc:
-        raise ImportEngineError(ImportEngineMessages.IMPORT_ZIP_INVALID) from exc
-    infos = archive.infolist()
-    if len(infos) > max_members:
-        raise ImportEngineError(ImportEngineMessages.IMPORT_TOO_LARGE)
-    declared = 0
-    for info in infos:
-        name = info.filename
-        # A bare "/" is a directory entry some zip writers add for the root;
-        # it names nothing and holds nothing.
-        if name == "/" and info.is_dir():
-            continue
-        if name.startswith("/") or ".." in name.split("/"):
-            raise ImportEngineError(ImportEngineMessages.IMPORT_ZIP_INVALID)
-        declared += info.file_size
-        if declared > max_bytes:
-            raise ImportEngineError(ImportEngineMessages.IMPORT_TOO_LARGE)
-    return archive
-
-
-def read_manifest(archive: zipfile.ZipFile) -> BackupManifest:
-    try:
-        raw = json.loads(archive.read(_MANIFEST_NAME))
-    except KeyError as exc:
-        raise ImportEngineError(ImportEngineMessages.IMPORT_ZIP_INVALID) from exc
+    except ImportEngineError:
+        raise
     except Exception as exc:
         raise ImportEngineError(ImportEngineMessages.IMPORT_ZIP_INVALID) from exc
     try:
@@ -216,7 +192,7 @@ def plan_backup(
     fetched: bool = False,
 ) -> BackupImportPlan:
     """The confirm-screen summary. Reads only the manifest — cheap enough to
-    run synchronously inside the upload request.
+    run inside the upload request.
 
     ``member_ids_by_handle`` is the guild's own roster, normalised, and it is
     what turns the archive's people into suggestions. It is passed in rather
@@ -224,12 +200,13 @@ def plan_backup(
     reading of one file, and the roster is a fact about the community it is
     being read into.
 
-    ``fetched`` is as for :func:`open_backup_zip`.
+    ``fetched`` is as for :func:`zip_bounds.open_zip`. Blocking; run it in a
+    thread from async code.
     """
     from app.services.import_engine.importers import IMPORTERS
 
-    archive = open_backup_zip(payload, fetched=fetched)
-    manifest = read_manifest(archive)
+    with open_zip(payload, fetched=fetched) as archive:
+        manifest = read_manifest(archive, fetched=fetched)
 
     unknown_types = sorted(
         {
@@ -330,15 +307,44 @@ async def apply_backup(
 
     ``heartbeat`` is called after each asset and each entry, so the job can
     show it is still being applied. ``fetched`` is as for
-    :func:`open_backup_zip`."""
+    :func:`zip_bounds.open_zip`."""
+    archive = await asyncio.to_thread(open_zip, payload, fetched=fetched)
+    try:
+        return await _apply_archive(
+            session,
+            archive=archive,
+            user=user,
+            guild_id=guild_id,
+            include=include,
+            people_map=people_map,
+            exclude_properties=exclude_properties,
+            heartbeat=heartbeat,
+            fetched=fetched,
+        )
+    finally:
+        archive.close()
+
+
+async def _apply_archive(
+    session: AsyncSession,
+    *,
+    archive: zipfile.ZipFile,
+    user: User,
+    guild_id: int,
+    include: dict[str, bool] | None,
+    people_map: Any,
+    exclude_properties: Any,
+    heartbeat: Callable[[], Awaitable[None]] | None,
+    fetched: bool,
+) -> BackupImportResult:
     from app.api.deps import establish_guild_access
     from app.services.import_engine.importers import IMPORTERS
     from app.models.platform.guild import GuildRole
     from app.services.platform import guilds as guilds_service
     from app.services.tenant import initiatives as initiatives_service
 
-    archive = open_backup_zip(payload, fetched=fetched)
-    manifest = read_manifest(archive)
+    manifest = await asyncio.to_thread(read_manifest, archive, fetched=fetched)
+    max_json_bytes = json_cap(fetched=fetched)
     result = BackupImportResult()
 
     # Re-verify the seat, held outright, at apply time — enqueue-time
@@ -360,10 +366,14 @@ async def apply_backup(
     # Assets first, one chunk: written under their ORIGINAL storage keys so
     # embedded editor-state image references resolve without rewriting.
     if manifest.assets:
-        await _restore_assets(
+        written = await _restore_assets(
             session, archive, manifest, guild_id, user, result, heartbeat
         )
-        await session.commit()
+        try:
+            await session.commit()
+        except BaseException:
+            remove_written(guild_id, written)
+            raise
 
     assets_by_key = {a.storage_key: a for a in manifest.assets}
     entries_by_initiative: dict[int, list[ManifestEntry]] = {}
@@ -457,6 +467,7 @@ async def apply_backup(
                 assets_by_key=assets_by_key,
                 result=result,
                 context=context,
+                max_json_bytes=max_json_bytes,
             )
             result.entries.append(outcome)
             bucket = result.per_tool.setdefault(
@@ -588,7 +599,13 @@ async def _apply_entry(
     assets_by_key: dict[str, Any],
     result: BackupImportResult,
     context: ImportContext | None = None,
+    max_json_bytes: int | None = None,
 ) -> EntryResult:
+    """Apply one manifest entry in its own savepoint and report how it went.
+    Its envelope is read up to ``max_json_bytes`` (the upload cap when not
+    given)."""
+    if max_json_bytes is None:
+        max_json_bytes = json_cap()
     base = {
         "path": entry.path,
         "tool": entry.tool,
@@ -605,13 +622,17 @@ async def _apply_entry(
         return outcome
     if entry.type in _STRUCTURAL_TYPES:
         return await _apply_structural_entry(
-            session, archive, entry, initiative, user, base
+            session, archive, entry, initiative, user, base, max_json_bytes
         )
     importer = importers.get(entry.type)
     if importer is None:
-        return EntryResult(**base, status="skipped", error="IMPORT_UNKNOWN_TYPE")
+        return EntryResult(
+            **base, status="skipped", error=ImportEngineMessages.IMPORT_UNKNOWN_TYPE
+        )
     try:
-        raw = json.loads(archive.read(entry.path))
+        raw = await asyncio.to_thread(
+            read_json_member, archive, entry.path, max_bytes=max_json_bytes
+        )
         validated = importer.validate(raw)
         async with session.begin_nested():
             detail = await importer.apply(
@@ -689,6 +710,7 @@ async def _apply_structural_entry(
     initiative,
     user: User,
     base: dict,
+    max_json_bytes: int,
 ) -> EntryResult:
     """An initiative's own shape: its property definitions, or its roles and
     members.
@@ -697,12 +719,19 @@ async def _apply_structural_entry(
     what it does alone: a definition or role of the same name is the target's
     answer, not the archive's, and nobody is removed or demoted by an import.
     """
+    invalid = EntryResult(
+        **base, status="failed", error=ImportEngineMessages.IMPORT_INVALID_ENVELOPE
+    )
     try:
-        payload = json.loads(archive.read(entry.path))
+        payload = await asyncio.to_thread(
+            read_json_member, archive, entry.path, max_bytes=max_json_bytes
+        )
+    except ImportEngineError as exc:
+        return EntryResult(**base, status="failed", error=exc.code)
     except Exception:
-        return EntryResult(**base, status="failed", error="IMPORT_INVALID_ENVELOPE")
+        return invalid
     if not isinstance(payload, dict):
-        return EntryResult(**base, status="failed", error="IMPORT_INVALID_ENVELOPE")
+        return invalid
     try:
         async with session.begin_nested():
             if entry.type == "initiative-properties":
@@ -715,7 +744,7 @@ async def _apply_structural_entry(
                 )
     except Exception:
         logger.exception("backup import: structural entry %s failed", entry.path)
-        return EntryResult(**base, status="failed", error="IMPORT_INVALID_ENVELOPE")
+        return invalid
     return EntryResult(
         **base,
         status="created",
@@ -883,15 +912,19 @@ async def _apply_file_entry(
 
     storage_key = (entry.asset or "").removeprefix("assets/")
     if not storage_key:
-        return EntryResult(**base, status="failed", error="IMPORT_INVALID_ENVELOPE")
+        return EntryResult(
+            **base, status="failed", error=ImportEngineMessages.IMPORT_INVALID_ENVELOPE
+        )
     asset = assets_by_key.get(storage_key)
     upload = (
         await session.exec(select(Upload).where(Upload.filename == storage_key))
     ).one_or_none()
     if upload is None:
-        # Uploads were excluded from this backup (or the blob failed to
-        # restore) — recorded, not silently dropped.
-        return EntryResult(**base, status="skipped", error="IMPORT_ASSET_MISSING")
+        # Uploads were excluded from this backup (or the blob was not
+        # restored) — recorded, not silently dropped.
+        return EntryResult(
+            **base, status="skipped", error=ImportEngineMessages.IMPORT_ASSET_MISSING
+        )
 
     try:
         async with session.begin_nested():
@@ -984,73 +1017,38 @@ async def _restore_assets(
     user: User,
     result: BackupImportResult,
     heartbeat: Callable[[], Awaitable[None]] | None = None,
-) -> None:
-    """Write ``assets/`` blobs to guild storage under their original keys,
-    register ``uploads`` rows, dedup against keys that already exist (a
-    re-import of the same backup), and enforce the guild's storage quota."""
-    from app.models.tenant.upload import Upload
-    from app.services.tenant.attachments import (
-        StorageQuotaExceededError,
-        enforce_storage_quota,
-        store_upload,
-    )
+) -> list[str]:
+    """Restore the manifest's ``assets/`` files through
+    :func:`archive_assets.restore_assets`, each held to the rule for any
+    upload, and count what happened on ``result``. Returns the keys written.
 
-    incoming = 0
-    to_restore = []
+    A file named but not in the zip is reported as ``asset_missing``; one that
+    is not a file this app holds is left out and reported as such. Either way
+    an entry that needed it is skipped with ``IMPORT_ASSET_MISSING``.
+    """
+    assets: dict[str, ArchiveAsset] = {}
     for asset in manifest.assets:
-        existing = (
-            await session.exec(
-                select(Upload).where(Upload.filename == asset.storage_key)
-            )
-        ).one_or_none()
-        if existing is not None:
-            result.assets_deduped += 1
-            continue
-        # Quota accumulates from the zip's OWN central-directory size, never
-        # the manifest's declared size_bytes: the manifest is caller-supplied
-        # text and could understate to slip past the guild's storage cap.
-        try:
-            info = archive.getinfo(asset.path)
-        except KeyError:
-            result.warnings.append(f"asset_missing:{asset.storage_key}")
-            continue
-        incoming += info.file_size
-        to_restore.append(asset)
-
-    try:
-        await enforce_storage_quota(session, guild_id=guild_id, incoming_bytes=incoming)
-    except StorageQuotaExceededError as exc:
-        raise ImportEngineError(
-            ImportEngineMessages.IMPORT_QUOTA_EXCEEDED, status_code=400
-        ) from exc
-
-    # The central-directory sizes are themselves declarations. CPython's
-    # zipfile truncates a member's output at its declared size, but that is
-    # interpreter behavior, not a contract — so the quota-checked bound is
-    # ALSO enforced against the bytes actually decompressed, before anything
-    # is written. A zip whose real output exceeds what was quota-checked
-    # fails the job rather than exceeding the guild's storage cap.
-    written = 0
-    for asset in to_restore:
-        try:
-            data = archive.read(asset.path)
-        except Exception:
-            result.warnings.append(f"asset_missing:{asset.storage_key}")
-            continue
-        written += len(data)
-        if written > incoming:
-            raise ImportEngineError(
-                ImportEngineMessages.IMPORT_QUOTA_EXCEEDED, status_code=400
-            )
-        await store_upload(
-            session,
-            guild_id=guild_id,
-            filename=asset.storage_key,
-            data=data,
-            content_type=asset.content_type,
-            created_by=user.id,
+        assets.setdefault(
+            asset.storage_key,
+            ArchiveAsset(
+                key=asset.storage_key,
+                member=asset.path,
+                kind="upload",
+                original_filename=asset.original_filename,
+                content_type=asset.content_type,
+            ),
         )
-        result.assets_restored += 1
-        result.asset_bytes += len(data)
-        if heartbeat is not None:
-            await heartbeat()
+    restored = await restore_assets(
+        session,
+        archive,
+        list(assets.values()),
+        guild_id=guild_id,
+        user=user,
+        heartbeat=heartbeat,
+    )
+    result.assets_deduped += restored.deduped
+    result.assets_restored += len(restored.written)
+    result.asset_bytes += restored.restored_bytes
+    result.warnings.extend(f"asset_missing:{key}" for key in restored.missing)
+    result.warnings.extend(restored.warnings)
+    return restored.written

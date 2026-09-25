@@ -63,6 +63,7 @@ from app.services.import_engine.atlassian_bundle import BundleWriter, merge_peop
 from app.services.import_engine.common import load_guild_member_handles
 from app.services.import_engine.contract import ImportEngineError
 from app.services.import_engine import limits as import_limits
+from app.services.import_engine.zip_bounds import open_zip
 from app.services.tenant import attachments as attachments_service
 
 logger = logging.getLogger(__name__)
@@ -242,7 +243,7 @@ async def start_export(
     user: User,
     guild_id: int,
     initiative_id: int,
-    payload: bytes,
+    payload: bytes | Path,
     include_attachments: bool = True,
 ) -> ImportJob:
     """Queue a job that reads a Confluence space's HTML export into
@@ -251,15 +252,9 @@ async def start_export(
     The zip is checked for being one — a zip, within the bounds a restore
     accepts, with pages in it — and staged for the worker, which converts it
     the way it reads a site; everything after that is the same review.
+    ``payload`` is the zip itself or the file holding it.
     """
-    from app.services.import_engine.backup import open_backup_zip
-
-    archive = open_backup_zip(payload)
-    if not any(
-        info.filename.endswith(".html") and not info.filename.endswith("index.html")
-        for info in archive.infolist()
-    ):
-        raise ImportEngineError(ImportEngineMessages.IMPORT_ZIP_INVALID)
+    await asyncio.to_thread(_check_export, payload)
 
     initiative = await import_engine.load_target_initiative(
         session,
@@ -269,6 +264,14 @@ async def start_export(
         user=user,
     )
     await import_engine.count_active_jobs_locked(session, user=user)
+    if isinstance(payload, Path):
+        payload_ref = await asyncio.to_thread(
+            import_engine.stage_payload_file, guild_id, payload, suffix=EXPORT_SUFFIX
+        )
+    else:
+        payload_ref = await asyncio.to_thread(
+            import_engine.stage_payload, guild_id, payload, suffix=EXPORT_SUFFIX
+        )
     job = ImportJob(
         created_by=user.id,
         source=SOURCE,
@@ -277,9 +280,7 @@ async def start_export(
             "confluence_export": True,
             "include_attachments": include_attachments,
         },
-        payload_ref=import_engine.stage_payload(
-            guild_id, payload, suffix=EXPORT_SUFFIX
-        ),
+        payload_ref=payload_ref,
         status=ImportJobStatus.queued,
         expires_at=datetime.now(timezone.utc)
         + timedelta(hours=import_limits.IMPORT_STAGED_TTL_HOURS),
@@ -290,6 +291,17 @@ async def start_export(
     return job
 
 
+def _check_export(payload: bytes | Path) -> None:
+    """Refuse a payload that is not a zip within the upload bounds, or holds
+    no page. Blocking; run it in a thread."""
+    with open_zip(payload) as archive:
+        if not any(
+            info.filename.endswith(".html") and not info.filename.endswith("index.html")
+            for info in archive.infolist()
+        ):
+            raise ImportEngineError(ImportEngineMessages.IMPORT_ZIP_INVALID)
+
+
 async def _fetch_export(
     job: ImportJob,
     *,
@@ -298,14 +310,16 @@ async def _fetch_export(
     progress: Callable[[AtlassianFetchSummary], Awaitable[None]] | None,
 ) -> StagedFetch:
     """Convert an uploaded HTML export into the bundle a site fetch writes."""
-    from app.services.import_engine.backup import open_backup_zip
-
     raw_ref = job.payload_ref
     if not raw_ref:
         raise ImportEngineError(ImportEngineMessages.IMPORT_INVALID_PARAMS)
     async with import_engine.open_payload(guild_id, raw_ref) as upload:
         try:
-            archive = open_backup_zip(upload) if upload is not None else None
+            archive = (
+                await asyncio.to_thread(open_zip, upload)
+                if upload is not None
+                else None
+            )
         finally:
             # The upload is read once. A conversion interrupted after this
             # starts over from nothing, and says so, rather than finding half

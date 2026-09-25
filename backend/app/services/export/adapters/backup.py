@@ -21,6 +21,12 @@ with one ``initiatives/`` entry, so ONE import path serves both)::
     initiatives/{id}-{slug}/queues/{id}-{slug}.initiative-queue.json
     initiatives/{id}-{slug}/counter-groups/{id}-{slug}.initiative-counter-group.json
     initiatives/{id}-{slug}/calendars/{id}-{slug}.initiative-calendar.json
+    initiatives/{id}-{slug}/posts/{id}-{slug}.initiative-post.json
+    initiatives/{id}-{slug}/wikis/{id}-{slug}.initiative-wiki.json
+    initiatives/{id}-{slug}/galleries/{id}-{slug}.initiative-gallery.json
+    initiatives/{id}-{slug}/dashboards/{id}-{slug}.initiative-dashboard.json
+    initiatives/{id}-{slug}/structure.json          (backup mode)
+    initiatives/{id}-{slug}/properties.json         (backup mode)
     assets/{storage_key}                            (include_uploads only)
 
 Authorization: the initiative source requires the creator to reach each
@@ -32,6 +38,12 @@ DAC-visible-only per tool, and every entity still passes its own
 fetch+authorize seam. Projects are included with READ access — the
 deliberate aggregate-export relaxation of the standalone write rule.
 
+Per tool: what a tool's rows are, how one is loaded and how it serialises is
+its export adapter's (``ADAPTERS``). A ``BackupSection`` states only what the
+aggregate adds — which report formats it offers, and the hooks for the tools
+whose entries carry more than their envelope — and one loop writes every
+section.
+
 Long builds: the worker's creator-routed session enforces
 ``RLS_CONTEXT_MAX_AGE_SECONDS``; ``build`` re-validates via
 ``establish_guild_access`` between tool chunks (which also fails closed on
@@ -40,19 +52,28 @@ mid-build access revocation).
 
 from __future__ import annotations
 
-from dataclasses import replace
+from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.services.tenant.ical_service import documents_for_events
 from app.core.user_display import handle_of
 from app.core.config import settings
 from app.core.messages import ExportMessages
 from app.models.platform.user import User
+from app.models.tenant.document import DocumentType
+from app.services.export.adapters._common import BuildContext, ToolExportAdapter
+from app.services.export.adapters.document import doc_type_of
 from app.services.export.contract import RenderItem, RenderRequest
-from app.core.tools import BULK_EXPORT_TOOLS, Tool
+from app.core.tools import (
+    BULK_EXPORT_TOOLS,
+    Tool,
+    plural_of,
+    tool_envelope_type,
+    tool_export_source,
+)
 from app.services.export.engine import ExportError
 from app.services.export import delivery
 from app.services.export.i18n import localize_now
@@ -64,25 +85,9 @@ from app.services.export import limits as export_limits
 # registering it rather than by remembering this line.
 _TOOLS = tuple(t.value for t in BULK_EXPORT_TOOLS)
 
-# Report-mode format sets per tool (documents are per-type, validated below).
-_REPORT_FORMATS: dict[str, frozenset[str]] = {
-    "project": frozenset({"pdf", "csv", "xlsx"}),
-    "queue": frozenset({"pdf", "csv", "xlsx", "md"}),
-    "counter_group": frozenset({"pdf", "csv", "xlsx", "md"}),
-    "calendar": frozenset({"ics", "json"}),
-}
-_DOCUMENT_REPORT_FORMATS: dict[str, frozenset[str]] = {
-    "native": frozenset({"pdf", "md", "docx"}),
-    "spreadsheet": frozenset({"csv", "xlsx"}),
-}
-
-# Per-item template overrides for report-mode PDFs.
-_REPORT_TEMPLATES = {
-    "project": "project-report",
-    "queue": "data-table",
-    "counter_group": "data-table",
-    "document": "document",
-}
+# The rung an aggregate export reads each entity at: the initiative or
+# community backup reads what its scope reaches.
+_AGGREGATE_ACCESS = "read"
 
 # The ``tool`` an initiative's own files carry. Not a Tool: they describe the
 # initiative rather than anything made inside it, which is also why the import
@@ -196,14 +201,19 @@ def _validate_params(params: dict, *, scope_kind: str) -> None:
             raise ExportError(ExportMessages.EXPORT_INVALID_PARAMS)
     if mode == "report":
         for tool, fmt in (params.get("formats") or {}).items():
-            if tool == "document":
+            section = _SECTIONS_BY_KEY.get(tool)
+            if section is not None and section.type_report_formats:
+                allowed = section.type_report_formats
                 if not isinstance(fmt, dict) or not all(
-                    doc_type in _DOCUMENT_REPORT_FORMATS
-                    and value in _DOCUMENT_REPORT_FORMATS[doc_type]
+                    doc_type in allowed and value in allowed[doc_type]
                     for doc_type, value in fmt.items()
                 ):
                     raise ExportError(ExportMessages.EXPORT_INVALID_FORMAT)
-            elif tool not in _REPORT_FORMATS or fmt not in _REPORT_FORMATS[tool]:
+            elif (
+                section is None
+                or not isinstance(fmt, str)
+                or fmt not in section.report_formats
+            ):
                 raise ExportError(ExportMessages.EXPORT_INVALID_FORMAT)
 
 
@@ -232,51 +242,13 @@ async def _enumerate(
     session: AsyncSession, user: User, guild_id: int, params: dict, initiatives
 ) -> dict[str, dict[int, list[int]]]:
     """Per tool, per initiative: the entity ids the creator may export."""
-    from app.services.tenant.calendars import list_calendar_ids_for_export
-    from app.services.tenant.counters import list_counter_group_ids_for_export
-    from app.services.tenant.dashboards import list_dashboard_ids_for_export
-    from app.services.tenant.documents import list_document_ids_for_export
-    from app.services.tenant.posts import list_post_ids_for_export
-    from app.services.tenant.project_export import list_project_ids_for_export
-    from app.services.tenant.queues import list_queue_ids_for_export
-    from app.services.tenant.galleries import list_gallery_ids_for_export
-    from app.services.tenant.wikis import list_wiki_ids_for_export
-
     ids: dict[str, dict[int, list[int]]] = {tool: {} for tool in _TOOLS}
-    per_initiative_tools = {
-        "project": lambda iids: list_project_ids_for_export(
-            session, user, guild_id, initiative_ids=iids
-        ),
-        "document": lambda iids: list_document_ids_for_export(
-            session, user, guild_id, initiative_ids=iids
-        ),
-        "queue": lambda iids: list_queue_ids_for_export(
-            session, user, guild_id, initiative_ids=iids
-        ),
-        "counter_group": lambda iids: list_counter_group_ids_for_export(
-            session, user, guild_id, initiative_ids=iids
-        ),
-        "post": lambda iids: list_post_ids_for_export(
-            session, user, guild_id, initiative_ids=iids
-        ),
-        "wiki": lambda iids: list_wiki_ids_for_export(
-            session, user, guild_id, initiative_ids=iids
-        ),
-        "gallery": lambda iids: list_gallery_ids_for_export(
-            session, user, guild_id, initiative_ids=iids
-        ),
-        "dashboard": lambda iids: list_dashboard_ids_for_export(
-            session, user, guild_id, initiative_ids=iids
-        ),
-    }
     for initiative in initiatives:
-        for tool, enumerate_ids in per_initiative_tools.items():
-            if not _included(params, tool):
+        for section in _SECTIONS:
+            if not _included(params, section.key):
                 continue
-            ids[tool][initiative.id] = await enumerate_ids([initiative.id])
-        if _included(params, "calendar") and initiative.calendars_enabled:
-            ids["calendar"][initiative.id] = await list_calendar_ids_for_export(
-                session, user, guild_id, initiative_id=initiative.id
+            ids[section.key][initiative.id] = await section.adapter.initiative_ids(
+                session, user, guild_id, initiative.id
             )
     return ids
 
@@ -497,6 +469,13 @@ class _ScopeBuilder:
         self._asset_index: dict[str, Any] = {}
         self._asset_bytes = 0
         self._since_refresh = 0
+        # The images each native document embeds, and the stored size and
+        # type of each, loaded once per initiative's documents.
+        self._embedded: dict[int, list[dict]] = {}
+        self._upload_info: dict[str, tuple[int, str | None]] = {}
+        # The community's member profiles, read once for every initiative's
+        # roster.
+        self._profiles: dict[int, Any] | None = None
 
     async def _refresh_access(self, force: bool = False) -> None:
         """Re-validate the creator's guild access mid-build — keeps a long
@@ -520,134 +499,161 @@ class _ScopeBuilder:
     async def add_initiative(self, initiative) -> None:
         await self._refresh_access(force=True)
         folder = f"initiatives/{_slug(initiative.id, initiative.name)}"
-        await self._add_projects(initiative, folder)
-        await self._add_documents(initiative, folder)
-        await self._add_queues(initiative, folder)
-        await self._add_counter_groups(initiative, folder)
-        await self._add_calendars(initiative, folder)
-        await self._add_posts(initiative, folder)
-        await self._add_wikis(initiative, folder)
-        await self._add_galleries(initiative, folder)
-        await self._add_dashboards(initiative, folder)
+        for section in _SECTIONS:
+            await self._add_section(section, initiative, folder)
         await self._add_initiative_structure(initiative, folder)
         await self._add_initiative_properties(initiative, folder)
         await self._link_wiki_documents(initiative)
 
-    # -- per-tool chunks -----------------------------------------------------
+    # -- per-tool sections ---------------------------------------------------
 
-    async def _add_projects(self, initiative, folder: str) -> None:
-        if not _included(self.params, "project"):
+    async def _add_section(
+        self, section: BackupSection, initiative, folder: str
+    ) -> None:
+        """Every entity of one tool in this initiative, in the order the tool
+        lists them.
+
+        Each entity is loaded through the adapter's own seam. Where the adapter
+        or the section loads something across a batch, the initiative's whole
+        list is loaded first and prepared in one pass; otherwise each entity is
+        loaded and written in turn, so no more than one is held at a time.
+        """
+        if not _included(self.params, section.key):
             return
-        from app.api.v1.tenant_endpoints.projects import build_project_export_for_user
-        from app.services.export.adapters.project import build_project_item
-        from app.services.tenant.project_export import list_project_ids_for_export
-
-        fmt = self._tool_format("project", default="json")
-        for project_id in await list_project_ids_for_export(
-            self.session, self.user, self.guild_id, initiative_ids=[initiative.id]
-        ):
-            await self._refresh_access()
-            envelope = await build_project_export_for_user(
-                self.session,
-                self.user,
-                self.guild_id,
-                project_id=project_id,
-                access="read",  # the aggregate-export relaxation
-            )
-            self._record_people(envelope)
-            item = build_project_item(envelope, fmt, self.user, self.now)
-            path_stem = f"{folder}/projects/{_slug(project_id, envelope.project.name)}"
-            if fmt == "json":
-                path = f"{path_stem}.initiative-project.json"
-                await self._append_backup(
-                    item,
-                    path=path,
-                    tool="project",
-                    type="initiative-project",
-                    schema_version=envelope.schema_version,
-                    entity_id=project_id,
-                    title=envelope.project.name,
-                    initiative_id=initiative.id,
+        if self.mode != "backup" and not section.in_reports:
+            return
+        adapter = section.adapter
+        ids = await adapter.initiative_ids(
+            self.session, self.user, self.guild_id, initiative.id
+        )
+        if ids:
+            batched = adapter.prepares or section.preload is not None
+            for batch in [ids] if batched else [[entity_id] for entity_id in ids]:
+                entities = []
+                for entity_id in batch:
+                    await self._refresh_access()
+                    entities.append(await self._fetch(section, entity_id))
+                ctx = BuildContext(
+                    format="json",
+                    user=self.user,
+                    guild_id=self.guild_id,
+                    now=self.now,
+                    prepared=await adapter.prepare(self.session, entities),
                 )
-            else:
-                self._append_report(item, f"{path_stem}.{fmt}", fmt, "project")
+                if section.preload is not None:
+                    await section.preload(self, entities)
+                for entity_id, entity in zip(batch, entities):
+                    await self._add_entity(
+                        section, initiative, folder, entity_id, entity, ctx
+                    )
+        if section.finish is not None:
+            await section.finish(self, initiative, ids)
 
-    async def _add_documents(self, initiative, folder: str) -> None:
-        if not _included(self.params, "document"):
-            return
-        from app.models.tenant.document import DocumentType
-        from app.schemas.tenant.backup_export import ManifestSkipped
-        from app.services.export.adapters.document import build_document_item
-        from app.services.export.i18n import export_locale
-        from app.services.tenant.documents import (
-            get_document_for_export,
-            list_document_ids_for_export,
+    async def _fetch(self, section: BackupSection, entity_id: int) -> Any:
+        if section.fetch is not None:
+            return await section.fetch(
+                section.adapter, self.session, self.user, self.guild_id, entity_id
+            )
+        return await section.adapter.fetch(
+            self.session,
+            self.user,
+            self.guild_id,
+            entity_id,
+            access=_AGGREGATE_ACCESS,
         )
 
-        loc = export_locale(self.user)
-        date = self.now.strftime("%Y-%m-%d")
-        doc_formats = self._document_formats()
-        for document_id in await list_document_ids_for_export(
-            self.session, self.user, self.guild_id, initiative_ids=[initiative.id]
+    async def _add_entity(
+        self,
+        section: BackupSection,
+        initiative,
+        folder: str,
+        entity_id: int,
+        entity: Any,
+        ctx: BuildContext,
+    ) -> None:
+        """One entity: its envelope (and manifest entry), or its report file."""
+        adapter = section.adapter
+        title = adapter.title(entity)
+        path_stem = f"{folder}/{section.folder}/{_slug(entity_id, title)}"
+        if section.write_apart is not None and section.write_apart(
+            self, entity, initiative, path_stem
         ):
-            await self._refresh_access()
-            document = await get_document_for_export(
-                self.session,
-                self.user,
-                self.guild_id,
-                document_id=document_id,
-                access="read",  # the aggregate-export relaxation
-            )
-            doc_type = (
-                document.document_type.value
-                if hasattr(document.document_type, "value")
-                else str(document.document_type)
-            )
-            path_stem = f"{folder}/documents/{_slug(document.id, document.name)}"
+            return
+        fmt = (
+            section.format_for(self, entity)
+            if section.format_for is not None
+            else self._tool_format(section)
+        )
+        item = adapter.item(entity, replace(ctx, format=fmt))
+        if fmt != "json":
+            self._append_report(item, f"{path_stem}.{fmt}", fmt, adapter.template_id)
+            return
+        path = f"{path_stem}{section.envelope_suffix}"
+        if section.before_envelope is not None:
+            await section.before_envelope(self, entity, path)
+        await self._append_backup(
+            item,
+            path=path,
+            tool=section.key,
+            type=tool_envelope_type(section.tool),
+            schema_version=item.data["schema_version"],
+            entity_id=entity_id,
+            title=title,
+            initiative_id=initiative.id,
+        )
 
-            if doc_type == DocumentType.file.value:
-                if not _include_uploads(self.params):
-                    self.skipped.append(
-                        ManifestSkipped(
-                            tool="document",
-                            entity_id=document.id,
-                            title=document.name,
-                            initiative_id=initiative.id,
-                            reason="uploads_excluded",
-                        )
-                    )
-                    continue
-                self._add_file_document(
-                    document, initiative, path_stem, _document_metadata(document)
-                )
-                continue
+    def _skip(
+        self, tool: Tool, entity_id: int, title: str, initiative, reason: str
+    ) -> None:
+        """Record an entity the archive leaves out, and why."""
+        from app.schemas.tenant.backup_export import ManifestSkipped
 
-            # Report mode offers per-type choices for native/spreadsheet;
-            # everything else (whiteboards, smart links) rides as its
-            # canonical json envelope in both modes.
-            fmt = (
-                "json"
-                if self.mode == "backup" or doc_type not in doc_formats
-                else doc_formats[doc_type]
+        self.skipped.append(
+            ManifestSkipped(
+                tool=tool.value,
+                entity_id=entity_id,
+                title=title,
+                initiative_id=initiative.id,
+                reason=reason,
             )
-            item = build_document_item(
-                document, fmt, guild_id=self.guild_id, date=date, loc=loc
+        )
+
+    # -- section hooks: projects -----------------------------------------------
+
+    async def _note_project_people(self, envelope, path: str) -> None:
+        """Note who the project's envelope names, for the manifest's people."""
+        self._record_people(envelope)
+
+    # -- section hooks: documents ----------------------------------------------
+
+    def _document_format(self, document) -> str:
+        """Report mode offers per-type choices for native/spreadsheet;
+        everything else (whiteboards, smart links) rides as its canonical json
+        envelope in both modes."""
+        doc_type = doc_type_of(document)
+        doc_formats = self._document_formats()
+        if self.mode == "backup" or doc_type not in doc_formats:
+            return "json"
+        return doc_formats[doc_type]
+
+    def _write_file_document(self, document, initiative, path_stem: str) -> bool:
+        """A file document is its blob, registered as an asset — or, with
+        uploads left out, a skipped entry."""
+        if doc_type_of(document) != DocumentType.file.value:
+            return False
+        if not _include_uploads(self.params):
+            self._skip(
+                Tool.document,
+                document.id,
+                document.name,
+                initiative,
+                "uploads_excluded",
             )
-            if fmt == "json":
-                path = f"{path_stem}.json"
-                await self._collect_embedded_assets(document, doc_type, path)
-                await self._append_backup(
-                    item,
-                    path=path,
-                    tool="document",
-                    type="initiative-document",
-                    schema_version=1,
-                    entity_id=document.id,
-                    title=document.name,
-                    initiative_id=initiative.id,
-                )
-            else:
-                self._append_report(item, f"{path_stem}.{fmt}", fmt, "document")
+            return True
+        self._add_file_document(
+            document, initiative, path_stem, _document_metadata(document)
+        )
+        return True
 
     def _add_file_document(
         self, document, initiative, path_stem: str, metadata
@@ -678,170 +684,113 @@ class _ScopeBuilder:
                 )
             )
 
-    async def _add_queues(self, initiative, folder: str) -> None:
-        if not _included(self.params, "queue"):
+    async def _preload_embedded_assets(self, documents: list) -> None:
+        """The images the native documents embed, and each one's stored size
+        and type in one query, for the envelopes about to be written."""
+        self._embedded = {}
+        self._upload_info = {}
+        if not _include_uploads(self.params):
             return
-        from app.services.export.adapters.queue import build_queue_item
-        from app.services.export.adapters.queue import queue_attachments_for
-        from app.services.tenant.queues import (
-            get_queue_for_export,
-            list_queue_ids_for_export,
-        )
+        from app.services.export.lexical import blocks_from_editor_state
 
-        fmt = self._tool_format("queue", default="json")
-        for queue_id in await list_queue_ids_for_export(
-            self.session, self.user, self.guild_id, initiative_ids=[initiative.id]
-        ):
-            await self._refresh_access()
-            queue = await get_queue_for_export(
-                self.session,
-                self.user,
-                self.guild_id,
-                queue_id=queue_id,
-                access="read",  # the aggregate-export relaxation
+        keys: list[str] = []
+        for document in documents:
+            if doc_type_of(document) != DocumentType.native.value:
+                continue
+            if self._document_format(document) != "json":
+                continue
+            _, assets = blocks_from_editor_state(
+                document.content or {}, guild_id=self.guild_id
             )
-            attachments = await queue_attachments_for(self.session, queue.items)
-            item = build_queue_item(queue, fmt, self.user, self.now, attachments)
-            path_stem = f"{folder}/queues/{_slug(queue.id, queue.name)}"
-            if fmt == "json":
-                await self._append_backup(
-                    item,
-                    path=f"{path_stem}.initiative-queue.json",
-                    tool="queue",
-                    type="initiative-queue",
-                    schema_version=1,
-                    entity_id=queue.id,
-                    title=queue.name,
-                    initiative_id=initiative.id,
-                )
-            else:
-                self._append_report(item, f"{path_stem}.{fmt}", fmt, "queue")
+            if not assets:
+                continue
+            self._embedded[document.id] = assets
+            keys.extend(a["key"] for a in assets if a["key"] not in self._asset_index)
+        self._upload_info = await self._upload_rows(list(dict.fromkeys(keys)))
 
-    async def _add_counter_groups(self, initiative, folder: str) -> None:
-        if not _included(self.params, "counter_group"):
-            return
-        from app.services.export.adapters.counter_group import build_counter_group_item
-        from app.services.tenant.counters import (
-            get_counter_group_for_export,
-            list_counter_group_ids_for_export,
-        )
-
-        fmt = self._tool_format("counter_group", default="json")
-        for group_id in await list_counter_group_ids_for_export(
-            self.session, self.user, self.guild_id, initiative_ids=[initiative.id]
-        ):
-            await self._refresh_access()
-            group = await get_counter_group_for_export(
-                self.session,
-                self.user,
-                self.guild_id,
-                group_id=group_id,
-                access="read",  # the aggregate-export relaxation
+    async def _collect_embedded_assets(self, document, entry_path: str) -> None:
+        """Native documents can embed same-guild images; when uploads ride,
+        those blobs join the archive too — at their REAL stored size, so they
+        count against the byte cap exactly like file-document blobs (the
+        pre-flight count only sees file documents, so build is where embedded
+        bytes get bounded; an over-cap build fails the job closed)."""
+        for asset in self._embedded.pop(document.id, []):
+            size_bytes, content_type = self._upload_info.get(asset["key"], (0, None))
+            self._register_asset(
+                asset["key"],
+                original_filename=asset.get("name"),
+                content_type=content_type,
+                size_bytes=size_bytes,
+                referenced_by=entry_path,
             )
-            item = build_counter_group_item(group, fmt, self.user, self.now)
-            path_stem = f"{folder}/counter-groups/{_slug(group.id, group.name)}"
-            if fmt == "json":
-                await self._append_backup(
-                    item,
-                    path=f"{path_stem}.initiative-counter-group.json",
-                    tool="counter_group",
-                    type="initiative-counter-group",
-                    schema_version=1,
-                    entity_id=group.id,
-                    title=group.name,
-                    initiative_id=initiative.id,
-                )
-            else:
-                self._append_report(item, f"{path_stem}.{fmt}", fmt, "counter_group")
 
-    async def _add_posts(self, initiative, folder: str) -> None:
-        """Every notice on this initiative's board.
+    # -- section hooks: galleries ----------------------------------------------
 
-        JSON only — a post exports as its importable envelope, the way a
-        whiteboard document does. There is no report shape for a notice, so a
-        report-mode export leaves the board out entirely rather than dropping
-        a lone JSON file into a zip of PDFs and spreadsheets. That is also why
-        ``_REPORT_FORMATS`` has no ``post`` entry: nothing to offer.
+    def _skip_gallery_without_uploads(self, loaded, initiative, path_stem: str) -> bool:
+        """A gallery is mostly blobs, so it obeys the uploads toggle the way a
+        file document does — excluded uploads means the pictures do not
+        travel, and a gallery of captions without them is not worth writing,
+        so the whole gallery is recorded as skipped instead."""
+        if _include_uploads(self.params):
+            return False
+        gallery, _images = loaded
+        self._skip(
+            Tool.gallery, gallery.id, gallery.name, initiative, "uploads_excluded"
+        )
+        return True
+
+    async def _register_gallery_pictures(self, loaded, path: str) -> None:
+        """Each picture's bytes, registered as an asset of the gallery's
+        entry."""
+        from app.services.export.adapters.gallery import storage_key_of
+
+        _gallery, images = loaded
+        for image in images:
+            key = storage_key_of(image.file_url)
+            if not key:
+                continue
+            # The picture only; a thumbnail is a rendition the app makes
+            # again from it.
+            self._register_asset(
+                key,
+                original_filename=image.original_filename,
+                content_type=image.file_content_type,
+                size_bytes=int(image.file_size or 0),
+                referenced_by=path,
+            )
+
+    # -- section hooks: dashboards ---------------------------------------------
+
+    async def _record_foreign_dashboards(self, initiative, exported: list[int]) -> None:
+        """Dashboards built on an app this build does not ship.
+
+        The dashboard listing applies the provenance filter, so the ones it
+        left out are recovered here separately in order to record them: an
+        archive that just omitted them would not say they existed.
         """
         if self.mode != "backup":
             return
-        if not _included(self.params, "post"):
+        if not getattr(initiative, Tool.dashboard.view_permission, False):
             return
-        if not initiative.posts_enabled:
-            return
-        from app.services.export.adapters.post import build_post_item
-        from app.services.tenant.posts import (
-            get_post_for_export,
-            list_post_ids_for_export,
+        from sqlmodel import select
+
+        from app.models.tenant.dashboard import Dashboard
+        from app.services.export.provenance import THIRD_PARTY_REASON
+
+        kept = set(exported)
+        rows = await self.session.exec(
+            select(Dashboard.id, Dashboard.name).where(
+                Dashboard.initiative_id == initiative.id
+            )
         )
-
-        for post_id in await list_post_ids_for_export(
-            self.session, self.user, self.guild_id, initiative_ids=[initiative.id]
-        ):
-            await self._refresh_access()
-            post = await get_post_for_export(
-                self.session,
-                self.user,
-                self.guild_id,
-                post_id=post_id,
-                access="read",  # the aggregate-export relaxation
-            )
-            item = build_post_item(post, "json", self.now)
-            path_stem = f"{folder}/posts/{_slug(post.id, post.name)}"
-            await self._append_backup(
-                item,
-                path=f"{path_stem}.initiative-post.json",
-                tool="post",
-                type="initiative-post",
-                schema_version=1,
-                entity_id=post.id,
-                title=post.name,
-                initiative_id=initiative.id,
+        for dashboard_id, name in rows:
+            if dashboard_id in kept:
+                continue
+            self._skip(
+                Tool.dashboard, dashboard_id, name, initiative, THIRD_PARTY_REASON
             )
 
-    async def _add_wikis(self, initiative, folder: str) -> None:
-        """Every wiki in this initiative, with its pages and their shape.
-
-        JSON only, for the reason a notice is: a wiki's export is its
-        importable envelope, and there is no report shape for one — so a
-        report-mode export leaves wikis out rather than dropping a lone JSON
-        file into a zip of PDFs.
-        """
-        if self.mode != "backup":
-            return
-        if not _included(self.params, "wiki"):
-            return
-        if not initiative.wikis_enabled:
-            return
-        from app.services.export.adapters.wiki import build_wiki_item
-        from app.services.tenant.wikis import (
-            get_wiki_for_export,
-            list_wiki_ids_for_export,
-        )
-
-        for wiki_id in await list_wiki_ids_for_export(
-            self.session, self.user, self.guild_id, initiative_ids=[initiative.id]
-        ):
-            await self._refresh_access()
-            wiki, pages = await get_wiki_for_export(
-                self.session,
-                self.user,
-                self.guild_id,
-                wiki_id=wiki_id,
-                access="read",  # the aggregate-export relaxation
-            )
-            item = build_wiki_item(wiki, pages, self.now)
-            path_stem = f"{folder}/wikis/{_slug(wiki.id, wiki.name)}"
-            await self._append_backup(
-                item,
-                path=f"{path_stem}.initiative-wiki.json",
-                tool="wiki",
-                type="initiative-wiki",
-                schema_version=1,
-                entity_id=wiki.id,
-                title=wiki.name,
-                initiative_id=initiative.id,
-            )
+    # -- people ----------------------------------------------------------------
 
     def _record_people(self, envelope) -> None:
         """Note everyone a project envelope names, and how often they are
@@ -1000,133 +949,14 @@ class _ScopeBuilder:
                 kind="wiki", ref=path, page=page_slugs.get(parent) if parent else None
             )
 
-    async def _add_galleries(self, initiative, folder: str) -> None:
-        """Every gallery in this initiative: one envelope each, and its
-        pictures' bytes registered as assets.
-
-        A gallery is mostly blobs, so it obeys the uploads toggle the way a
-        file document does — excluded uploads means the pictures do not
-        travel, and a gallery of captions without them is not worth writing,
-        so the whole gallery is recorded as skipped instead.
-        """
-        if self.mode != "backup":
-            return
-        if not _included(self.params, "gallery"):
-            return
-        if not initiative.galleries_enabled:
-            return
-        from app.schemas.tenant.backup_export import ManifestSkipped
-        from app.services.export.adapters.gallery import (
-            build_gallery_item,
-            storage_key_of,
-        )
-        from app.services.tenant.galleries import (
-            get_gallery_for_export,
-            list_gallery_ids_for_export,
-        )
-
-        for gallery_id in await list_gallery_ids_for_export(
-            self.session, self.user, self.guild_id, initiative_ids=[initiative.id]
-        ):
-            await self._refresh_access()
-            gallery, images = await get_gallery_for_export(
-                self.session,
-                self.user,
-                self.guild_id,
-                gallery_id=gallery_id,
-                access="read",  # the aggregate-export relaxation
-            )
-            if not _include_uploads(self.params):
-                self.skipped.append(
-                    ManifestSkipped(
-                        tool="gallery",
-                        entity_id=gallery.id,
-                        title=gallery.name,
-                        initiative_id=initiative.id,
-                        reason="uploads_excluded",
-                    )
-                )
-                continue
-            item = build_gallery_item(gallery, images, self.now)
-            path_stem = f"{folder}/galleries/{_slug(gallery.id, gallery.name)}"
-            path = f"{path_stem}.initiative-gallery.json"
-            for image in images:
-                key = storage_key_of(image.file_url)
-                if not key:
-                    continue
-                # The picture only; a thumbnail is a rendition the app makes
-                # again from it.
-                self._register_asset(
-                    key,
-                    original_filename=image.original_filename,
-                    content_type=image.file_content_type,
-                    size_bytes=int(image.file_size or 0),
-                    referenced_by=path,
-                )
-            await self._append_backup(
-                item,
-                path=path,
-                tool="gallery",
-                type="initiative-gallery",
-                schema_version=1,
-                entity_id=gallery.id,
-                title=gallery.name,
-                initiative_id=initiative.id,
-            )
-
-    async def _add_calendars(self, initiative, folder: str) -> None:
-        if not _included(self.params, "calendar"):
-            return
-        if not initiative.calendars_enabled:
-            return
-        from app.services.export.adapters.calendar import build_calendar_item
-        from app.services.tenant.calendars import (
-            get_calendar_for_export,
-            list_calendar_ids_for_export,
-        )
-
-        fmt = self._tool_format("calendar", default="json")
-        date = self.now.strftime("%Y-%m-%d")
-        for calendar_id in await list_calendar_ids_for_export(
-            self.session, self.user, self.guild_id, initiative_id=initiative.id
-        ):
-            await self._refresh_access()
-            calendar = await get_calendar_for_export(
-                self.session,
-                self.user,
-                self.guild_id,
-                calendar_id=calendar_id,
-                access="read",  # the aggregate-export relaxation
-            )
-            documents_by_event = await documents_for_events(
-                self.session, list(calendar.events)
-            )
-            item = build_calendar_item(calendar, fmt, date, documents_by_event)
-            path_stem = f"{folder}/calendars/{_slug(calendar.id, calendar.name)}"
-            if fmt == "json":
-                await self._append_backup(
-                    item,
-                    path=f"{path_stem}.initiative-calendar.json",
-                    tool="calendar",
-                    type="initiative-calendar",
-                    schema_version=1,
-                    entity_id=calendar.id,
-                    title=calendar.name,
-                    initiative_id=initiative.id,
-                )
-            else:  # ics
-                self._append_report(item, f"{path_stem}.{fmt}", fmt, "calendar")
-
     # -- helpers ---------------------------------------------------------------
 
-    def _tool_format(self, tool: str, *, default: str) -> str:
+    def _tool_format(self, section: BackupSection) -> str:
         if self.mode == "backup":
-            return default
+            return "json"
         formats = self.params.get("formats") or {}
-        value = formats.get(tool)
-        if tool == "document" or not isinstance(value, str):
-            return default
-        return value
+        value = formats.get(section.key)
+        return value if isinstance(value, str) else "json"
 
     def _document_formats(self) -> dict[str, str]:
         if self.mode == "backup":
@@ -1135,77 +965,20 @@ class _ScopeBuilder:
         value = formats.get("document")
         return dict(value) if isinstance(value, dict) else {}
 
-    async def _add_dashboards(self, initiative, folder: str) -> None:
-        """Dashboards, minus any built on an app this build does not ship.
+    async def _guild_profiles(self) -> dict[int, Any]:
+        """The community's member profiles by user id, read once per build.
+        The projection already narrows to this guild's members; an
+        initiative's roster is a subset of it."""
+        if self._profiles is None:
+            from sqlmodel import select
 
-        ``list_dashboard_ids_for_export`` applies the provenance filter, so
-        the skipped ones are recovered here separately in order to record
-        them: an archive that just omitted them would not say they existed.
-        Report mode has no dashboard format — a dashboard is a live canvas,
-        not a document — so it carries the envelope in both modes.
-        """
-        if not _included(self.params, "dashboard"):
-            return
-        if not getattr(initiative, "dashboards_enabled", False):
-            return
-        from sqlmodel import select
+            from app.models.platform.user_profile_view import GuildMember
 
-        from app.models.tenant.dashboard import Dashboard
-        from app.schemas.tenant.backup_export import ManifestSkipped
-        from app.services.export.adapters.dashboard import build_dashboard_item
-        from app.services.export.provenance import THIRD_PARTY_REASON
-        from app.services.tenant.dashboards import (
-            get_dashboard_for_export,
-            list_dashboard_ids_for_export,
-        )
-
-        exportable = await list_dashboard_ids_for_export(
-            self.session, self.user, self.guild_id, initiative_ids=[initiative.id]
-        )
-        for dashboard_id in exportable:
-            await self._refresh_access()
-            dashboard = await get_dashboard_for_export(
-                self.session,
-                self.user,
-                self.guild_id,
-                dashboard_id=dashboard_id,
-                access="read",  # the aggregate-export relaxation
-            )
-            item = build_dashboard_item(dashboard, self.now.strftime("%Y-%m-%d"))
-            path = (
-                f"{folder}/dashboards/"
-                f"{_slug(dashboard_id, dashboard.name)}.initiative-dashboard.json"
-            )
-            await self._append_backup(
-                item,
-                path=path,
-                tool="dashboard",
-                type="initiative-dashboard",
-                schema_version=1,
-                entity_id=dashboard_id,
-                title=dashboard.name,
-                initiative_id=initiative.id,
-            )
-        if self.mode != "backup":
-            return
-        kept = set(exportable)
-        rows = await self.session.exec(
-            select(Dashboard.id, Dashboard.name).where(
-                Dashboard.initiative_id == initiative.id
-            )
-        )
-        for dashboard_id, name in rows:
-            if dashboard_id in kept:
-                continue
-            self.skipped.append(
-                ManifestSkipped(
-                    tool="dashboard",
-                    entity_id=dashboard_id,
-                    title=name,
-                    initiative_id=initiative.id,
-                    reason=THIRD_PARTY_REASON,
-                )
-            )
+            self._profiles = {
+                profile.id: profile
+                for profile in await self.session.exec(select(GuildMember))
+            }
+        return self._profiles
 
     async def _add_initiative_structure(self, initiative, folder: str) -> None:
         """The initiative itself: who was in it, the roles they held, and what
@@ -1223,7 +996,6 @@ class _ScopeBuilder:
         from sqlmodel import select
 
         from app.core.user_display import handle_of
-        from app.models.platform.user_profile_view import GuildMember
         from app.models.tenant.initiative import (
             InitiativeMember,
             InitiativeRoleModel,
@@ -1258,14 +1030,7 @@ class _ScopeBuilder:
                 .order_by(InitiativeMember.user_id.asc())
             )
         )
-        profiles = {}
-        if members:
-            # The projection already narrowed to this guild's members; an
-            # initiative's roster is a subset of it.
-            profiles = {
-                profile.id: profile
-                for profile in await self.session.exec(select(GuildMember))
-            }
+        profiles = await self._guild_profiles() if members else {}
         if not roles and not members:
             return
 
@@ -1458,45 +1223,12 @@ class _ScopeBuilder:
 
             self.entries.append(ManifestEntry(path=path, **entry_kwargs))
 
-    def _append_report(self, item: RenderItem, path: str, fmt: str, tool: str) -> None:
-        self.items.append(
-            replace(
-                item,
-                filename=path,
-                format=fmt,
-                template_id=_REPORT_TEMPLATES.get(tool),
-            )
-        )
-
-    async def _collect_embedded_assets(
-        self, document, doc_type: str, entry_path: str
+    def _append_report(
+        self, item: RenderItem, path: str, fmt: str, template_id: str
     ) -> None:
-        """Native documents can embed same-guild images; when uploads ride,
-        those blobs join the archive too — at their REAL stored size, so they
-        count against the byte cap exactly like file-document blobs (the
-        pre-flight count only sees file documents, so build is where embedded
-        bytes get bounded; an over-cap build fails the job closed)."""
-        if doc_type != "native" or not _include_uploads(self.params):
-            return
-        from app.services.export.lexical import blocks_from_editor_state
-
-        _, assets = blocks_from_editor_state(
-            document.content or {}, guild_id=self.guild_id
+        self.items.append(
+            replace(item, filename=path, format=fmt, template_id=template_id)
         )
-        if not assets:
-            return
-        uploads = await self._upload_rows(
-            [a["key"] for a in assets if a["key"] not in self._asset_index]
-        )
-        for asset in assets:
-            size_bytes, content_type = uploads.get(asset["key"], (0, None))
-            self._register_asset(
-                asset["key"],
-                original_filename=asset.get("name"),
-                content_type=content_type,
-                size_bytes=size_bytes,
-                referenced_by=entry_path,
-            )
 
     async def _upload_rows(self, storage_keys: list) -> dict:
         """Stored size + content type per storage key (``uploads.filename`` IS
@@ -1577,6 +1309,136 @@ def _document_metadata(document) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Sections: one per tool
+# ---------------------------------------------------------------------------
+
+#: Loads one entity for an aggregate, given the tool's adapter.
+Fetch = Callable[[Any, AsyncSession, User, int, int], Awaitable[Any]]
+
+
+async def _fetch_wiki_pages(
+    adapter: Any, session: AsyncSession, user: User, guild_id: int, wiki_id: int
+) -> Any:
+    """A wiki and its pages. The documents filed in it are written by the
+    documents section and placed in the wiki by ``attach_to``."""
+    return await adapter.fetch_pages(
+        session, user, guild_id, wiki_id, access=_AGGREGATE_ACCESS
+    )
+
+
+@dataclass(frozen=True)
+class BackupSection:
+    """How one tool is written into an initiative or community export.
+
+    Which rows the tool has, how one is loaded and how it serialises are its
+    export adapter's. A section states what the aggregate adds: the formats a
+    report may ask for, and the hooks for a tool whose entries carry more than
+    their envelope. Every hook is optional; a tool with none writes each entity
+    as its envelope, or in the report format chosen for it.
+    """
+
+    tool: Tool
+    #: The formats a report-mode export may choose for this tool. With none
+    #: chosen — or none offered — the tool rides as its envelope.
+    report_formats: frozenset[str] = frozenset()
+    #: Report formats per document type, for the tool whose formats depend on
+    #: the entity rather than the tool.
+    type_report_formats: Mapping[str, frozenset[str]] = field(default_factory=dict)
+    #: Whether a report-mode export carries this tool at all. A tool with no
+    #: report shape is left out rather than dropping a lone JSON file into a
+    #: zip of PDFs and spreadsheets.
+    in_reports: bool = True
+    #: Whether an envelope's file name carries its envelope type
+    #: (``<slug>.initiative-queue.json``). A document's is ``<slug>.json``.
+    type_in_filename: bool = True
+    #: Loads one entity; the adapter's ``fetch`` at the read rung otherwise.
+    fetch: Fetch | None = None
+    #: Loads what the initiative's entities of this tool need across the
+    #: batch, before any of them is written.
+    preload: Callable[[_ScopeBuilder, list], Awaitable[None]] | None = None
+    #: The format one entity is written in; the format chosen for the tool
+    #: otherwise.
+    format_for: Callable[[_ScopeBuilder, Any], str] | None = None
+    #: Writes an entity in some other shape — or records it as skipped — and
+    #: answers ``True``; ``False`` writes it the usual way.
+    write_apart: Callable[[_ScopeBuilder, Any, Any, str], bool] | None = None
+    #: Runs just before an entity's envelope is written, with its path.
+    before_envelope: Callable[[_ScopeBuilder, Any, str], Awaitable[None]] | None = None
+    #: Runs once after an initiative's entities of this tool are written, with
+    #: the ids that were.
+    finish: Callable[[_ScopeBuilder, Any, list[int]], Awaitable[None]] | None = None
+
+    @property
+    def key(self) -> str:
+        """The tool's key in the selector's include/formats maps and on its
+        manifest entries."""
+        return self.tool.value
+
+    @property
+    def adapter(self) -> ToolExportAdapter:
+        from app.services.export.adapters import ADAPTERS
+
+        return cast(ToolExportAdapter, ADAPTERS[tool_export_source(self.tool)])
+
+    @property
+    def folder(self) -> str:
+        """The folder an initiative's entries of this tool sit in."""
+        return plural_of(tool_export_source(self.tool))
+
+    @property
+    def envelope_suffix(self) -> str:
+        if self.type_in_filename:
+            return f".{tool_envelope_type(self.tool)}.json"
+        return ".json"
+
+
+#: Every exportable tool's section, in the order an initiative's folder is
+#: written.
+_SECTIONS: tuple[BackupSection, ...] = (
+    BackupSection(
+        Tool.project,
+        report_formats=frozenset({"pdf", "csv", "xlsx"}),
+        before_envelope=_ScopeBuilder._note_project_people,
+    ),
+    BackupSection(
+        Tool.document,
+        type_report_formats={
+            DocumentType.native.value: frozenset({"pdf", "md", "docx"}),
+            DocumentType.spreadsheet.value: frozenset({"csv", "xlsx"}),
+        },
+        type_in_filename=False,
+        preload=_ScopeBuilder._preload_embedded_assets,
+        format_for=_ScopeBuilder._document_format,
+        write_apart=_ScopeBuilder._write_file_document,
+        before_envelope=_ScopeBuilder._collect_embedded_assets,
+    ),
+    BackupSection(Tool.queue, report_formats=frozenset({"pdf", "csv", "xlsx", "md"})),
+    BackupSection(
+        Tool.counter_group, report_formats=frozenset({"pdf", "csv", "xlsx", "md"})
+    ),
+    BackupSection(Tool.calendar, report_formats=frozenset({"ics", "json"})),
+    BackupSection(Tool.post, in_reports=False),
+    BackupSection(Tool.wiki, in_reports=False, fetch=_fetch_wiki_pages),
+    BackupSection(
+        Tool.gallery,
+        in_reports=False,
+        write_apart=_ScopeBuilder._skip_gallery_without_uploads,
+        before_envelope=_ScopeBuilder._register_gallery_pictures,
+    ),
+    # A dashboard is a live canvas, not a document, so a report carries its
+    # envelope too.
+    BackupSection(Tool.dashboard, finish=_ScopeBuilder._record_foreign_dashboards),
+)
+_SECTIONS_BY_KEY: dict[str, BackupSection] = {s.key: s for s in _SECTIONS}
+
+if len(_SECTIONS_BY_KEY) != len(_SECTIONS) or set(_SECTIONS_BY_KEY) != set(_TOOLS):
+    raise RuntimeError(
+        "every exportable tool needs exactly one backup section: "
+        f"{sorted(set(_TOOLS) ^ set(_SECTIONS_BY_KEY))}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Estimate (the wizard's pre-flight numbers)
 # ---------------------------------------------------------------------------
 
@@ -1608,9 +1470,7 @@ async def estimate_backup(
     estimated_rows = 0
     for tool in _TOOLS:
         count = sum(len(v) for v in ids[tool].values())
-        # Core tools (project, document) have no flag column — getattr's
-        # default keeps them permanently enabled.
-        disabled = all(not getattr(i, f"{tool}s_enabled", True) for i in initiatives)
+        disabled = all(not getattr(i, Tool(tool).view_permission) for i in initiatives)
         tools[tool] = BackupToolEstimate(count=count, disabled=disabled)
         estimated_rows += count
 

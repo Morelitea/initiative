@@ -56,6 +56,7 @@ from app.services.export.adapters._common import (
     export_stem,
 )
 from app.services.export.contract import RenderItem
+from app.services.permissions import EXPORT_ACCESS
 
 #: What one wiki contributes to a batch: its row, its pages, and the documents
 #: filed in it that come along.
@@ -68,31 +69,71 @@ DOCUMENTS_DIR = "documents/"
 class WikiAdapter(ToolExportAdapter):
     tool = Tool.wiki
     template_id = "document"  # the Lexical PDF template documents use
-    formats = frozenset({"json", "pdf", "md", "docx"})
+    format_choices = ("json", "pdf", "md", "docx")
     #: Always a zip: the wiki and the documents filed in it are one download.
     force_zip = True
 
     async def fetch(
-        self, session: AsyncSession, user: User, guild_id: int, wiki_id: int, /
+        self,
+        session: AsyncSession,
+        user: User,
+        guild_id: int,
+        wiki_id: int,
+        /,
+        *,
+        access: str = EXPORT_ACCESS,
     ) -> Loaded:
         from app.services.tenant.documents import get_document_for_export
-        from app.services.tenant.wikis import get_wiki_for_export, linked_documents
+        from app.services.tenant.wikis import linked_documents
 
-        wiki, pages = await get_wiki_for_export(
-            session, user, guild_id, wiki_id=wiki_id
+        wiki, pages, _ = await self.fetch_pages(
+            session, user, guild_id, wiki_id, access=access
         )
         documents: list[Document] = []
         for linked in await linked_documents(session, wiki.id):
             try:
                 documents.append(
                     await get_document_for_export(
-                        session, user, guild_id, document_id=linked.id
+                        session, user, guild_id, document_id=linked.id, access=access
                     )
                 )
             except HTTPException:
                 # Not theirs to export: it stays out of the download.
                 continue
         return wiki, pages, documents
+
+    async def fetch_pages(
+        self,
+        session: AsyncSession,
+        user: User,
+        guild_id: int,
+        wiki_id: int,
+        /,
+        *,
+        access: str = EXPORT_ACCESS,
+    ) -> Loaded:
+        """The wiki and its pages, with no filed documents. An initiative or
+        community backup writes those as entries of their own and places them
+        in the wiki from there."""
+        from app.services.tenant.wikis import get_wiki_for_export
+
+        wiki, pages = await get_wiki_for_export(
+            session, user, guild_id, wiki_id=wiki_id, access=access
+        )
+        return wiki, pages, []
+
+    async def initiative_ids(
+        self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
+    ) -> list[int]:
+        from app.services.tenant.wikis import list_wiki_ids_for_export
+
+        return await list_wiki_ids_for_export(
+            session, user, guild_id, initiative_ids=[initiative_id]
+        )
+
+    def title(self, loaded: Loaded, /) -> str:
+        wiki, _pages, _documents = loaded
+        return wiki.name
 
     def rows(self, loaded: Loaded, /) -> int:
         # One row per page and per filed document: a wiki's size is what is

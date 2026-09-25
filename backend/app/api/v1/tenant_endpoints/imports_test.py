@@ -382,7 +382,9 @@ async def test_large_envelope_becomes_job_and_worker_applies_it(
     assert "payload_ref" not in body
 
     user_session = await role_session("app_user")
-    monkeypatch.setattr(import_worker, "_open_user_session", lambda: user_session)
+    monkeypatch.setattr(
+        import_worker, "_open_user_session", lambda _guild_id: user_session
+    )
     await import_worker.process_import_jobs()
 
     status_resp = await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
@@ -445,7 +447,9 @@ async def test_worker_fails_closed_on_revoked_permission(
     await session.commit()
 
     user_session = await role_session("app_user")
-    monkeypatch.setattr(import_worker, "_open_user_session", lambda: user_session)
+    monkeypatch.setattr(
+        import_worker, "_open_user_session", lambda _guild_id: user_session
+    )
     await import_worker.process_import_jobs()
 
     job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
@@ -485,7 +489,9 @@ async def test_stale_running_import_fails_closed_not_reapplied(
     await session.refresh(job)
 
     user_session = await role_session("app_user")
-    monkeypatch.setattr(import_worker, "_open_user_session", lambda: user_session)
+    monkeypatch.setattr(
+        import_worker, "_open_user_session", lambda _guild_id: user_session
+    )
     await import_worker.process_import_jobs()
 
     await session.refresh(job)
@@ -697,7 +703,9 @@ async def _apply_backup(client, actor, zip_bytes, monkeypatch, role_session) -> 
 
 async def _run_import_worker(monkeypatch, role_session):
     user_session = await role_session("app_user")
-    monkeypatch.setattr(import_worker, "_open_user_session", lambda: user_session)
+    monkeypatch.setattr(
+        import_worker, "_open_user_session", lambda _guild_id: user_session
+    )
     await import_worker.process_import_jobs()
 
 
@@ -1319,8 +1327,8 @@ async def test_backup_asset_restore_guards_actual_bytes_not_declarations(
             info.file_size = 10
             return info
 
-        def read(self, name):
-            return b"x" * 100_000
+        def open(self, info):
+            return io.BytesIO(b"x" * 100_000)
 
     manifest = BackupManifest(
         type="initiative-backup",
@@ -1350,6 +1358,149 @@ async def test_backup_asset_restore_guards_actual_bytes_not_declarations(
         )
     assert exc_info.value.code == "IMPORT_QUOTA_EXCEEDED"
     assert get_guild_storage(a.guild.id).open_readable("unit-liar.bin") is None
+
+
+async def test_backup_assets_are_stored_as_what_their_bytes_are(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """The manifest says what each file is; the bytes decide. A file is
+    stored as the type it turned out to be, and one that is not a file this
+    app holds is left out, reported, and the entry that needed it skipped."""
+    from sqlmodel import select
+
+    from app.models.tenant.upload import Upload
+    from app.testing import route_session_to_guild
+
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
+    pdf = b"%PDF-1.4 handout"
+    program = b"MZ\x90\x00" + b"\x00" * 60
+
+    def file_entry(key: str, entity_id: int, title: str) -> dict:
+        return {
+            "path": f"assets/{key}",
+            "tool": "document",
+            "type": "file",
+            "schema_version": None,
+            "entity_id": entity_id,
+            "title": title,
+            "initiative_id": 1,
+            "tags": [],
+            "properties": [],
+            "asset": f"assets/{key}",
+        }
+
+    def asset(key: str, content_type: str, data: bytes) -> dict:
+        return {
+            "path": f"assets/{key}",
+            "storage_key": key,
+            "original_filename": key,
+            "content_type": content_type,
+            "size_bytes": len(data),
+            "referenced_by": [],
+        }
+
+    manifest = _minimal_manifest(
+        entries=[
+            file_entry("typed-handout.pdf", 1, "Handout"),
+            file_entry("typed-tool.exe", 2, "Tool"),
+        ],
+        assets=[
+            # Claimed as a page; it is a PDF.
+            asset("typed-handout.pdf", "text/html", pdf),
+            asset("typed-tool.exe", "application/x-msdownload", program),
+        ],
+    )
+    job = await _apply_backup(
+        client,
+        a,
+        _make_backup_zip(
+            manifest,
+            {"assets/typed-handout.pdf": pdf, "assets/typed-tool.exe": program},
+        ),
+        monkeypatch,
+        role_session,
+    )
+    assert job["status"] == ImportJobStatus.done.value, job.get("error")
+    result = job["result"]
+    assert result["assets_restored"] == 1
+    assert "unsupported_file:typed-tool.exe" in result["warnings"]
+    entries = {entry["title"]: entry for entry in result["entries"]}
+    assert entries["Handout"]["status"] == "created"
+    assert (entries["Tool"]["status"], entries["Tool"]["error"]) == (
+        "skipped",
+        "IMPORT_ASSET_MISSING",
+    )
+    assert get_guild_storage(a.guild.id).exists("typed-tool.exe") is False
+
+    await route_session_to_guild(session, a.guild.id)
+    upload = (
+        await session.exec(select(Upload).where(Upload.filename == "typed-handout.pdf"))
+    ).one()
+    assert upload.content_type == "application/pdf"
+
+
+async def test_backup_entry_past_the_json_cap_fails_alone(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """Each envelope in a backup is read up to the envelope cap. One past it
+    fails its own entry; the rest of the backup restores."""
+    monkeypatch.setattr(import_limits, "IMPORT_MAX_ENVELOPE_BYTES", 4096)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
+    good_entry, good_envelope = _queue_entry()
+    big_entry = {
+        **good_entry,
+        "path": "initiatives/1-restored/queues/2-big.initiative-queue.json",
+        "title": "Big Queue",
+        "entity_id": 2,
+    }
+    big_envelope = {
+        **good_envelope,
+        "name": "Big Queue",
+        "items": [
+            {"label": f"Member {index}", "position": float(index)}
+            for index in range(400)
+        ],
+    }
+    job = await _apply_backup(
+        client,
+        a,
+        _make_backup_zip(
+            _minimal_manifest(entries=[good_entry, big_entry]),
+            {
+                good_entry["path"]: json.dumps(good_envelope).encode(),
+                big_entry["path"]: json.dumps(big_envelope).encode(),
+            },
+        ),
+        monkeypatch,
+        role_session,
+    )
+    assert job["status"] == ImportJobStatus.done.value, job.get("error")
+    entries = {entry["title"]: entry for entry in job["result"]["entries"]}
+    assert entries["Restored Queue"]["status"] == "created"
+    assert (entries["Big Queue"]["status"], entries["Big Queue"]["error"]) == (
+        "failed",
+        "IMPORT_TOO_LARGE",
+    )
+
+
+async def test_backup_upload_past_the_cap_is_refused_by_the_handler(
+    client, acting_user, session, monkeypatch
+):
+    """The upload is copied to a temporary file up to its cap; one past it is
+    refused with the same answer the transport gives, and nothing is staged."""
+    monkeypatch.setattr(import_limits, "IMPORT_MAX_BACKUP_UPLOAD_BYTES", 64)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
+    resp = await _upload_backup(client, a, _make_backup_zip(_minimal_manifest()))
+    assert resp.status_code == 413
+    assert resp.json()["detail"] == "IMPORT_TOO_LARGE"
+    jobs = (await client.get(a.g("/imports/jobs"), headers=a.headers)).json()
+    assert jobs == []
 
 
 # ---------------------------------------------------------------------------
@@ -1906,7 +2057,9 @@ async def test_an_unmatched_author_keeps_their_name_and_no_account(
     )
     assert confirm.status_code == 200, confirm.text
     user_session = await role_session("app_user")
-    monkeypatch.setattr(import_worker, "_open_user_session", lambda: user_session)
+    monkeypatch.setattr(
+        import_worker, "_open_user_session", lambda _guild_id: user_session
+    )
     await import_worker.process_import_jobs()
 
     comment = (
@@ -1966,7 +2119,9 @@ async def test_mentions_link_to_whoever_the_people_step_names(
     )
     assert confirm.status_code == 200, confirm.text
     user_session = await role_session("app_user")
-    monkeypatch.setattr(import_worker, "_open_user_session", lambda: user_session)
+    monkeypatch.setattr(
+        import_worker, "_open_user_session", lambda _guild_id: user_session
+    )
     await import_worker.process_import_jobs()
 
     imported = (
@@ -2260,7 +2415,9 @@ async def test_the_people_map_decides_who_an_envelopes_assignee_is(
     )
     assert confirm.status_code == 200, confirm.text
     user_session = await role_session("app_user")
-    monkeypatch.setattr(import_worker, "_open_user_session", lambda: user_session)
+    monkeypatch.setattr(
+        import_worker, "_open_user_session", lambda _guild_id: user_session
+    )
     await import_worker.process_import_jobs()
 
     task = (await session.exec(select(Task).where(Task.title == "Fit the door"))).one()
@@ -5467,7 +5624,9 @@ async def _status(client, actor, job_id) -> str:
 
 async def _user_sessions(monkeypatch, role_session, count):
     sessions = iter([await role_session("app_user") for _ in range(count)])
-    monkeypatch.setattr(import_worker, "_open_user_session", lambda: next(sessions))
+    monkeypatch.setattr(
+        import_worker, "_open_user_session", lambda _guild_id: next(sessions)
+    )
 
 
 async def test_two_communities_import_side_by_side(

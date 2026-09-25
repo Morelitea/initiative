@@ -68,3 +68,32 @@ async def test_a_missing_payload_opens_as_none(monkeypatch):
 
     async with import_engine.open_payload(7, "imports/gone.zip") as path:
         assert path is None
+
+
+async def test_an_upload_spools_to_a_file_removed_after_the_block():
+    import io
+
+    async with import_engine.spooled_upload(
+        io.BytesIO(_PAYLOAD), max_bytes=len(_PAYLOAD)
+    ) as path:
+        assert path.read_bytes() == _PAYLOAD
+    assert not path.exists()
+
+
+async def test_an_upload_past_its_cap_is_refused_and_leaves_no_file(
+    monkeypatch, tmp_path
+):
+    import io
+    import tempfile
+
+    from app.services.import_engine.contract import ImportEngineError
+
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    with pytest.raises(ImportEngineError) as caught:
+        async with import_engine.spooled_upload(
+            io.BytesIO(_PAYLOAD), max_bytes=len(_PAYLOAD) - 1
+        ):
+            pass
+    assert caught.value.code == "IMPORT_TOO_LARGE"
+    assert caught.value.status_code == 413
+    assert list(tmp_path.iterdir()) == []
