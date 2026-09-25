@@ -1351,10 +1351,12 @@ async def test_backup_assets_are_stored_as_what_their_bytes_are(
     client, acting_user, session, monkeypatch, role_session
 ):
     """The manifest says what each file is; the bytes decide. A file is
-    stored as the type it turned out to be, and one that is not a file this
-    app holds is left out, reported, and the entry that needed it skipped."""
+    stored as the type it turned out to be, a table of text becomes a
+    spreadsheet, and one that is not a file this app holds is left out,
+    reported, and the entry that needed it skipped."""
     from sqlmodel import select
 
+    from app.models.tenant.document import Document, DocumentType
     from app.models.tenant.upload import Upload
     from app.testing import route_session_to_guild
 
@@ -1363,11 +1365,13 @@ async def test_backup_assets_are_stored_as_what_their_bytes_are(
     )
     pdf = b"%PDF-1.4 handout"
     program = b"MZ\x90\x00" + b"\x00" * 60
+    table = b"name,count\nAria,3\n"
 
     manifest = _minimal_manifest(
         entries=[
             _file_entry("typed-handout.pdf"),
             _file_entry("typed-tool.exe", entity_id=2, title="Tool"),
+            _file_entry("typed-table.csv", entity_id=3, title="Table"),
         ],
         assets=[
             # Claimed as a page; it is a PDF.
@@ -1379,6 +1383,9 @@ async def test_backup_assets_are_stored_as_what_their_bytes_are(
                 size_bytes=len(program),
                 content_type="application/x-msdownload",
             ),
+            _asset_record(
+                "typed-table.csv", size_bytes=len(table), content_type="text/csv"
+            ),
         ],
     )
     job = await _apply_backup(
@@ -1386,7 +1393,11 @@ async def test_backup_assets_are_stored_as_what_their_bytes_are(
         a,
         _make_backup_zip(
             manifest,
-            {"assets/typed-handout.pdf": pdf, "assets/typed-tool.exe": program},
+            {
+                "assets/typed-handout.pdf": pdf,
+                "assets/typed-tool.exe": program,
+                "assets/typed-table.csv": table,
+            },
         ),
         monkeypatch,
         role_session,
@@ -1401,13 +1412,19 @@ async def test_backup_assets_are_stored_as_what_their_bytes_are(
         "skipped",
         "IMPORT_ASSET_MISSING",
     )
-    assert get_guild_storage(a.guild.id).exists("typed-tool.exe") is False
+    assert entries["Table"]["status"] == "created"
+    storage = get_guild_storage(a.guild.id)
+    assert storage.exists("typed-tool.exe") is False
+    assert storage.exists("typed-table.csv") is False
 
     await route_session_to_guild(session, a.guild.id)
     upload = (
         await session.exec(select(Upload).where(Upload.filename == "typed-handout.pdf"))
     ).one()
     assert upload.content_type == "application/pdf"
+    sheet = await session.get(Document, entries["Table"]["detail"]["entity_id"])
+    assert sheet.document_type == DocumentType.spreadsheet
+    assert sheet.content["sheets"][0]["cells"]
 
 
 async def test_backup_entry_past_the_json_cap_fails_alone(

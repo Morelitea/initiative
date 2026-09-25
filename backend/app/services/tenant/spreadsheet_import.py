@@ -63,6 +63,10 @@ MAX_IMPORT_CELLS: int = 500_000
 # take too long never starts.
 MAX_IMPORT_SCAN: int = 2_000_000
 
+#: A table of text, read as one sheet. Such a file becomes a spreadsheet
+#: rather than a file document, which cannot hold it.
+TEXT_TABLE_SUFFIXES = (".csv", ".tsv")
+
 
 def parse_spreadsheet_file(filename: str, data: bytes) -> list[dict[str, Any]]:
     """The sheets a file holds, in canonical workbook form.
@@ -74,7 +78,7 @@ def parse_spreadsheet_file(filename: str, data: bytes) -> list[dict[str, Any]]:
     lower = name.lower()
     base = name.rsplit("/", 1)[-1].rsplit(".", 1)[0] or "Imported"
 
-    if lower.endswith(".csv") or lower.endswith(".tsv"):
+    if lower.endswith(TEXT_TABLE_SUFFIXES):
         raw = [_parse_csv(data, base, tab=lower.endswith(".tsv"))]
     elif lower.endswith(".xlsx") or lower.endswith(".xlsm"):
         raw = _parse_xlsx(data)

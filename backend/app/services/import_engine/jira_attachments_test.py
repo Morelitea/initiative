@@ -188,6 +188,8 @@ def test_images_are_found_by_filename_and_the_rest_listed_at_the_foot():
 
 
 async def test_other_files_come_over_as_documents_when_asked_for():
+    """A file a document can hold comes over, a table of text included (it
+    becomes a spreadsheet); a type no document holds is left behind."""
     download = _downloader()
     store = _sink()
     report = await ja.download_images(
@@ -197,6 +199,8 @@ async def test_other_files_come_over_as_documents_when_asked_for():
                 _att("10", "door.png"),
                 _att("11", "spec.pdf", mime="application/pdf"),
                 _att("12", "logo.svg", mime="image/svg+xml"),
+                _att("13", "counts.csv", mime="text/csv"),
+                _att("14", "build.zip", mime="application/zip"),
             )
         ],
         download=download,
@@ -205,11 +209,13 @@ async def test_other_files_come_over_as_documents_when_asked_for():
         max_files=100,
         documents=True,
     )
-    assert sorted(c[0] for c in download.calls) == ["10", "11"]
-    assert (report.images, report.files, report.other_files) == (1, 1, 1)
-    (pdf,) = report.files_by_issue["ACME-1"]
+    assert sorted(c[0] for c in download.calls) == ["10", "11", "13"]
+    assert (report.images, report.files, report.other_files) == (1, 2, 2)
+    pdf, table = report.files_by_issue["ACME-1"]
     assert pdf.filename == "spec.pdf" and pdf.storage_key.endswith(".pdf")
-    assert report.file_bytes == pdf.size_bytes == len(store.kept[pdf.storage_key])
+    assert table.storage_key.endswith(".csv")
+    assert report.file_bytes == pdf.size_bytes + table.size_bytes
+    assert pdf.size_bytes == len(store.kept[pdf.storage_key])
 
 
 def test_a_fetched_bundle_is_bounded_by_the_communitys_storage_left():

@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Old export and import files are cleaned up everywhere** — expired exports and unconfirmed imports in read-only, suspended or on-hold communities were kept forever. They now expire like everyone else's.
 - **Importing a tool's export shows it straight away** — the list you imported into now refreshes without reloading the page.
 - **Files in a backup are checked when it is restored** — each file is stored as what it actually is. One that isn't a picture or a file type a document can hold is left out and listed in the import's report.
+- **CSV attachments from Jira and Confluence become spreadsheets** — a `.csv` or `.tsv` attached to an issue or page arrives as a spreadsheet document. Attachments no document can hold, such as zips or videos, are left out when the site is read and counted in the import plan, so the plan matches what arrives.
 
 ## [0.72.0] - 2026-09-24
 
