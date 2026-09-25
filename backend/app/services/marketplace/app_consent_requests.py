@@ -23,15 +23,21 @@ from app.models.platform.notification import NotificationType
 from app.models.platform.user import User, UserStatus
 from app.models.tenant.app_member_consent import ConsentAccess, ConsentStatus
 from app.models.tenant.guild_app import GuildApp
+from app.models.tenant.initiative import InitiativeMember
 from app.services.platform import user_notifications
 from app.services.tenant import app_member_consents
 
 __all__ = [
+    "ConsentMemberNotInInitiative",
     "ConsentRequestLimited",
     "RecordedRequest",
     "consent_target_path",
     "record_request",
 ]
+
+
+class ConsentMemberNotInInitiative(Exception):
+    """The request names an initiative the member is not in."""
 
 
 class ConsentRequestLimited(Exception):
@@ -74,8 +80,10 @@ async def record_request(
     the first time.
 
     Returns ``None`` when the member no longer belongs to the community or
-    their account is not active: there is nobody to ask. With ``may_create``
-    false only a request already made is returned, and a new one raises
+    their account is not active: there is nobody to ask. A request bound to an
+    initiative the member is not in raises :class:`ConsentMemberNotInInitiative`,
+    since they could never act there. With ``may_create`` false only a request
+    already made is returned, and a new one raises
     :class:`ConsentRequestLimited`.
     """
     async with db_session.SystemSessionLocal() as session:
@@ -95,6 +103,18 @@ async def record_request(
             return None
 
         await set_rls_context(session, guild_id=guild_id)
+        if initiative_id is not None:
+            in_initiative = (
+                await session.exec(
+                    select(InitiativeMember.user_id).where(
+                        InitiativeMember.initiative_id == initiative_id,
+                        InitiativeMember.user_id == user_id,
+                    )
+                )
+            ).first()
+            if in_initiative is None:
+                await session.rollback()
+                raise ConsentMemberNotInInitiative()
         if may_create:
             row, created = await app_member_consents.request_consent(
                 session,

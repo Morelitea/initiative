@@ -254,6 +254,27 @@ async def test_a_request_is_bound_only_where_the_install_and_token_reach(
 
 
 @pytest.mark.integration
+async def test_a_request_bound_to_an_initiative_names_a_member_of_it(
+    client: AsyncClient, session: AsyncSession, acting_user, role_session
+):
+    installed = await install_app(
+        session, acting_user, role_session, granted=["documents:read"]
+    )
+    outsider = await acting_user(guild_role=GuildRole.member, guild=installed.guild)
+    outsider_ref = await _ref(installed, outsider.user.id)
+
+    bound = await _ask(
+        client, installed, member=outsider_ref, initiative_id=installed.placed.id
+    )
+    assert bound.status_code == 422, bound.text
+    assert bound.json()["detail"] == AppMessages.CONSENT_MEMBER_NOT_IN_INITIATIVE
+
+    # App-wide, the same member can still be asked.
+    app_wide = await _ask(client, installed, member=outsider_ref)
+    assert app_wide.status_code == 201, app_wide.text
+
+
+@pytest.mark.integration
 async def test_a_member_token_cannot_ask(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):

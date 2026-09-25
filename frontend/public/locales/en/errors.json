@@ -431,6 +431,7 @@
   "APP_SCOPE_REQUIRED": "This app's token doesn't carry the scope this action needs.",
   "APP_CONSENT_INITIATIVE_NOT_PLACED": "This app isn't placed in that initiative, so it can't ask to act there.",
   "APP_CONSENT_OUTSIDE_TOKEN": "This app's token is for one initiative, so it can only ask to act there.",
+  "APP_CONSENT_MEMBER_NOT_IN_INITIATIVE": "That member isn't in this initiative, so the app can't ask to act as them here.",
   "APP_CONSENT_RATE_LIMITED": "This app has asked too often. It can ask again later.",
   "APP_SHARING_NOT_AVAILABLE": "This app isn't allowed to change sharing here, or to name an owner for what it creates.",
   "APP_SERVICE_UNKNOWN_SCOPE": "That scope isn't one an app can be granted.",

@@ -179,6 +179,11 @@ async def request_member_consent(
         )
     except app_consent_requests.ConsentRequestLimited as exc:
         raise _limited() from exc
+    except app_consent_requests.ConsentMemberNotInInitiative as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=AppMessages.CONSENT_MEMBER_NOT_IN_INITIATIVE,
+        ) from exc
     if recorded is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
