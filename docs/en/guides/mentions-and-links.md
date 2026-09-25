@@ -20,7 +20,7 @@ All three work in every **comment**, on every tool, in a task's **description**,
 
 Type `@` and a few letters of somebody's name, pick them from the list, and they get a notification. It's the right way to say "can you look at this."
 
-You're only offered people who are in the same initiative, because a mention that summons somebody to a page they can't open helps precisely nobody and mildly annoys everybody.
+You're offered the people in the same initiative, and somebody hears about it only if they can open the thing you're writing in. A mention that summons somebody to a page they can't open helps precisely nobody, so share the thing with them first.
 
 Names match loosely, so a spelling you're not confident about will still find the right person.
 
