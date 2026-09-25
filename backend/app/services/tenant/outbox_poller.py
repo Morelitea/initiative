@@ -56,6 +56,8 @@ next pass.
 
 from __future__ import annotations
 
+import asyncio
+
 import logging
 import uuid
 from collections.abc import Iterable, Mapping
@@ -69,27 +71,23 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import webhook_events
 from app.core.app_scopes import UnknownAppScope, expand
-from app.db import session as db_session
 from app.db.session import (
     set_rls_context,
     set_system_guild_context,
 )
-from app.models.platform.guild import Guild, GuildStatus
 from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.event_outbox import EventOutbox
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.webhook_subscription import WebhookSubscription
+from app.services.guild_sweeps import Drain
 from app.services.marketplace.registration_lookup import load_registrations
-from app.services.tenant import webhook_refs
+from app.services.tenant import room_sink, webhook_refs
 from app.services.tenant.webhook_dispatcher import deliver
 
 logger = logging.getLogger(__name__)
 
-#: How often the drain runs.
-OUTBOX_POLL_SECONDS = 5
-
-#: How often delivered history is swept.
-OUTBOX_RETENTION_POLL_SECONDS = 3600
+#: How long the drain lets further changes gather before it visits.
+DRAIN_SETTLE_SECONDS = 1.0
 
 #: How long delivered change events are kept. A subscriber further behind than
 #: this has stopped consuming and resumes from the current head.
@@ -104,6 +102,9 @@ LEASE_SECONDS = 300
 
 #: Backoff schedule, in seconds, indexed by consecutive failures on a batch.
 _BACKOFF_SECONDS = (5, 30, 120, 600, 1800, 3600)
+#: A retry due sooner than this is woken for; a later one waits for the minute
+#: pass, which comes round at least this often.
+RETRY_WAKE_WITHIN_SECONDS = 60
 
 #: The same schedule, bound as an array parameter. The interval has to be chosen
 #: in the same statement that increments ``attempts`` — computing it in Python
@@ -343,8 +344,9 @@ async def _settle(
     *,
     now: datetime,
     accepted: bool,
-) -> bool:
-    """Record the outcome. Returns whether this call dead-lettered the batch.
+) -> tuple[bool, datetime | None]:
+    """Record the outcome. Returns whether this call dead-lettered the batch,
+    and when a refused batch is next tried.
 
     ``delivered_at IS NULL`` in the predicate keeps a pass whose lease lapsed
     mid-flight from reopening a batch another pass has already completed.
@@ -360,7 +362,7 @@ async def _settle(
             "UPDATE webhook_deliveries "
             "SET delivered_at = :now, next_attempt_at = NULL "
             "WHERE subscription_id = :sid AND txn_id = :txn AND delivered_at IS NULL "
-            "RETURNING false"
+            "RETURNING false, NULL::timestamptz"
         ).bindparams(now=now, sid=subscription.id, txn=txn_id)
     else:
         statement = text(
@@ -376,12 +378,12 @@ async def _settle(
             "      ELSE NULL "
             "    END "
             "WHERE subscription_id = :sid AND txn_id = :txn AND delivered_at IS NULL "
-            "RETURNING dead_lettered_at IS NOT NULL"
+            "RETURNING dead_lettered_at IS NOT NULL, next_attempt_at"
         ).bindparams(_BACKOFF_PARAM, now=now, sid=subscription.id, txn=txn_id)
     result = await session.exec(statement)
     row = result.first()
     await session.commit()
-    return bool(row[0]) if row is not None else False
+    return (bool(row[0]), row[1]) if row is not None else (False, None)
 
 
 async def _drain_subscription(
@@ -480,7 +482,7 @@ async def _drain_subscription(
                 actor_app=actor_app,
             ),
         )
-        dead_lettered = await _settle(
+        dead_lettered, retry_at = await _settle(
             session, subscription, txn_id, now=now, accepted=accepted
         )
         if dead_lettered:
@@ -491,6 +493,12 @@ async def _drain_subscription(
                 subscription.target_url,
             )
         elif not accepted:
+            if retry_at is not None:
+                # A retry due before the minute pass would come round is
+                # woken for, so the first backoff steps keep their timing.
+                delay = (retry_at - now).total_seconds()
+                if delay < RETRY_WAKE_WITHIN_SECONDS:
+                    asyncio.get_running_loop().call_later(delay, drain.wake, guild_id)
             # Deliver in order: hold the rest of this subscription's backlog
             # until the refused batch gets through. Once dead-lettered there is
             # nothing left to wait on, so later transactions proceed instead of
@@ -540,7 +548,38 @@ def _roster(live_listings: Iterable[str]):
     )
 
 
-async def _drain_guild(session: AsyncSession, guild_id: int, *, now: datetime) -> None:
+#: Communities with an active subscription, as this process last read them.
+#: The minute pass's visit keeps it current, and a subscription changing
+#: wakes the drain, whose visit does the same.
+_subscribed: set[int] = set()
+
+#: Communities whose log moved and which have somebody to deliver it to.
+drain = Drain("outbox", settle=DRAIN_SETTLE_SECONDS)
+
+
+async def hint(payload: str) -> None:
+    """A committed transaction wrote to a community's log. Registered on the
+    capture's channel beside the room sink; a community with no active
+    subscription is left alone."""
+    schema, _, _txn = payload.partition(":")
+    guild_id = room_sink.schema_guild_id(schema)
+    if guild_id in _subscribed:
+        drain.wake(guild_id)
+
+
+def subscriptions_changed(guild_id: int) -> None:
+    """A subscription in the community was created, enabled or deleted. Its
+    visit reads the roster again, and settles whether it stays in
+    :data:`_subscribed`."""
+    _subscribed.add(guild_id)
+    drain.wake(guild_id)
+
+
+async def drain_guild(
+    session: AsyncSession, guild_id: int, *, now: datetime | None = None
+) -> None:
+    """Deliver what the community's subscriptions are owed."""
+    now = now or datetime.now(timezone.utc)
     # Read the subscription roster with full guild authority: which targets are
     # registered is guild configuration, not initiative content. What each of
     # them may then SEE is decided per subscription in _drain_subscription:
@@ -562,6 +601,10 @@ async def _drain_guild(session: AsyncSession, guild_id: int, *, now: datetime) -
         )
         for row in await session.exec(_roster(live_listings))
     ]
+    if roster:
+        _subscribed.add(guild_id)
+    else:
+        _subscribed.discard(guild_id)
     for subscription_id, reach in roster:
         try:
             subscription = await session.get(WebhookSubscription, subscription_id)
@@ -587,28 +630,9 @@ async def _drain_guild(session: AsyncSession, guild_id: int, *, now: datetime) -
             await set_rls_context(session, guild_id=guild_id)
 
 
-async def _active_guild_ids(session: AsyncSession) -> list[int]:
-    await set_rls_context(session)
-    return list(
-        await session.exec(
-            select(Guild.id)
-            .where(Guild.status == GuildStatus.active.value)
-            .order_by(Guild.id.asc())
-        )
-    )
-
-
-async def process_outbox_deliveries() -> None:
-    """One drain pass across every active guild. Idempotent."""
-    now = datetime.now(timezone.utc)
-    async with db_session.SystemSessionLocal() as session:
-        for guild_id in await _active_guild_ids(session):
-            session.expunge_all()
-            await _drain_guild(session, guild_id, now=now)
-
-
-async def process_outbox_retention() -> None:
-    """Drop outbox history, and the ledger rows referencing it, past the window.
+async def expire_history(session: AsyncSession, guild_id: int) -> None:
+    """Drop the community's outbox history, and the ledger rows referencing
+    it, past the window.
 
     Age-based on purpose: a subscription weeks behind is broken, and holding the
     log open for it would grow the table without bound on every instance that
@@ -616,25 +640,17 @@ async def process_outbox_retention() -> None:
     describe, so the pair stays the same size.
     """
     cutoff = datetime.now(timezone.utc) - timedelta(days=OUTBOX_RETENTION_DAYS)
-    async with db_session.SystemSessionLocal() as session:
-        for guild_id in await _active_guild_ids(session):
-            session.expunge_all()
-            await set_rls_context(session, guild_id=guild_id)
-            stale = list(
-                await session.exec(
-                    select(EventOutbox).where(EventOutbox.occurred_at < cutoff)
-                )
-            )
-            if not stale:
-                await session.commit()
-                continue
-            txn_ids = sorted({row.txn_id for row in stale})
-            for row in stale:
-                await session.delete(row)
-            await session.exec(
-                text(
-                    "DELETE FROM webhook_deliveries WHERE txn_id = ANY(:txn_ids)"
-                ).bindparams(txn_ids=txn_ids)
-            )
-            logger.info("outbox retention: guild=%s removed=%s", guild_id, len(stale))
-            await session.commit()
+    stale = list(
+        await session.exec(select(EventOutbox).where(EventOutbox.occurred_at < cutoff))
+    )
+    if not stale:
+        return
+    txn_ids = sorted({row.txn_id for row in stale})
+    for row in stale:
+        await session.delete(row)
+    await session.exec(
+        text("DELETE FROM webhook_deliveries WHERE txn_id = ANY(:txn_ids)").bindparams(
+            txn_ids=txn_ids
+        )
+    )
+    logger.info("outbox retention: guild=%s removed=%s", guild_id, len(stale))

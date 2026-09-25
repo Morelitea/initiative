@@ -1,11 +1,15 @@
-"""Which pool a community's requests draw from.
+"""Which pool a community's requests and system work draw from.
 
-The suite runs with two cohorts (``conftest._TEST_COHORTS``), each its own pool
-on the worker's database, and with a route outside a connection's cohort
-refused rather than counted.
+The suite runs with two cohorts (``conftest._TEST_COHORTS``), each with a
+request and a system pool on the worker's database, and with a route outside a
+connection's cohort refused rather than counted.
 """
 
+from contextlib import asynccontextmanager
+from typing import AsyncIterator
+
 import pytest
+from prometheus_client import REGISTRY
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.requests import HTTPConnection
@@ -14,6 +18,7 @@ from app.core.config import Settings, settings
 from app.db import cohorts
 from app.db import session as db_session
 from app.db.session import get_session, set_rls_context
+from app.models.platform.user import User
 from app.services.cross_guild import gather_across_guilds
 from app.testing import create_guild, create_user
 
@@ -63,6 +68,14 @@ def test_one_cohort_is_the_one_request_pool(monkeypatch):
     assert cohorts.request_sessionmaker(None) is db_session.AsyncSessionLocal
 
 
+@asynccontextmanager
+async def _request_parent(user: User) -> AsyncIterator[AsyncSession]:
+    async with cohorts.request_sessionmaker(None)() as parent:
+        cohorts.mark_request_session(parent)
+        await set_rls_context(parent, user_id=user.id, platform_role=user.role.value)
+        yield parent
+
+
 async def _bind_for(path_params: dict[str, str]):
     sessions = get_session(_connection(path_params))
     session = await anext(sessions)
@@ -97,26 +110,72 @@ async def test_a_route_outside_the_connections_cohort_is_refused(session):
             await elsewhere.exec(text("SELECT 1"))
 
 
+async def test_a_system_session_routes_only_into_its_own_cohort(session):
+    guild = await create_guild(session)
+    other_cohort = guild.id + 1
+
+    async with cohorts.system_session(guild.id) as own:
+        assert own.bind is cohorts.system_sessionmaker(guild.id).kw["bind"]
+        assert own.bind is not cohorts.request_sessionmaker(guild.id).kw["bind"]
+        await set_rls_context(own, guild_id=guild.id)
+        connection = await own.connection()
+        assert connection.info["initiative_cohort"] == cohorts.cohort_of(guild.id)
+        assert (await own.exec(text("SELECT 1"))).one()[0] == 1
+
+    async with cohorts.system_session(other_cohort) as elsewhere:
+        await set_rls_context(elsewhere, guild_id=guild.id)
+        with pytest.raises(cohorts.CrossCohortRoute):
+            await elsewhere.exec(text("SELECT 1"))
+
+
+async def test_the_platform_system_pool_is_counted_in_a_community_not_refused(
+    session,
+):
+    guild = await create_guild(session)
+
+    def counted() -> float:
+        return (
+            REGISTRY.get_sample_value(
+                "initiative_db_cross_cohort_routes_total",
+                {"cohort": cohorts.PLATFORM_SYSTEM},
+            )
+            or 0.0
+        )
+
+    before = counted()
+    async with db_session.SystemSessionLocal() as system:
+        await set_rls_context(system, guild_id=guild.id)
+        assert (await system.exec(text("SELECT 1"))).one()[0] == 1
+    assert counted() > before
+
+
 async def test_a_community_session_only_reads(session):
     guild = await create_guild(session)
-    async with cohorts.community_session(guild.id) as routed:
+    async with (
+        cohorts.system_session(None) as parent,
+        cohorts.community_session(parent, guild.id) as routed,
+    ):
         read_only = (await routed.exec(text("SHOW transaction_read_only"))).one()[0]
     assert read_only == "on"
 
 
-async def test_a_read_across_communities_reads_each_from_its_own_cohort(session):
+@pytest.mark.parametrize("kind", ["request", "system"])
+async def test_a_read_across_communities_reads_each_from_its_own_cohort(session, kind):
     user = await create_user(session)
     first = await create_guild(session, creator=user)
     second = await create_guild(session, creator=user)
     assert cohorts.cohort_of(first.id) != cohorts.cohort_of(second.id)
+    if kind == "request":
+        opened, maker = _request_parent(user), cohorts.request_sessionmaker
+    else:
+        opened, maker = cohorts.system_session(None), cohorts.system_sessionmaker
 
     seen: list[tuple[int, object, bool]] = []
 
-    async with cohorts.request_sessionmaker(None)() as parent:
-        cohorts.mark_request_session(parent)
-        await set_rls_context(parent, user_id=user.id, platform_role=user.role.value)
+    async with opened as parent:
 
         async def fetch(routed: AsyncSession, guild_id: int) -> list[int]:
+            assert routed.bind is maker(guild_id).kw["bind"]
             connection = await routed.connection()
             seen.append(
                 (guild_id, connection.info.get("initiative_cohort"), routed is parent)

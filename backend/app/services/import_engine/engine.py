@@ -32,6 +32,7 @@ from app.models.tenant.import_job import ImportJob, ImportJobStatus
 from app.models.tenant.initiative import Initiative
 from app.core.tools import tool_for_create_permission
 from app.schemas.tenant.import_job import BackupPlanPerson, EnvelopeImportPlan
+from app.services import guild_work
 from app.services.import_engine.common import (
     handle_key,
     load_guild_member_handles,
@@ -238,6 +239,8 @@ async def start_envelope_import(
         + timedelta(hours=import_limits.IMPORT_STAGED_TTL_HOURS),
     )
     session.add(job)
+    if not unplaced:
+        guild_work.wake(session, guild_work.DATA_JOBS, guild_id)
     await session.commit()
     await session.refresh(job)
     return job

@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Awaitable
 from contextlib import AbstractAsyncContextManager
 from datetime import datetime, timedelta, timezone
 
@@ -35,8 +36,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import ExportMessages
 from app.db import cohorts
-from app.db import session as db_session
-from app.db.session import SYSTEM_SATISFIED, set_rls_context
+from app.db.session import SYSTEM_SATISFIED
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import UserStatus
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
@@ -45,12 +45,10 @@ from app.services.data_jobs import JobOutcome
 from app.services.export import engine as export_engine
 from app.services.platform import accounts as accounts_service
 from app.services.export import limits as export_limits
+from app.services.import_engine import atlassian
 from app.services.import_engine.atlassian import throttled
 
 logger = logging.getLogger(__name__)
-
-EXPORT_POLL_SECONDS = 10
-EXPORT_GC_POLL_SECONDS = 3600
 
 # A ``running`` row untouched this long is a render nobody is doing any more;
 # the sweep queues it again. A live render touches its row as it goes.
@@ -79,8 +77,9 @@ def _open_read_session(guild_id: int) -> AbstractAsyncContextManager[AsyncSessio
 async def _sweep(
     session: AsyncSession, *, guild_id: int, now: datetime, own: list[int]
 ) -> list[JobOutcome]:
-    """Queue abandoned renders again. Jobs this process is running (``own``)
-    are left alone: they are known to be alive.
+    """Queue abandoned renders again, or fail one that has been started over
+    ``EXPORT_MAX_RESTARTS`` times already. Jobs this process is running
+    (``own``) are left alone: they are known to be alive.
 
     Rows are locked as they are read, so a row a live render touches while
     the sweep waits for it is read again and no longer matches."""
@@ -95,19 +94,32 @@ async def _sweep(
             .with_for_update()
         )
     )
+    outcomes: list[JobOutcome] = []
     for job in abandoned:
-        logger.warning(
-            "export render re-queued id=%s guild=%s source=%s",
-            job.id,
-            guild_id,
-            job.source,
-        )
-        job.status = ExportJobStatus.queued
+        if job.restarts >= export_limits.EXPORT_MAX_RESTARTS:
+            logger.warning(
+                "export render abandoned too often id=%s guild=%s source=%s",
+                job.id,
+                guild_id,
+                job.source,
+            )
+            job.status = ExportJobStatus.failed
+            job.error = ExportMessages.EXPORT_RENDER_FAILED
+            outcomes.append(_outcome(job, guild_id))
+        else:
+            logger.warning(
+                "export render re-queued id=%s guild=%s source=%s",
+                job.id,
+                guild_id,
+                job.source,
+            )
+            job.status = ExportJobStatus.queued
+            job.restarts += 1
         job.updated_at = now
         session.add(job)
     if abandoned:
         await session.commit()
-    return []
+    return outcomes
 
 
 async def _render(
@@ -174,9 +186,14 @@ async def _render(
     job.updated_at = datetime.now(timezone.utc)
     session.add(job)
     await session.commit()
-    # The creator may have navigated away while the render ran — an inbox
-    # entry is how they reach the artifact afterwards. Data mirrors the
-    # other notification payloads: ids only plus what the bell displays.
+    return _outcome(job, guild_id)
+
+
+def _outcome(job: ExportJob, guild_id: int) -> JobOutcome:
+    """What the creator is told. They may have navigated away while the render
+    ran — an inbox entry is how they reach the artifact afterwards. Data
+    mirrors the other notification payloads: ids only plus what the bell
+    displays."""
     return (
         job.created_by,
         NotificationType.export_ready
@@ -191,7 +208,7 @@ async def _render(
     )
 
 
-_jobs: data_jobs.Dispatcher[ExportJob] = data_jobs.Dispatcher(
+jobs: data_jobs.Dispatcher[ExportJob] = data_jobs.Dispatcher(
     name="export",
     model=ExportJob,
     lock_namespace=_CLAIM_LOCK_NS,
@@ -208,18 +225,8 @@ _jobs: data_jobs.Dispatcher[ExportJob] = data_jobs.Dispatcher(
 
 async def process_export_jobs() -> None:
     """Run passes until one starts nothing, waiting for each pass's jobs.
-
-    Everything queued is dealt with by the time this returns. The background
-    loop calls :func:`dispatch_export_jobs` instead, which does not wait.
-    """
-    await _jobs.process()
-
-
-async def dispatch_export_jobs() -> list[asyncio.Task[None]]:
-    """One pass: queue abandoned renders again, then start what the free
-    slots can take, at most one export per community. Returns the tasks it
-    started; each renders, records its outcome and notifies on its own."""
-    return await _jobs.dispatch()
+    Everything queued is dealt with by the time this returns."""
+    await jobs.process()
 
 
 async def _execute(
@@ -240,28 +247,32 @@ async def _execute(
     if user is None or user.status != UserStatus.active:
         raise export_engine.ExportError(ExportMessages.EXPORT_CREATOR_INACTIVE)
 
-    async with _open_read_session(guild_id) as user_session:
-        # Resolve membership/PAM and route the session as the creator; raises
-        # GuildAccessError (-> failed job) if their access is gone. The job is
-        # user-attributed system work — its enqueueing request already passed
-        # the guild auth-policy gate, so it carries the system sentinel.
-        await establish_guild_access(
-            user_session, user, guild_id, satisfied_providers=SYSTEM_SATISFIED
-        )
-        request = await adapter.build(
-            user_session,
-            user=user,
-            guild_id=guild_id,
-            params=job.params or {},
-            format=job.format,
-        )
-        # Load the guild brand while the routed session is still open (it
-        # reads the shared guild row); the icon bytes ride on the request.
-        from app.services.export.branding import apply_brand
-        from app.services.export.stamp import stamp_export
+    async def build() -> export_engine.RenderRequest:
+        async with _open_read_session(guild_id) as user_session:
+            # Resolve membership/PAM and route the session as the creator;
+            # raises GuildAccessError (-> failed job) if their access is gone.
+            # The job is user-attributed system work — its enqueueing request
+            # already passed the guild auth-policy gate, so it carries the
+            # system sentinel.
+            await establish_guild_access(
+                user_session, user, guild_id, satisfied_providers=SYSTEM_SATISFIED
+            )
+            request = await adapter.build(
+                user_session,
+                user=user,
+                guild_id=guild_id,
+                params=job.params or {},
+                format=job.format,
+            )
+            # Load the guild brand while the routed session is still open (it
+            # reads the shared guild row); the icon bytes ride on the request.
+            from app.services.export.branding import apply_brand
+            from app.services.export.stamp import stamp_export
 
-        request = await apply_brand(request, user_session)
-        request = stamp_export(request, user)
+            request = await apply_brand(request, user_session)
+            return stamp_export(request, user)
+
+    request = await _beating(build(), heartbeat)
 
     assert job.id is not None
     return await export_engine.render_to_storage(
@@ -271,6 +282,32 @@ async def _execute(
         tz=(job.params or {}).get("tz"),
         heartbeat=heartbeat,
     )
+
+
+async def _beating(
+    work: Awaitable[export_engine.RenderRequest], heartbeat: data_jobs.Heartbeat
+) -> export_engine.RenderRequest:
+    """``work``, with ``heartbeat`` called every ``HEARTBEAT_SECONDS`` while it
+    runs, so a long build keeps its row fresh. A heartbeat that
+    raises (the row was taken over) cancels the work and raises."""
+
+    async def beat() -> None:
+        while True:
+            await asyncio.sleep(atlassian.HEARTBEAT_SECONDS)
+            await heartbeat()
+
+    worker = asyncio.ensure_future(work)
+    beater = asyncio.ensure_future(beat())
+    try:
+        await asyncio.wait({worker, beater}, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        for task in (worker, beater):
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(worker, beater, return_exceptions=True)
+    if not beater.cancelled():
+        beater.result()
+    return worker.result()
 
 
 def _error_code(exc: Exception) -> str:
@@ -285,34 +322,16 @@ def _error_code(exc: Exception) -> str:
     return ExportMessages.EXPORT_RENDER_FAILED
 
 
-async def process_export_gc() -> None:
-    """Delete artifacts past ``expires_at`` (via the storage backend, so local
-    FS and S3 behave identically) and mark their jobs expired.
+async def expire_artifacts(session: AsyncSession, guild_id: int) -> None:
+    """Delete the community's artifacts past ``expires_at`` (via the storage
+    backend, so local FS and S3 behave identically) and mark their jobs
+    expired.
 
-    Covers every community whose schema exists, whatever its status: a
+    Visited in every community whose schema exists, whatever its status: a
     read-only or suspended community's artifacts expire like anyone's."""
-    now = datetime.now(timezone.utc)
-    async with db_session.SystemSessionLocal() as session:
-        await set_rls_context(session)
-        guild_ids = await data_jobs.provisioned_guild_ids(session)
-        await session.commit()
-        for guild_id in guild_ids:
-            session.expunge_all()
-            try:
-                await set_rls_context(session, guild_id=guild_id)
-                await _expire_artifacts(session, guild_id=guild_id, now=now)
-            except Exception:
-                # One community's failure (its schema dropped part-way
-                # through the pass, say) leaves the rest to be collected.
-                logger.exception("export gc failed guild=%s", guild_id)
-                await session.rollback()
-
-
-async def _expire_artifacts(
-    session: AsyncSession, *, guild_id: int, now: datetime
-) -> None:
     from app.services.storage import get_guild_storage
 
+    now = datetime.now(timezone.utc)
     jobs = list(
         await session.exec(
             select(ExportJob).where(

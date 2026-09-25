@@ -23,6 +23,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.models.platform.user import User
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
+from app.services import guild_work
 from app.services.export.contract import (
     RenderBackend,
     RenderedArtifact,
@@ -205,6 +206,7 @@ async def start_export(
         params=params,
     )
     session.add(job)
+    guild_work.wake(session, guild_work.DATA_JOBS, guild_id)
     await session.commit()
     await session.refresh(job)
     return job

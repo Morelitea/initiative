@@ -40,7 +40,7 @@ import json
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Set
+from typing import Any, Awaitable, Callable, Dict, Hashable, Optional, Set
 
 from sqlalchemy import event
 from sqlalchemy.orm import Session as SyncSession
@@ -50,7 +50,8 @@ from app.services.platform import presence
 
 logger = logging.getLogger(__name__)
 
-#: Key under which a session accumulates frames it has earned but not committed.
+#: Key under which a session accumulates what it has earned the right to send
+#: but not yet committed.
 _PENDING_KEY = "user_stream_pending"
 
 #: The Postgres channel every worker listens on. One channel for both callers:
@@ -307,8 +308,19 @@ def queue_frame(session: Any, user_id: int | None, frame: Dict[str, Any]) -> Non
     """
     if user_id is None:
         return
-    pending: Dict[Any, Dict[str, Any]] = session.info.setdefault(_PENDING_KEY, {})
-    pending.setdefault((user_id, frame["resource"]), frame)
+    after_commit(session, (user_id, frame["resource"]), lambda: publish(user_id, frame))
+
+
+def after_commit(
+    session: Any, key: Hashable, send: Callable[[], Awaitable[None]]
+) -> None:
+    """Run ``send`` once this session's transaction commits, and not at all if
+    it rolls back. One ``send`` per ``key`` per transaction: the first recorded
+    wins."""
+    pending: Dict[Hashable, Callable[[], Awaitable[None]]] = session.info.setdefault(
+        _PENDING_KEY, {}
+    )
+    pending.setdefault(key, send)
 
 
 def _spawn(coro: Any) -> None:
@@ -328,8 +340,8 @@ def _emit_pending(session: SyncSession) -> None:
     pending = session.info.pop(_PENDING_KEY, None)
     if not pending:
         return
-    for (user_id, _resource), frame in pending.items():
-        _spawn(publish(user_id, frame))
+    for send in pending.values():
+        _spawn(send())
 
 
 def _discard_pending(session: SyncSession, *_args: Any) -> None:

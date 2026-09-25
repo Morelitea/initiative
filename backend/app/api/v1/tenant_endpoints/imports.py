@@ -54,6 +54,7 @@ from app.schemas.tenant.import_job import (
     ImportJobRead,
     serialize_import_job,
 )
+from app.services import guild_work
 from app.services.import_engine import atlassian as atlassian_service
 from app.services.import_engine import atlassian_job
 from app.services.import_engine import backup as backup_service
@@ -706,6 +707,7 @@ async def confirm_import(
     # nearly-elapsed staging TTL must not let GC sweep it out of the queue.
     job.expires_at = now + timedelta(hours=import_limits.IMPORT_STAGED_TTL_HOURS)
     session.add(job)
+    guild_work.wake(session, guild_work.DATA_JOBS, guild_context.guild_id)
     await session.commit()
     await session.refresh(job)
     return serialize_import_job(job, guild_id=guild_context.guild_id)

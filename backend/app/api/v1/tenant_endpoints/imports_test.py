@@ -9,6 +9,7 @@ from httpx import AsyncClient
 
 from app.models.platform.guild import GuildRole
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
+from app.services.guild_sweeps import Scope, each_guild
 from app.services.import_engine import worker as import_worker
 from app.services.storage import get_guild_storage
 from app.testing.factories import (
@@ -1169,7 +1170,7 @@ async def test_backup_staged_expiry_and_cancel(
     assert row.payload_ref is None
 
     # GC stays idempotent over the already-expired row.
-    await import_worker.process_import_gc()
+    await each_guild([(Scope.PROVISIONED, import_worker.expire_payloads)], name="t")
     await session.refresh(row)
     assert row.status == ImportJobStatus.expired
 
@@ -5606,7 +5607,7 @@ async def test_two_communities_import_side_by_side(
     first, second = await _queued(client, a), await _queued(client, b)
     await _user_sessions(monkeypatch, role_session, 2)
 
-    started = await import_worker.dispatch_import_jobs()
+    started = await import_worker.jobs.dispatch()
 
     assert len(started) == 2
     await asyncio.gather(*started)
@@ -5624,7 +5625,7 @@ async def test_a_community_runs_one_import_at_a_time(
     first, second = await _queued(client, a), await _queued(client, a)
     await _user_sessions(monkeypatch, role_session, 2)
 
-    started = await import_worker.dispatch_import_jobs()
+    started = await import_worker.jobs.dispatch()
 
     assert len(started) == 1
     await asyncio.gather(*started)
@@ -5648,7 +5649,7 @@ async def test_a_process_starts_no_more_than_its_slots(
     await _queued(client, b)
     await _user_sessions(monkeypatch, role_session, 2)
 
-    started = await import_worker.dispatch_import_jobs()
+    started = await import_worker.jobs.dispatch()
 
     assert len(started) == 1
     await asyncio.gather(*started)
@@ -5679,10 +5680,10 @@ async def test_the_sweep_leaves_a_job_this_process_is_running(
 
     alive = asyncio.create_task(asyncio.sleep(3600))
     monkeypatch.setitem(
-        import_worker._jobs.running, (a.guild.id, job.id), ("apply", alive)
+        import_worker.jobs.running, (a.guild.id, job.id), ("apply", alive)
     )
     try:
-        await import_worker.dispatch_import_jobs()
+        await import_worker.jobs.dispatch()
     finally:
         alive.cancel()
 

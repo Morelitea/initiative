@@ -159,14 +159,16 @@ async def test_every_subscription_in_a_guild_is_drained(
         drained.append(subscription.id)
 
     monkeypatch.setattr(poller, "_drain_subscription", _record)
+    monkeypatch.setattr(poller, "_subscribed", set())
 
     now = datetime.now(timezone.utc)
-    await poller._drain_guild(session, guild_id, now=now)
+    await poller.drain_guild(session, guild_id, now=now)
 
     assert len(drained) == 3, (
         f"only {len(drained)} of 3 subscriptions drained — the rest were "
         "detached by the per-pass expunge and never delivered to"
     )
+    assert poller._subscribed == {guild_id}
 
 
 def test_a_batch_is_one_transaction_whole():
@@ -222,11 +224,11 @@ async def test_ledger_delivers_each_transaction_once(
 
     system = await role_session("app_admin")
 
-    await poller._drain_guild(system, guild_id, now=datetime.now(timezone.utc))
+    await poller.drain_guild(system, guild_id, now=datetime.now(timezone.utc))
     first_pass = len(sent)
     assert first_pass > 0, "no transaction was delivered"
 
-    await poller._drain_guild(system, guild_id, now=datetime.now(timezone.utc))
+    await poller.drain_guild(system, guild_id, now=datetime.now(timezone.utc))
     assert len(sent) == first_pass, (
         "a settled transaction was delivered twice — the ledger row should make "
         "it ineligible on every later pass"
@@ -271,12 +273,12 @@ async def test_a_refused_batch_is_retried_not_lost(
 
     system = await role_session("app_admin")
 
-    await poller._drain_guild(system, guild_id, now=datetime.now(timezone.utc))
+    await poller.drain_guild(system, guild_id, now=datetime.now(timezone.utc))
     assert len(attempts) == 1
 
     # Past the backoff, the same batch is offered again under the same id.
     later = datetime.now(timezone.utc) + timedelta(hours=2)
-    await poller._drain_guild(system, guild_id, now=later)
+    await poller.drain_guild(system, guild_id, now=later)
     assert len(attempts) == 2, "a refused batch was dropped instead of retried"
     assert attempts[0] == attempts[1], (
         "the retry carried a different event_id, so a receiver deduping on it "
@@ -328,7 +330,7 @@ async def test_repeated_refusals_escalate_the_backoff(
     intervals: list[float] = []
     moment = datetime.now(timezone.utc)
     for _ in range(3):
-        await poller._drain_guild(system, guild_id, now=moment)
+        await poller.drain_guild(system, guild_id, now=moment)
         await set_rls_context(session, guild_id=guild_id)
         row = (
             await session.exec(
@@ -401,7 +403,7 @@ async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
     txn_a: int | None = None
     moment = datetime.now(timezone.utc)
     for _ in range(len(poller._BACKOFF_SECONDS)):
-        await poller._drain_guild(system, guild_id, now=moment)
+        await poller.drain_guild(system, guild_id, now=moment)
         await set_rls_context(session, guild_id=guild_id)
         row = (
             await session.exec(
@@ -434,7 +436,7 @@ async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
     await session.commit()
 
     # This pass is what exhausts the first batch's schedule.
-    await poller._drain_guild(system, guild_id, now=moment)
+    await poller.drain_guild(system, guild_id, now=moment)
     await set_rls_context(session, guild_id=guild_id)
 
     dead_row = (
@@ -465,7 +467,7 @@ async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
     # the second transaction continuing to retry on its own schedule — the
     # dead-lettered batch is never attempted again, however far forward the
     # next pass looks.
-    await poller._drain_guild(system, guild_id, now=moment + timedelta(days=365))
+    await poller.drain_guild(system, guild_id, now=moment + timedelta(days=365))
     assert attempted.count(event_id_a) == attempts_on_a_so_far + 1, (
         "a dead-lettered batch was retried — it should never be attempted again"
     )
@@ -587,3 +589,19 @@ def test_the_reach_reads_what_the_grant_lets_it_read():
     ) == outbox_poller.InstallReach(
         live=False, placed=frozenset({1}), readable=frozenset()
     )
+
+
+async def test_a_hint_wakes_the_drain_only_where_something_subscribes(monkeypatch):
+    """A change in a community with no active subscription is dropped before
+    the drain, which never visits it; a subscription appearing there is what
+    lets the next change through."""
+    monkeypatch.setattr(outbox_poller, "_subscribed", set())
+    monkeypatch.setattr(outbox_poller.drain, "pending", set())
+
+    await outbox_poller.hint("guild_7:100")
+    assert outbox_poller.drain.pending == set()
+
+    outbox_poller.subscriptions_changed(7)
+    outbox_poller.drain.pending.clear()
+    await outbox_poller.hint("guild_7:101")
+    assert outbox_poller.drain.pending == {7}

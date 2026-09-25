@@ -45,8 +45,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import ImportEngineMessages
 from app.db import cohorts
-from app.db import session as db_session
-from app.db.session import SYSTEM_SATISFIED, set_rls_context
+from app.db.session import SYSTEM_SATISFIED
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import UserStatus
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
@@ -60,9 +59,6 @@ from app.services.import_engine.contract import ImportEngineError
 from app.services.import_engine import limits as import_limits
 
 logger = logging.getLogger(__name__)
-
-IMPORT_POLL_SECONDS = 10
-IMPORT_GC_POLL_SECONDS = 3600
 
 # A ``running`` row untouched this long is a crashed apply. Unlike exports it
 # is NOT re-claimed (see module docstring); the sweep marks it failed. A live
@@ -185,7 +181,7 @@ async def _run(
     return await _apply(session, job, guild_id=guild_id)
 
 
-_jobs: data_jobs.Dispatcher[ImportJob] = data_jobs.Dispatcher(
+jobs: data_jobs.Dispatcher[ImportJob] = data_jobs.Dispatcher(
     name="import",
     model=ImportJob,
     lock_namespace=_CLAIM_LOCK_NS,
@@ -202,18 +198,8 @@ _jobs: data_jobs.Dispatcher[ImportJob] = data_jobs.Dispatcher(
 
 async def process_import_jobs() -> None:
     """Run passes until one starts nothing, waiting for each pass's jobs.
-
-    Everything queued is dealt with by the time this returns. The background
-    loop calls :func:`dispatch_import_jobs` instead, which does not wait.
-    """
-    await _jobs.process()
-
-
-async def dispatch_import_jobs() -> list[asyncio.Task[None]]:
-    """One pass: sweep every community's stale rows, then start what the free
-    slots can take, at most one job per community. Returns the tasks it
-    started; each runs, records its outcome and notifies on its own."""
-    return await _jobs.dispatch()
+    Everything queued is dealt with by the time this returns."""
+    await jobs.process()
 
 
 async def _apply(session: AsyncSession, job: ImportJob, *, guild_id: int) -> JobOutcome:
@@ -449,35 +435,16 @@ def _error_code(exc: Exception) -> str:
     return ImportEngineMessages.IMPORT_APPLY_FAILED
 
 
-async def process_import_gc() -> None:
-    """Expire unconfirmed/undelivered staged payloads past ``expires_at``:
-    delete the payload and mark the job expired. Terminal rows keep their
-    (small) result reports — only payloads are GC'd — and any secret one
-    still holds is cleared.
+async def expire_payloads(session: AsyncSession, guild_id: int) -> None:
+    """Expire the community's unconfirmed/undelivered staged payloads past
+    ``expires_at``: delete the payload and mark the job expired. Terminal rows
+    keep their (small) result reports — only payloads are GC'd — and any
+    secret one still holds is cleared.
 
-    Covers every community whose schema exists, whatever its status: a
+    Visited in every community whose schema exists, whatever its status: a
     read-only or suspended community's payloads expire like anyone's."""
     now = datetime.now(timezone.utc)
-    async with db_session.SystemSessionLocal() as session:
-        await set_rls_context(session)
-        guild_ids = await data_jobs.provisioned_guild_ids(session)
-        await session.commit()
-        for guild_id in guild_ids:
-            session.expunge_all()
-            try:
-                await set_rls_context(session, guild_id=guild_id)
-                await _expire_payloads(session, guild_id=guild_id, now=now)
-            except Exception:
-                # One community's failure (its schema dropped part-way
-                # through the pass, say) leaves the rest to be collected.
-                logger.exception("import gc failed guild=%s", guild_id)
-                await session.rollback()
-
-
-async def _expire_payloads(
-    session: AsyncSession, *, guild_id: int, now: datetime
-) -> None:
-    jobs = list(
+    expired = list(
         await session.exec(
             select(ImportJob).where(
                 ImportJob.status.in_(
@@ -492,7 +459,7 @@ async def _expire_payloads(
             )
         )
     )
-    for job in jobs:
+    for job in expired:
         await asyncio.to_thread(import_engine.delete_payload, guild_id, job.payload_ref)
         job.secret_encrypted = None
         job.status = ImportJobStatus.expired

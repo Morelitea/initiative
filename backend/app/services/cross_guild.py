@@ -116,11 +116,12 @@ async def gather_across_guilds(
     ``for_settings``), for a read of what its administrator configures.
 
     With communities divided into cohorts (``app.db.cohorts``), a request-path
-    ``session`` stays where it is and each community gets a session from its
-    own cohort, which is closed before the next one opens; ``fetch`` receives
-    that session. It is read-only unless ``writes`` is set, in which case each
-    community's session is committed once its ``fetch`` returns — each
-    community's writes are then a transaction of their own, not the caller's.
+    ``session``, or one from ``cohorts.system_session``, stays where it is and
+    each community gets a session of the same kind from its own cohort, which
+    is closed before the next one opens; ``fetch`` receives that session. It is
+    read-only unless ``writes`` is set, in which case each community's session
+    is committed once its ``fetch`` returns — each community's writes are then
+    a transaction of their own, not the caller's.
     Otherwise ``session`` itself is routed into each community in turn, is left
     routed into the last, and what ``fetch`` writes rides its transaction."""
     if not guild_ids:
@@ -183,10 +184,10 @@ async def gather_across_guilds(
     results: list[T] = []
     if cohorts.fans_out(session):
         # Each community is read on a session from its own cohort's pool, so
-        # this request's connection never opens another cohort's schema.
+        # the caller's connection never opens another cohort's schema.
         for guild_id in guild_ids:
             async with cohorts.community_session(
-                guild_id, read_only=not writes
+                session, guild_id, read_only=not writes
             ) as routed:
                 account = await routed.merge(user, load=False)
                 if await enter(routed, account, guild_id):

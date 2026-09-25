@@ -43,6 +43,7 @@ from app.core.notification_categories import (
 from app.core.tools import COMMENT_TARGETS, Tool
 from app.core.user_display import handle_of
 from app.db.guild_standing import ActorContext, InstallContext
+from app.db import cohorts
 from app.db.initiative_rls import entity_tables, governing_path
 from app.db.session import (
     SYSTEM_SATISFIED,
@@ -52,8 +53,6 @@ from app.db.session import (
 )
 from app.models.platform.guild import (
     GUILD_ADMIN_ROLES,
-    LIVE_STATUS_VALUES,
-    Guild,
     GuildMembership,
 )
 from app.models.platform.notification import Notification, NotificationType
@@ -78,6 +77,7 @@ from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.services import email as email_service
 from app.services import permissions as permissions_service
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
+from app.services.guild_sweeps import Scan, Scope
 from app.services.platform import accounts as accounts_service
 from app.services.platform import (
     email_outbox,
@@ -710,40 +710,7 @@ async def _roll_up_comment(
     return False, None
 
 
-# ── visiting every live community ────────────────────────────────────────────
-
-
-async def _each_live_guild(
-    session: AsyncSession,
-    visit: Callable[[AsyncSession, int], Awaitable[None]],
-) -> None:
-    """Run ``visit`` once in each live community, routed as the sweep.
-
-    One statement per community rather than one per member of it: a sweep asks
-    each community what is waiting, and only then goes near the people it is
-    waiting for.
-    """
-    await set_rls_context(session)
-    live = (
-        await session.exec(
-            select(Guild.id)
-            .where(Guild.status.in_(LIVE_STATUS_VALUES))
-            .order_by(Guild.id.asc())
-        )
-    ).scalars()
-    for guild_id in list(live):
-        session.expunge_all()
-        await set_rls_context(session, guild_id=guild_id)
-        await visit(session, guild_id)
-        await session.commit()
-    session.expunge_all()
-    await set_rls_context(session)
-
-
 # ── digests: the task-assignment digest and the machinery ────────────────────
-
-DIGEST_POLL_SECONDS = 60
-
 
 # A task-assignment digest waits for the flurry to end rather than firing on
 # the first item: it ships once nothing new has arrived for QUIET_PERIOD, so a
@@ -760,9 +727,6 @@ ASSIGNMENT_MAX_WINDOW = timedelta(minutes=30)
 # bell. Unsent items are dropped at the same age — anything that old is either
 # orphaned or long past being worth sending.
 ASSIGNMENT_ITEM_RETENTION = timedelta(days=7)
-
-
-ASSIGNMENT_GC_POLL_SECONDS = 3600
 
 
 async def notify_assigned(
@@ -1051,15 +1015,13 @@ async def _digest_batch(
     )
 
 
-async def _run_digest_pass(
-    session: AsyncSession, spec: DigestSpec, *, now: datetime
-) -> None:
+def digest_scan(spec: DigestSpec, *, now: datetime) -> Scan:
     """Send ``spec``'s digest to opted-in users as of ``now``.
 
-    Starts from what is waiting: each community is asked once which accounts
-    have unsent items and when they came, and only accounts whose items have
-    settled go further (see :func:`_digest_is_due`). Their items are then
-    taken in each community under their own membership context — marked
+    Starts from what is waiting: each live community is asked once which
+    accounts have unsent items and when they came, and only accounts whose
+    items have settled go further (see :func:`_digest_is_due`). Their items are
+    then taken in each community under their own membership context — marked
     processed by the statement that reads them, so a digest goes out once
     however many processes sweep at the same moment — and email and push ship
     together, so the two channels tell the same story.
@@ -1078,9 +1040,26 @@ async def _run_digest_pass(
         for user_id, first, last in rows.all():
             pending.setdefault(user_id, {})[guild_id] = [first, last]
 
-    await _each_live_guild(session, _waiting)
-    if not pending:
-        return
+    async def _finish() -> None:
+        if not pending:
+            return
+        async with cohorts.system_session(None) as session:
+            await set_rls_context(session)
+            await _send_digests(session, spec, pending, now=now)
+
+    return Scan(Scope.LIVE, _waiting, _finish)
+
+
+async def _send_digests(
+    session: AsyncSession,
+    spec: DigestSpec,
+    pending: dict[int, dict[int, list[datetime]]],
+    *,
+    now: datetime,
+) -> None:
+    """Send the digests of the accounts ``pending`` names, whose items have
+    settled."""
+    model = spec.model
     # Settings are sparse and default to on, so the opted-in set is "everyone
     # who has not said otherwise". Filtered here rather than in the SELECT: the
     # resolution order lives in one function, and re-expressing it as a JSON
@@ -1178,14 +1157,14 @@ async def _run_digest_pass(
             # Nothing went out and a later pass could still deliver them: the
             # items go back to waiting, in each community they were taken from.
             for gid, item_ids in taken.items():
-                session.expunge_all()
-                await set_rls_context(session, guild_id=gid)
-                await session.exec(
-                    sa_update(model)
-                    .where(model.id.in_(item_ids), model.processed_at == now)
-                    .values(processed_at=None)
-                )
-                await session.commit()
+                async with cohorts.system_session(gid) as routed:
+                    await set_rls_context(routed, guild_id=gid)
+                    await routed.exec(
+                        sa_update(model)
+                        .where(model.id.in_(item_ids), model.processed_at == now)
+                        .values(processed_at=None)
+                    )
+                    await routed.commit()
             continue
         if retry:  # pragma: no cover — one channel got through, the other did not
             # The two channels share one queue with a single processed marker,
@@ -1206,10 +1185,9 @@ async def _run_digest_pass(
         await session.commit()
 
 
-async def _run_gc_pass(
-    session: AsyncSession, models: Sequence[type], *, now: datetime
-) -> None:
-    """Drop digest items older than the retention window, guild by guild.
+def digest_gc_scan(*, now: datetime) -> Scan:
+    """Drop digest items older than the retention window, community by
+    community, then the settled mail and the read notifications past theirs.
 
     Sent items are bookkeeping once the mail is gone. Unsent items of the same
     age are dropped too: they are either orphaned (the user turned the channel
@@ -1219,10 +1197,24 @@ async def _run_gc_pass(
     cutoff = now - ASSIGNMENT_ITEM_RETENTION
 
     async def _visit(routed: AsyncSession, _guild_id: int) -> None:
-        for model in models:
+        for model in (TaskAssignmentDigestItem, ReactionDigestItem):
             await routed.exec(delete(model).where(model.created_at < cutoff))
 
-    await _each_live_guild(session, _visit)
+    async def _finish() -> None:
+        async with cohorts.system_session(None) as session:
+            await set_rls_context(session)
+            # Mail that has gone out, or run out of attempts, is bookkeeping on
+            # the same terms as a spent digest row.
+            dropped = await email_outbox.sweep_settled(session, now=now)
+            if dropped:
+                logger.info("digest-gc: dropped %d settled email row(s)", dropped)
+            await session.commit()
+            # Read notifications past their retention go on the same sweep.
+            pruned = await user_notifications.prune_read(session, now=now)
+            if pruned:
+                logger.info("digest-gc: deleted %d read notification(s)", pruned)
+
+    return Scan(Scope.LIVE, _visit, _finish)
 
 
 def _assignment_row(item, guild_id: int) -> dict:
@@ -1252,40 +1244,6 @@ ASSIGNMENT_DIGEST = DigestSpec(
     send_push=_send_assignment_push,
     stamp="last_task_assignment_digest_at",
 )
-
-
-async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -> None:
-    """Send task-assignment digests. Split out from
-    ``process_task_assignment_digests`` so tests can drive it with the test
-    session."""
-    await _run_digest_pass(session, ASSIGNMENT_DIGEST, now=now)
-
-
-async def process_task_assignment_digests() -> None:
-    async with SystemSessionLocal() as session:
-        await _run_assignment_digest_pass(session, now=datetime.now(timezone.utc))
-
-
-async def _run_assignment_gc_pass(session: AsyncSession, *, now: datetime) -> None:
-    await _run_gc_pass(session, (TaskAssignmentDigestItem, ReactionDigestItem), now=now)
-    # Mail that has gone out, or run out of attempts, is bookkeeping on the
-    # same terms as a spent digest row — so it goes in the same sweep rather
-    # than growing a second one.
-    await set_rls_context(session)
-    dropped = await email_outbox.sweep_settled(session, now=now)
-    if dropped:
-        logger.info("digest-gc: dropped %d settled email row(s)", dropped)
-    await session.commit()
-    # Read notifications past their retention go on the same hourly sweep.
-    pruned = await user_notifications.prune_read(session, now=now)
-    if pruned:
-        logger.info("digest-gc: deleted %d read notification(s)", pruned)
-
-
-async def process_assignment_digest_gc() -> None:
-    async with SystemSessionLocal() as session:
-        await set_rls_context(session)
-        await _run_assignment_gc_pass(session, now=datetime.now(timezone.utc))
 
 
 # ── reactions ────────────────────────────────────────────────────────────────
@@ -1666,28 +1624,11 @@ REACTION_DIGEST = DigestSpec(
 )
 
 
-async def _run_reaction_digest_pass(session: AsyncSession, *, now: datetime) -> None:
-    """Send reaction digests. Split out from ``process_reaction_digests`` so
-    tests can drive it with the test session."""
-    await _run_digest_pass(session, REACTION_DIGEST, now=now)
-
-
-async def process_reaction_digests() -> None:
-    async with SystemSessionLocal() as session:
-        await _run_reaction_digest_pass(session, now=datetime.now(timezone.utc))
-
-
 # ── time-driven notices: overdue tasks, hold summaries, reminders ────────────
-
-OVERDUE_POLL_SECONDS = 300
-
 
 # A summary goes out when a hold lifts, so the poll only has to be finer than
 # the grace period it is bounded by.
 HOLD_SUMMARY_POLL_SECONDS = 600
-
-
-EVENT_REMINDER_POLL_SECONDS = 60
 
 
 # Events that started within this window are still eligible, so a 0-minute
@@ -1797,14 +1738,13 @@ async def _send_overdue_push(
     return sent > 0
 
 
-async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
+def overdue_scan(*, now: datetime) -> Scan:
     """Send overdue-task digests to opted-in users as of ``now``.
 
-    Split out from ``process_overdue_notifications`` so tests can drive it with
-    the test session (the worker opens its own ``SystemSessionLocal``). Starts
-    from the work: each community is asked once who has an overdue task, and
-    only those accounts are read. Each one's tasks are then gathered from their
-    own guild schemas with their membership context — no all-guild access.
+    Starts from the work: each live community is asked once who has an overdue
+    task, and only those accounts are read. Each one's tasks are then gathered
+    from their own guild schemas with their membership context — no all-guild
+    access.
 
     Both channels ship from this one pass: the digest email and a push. A user
     opted into either channel is a candidate, so turning email off doesn't
@@ -1819,10 +1759,22 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
         ).scalars():
             overdue.setdefault(user_id, []).append(guild_id)
 
-    await _each_live_guild(session, _overdue_here)
-    if not overdue:
-        logger.debug("overdue-digest: nothing overdue")
-        return
+    async def _finish() -> None:
+        if not overdue:
+            logger.debug("overdue-digest: nothing overdue")
+            return
+        async with cohorts.system_session(None) as session:
+            await set_rls_context(session)
+            await _send_overdue(session, overdue, now=now)
+
+    return Scan(Scope.LIVE, _overdue_here, _finish)
+
+
+async def _send_overdue(
+    session: AsyncSession, overdue: dict[int, list[int]], *, now: datetime
+) -> None:
+    """Send the digests of the accounts ``overdue`` names, in the communities
+    it names them in."""
     users = (
         (await session.exec(select(User).where(User.id.in_(list(overdue)))))
         .scalars()
@@ -1962,11 +1914,6 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
                 .values(last_overdue_notification_at=previous)
             )
         await session.commit()
-
-
-async def process_overdue_notifications() -> None:
-    async with SystemSessionLocal() as session:
-        await _run_overdue_pass(session, now=datetime.now(timezone.utc))
 
 
 # Holds: one summary when a hold lifts
@@ -2212,24 +2159,26 @@ async def process_hold_summaries() -> None:
         await _run_hold_summary_pass(session, now=datetime.now(timezone.utc))
 
 
-async def _run_event_reminder_pass(session: AsyncSession, *, now: datetime) -> None:
-    """Dispatch any reminders due as of ``now``.
+async def reminder_scan(*, now: datetime) -> Scan | None:
+    """Dispatch lead-time reminders for upcoming calendar events, as of
+    ``now``; ``None`` when nobody has asked for reminders.
 
-    Starts from what is due: each community is asked once which opted-in
+    Considers events starting within the next day (the widest lead preset)
+    whose attendees opted into reminders, and fires once per (event, user,
+    start time) — keyed on ``start_at`` so a reschedule re-arms the reminder.
+    Attendees who RSVP'd ``declined`` are skipped.
+
+    Starts from what is due: each live community is asked once which opted-in
     attendees have a reminder due and unsent. Only those accounts are then
-    routed into only those communities, with their own membership context (no
-    superadmin), to dispatch reminders for the events they attend there. Split out from ``process_event_reminders``
-    so tests can drive it with the test session.
+    routed into only those communities, with their own membership context, to
+    dispatch reminders for the events they attend there.
     """
-    from app.api.deps import GuildAccessError, establish_guild_access
-
     horizon = now + timedelta(days=1)
     # Allow events that started within the grace window so a 0-minute
     # ("at the time of the event") reminder still fires on the next poll.
     lower = now - EVENT_REMINDER_GRACE
-    # Asked of the system engine, not of this session: the sweep routes into
-    # each guild's schema in turn, and a routed session cannot read an
-    # account's preferences.
+    # Asked of the system engine before any community is visited: a routed
+    # session cannot read an account's preferences.
     users = await accounts_service.load_event_reminder_optins()
     lead = {
         account.id: timedelta(minutes=account.event_reminder_minutes_before)
@@ -2237,7 +2186,7 @@ async def _run_event_reminder_pass(session: AsyncSession, *, now: datetime) -> N
         if account.id is not None and account.event_reminder_minutes_before is not None
     }
     if not lead:
-        return
+        return None
     # Each community is asked once which of those accounts have a reminder due
     # and not yet sent; only they are routed into it below.
     due_in: dict[int, set[int]] = {}
@@ -2272,101 +2221,87 @@ async def _run_event_reminder_pass(session: AsyncSession, *, now: datetime) -> N
             if user_id in lead and start_at - lead[user_id] <= now:
                 due_in.setdefault(user_id, set()).add(guild_id)
 
-    await _each_live_guild(session, _visit)
-    for account in users:
-        user_id = account.id
-        if user_id not in due_in:
-            continue
-        for guild_id in await member_guild_ids(
-            session, user_id, restrict_to=sorted(due_in[user_id])
-        ):
-            session.expunge_all()
-            # Through the seam, as the account whose reminders these are: what
-            # the sweep may see of a community is what that account may see.
-            try:
-                await establish_guild_access(
-                    session,
-                    account,
-                    guild_id,
-                    satisfied_providers=SYSTEM_SATISFIED,
-                )
-            except GuildAccessError:
-                continue
-            events = (
-                (
-                    await session.exec(
-                        select(CalendarEvent)
-                        .join(
-                            CalendarEventAttendee,
-                            CalendarEventAttendee.calendar_event_id == CalendarEvent.id,
-                        )
-                        .where(
-                            CalendarEventAttendee.user_id == user_id,
-                            CalendarEventAttendee.rsvp_status != RSVPStatus.declined,
-                            CalendarEvent.deleted_at.is_(None),
-                            CalendarEvent.start_at > lower,
-                            CalendarEvent.start_at <= horizon,
-                        )
+    async def _dispatch(session: AsyncSession, guild_id: int, user_id: int) -> list:
+        events = (
+            (
+                await session.exec(
+                    select(CalendarEvent)
+                    .join(
+                        CalendarEventAttendee,
+                        CalendarEventAttendee.calendar_event_id == CalendarEvent.id,
+                    )
+                    .where(
+                        CalendarEventAttendee.user_id == user_id,
+                        CalendarEventAttendee.rsvp_status != RSVPStatus.declined,
+                        CalendarEvent.deleted_at.is_(None),
+                        CalendarEvent.start_at > lower,
+                        CalendarEvent.start_at <= horizon,
                     )
                 )
-                .scalars()
-                .all()
             )
-            # Capture before the per-reminder commits expire/detach the rows.
-            due = [
-                (e.id, e.start_at) for e in events if e.start_at - lead[user_id] <= now
-            ]
-            for event_id, start_at in due:
-                # Reserve the dedup row before dispatching (reserve-then-send).
-                # The reservation is the claim: a row already there — this pass's
-                # earlier run, or another process sweeping now — means it is
-                # somebody else's to send.
-                reserved = await session.exec(
-                    pg_insert(EventReminderDispatch)
-                    .values(
-                        event_id=event_id,
-                        user_id=user_id,
-                        event_start_at=start_at,
-                        sent_at=datetime.now(timezone.utc),
-                    )
-                    .on_conflict_do_nothing()
+            .scalars()
+            .all()
+        )
+        # Capture before the per-reminder commits expire/detach the rows.
+        due = [(e.id, e.start_at) for e in events if e.start_at - lead[user_id] <= now]
+        for event_id, start_at in due:
+            # Reserve the dedup row before dispatching (reserve-then-send).
+            # The reservation is the claim: a row already there — this pass's
+            # earlier run, or another process sweeping now — means it is
+            # somebody else's to send.
+            reserved = await session.exec(
+                pg_insert(EventReminderDispatch)
+                .values(
+                    event_id=event_id,
+                    user_id=user_id,
+                    event_start_at=start_at,
+                    sent_at=datetime.now(timezone.utc),
                 )
-                await session.commit()
-                if not reserved.rowcount:
-                    continue
-                event = (
-                    await session.exec(
-                        select(CalendarEvent).where(CalendarEvent.id == event_id)
-                    )
-                ).scalar_one_or_none()
-                if event is None:
-                    continue  # deleted mid-run; dedup row stays so we don't retry
-                await notify(
+                .on_conflict_do_nothing()
+            )
+            await session.commit()
+            if not reserved.rowcount:
+                continue
+            event = (
+                await session.exec(
+                    select(CalendarEvent).where(CalendarEvent.id == event_id)
+                )
+            ).scalar_one_or_none()
+            if event is None:
+                continue  # deleted mid-run; dedup row stays so we don't retry
+            await notify(
+                session,
+                NotificationType.event_reminder,
+                [user_id],
+                about=("calendar_event", event_id),
+                key="event.reminder",
+                values={
+                    "event": event.title,
+                    "when": lambda reader, _event=event: event_when(_event, reader),
+                },
+                data={"event_id": event_id, "start_at": start_at.isoformat()},
+            )
+            await session.commit()
+        return []
+
+    async def _finish() -> None:
+        async with cohorts.system_session(None) as session:
+            for user_id, guild_ids in due_in.items():
+                # Through the seam, as the account whose reminders these are:
+                # what the sweep may see of a community is what that account
+                # may see.
+                await gather_across_guilds(
                     session,
-                    NotificationType.event_reminder,
-                    [user_id],
-                    about=("calendar_event", event_id),
-                    key="event.reminder",
-                    values={
-                        "event": event.title,
-                        "when": lambda reader, _event=event: event_when(_event, reader),
-                    },
-                    data={"event_id": event_id, "start_at": start_at.isoformat()},
+                    user_id,
+                    await member_guild_ids(
+                        session, user_id, restrict_to=sorted(guild_ids)
+                    ),
+                    lambda routed, gid, _uid=user_id: _dispatch(routed, gid, _uid),
+                    satisfied_providers=SYSTEM_SATISFIED,
+                    writes=True,
                 )
-                await session.commit()
 
-
-async def process_event_reminders() -> None:
-    """Dispatch lead-time reminders for upcoming calendar events.
-
-    Polled by the background worker. Considers events starting within the next
-    day (the widest lead preset) whose attendees opted into reminders, and
-    fires once per (event, user, start time) — keyed on ``start_at`` so a
-    reschedule re-arms the reminder. Attendees who RSVP'd ``declined`` are
-    skipped.
-    """
-    async with SystemSessionLocal() as session:
-        await _run_event_reminder_pass(session, now=datetime.now(timezone.utc))
+    return Scan(Scope.LIVE, _visit, _finish)
 
 
 # ── notices about your own account ───────────────────────────────────────────

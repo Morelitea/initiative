@@ -1,9 +1,25 @@
 from __future__ import annotations
 
 import asyncio
+import itertools
 import logging
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.services.guild_sweeps import Scope, Visit
 
 logger = logging.getLogger(__name__)
+
+#: How often each pass over the communities runs.
+MINUTE_PASS_SECONDS = 60
+SLOW_PASS_SECONDS = 300
+HOURLY_PASS_SECONDS = 3600
+
+#: The minute pass sends overdue digests on every this-many-th pass.
+OVERDUE_EVERY = 5
+
+_minute_passes = itertools.count()
 
 
 async def _loop_worker(task_coro, interval: int, name: str) -> None:
@@ -20,19 +36,112 @@ async def _loop_worker(task_coro, interval: int, name: str) -> None:
         raise
 
 
+async def minute_pass() -> None:
+    """Event-driven work's backstop and the minute-grained notices, in one
+    visit per community.
+
+    Webhook deliveries (retries that have come due, and anything a lost wake
+    left), data-job claims, both digests, event reminders and scheduled posts,
+    and every :data:`OVERDUE_EVERY`-th pass the overdue digests. Posts are
+    published in active communities only: a hold must not keep announcing new
+    notices to its members.
+    """
+    from app.services import notifications
+    from app.services.guild_sweeps import Scope, each_guild
+    from app.services.tenant import outbox_poller, post_publication
+
+    now = datetime.now(timezone.utc)
+    scans = [
+        notifications.digest_scan(notifications.ASSIGNMENT_DIGEST, now=now),
+        notifications.digest_scan(notifications.REACTION_DIGEST, now=now),
+    ]
+    try:
+        reminders = await notifications.reminder_scan(now=now)
+    except Exception:
+        # The rest of the pass goes ahead without them.
+        logger.exception("minute: reading reminder opt-ins failed")
+        reminders = None
+    if reminders is not None:
+        scans.append(reminders)
+    if next(_minute_passes) % OVERDUE_EVERY == 0:
+        scans.append(notifications.overdue_scan(now=now))
+    await each_guild(
+        [
+            (Scope.ACTIVE, outbox_poller.drain_guild),
+            *_claims(),
+            (
+                Scope.ACTIVE,
+                lambda session, _guild_id: post_publication.publish_due_posts(
+                    session, now=now
+                ),
+            ),
+        ],
+        name="minute",
+        scans=scans,
+    )
+
+
+async def slow_pass() -> None:
+    """Data jobs whose rows have gone quiet. The stale window is 15 minutes,
+    so five is often enough."""
+    from app.services.export import worker as export_worker
+    from app.services.guild_sweeps import Scope, each_guild
+    from app.services.import_engine import worker as import_worker
+
+    await each_guild(
+        [
+            (Scope.ACTIVE, export_worker.jobs.sweep_stale),
+            (Scope.ACTIVE, import_worker.jobs.sweep_stale),
+        ],
+        name="slow",
+    )
+
+
+async def hourly_pass() -> None:
+    """Retention and upkeep: trash, expired exports and imports, delivered
+    webhook history, spent digest items, and app auto-updates.
+
+    Trash is purged and apps updated in active communities only: a read-only
+    or suspended one is frozen until it returns. Exports and imports expire
+    wherever the schema still exists.
+    """
+    from app.services import notifications
+    from app.services.export import worker as export_worker
+    from app.services.guild_sweeps import Scope, each_guild
+    from app.services.import_engine import worker as import_worker
+    from app.services.tenant import app_updates, outbox_poller, trash_purge
+
+    await each_guild(
+        [
+            (Scope.ACTIVE, trash_purge.purge_guild),
+            (Scope.PROVISIONED, export_worker.expire_artifacts),
+            (Scope.PROVISIONED, import_worker.expire_payloads),
+            (Scope.ACTIVE, outbox_poller.expire_history),
+            (Scope.ACTIVE, app_updates.update_guild),
+        ],
+        name="hourly",
+        scans=[notifications.digest_gc_scan(now=datetime.now(timezone.utc))],
+    )
+
+
+def _claims() -> list[tuple[Scope, Visit]]:
+    """Each job type's claim of a community's next queued job."""
+    from app.services.export import worker as export_worker
+    from app.services.guild_sweeps import Scope
+    from app.services.import_engine import worker as import_worker
+
+    return [
+        (Scope.ACTIVE, export_worker.jobs.claim),
+        (Scope.ACTIVE, import_worker.jobs.claim),
+    ]
+
+
 def start_background_tasks() -> list[asyncio.Task]:
+    from app.services import data_jobs
+    from app.services.guild_sweeps import Scope
     from app.services.notifications import (
-        process_assignment_digest_gc,
-        process_reaction_digests,
-        process_task_assignment_digests,
-        process_overdue_notifications,
         process_hold_summaries,
-        process_event_reminders,
-        ASSIGNMENT_GC_POLL_SECONDS,
-        DIGEST_POLL_SECONDS,
-        OVERDUE_POLL_SECONDS,
         HOLD_SUMMARY_POLL_SECONDS,
-        EVENT_REMINDER_POLL_SECONDS,
     )
     from app.services.platform.email_outbox import (
         EMAIL_OUTBOX_POLL_SECONDS,
@@ -50,11 +159,6 @@ def start_background_tasks() -> list[asyncio.Task]:
         process_announcement_image_purge,
         IMAGE_PURGE_POLL_SECONDS,
     )
-    from app.services.tenant.post_publication import (
-        POST_PUBLISH_POLL_SECONDS,
-        process_post_publications,
-    )
-    from app.services.tenant.trash_purge import process_trash_purges, PURGE_POLL_SECONDS
     from app.services.platform.guild_purge import (
         GUILD_PURGE_POLL_SECONDS,
         process_guild_purges,
@@ -67,16 +171,7 @@ def start_background_tasks() -> list[asyncio.Task]:
         IDENTITY_REF_SWEEP_POLL_SECONDS,
         process_identity_ref_sweep,
     )
-    from app.services.tenant.app_updates import (
-        AUTO_UPDATE_POLL_SECONDS,
-        process_app_auto_updates,
-    )
-    from app.services.tenant.outbox_poller import (
-        OUTBOX_POLL_SECONDS,
-        OUTBOX_RETENTION_POLL_SECONDS,
-        process_outbox_deliveries,
-        process_outbox_retention,
-    )
+    from app.services.tenant import outbox_poller
     from app.services.tenant.room_sink import ROOM_SWEEP_SECONDS, process_room_sweep
     from app.services.platform.user_tokens import (
         process_expired_token_purge,
@@ -90,52 +185,22 @@ def start_background_tasks() -> list[asyncio.Task]:
         process_jti_blocklist_purges,
         JTI_PURGE_POLL_SECONDS,
     )
-    from app.services.import_engine.worker import (
-        IMPORT_GC_POLL_SECONDS,
-        IMPORT_POLL_SECONDS,
-        dispatch_import_jobs,
-        process_import_gc,
-    )
-    from app.services.export.worker import (
-        EXPORT_GC_POLL_SECONDS,
-        EXPORT_POLL_SECONDS,
-        dispatch_export_jobs,
-        process_export_gc,
-    )
     from app.services.marketplace.tuf_registry import (
         process_registry_refresh,
         registry_available,
     )
 
     tasks = [
+        # Every sweep that visits the communities, grouped by how often it
+        # needs to run.
+        asyncio.create_task(_loop_worker(minute_pass, MINUTE_PASS_SECONDS, "minute")),
+        asyncio.create_task(_loop_worker(slow_pass, SLOW_PASS_SECONDS, "slow")),
+        asyncio.create_task(_loop_worker(hourly_pass, HOURLY_PASS_SECONDS, "hourly")),
+        # Communities a wake names, visited as soon as it arrives.
         asyncio.create_task(
-            _loop_worker(
-                process_task_assignment_digests, DIGEST_POLL_SECONDS, "task-digest"
-            )
+            outbox_poller.drain.run([(Scope.ACTIVE, outbox_poller.drain_guild)])
         ),
-        asyncio.create_task(
-            _loop_worker(
-                process_reaction_digests, DIGEST_POLL_SECONDS, "reaction-digest"
-            )
-        ),
-        # One GC sweep covers every digest queue.
-        asyncio.create_task(
-            _loop_worker(
-                process_assignment_digest_gc,
-                ASSIGNMENT_GC_POLL_SECONDS,
-                "digest-gc",
-            )
-        ),
-        asyncio.create_task(
-            _loop_worker(
-                process_overdue_notifications, OVERDUE_POLL_SECONDS, "overdue-digest"
-            )
-        ),
-        asyncio.create_task(
-            _loop_worker(
-                process_event_reminders, EVENT_REMINDER_POLL_SECONDS, "event-reminder"
-            )
-        ),
+        asyncio.create_task(data_jobs.drain.run(_claims())),
         asyncio.create_task(
             _loop_worker(
                 process_hold_summaries,
@@ -167,16 +232,6 @@ def start_background_tasks() -> list[asyncio.Task]:
             )
         ),
         asyncio.create_task(
-            _loop_worker(
-                process_post_publications,
-                POST_PUBLISH_POLL_SECONDS,
-                "post-publication",
-            )
-        ),
-        asyncio.create_task(
-            _loop_worker(process_trash_purges, PURGE_POLL_SECONDS, "trash-purge")
-        ),
-        asyncio.create_task(
             _loop_worker(process_guild_purges, GUILD_PURGE_POLL_SECONDS, "guild-purge")
         ),
         asyncio.create_task(
@@ -196,23 +251,6 @@ def start_background_tasks() -> list[asyncio.Task]:
                 process_announcement_image_purge,
                 IMAGE_PURGE_POLL_SECONDS,
                 "announcement-image-purge",
-            )
-        ),
-        asyncio.create_task(
-            _loop_worker(
-                process_app_auto_updates, AUTO_UPDATE_POLL_SECONDS, "app-auto-update"
-            )
-        ),
-        asyncio.create_task(
-            _loop_worker(
-                process_outbox_deliveries, OUTBOX_POLL_SECONDS, "outbox-deliveries"
-            )
-        ),
-        asyncio.create_task(
-            _loop_worker(
-                process_outbox_retention,
-                OUTBOX_RETENTION_POLL_SECONDS,
-                "outbox-retention",
             )
         ),
         # The room sink's backstop. The prompt path is the capture's own
@@ -238,20 +276,6 @@ def start_background_tasks() -> list[asyncio.Task]:
                 SESSION_PURGE_POLL_SECONDS,
                 "session-purge",
             )
-        ),
-        # Imports and exports share one dispatcher. A pass starts what it
-        # claims as tasks of its own and returns without waiting for them.
-        asyncio.create_task(
-            _loop_worker(dispatch_export_jobs, EXPORT_POLL_SECONDS, "export-jobs")
-        ),
-        asyncio.create_task(
-            _loop_worker(process_export_gc, EXPORT_GC_POLL_SECONDS, "export-gc")
-        ),
-        asyncio.create_task(
-            _loop_worker(dispatch_import_jobs, IMPORT_POLL_SECONDS, "import-jobs")
-        ),
-        asyncio.create_task(
-            _loop_worker(process_import_gc, IMPORT_GC_POLL_SECONDS, "import-gc")
         ),
     ]
 
