@@ -356,6 +356,7 @@ const KanbanCardContent = memo(
               // Two lines of words, not a picture that fills the card.
               className="line-clamp-2 w-full min-w-0 [&_img]:hidden"
               mentions
+              zoomImages={false}
             />
           ) : null}
           <div className="wrap-break-word w-full min-w-0 space-y-1 text-muted-foreground text-xs">

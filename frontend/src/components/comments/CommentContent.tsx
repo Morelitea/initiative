@@ -2,6 +2,7 @@ import type { ComponentPropsWithoutRef, Ref } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import { ImageLightboxScope, InLink, ProseImage } from "@/components/markdown/ProseImage";
 import { isStoredUpload, remarkImageLinks, remarkLineBreaks } from "@/lib/remarkProse";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
@@ -30,7 +31,7 @@ type ImageProps = ComponentPropsWithoutRef<"img"> & { node?: unknown };
 
 const MarkdownAnchor = ({ children, node: _node, ...props }: AnchorProps) => (
   <a {...props} target="_blank" rel="noopener noreferrer">
-    {children}
+    <InLink>{children}</InLink>
   </a>
 );
 
@@ -45,14 +46,14 @@ const ImageName = ({ src, alt }: ImageProps) => (
 
 /** A picture pasted into the comment, fetched from the server it is stored on. */
 const StoredImage = (props: ImageProps) => {
-  const { src, alt } = props;
+  const { src, alt, title } = props;
   if (typeof src !== "string" || !isStoredUpload(src)) return <ImageName {...props} />;
   return (
-    <img
+    <ProseImage
       src={resolveUploadUrl(src) ?? src}
       alt={alt ?? ""}
-      loading="lazy"
-      className="max-h-80 max-w-full rounded-md border border-border"
+      title={title}
+      className="max-h-80 rounded-md border border-border"
     />
   );
 };
@@ -77,21 +78,25 @@ export const CommentContent = ({
   disableLinks = false,
   className,
   ref,
-}: CommentContentProps) => (
-  <div ref={ref} className={cn(PROSE_CLASS, !compact && SPACED_CLASS, className)}>
-    <ReactMarkdown
-      remarkPlugins={PLUGINS}
-      components={
-        compact
-          ? disableLinks
-            ? COMPACT_PLAIN_COMPONENTS
-            : COMPACT_LINKED_COMPONENTS
-          : disableLinks
-            ? PLAIN_COMPONENTS
-            : LINKED_COMPONENTS
-      }
-    >
-      {content}
-    </ReactMarkdown>
-  </div>
-);
+}: CommentContentProps) => {
+  const rendered = (
+    <div ref={ref} className={cn(PROSE_CLASS, !compact && SPACED_CLASS, className)}>
+      <ReactMarkdown
+        remarkPlugins={PLUGINS}
+        components={
+          compact
+            ? disableLinks
+              ? COMPACT_PLAIN_COMPONENTS
+              : COMPACT_LINKED_COMPONENTS
+            : disableLinks
+              ? PLAIN_COMPONENTS
+              : LINKED_COMPONENTS
+        }
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
+  // A body that sits inside a link leaves the click to it.
+  return disableLinks ? rendered : <ImageLightboxScope>{rendered}</ImageLightboxScope>;
+};

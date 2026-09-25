@@ -174,7 +174,9 @@
     "description": "Use the arrow keys or swipe to move between pictures. Pinch, double-tap or scroll with Ctrl to zoom.",
     "position": "{{current}} / {{total}}",
     "zoomIn": "Zoom in",
-    "zoomOut": "Zoom out"
+    "zoomOut": "Zoom out",
+    "open": "View this picture full size",
+    "openNamed": "View {{name}} full size"
   },
   "timeline": {
     "label": "Jump to a month",
