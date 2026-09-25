@@ -3,7 +3,7 @@
   "schema": {
     "$id": "https://initiative.morels.me/schemas/app-manifest-v1.json",
     "title": "Initiative app manifest (the 'definition' body)",
-    "description": "What a service app declares it can do. This is the 'definition' field of the document served at /.well-known/initiative-app.json, NOT that whole document: a registrar also requires protocol_version, public_id and kind alongside it, and refuses a definition served bare. Generated from the platform's own validator vocabulary. A manifest that satisfies this schema is well-formed, not necessarily acceptable. Cross-references (the endpoint a widget binds, a requires term's connection, an endpoint's service prefix), the direction-specific rules on an endpoint, the features/blocks cross-check in both directions, UTF-8 byte-size caps, and the conditional rule for connect_path are enforced by the platform on publish and are not expressible here."
+    "description": "What a service app declares it can do. This is the 'definition' field of the document served at /.well-known/initiative-app.json, NOT that whole document: a registrar also requires protocol_version, public_id and kind alongside it, and refuses a definition served bare. Generated from the platform's own validator vocabulary. A manifest that satisfies this schema is well-formed, not necessarily acceptable. Cross-references (the endpoint a widget binds, a requires term's connection, an endpoint's service prefix), the direction-specific rules on an endpoint, the features/blocks cross-check in both directions, UTF-8 byte-size caps, and the rules tying a connection's flow and token to its scope and fields are enforced by the platform on publish and are not expressible here."
   },
   "charsets": {
     "identifier": "-0123456789_abcdefghijklmnopqrstuvwxyz",
@@ -29,11 +29,30 @@
       "interactive",
       "static"
     ],
+    "flowType": [
+      "oauth2"
+    ],
+    "tokenType": [
+      "jwt_bearer"
+    ],
+    "revokeMethod": [
+      "hook",
+      "rfc7009"
+    ],
+    "jwtAlgorithm": [
+      "ES256",
+      "RS256"
+    ],
     "fieldType": [
       "bool",
       "int",
       "secret",
       "select",
+      "string",
+      "url"
+    ],
+    "vendorFieldType": [
+      "secret",
       "string",
       "url"
     ],
@@ -113,6 +132,10 @@
   "caps": {
     "connections": 20,
     "fieldsPerConnection": 12,
+    "vendorFields": 12,
+    "flowScopes": 24,
+    "authorizeParams": 12,
+    "tokenLifetimeSeconds": 600,
     "selectOptions": 24,
     "accessHintScopes": 24,
     "requiresTerms": 10,
@@ -260,7 +283,7 @@
         "managed": {
           "type": "boolean",
           "default": false,
-          "description": "The app writes this value back itself when it finishes a vendor flow; it is not typed into the settings form."
+          "description": "Returned by the app's after_connect hook when a flow finishes; it is not typed into the settings form."
         }
       },
       "if": {
@@ -277,6 +300,53 @@
         "required": [
           "options"
         ]
+      }
+    },
+    "vendor": {
+      "type": "object",
+      "description": "What an operator supplies once per deployment for the vendor's own client: its id, its secret, its signing key. Declared here and never valued here: the values are entered on the deployment and referenced from a connection's flow or token as '{vendor.<key>}'.",
+      "required": [
+        "fields"
+      ],
+      "properties": {
+        "label": {
+          "ref": "localizedText",
+          "description": "What the vendor client is called, for the operator's form."
+        },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": "vendorFields",
+          "items": {
+            "ref": "vendorField"
+          }
+        }
+      }
+    },
+    "vendorField": {
+      "type": "object",
+      "required": [
+        "key",
+        "type",
+        "label"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "ref": "identifier"
+        },
+        "type": {
+          "enum": "vendorFieldType",
+          "description": "A 'secret' is written once and never shown again."
+        },
+        "required": {
+          "type": "boolean",
+          "default": false,
+          "description": "The app is not live on a deployment until every required value is set."
+        },
+        "label": {
+          "ref": "localizedText"
+        }
       }
     },
     "endpointParam": {
@@ -403,7 +473,7 @@
         },
         "scope": {
           "enum": "connectionScope",
-          "description": "Who the credential belongs to. 'static' is one credential the whole guild uses; 'interactive' is each member's own account at a vendor that authorizes people. It does not say how the credential is obtained: a static connection with a 'connect_path' is still one credential for the whole guild, run by an admin through the vendor's own flow rather than typed into a form."
+          "description": "Who the credential belongs to. 'static' is one credential the whole guild uses; 'interactive' is each member's own account at a vendor that authorizes people. It does not say how the credential is obtained: a static connection with a 'flow' is still one credential for the whole guild, run by an admin through the vendor's own pages rather than typed into a form. An interactive connection always declares a 'flow'."
         },
         "label": {
           "ref": "localizedText"
@@ -413,14 +483,147 @@
           "maxItems": "fieldsPerConnection",
           "items": {
             "ref": "connectionField"
-          }
+          },
+          "description": "Without a 'flow', what an admin types. With one, only the values the app's after_connect hook returns, and every field is 'managed'. The tokens a flow obtains are held apart from these, under reserved keys the app never declares."
         },
-        "connect_path": {
-          "ref": "path",
-          "description": "Where a person is sent so the app can run the vendor's flow. On an interactive connection that person is each member, authorizing their own account. On a static one it is a guild admin, and what the flow produces belongs to the whole guild \u2014 the vendor's own install page, where an organization is chosen and its permissions granted, rather than an admin retyping the organization's name into a text box. A static connection that declares one must also declare at least one 'managed' field, because the app writing back is the only way such a connection is ever satisfied."
+        "flow": {
+          "ref": "connectionFlow",
+          "description": "How the connection is established. Initiative runs it: the redirect, the code exchange, refreshing and revoking. The app never holds the vendor client's secret or a refresh token."
+        },
+        "token": {
+          "ref": "connectionToken",
+          "description": "How a usable access token is got for this connection. Absent: the tokens the flow stored, refreshed as needed. Static connections only."
         },
         "access_hint": {
           "ref": "accessHint"
+        }
+      }
+    },
+    "connectionFlow": {
+      "type": "object",
+      "description": "An OAuth 2.0 authorization code flow (RFC 6749 \u00a74.1) that Initiative runs for a connection, with the redirect addresses the deployment publishes.",
+      "required": [
+        "type",
+        "authorize_url",
+        "token_url",
+        "client_id"
+      ],
+      "properties": {
+        "type": {
+          "enum": "flowType"
+        },
+        "authorize_url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": "urlLength",
+          "description": "The vendor's authorization endpoint, https. May name a vendor value as '{vendor.<key>}' and one of this connection's own fields as '{<key>}'."
+        },
+        "token_url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": "urlLength",
+          "description": "The vendor's token endpoint, https. May name a vendor value as '{vendor.<key>}' and one of this connection's own fields as '{<key>}'."
+        },
+        "client_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": "urlLength",
+          "description": "The vendor client's id, normally '{vendor.client_id}'. May name a vendor value as '{vendor.<key>}' and one of this connection's own fields as '{<key>}'."
+        },
+        "client_secret": {
+          "type": "string",
+          "maxLength": "urlLength",
+          "description": "The vendor client's secret, normally '{vendor.client_secret}'. Absent for a public client. May name a vendor value as '{vendor.<key>}' and one of this connection's own fields as '{<key>}'."
+        },
+        "scopes": {
+          "type": "array",
+          "maxItems": "flowScopes",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": "hintLength"
+          },
+          "description": "The vendor scopes asked for, sent space-separated."
+        },
+        "pkce": {
+          "type": "boolean",
+          "default": true,
+          "description": "Send an S256 code challenge (RFC 7636)."
+        },
+        "authorize_params": {
+          "type": "object",
+          "maxProperties": "authorizeParams",
+          "propertyNames": {
+            "ref": "identifier"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "maxLength": "paramValueLength"
+          },
+          "description": "Extra query parameters for the authorization request. May name a vendor value as '{vendor.<key>}' and one of this connection's own fields as '{<key>}'."
+        },
+        "install_url": {
+          "type": "string",
+          "maxLength": "urlLength",
+          "description": "Static connections only. The vendor's install page, for a connection an organization installs: the person installs first, the vendor returns to the setup address with the installation's id, and one authorization trip follows so the app can check who installed it. Requires 'after_connect'. May name a vendor value as '{vendor.<key>}' and one of this connection's own fields as '{<key>}'."
+        },
+        "after_connect": {
+          "type": "boolean",
+          "default": false,
+          "description": "Call the app's after_connect hook with the fresh access token once the code is exchanged. It returns the connection's managed values and an account label, or refuses."
+        },
+        "revoke": {
+          "enum": "revokeMethod",
+          "description": "How a grant is ended at the vendor when the connection ends: 'rfc7009' posts to 'revoke_url' with the client's credentials, 'hook' calls the app's revoke hook with the tokens. Absent: the tokens are deleted and nothing is sent."
+        },
+        "revoke_url": {
+          "type": "string",
+          "maxLength": "urlLength",
+          "description": "The vendor's revocation endpoint (RFC 7009). Required when 'revoke' is 'rfc7009'. May name a vendor value as '{vendor.<key>}' and one of this connection's own fields as '{<key>}'."
+        }
+      }
+    },
+    "connectionToken": {
+      "type": "object",
+      "description": "An access token minted on demand rather than stored: Initiative signs a JWT with the vendor key and exchanges it, and caches the answer until shortly before it expires.",
+      "required": [
+        "type",
+        "exchange_url",
+        "iss",
+        "key"
+      ],
+      "properties": {
+        "type": {
+          "enum": "tokenType"
+        },
+        "exchange_url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": "urlLength",
+          "description": "Where the signed JWT is posted, https. The answer's 'token' (or 'access_token') and 'expires_at' (or 'expires_in') are read. May name a vendor value as '{vendor.<key>}' and one of this connection's own fields as '{<key>}'."
+        },
+        "iss": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": "urlLength",
+          "description": "The JWT's issuer, normally '{vendor.app_id}'. May name a vendor value as '{vendor.<key>}' and one of this connection's own fields as '{<key>}'."
+        },
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": "urlLength",
+          "description": "The signing key, as a vendor value: '{vendor.private_key}'. A PEM private key."
+        },
+        "alg": {
+          "enum": "jwtAlgorithm",
+          "default": "RS256"
+        },
+        "lifetime": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": "tokenLifetimeSeconds",
+          "default": 540,
+          "description": "How long the signed JWT lives, in seconds."
         }
       }
     },
@@ -792,6 +995,9 @@
       "default_name": {
         "type": "string",
         "maxLength": "nameLength"
+      },
+      "vendor": {
+        "ref": "vendor"
       },
       "connections": {
         "type": "array",
