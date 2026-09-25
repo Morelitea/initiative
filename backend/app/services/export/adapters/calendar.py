@@ -36,11 +36,12 @@ from app.services.export.adapters._common import (
     export_stem,
 )
 from app.services.export.contract import RenderItem
+from app.services.permissions import EXPORT_ACCESS
 
 
 class CalendarAdapter(ToolExportAdapter):
     tool = Tool.calendar
-    formats = frozenset({"ics", "json"})
+    formats = ("ics", "json")
 
     async def count(
         self,
@@ -95,7 +96,7 @@ class CalendarAdapter(ToolExportAdapter):
                 await self.fetch(session, user, guild_id, calendar_id)
                 for calendar_id in self.selection(params)
             ]
-        from app.services.permissions import EXPORT_ACCESS, level_of
+        from app.services.permissions import level_of
         from app.services.tenant.calendars import (
             get_calendar_for_export,
             list_calendar_ids_for_export,
@@ -117,12 +118,30 @@ class CalendarAdapter(ToolExportAdapter):
         ]
 
     async def fetch(
-        self, session: AsyncSession, user: User, guild_id: int, calendar_id: int, /
+        self,
+        session: AsyncSession,
+        user: User,
+        guild_id: int,
+        calendar_id: int,
+        /,
+        *,
+        access: str = EXPORT_ACCESS,
     ) -> Calendar:
         from app.services.tenant.calendars import get_calendar_for_export
 
         return await get_calendar_for_export(
-            session, user, guild_id, calendar_id=calendar_id
+            session, user, guild_id, calendar_id=calendar_id, access=access
+        )
+
+    async def initiative_ids(
+        self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
+    ) -> list[int]:
+        """None where the initiative has calendars switched off: the
+        enumeration applies the switch."""
+        from app.services.tenant.calendars import list_calendar_ids_for_export
+
+        return await list_calendar_ids_for_export(
+            session, user, guild_id, initiative_id=initiative_id
         )
 
     def rows(self, calendar: Calendar, /) -> int:

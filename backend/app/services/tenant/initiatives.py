@@ -56,17 +56,6 @@ async def get_role_by_name(
     return result.one_or_none()
 
 
-async def get_pm_role(
-    session: AsyncSession,
-    *,
-    initiative_id: int,
-) -> InitiativeRoleModel | None:
-    """Get the project_manager role for an initiative."""
-    return await get_role_by_name(
-        session, initiative_id=initiative_id, role_name="project_manager"
-    )
-
-
 async def get_moderator_role(
     session: AsyncSession,
     *,

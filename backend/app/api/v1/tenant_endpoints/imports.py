@@ -8,9 +8,11 @@ NOTE: the job routes use literal paths plus a parametric ``/{job_id}``; every
 literal route MUST stay declared before the parametric ones.
 """
 
+import asyncio
 import logging
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
-from typing import Annotated, Optional
+from typing import Annotated, Iterator, Optional
 
 from fastapi import (
     APIRouter,
@@ -64,11 +66,8 @@ from app.services.import_engine.contract import (
 )
 from app.services.import_engine.engine import (
     count_active_jobs_locked,
-    stage_payload,
-)
-from app.services.tenant.attachments import (
-    FileTooLargeError,
-    read_upload_bounded,
+    spooled_upload,
+    stage_payload_file,
 )
 from app.services.import_engine import limits as import_limits
 
@@ -82,6 +81,16 @@ _LIST_LIMIT = 50
 
 #: The most property names one confirm may untick.
 _MAX_EXCLUDED_PROPERTIES = 500
+
+
+@contextmanager
+def _engine_errors() -> Iterator[None]:
+    """Answer an :class:`ImportEngineError` raised in the block with its own
+    status and code."""
+    try:
+        yield
+    except ImportEngineError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
 
 
 def _require_writable(guild_context: GuildContext) -> None:
@@ -116,7 +125,7 @@ async def import_envelope(
     # BodySizeLimitMiddleware at the ASGI seam — a handler-level check would
     # run only after FastAPI had already buffered and parsed the body.
     _require_writable(guild_context)
-    try:
+    with _engine_errors():
         outcome = await import_engine.start_envelope_import(
             session,
             user=current_user,
@@ -124,8 +133,6 @@ async def import_envelope(
             initiative_id=payload.initiative_id,
             envelope=payload.envelope,
         )
-    except ImportEngineError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.code)
 
     if isinstance(outcome, InlineImport):
         return JSONResponse(
@@ -163,26 +170,18 @@ async def import_envelope_archive(
     envelope imports exactly as ``POST /imports/envelope`` imports one, with
     the same responses."""
     _require_writable(guild_context)
-    try:
-        payload = await read_upload_bounded(
-            file, import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES
-        )
-    except FileTooLargeError:
-        raise HTTPException(
-            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-            detail=ImportEngineMessages.IMPORT_TOO_LARGE,
-        )
-    try:
-        outcome = await envelope_archive.start_envelope_archive_import(
-            session,
-            user=current_user,
-            guild_id=guild_context.guild_id,
-            initiative_id=initiative_id,
-            payload=payload,
-            expected_type=envelope_type,
-        )
-    except ImportEngineError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+    with _engine_errors():
+        async with spooled_upload(
+            file.file, max_bytes=import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES
+        ) as payload:
+            outcome = await envelope_archive.start_envelope_archive_import(
+                session,
+                user=current_user,
+                guild_id=guild_context.guild_id,
+                initiative_id=initiative_id,
+                payload=payload,
+                expected_type=envelope_type,
+            )
 
     if isinstance(outcome, InlineImport):
         return JSONResponse(
@@ -223,11 +222,9 @@ async def preview_foreign_import(
     write to has nothing to read it for.
     """
     _require_writable(guild_context)
-    try:
+    with _engine_errors():
         foreign_source = foreign_service.get_source(source)
         options = foreign_service.read_preview(foreign_source, content)
-    except ImportEngineError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.code)
     return ForeignPreview(
         source=foreign_source.key,
         picks_one=foreign_source.picks_one,
@@ -261,7 +258,7 @@ async def import_foreign(
     it applied in the request, 202 with the job when it did not.
     """
     _require_writable(guild_context)
-    try:
+    with _engine_errors():
         foreign_source = foreign_service.get_source(source)
         mapped = foreign_service.build(
             foreign_source,
@@ -276,8 +273,6 @@ async def import_foreign(
             initiative_id=payload.initiative_id,
             envelope=mapped.envelope,
         )
-    except ImportEngineError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.code)
 
     if isinstance(started, InlineImport):
         return JSONResponse(
@@ -330,15 +325,13 @@ async def connect_atlassian(
             detail=ImportEngineMessages.IMPORT_WRITE_REQUIRED,
         )
 
-    try:
+    with _engine_errors():
         credential = atlassian_service.AtlassianCredential(
             site_url=atlassian_service.normalize_site_url(payload.site_url),
             email=payload.email.strip(),
             api_token=payload.api_token,
         )
         jira, confluence = await atlassian_service.probe_site(credential)
-    except ImportEngineError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.code)
 
     return AtlassianConnectResponse(
         site_url=credential.site_url,
@@ -380,7 +373,7 @@ async def start_atlassian_import(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ImportEngineMessages.IMPORT_WRITE_REQUIRED,
         )
-    try:
+    with _engine_errors():
         job = await atlassian_job.start_import(
             session,
             user=current_user,
@@ -396,8 +389,6 @@ async def start_atlassian_import(
             include_comments=payload.include_comments,
             include_attachments=payload.include_attachments,
         )
-    except ImportEngineError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.code)
     return serialize_import_job(job, guild_id=guild_context.guild_id)
 
 
@@ -428,26 +419,18 @@ async def start_confluence_export_import(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ImportEngineMessages.IMPORT_WRITE_REQUIRED,
         )
-    try:
-        payload = await read_upload_bounded(
-            file, import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES
-        )
-    except FileTooLargeError:
-        raise HTTPException(
-            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-            detail=ImportEngineMessages.IMPORT_TOO_LARGE,
-        )
-    try:
-        job = await atlassian_job.start_export(
-            session,
-            user=current_user,
-            guild_id=guild_context.guild_id,
-            initiative_id=initiative_id,
-            payload=payload,
-            include_attachments=include_attachments,
-        )
-    except ImportEngineError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+    with _engine_errors():
+        async with spooled_upload(
+            file.file, max_bytes=import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES
+        ) as payload:
+            job = await atlassian_job.start_export(
+                session,
+                user=current_user,
+                guild_id=guild_context.guild_id,
+                initiative_id=initiative_id,
+                payload=payload,
+                include_attachments=include_attachments,
+            )
     return serialize_import_job(job, guild_id=guild_context.guild_id)
 
 
@@ -510,7 +493,9 @@ async def cancel_import_job(
             status_code=status.HTTP_409_CONFLICT,
             detail=ImportEngineMessages.IMPORT_NOT_CANCELLABLE,
         )
-    import_engine.delete_payload(guild_context.guild_id, job.payload_ref)
+    await asyncio.to_thread(
+        import_engine.delete_payload, guild_context.guild_id, job.payload_ref
+    )
     # Everything the job was lent goes back with the payload — a cancelled
     # import has no further use for the secret it was given.
     job.secret_encrypted = None
@@ -545,35 +530,29 @@ async def upload_backup(
     guild_id = guild_context.guild_id
 
     # Byte cap: BodySizeLimitMiddleware already rejected an oversized or
-    # chunked-over-cap request at the ASGI seam; this bounded read is the
-    # in-process backstop.
-    try:
-        payload = await read_upload_bounded(
-            file, import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES
-        )
-    except FileTooLargeError:
-        raise HTTPException(
-            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-            detail=ImportEngineMessages.IMPORT_TOO_LARGE,
-        )
-
-    existing_names = {
-        row for row in (await session.exec(select(Initiative.name))).all()
-    }
-    # The guild's own roster, so the plan can suggest who each name in the
-    # archive is. Read on the request's routed session, so it is the roster
-    # this user can actually see.
-    roster = await _guild_member_ids_by_handle(session, guild_id)
-    try:
-        plan = backup_service.plan_backup(
-            payload,
-            existing_initiative_names=existing_names,
-            member_ids_by_handle=roster,
-        )
-        await count_active_jobs_locked(session, user=current_user)
-        payload_ref = stage_payload(guild_id, payload, suffix="zip")
-    except ImportEngineError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.code)
+    # chunked-over-cap request at the ASGI seam; the bounded copy to a
+    # temporary file is the in-process backstop.
+    with _engine_errors():
+        async with spooled_upload(
+            file.file, max_bytes=import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES
+        ) as payload:
+            existing_names = {
+                row for row in (await session.exec(select(Initiative.name))).all()
+            }
+            # The guild's own roster, so the plan can suggest who each name in
+            # the archive is. Read on the request's routed session, so it is
+            # the roster this user can actually see.
+            roster = await _guild_member_ids_by_handle(session, guild_id)
+            plan = await asyncio.to_thread(
+                backup_service.plan_backup,
+                payload,
+                existing_initiative_names=existing_names,
+                member_ids_by_handle=roster,
+            )
+            await count_active_jobs_locked(session, user=current_user)
+            payload_ref = await asyncio.to_thread(
+                stage_payload_file, guild_id, payload, suffix="zip"
+            )
 
     job = ImportJob(
         created_by=current_user.id,
@@ -669,7 +648,9 @@ async def confirm_import(
     # (GC sweeps expired queued rows too) with no notification.
     now = datetime.now(timezone.utc)
     if job.expires_at is not None and job.expires_at <= now:
-        import_engine.delete_payload(guild_context.guild_id, job.payload_ref)
+        await asyncio.to_thread(
+            import_engine.delete_payload, guild_context.guild_id, job.payload_ref
+        )
         job.secret_encrypted = None
         job.status = ImportJobStatus.expired
         job.payload_ref = None

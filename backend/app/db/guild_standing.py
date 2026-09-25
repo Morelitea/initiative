@@ -871,11 +871,6 @@ class InstallContext:
         that may act answers it."""
         return self.live
 
-    @property
-    def is_member_token(self) -> bool:
-        """Whether this request acts for a member rather than as the install."""
-        return self.member_user_id is not None
-
     def overrides_sharing(self, initiative_id: Optional[int]) -> bool:
         """Whether the member a member token acts for holds "Full access" in
         ``initiative_id``. Never, for the install itself."""

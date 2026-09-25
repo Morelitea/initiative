@@ -22,14 +22,7 @@ import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import {
-  DEFAULT_ENABLED_TOOLS,
-  TOOLS,
-  toolCamelPlural,
-  toolCreatePermission,
-  toolPascalPlural,
-  toolViewPermission,
-} from "@/lib/tools";
+import { TOOLS, toolCreatePermission, toolPascalPlural, toolViewPermission } from "@/lib/tools";
 
 export const useInitiativeRoles = (initiativeId: number | null) => {
   const guildId = useActiveGuildId();
@@ -285,27 +278,3 @@ export const PERMISSION_LABEL_KEYS: Record<PermissionKey, string> = Object.fromE
     [toolCreatePermission(tool), `settings.permissions.create${toolPascalPlural(tool)}`],
   ])
 ) as Record<PermissionKey, string>;
-
-// Permission groups for card-based layout
-export type PermissionGroup = {
-  labelKey: string;
-  keys: PermissionKey[];
-};
-
-const toolPermissionGroup = (tool: Tool): PermissionGroup => ({
-  labelKey: `settings.permissionGroups.${toolCamelPlural(tool)}`,
-  keys: [toolViewPermission(tool), toolCreatePermission(tool)],
-});
-
-// The permissions for the tools an initiative starts with, always visible.
-// This is a question of what to put in front of someone editing a role, not of
-// what a tool is: every tool is switchable now, and these two are simply the
-// ones almost every initiative has.
-export const CORE_PERMISSION_GROUPS: PermissionGroup[] = TOOLS.filter((tool) =>
-  DEFAULT_ENABLED_TOOLS.has(tool)
-).map(toolPermissionGroup);
-
-// The rest, shown in an accordion.
-export const ADVANCED_PERMISSION_GROUPS: PermissionGroup[] = TOOLS.filter(
-  (tool) => !DEFAULT_ENABLED_TOOLS.has(tool)
-).map(toolPermissionGroup);

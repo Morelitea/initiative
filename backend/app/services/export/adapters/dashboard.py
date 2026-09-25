@@ -32,22 +32,40 @@ from app.services.export.adapters._common import (
     envelope_key,
 )
 from app.services.export.contract import RenderItem
+from app.services.permissions import EXPORT_ACCESS
 
 
 class DashboardAdapter(ToolExportAdapter):
     tool = Tool.dashboard
-    formats = frozenset({"json"})
     # A dashboard is queries over the community it sits in, so a listing of one
     # previews on generated sample data rather than on anybody's results.
     example_is_generated = True
 
     async def fetch(
-        self, session: AsyncSession, user: User, guild_id: int, dashboard_id: int, /
+        self,
+        session: AsyncSession,
+        user: User,
+        guild_id: int,
+        dashboard_id: int,
+        /,
+        *,
+        access: str = EXPORT_ACCESS,
     ) -> Dashboard:
         from app.services.tenant.dashboards import get_dashboard_for_export
 
         return await get_dashboard_for_export(
-            session, user, guild_id, dashboard_id=dashboard_id
+            session, user, guild_id, dashboard_id=dashboard_id, access=access
+        )
+
+    async def initiative_ids(
+        self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
+    ) -> list[int]:
+        """Only the dashboards built on this build's own apps — the rest are
+        left out by provenance."""
+        from app.services.tenant.dashboards import list_dashboard_ids_for_export
+
+        return await list_dashboard_ids_for_export(
+            session, user, guild_id, initiative_ids=[initiative_id]
         )
 
     def rows(self, dashboard: Dashboard, /) -> int:

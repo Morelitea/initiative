@@ -537,15 +537,6 @@ class Settings(BaseSettings):
                 origins.append(origin)
         return origins
 
-    @property
-    def content_security_policy(self) -> str:
-        """Enforced CSP for the served SPA (pentest MED-001), with the env's
-        captcha provider -- what a process that has not read its settings row
-        yet serves."""
-        return self.content_security_policy_with_frames(
-            (), captcha_provider=self.CAPTCHA_PROVIDER
-        )
-
     def content_security_policy_with_frames(
         self, app_frame_origins: Sequence[str], *, captcha_provider: str | None
     ) -> str:

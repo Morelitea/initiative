@@ -150,9 +150,6 @@ class UserStream:
                 # own ``finally`` may not have run yet.
                 await self.disconnect(websocket)
 
-    def socket_count(self, user_id: int) -> int:
-        return len(self._sockets.get(user_id, set()))
-
     def connected_users(self) -> Set[int]:
         """Who this process is holding a socket for.
 

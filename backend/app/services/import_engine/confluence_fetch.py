@@ -409,36 +409,6 @@ class ConfluenceFetched:
     )
 
 
-async def fetch_spaces_bundle(
-    credential: AtlassianCredential,
-    *,
-    guild_id: int,
-    guild_name: str,
-    target_initiative_id: int,
-    **kwargs: Any,
-) -> tuple[bytes, ConfluenceFetchReport]:
-    """:func:`fetch_spaces`, written into a bundle of its own and read back
-    whole — a convenience for small reads, not the job's path."""
-    from app.services.import_engine.atlassian_bundle import BundleWriter, merge_people
-
-    with BundleWriter() as writer:
-        fetched = await fetch_spaces(
-            credential, guild_id=guild_id, store=writer.put_asset, **kwargs
-        )
-        bundle = writer.finish(
-            images=fetched.images,
-            wikis=fetched.envelopes,
-            wiki_files=fetched.files,
-            people=merge_people([], fetched.people),
-            guild_id=guild_id,
-            guild_name=guild_name,
-            target_initiative_id=target_initiative_id,
-            app_version=kwargs["app_version"],
-            site_url=credential.site_url,
-        ).read_bytes()
-    return bundle, fetched.report
-
-
 async def fetch_spaces(
     credential: AtlassianCredential,
     *,

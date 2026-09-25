@@ -484,11 +484,6 @@ _SEARCH_OPERATOR_STEPS = (
 )
 
 
-def search_operator_sql() -> tuple[str, ...]:
-    """The statements that install the guild-search match operator, in order."""
-    return tuple(statement for _label, statement in _SEARCH_OPERATOR_STEPS)
-
-
 _SEARCH_OPERATOR_PRESENT = text(
     "SELECT "
     "  coalesce((SELECT p.proleakproof FROM pg_proc p"

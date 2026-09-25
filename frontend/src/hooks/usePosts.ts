@@ -45,15 +45,6 @@ import type { QueryOpts } from "@/types/query";
 // each one reads and the invalidation each one fires.
 
 const posts = TOOL_HOOKS[Tool.post];
-/**
- * One page of a board.
- *
- * Unlike every other tool list this carries whole posts — a board renders its
- * notices — so the server pages it in twenties. `keepPreviousData` keeps the
- * current page on screen while the next one loads, rather than blanking the
- * board between pages.
- */
-export const usePostsList = posts.useList;
 export const usePost = posts.useDetail;
 export const useCreatePost = posts.useCreate;
 export const useUpdatePost = posts.useUpdate;

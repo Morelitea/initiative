@@ -81,9 +81,6 @@ export const TOOLS = Object.values(Tool) as Tool[];
  */
 export const DEFAULT_ENABLED_TOOLS: ReadonlySet<Tool> = new Set([Tool.project, Tool.document]);
 
-/** Every tool has a per-initiative master switch. */
-export const TOGGLEABLE_TOOLS = TOOLS;
-
 /**
  * Tools WITHOUT an export-engine source, and why. Stated as an exclusion so
  * the default is "a new tool is portable" — mirrors backend
@@ -350,9 +347,6 @@ export const toolExportEndpoint = (tool: Tool): string => `/exports/${toolKebabS
  */
 export const toolIdParam = (tool: Tool): string => `${tool}_id`;
 
-/** Single-entity export selector param, e.g. "counter_group_id". */
-export const toolExportIdParam = toolIdParam;
-
 /** The envelope ``type`` discriminator a tool's single-entity export emits —
  * the same value its importer registers under: the kebab-singular. */
 export const toolEnvelopeType = (tool: Tool): string => `initiative-${toolKebabSingular(tool)}`;
@@ -432,9 +426,6 @@ export const PARENT_TOOL = {
   queue_item: Tool.queue,
   wiki_page: Tool.wiki,
 } as const satisfies Record<string, Tool>;
-
-/** An entity kind that lives inside a tool rather than being one. */
-export type ChildEntityType = keyof typeof PARENT_TOOL;
 
 /**
  * Tools whose detail page does NOT carry a relations panel, and why. Stated as

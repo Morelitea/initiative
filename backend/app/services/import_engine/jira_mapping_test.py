@@ -151,7 +151,7 @@ def test_a_workflow_with_nothing_unstarted_still_has_a_default():
     assert sum(s["is_default"] for s in statuses) == 1
 
 
-def test_board_columns_flatten_to_their_status_names():
+def test_board_columns_flatten_to_their_status_ids():
     """A column can hold several statuses; the flattened sequence is the
     board's reading order."""
     configuration = {
@@ -162,15 +162,12 @@ def test_board_columns_flatten_to_their_status_names():
             ]
         }
     }
-    names = jm.board_column_status_names(
-        configuration, {"1": "To Do", "2": "In Progress", "3": "In Review"}
-    )
-    assert names == ["To Do", "In Progress", "In Review"]
+    assert jm.board_column_statuses(configuration) == ["1", "2", "3"]
 
 
 @pytest.mark.parametrize("bad", [None, {}, {"columnConfig": None}, "nope"])
 def test_a_board_we_cannot_read_just_has_no_opinion(bad):
-    assert jm.board_column_status_names(bad, {}) == []
+    assert jm.board_column_statuses(bad) == []
 
 
 # --- issues ----------------------------------------------------------------

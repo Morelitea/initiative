@@ -110,7 +110,7 @@ async def test_a_valid_token_joins_and_then_leaves_the_registry(
     assert websocket.closed_with is None
     # The keepalive loop ended with the client's disconnect, and the socket
     # left with it.
-    assert stream.socket_count(user.id) == 0
+    assert len(stream._sockets.get(user.id, ())) == 0
 
 
 @pytest.mark.integration
@@ -131,7 +131,7 @@ async def test_the_socket_is_registered_while_the_loop_runs(
     async def receive() -> dict:
         if websocket.pending:
             return await handshake()
-        counted.append(stream.socket_count(user.id))
+        counted.append(len(stream._sockets.get(user.id, ())))
         return {"type": "websocket.disconnect", "code": 1000}
 
     monkeypatch.setattr(websocket, "receive", receive)
@@ -160,7 +160,7 @@ async def test_a_session_cookie_stands_in_for_a_null_token(
     async def receive() -> dict:
         if websocket.pending:
             return await handshake()
-        counted.append(stream.socket_count(user.id))
+        counted.append(len(stream._sockets.get(user.id, ())))
         return {"type": "websocket.disconnect", "code": 1000}
 
     monkeypatch.setattr(websocket, "receive", receive)
@@ -216,7 +216,7 @@ async def test_a_revoked_token_is_refused(session, stream, ws_sessions) -> None:
     await websocket_notifications(websocket)
 
     assert websocket.closed_with == WS_POLICY_VIOLATION
-    assert stream.socket_count(user.id) == 0
+    assert len(stream._sockets.get(user.id, ())) == 0
 
 
 @pytest.mark.unit

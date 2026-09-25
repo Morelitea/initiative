@@ -19,7 +19,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.relationships import ENDPOINT_KINDS
 from app.core.search import SearchEntityType
 from app.models.platform.guild import GuildRole
-from app.db.blocking import OPEN_WHEN, blocking_kinds, can_block, open_expr
+from app.db.blocking import OPEN_WHEN, blocking_kinds, open_expr
 from app.db.reference_targets import resolve_many
 from app.models.tenant.task import TaskStatusCategory
 from app.testing.factories import (
@@ -60,7 +60,7 @@ def test_a_kind_with_no_rule_has_no_opinion():
     tables = {
         key.split(".")[-1]: table for key, table in SQLModel.metadata.tables.items()
     }
-    assert not can_block("documents")
+    assert "documents" not in OPEN_WHEN
     # NULL, not false: "this never finishes" is not the same claim as "this is
     # finished", and only one of them should keep a blocker off a count.
     assert open_expr("documents", tables["documents"]).compile().string == "NULL"

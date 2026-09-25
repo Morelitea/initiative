@@ -8,7 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.oidc_claim_mapping import ClaimRuleAuthor, OIDCClaimMapping
 from app.models.platform.user import UserRole
 from app.services.platform import app_settings as app_settings_service
-from app.services.tenant.initiatives import get_pm_role
+from app.services.tenant.initiatives import get_role_by_name
 from app.testing.factories import (
     create_auth_provider,
     create_guild,
@@ -180,7 +180,9 @@ async def test_the_initiative_picker_reads_a_placeable_community_only(
 ):
     owner, guild, provider = await _accepting(session)
     initiative = await create_initiative(session, guild, owner, name="Roadmap")
-    pm_role = await get_pm_role(session, initiative_id=initiative.id)
+    pm_role = await get_role_by_name(
+        session, initiative_id=initiative.id, role_name="project_manager"
+    )
     closed = await create_guild(session, creator=owner, name="Elsewhere")
     headers = await _headers(session, UserRole.operator)
 

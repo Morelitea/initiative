@@ -13,7 +13,7 @@ import pytest
 from app.core.messages import QueryMessages
 from app.schemas.query import FilterOp
 from app.services.query import QueryError
-from app.services.query.resolve import resolve
+from app.services.query.resolve import ResolvedQuery, resolve
 from app.services.query.build import (
     Column,
     Condition,
@@ -21,10 +21,15 @@ from app.services.query.build import (
     QuerySpec,
     Sort,
     build,
-    build_and_resolve,
 )
 
 pytestmark = pytest.mark.unit
+
+
+def build_and_resolve(spec: QuerySpec) -> tuple[str, ResolvedQuery]:
+    """The statement, and proof that the surface will run it."""
+    sql = build(spec)
+    return sql, resolve(sql)
 
 
 def test_a_grouped_count_is_the_shape_a_chart_wants():

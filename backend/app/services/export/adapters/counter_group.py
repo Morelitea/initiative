@@ -35,6 +35,7 @@ from app.services.export.adapters._common import (
 )
 from app.services.export.contract import RenderItem
 from app.services.export.i18n import et, export_locale
+from app.services.permissions import EXPORT_ACCESS
 from app.core.user_display import display_name
 
 # (row key, ``exports`` label key, Typst width hint) — labels resolve to the
@@ -57,15 +58,31 @@ def _columns(locale: str) -> list[dict]:
 
 class CounterGroupAdapter(ToolExportAdapter):
     tool = Tool.counter_group
-    formats = frozenset({"json", "pdf", "csv", "xlsx", "md"})
+    formats = ("json", "pdf", "csv", "xlsx", "md")
 
     async def fetch(
-        self, session: AsyncSession, user: User, guild_id: int, group_id: int, /
+        self,
+        session: AsyncSession,
+        user: User,
+        guild_id: int,
+        group_id: int,
+        /,
+        *,
+        access: str = EXPORT_ACCESS,
     ) -> CounterGroup:
         from app.services.tenant.counters import get_counter_group_for_export
 
         return await get_counter_group_for_export(
-            session, user, guild_id, group_id=group_id
+            session, user, guild_id, group_id=group_id, access=access
+        )
+
+    async def initiative_ids(
+        self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
+    ) -> list[int]:
+        from app.services.tenant.counters import list_counter_group_ids_for_export
+
+        return await list_counter_group_ids_for_export(
+            session, user, guild_id, initiative_ids=[initiative_id]
         )
 
     def rows(self, group: CounterGroup, /) -> int:

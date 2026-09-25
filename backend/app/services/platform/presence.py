@@ -36,7 +36,7 @@ tells a reader less rather than more.
 """
 
 from time import monotonic
-from typing import Dict, Iterable, Optional, Set
+from typing import Dict, Optional, Set
 
 from app.models.platform.user import Presence
 
@@ -157,10 +157,6 @@ class OnlineRoll:
         Idle counts: they are here, they are just not typing.
         """
         return self.presence_of(user_id) is not Presence.offline
-
-    def online_users(self, user_ids: Iterable[int]) -> Set[int]:
-        """Which of these accounts are online, for a page of them at a time."""
-        return {user_id for user_id in user_ids if self.is_online(user_id)}
 
 
 #: The one roll every channel feeds and every reader asks.

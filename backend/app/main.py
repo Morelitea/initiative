@@ -186,8 +186,8 @@ async def lifespan(app: FastAPI):
         for task in tasks:
             with suppress(asyncio.CancelledError):
                 await task
-        # Imports the dispatcher started run as tasks of their own.
-        from app.services.import_engine.worker import cancel_running_jobs
+        # Imports and exports the dispatcher started run as tasks of their own.
+        from app.services.data_jobs import cancel_running_jobs
 
         await cancel_running_jobs()
 

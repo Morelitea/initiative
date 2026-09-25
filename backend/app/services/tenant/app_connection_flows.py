@@ -141,7 +141,6 @@ OUTCOMES: frozenset[str] = frozenset(
 #: The keys a flow's tokens are held under in a connection's stored values
 #: (:data:`app.services.tenant.app_config.RESERVED_TOKEN_KEYS`).
 RESERVED_TOKEN_KEYS = app_config_service.RESERVED_TOKEN_KEYS
-_SEALED_KEYS = ("access_token", "refresh_token")
 
 #: A stored token this close to its expiry is refreshed before it is handed out.
 REFRESH_WINDOW_SECONDS = 120
@@ -538,15 +537,6 @@ def unseal_tokens(
         expires_at=_time("expires_at"),
         refresh_expires_at=_time("refresh_expires_at"),
     )
-
-
-def sealed_token_values(secrets: Mapping[str, Any] | None) -> dict[str, str]:
-    """The sealed tokens alone, as they are stored, for a revocation to carry."""
-    return {
-        key: value
-        for key, value in (secrets or {}).items()
-        if key in _SEALED_KEYS and isinstance(value, str)
-    }
 
 
 def without_tokens(values: Mapping[str, Any] | None) -> dict[str, Any]:

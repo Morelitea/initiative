@@ -34,10 +34,5 @@
     "operatorDashboard": "Operator-Dashboard"
   },
   "shortcutTooltip": "Schnellsuche ({{shortcut}})",
-  "types": {
-    "project": "Projekt",
-    "task": "Aufgabe",
-    "document": "Dokument"
-  },
   "seeAllResults": "Alle Ergebnisse für „{{query}}“ anzeigen"
 }

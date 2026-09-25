@@ -8,6 +8,9 @@ EXPORT_INLINE_MAX_ROWS = 200
 EXPORT_MAX_ROWS = 10_000
 #: Per-user cap on jobs that are queued or running at once.
 EXPORT_MAX_ACTIVE_JOBS_PER_USER = 5
+#: How many export jobs one process renders at once. A community renders one
+#: at a time whatever this says.
+EXPORT_RENDER_SLOTS = 2
 
 #: Aggregate (initiative/guild) exports: their own row ceiling — a guild dump
 #: legitimately exceeds EXPORT_MAX_ROWS — and a byte cap on included uploads.

@@ -34,10 +34,5 @@
     "operatorDashboard": "Tableau de bord opérateur"
   },
   "shortcutTooltip": "Recherche rapide ({{shortcut}})",
-  "types": {
-    "project": "Projet",
-    "task": "Tâche",
-    "document": "Document"
-  },
   "seeAllResults": "Voir tous les résultats pour « {{query}} »"
 }

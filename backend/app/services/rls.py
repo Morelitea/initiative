@@ -4,8 +4,8 @@ What the database enforces is the guild schema's own policies and functions
 (``app/db/authorization.py``); what a request holds is its standing
 (``GuildContext``, built by the seam in ``app/api/deps``). This module keeps the
 questions those two do not answer as a value: who manages an initiative, which
-of its members a role permits, and the roster and override queries the sharing
-surfaces list from.
+of its members a role permits, and the roster queries the sharing surfaces
+list from.
 
 The guild-level questions that used to live here — is this an admin, does
 this account hold the seat, is there a membership row — are the standing's:
@@ -18,7 +18,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy import func
 from sqlmodel import select
 
-from app.core.messages import InitiativeMessages
 from app.models.tenant.initiative import (
     InitiativeMember,
     InitiativeRoleModel,
@@ -51,15 +50,6 @@ async def is_initiative_manager(session: AsyncSession, *, initiative_id: int) ->
     """
     context = require_guild_context(session)
     return initiative_id in context.manager_initiatives
-
-
-async def assert_initiative_manager(
-    session: AsyncSession, *, initiative_id: int
-) -> None:
-    """Raise ``PermissionError`` unless this request manages the initiative."""
-    if await is_initiative_manager(session, initiative_id=initiative_id):
-        return
-    raise PermissionError(InitiativeMessages.MANAGER_REQUIRED)
 
 
 async def check_initiative_permission(
@@ -178,44 +168,3 @@ async def roles_permitting(
         )
     ).all()
     return {r.id for r in roles if _role_grants(r, permission_key) and r.id is not None}
-
-
-def override_sharing_initiatives_select(user_id: int):
-    """Select the initiative ids (in the routed guild schema) where the user
-    holds a role with ``override_share_restrictions`` ("Full access") — the set
-    the request's DAC override consults
-    (:meth:`app.db.guild_standing.GuildContext.overrides_sharing`).
-
-    One indexed read over the user's memberships, joined to their role. Handed
-    out as a statement rather than a result because the standing statement folds
-    it into the ``set_config`` that records the answer
-    (:data:`app.db.guild_standing.STANDING_SQL`), so this stays the one place
-    that says which initiatives those are.
-    """
-    from sqlmodel import select
-
-    return (
-        select(InitiativeMember.initiative_id)
-        .join(
-            InitiativeRoleModel,
-            InitiativeRoleModel.id == InitiativeMember.role_id,
-        )
-        .where(
-            InitiativeMember.user_id == user_id,
-            InitiativeRoleModel.override_share_restrictions.is_(True),
-        )
-    )
-
-
-async def override_sharing_initiative_ids(
-    session: AsyncSession,
-    *,
-    user_id: int,
-) -> set[int]:
-    """Run :func:`override_sharing_initiatives_select` and return its ids.
-
-    For callers that want the set on its own — a cross-guild hop, a published
-    view resolving its author — rather than as the request's recorded override.
-    Usually empty (most users are full-access PMs nowhere).
-    """
-    return set((await session.exec(override_sharing_initiatives_select(user_id))).all())

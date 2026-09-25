@@ -132,7 +132,7 @@ async def test_a_member_token_stands_as_the_member_within_the_install(
     placed = installed.placed.id
 
     assert isinstance(context, InstallContext)
-    assert context.live and context.is_member_token
+    assert context.live and context.member_user_id is not None
     assert context.member_user_id == member.user.id
     assert context.member_initiatives == (placed,)
     assert context.install_read == ("documents",)
@@ -415,7 +415,7 @@ async def test_an_installation_token_stands_as_it_did(
         client_id=CLIENT,
         scopes=["documents:write"],
     )
-    assert not context.is_member_token
+    assert context.member_user_id is None
     assert f"{installed.placed.id}:create_documents" in context.role_grants
     assert context.member_role_ids == () and context.override_initiatives == ()
     # An installation token reads no member's consent.

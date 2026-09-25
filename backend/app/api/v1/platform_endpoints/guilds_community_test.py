@@ -32,7 +32,6 @@ from app.testing.factories import (
     create_user,
     guild_administration,
 )
-from app.core.usernames import url_handle
 from app.testing.schema_harness import route_session_to_guild
 
 
@@ -842,7 +841,7 @@ async def test_a_profile_names_only_the_listed_communities(
     reader = await acting_user(guild_role=GuildRole.member, guild=listed)
 
     response = await client.get(
-        f"/api/v1/users/{url_handle(subject.user.username, subject.user.discriminator)}/communities",
+        f"/api/v1/users/{subject.user.username}{subject.user.discriminator:04d}/communities",
         headers=reader.headers,
     )
 
@@ -865,7 +864,7 @@ async def test_a_profile_names_no_communities_where_the_directory_is_off(
     await _switch_directory_off(session)
 
     response = await client.get(
-        f"/api/v1/users/{url_handle(subject.user.username, subject.user.discriminator)}/communities",
+        f"/api/v1/users/{subject.user.username}{subject.user.discriminator:04d}/communities",
         headers=reader.headers,
     )
 

@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Password sign-in switches off after wrong answers** — five wrong passwords or codes within 15 minutes turn off password and code sign-in for that account for 15 minutes, and its email addresses are told. Three of those in a day and it stays off until a moderator turns it back on from **Operator dashboard → Users**. Passkeys, and anywhere already signed in, keep working throughout.
 - **Live updates follow access as it changes** — changing who a queue, counter group, document or other tool is shared with now updates everyone who has it open straight away, and anyone it no longer reaches stops receiving updates for it. Someone added to or removed from an initiative starts or stops getting its live updates without reloading, and turning a tool off for an initiative also stops its open pages from updating.
 - **Password reset and sign-up say the same thing for every address** — asking for a reset link gets the same answer whether or not the address has an account, and the link is sent after the answer. A server with no mail set up says so for every address. Where signing up needs an invite, sign-up asks for the invite before checking whether the address is already taken.
+- **An expired export can't be downloaded** — once an export's download window has passed, it shows as expired and `GET /exports/{id}/download` answers `410 EXPORT_EXPIRED` (it used to answer `409 EXPORT_NOT_READY` after cleanup, and serve the file until then).
 - **Notifications go to people who can open what they name** — a mention, reply, comment, reaction, event update or task assignment now reaches someone only if they can open the task, document or calendar it is about. To bring someone into a thread, share the item with them first.
 - **Read notifications are cleared after 30 days** — once read, a notification stays in your list for 30 days. Unread ones stay until you read them.
 - **Repeated mentions in a document are one notification** — mentions of you in the same document join one unread notification until you read it, instead of a new email and push each time.
@@ -42,6 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Faster delete, restore and purge** — deleting, restoring, purging and archiving something large, like an initiative with thousands of tasks, now takes a few database queries instead of one per item inside it.
 - **A search error at startup** — every start logged `search reindex failed for guild_template`. It was harmless, since search in your communities was already up to date, and it no longer appears.
 - **Queues and counter groups stay live after a dropped connection** — their pages reconnect on their own after a network drop or a server restart, and catch up on anything that changed meanwhile. Before, they stopped updating until the page was reloaded.
+- **Exports on servers with more than one process** — an export could be made twice and announce itself twice, and one that ran past 15 minutes started over. Each export is now made once.
+- **Old export and import files are cleaned up everywhere** — expired exports and unconfirmed imports in read-only, suspended or on-hold communities were kept forever. They now expire like everyone else's.
+- **Importing a tool's export shows it straight away** — the list you imported into now refreshes without reloading the page.
+- **Files in a backup are checked when it is restored** — each file is stored as what it actually is. One that isn't a picture or a file type a document can hold is left out and listed in the import's report.
 
 ## [0.72.0] - 2026-09-24
 

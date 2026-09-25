@@ -8,6 +8,7 @@ import {
   useImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost,
 } from "@/api/generated/imports/imports";
 import type { ImportJobRead, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { invalidate, q } from "@/api/query-keys";
 import { ImportPeopleStep, type PlanPerson } from "@/components/imports/ImportPeopleStep";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,7 +33,6 @@ import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { queryClient } from "@/lib/queryClient";
 import { toolEnvelopeType, toolForEnvelopeType } from "@/lib/tools";
 
 // The real upload cap is server-owned and arrives via /api/v1/config
@@ -285,10 +285,10 @@ export function EnvelopeImportDialog({
     }
   };
 
-  /** Close out a finished (or started) import: refresh the tool's list and
-   * let the page know. Prefix invalidation catches every consumer of it. */
+  /** Close out a finished (or started) import: refresh the tool's lists and
+   * let the page know. */
   const finish = () => {
-    void queryClient.invalidateQueries({ queryKey: [tool] });
+    void invalidate(q.toolList(tool));
     onOpenChange(false);
     onImported?.();
   };

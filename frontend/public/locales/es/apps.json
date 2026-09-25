@@ -50,7 +50,6 @@
     "adminOnly": "Pide al superadministrador de tu comunidad que añada esta aplicación.",
     "unknownState": "No se pudo comprobar si esta aplicación ya está añadida.",
     "reachTitle": "A qué puede acceder",
-    "reachNone": "Esta aplicación no pide acceso al contenido de tu comunidad.",
     "whereTitle": "Dónde trabaja",
     "whereDescription": "Muestra su página, y lee y cambia contenido, solo en las iniciativas que elijas.",
     "whereDescriptionNoPage": "Lee y cambia contenido solo en las iniciativas que elijas.",

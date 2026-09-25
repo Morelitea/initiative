@@ -49,13 +49,15 @@ from app.services.export.adapters._common import (
 )
 from app.services.export.contract import RenderItem
 from app.services.export.engine import ExportError
+from app.services.permissions import EXPORT_ACCESS
 
-_TYPE_FORMATS: dict[str, frozenset[str]] = {
-    DocumentType.native.value: frozenset({"json", "md", "pdf", "docx"}),
-    DocumentType.whiteboard.value: frozenset({"json"}),
-    DocumentType.spreadsheet.value: frozenset({"csv", "xlsx", "json"}),
-    DocumentType.file.value: frozenset({"file"}),
-    DocumentType.smart_link.value: frozenset({"md", "json"}),
+# Ordered, so the union the route publishes reads in one stable order.
+_TYPE_FORMATS: dict[str, tuple[str, ...]] = {
+    DocumentType.native.value: ("json", "md", "pdf", "docx"),
+    DocumentType.whiteboard.value: ("json",),
+    DocumentType.spreadsheet.value: ("csv", "xlsx", "json"),
+    DocumentType.file.value: ("file",),
+    DocumentType.smart_link.value: ("md", "json"),
 }
 
 # The size proxy divisor for file passthroughs: one "row" per MiB, so the
@@ -66,15 +68,33 @@ _FILE_SIZE_ROW_BYTES = 1_048_576
 class DocumentAdapter(ToolExportAdapter):
     tool = Tool.document
     template_id = "document"  # the Lexical PDF template
-    formats = frozenset().union(*_TYPE_FORMATS.values())
+    formats = tuple(
+        dict.fromkeys(fmt for fmts in _TYPE_FORMATS.values() for fmt in fmts)
+    )
 
     async def fetch(
-        self, session: AsyncSession, user: User, guild_id: int, document_id: int, /
+        self,
+        session: AsyncSession,
+        user: User,
+        guild_id: int,
+        document_id: int,
+        /,
+        *,
+        access: str = EXPORT_ACCESS,
     ) -> Document:
         from app.services.tenant.documents import get_document_for_export
 
         return await get_document_for_export(
-            session, user, guild_id, document_id=document_id
+            session, user, guild_id, document_id=document_id, access=access
+        )
+
+    async def initiative_ids(
+        self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
+    ) -> list[int]:
+        from app.services.tenant.documents import list_document_ids_for_export
+
+        return await list_document_ids_for_export(
+            session, user, guild_id, initiative_ids=[initiative_id]
         )
 
     async def load(
@@ -91,7 +111,7 @@ class DocumentAdapter(ToolExportAdapter):
         documents = []
         for document_id in self.selection(params):
             document = await self.fetch(session, user, guild_id, document_id)
-            allowed = _TYPE_FORMATS.get(_doc_type(document), frozenset())
+            allowed = _TYPE_FORMATS.get(doc_type_of(document), ())
             if format not in allowed:
                 raise ExportError(ExportMessages.EXPORT_INVALID_FORMAT)
             documents.append(document)
@@ -113,7 +133,7 @@ class DocumentAdapter(ToolExportAdapter):
 
 
 def _document_count(document: Document) -> int:
-    doc_type = _doc_type(document)
+    doc_type = doc_type_of(document)
     if doc_type == DocumentType.spreadsheet.value:
         from app.services.export.spreadsheet import sheets_of
 
@@ -132,7 +152,7 @@ def build_document_item(
     these (the engine zips a batch of N into a single download)."""
     from app.services.export.i18n import et
 
-    doc_type = _doc_type(document)
+    doc_type = doc_type_of(document)
     stem = export_stem(document.name, date)
 
     if doc_type == DocumentType.native.value and format != "json":
@@ -215,7 +235,7 @@ def _envelope(document: Document, *, content: dict) -> dict:
     return {
         "type": "initiative-document",
         "schema_version": 1,
-        "document_type": _doc_type(document),
+        "document_type": doc_type_of(document),
         "name": document.name,
         "content": content,
         "tags": sorted(tag.name for tag in document.tags or []),
@@ -227,6 +247,7 @@ def _envelope(document: Document, *, content: dict) -> dict:
     }
 
 
-def _doc_type(document: Document) -> str:
+def doc_type_of(document: Document) -> str:
+    """The document's type as its string value."""
     doc_type = document.document_type
     return doc_type.value if hasattr(doc_type, "value") else str(doc_type)

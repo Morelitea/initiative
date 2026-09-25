@@ -85,6 +85,8 @@ from app.models.tenant.task import (
     TaskStatusCategory,
 )
 from app.models.tenant.upload import Upload
+from app.models.tenant.export_job import ExportJob
+from app.models.tenant.import_job import ImportJob
 from app.models.platform.auth_provider import AuthProvider, AuthProviderKind
 from app.models.platform.guild_provider_connection import GuildProviderConnection
 from app.models.platform.federated_identity import FederatedIdentity
@@ -2179,6 +2181,37 @@ async def create_upload(
         await session.refresh(upload)
 
     return upload
+
+
+async def create_export_job(
+    session: AsyncSession, guild: Guild, creator: User, **overrides: Any
+) -> ExportJob:
+    """Create a task-list PDF export job, queued unless ``status`` says
+    otherwise."""
+    await route_session_to_guild(session, guild.id)
+    defaults = {
+        "created_by": creator.id,
+        "source": "tasks",
+        "template_id": "task-table",
+        "format": "pdf",
+    }
+    job = ExportJob(**{**defaults, **overrides})
+    session.add(job)
+    await session.commit()
+    await session.refresh(job)
+    return job
+
+
+async def create_import_job(
+    session: AsyncSession, guild: Guild, creator: User, **overrides: Any
+) -> ImportJob:
+    """Create a backup import job, queued unless ``status`` says otherwise."""
+    await route_session_to_guild(session, guild.id)
+    job = ImportJob(**{"created_by": creator.id, "source": "backup", **overrides})
+    session.add(job)
+    await session.commit()
+    await session.refresh(job)
+    return job
 
 
 async def create_auth_provider(

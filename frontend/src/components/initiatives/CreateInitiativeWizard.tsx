@@ -52,7 +52,7 @@ import { useCreateInitiative } from "@/hooks/useInitiatives";
 import { useWizard } from "@/hooks/useWizard";
 import { toast } from "@/lib/chesterToast";
 import { docsUrl } from "@/lib/links";
-import { DEFAULT_ENABLED_TOOLS, TOGGLEABLE_TOOLS, toolViewPermission } from "@/lib/tools";
+import { DEFAULT_ENABLED_TOOLS, TOOLS, toolViewPermission } from "@/lib/tools";
 
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
@@ -75,7 +75,7 @@ const MEMBER_AUDIENCES: MemberAudience[] = ["create", "view", "managers"];
 
 /** The tools every new initiative starts with ticked. */
 const defaultSelection = (): Record<string, boolean> =>
-  Object.fromEntries(TOGGLEABLE_TOOLS.map((tool) => [tool, DEFAULT_ENABLED_TOOLS.has(tool)]));
+  Object.fromEntries(TOOLS.map((tool) => [tool, DEFAULT_ENABLED_TOOLS.has(tool)]));
 
 export interface CreateInitiativeWizardProps {
   open: boolean;
@@ -133,7 +133,7 @@ export const CreateInitiativeWizard = ({
     setAudience("view");
   }, [open, reset]);
 
-  const chosenTools = useMemo(() => TOGGLEABLE_TOOLS.filter((tool) => selected[tool]), [selected]);
+  const chosenTools = useMemo(() => TOOLS.filter((tool) => selected[tool]), [selected]);
   const trimmedName = name.trim();
 
   const stepTitle = useMemo(() => {
@@ -165,7 +165,7 @@ export const CreateInitiativeWizard = ({
         // One `{plural}_enabled` field per tool, straight from the grid — every
         // tool is answered here, so there is no default to fall back to.
         ...(Object.fromEntries(
-          TOGGLEABLE_TOOLS.map((tool) => [toolViewPermission(tool), Boolean(selected[tool])])
+          TOOLS.map((tool) => [toolViewPermission(tool), Boolean(selected[tool])])
         ) as Partial<InitiativeCreate>),
       });
     } catch {

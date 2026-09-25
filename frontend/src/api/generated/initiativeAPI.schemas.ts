@@ -7264,9 +7264,8 @@ export interface PropertyDefinitionRead {
  * Mutable fields on a property definition.
  *
  * ``type`` is deliberately excluded — type changes require a dedicated
- * flow because existing values would become invalid. The endpoint
- * raises 409 PROPERTY_TYPE_CHANGE_BLOCKED if any values exist; the
- * service layer enforces the rule.
+ * flow because existing values would become invalid. A ``type`` sent
+ * in the payload is ignored.
  */
 export interface PropertyDefinitionUpdate {
   name?: string | null;
@@ -10387,11 +10386,11 @@ export type ExportDocumentApiV1CGuildIdExportsDocumentGetFormat =
 export const ExportDocumentApiV1CGuildIdExportsDocumentGetFormat = {
   json: "json",
   md: "md",
+  pdf: "pdf",
+  docx: "docx",
   csv: "csv",
   xlsx: "xlsx",
   file: "file",
-  pdf: "pdf",
-  docx: "docx",
 } as const;
 
 export type ExportQueueApiV1CGuildIdExportsQueueGetParams = {
