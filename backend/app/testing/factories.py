@@ -686,6 +686,35 @@ async def create_project(
     return project
 
 
+async def create_resource_grant(
+    session: AsyncSession,
+    resource: Any,
+    *,
+    level: ResourceAccessLevel = ResourceAccessLevel.read,
+    user: User | None = None,
+    role_id: int | None = None,
+    all_initiative_members: bool = False,
+    commit: bool = True,
+) -> ResourceGrant:
+    """Share a tool's row: ``level`` for ``user``, for an initiative role, or for
+    every member of its initiative — exactly one of the three. The kind is the
+    row's own table, a tool's table being its plural."""
+    await route_session_to_guild(session, guild_of(resource))
+    grant = ResourceGrant(
+        resource_type=next(t for t in Tool if t.plural == resource.__tablename__).value,
+        resource_id=resource.id,
+        user_id=user.id if user is not None else None,
+        role_id=role_id,
+        all_initiative_members=all_initiative_members,
+        level=level,
+        initiative_id=resource.initiative_id,
+    )
+    session.add(grant)
+    if commit:
+        await session.commit()
+    return grant
+
+
 async def create_task(
     session: AsyncSession,
     project: Project,
