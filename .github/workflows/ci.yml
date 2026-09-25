@@ -16,8 +16,159 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.diff.outputs.backend }}
+      backend_scope: ${{ steps.diff.outputs.backend_scope }}
+      alembic: ${{ steps.diff.outputs.alembic }}
+      frontend: ${{ steps.diff.outputs.frontend }}
+      codegen: ${{ steps.diff.outputs.codegen }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Diff against the base
+        id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          # A pull request diffs against its base branch. A push diffs against
+          # where the branch stood before it, so every commit of a multi-commit
+          # push counts; with no usable `before` (a new branch, a force-push)
+          # every path counts as changed.
+          if [[ "$EVENT" == "pull_request" ]]; then
+            BASE="origin/$BASE_REF"
+          elif [[ -n "$BEFORE" && ! "$BEFORE" =~ ^0+$ ]] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            BASE="$BEFORE"
+          else
+            BASE=""
+          fi
+          changed() {
+            if [[ -z "$BASE" ]]; then
+              echo "(no diff base)"
+            else
+              git diff --name-only "$BASE...HEAD" -- "$@" || true
+            fi
+          }
+          out() { echo "$1=$2" >> "$GITHUB_OUTPUT"; }
+
+          backend() {
+            # Integration-branch pushes are the authoritative whole-tree
+            # signal. Pull requests may use scoped feedback, but a push to main
+            # or dev must never report green after skipping the caller's tests.
+            if [[ "$EVENT" != "pull_request" ]]; then
+              out backend true; out alembic true; out backend_scope "app/ alembic/"
+              echo "Integration push — running the full backend suite"
+              return
+            fi
+
+            # This workflow file is in scope for itself: it defines the roles,
+            # URLs and services the backend job runs against, so a change to it
+            # has to run the job — in full, migrations included — to be worth
+            # anything. Scope selection below reads backend/ paths, which a
+            # workflow-only change has none of, so short-circuit here.
+            if [[ -n "$(changed .github/workflows/ci.yml .github/actions/setup-backend/)" ]]; then
+              out backend true; out alembic true; out backend_scope "app/ alembic/"
+              echo "CI workflow changed — running the full backend job"
+              return
+            fi
+
+            local CHANGED
+            CHANGED=$(changed backend/)
+            if [[ -z "$CHANGED" ]]; then
+              out backend false
+              echo "No backend changes — skipping"
+              return
+            fi
+            out backend true
+
+            # Migration tests are slow (real upgrade/downgrade against
+            # Postgres) and only relevant when the alembic/ folder itself
+            # changes. Track them as a separate scope token so they're only
+            # appended when needed. Also expose a flag so we can skip the
+            # explicit `alembic upgrade head` step on non-alembic PRs —
+            # conftest.py already runs migrations as a pytest fixture, so
+            # the only value of the standalone step is an early failure
+            # signal when a migration is broken.
+            local ALEMBIC_SCOPE=""
+            if echo "$CHANGED" | grep -q '^backend/alembic/'; then
+              ALEMBIC_SCOPE="alembic/"
+              out alembic true
+              echo "Alembic changes detected — including migration tests"
+            else
+              out alembic false
+            fi
+
+            local NON_ALEMBIC
+            NON_ALEMBIC=$(echo "$CHANGED" | grep -v '^backend/alembic/' || true)
+
+            if [[ -z "$NON_ALEMBIC" ]]; then
+              # Only alembic/ changes — skip the app/ test pass entirely.
+              out backend_scope "$ALEMBIC_SCOPE"
+              echo "Only alembic changes — running migration tests only"
+              return
+            fi
+
+            # Check if shared infra changed (requires full test run)
+            if echo "$NON_ALEMBIC" | grep -qE '(app/testing/|app/models/|app/schemas/|app/core/|app/db/|conftest\.py)'; then
+              out backend_scope "app/ $ALEMBIC_SCOPE"
+              echo "Shared infrastructure changed — running all tests"
+            else
+              # Extract unique directories, strip backend/ prefix, and exclude non-code dirs.
+              # Catalog data files carry no tests of their own — the marketplace
+              # service seeds and validates them, so its suite is the one to run.
+              local DIRS
+              DIRS=$(echo "$NON_ALEMBIC" | sed 's|^backend/||' | grep -v '^app/locales/' | xargs -I{} dirname {} | sed 's|^app/marketplace_catalog$|app/services/marketplace|' | sort -u | tr '\n' ' ')
+              if [[ -z "${DIRS// }" ]]; then
+                out backend_scope "app/ $ALEMBIC_SCOPE"
+                echo "Only non-code files changed — running all tests"
+              else
+                out backend_scope "$DIRS$ALEMBIC_SCOPE"
+                echo "Running tests in: $DIRS$ALEMBIC_SCOPE"
+              fi
+            fi
+          }
+
+          frontend() {
+            # Pushes to the integration branches are whole-tree verification;
+            # only pull requests use the changed-file shortcut.
+            if [[ "$EVENT" != "pull_request" ]]; then
+              out frontend true
+              echo "Integration push — running the full frontend suite"
+            elif [[ -n "$(changed frontend/ .github/actions/setup-frontend/)" ]]; then
+              out frontend true
+              echo "Frontend changes detected"
+            else
+              out frontend false
+              echo "No frontend changes — skipping"
+            fi
+          }
+
+          codegen() {
+            if [[ -n "$(changed backend/ frontend/orval.config.ts frontend/src/api/mutator.ts frontend/package.json \
+                frontend/scripts/generate-api.sh scripts/build_env_contract.py env-contract.json .github/actions/)" ]]; then
+              out codegen true
+              echo "Backend or codegen config changes detected"
+            else
+              out codegen false
+              echo "No backend or codegen config changes — skipping"
+            fi
+          }
+
+          backend
+          frontend
+          codegen
+
   backend-tests:
     name: Backend Lint & Tests
+    needs: changes
+    # A failed change detection leaves the outputs empty, which runs the job.
+    if: ${{ !cancelled() && needs.changes.outputs.backend != 'false' }}
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -75,105 +226,7 @@ jobs:
           fi
           echo "No released migration edited (freeze line $FROZEN)"
 
-      - name: Check for backend changes
-        id: changes
-        run: |
-          # Integration-branch pushes are the authoritative whole-tree
-          # signal. Pull requests may use scoped feedback, but a push to main
-          # or dev must never report green after skipping the caller's tests.
-          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
-            echo "skip=false" >> $GITHUB_OUTPUT
-            echo "alembic_changed=true" >> $GITHUB_OUTPUT
-            echo "scope=app/ alembic/" >> $GITHUB_OUTPUT
-            echo "Integration push — running the full backend suite"
-            exit 0
-          fi
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            DIFF="git diff --name-only origin/${{ github.base_ref }}...HEAD"
-          else
-            DIFF="git diff --name-only HEAD~1...HEAD"
-          fi
-
-          # This workflow file is in scope for itself: it defines the roles,
-          # URLs and services the backend job runs against, so a change to it
-          # has to run the job — in full, migrations included — to be worth
-          # anything. Scope selection below reads backend/ paths, which a
-          # workflow-only change has none of, so short-circuit here.
-          if [[ -n "$($DIFF -- .github/workflows/ci.yml || true)" ]]; then
-            echo "skip=false" >> $GITHUB_OUTPUT
-            echo "alembic_changed=true" >> $GITHUB_OUTPUT
-            echo "scope=app/ alembic/" >> $GITHUB_OUTPUT
-            echo "CI workflow changed — running the full backend job"
-            exit 0
-          fi
-
-          CHANGED=$($DIFF -- backend/ || true)
-
-          if [[ -z "$CHANGED" ]]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
-            echo "No backend changes — skipping"
-            exit 0
-          fi
-
-          echo "skip=false" >> $GITHUB_OUTPUT
-
-          # Migration tests are slow (real upgrade/downgrade against
-          # Postgres) and only relevant when the alembic/ folder itself
-          # changes. Track them as a separate scope token so they're only
-          # appended when needed. Also expose a flag so we can skip the
-          # explicit `alembic upgrade head` step on non-alembic PRs —
-          # conftest.py already runs migrations as a pytest fixture, so
-          # the only value of the standalone step is an early failure
-          # signal when a migration is broken.
-          ALEMBIC_SCOPE=""
-          if echo "$CHANGED" | grep -q '^backend/alembic/'; then
-            ALEMBIC_SCOPE="alembic/"
-            echo "alembic_changed=true" >> $GITHUB_OUTPUT
-            echo "Alembic changes detected — including migration tests"
-          else
-            echo "alembic_changed=false" >> $GITHUB_OUTPUT
-          fi
-
-          NON_ALEMBIC=$(echo "$CHANGED" | grep -v '^backend/alembic/' || true)
-
-          if [[ -z "$NON_ALEMBIC" ]]; then
-            # Only alembic/ changes — skip the app/ test pass entirely.
-            echo "scope=$ALEMBIC_SCOPE" >> $GITHUB_OUTPUT
-            echo "Only alembic changes — running migration tests only"
-            exit 0
-          fi
-
-          # Check if shared infra changed (requires full test run)
-          if echo "$NON_ALEMBIC" | grep -qE '(app/testing/|app/models/|app/schemas/|app/core/|app/db/|conftest\.py)'; then
-            echo "scope=app/ $ALEMBIC_SCOPE" >> $GITHUB_OUTPUT
-            echo "Shared infrastructure changed — running all tests"
-          else
-            # Extract unique directories, strip backend/ prefix, and exclude non-code dirs.
-            # Catalog data files carry no tests of their own — the marketplace
-            # service seeds and validates them, so its suite is the one to run.
-            DIRS=$(echo "$NON_ALEMBIC" | sed 's|^backend/||' | grep -v '^app/locales/' | xargs -I{} dirname {} | sed 's|^app/marketplace_catalog$|app/services/marketplace|' | sort -u | tr '\n' ' ')
-            if [[ -z "${DIRS// }" ]]; then
-              echo "scope=app/ $ALEMBIC_SCOPE" >> $GITHUB_OUTPUT
-              echo "Only non-code files changed — running all tests"
-            else
-              echo "scope=$DIRS$ALEMBIC_SCOPE" >> $GITHUB_OUTPUT
-              echo "Running tests in: $DIRS$ALEMBIC_SCOPE"
-            fi
-          fi
-
-      - name: Install uv
-        if: steps.changes.outputs.skip != 'true'
-        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
-        with:
-          version: "0.11.21"
-          enable-cache: true
-          cache-dependency-glob: backend/uv.lock
-
-      - name: Install dependencies
-        if: steps.changes.outputs.skip != 'true'
-        run: |
-          cd backend
-          uv sync --frozen
+      - uses: ./.github/actions/setup-backend
 
       - name: Bootstrap database roles
         # The same module a deployment runs at startup, over the same kind of
@@ -181,7 +234,6 @@ jobs:
         # schema to app_provisioner, and installs the guild-search match
         # operator. Runs after dependency install because it is app code, and
         # before the migrations below, which connect as app_provisioner.
-        if: steps.changes.outputs.skip != 'true'
         env:
           DATABASE_URL_BOOTSTRAP: postgresql+asyncpg://initiative:initiative@localhost:5432/initiative_test
         run: |
@@ -192,20 +244,17 @@ jobs:
         # conftest.py auto-applies migrations before tests run, so this
         # explicit step is only valuable as an early-fail signal on PRs
         # that actually touch alembic/.
-        if: steps.changes.outputs.skip != 'true' && steps.changes.outputs.alembic_changed == 'true'
+        if: needs.changes.outputs.alembic != 'false'
         run: |
           cd backend
           uv run alembic upgrade head
-          
-          
+
       - name: Lint with Ruff
-        if: steps.changes.outputs.skip != 'true'
         run: |
           cd backend
           uv run ruff check app
 
       - name: Check formatting with Ruff
-        if: steps.changes.outputs.skip != 'true'
         run: |
           cd backend
           uv run ruff format --check app
@@ -214,18 +263,15 @@ jobs:
         # Full default rule set; the only exclusions are the SQLModel/ORM
         # false-positive rules disabled in backend/pyproject.toml
         # ([tool.ty.rules]), which is the single source of truth for the gate.
-        if: steps.changes.outputs.skip != 'true'
         run: |
           cd backend
           uv run ty check app
-
 
       - name: Start PgBouncer (transaction mode)
         # Runs as a step (not a service) so the committed reference config is
         # available post-checkout. edoburu/pgbouncer is pinned; PgBouncer
         # >= 1.21 is required for max_prepared_statements (asyncpg keeps its
         # normal prepared-statement cache — there is no app-side pooler mode).
-        if: steps.changes.outputs.skip != 'true'
         run: |
           printf '"app_user" "app_user"\n"app_admin" "app_admin"\n' > /tmp/pgb-userlist.txt
           docker run -d --name ci-pgbouncer --network host \
@@ -236,149 +282,69 @@ jobs:
           echo "PgBouncer up on :6432 (transaction mode)"
 
       - name: Run tests (through the pooler)
-        if: steps.changes.outputs.skip != 'true'
         run: |
           cd backend
-          uv run python -m pytest ${{ steps.changes.outputs.scope }} -n auto --tb=short
+          uv run python -m pytest ${{ needs.changes.outputs.backend_scope || 'app/ alembic/' }} -n auto --tb=short
 
   frontend-lint-and-test:
     name: Frontend Lint & Tests
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.frontend != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
 
-      - name: Check for frontend changes
-        id: filter
-        run: |
-          # Pushes to the integration branches are whole-tree verification;
-          # only pull requests use the changed-file shortcut.
-          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
-            echo "skip=false" >> $GITHUB_OUTPUT
-            echo "Integration push — running the full frontend suite"
-            exit 0
-          fi
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- frontend/ || true)
-          else
-            CHANGED=$(git diff --name-only HEAD~1...HEAD -- frontend/ || true)
-          fi
-          if [[ -z "$CHANGED" ]]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
-            echo "No frontend changes — skipping"
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
-            echo "Frontend changes detected"
-          fi
-
-      - name: Set up Node.js
-        if: steps.filter.outputs.skip != 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: "24"
-
-      - name: Install pnpm
-        if: steps.filter.outputs.skip != 'true'
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        with:
-          package_json_file: frontend/package.json
-
-      - name: Install dependencies
-        if: steps.filter.outputs.skip != 'true'
-        run: |
-          cd frontend
-          pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-frontend
 
       - name: Lint
-        if: steps.filter.outputs.skip != 'true'
         run: |
           cd frontend
           pnpm lint
 
       - name: TypeScript Check
-        if: steps.filter.outputs.skip != 'true'
         run: |
           cd frontend
           pnpm typecheck
 
       - name: Run tests
-        if: steps.filter.outputs.skip != 'true'
         run: |
           cd frontend
           pnpm test:run
 
   check-generated-types:
     name: Check Generated Types
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.codegen != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-backend
         with:
-          fetch-depth: 0
+          dev: "false"
 
-      - name: Check for backend or orval changes
-        id: filter
+      - name: Check env-contract.json
         run: |
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- backend/ frontend/orval.config.ts frontend/src/api/mutator.ts frontend/package.json || true)
-          else
-            CHANGED=$(git diff --name-only HEAD~1...HEAD -- backend/ frontend/orval.config.ts frontend/src/api/mutator.ts frontend/package.json || true)
+          (cd backend && uv run python ../scripts/build_env_contract.py)
+          if ! git diff --exit-code env-contract.json; then
+            echo ""
+            echo "ERROR: env-contract.json is out of date!"
+            echo "Run 'scripts/build_env_contract.py' under the backend venv and commit the result."
+            echo ""
+            exit 1
           fi
-          if [[ -z "$CHANGED" ]]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
-            echo "No backend or codegen config changes — skipping"
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
-            echo "Backend or codegen config changes detected"
-          fi
-
-      - name: Install uv
-        if: steps.filter.outputs.skip != 'true'
-        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
-        with:
-          version: "0.11.21"
-          enable-cache: true
-          cache-dependency-glob: backend/uv.lock
-
-      - name: Install backend dependencies
-        if: steps.filter.outputs.skip != 'true'
-        run: |
-          cd backend
-          uv sync --frozen --no-dev
 
       - name: Export OpenAPI spec
-        if: steps.filter.outputs.skip != 'true'
         run: |
           cd backend
-          uv run python scripts/export_openapi.py ../frontend/openapi.json
+          uv run python scripts/export_openapi.py "$RUNNER_TEMP/openapi.json"
 
-      - name: Set up Node.js
-        if: steps.filter.outputs.skip != 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: "24"
-
-      - name: Install pnpm
-        if: steps.filter.outputs.skip != 'true'
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        with:
-          package_json_file: frontend/package.json
-
-      - name: Install frontend dependencies
-        if: steps.filter.outputs.skip != 'true'
-        run: |
-          cd frontend
-          pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-frontend
 
       - name: Regenerate types
-        if: steps.filter.outputs.skip != 'true'
-        run: |
-          cd frontend
-          pnpm orval
-          pnpm format:api
+        run: frontend/scripts/generate-api.sh --from-spec "$RUNNER_TEMP/openapi.json"
 
       - name: Check for drift
-        if: steps.filter.outputs.skip != 'true'
         run: |
           if ! git diff --exit-code frontend/src/api/generated/; then
             echo ""

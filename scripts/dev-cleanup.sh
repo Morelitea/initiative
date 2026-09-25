@@ -108,10 +108,7 @@ if ! cd "$SCRIPT_DIR/../backend"; then
     exit 1
 fi
 
-# Dev superuser defaults
-export FIRST_SUPERUSER_EMAIL="${FIRST_SUPERUSER_EMAIL:-admin@example.com}"
-export FIRST_SUPERUSER_PASSWORD="${FIRST_SUPERUSER_PASSWORD:-changeme}"
-export FIRST_SUPERUSER_FULL_NAME="${FIRST_SUPERUSER_FULL_NAME:-Admin User}"
+. "$SCRIPT_DIR/dev-owner.sh"
 
 if [ ! -f .venv/bin/activate ]; then
     echo "Skipping dev data clean: backend/.venv is missing (run: cd backend && uv sync)." >&2
