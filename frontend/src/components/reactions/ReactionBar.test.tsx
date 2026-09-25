@@ -103,6 +103,24 @@ describe("ReactionBar", () => {
     expect(screen.getByRole("button", { name: /add a reaction/i })).toBeInTheDocument();
   });
 
+  it("gives a thumbs up in one tap", async () => {
+    const toggled = captureToggle([buildReactionGroup({ emoji: THUMBS, count: 1, reacted: true })]);
+    renderBar([buildReactionGroup({ emoji: PARTY, count: 1 })]);
+
+    await userEvent.click(screen.getByRole("button", { name: /react with 👍/i }));
+
+    await waitFor(() => expect(toggled.body()).toEqual({ emoji: THUMBS }));
+    expect(await screen.findByRole("button", { name: /👍, 1 reaction/i })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+  });
+
+  it("drops the thumbs-up shortcut once a thumbs-up chip is there to press", () => {
+    renderBar([buildReactionGroup({ emoji: THUMBS, count: 1 })]);
+    expect(screen.queryByRole("button", { name: /react with 👍/i })).not.toBeInTheDocument();
+  });
+
   it("renders nothing at all in a read-only guild with no reactions yet", () => {
     const { container } = renderBar([], { canReact: false });
     expect(container).toBeEmptyDOMElement();
@@ -113,5 +131,6 @@ describe("ReactionBar", () => {
 
     expect(screen.getByRole("button", { name: /👍, 2 reactions/i })).toBeDisabled();
     expect(screen.queryByRole("button", { name: /add a reaction/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /react with/i })).not.toBeInTheDocument();
   });
 });
