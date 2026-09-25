@@ -237,5 +237,8 @@
   "notFoundPage": {
     "title": "Page introuvable",
     "description": "Il n’y a rien à cette adresse. Le lien est peut-être mal saisi, ou la page a été déplacée."
+  },
+  "nativeUpdate": {
+    "unsigned": "La mise à jour de ce serveur n'a pas été publiée par Initiative, l'application reste donc en version {{version}}."
   }
 }

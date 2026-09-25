@@ -237,5 +237,8 @@
   "notFoundPage": {
     "title": "Seite nicht gefunden",
     "description": "Unter dieser Adresse gibt es nichts. Der Link ist vielleicht falsch geschrieben, oder die Seite wurde verschoben."
+  },
+  "nativeUpdate": {
+    "unsigned": "Das Update dieses Servers wurde nicht von Initiative veröffentlicht, deshalb bleibt die App auf Version {{version}}."
   }
 }
