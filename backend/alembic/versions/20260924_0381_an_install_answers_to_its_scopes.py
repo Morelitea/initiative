@@ -425,7 +425,9 @@ def _restate(bind, bodies: tuple[str, ...]) -> None:
     for schema in _schemas_holding(bind, RESOURCE_ACCESS_SIG):
         _in_schema(bind, schema)
         for body in bodies:
-            op.execute(body)
+            # Sent as written: a body holds literals such as ':calendar', which
+            # a bound statement would read as parameters.
+            bind.exec_driver_sql(body)
     bind.execute(sa.text("SELECT set_config('search_path', 'public', true)"))
 
 
