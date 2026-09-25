@@ -35,8 +35,10 @@ from app.core.app_scopes import app_scope_target
 from app.services.marketplace import contract
 from app.services.marketplace.manifest_values import (
     MAX_HINT_LENGTH,
+    MAX_IDENTIFIER_LENGTH,
     MAX_LABEL_LENGTH,
     MAX_NAME_LENGTH,
+    MAX_PATH_LENGTH,
     check_identifier,
     check_single_line,
     check_json_size,
@@ -110,6 +112,13 @@ FLOW_TYPES: frozenset[str] = contract.enum("flowType")
 TOKEN_TYPES: frozenset[str] = contract.enum("tokenType")
 REVOKE_METHODS: frozenset[str] = contract.enum("revokeMethod")
 JWT_ALGORITHMS: frozenset[str] = contract.enum("jwtAlgorithm")
+
+#: How a vendor webhook's signature is checked, and the characters a header
+#: name and a body path are written in.
+WEBHOOK_SCHEMES: frozenset[str] = contract.enum("webhookScheme")
+WEBHOOK_ENCODINGS: frozenset[str] = contract.enum("webhookEncoding")
+HEADER_NAME_CHARS = contract.charset("headerName")
+FIELD_PATH_CHARS = contract.charset("fieldPath")
 
 #: Field kinds a connection form can render. The same closed enum the automation
 #: service's node contract settled on, so one generic form renderer draws every
@@ -794,6 +803,104 @@ def _connection(raw: Any, *, vendor_keys: set[str]) -> dict[str, Any]:
     if hint is not None:
         cleaned["access_hint"] = hint
     return cleaned
+
+
+def _drawn_from(value: Any, *, what: str, chars: frozenset[str], limit: int) -> str:
+    """A required string written in ``chars`` alone."""
+    if not isinstance(value, str) or not value:
+        fail(f"{what} is required")
+    if len(value) > limit:
+        fail(f"{what} is longer than {limit} characters")
+    for character in value:
+        if character not in chars:
+            fail(f"{what} contains {character!r}, which is not allowed")
+    return value
+
+
+def _webhooks(
+    raw: Any, *, vendor_keys: set[str], connections: list[dict[str, Any]]
+) -> dict[str, Any] | None:
+    """How Initiative receives the vendor's webhooks for the app: the signature
+    it checks, the header naming a delivery, and the static connection field a
+    delivery is routed by."""
+    if raw is None:
+        return None
+    hooks = require_mapping(raw, "service app: webhooks")
+    verify = require_mapping(hooks.get("verify"), "service app: webhooks.verify")
+    scheme = verify.get("scheme")
+    if scheme not in WEBHOOK_SCHEMES:
+        fail(f"service app: webhooks.verify: unknown scheme {scheme!r}")
+    encoding = verify.get("encoding")
+    if encoding not in WEBHOOK_ENCODINGS:
+        fail(f"service app: webhooks.verify: unknown encoding {encoding!r}")
+    secret = verify.get("secret")
+    key = (
+        secret[len("{vendor.") : -1]
+        if isinstance(secret, str)
+        and secret.startswith("{vendor.")
+        and secret.endswith("}")
+        else None
+    )
+    if key not in vendor_keys:
+        fail(
+            "service app: webhooks.verify.secret must be one value the vendor "
+            "block declares, written '{vendor.<key>}'"
+        )
+
+    def header(value: Any, what: str) -> str:
+        return _drawn_from(
+            value, what=what, chars=HEADER_NAME_CHARS, limit=MAX_IDENTIFIER_LENGTH
+        )
+
+    cleaned_verify: dict[str, Any] = {
+        "scheme": scheme,
+        "header": header(verify.get("header"), "service app: webhooks.verify.header"),
+        "encoding": encoding,
+        "secret": secret,
+    }
+    prefix = clean_text(
+        verify.get("prefix"),
+        what="service app: webhooks.verify.prefix",
+        limit=MAX_IDENTIFIER_LENGTH,
+        required=False,
+    )
+    if prefix is not None:
+        cleaned_verify["prefix"] = check_single_line(
+            prefix, what="service app: webhooks.verify.prefix"
+        )
+
+    route = require_mapping(hooks.get("route"), "service app: webhooks.route")
+    connection_id = check_identifier(
+        route.get("connection"), what="service app: webhooks.route.connection"
+    )
+    field = check_identifier(
+        route.get("field"), what="service app: webhooks.route.field"
+    )
+    connection = next((c for c in connections if c["id"] == connection_id), None)
+    if connection is None or connection["scope"] != "static":
+        fail(
+            f"service app: webhooks.route names {connection_id!r}, which is not a "
+            "static connection this app declares"
+        )
+    if field not in {entry["key"] for entry in connection["fields"]}:
+        fail(
+            f"service app: webhooks.route names {field!r}, which is not a field of "
+            f"the connection {connection_id!r}"
+        )
+    return {
+        "verify": cleaned_verify,
+        "dedup": header(hooks.get("dedup"), "service app: webhooks.dedup"),
+        "route": {
+            "path": _drawn_from(
+                route.get("path"),
+                what="service app: webhooks.route.path",
+                chars=FIELD_PATH_CHARS,
+                limit=MAX_PATH_LENGTH,
+            ),
+            "connection": connection_id,
+            "field": field,
+        },
+    }
 
 
 # --- what an app offers -----------------------------------------------------
@@ -1622,6 +1729,9 @@ def normalize_service_app_definition(definition: Any) -> dict[str, Any]:
         if connection["id"] in connection_ids:
             fail(f"service app: two connections share the id {connection['id']!r}")
         connection_ids.add(connection["id"])
+    webhooks = _webhooks(
+        body.get("webhooks"), vendor_keys=vendor_keys, connections=connections
+    )
 
     # One list for every direction, so a caller resolves an id without being
     # told which kind of thing it is first.
@@ -1683,6 +1793,8 @@ def normalize_service_app_definition(definition: Any) -> dict[str, Any]:
         cleaned["vendor"] = vendor
     if connections:
         cleaned["connections"] = connections
+    if webhooks is not None:
+        cleaned["webhooks"] = webhooks
     if endpoints:
         cleaned["endpoints"] = endpoints
     if widgets:
