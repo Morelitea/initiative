@@ -29,20 +29,27 @@ export const useDockerHubVersion = () => {
 };
 
 /**
- * Compares two semantic version strings
- * Returns: -1 if v1 < v2, 0 if equal, 1 if v1 > v2
+ * Compare two versions: -1, 0 or 1.
+ *
+ * Each of major.minor.patch is read up to its first non-digit, and a version
+ * with a suffix (`0.72.3-dev-abc`) comes before the same version without one.
  */
 export const compareVersions = (v1: string, v2: string): number => {
-  const parts1 = v1.split(".").map(Number);
-  const parts2 = v2.split(".").map(Number);
-
+  const parse = (version: string) => {
+    const [core, ...suffix] = version.split("-");
+    return {
+      parts: core.split(".").map((part) => Number.parseInt(part, 10) || 0),
+      suffix: suffix.join("-"),
+    };
+  };
+  const a = parse(v1);
+  const b = parse(v2);
   for (let i = 0; i < 3; i++) {
-    const num1 = parts1[i] || 0;
-    const num2 = parts2[i] || 0;
-
-    if (num1 > num2) return 1;
-    if (num1 < num2) return -1;
+    const diff = (a.parts[i] ?? 0) - (b.parts[i] ?? 0);
+    if (diff !== 0) return diff > 0 ? 1 : -1;
   }
-
-  return 0;
+  if (a.suffix === b.suffix) return 0;
+  if (!a.suffix) return 1;
+  if (!b.suffix) return -1;
+  return a.suffix < b.suffix ? -1 : 1;
 };

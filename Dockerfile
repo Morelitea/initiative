@@ -6,6 +6,7 @@ COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml 
 RUN corepack enable && pnpm install --frozen-lockfile
 COPY frontend .
 COPY VERSION /VERSION
+COPY MIN_NATIVE_VERSION /MIN_NATIVE_VERSION
 ARG VITE_API_URL=/api/v1
 ARG VITE_VERSION_SUFFIX=
 ENV VITE_API_URL=$VITE_API_URL
@@ -22,6 +23,11 @@ RUN cp -r dist /tmp/browser-dist \
  && (cd dist && zip -qr /ota/bundle.zip .) \
  && sha256sum /ota/bundle.zip | cut -d' ' -f1 > /ota/bundle.sha256 \
  && rm -rf dist && mv /tmp/browser-dist dist
+# The statement the app installs an update on, signed when the build is given
+# the release key as the secret `ota_signing_key` (see scripts/sign-ota.mjs).
+RUN --mount=type=secret,id=ota_signing_key \
+    node scripts/sign-ota.mjs /ota "$(cat /VERSION)${VITE_VERSION_SUFFIX}" \
+      "$(cat /MIN_NATIVE_VERSION)" /run/secrets/ota_signing_key
 
 FROM python:3.12-slim@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea AS backend-runtime
 ARG VERSION=0.1.0
@@ -51,8 +57,7 @@ COPY VERSION ./VERSION
 COPY MIN_NATIVE_VERSION ./MIN_NATIVE_VERSION
 COPY CHANGELOG.md ./CHANGELOG.md
 COPY --from=frontend-build /frontend/dist ./static
-COPY --from=frontend-build /ota/bundle.zip ./ota/bundle.zip
-COPY --from=frontend-build /ota/bundle.sha256 ./ota/bundle.sha256
+COPY --from=frontend-build /ota/ ./ota/
 # dist-upgrade, not upgrade. `apt-get upgrade` leaves a package at its current
 # version when the new one "cannot be upgraded without changing the install
 # status of another package", and it never removes one -- so a security update

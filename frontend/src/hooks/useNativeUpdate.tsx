@@ -2,9 +2,12 @@ import { App } from "@capacitor/app";
 import { SplashScreen } from "@capacitor/splash-screen";
 import { type BundleInfo, CapacitorUpdater } from "@capgo/capacitor-updater";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { compareVersions } from "@/hooks/useDockerHubVersion";
 import { useServer } from "@/hooks/useServer";
+import { toast } from "@/lib/chesterToast";
+import { verifiedStatement } from "@/lib/otaTrust";
 
 const CURRENT_VERSION = __APP_VERSION__;
 
@@ -12,10 +15,10 @@ interface NativeBundleManifest {
   version: string;
   /** Absolute path (e.g. "/api/v1/native/bundle/download") joined to the server origin. */
   url: string;
-  /** sha256 hex of the bundle zip; the updater verifies it after download. */
-  checksum: string;
-  /** Minimum native app (APK/IPA) version the bundle requires. */
-  minNativeVersion: string;
+  /** The bundle's version, digest and native floor, as JSON, and its signature by the
+   *  project's release key (see `@/lib/otaTrust`). Absent from an unsigned build. */
+  statement?: string;
+  signature?: string;
 }
 
 interface PromptState {
@@ -114,7 +117,10 @@ const awaitReadyBundle = async (version: string, timeoutMs = 60_000): Promise<Bu
  * currently running, silently downloads it via `@capgo/capacitor-updater` and prompts the
  * user to reload. Applying the update swaps the WebView to the new bundle and reloads.
  *
- * Two guards keep this safe:
+ * Three guards keep this safe:
+ *  - Publisher: only a bundle whose signed statement verifies against a key the app was
+ *    built with is downloaded, and the version, digest and native floor are read from it.
+ *    A server whose bundle is unsigned is told about once and left on the current bundle.
  *  - Native compatibility: if the bundle needs a newer native shell than the installed
  *    APK/IPA (`minNativeVersion` > `current().native`), we skip the OTA and surface a
  *    "update from the store" prompt instead — a web bundle can't add native code.
@@ -124,6 +130,7 @@ const awaitReadyBundle = async (version: string, timeoutMs = 60_000): Promise<Bu
  * No-op on web (`Capacitor.isNativePlatform()` is false) and until a server is configured.
  */
 export const useNativeUpdate = () => {
+  const { t } = useTranslation("common");
   const { serverUrl, isNativePlatform } = useServer();
 
   const [updateReady, setUpdateReady] = useState<PromptState>(HIDDEN);
@@ -155,12 +162,24 @@ export const useNativeUpdate = () => {
         return;
       }
 
+      const statement =
+        manifest.statement && manifest.signature
+          ? await verifiedStatement(manifest.statement, manifest.signature)
+          : null;
+      if (!statement) {
+        handledVersionRef.current = manifest.version;
+        if (compareVersions(manifest.version, CURRENT_VERSION) !== 0) {
+          toast.info(t("nativeUpdate.unsigned", { version: CURRENT_VERSION }));
+        }
+        return;
+      }
+
       const { native } = await CapacitorUpdater.current();
       const decision = decideNativeUpdate({
-        manifestVersion: manifest.version,
+        manifestVersion: statement.version,
         currentVersion: CURRENT_VERSION,
         nativeVersion: native,
-        minNativeVersion: manifest.minNativeVersion,
+        minNativeVersion: statement.minNativeVersion,
       });
       if (decision === "up-to-date") {
         return;
@@ -168,8 +187,8 @@ export const useNativeUpdate = () => {
       if (decision === "native-required") {
         // Mark handled so we don't re-prompt on every foreground resume this session
         // (re-checked on the next cold start).
-        handledVersionRef.current = manifest.version;
-        setNativeUpdateRequired({ show: true, version: manifest.version });
+        handledVersionRef.current = statement.version;
+        setNativeUpdateRequired({ show: true, version: statement.version });
         return;
       }
 
@@ -180,25 +199,25 @@ export const useNativeUpdate = () => {
       // make set() throw and, since we'd keep "finding" it, never re-download — leaving the user
       // stuck on this version. findReadyBundle excludes error/downloading, forcing a fresh
       // download instead.
-      const existing = findReadyBundle((await CapacitorUpdater.list()).bundles, manifest.version);
+      const existing = findReadyBundle((await CapacitorUpdater.list()).bundles, statement.version);
       const bundle =
         existing ??
         (await CapacitorUpdater.download({
           url: downloadUrl,
-          version: manifest.version,
-          checksum: manifest.checksum,
+          version: statement.version,
+          checksum: statement.sha256,
         }));
 
-      handledVersionRef.current = manifest.version;
+      handledVersionRef.current = statement.version;
       bundleIdRef.current = bundle.id;
-      setUpdateReady({ show: true, version: manifest.version });
+      setUpdateReady({ show: true, version: statement.version });
     } catch (error) {
       // Network/plugin failures are non-critical — the app keeps running the current bundle.
       console.debug("Native update check failed:", error);
     } finally {
       checkingRef.current = false;
     }
-  }, [isNativePlatform, serverUrl]);
+  }, [isNativePlatform, serverUrl, t]);
 
   useEffect(() => {
     if (!isNativePlatform || !serverUrl) {

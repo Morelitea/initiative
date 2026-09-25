@@ -237,5 +237,8 @@
   "notFoundPage": {
     "title": "Page not found",
     "description": "Nothing is at this address. The link may be mistyped, or the page may have moved."
+  },
+  "nativeUpdate": {
+    "unsigned": "This server's update isn't one Initiative published, so the app stays on version {{version}}."
   }
 }

@@ -40,8 +40,11 @@ describe("buildBundleDownloadUrl", () => {
 describe("decideNativeUpdate", () => {
   const base = { currentVersion: "0.48.0", nativeVersion: "0.48.0", minNativeVersion: "0.48.0" };
 
-  it("is up-to-date when the server matches the running bundle", () => {
+  it("is up-to-date only when the server's version is exactly the running bundle's", () => {
     expect(decideNativeUpdate({ ...base, manifestVersion: "0.48.0" })).toBe("up-to-date");
+    // A suffix is part of the version, and the patch number is read past it.
+    expect(decideNativeUpdate({ ...base, manifestVersion: "0.48.0-dev-abc" })).toBe("download");
+    expect(decideNativeUpdate({ ...base, manifestVersion: "0.48.3-dev-abc" })).toBe("download");
   });
 
   it("downloads when the server is newer", () => {

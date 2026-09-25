@@ -45,8 +45,12 @@ async def test_manifest_advertises_matching_checksum(
     checksum = tmp_path / "bundle.sha256"
     checksum.write_text(f"{digest}\n")
 
+    statement = tmp_path / "statement.json"
+    signature = tmp_path / "statement.sig"
     monkeypatch.setattr(native, "_BUNDLE_PATH", bundle)
     monkeypatch.setattr(native, "_CHECKSUM_PATH", checksum)
+    monkeypatch.setattr(native, "_STATEMENT_PATH", statement)
+    monkeypatch.setattr(native, "_SIGNATURE_PATH", signature)
 
     response = await client.get("/api/v1/native/bundle/manifest")
     assert response.status_code == 200
@@ -55,6 +59,14 @@ async def test_manifest_advertises_matching_checksum(
     assert body["url"] == "/api/v1/native/bundle/download"
     assert body["checksum"] == digest
     assert isinstance(body["minNativeVersion"], str)
+    # An image built without the release key carries no statement.
+    assert "statement" not in body and "signature" not in body
+
+    statement.write_text(f'{{"v":1,"sha256":"{digest}"}}')
+    signature.write_text("c2lnbmVk\n")
+    body = (await client.get("/api/v1/native/bundle/manifest")).json()
+    assert body["statement"] == f'{{"v":1,"sha256":"{digest}"}}'
+    assert body["signature"] == "c2lnbmVk"
 
 
 @pytest.mark.integration
