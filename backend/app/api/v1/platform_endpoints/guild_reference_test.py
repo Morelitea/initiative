@@ -231,3 +231,183 @@ async def test_a_signed_body_of_the_wrong_shape_is_answered(
 
     assert response.status_code == 422
     assert response.json()["detail"] == BundledChannelMessages.INVALID_PAYLOAD
+
+
+# ---------------------------------------------------------------------------
+# An installation token, for an app the registry gave a sector
+# ---------------------------------------------------------------------------
+
+SECTORED_ID = "morelitea.auto"
+SECTORED_UID = "MRXAVT00000001"
+
+
+@pytest.fixture
+def shipped_root(monkeypatch, tmp_path):
+    """This build ships a root, and nothing replaces it."""
+    from app.services.marketplace import tuf_registry
+    from app.testing.tuf_repository import TufRepository
+
+    root = tmp_path / "root.json"
+    root.write_bytes(TufRepository().root_bytes())
+    monkeypatch.setattr(tuf_registry, "BUILTIN_ROOT_PATH", root)
+    monkeypatch.setattr(config_module.settings, "MARKETPLACE_REGISTRY_ROOT", None)
+    return root
+
+
+async def _sectored_install(session: AsyncSession, **registration):
+    """A guild with the sectored app installed, a billing name for the guild,
+    and an installation token for the install."""
+    from app.core.app_access_token import seal_install_token
+    from app.testing import create_app_service_registration, create_guild_app
+
+    fields = {
+        "source": "registry",
+        "reference_sectors": ["billing"],
+        "root_is_builtin": True,
+        **registration,
+    }
+    await create_app_service_registration(
+        session, public_id=SECTORED_ID, listing_uid=SECTORED_UID, **fields
+    )
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    app = await create_guild_app(
+        session,
+        guild,
+        user,
+        definition={
+            "app_kind": "service",
+            "service": {"public_id": SECTORED_ID, "protocol": 1},
+            "features": [],
+        },
+        listing_uid=SECTORED_UID,
+    )
+    billing = await ensure_ref(
+        session,
+        entity_type=IdentityEntity.guild,
+        entity_id=guild.id,
+        purpose=IdentityPurpose.billing,
+    )
+    await session.commit()
+    token, _exp = seal_install_token(
+        guild_id=guild.id,
+        install_id=app.id,
+        client_id=SECTORED_ID,
+        scopes=frozenset(),
+        initiative_id=None,
+        user_id=None,
+        purpose=None,
+    )
+    return guild, app, billing, {"Authorization": f"Bearer {token}"}
+
+
+async def test_a_token_whose_registration_carries_the_sector_is_answered(
+    client: AsyncClient, session: AsyncSession, shipped_root
+):
+    _guild, _app, billing, headers = await _sectored_install(session)
+
+    response = await client.post(ROUTE, json={"purpose": "billing"}, headers=headers)
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {"purpose": "billing", "guild_ref": billing}
+
+
+async def test_a_token_naming_its_own_reference_for_the_guild_is_answered(
+    client: AsyncClient, session: AsyncSession, shipped_root
+):
+    guild, app, billing, headers = await _sectored_install(session)
+    own = await ensure_app_guild_ref(guild_id=guild.id, app_install_id=app.id)
+
+    response = await client.post(
+        ROUTE, json={"purpose": "billing", "guild_ref": own}, headers=headers
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["guild_ref"] == billing
+
+
+async def test_a_token_naming_another_guild_is_refused(
+    client: AsyncClient, session: AsyncSession, shipped_root
+):
+    _guild, _app, _billing, headers = await _sectored_install(session)
+    other = await create_guild(session, creator=await create_user(session))
+    await session.commit()
+    elsewhere = await ensure_app_guild_ref(guild_id=other.id, app_install_id=98765)
+
+    response = await client.post(
+        ROUTE, json={"purpose": "billing", "guild_ref": elsewhere}, headers=headers
+    )
+
+    assert response.status_code == 404
+
+
+async def test_a_token_without_the_sector_is_refused(
+    client: AsyncClient, session: AsyncSession, shipped_root
+):
+    _guild, _app, _billing, headers = await _sectored_install(
+        session, reference_sectors=[]
+    )
+
+    response = await client.post(ROUTE, json={"purpose": "billing"}, headers=headers)
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == BundledChannelMessages.SECTOR_NOT_ANSWERABLE
+
+
+async def test_a_sector_from_an_operators_registration_is_refused(
+    client: AsyncClient, session: AsyncSession, shipped_root
+):
+    _guild, _app, _billing, headers = await _sectored_install(
+        session, source="operator"
+    )
+
+    response = await client.post(ROUTE, json={"purpose": "billing"}, headers=headers)
+
+    assert response.status_code == 403
+
+
+async def test_a_sector_is_refused_under_a_replaced_root(
+    client: AsyncClient, session: AsyncSession, shipped_root, monkeypatch, tmp_path
+):
+    """A registration written while the shipped root was in use carries the
+    flag; replacing the root afterwards still ends the sector."""
+    from app.testing.tuf_repository import TufRepository
+
+    _guild, _app, _billing, headers = await _sectored_install(session)
+    replaced = tmp_path / "replaced.json"
+    replaced.write_bytes(TufRepository().root_bytes())
+    monkeypatch.setattr(
+        config_module.settings, "MARKETPLACE_REGISTRY_ROOT", str(replaced)
+    )
+
+    response = await client.post(ROUTE, json={"purpose": "billing"}, headers=headers)
+
+    assert response.status_code == 403
+
+
+async def test_a_sector_recorded_under_another_root_is_refused(
+    client: AsyncClient, session: AsyncSession, shipped_root
+):
+    _guild, _app, _billing, headers = await _sectored_install(
+        session, root_is_builtin=False
+    )
+
+    response = await client.post(ROUTE, json={"purpose": "billing"}, headers=headers)
+
+    assert response.status_code == 403
+
+
+async def test_a_token_that_does_not_verify_is_refused(
+    client: AsyncClient, session: AsyncSession, shipped_root
+):
+    await _sectored_install(session)
+
+    response = await client.post(
+        ROUTE,
+        json={"purpose": "billing"},
+        headers={"Authorization": "Bearer not-a-token"},
+    )
+
+    # Not an access token, so this is the bundled channel, which refuses an
+    # unsigned request.
+    assert response.status_code == 403

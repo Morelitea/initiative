@@ -9,7 +9,9 @@ the same statement that asks whether each one is.
 Every registration belongs to exactly one publisher (``publisher_id``). The
 deployment's own publisher is seeded at boot; an operator adds one for a
 private app's prefix, or it is added, unverified, when a registration names a
-prefix no row has yet.
+prefix no row has yet; and the registry adds the publishers its verified
+listings arrive under. ``source`` says which: a registry refresh updates a
+``seed`` or ``registry`` row and leaves an ``operator`` row alone.
 
 Lives in ``public``: a publisher is deployment configuration and carries no
 guild data. It is written on the system engine only. An installed app's
@@ -26,7 +28,9 @@ __all__ = [
     "FIRST_PARTY_PUBLISHER_NAME",
     "FIRST_PARTY_PUBLISHER_PREFIX",
     "PUBLISHER_PREFIX_MAX_LENGTH",
+    "PUBLISHER_SOURCES",
     "Publisher",
+    "PublisherSource",
     "publisher_prefix",
 ]
 
@@ -36,6 +40,22 @@ PUBLISHER_PREFIX_MAX_LENGTH = 120
 #: The publisher of the apps this project ships, seeded at boot.
 FIRST_PARTY_PUBLISHER_PREFIX = "morelitea"
 FIRST_PARTY_PUBLISHER_NAME = "Morelitea"
+
+
+class PublisherSource:
+    """Where a publisher row came from."""
+
+    #: This project's own publisher, as boot seeds it.
+    SEED = "seed"
+    #: Added by an operator, directly or by registering an app under it.
+    OPERATOR = "operator"
+    #: Added or kept up to date by the registry refresh.
+    REGISTRY = "registry"
+
+
+PUBLISHER_SOURCES: frozenset[str] = frozenset(
+    {PublisherSource.SEED, PublisherSource.OPERATOR, PublisherSource.REGISTRY}
+)
 
 
 def publisher_prefix(public_id: str) -> str:
@@ -66,6 +86,11 @@ class Publisher(SQLModel, table=True):
     enabled: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    # Where the row came from (``PublisherSource``).
+    source: str = Field(
+        default=PublisherSource.OPERATOR,
+        sa_column=Column(String(16), nullable=False, server_default="operator"),
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

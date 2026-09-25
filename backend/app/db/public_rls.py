@@ -1194,7 +1194,7 @@ PUBLIC_RLS: dict[str, TableRls] = {
     "app_setting_secrets": FORCED_NO_POLICY,
     # Everything else is the system engine's. An installed app's standing reads
     # the registration its token was issued to (its column grant is public_id,
-    # listing_uid, enabled, publisher_id, jwks and jwks_uri alone).
+    # listing_uid, enabled, publisher_id, jwks, jwks_uri and base_url alone).
     "app_service_registrations": TableRls(
         policies=(
             Policy(
@@ -1227,7 +1227,8 @@ PUBLIC_RLS: dict[str, TableRls] = {
     "auth_providers": FORCED_NO_POLICY,
     "auth_sessions": FORCED_NO_POLICY,
     "federated_identity_secrets": FORCED_NO_POLICY,
-    "marketplace_registry_state": FORCED_NO_POLICY,
+    "marketplace_registry_status": FORCED_NO_POLICY,
+    "marketplace_tuf_metadata": FORCED_NO_POLICY,
     "mfa_recovery_codes": FORCED_NO_POLICY,
     "oidc_claim_mappings": FORCED_NO_POLICY,
     "user_api_keys": FORCED_NO_POLICY,

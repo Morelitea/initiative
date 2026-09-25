@@ -75,7 +75,8 @@ class RegistrationSnapshot:
 
     public_id: str
     listing_uid: Optional[str]
-    #: Where Initiative's own server calls this app.
+    #: Where Initiative's own server calls this app. Empty for a registry
+    #: container the operator has not placed yet, which is never live.
     base_url: str
     #: Where a person's browser loads its surfaces, when the app answers there
     #: rather than at ``base_url``. Read through :attr:`browser_base`.
@@ -94,8 +95,9 @@ class RegistrationSnapshot:
     #: The operator's kill switch on the registration itself.
     enabled: bool
     #: Whether anything may flow through this app right now: enabled, its
-    #: publisher enabled, and a key set to verify against. Computed by the
-    #: database from ``registration_live_sql`` when the snapshot is loaded.
+    #: publisher enabled, a location, and a key set to verify against.
+    #: Computed by the database from ``registration_live_sql`` when the
+    #: snapshot is loaded.
     live: bool
     #: The most any install of this app may be granted, as the operator set it.
     #: Not secret: it bounds what a community's seat may grant.
@@ -181,7 +183,7 @@ async def load_registrations(*, force: bool = False) -> dict[str, RegistrationSn
         row.public_id: RegistrationSnapshot(
             public_id=row.public_id,
             listing_uid=row.listing_uid,
-            base_url=row.base_url,
+            base_url=row.base_url or "",
             embed_origin=row.embed_origin,
             allowed_origins=tuple(row.allowed_origins or []),
             grants=tuple(row.grants or []),

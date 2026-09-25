@@ -1058,50 +1058,45 @@ class MarketplaceMessages:
 
 
 class MarketplaceRegistryMessages:
-    """Outcomes of a signed-registry refresh.
+    """Outcomes of a registry refresh or a bundle upload.
 
-    Every code here either answers an operator's "refresh now" or is recorded
-    as the last refusal so the status panel can say why the catalog did not
-    move. The refusals are deliberately specific: an operator reading one has
-    to be able to tell a misconfigured key from an index their host is serving
-    from cache.
+    Every code here either answers an operator's "refresh now" or upload, or is
+    recorded as the last refusal so the status panel can say why the catalog
+    did not move.
     """
 
-    #: No registry URL and key set are configured, or the operator switched
-    #: ingestion off. The remote provider is absent rather than broken.
+    #: This build ships no trusted root yet, so there is no registry to follow.
     NOT_CONFIGURED = "MARKETPLACE_REGISTRY_NOT_CONFIGURED"
+    #: The platform switch is off.
+    DISABLED = "MARKETPLACE_REGISTRY_DISABLED"
     #: A refresh is already running; the second caller is told rather than
-    #: queued, because both would be fetching the same index.
+    #: queued, because both would be reading the same repository.
     REFRESH_IN_PROGRESS = "MARKETPLACE_REGISTRY_REFRESH_IN_PROGRESS"
-    #: The configured key set could not be read as a JWKS document.
-    KEYS_INVALID = "MARKETPLACE_REGISTRY_KEYS_INVALID"
-
-    #: The index or its signature could not be fetched.
+    #: The trusted root file could not be read as TUF root metadata.
+    ROOT_INVALID = "MARKETPLACE_REGISTRY_ROOT_INVALID"
+    #: The repository's metadata could not be fetched.
     UNREACHABLE = "MARKETPLACE_REGISTRY_UNREACHABLE"
-    #: The index exceeded the size a registry index is allowed to be.
-    INDEX_TOO_LARGE = "MARKETPLACE_REGISTRY_INDEX_TOO_LARGE"
-    #: The index parsed as JSON but is not shaped like an index.
-    INDEX_MALFORMED = "MARKETPLACE_REGISTRY_INDEX_MALFORMED"
-    #: The signature does not match the index bytes that were received.
-    SIGNATURE_INVALID = "MARKETPLACE_REGISTRY_SIGNATURE_INVALID"
-    #: The index was signed by a key this deployment does not trust.
-    KEY_UNKNOWN = "MARKETPLACE_REGISTRY_KEY_UNKNOWN"
-    #: The index is older than the one already accepted, or reuses its serial
-    #: for different content.
-    SERIAL_REGRESSION = "MARKETPLACE_REGISTRY_SERIAL_REGRESSION"
-    #: The index is outside the freshness window this deployment accepts.
-    INDEX_STALE = "MARKETPLACE_REGISTRY_INDEX_STALE"
+    #: The repository's metadata did not verify against the trusted root.
+    METADATA_REJECTED = "MARKETPLACE_REGISTRY_METADATA_REJECTED"
+    #: The repository's metadata verified but has expired.
+    EXPIRED = "MARKETPLACE_REGISTRY_EXPIRED"
+    #: An uploaded bundle is not a readable archive of a repository.
+    BUNDLE_INVALID = "MARKETPLACE_REGISTRY_BUNDLE_INVALID"
 
-    #: The signing key is not authorized for that listing's publisher prefix.
-    PUBLISHER_NOT_AUTHORIZED = "MARKETPLACE_REGISTRY_PUBLISHER_NOT_AUTHORIZED"
+    #: A file a listing names is not in the repository, could not be fetched,
+    #: or does not match the metadata.
+    TARGET_REJECTED = "MARKETPLACE_REGISTRY_TARGET_REJECTED"
+    #: A listing entry is not in the expected format.
+    ENTRY_INVALID = "MARKETPLACE_REGISTRY_ENTRY_INVALID"
     #: ``core.*`` names listings shipped in this repo and is never published
     #: by a registry.
     RESERVED_NAMESPACE = "MARKETPLACE_REGISTRY_RESERVED_NAMESPACE"
-    #: A manifest or image the index named could not be fetched.
-    ARTIFACT_UNREACHABLE = "MARKETPLACE_REGISTRY_ARTIFACT_UNREACHABLE"
-    #: A manifest or image did not match what the index says it is — digest,
-    #: size, type, or the origin it is served from.
-    ARTIFACT_INVALID = "MARKETPLACE_REGISTRY_ARTIFACT_INVALID"
+    #: The listing's uid or name is already published by another source here.
+    SOURCE_CONFLICT = "MARKETPLACE_REGISTRY_SOURCE_CONFLICT"
+    #: This deployment's operator added a publisher with the same prefix.
+    PUBLISHER_CONFLICT = "MARKETPLACE_REGISTRY_PUBLISHER_CONFLICT"
+    #: This deployment's operator registered an app with the same id.
+    REGISTRATION_CONFLICT = "MARKETPLACE_REGISTRY_REGISTRATION_CONFLICT"
     #: The listing itself was refused by the catalog's validator.
     LISTING_REJECTED = "MARKETPLACE_REGISTRY_LISTING_REJECTED"
 
@@ -1316,6 +1311,10 @@ class AppServiceMessages:
     INVALID_PUBLISHER_PREFIX = "APP_PUBLISHER_INVALID_PREFIX"
     #: A publisher's name is empty or too long.
     INVALID_PUBLISHER_NAME = "APP_PUBLISHER_INVALID_NAME"
+    #: The registration arrived from the registry, which keeps the fields
+    #: asked to change. The operator keeps its switch, grants, mandatory flag,
+    #: origins and, for a container, its location.
+    REGISTRY_MANAGED = "APP_SERVICE_REGISTRY_MANAGED"
 
 
 class AppMessages:

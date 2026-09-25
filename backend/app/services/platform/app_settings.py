@@ -421,6 +421,7 @@ COMMUNITY_FIELDS: tuple[str, ...] = (
     "on_hold_community_deletion_days",
 )
 MARKETPLACE_FIELDS: tuple[str, ...] = ("marketplace_members_publish_directly",)
+MARKETPLACE_REGISTRY_FIELDS: tuple[str, ...] = ("marketplace_registry_enabled",)
 EMAIL_FIELDS: tuple[str, ...] = (
     "smtp_host",
     "smtp_port",
@@ -586,6 +587,40 @@ async def update_marketplace_settings(
         before=before,
         row=settings_row,
         fields=MARKETPLACE_FIELDS,
+    )
+    await session.commit()
+    await session.refresh(settings_row)
+    return settings_row
+
+
+async def marketplace_registry_enabled(session: AsyncSession) -> bool:
+    """Whether this deployment follows the marketplace registry.
+
+    The one read of the switch: the background refresh and the "refresh now"
+    button both ask it before fetching anything.
+    """
+    settings_row = await get_app_settings(session)
+    return bool(settings_row.marketplace_registry_enabled)
+
+
+async def update_marketplace_registry_settings(
+    session: AsyncSession,
+    *,
+    enabled: bool,
+    actor_user_id: int,
+) -> AppSetting:
+    """Follow the marketplace registry, or stop. What already arrived stays."""
+    settings_row = await ensure_settings_row(session)
+    before = audit_service.snapshot(settings_row, MARKETPLACE_REGISTRY_FIELDS)
+    settings_row.marketplace_registry_enabled = bool(enabled)
+    session.add(settings_row)
+    await _record_settings_area(
+        session,
+        actor_user_id=actor_user_id,
+        area="marketplace_registry",
+        before=before,
+        row=settings_row,
+        fields=MARKETPLACE_REGISTRY_FIELDS,
     )
     await session.commit()
     await session.refresh(settings_row)

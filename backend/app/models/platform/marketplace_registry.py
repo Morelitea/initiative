@@ -1,19 +1,20 @@
 """State the registry client keeps between refreshes.
 
-Two `public` tables, both operator/system state rather than tenant data:
+Three `public` tables, all operator/system state rather than tenant data:
 
-* :class:`MarketplaceRegistryState` — one row per registry URL, recording the
-  last index this deployment accepted. The serial and the index digest live
-  here rather than in process memory because they are what makes a replay of an
-  older index detectable: a value that resets whenever the process restarts
-  would answer "is this index newer than the last one?" with "yes" every boot,
-  and a rolling deploy would answer differently on every replica.
-* :class:`MarketplaceMedia` — the artwork a verified index named, mirrored
+* :class:`MarketplaceTufMetadata` — the TUF metadata this deployment last
+  verified, one row per role (and one per root version). A refresh loads it
+  into a scratch directory for the TUF client and writes back what the client
+  verified, so every replica starts from the same trusted state and a restart
+  does not forget which versions were already seen.
+* :class:`MarketplaceRegistryStatus` — one row: which trusted root the stored
+  metadata was verified under, and how the last refresh went.
+* :class:`MarketplaceMedia` — the artwork a verified listing named, kept
   locally and addressed by its own SHA-256. Listing media is served from this
   deployment, so a stored listing never carries a URL pointing at somebody
   else's host.
 
-Neither table names a guild — like the catalog they describe, both are
+None of them names a guild. Like the catalog they describe they are
 platform-wide, and their only writer is the system engine.
 """
 
@@ -22,7 +23,7 @@ from typing import Optional
 
 from pydantic import ConfigDict
 from sqlalchemy import (
-    BigInteger,
+    CheckConstraint,
     Column,
     DateTime,
     Integer,
@@ -36,59 +37,87 @@ from sqlmodel import Field, SQLModel
 #: sized to it exactly.
 DIGEST_LENGTH = 64
 
+#: The widest TUF role name stored. Delegated roles are named after publisher
+#: prefixes, which are shorter than this.
+ROLE_NAME_LENGTH = 200
 
-class MarketplaceRegistryState(SQLModel, table=True):
-    """What this deployment last accepted from one registry."""
+#: The id of the one status row.
+STATUS_ROW_ID = 1
 
-    __tablename__ = "marketplace_registry_state"
+
+class MarketplaceTufMetadata(SQLModel, table=True):
+    """One verified TUF metadata file.
+
+    Keyed by role and version. ``root`` keeps a row per version, because the
+    client replays the chain of roots from the one shipped in the image; every
+    other role keeps only its current version.
+    """
+
+    __tablename__ = "marketplace_tuf_metadata"
     __allow_unmapped__ = True
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    id: Optional[int] = Field(default=None, primary_key=True)
-    # Which registry this row is about. Unique, so pointing a deployment at a
-    # different registry starts from a clean slate rather than inheriting
-    # another registry's serial — serials are only comparable within the
-    # publisher that issues them.
-    registry_url: str = Field(
-        sa_column=Column(String(2000), nullable=False, unique=True)
+    role: str = Field(
+        sa_column=Column(String(ROLE_NAME_LENGTH), primary_key=True, nullable=False)
     )
-    # The key id that signed the last accepted index. Recorded so an operator
-    # can see which key is live, and so a rotation is visible after the fact.
-    key_id: Optional[str] = Field(default=None, sa_column=Column(String(128)))
+    version: int = Field(
+        sa_column=Column(Integer, primary_key=True, nullable=False, autoincrement=False)
+    )
+    # The metadata file exactly as it was verified.
+    data: bytes = Field(sa_column=Column(LargeBinary, nullable=False))
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
 
-    # The index counter, as published. Must not go backwards.
-    last_serial: Optional[int] = Field(default=None, sa_column=Column(BigInteger))
-    # SHA-256 of the accepted index bytes. Together with the serial this
-    # distinguishes "the same index again" (nothing to do) from "different
-    # content published under a serial that was already used".
-    last_index_sha256: Optional[str] = Field(
+
+class MarketplaceRegistryStatus(SQLModel, table=True):
+    """How this deployment stands with its registry: one row."""
+
+    __tablename__ = "marketplace_registry_status"
+    __allow_unmapped__ = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    __table_args__ = (
+        CheckConstraint(
+            f"id = {STATUS_ROW_ID}", name="marketplace_registry_status_one_row"
+        ),
+    )
+
+    id: int = Field(
+        default=STATUS_ROW_ID,
+        sa_column=Column(Integer, primary_key=True, autoincrement=False),
+    )
+    # SHA-256 of the trusted root the stored metadata was verified under. A
+    # deployment pointed at a different root starts over rather than reading
+    # metadata from another chain of trust.
+    root_sha256: Optional[str] = Field(
         default=None, sa_column=Column(String(DIGEST_LENGTH))
     )
-    # The index's own timestamp, as published.
-    last_generated_at: Optional[datetime] = Field(
+    # The version of the newest root the last verified refresh reached.
+    root_version: Optional[int] = Field(default=None, sa_column=Column(Integer))
+    # The snapshot version last applied. The same version again means the
+    # repository has not changed, and its listings are not read again.
+    snapshot_version: Optional[int] = Field(default=None, sa_column=Column(Integer))
+    # When the verified timestamp stops being valid. Past it the catalogue from
+    # the registry is stale until a refresh succeeds.
+    expires_at: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime(timezone=True))
     )
-
-    # When a refresh last ran, whatever its outcome.
-    last_fetched_at: Optional[datetime] = Field(
+    # Where the last attempt read from: the registry URL, or ``bundle`` for an
+    # uploaded bundle.
+    source: Optional[str] = Field(default=None, sa_column=Column(String(2000)))
+    last_attempt_at: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime(timezone=True))
     )
-    # When a refresh last completed with every listing in the index ingested.
+    # When a refresh last completed with every listing applied.
     last_success_at: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime(timezone=True))
     )
-    # Message code of the last refusal, or NULL after a clean run. A non-NULL
-    # value also tells the next refresh to re-ingest the same serial rather
-    # than treat it as already applied.
+    # Message code of the last refusal, or NULL after a clean refresh.
     last_error: Optional[str] = Field(default=None, sa_column=Column(String(64)))
-    # How many listings the last accepted index carried.
+    # How many listings the last verified repository carried.
     listing_count: int = Field(
         default=0, sa_column=Column(Integer, nullable=False, server_default="0")
-    )
-
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
     )
     updated_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

@@ -12,6 +12,9 @@ arrives:
 * **A registration names a prefix no row has yet**, and one is added for it,
   unverified and enabled (:func:`ensure_publisher`). Whoever registered the
   app chose its prefix, so the row records that choice rather than refusing it.
+* **The registry brings one** with a verified listing
+  (:mod:`app.services.marketplace.registry_entries`). It keeps its own rows
+  and the seeded one up to date, and never touches an operator's.
 
 Every write drops the registration snapshot, because a publisher's switch is
 part of whether each of its registrations is live.
@@ -36,6 +39,7 @@ from app.models.platform.publisher import (
     FIRST_PARTY_PUBLISHER_PREFIX,
     PUBLISHER_PREFIX_MAX_LENGTH,
     Publisher,
+    PublisherSource,
 )
 from app.services import audit as audit_service
 from app.services.marketplace.registration_lookup import invalidate_registrations
@@ -50,6 +54,8 @@ __all__ = [
     "list_publishers",
     "normalize_display_name",
     "normalize_prefix",
+    "publisher_by_prefix",
+    "valid_prefix",
     "seed_publishers",
     "update_publisher",
 ]
@@ -65,6 +71,13 @@ _MAX_DISPLAY_NAME = 200
 
 def _bad_request(code: str) -> HTTPException:
     return HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=code)
+
+
+def valid_prefix(value: str) -> bool:
+    """Whether ``value`` is already a prefix in its stored form."""
+    return 0 < len(value) <= PUBLISHER_PREFIX_MAX_LENGTH and all(
+        char in _PREFIX_CHARS for char in value
+    )
 
 
 def normalize_prefix(value: str) -> str:
@@ -98,10 +111,15 @@ async def get_publisher(session: AsyncSession, publisher_id: int) -> Publisher:
     return row
 
 
-async def _by_prefix(session: AsyncSession, prefix: str) -> Optional[Publisher]:
+async def publisher_by_prefix(
+    session: AsyncSession, prefix: str
+) -> Optional[Publisher]:
     return (
         await session.exec(select(Publisher).where(Publisher.prefix == prefix))
     ).first()
+
+
+_by_prefix = publisher_by_prefix
 
 
 async def create_publisher(
@@ -214,6 +232,7 @@ async def seed_publishers(session: AsyncSession) -> bool:
         display_name=FIRST_PARTY_PUBLISHER_NAME,
         verified=True,
         enabled=True,
+        source=PublisherSource.SEED,
     )
     session.add(row)
     await session.flush()

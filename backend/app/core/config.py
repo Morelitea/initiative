@@ -940,39 +940,27 @@ class Settings(BaseSettings):
     BILLING_OPERATOR_HANDOFF_SECRET: str | None = None
     BILLING_OPERATOR_HANDOFF_KID: str | None = None
 
-    # --- Marketplace registry (optional; default OFF) ---------------------
-    # A registry is not a service: it is a signed JSON index plus the manifest
-    # and artwork files it names by digest, on any static host. Only the client
-    # below runs. Both the URL and the key set are operator-supplied, so a
-    # self-hoster or a community can publish their own index with their own key
-    # and point a deployment at it.
+    # --- Marketplace registry --------------------------------------------
+    # The registry is a TUF repository of listings on a static host, verified
+    # against a trusted root that ships in the image
+    # (``app/marketplace/root.json``). Whether this deployment follows it is the
+    # platform setting ``marketplace_registry_enabled`` (on by default), not an
+    # environment variable.
     #
-    # ``MARKETPLACE_REGISTRY_URL`` is the index document's URL; its detached
-    # signature is read from the same URL with ``.sig`` appended, and every
-    # artifact the index names resolves relative to it and must stay on the
-    # same origin.
+    # ``MARKETPLACE_REGISTRY_URL`` is the repository's base: its metadata is
+    # read from ``<url>metadata/`` and its target files from ``<url>targets/``.
+    # Point it at a mirror or a curated repository signed under the same root.
     #
-    # ``MARKETPLACE_REGISTRY_PUBLIC_KEYS`` is a JWKS-shaped JSON document of the
-    # keys this deployment trusts — ``{"keys": [{"kty": "OKP", "crv":
-    # "Ed25519", "kid": "...", "x": "<base64url>", "publisher_prefixes":
-    # ["acme"]}]}``. Several keys may be listed at once so a registry can
-    # rotate: add the new key in one release, sign with it, drop the old one
-    # later. ``publisher_prefixes`` states which listing namespaces that key may
-    # publish under (``["*"]`` for any); ``core.*`` is reserved for listings
-    # shipped in this repo and is never accepted from a registry.
-    #
-    # URL and keys are BOTH required, or the remote provider is simply absent:
-    # no background refresh starts, the refresh endpoints answer 503, and the
-    # catalog holds only what this build ships.
-    MARKETPLACE_REGISTRY_URL: str | None = None
-    MARKETPLACE_REGISTRY_PUBLIC_KEYS: str | None = None
-    # How often the background refresh re-fetches the index. ~15 minutes keeps a
-    # withdrawal reaching deployments promptly without polling a static host.
+    # ``MARKETPLACE_REGISTRY_ROOT`` is a path to a different trusted root, for a
+    # repository signed under somebody else's keys. Listings and apps from it
+    # land as usual; reference sectors are honoured only under the shipped root.
+    MARKETPLACE_REGISTRY_URL: str = (
+        "https://morelitea.github.io/initiative-developer/public/"
+    )
+    MARKETPLACE_REGISTRY_ROOT: str | None = None
+    # How often the background refresh asks for new metadata. ~15 minutes keeps
+    # a withdrawal reaching deployments promptly without polling a static host.
     MARKETPLACE_REGISTRY_TTL_SECONDS: int = Field(default=900, ge=60)
-    # Operator kill switch. False stops the background refresh and the
-    # "refresh now" endpoint without unsetting the URL or the keys, so a
-    # deployment can pause ingestion and resume with its trust settings intact.
-    MARKETPLACE_REGISTRY_ENABLED: bool = True
 
     # Local-dev only: when true, outbound webhook / custom-AI targets may
     # use http and resolve to private/loopback addresses, for round-tripping

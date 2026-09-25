@@ -569,7 +569,15 @@ async def test_a_new_transaction_replays_the_install(
         ("guilds", {"id", "status"}),
         (
             "app_service_registrations",
-            {"public_id", "listing_uid", "enabled", "publisher_id", "jwks", "jwks_uri"},
+            {
+                "public_id",
+                "listing_uid",
+                "enabled",
+                "publisher_id",
+                "jwks",
+                "jwks_uri",
+                "base_url",
+            },
         ),
         # Whether the registration's publisher is on.
         ("publishers", {"id", "enabled"}),

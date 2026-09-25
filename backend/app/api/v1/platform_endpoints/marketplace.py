@@ -8,7 +8,8 @@ What is here is everything that decides *what this deployment carries*, which
 is a property of the deployment rather than of any guild. The owner's routes
 are gated on the capability that governs deployment configuration — because
 that is what publishing a listing is: the rescan of their own catalog
-directory, "refresh now" for the signed registry, uploading a listing file,
+directory, following the registry (its switch, "refresh now", and uploading a
+signed bundle for a deployment that cannot reach it), uploading a listing file,
 and reviewing what members share. A member's own routes here are the listings
 they shared: reading them, and taking one down. Every write runs on the system
 engine; sharing itself starts from inside a community, where the item is read
@@ -37,8 +38,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import SessionDep, UserSessionDep, get_current_active_user
 from app.api.v1.platform_endpoints.operator import ConfigManageDep
 from app.core.audit_events import AuditEventType
-from app.core.config import settings
-from app.core.messages import MarketplaceMessages, MarketplaceRegistryMessages
+from app.core.messages import MarketplaceMessages
+from app.core.messages import MarketplaceRegistryMessages as RegistryCodes
 from app.db.session import get_system_session
 from app.models.platform.marketplace_registry import MarketplaceMedia
 from app.models.platform.user import User
@@ -55,6 +56,7 @@ from app.schemas.platform.marketplace import (
 )
 from app.schemas.platform.marketplace_registry import (
     RegistryRefreshRead,
+    RegistrySettings,
     RegistrySkippedListing,
     RegistryStatusRead,
 )
@@ -62,7 +64,7 @@ from app.services import audit as audit_service
 from app.services.marketplace import catalog as catalog_service
 from app.services.marketplace import listing_assets, local_listings
 from app.services.tenant.attachments import FileTooLargeError, read_upload_bounded
-from app.services.marketplace import registry as registry_service
+from app.services.marketplace import tuf_registry as registry_service
 from app.services.marketplace.catalog import CatalogError
 from app.services.platform import app_settings as app_settings_service
 from app.services.marketplace import operator_catalog as operator_catalog_service
@@ -171,87 +173,152 @@ async def read_marketplace_media(digest: str, session: SessionDep) -> Response:
     )
 
 
-# --- the signed registry (operator) -----------------------------------------
+# --- the registry (operator) --------------------------------------------------
+
+#: How each refusal of a refresh or a bundle answers.
+_REFUSAL_STATUS: dict[str, int] = {
+    RegistryCodes.NOT_CONFIGURED: status.HTTP_503_SERVICE_UNAVAILABLE,
+    RegistryCodes.ROOT_INVALID: status.HTTP_503_SERVICE_UNAVAILABLE,
+    RegistryCodes.DISABLED: status.HTTP_409_CONFLICT,
+    RegistryCodes.REFRESH_IN_PROGRESS: status.HTTP_409_CONFLICT,
+    RegistryCodes.BUNDLE_INVALID: status.HTTP_400_BAD_REQUEST,
+}
+
+#: The largest bundle the upload route reads.
+_MAX_BUNDLE_BYTES = registry_service.MAX_BUNDLE_BYTES
 
 
 def _refresh_read(result: registry_service.RefreshResult) -> RegistryRefreshRead:
     return RegistryRefreshRead(
-        serial=result.serial,
-        key_id=result.key_id,
+        root_version=result.root_version,
         upserted=result.upserted,
         withdrawn=result.withdrawn,
         unchanged=result.unchanged,
         skipped=[
-            RegistrySkippedListing(public_id=item.public_id, code=item.code)
+            RegistrySkippedListing(name=item.name, code=item.code)
             for item in result.skipped
         ],
     )
 
 
-@router.get("/registry/status", response_model=RegistryStatusRead)
-async def read_registry_status(
-    session: SystemSessionDep, current_user: ConfigManageDep
-) -> RegistryStatusRead:
-    """Where this deployment stands with its configured registry.
-
-    Answers "is anything coming from a registry, and did the last refresh
-    work". With no registry configured every field is empty — the feature is
-    absent rather than idle.
-    """
-    if not registry_service.registry_configured():
-        return RegistryStatusRead(configured=False)
-    state = await registry_service.read_registry_state(session)
-    if state is None:
-        return RegistryStatusRead(
-            configured=True, registry_url=settings.MARKETPLACE_REGISTRY_URL
-        )
-    return RegistryStatusRead(
-        configured=True,
-        registry_url=state.registry_url,
-        key_id=state.key_id,
-        last_serial=state.last_serial,
-        last_generated_at=state.last_generated_at,
-        last_fetched_at=state.last_fetched_at,
-        last_success_at=state.last_success_at,
-        last_error=state.last_error,
-        listing_count=state.listing_count,
+def _refused(code: str, *, fetched: bool) -> HTTPException:
+    """A refusal's answer. The repository itself failing is the registry's
+    problem on a fetch (502) and the upload's on a bundle (422)."""
+    fallback = (
+        status.HTTP_502_BAD_GATEWAY
+        if fetched
+        else status.HTTP_422_UNPROCESSABLE_CONTENT
     )
+    return HTTPException(status_code=_REFUSAL_STATUS.get(code, fallback), detail=code)
 
 
-@router.post("/registry/refresh", response_model=RegistryRefreshRead)
-async def refresh_registry_now(
-    session: SystemSessionDep, current_user: ConfigManageDep
-) -> RegistryRefreshRead:
-    """Fetch and apply the registry index now.
-
-    The same code path the background refresh runs, so there is one set of
-    checks rather than a shortcut for the button. A refresh already in flight
-    is reported rather than queued, and a refusal answers with the code naming
-    it so the reason is legible instead of "it didn't work".
-    """
-    result = await registry_service.refresh_registry(session, force=True)
-    if result.code == MarketplaceRegistryMessages.NOT_CONFIGURED:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=result.code
-        )
-    if result.code == MarketplaceRegistryMessages.REFRESH_IN_PROGRESS:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=result.code)
-    if result.code is not None:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=result.code)
+async def _record_refresh(
+    session: AsyncSession,
+    result: registry_service.RefreshResult,
+    *,
+    actor_user_id: int,
+    source: str,
+) -> None:
     # The refresh owns its own transaction, so the record follows it on this
     # session rather than riding the write it describes.
     await audit_service.record(
         session,
         event_type=AuditEventType.MARKETPLACE_CATALOG_REFRESHED,
-        actor_user_id=current_user.id,
+        actor_user_id=actor_user_id,
         detail={
-            "source": "registry",
+            "source": source,
             "published": result.upserted,
             "withdrawn": result.withdrawn,
             "skipped": len(result.skipped),
         },
     )
     await session.commit()
+
+
+@router.get("/registry/status", response_model=RegistryStatusRead)
+async def read_registry_status(
+    session: SystemSessionDep, current_user: ConfigManageDep
+) -> RegistryStatusRead:
+    """Where this deployment stands with the registry (``config.manage``).
+
+    The switch, whether this build has a trusted root, and how the last
+    refresh or bundle went.
+    """
+    enabled = await app_settings_service.marketplace_registry_enabled(session)
+    state = await registry_service.read_status(session, enabled=enabled)
+    return RegistryStatusRead(
+        enabled=state.enabled,
+        configured=state.configured,
+        custom_root=state.custom_root,
+        registry_url=state.registry_url,
+        root_version=state.root_version,
+        expires_at=state.expires_at,
+        last_source=state.source,
+        last_attempt_at=state.last_attempt_at,
+        last_success_at=state.last_success_at,
+        last_error=state.last_error,
+        listing_count=state.listing_count,
+    )
+
+
+@router.put("/registry/settings", response_model=RegistrySettings)
+async def update_registry_settings(
+    payload: RegistrySettings, session: UserSessionDep, owner: ConfigManageDep
+) -> RegistrySettings:
+    """Follow the registry, or stop (``config.manage``). What already arrived
+    stays; switching back on picks up from where it left off."""
+    row = await app_settings_service.update_marketplace_registry_settings(
+        session, enabled=payload.enabled, actor_user_id=owner.id
+    )
+    return RegistrySettings(enabled=row.marketplace_registry_enabled)
+
+
+@router.post("/registry/refresh", response_model=RegistryRefreshRead)
+async def refresh_registry_now(
+    session: SystemSessionDep, current_user: ConfigManageDep
+) -> RegistryRefreshRead:
+    """Fetch, verify and apply the registry now (``config.manage``).
+
+    The same code the background refresh runs. A refresh already in flight is
+    reported rather than queued, and a refusal answers with the code naming it.
+    """
+    result = await registry_service.refresh_registry(session, force=True)
+    if result.code is not None:
+        raise _refused(result.code, fetched=True)
+    await _record_refresh(
+        session, result, actor_user_id=current_user.id, source="registry"
+    )
+    return _refresh_read(result)
+
+
+@router.post("/registry/bundle", response_model=RegistryRefreshRead)
+async def upload_registry_bundle(
+    file: Annotated[UploadFile, File()],
+    session: SystemSessionDep,
+    owner: ConfigManageDep,
+) -> RegistryRefreshRead:
+    """Apply a registry bundle (``config.manage``).
+
+    A tar of a registry's ``metadata/`` and ``targets/`` directories, for a
+    deployment that cannot reach the registry. It is verified against the
+    trusted root exactly as a fetched repository is, and applied the same way.
+    """
+    try:
+        archive = await read_upload_bounded(file, _MAX_BUNDLE_BYTES)
+    except FileTooLargeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=RegistryCodes.BUNDLE_INVALID,
+        ) from exc
+    try:
+        result = await registry_service.apply_bundle(session, archive)
+    except registry_service.RegistryError as exc:
+        raise _refused(exc.code, fetched=False) from exc
+    if result.code is not None:
+        raise _refused(result.code, fetched=False)
+    await _record_refresh(
+        session, result, actor_user_id=owner.id, source="registry_bundle"
+    )
     return _refresh_read(result)
 
 
