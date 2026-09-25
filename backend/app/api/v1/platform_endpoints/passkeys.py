@@ -45,7 +45,8 @@ from app.api.v1.platform_endpoints.session_opening import (
 )
 from app.core.audit_events import AuditEventType
 from app.core.login_methods import LoginMethod
-from app.core.messages import AuthMessages
+from app.core.messages import AuthMessages, NativeMessages
+from app.core.transitions import NATIVE_SIGN_IN_CODE
 from app.core.rate_limit import get_user_or_ip_key, limiter
 from app.core.security import has_usable_password
 from app.db.session import get_system_session, get_session
@@ -74,6 +75,7 @@ from app.services.auth import native_handoff
 from app.services.auth import identity as identity_service
 from app.services.auth import passkeys as passkey_service
 from app.services.auth.assurance import passkey_amr
+from app.services.platform import app_settings as app_settings_service
 from app.services.platform import auth_posture
 from app.services.platform import user_tokens
 
@@ -561,6 +563,14 @@ async def finish_passkey_sign_in(
         )
     if payload.mobile:
         # An app bundle from before the code flow began this sign-in.
+        if await app_settings_service.transition_over(
+            system_session, NATIVE_SIGN_IN_CODE
+        ):
+            await system_session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=NativeMessages.APP_UPDATE_REQUIRED,
+            )
         device_name = payload.device_name.strip() or _DEFAULT_DEVICE_NAME
         device_token = await user_tokens.create_device_token(
             system_session,

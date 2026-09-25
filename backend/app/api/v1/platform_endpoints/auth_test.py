@@ -10,7 +10,7 @@ Tests the auth API endpoints including:
 """
 
 import secrets
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
@@ -24,6 +24,7 @@ from app.core.encryption import (
     hash_email,
 )
 from app.core.messages import OidcMessages
+from app.core.transitions import NATIVE_SIGN_IN_CODE
 from app.core.security import (
     REFRESH_COOKIE_NAME,
     SESSION_COOKIE_NAME,
@@ -36,6 +37,7 @@ from app.models.platform.auth_session import AuthSession
 from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.user_email import UserEmail
 from app.services.auth import addresses
+from app.services.platform import app_settings as app_settings_service
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.user import User, UserStatus
 from app.services.auth.oidc.flow_state import s256
@@ -2118,17 +2120,39 @@ async def test_oidc_callback_mobile_flow_hands_back_a_code(
     assert auth_session.satisfied_providers == [provider.id]
     assert auth_session.device_name == "Pixel"
 
-    legacy = await _run_oidc_flow(
-        client,
-        idp,
-        id_token_claims=claims,
-        login_params={"mobile": "true", "device_name": "Pixel"},
+    async def legacy_redirect() -> dict[str, str]:
+        legacy = await _run_oidc_flow(
+            client,
+            idp,
+            id_token_claims=claims,
+            login_params={"mobile": "true", "device_name": "Pixel"},
+        )
+        location = urlsplit(legacy.headers["location"])
+        return {k: v[0] for k, v in parse_qs(location.query).items()}
+
+    # The grace runs from this deployment's first boot with the code flow, and
+    # booting again does not restart it.
+    await app_settings_service.record_running_version(
+        session, version="0.99.0", transitions=[NATIVE_SIGN_IN_CODE.name]
     )
-    query = {
-        k: v[0] for k, v in parse_qs(urlsplit(legacy.headers["location"]).query).items()
-    }
+    started = (await app_settings_service.get_app_settings(session)).transitions
+    await app_settings_service.record_running_version(
+        session, version="0.99.1", transitions=[NATIVE_SIGN_IN_CODE.name]
+    )
+    row = await app_settings_service.get_app_settings(session)
+    assert row.transitions == started
+    query = await legacy_redirect()
     assert query["token_type"] == "device_token"
     assert query["token"]
+
+    row.transitions = {
+        NATIVE_SIGN_IN_CODE.name: (
+            datetime.now(timezone.utc) - NATIVE_SIGN_IN_CODE.grace - timedelta(days=1)
+        ).isoformat()
+    }
+    session.add(row)
+    await session.commit()
+    assert await legacy_redirect() == {"error": "NATIVE_APP_UPDATE_REQUIRED"}
 
 
 @pytest.mark.integration

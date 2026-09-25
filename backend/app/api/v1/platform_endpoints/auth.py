@@ -41,8 +41,10 @@ from app.core.encryption import (
     SALT_OIDC_CLIENT_SECRET,
 )
 from app.core.login_methods import LoginMethod
+from app.core.transitions import NATIVE_SIGN_IN_CODE
 from app.core.messages import (
     AuthMessages,
+    NativeMessages,
     OidcMessages,
 )
 from app.core.password_policy import enforce_password_policy
@@ -1913,6 +1915,10 @@ async def _complete_provider_login(
 
     if is_mobile and not completion.app_challenge:
         # An app bundle from before the code flow began this sign-in.
+        if await app_settings_service.transition_over(
+            system_session, NATIVE_SIGN_IN_CODE
+        ):
+            return _error_redirect(True, NativeMessages.APP_UPDATE_REQUIRED)
         device_name = completion.device_name or "Mobile Device"
         device_token = await user_tokens.create_device_token(
             system_session,

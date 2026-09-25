@@ -96,8 +96,7 @@ def upgrade() -> None:
     op.execute(f"GRANT SELECT ON {MEMBERS} TO app_install_base")
 
     op.execute(
-        "GRANT SELECT, INSERT, UPDATE ON TABLE public.notifications "
-        "TO app_install_base"
+        "GRANT SELECT, INSERT, UPDATE ON TABLE public.notifications TO app_install_base"
     )
     op.execute(
         "GRANT USAGE, SELECT ON SEQUENCE public.notifications_id_seq "
@@ -105,8 +104,7 @@ def upgrade() -> None:
     )
     op.execute("GRANT INSERT ON TABLE public.email_outbox TO app_install_base")
     op.execute(
-        "GRANT USAGE, SELECT ON SEQUENCE public.email_outbox_id_seq "
-        "TO app_install_base"
+        "GRANT USAGE, SELECT ON SEQUENCE public.email_outbox_id_seq TO app_install_base"
     )
     op.execute("GRANT SELECT ON TABLE public.app_settings TO app_install_base")
 

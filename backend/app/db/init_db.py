@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
 from app.core.security import app_platform_signing_enabled, get_password_hash
+from app.core.transitions import TRANSITIONS
 from app.core.version import __version__, get_version
 from app.db.schema_provisioning import (
     deprovision_guild,
@@ -377,7 +378,9 @@ async def prepare_database() -> None:
     try:
         async with SystemSessionLocal() as version_session:
             previous = await app_settings_service.record_running_version(
-                version_session, version=__version__
+                version_session,
+                version=__version__,
+                transitions=[transition.name for transition in TRANSITIONS],
             )
         if previous and previous != __version__:
             logger.info("upgraded from %s to %s", previous, __version__)
