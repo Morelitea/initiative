@@ -69,6 +69,7 @@ from app.models.platform.publisher import (
     publisher_prefix,
 )
 from app.services import audit as audit_service
+from app.services.marketplace import vendor_values as vendor_values_service
 from app.services.marketplace import media
 from app.services.marketplace import publishers as publishers_service
 from app.services.marketplace import registrations as registrations_service
@@ -611,6 +612,7 @@ async def _apply_registration(
             created_at=context.now,
             updated_at=context.now,
         )
+        await vendor_values_service.sync_required(session, row)
         session.add(row)
         await session.flush()
         await audit_service.record(
@@ -662,6 +664,7 @@ async def _apply_registration(
             if new_base
             else []
         )
+    await vendor_values_service.sync_required(session, row)
     row.updated_at = context.now
     session.add(row)
     changed = audit_service.changed_fields(

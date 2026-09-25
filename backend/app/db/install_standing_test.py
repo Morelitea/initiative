@@ -577,6 +577,7 @@ async def test_a_new_transaction_replays_the_install(
                 "jwks",
                 "jwks_uri",
                 "base_url",
+                "vendor_ready",
             },
         ),
         # Whether the registration's publisher is on.

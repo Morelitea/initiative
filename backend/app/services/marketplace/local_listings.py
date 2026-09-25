@@ -35,6 +35,7 @@ from app.models.platform.marketplace import (
     MarketplaceListing,
     MarketplaceListingVersion,
 )
+from app.services.marketplace import vendor_values as vendor_values_service
 from app.services.marketplace import catalog as catalog_service
 from app.services.marketplace.catalog import CatalogError, DEFAULT_AVATAR_URL
 from app.services.marketplace.definitions import LOCAL_SOURCE
@@ -260,6 +261,9 @@ async def approve_version(
     listing.updated_at = datetime.now(timezone.utc)
     session.add(listing)
     await session.flush()
+    await vendor_values_service.sync_required_for_listing(
+        session, listing.uid, row.definition
+    )
     return listing
 
 

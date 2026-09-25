@@ -27,10 +27,16 @@ Some columns exist only because of that split:
   every guild has it and guild admins cannot remove it. The operator's kill
   switch (``enabled``) still outranks it.
 
+* ``vendor_values`` — what the operator supplies for the app's vendor client,
+  as the listing's manifest declares it under ``vendor``: one Fernet
+  ciphertext per field. ``vendor_ready`` is whether every field the manifest
+  requires (``vendor_required``) holds one, computed by the database.
+
 **Live** is one rule, stated once in :func:`registration_live_sql`: the
-registration is enabled, its publisher is enabled, it has a location, and it
-has a key set to verify against. The install standing, the registration
-snapshot and every channel that reads a single row ask it in that form.
+registration is enabled, its publisher is enabled, it has a location, it
+has a key set to verify against, and its required vendor values are set.
+The install standing, the registration snapshot and every channel that reads
+a single row ask it in that form.
 
 **Where it came from** is ``source``. An operator's row (``apps.manage``
 endpoints, or ``APP_SERVICES_CONFIG`` at boot) is theirs entirely. A registry
@@ -52,6 +58,7 @@ from pydantic import ConfigDict
 from sqlalchemy import (
     Boolean,
     Column,
+    Computed,
     DateTime,
     ForeignKey,
     Integer,
@@ -103,9 +110,10 @@ def registration_live_sql(
     """Whether a registration is live, as a SQL boolean over one registration
     row and its publisher's row, named by ``registration`` and ``publisher``.
 
-    Enabled, its publisher enabled, a location, and a key set to verify
-    against: a pasted set with at least one key, or a key set address. ``-> 0``
-    reads the first key and is null for an empty or absent set.
+    Enabled, its publisher enabled, a location, a key set to verify against
+    (a pasted set with at least one key, or a key set address), and every
+    required vendor value set. ``-> 0`` reads the first key and is null for an
+    empty or absent set.
 
     Only a registry container registration can lack a location: the registry
     names the image, and the operator says where it runs.
@@ -113,6 +121,7 @@ def registration_live_sql(
     return (
         f"({registration}.enabled AND {publisher}.enabled"
         f" AND {registration}.base_url IS NOT NULL"
+        f" AND {registration}.vendor_ready"
         f" AND ({registration}.jwks_uri IS NOT NULL"
         f" OR {registration}.jwks -> 'keys' -> 0 IS NOT NULL))"
     )
@@ -218,6 +227,28 @@ class AppServiceRegistration(SQLModel, table=True):
     root_is_builtin: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+    # What the operator supplies for the app's vendor client, by the key the
+    # listing's manifest declares under ``vendor``. Every value is a Fernet
+    # ciphertext under ``SALT_APP_VENDOR``, secret or not.
+    vendor_values: dict = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default=text("'{}'::jsonb")),
+    )
+    # The keys the listing's manifest marks required, kept in step whenever the
+    # registration or its listing is written.
+    vendor_required: List[str] = Field(
+        default_factory=list,
+        sa_column=Column(ARRAY(Text), nullable=False, server_default=text("'{}'")),
+    )
+    # Whether every required key holds a value. Computed by the database.
+    vendor_ready: Optional[bool] = Field(
+        default=None,
+        sa_column=Column(
+            Boolean,
+            Computed("vendor_values ?& vendor_required", persisted=True),
+            nullable=False,
+        ),
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

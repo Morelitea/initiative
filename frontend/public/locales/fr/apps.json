@@ -90,8 +90,10 @@
     "status": {
       "pending": "En attente de finalisation",
       "connected": "Connecté",
-      "blocked": "Bloqué"
-    }
+      "blocked": "Bloqué",
+      "expired": "Expirée"
+    },
+    "expired": "Cette connexion a expiré. Connectez-vous à nouveau pour continuer à l'utiliser."
   },
   "members": {
     "title": "Membres",
@@ -205,6 +207,10 @@
     "awaiting_approval": {
       "title": "En attente d'une approbation",
       "body": "L'autre service a demandé à une personne propriétaire de cette organisation d'approuver cette app. Rien n'a échoué et rien n'est encore configuré : une fois approuvée, reconnectez-vous depuis les réglages de l'app."
+    },
+    "sign_in_required": {
+      "title": "Connectez-vous pour terminer",
+      "body": "Terminez la connexion dans le navigateur où vous êtes connecté à Initiative, en tant que la personne qui l'a commencée."
     },
     "closeTab": "Vous pouvez fermer cet onglet."
   },

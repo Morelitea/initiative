@@ -42,6 +42,31 @@ def _label(text: str = "A label") -> dict[str, str]:
     return {"en": text}
 
 
+#: What an operator supplies for the vendor client, as a manifest declares it.
+VENDOR = {
+    "label": {"en": "Widget vendor"},
+    "fields": [
+        {"key": "client_id", "type": "string", "required": True, "label": {"en": "Id"}},
+        {"key": "client_secret", "type": "secret", "label": {"en": "Secret"}},
+        {"key": "app_slug", "type": "string", "label": {"en": "Slug"}},
+    ],
+}
+
+#: A flow Initiative runs, naming the vendor's client.
+FLOW = {
+    "type": "oauth2",
+    "authorize_url": "https://vendor.test/oauth/authorize",
+    "token_url": "https://vendor.test/oauth/token",
+    "client_id": "{vendor.client_id}",
+    "client_secret": "{vendor.client_secret}",
+    "after_connect": True,
+}
+
+
+def _managed(key: str = "owner") -> dict:
+    return {"key": key, "type": "string", "label": _label(), "managed": True}
+
+
 def _service(**overrides) -> dict:
     """A minimal service app: declares nothing, ships nothing, and is valid.
 
@@ -231,13 +256,50 @@ class TestConnections:
                 connections=[{"id": "shop", "scope": "global", "label": _label()}]
             )
 
-    def test_an_interactive_connection_declares_where_to_start(self):
-        with pytest.raises(ListingDefinitionError, match="connect_path"):
+    def test_an_interactive_connection_declares_a_flow(self):
+        with pytest.raises(ListingDefinitionError, match="declares a flow"):
             _normalize(
                 connections=[
                     {"id": "account", "scope": "interactive", "label": _label()}
                 ]
             )
+
+    def test_the_retired_connect_path_is_no_way_in(self):
+        """The app no longer runs a flow of its own: a connection naming only
+        where the app's page was has no flow, and is refused as one."""
+        with pytest.raises(ListingDefinitionError, match="declares a flow"):
+            _normalize(
+                connections=[
+                    {
+                        "id": "account",
+                        "scope": "interactive",
+                        "label": _label(),
+                        "connect_path": "/connect",
+                    }
+                ]
+            )
+
+    def test_a_member_flow_is_kept_as_declared(self):
+        [connection] = _normalize(
+            vendor=VENDOR,
+            connections=[
+                {
+                    "id": "account",
+                    "scope": "interactive",
+                    "label": _label(),
+                    "fields": [_managed("login")],
+                    "flow": {**FLOW, "revoke": "hook", "scopes": ["read"]},
+                }
+            ],
+        )["connections"]
+        assert connection["flow"] == {
+            **FLOW,
+            "revoke": "hook",
+            "scopes": ["read"],
+            "pkce": True,
+            "authorize_params": {},
+        }
+        assert "connect_path" not in connection
 
     def test_a_guild_credential_may_come_from_a_vendor_flow(self):
         """An admin runs the vendor's install once, for the whole guild.
@@ -245,69 +307,181 @@ class TestConnections:
         The alternative this replaces is an admin retyping an organization's
         name into a text box and hoping it names the same organization somebody
         installed at the vendor. Nothing about that is per-member, so the scope
-        stays ``static``; the ``connect_path`` is how the value arrives.
+        stays ``static``; the ``flow`` is how the value arrives.
         """
         [connection] = _normalize(
+            vendor=VENDOR,
             connections=[
                 {
                     "id": "workspace",
                     "scope": "static",
                     "label": _label(),
-                    "connect_path": "/install/github",
-                    "fields": [
-                        {
-                            "key": "owner",
-                            "type": "string",
-                            "label": _label(),
-                            "managed": True,
-                        }
-                    ],
+                    "flow": {
+                        **FLOW,
+                        "install_url": (
+                            "https://vendor.test/apps/{vendor.app_slug}/install"
+                        ),
+                    },
+                    "fields": [_managed()],
                 }
-            ]
+            ],
         )["connections"]
-        assert connection["connect_path"] == "/install/github"
+        assert connection["flow"]["install_url"].endswith("/{vendor.app_slug}/install")
         assert connection["fields"][0]["managed"] is True
 
-    def test_a_guild_flow_needs_somewhere_to_put_its_result(self):
-        """Every field typed means the app can never write the answer back.
-
-        A static connection is satisfied by the values it holds, and only a
-        ``managed`` field is one the app may write. So a flow with none can run
-        to completion and leave the install exactly as unconfigured as it was.
-        """
-        with pytest.raises(ListingDefinitionError, match="managed field"):
+    def test_a_flow_holds_only_managed_values(self):
+        """Its values come from the app's after_connect hook; a typed field
+        would be one nobody fills in."""
+        with pytest.raises(ListingDefinitionError, match="only managed values"):
             _normalize(
+                vendor=VENDOR,
                 connections=[
                     {
                         "id": "shop",
                         "scope": "static",
                         "label": _label(),
-                        "connect_path": "/connect",
+                        "flow": FLOW,
                         "fields": [
                             {"key": "token", "type": "secret", "label": _label()}
                         ],
                     }
-                ]
+                ],
             )
 
-    def test_a_connect_path_is_a_path_and_not_an_address(self):
-        for value in (
-            "https://widget.test/connect",
-            "//widget.test/connect",
-            "/connect/../../admin",
-            "connect",
-        ):
-            with pytest.raises(ListingDefinitionError, match="connect_path"):
-                _normalize(
-                    connections=[
-                        {
-                            "id": "account",
-                            "scope": "interactive",
-                            "label": _label(),
-                            "connect_path": value,
-                        }
-                    ]
-                )
+    def test_managed_values_need_the_hook_that_returns_them(self):
+        with pytest.raises(ListingDefinitionError, match="after_connect"):
+            _normalize(
+                vendor=VENDOR,
+                connections=[
+                    {
+                        "id": "account",
+                        "scope": "interactive",
+                        "label": _label(),
+                        "flow": {**FLOW, "after_connect": False},
+                        "fields": [_managed("login")],
+                    }
+                ],
+            )
+
+    @pytest.mark.parametrize(
+        ("change", "problem"),
+        [
+            ({"authorize_url": "http://vendor.test/oauth"}, "https address"),
+            ({"client_id": "{vendor.nope}"}, "vendor block does not declare"),
+            (
+                {"token_url": "https://vendor.test/{tenant}/token"},
+                "not a field of this connection",
+            ),
+            ({"revoke": "rfc7009"}, "revoke_url"),
+            ({"revoke": "telegram"}, "unknown revoke"),
+            ({"type": "saml"}, "unknown type"),
+        ],
+        ids=[
+            "plain http",
+            "an undeclared vendor value",
+            "an undeclared field",
+            "rfc7009 with nowhere to post",
+            "an unknown revocation",
+            "an unknown flow",
+        ],
+    )
+    def test_a_flow_that_cannot_run_is_refused(self, change, problem):
+        with pytest.raises(ListingDefinitionError, match=problem):
+            _normalize(
+                vendor=VENDOR,
+                connections=[
+                    {
+                        "id": "account",
+                        "scope": "interactive",
+                        "label": _label(),
+                        "flow": {**FLOW, **change},
+                        "fields": [_managed("login")],
+                    }
+                ],
+            )
+
+    def test_an_install_page_is_a_guild_connection_s(self):
+        with pytest.raises(ListingDefinitionError, match="install page"):
+            _normalize(
+                vendor=VENDOR,
+                connections=[
+                    {
+                        "id": "account",
+                        "scope": "interactive",
+                        "label": _label(),
+                        "flow": {**FLOW, "install_url": "https://vendor.test/i"},
+                        "fields": [_managed("login")],
+                    }
+                ],
+            )
+
+    def test_a_minted_token_belongs_to_a_guild_connection(self):
+        token = {
+            "type": "jwt_bearer",
+            "exchange_url": "https://vendor.test/{owner}/token",
+            "iss": "{vendor.client_id}",
+            "key": "{vendor.client_secret}",
+        }
+        [connection] = _normalize(
+            vendor=VENDOR,
+            connections=[
+                {
+                    "id": "workspace",
+                    "scope": "static",
+                    "label": _label(),
+                    "flow": FLOW,
+                    "fields": [_managed()],
+                    "token": token,
+                }
+            ],
+        )["connections"]
+        assert connection["token"] == {**token, "alg": "RS256", "lifetime": 540}
+
+        with pytest.raises(ListingDefinitionError, match="static connection"):
+            _normalize(
+                vendor=VENDOR,
+                connections=[
+                    {
+                        "id": "account",
+                        "scope": "interactive",
+                        "label": _label(),
+                        "flow": FLOW,
+                        "fields": [_managed()],
+                        "token": token,
+                    }
+                ],
+            )
+
+    def test_a_field_may_not_take_a_token_key(self):
+        with pytest.raises(ListingDefinitionError, match="keeps its tokens"):
+            _normalize(
+                vendor=VENDOR,
+                connections=[
+                    {
+                        "id": "account",
+                        "scope": "interactive",
+                        "label": _label(),
+                        "flow": FLOW,
+                        "fields": [_managed("access_token")],
+                    }
+                ],
+            )
+
+    def test_a_vendor_block_declares_its_fields(self):
+        definition = _normalize(vendor=VENDOR)
+        assert definition["vendor"] == {
+            "fields": [
+                {**field, "required": field.get("required") is True}
+                for field in VENDOR["fields"]
+            ],
+            "label": VENDOR["label"],
+        }
+        with pytest.raises(ListingDefinitionError, match="vendor field"):
+            _normalize(
+                vendor={
+                    "fields": [{"key": "n", "type": "int", "label": _label()}],
+                }
+            )
 
     @pytest.mark.parametrize(
         ("field", "problem"),
@@ -853,9 +1027,10 @@ class TestCanonicalShape:
             "default_name",
         }
 
-    def test_a_definition_holds_no_address_anywhere(self):
+    def test_a_definition_holds_no_address_of_the_app(self):
         """The governing rule, asserted on a manifest that tries: an app says
-        which route, and the deployment's registration says where."""
+        which route, and the deployment's registration says where. The one kind
+        of address it may hold is its vendor's, in a flow Initiative runs."""
         definition = _normalize(
             features=["endpoints", "embeds"],
             service={
@@ -868,9 +1043,10 @@ class TestCanonicalShape:
                     "id": "shop",
                     "scope": "interactive",
                     "label": _label(),
-                    "connect_path": "/connect/shop",
+                    "flow": {**FLOW, "after_connect": False},
                 }
             ],
+            vendor=VENDOR,
             endpoints=[
                 {"id": READ_ID, "direction": "read", "base_url": "http://x.test"}
             ],
@@ -885,7 +1061,8 @@ class TestCanonicalShape:
         )
         rendered = repr(definition)
         assert "http://" not in rendered
-        assert "https://" not in rendered
+        assert "widget.test" not in rendered
+        assert "x.test" not in rendered
         assert "default_url" not in definition["service"]
 
     def test_the_whole_document_is_size_capped(self):

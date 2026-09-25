@@ -14,6 +14,7 @@ from app.models.platform.app_service_registration import AppServiceRegistration
 from app.models.platform.user import UserRole
 from app.testing.factories import (
     create_app_service_registration,
+    create_marketplace_listing,
     create_user,
     get_auth_headers,
 )
@@ -403,3 +404,154 @@ async def test_a_missing_publisher_is_a_404(client: AsyncClient, session: AsyncS
 
     assert response.status_code == 404
     assert response.json()["detail"] == AppServiceMessages.PUBLISHER_NOT_FOUND
+
+
+# --- vendor values -------------------------------------------------------------
+
+
+VENDOR_DEFINITION = {
+    "app_kind": "service",
+    "service": {"public_id": "acme.widgets", "protocol": 1},
+    "features": [],
+    "vendor": {
+        "label": {"en": "Widget client"},
+        "fields": [
+            {
+                "key": "client_id",
+                "type": "string",
+                "required": True,
+                "label": {"en": "Client id"},
+            },
+            {
+                "key": "client_secret",
+                "type": "secret",
+                "required": True,
+                "label": {"en": "Client secret"},
+            },
+        ],
+    },
+}
+
+
+async def _vendor_listing(session: AsyncSession) -> None:
+    await create_marketplace_listing(
+        session,
+        uid=LISTING_UID,
+        public_id="acme.widgets",
+        kind="app",
+        definition=VENDOR_DEFINITION,
+    )
+
+
+async def test_the_form_shows_the_fields_the_listing_asks_for(
+    client: AsyncClient, session: AsyncSession
+):
+    await _vendor_listing(session)
+    headers = await _owner_headers(session)
+    row = await _seed(session)
+
+    body = (await client.get(f"{BASE}{row.id}", headers=headers)).json()
+
+    assert [field["key"] for field in body["vendor_fields"]] == [
+        "client_id",
+        "client_secret",
+    ]
+    assert body["vendor_fields"][1]["type"] == "secret"
+    assert body["vendor_set"] == []
+    assert body["connection_callback_url"] == (
+        f"{settings.APP_URL.rstrip('/')}/api/v1/app-connections/callback"
+    )
+    assert body["connection_setup_url"] == (
+        f"{settings.APP_URL.rstrip('/')}/api/v1/app-connections/setup"
+    )
+
+
+async def test_a_secret_is_written_and_shown_only_as_set(
+    client: AsyncClient, session: AsyncSession
+):
+    await _vendor_listing(session)
+    headers = await _owner_headers(session)
+    row = await _seed(session)
+
+    response = await client.patch(
+        f"{BASE}{row.id}",
+        headers=headers,
+        json={"vendor_values": {"client_id": "widget-app", "client_secret": "s3cr3t"}},
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["vendor_values"] == {"client_id": "widget-app"}
+    assert body["vendor_set"] == ["client_id", "client_secret"]
+    assert body["vendor_ready"] is True
+    assert body["live"] is True
+    assert "s3cr3t" not in response.text
+
+    # Left out, a secret is kept; sent empty, it is cleared.
+    kept = await client.patch(
+        f"{BASE}{row.id}",
+        headers=headers,
+        json={"vendor_values": {"client_id": "widget-app-2"}},
+    )
+    assert kept.json()["vendor_set"] == ["client_id", "client_secret"]
+    cleared = await client.patch(
+        f"{BASE}{row.id}",
+        headers=headers,
+        json={"vendor_values": {"client_secret": ""}},
+    )
+    assert cleared.json()["vendor_set"] == ["client_id"]
+
+
+async def test_a_registration_is_not_live_until_its_required_values_are_set(
+    client: AsyncClient, session: AsyncSession
+):
+    await _vendor_listing(session)
+    headers = await _owner_headers(session)
+    row = await _seed(session)
+
+    body = (
+        await client.patch(
+            f"{BASE}{row.id}",
+            headers=headers,
+            json={"vendor_values": {"client_id": "widget-app"}},
+        )
+    ).json()
+
+    assert body["vendor_ready"] is False
+    assert body["live"] is False
+
+
+async def test_a_value_the_listing_does_not_ask_for_is_refused(
+    client: AsyncClient, session: AsyncSession
+):
+    await _vendor_listing(session)
+    headers = await _owner_headers(session)
+    row = await _seed(session)
+
+    response = await client.patch(
+        f"{BASE}{row.id}",
+        headers=headers,
+        json={"vendor_values": {"webhook_secret": "x"}},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == AppServiceMessages.UNKNOWN_VENDOR_FIELD
+
+
+async def test_a_registry_registration_takes_its_vendor_values(
+    client: AsyncClient, session: AsyncSession
+):
+    """The registry states what an app is; the vendor client it uses here is
+    this deployment's, like its address."""
+    await _vendor_listing(session)
+    headers = await _owner_headers(session)
+    row = await _seed(session, source="registry")
+
+    response = await client.patch(
+        f"{BASE}{row.id}",
+        headers=headers,
+        json={"vendor_values": {"client_id": "a", "client_secret": "b"}},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["vendor_ready"] is True

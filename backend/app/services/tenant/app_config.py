@@ -15,13 +15,18 @@ Two custody rules run through everything here:
   is written by the app itself when it completes a vendor flow, so this path
   refuses one rather than letting a form overwrite it.
 
-A guild-wide connection is not always typed. One that declares a
-``connect_path`` is filled by the app instead: a guild admin runs the vendor's
-own flow once — an organization-wide install, on the vendor's page, where
-somebody who owns the account grants what it may see — and the app writes what
-came back into that connection's managed fields. The scope is unchanged, since
-the credential is still the guild's; what changes is who fills it and how, and
-:func:`guild_connection_ref` is the handle the two ends are joined by.
+A guild-wide connection is not always typed. One that declares a ``flow`` is
+established by Initiative instead
+(:mod:`app.services.tenant.app_connection_flows`): a guild admin runs the
+vendor's own flow once — an organization-wide install, on the vendor's page,
+where somebody who owns the account grants what it may see — and the app's
+``after_connect`` hook says what goes into that connection's managed fields.
+The scope is unchanged, since the credential is still the guild's; what
+changes is who fills it and how, and :func:`guild_connection_ref` is the
+handle the app asks for its token by.
+
+A flow's tokens are held beside the declared fields under reserved keys
+(:data:`RESERVED_TOKEN_KEYS`), which no manifest declares and no form writes.
 
 Satisfaction is computed from presence alone — which fields have values. This
 build never inspects a credential, calls a vendor, or learns a scope; whether a
@@ -39,6 +44,7 @@ from app.core.messages import GuildAppMessages
 from app.services.tenant.app_connections import mint_connection_ref
 
 __all__ = [
+    "RESERVED_TOKEN_KEYS",
     "AppConfigError",
     "ConfigState",
     "MAX_CONFIG_VALUE_LENGTH",
@@ -67,6 +73,13 @@ MAX_SECRET_VALUE_LENGTH = 16_000
 
 #: What an app may report back about the configuration it was handed.
 CONFIG_STATES: frozenset[str] = frozenset({"unverified", "ok", "invalid"})
+
+#: Where a connection's flow keeps its tokens, beside its declared fields: the
+#: two tokens sealed in the secrets map, the two expiry times (epoch seconds)
+#: in the plain map.
+RESERVED_TOKEN_KEYS: frozenset[str] = frozenset(
+    {"access_token", "refresh_token", "expires_at", "refresh_expires_at"}
+)
 
 
 class AppConfigError(Exception):
@@ -112,14 +125,15 @@ def connection_by_id(
 
 
 def runs_vendor_flow(connection: dict[str, Any] | None) -> bool:
-    """Whether this connection is filled by the app rather than by typing.
+    """Whether this connection is established by a vendor flow rather than by
+    typing.
 
-    The question a ``connect_path`` answers, asked of either scope. The scope
-    answers a different one — whose credential comes back — and the two are
-    independent: a member authorizing their own account and an admin installing
-    for the whole guild are the same flow run by different people.
+    The question a ``flow`` answers, asked of either scope. The scope answers a
+    different one — whose credential comes back — and the two are independent:
+    a member authorizing their own account and an admin installing for the
+    whole guild are the same flow run by different people.
     """
-    return bool(connection) and bool(connection.get("connect_path"))
+    return bool(connection) and isinstance(connection.get("flow"), dict)
 
 
 # --- the handle a guild-wide flow is joined by -------------------------------
@@ -320,10 +334,12 @@ def prune_to_definition(
     entirely, which the caller revokes — the app is still holding whatever
     those values bought it.
     """
+    # A connection with a flow keeps its tokens too, under the reserved keys.
     declared: dict[str, set[str]] = {
         connection["id"]: {
             field["key"] for field in _fields(connection) if "key" in field
         }
+        | (RESERVED_TOKEN_KEYS if runs_vendor_flow(connection) else set())
         for connection in definition_connections(definition)
         if isinstance(connection.get("id"), str)
     }
@@ -375,12 +391,17 @@ def is_satisfied(
 ) -> bool:
     """Whether this connection has everything it declared it needs.
 
-    A connection with no required fields is satisfied once anything is set,
-    which is what "connected" means for a flow whose result is one managed
-    token. A connection with no fields at all is never satisfied by presence —
-    only an interactive one can be, and it becomes so when the app writes back.
+    A connection with no required fields is satisfied once anything is set. A
+    flow connection holding the token its flow stored is satisfied once its
+    required managed values are there too.
     """
     present = has_value_map(connection, config, secrets)
+    if runs_vendor_flow(connection) and "access_token" in (secrets or {}):
+        return all(
+            present.get(field["key"], False)
+            for field in _fields(connection)
+            if field.get("required") is True and "key" in field
+        )
     if not present:
         return False
     required = [

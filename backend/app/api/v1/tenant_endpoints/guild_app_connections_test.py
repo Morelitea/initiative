@@ -26,6 +26,7 @@ let go at the vendor. The teardown tests assert on the rows *and* on the
 recorded revocations, because deleting our copy is only half of it.
 """
 
+from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -33,12 +34,14 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.encryption import SALT_APP_CONFIG, encrypt_field
 from app.core.messages import GuildAppMessages, MarketplaceMessages
 from app.models.platform.guild import GuildRole
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
-from app.services.marketplace.app_refs import ensure_app_guild_ref
 from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.services.tenant import app_revocation
+from app.services.tenant.app_connection_flows import callback_url
+from app.services.tenant.app_connections import mint_connection_ref
 from app.testing import (
     create_app_service_registration,
     create_guild_app,
@@ -46,6 +49,7 @@ from app.testing import (
     create_marketplace_listing,
     marketplace_uid,
     route_session_to_guild,
+    sealed_vendor_values,
 )
 
 
@@ -64,30 +68,61 @@ ADMIN_CONNECTION = {
     ],
 }
 
+#: The vendor's own client, as a flow names it.
+VENDOR_FLOW = {
+    "type": "oauth2",
+    "authorize_url": "https://github.test/login/oauth/authorize",
+    "token_url": "https://github.test/login/oauth/access_token",
+    "client_id": "{vendor.client_id}",
+    "client_secret": "{vendor.client_secret}",
+    "scopes": [],
+    "pkce": True,
+    "after_connect": True,
+}
+
 GITHUB_CONNECTION = {
     "id": "github",
     "scope": "interactive",
     "label": {"en": "GitHub"},
-    "connect_path": "/connect/github",
-    "fields": [_field("access_token", "secret", managed=True)],
+    "fields": [_field("login", "string", managed=True)],
+    "flow": {**VENDOR_FLOW, "revoke": "hook"},
 }
 
-#: A guild-wide credential the app fills in rather than the admin typing it.
+#: A guild-wide credential obtained rather than typed.
 #:
 #: The case this exists for is the one no text box can express: a vendor whose
 #: organization-wide install is a page of its own, where somebody who owns the
 #: account chooses what the app may see. What comes back is an installation, and
-#: the app writes down what it says — so every field is ``managed``.
+#: the app's after_connect hook says what it is — so every field is ``managed``.
 WORKSPACE_CONNECTION = {
     "id": "workspace",
     "scope": "static",
     "label": {"en": "Organization"},
-    "connect_path": "/install/github",
     "fields": [_field("owner", "string", managed=True)],
+    "flow": {
+        **VENDOR_FLOW,
+        "install_url": "https://github.test/apps/{vendor.app_slug}/installations/new",
+    },
+}
+
+#: What the manifest asks the operator for.
+VENDOR_BLOCK = {
+    "fields": [
+        {"key": key, "type": "string", "label": {"en": key}}
+        for key in ("client_id", "client_secret", "app_slug")
+    ]
+}
+
+#: What the operator supplied for the vendor client.
+VENDOR_VALUES = {
+    "client_id": "client-123",
+    "client_secret": "client-secret-456",
+    "app_slug": "initiative-test",
 }
 
 SERVICE_DEFINITION = {
     "app_kind": "service",
+    "vendor": VENDOR_BLOCK,
     "service": {"public_id": "tests.shop", "protocol": 1},
     "features": [],
     "connections": [ADMIN_CONNECTION, GITHUB_CONNECTION],
@@ -100,6 +135,7 @@ SERVICE_DEFINITION = {
 #: something else would start asserting around one.
 WORKSPACE_DEFINITION = {
     "app_kind": "service",
+    "vendor": VENDOR_BLOCK,
     "service": {"public_id": "tests.shop", "protocol": 1},
     "features": [],
     "connections": [WORKSPACE_CONNECTION, GITHUB_CONNECTION],
@@ -107,6 +143,7 @@ WORKSPACE_DEFINITION = {
 
 MEMBER_ONLY_DEFINITION = {
     "app_kind": "service",
+    "vendor": VENDOR_BLOCK,
     "service": {"public_id": "tests.gh", "protocol": 1},
     "features": [],
     "connections": [GITHUB_CONNECTION],
@@ -139,10 +176,33 @@ async def wired_app_services(session: AsyncSession):
     """
     return [
         await create_app_service_registration(
-            session, public_id=public_id, base_url=f"https://{slug}.example.test"
+            session,
+            public_id=public_id,
+            base_url=f"https://{slug}.example.test",
+            vendor_values=sealed_vendor_values(VENDOR_VALUES),
         )
         for public_id, slug in (("tests.shop", "shop"), ("tests.gh", "github"))
     ]
+
+
+async def _connected(
+    session: AsyncSession, actor, app, connection_id: str = "github"
+) -> GuildAppUserConnection:
+    """A member connection as a completed flow leaves it."""
+    await route_session_to_guild(session, actor.guild.id)
+    row = GuildAppUserConnection(
+        app_id=app.id,
+        connection_id=connection_id,
+        user_id=actor.user.id,
+        connection_ref=mint_connection_ref(),
+        config={"login": "someone"},
+        config_secrets={"access_token": encrypt_field("gho_member", SALT_APP_CONFIG)},
+        status="connected",
+    )
+    session.add(row)
+    await session.commit()
+    await session.refresh(row)
+    return row
 
 
 @pytest.fixture
@@ -385,7 +445,11 @@ class TestConnect:
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         """The vendor is going to authorize *them*: what the credential reaches
-        is what they already reach, so this is not an admin's decision."""
+        is what they already reach, so this is not an admin's decision.
+
+        Initiative runs the flow, so the address is the vendor's authorization
+        endpoint with this deployment's client and callback, and nothing is
+        stored until the vendor sends the member back."""
         a = await acting_user(guild_role=GuildRole.admin)
         app = await _install(session, a)
         member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
@@ -396,84 +460,27 @@ class TestConnect:
         )
         assert response.status_code == 200, response.text
         body = response.json()
-        assert body["connect_path"] == "/connect/github"
         assert body["status"] == "pending"
-        assert body["connection_ref"]
-        # Where to actually send them: the operator's address, the manifest's
-        # path, the handle the app will store its result against, and the guild
-        # to write it back under — the app addresses every install by guild and
-        # cannot derive one from the ref.
-        #
-        # Asserted as those four things rather than as one pasted string. The
-        # connect URL also carries a signed return address, which has its own
-        # tests (``guild_apps_platform_test``) and is not what this one is
-        # about: pinning the whole query here made a test about WHO MAY CONNECT
-        # fail the day the URL grew a parameter.
+        assert "connection_ref" not in body
+
         connect = urlparse(body["connect_url"])
         assert f"{connect.scheme}://{connect.netloc}{connect.path}" == (
-            "https://shop.example.test/connect/github"
+            "https://github.test/login/oauth/authorize"
         )
         query = parse_qs(connect.query)
-        assert query["connection_ref"] == [body["connection_ref"]]
-        assert query["guild_ref"] == [
-            await ensure_app_guild_ref(guild_id=a.guild.id, app_install_id=app.id)
-        ]
-
-    async def test_the_handle_is_opaque_and_carries_nothing_about_the_person(
-        self, client: AsyncClient, acting_user, session: AsyncSession
-    ):
-        """An app addresses a member by this handle and never learns who they
-        are, so the handle must not be derived from them. Checked as
-        unrelatedness rather than as a substring search: a random handle
-        contains a one-digit id about half the time, which would make a
-        substring assertion a coin toss rather than a property."""
-        a = await acting_user(guild_role=GuildRole.admin)
-        b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
-        app = await _install(session, a)
-
-        async def connect(actor):
-            return (
-                await client.post(
-                    a.g(f"/apps/{app.id}/connections/github/connect"),
-                    headers=actor.headers,
-                )
-            ).json()["connection_ref"]
-
-        ref_a = await connect(a)
-        ref_b = await connect(b)
-
-        # Nothing about the person survives into it.
-        assert a.user.seeded_address not in ref_a
-        assert a.user.seeded_address.split("@")[0] not in ref_a
-        # Two members of the same guild connecting to the same app get handles
-        # with nothing in common — neither equal nor a shared derivation.
-        assert ref_a != ref_b
-        assert len(ref_a) == len(ref_b)
-        # And it is drawn, not computed: same person, same app, a second
-        # connection elsewhere would not reproduce it.
-        assert ref_a not in ref_b and ref_b not in ref_a
-
-    async def test_reconnecting_keeps_the_same_handle(
-        self, client: AsyncClient, acting_user, session: AsyncSession
-    ):
-        """The app is already holding credentials under that handle; a new one
-        would orphan them."""
-        a = await acting_user(guild_role=GuildRole.admin)
-        app = await _install(session, a)
-
-        first = await client.post(
-            a.g(f"/apps/{app.id}/connections/github/connect"), headers=a.headers
-        )
-        second = await client.post(
-            a.g(f"/apps/{app.id}/connections/github/connect"), headers=a.headers
-        )
-        assert first.json()["connection_ref"] == second.json()["connection_ref"]
-        assert len(await _rows(session, a.guild.id)) == 1
+        assert query["client_id"] == ["client-123"]
+        assert query["redirect_uri"] == [callback_url()]
+        assert query["response_type"] == ["code"]
+        assert query["code_challenge_method"] == ["S256"]
+        assert query["state"][0]
+        # The client's secret is the deployment's, and never in an address.
+        assert "client-secret-456" not in body["connect_url"]
+        assert await _rows(session, a.guild.id) == []
 
     async def test_a_typed_connection_is_not_connected_to(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        """No ``connect_path``, so there is no vendor to send anybody to.
+        """No ``flow``, so there is no vendor to send anybody to.
 
         The scope is not what decides this — a guild-wide connection may run a
         flow of its own. Declaring one is.
@@ -489,12 +496,8 @@ class TestConnect:
     async def test_an_admin_starts_the_guild_s_own_vendor_flow(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        """One credential for everybody, obtained rather than typed.
-
-        The same shape a member gets — a handle, a guild, an address to open —
-        because it is the same trip. What differs is who it belongs to when it
-        comes back.
-        """
+        """One credential for everybody, obtained rather than typed: the seat is
+        sent to the vendor's install page first."""
         a = await acting_user(guild_role=GuildRole.superadmin)
         app = await _install(session, a, definition=WORKSPACE_DEFINITION)
 
@@ -503,36 +506,25 @@ class TestConnect:
         )
         assert response.status_code == 200, response.text
         body = response.json()
-        assert body["connect_path"] == "/install/github"
         assert body["status"] == "pending"
 
         connect = urlparse(body["connect_url"])
         assert f"{connect.scheme}://{connect.netloc}{connect.path}" == (
-            "https://shop.example.test/install/github"
+            "https://github.test/apps/initiative-test/installations/new"
         )
-        query = parse_qs(connect.query)
-        assert query["connection_ref"] == [body["connection_ref"]]
-        assert query["guild_ref"] == [
-            await ensure_app_guild_ref(guild_id=a.guild.id, app_install_id=app.id)
-        ]
+        assert parse_qs(connect.query)["state"][0]
 
-        # On the install row, because that is where a guild-wide credential
-        # lives — and no member row was minted for it.
+        # Nothing is stored while the flow is in progress.
         await route_session_to_guild(session, a.guild.id)
         await session.refresh(app)
-        assert app.connection_refs["workspace"] == body["connection_ref"]
+        assert app.connection_refs == {}
         assert await _rows(session, a.guild.id) == []
 
     async def test_a_member_may_not_start_the_guild_s_flow(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        """The install it produces is the guild's boundary.
-
-        Any member may connect their own account, because the vendor authorizes
-        them and the credential reaches what they already reach. This one
-        reaches whatever the organization grants, for everybody — which is the
-        admin's to decide, exactly as typing the same connection would be.
-        """
+        """The install it produces is the guild's boundary, which is the seat's
+        to decide, exactly as typing the same connection would be."""
         a = await acting_user(guild_role=GuildRole.admin)
         app = await _install(session, a, definition=WORKSPACE_DEFINITION)
         member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
@@ -544,26 +536,31 @@ class TestConnect:
         assert response.status_code == 403
         assert response.json()["detail"] == GuildAppMessages.SUPERADMIN_REQUIRED
 
-        await route_session_to_guild(session, a.guild.id)
-        await session.refresh(app)
-        assert app.connection_refs == {}
-
-    async def test_the_guild_handle_survives_starting_again(
+    async def test_a_flow_needs_the_vendor_values(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
-        """Moving to another organization writes over one connection.
+        """The flow names the operator's client values; without them there is
+        no address to send anybody to."""
+        await create_app_service_registration(
+            session,
+            public_id="tests.bare",
+            base_url="https://bare.example.test",
+        )
+        a = await acting_user(guild_role=GuildRole.admin)
+        app = await _install(
+            session,
+            a,
+            {**MEMBER_ONLY_DEFINITION, "service": {"public_id": "tests.bare"}},
+        )
 
-        A fresh handle each time would leave the app holding one Initiative no
-        longer recognizes, and the write-back at the end of the flow the admin
-        actually completed would be refused.
-        """
-        a = await acting_user(guild_role=GuildRole.superadmin)
-        app = await _install(session, a, definition=WORKSPACE_DEFINITION)
-        path = a.g(f"/apps/{app.id}/connections/workspace/connect")
-
-        first = await client.post(path, headers=a.headers)
-        second = await client.post(path, headers=a.headers)
-        assert first.json()["connection_ref"] == second.json()["connection_ref"]
+        response = await client.post(
+            a.g(f"/apps/{app.id}/connections/github/connect"), headers=a.headers
+        )
+        assert response.status_code == 409
+        assert (
+            response.json()["detail"]
+            == GuildAppMessages.CONNECTION_VENDOR_NOT_CONFIGURED
+        )
 
     async def test_an_unknown_connection_is_a_404(
         self, client: AsyncClient, acting_user, session: AsyncSession
@@ -585,7 +582,8 @@ class TestConnect:
             a.g(f"/apps/{app.id}"), headers=a.headers, json={"enabled": False}
         )
         response = await client.post(
-            a.g(f"/apps/{app.id}/connections/github/connect"), headers=a.headers
+            a.g(f"/apps/{app.id}/connections/github/connect"),
+            headers=a.headers,
         )
         assert response.status_code == 409
         assert response.json()["detail"] == GuildAppMessages.DISABLED
@@ -600,10 +598,7 @@ class TestConnect:
         a = await acting_user(guild_role=GuildRole.admin)
         app = await _install(session, a)
         member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
-        await client.post(
-            member.g(f"/apps/{app.id}/connections/github/connect"),
-            headers=member.headers,
-        )
+        await _connected(session, member, app)
 
         response = await client.delete(
             member.g(f"/apps/{app.id}/connections/github"), headers=member.headers
@@ -630,10 +625,7 @@ class TestConnectionVisibility:
         first = await acting_user(guild_role=GuildRole.member, guild=a.guild)
         second = await acting_user(guild_role=GuildRole.member, guild=a.guild)
 
-        await client.post(
-            first.g(f"/apps/{app.id}/connections/github/connect"),
-            headers=first.headers,
-        )
+        await _connected(session, first, app)
 
         body = (
             await client.get(second.g(f"/apps/{app.id}"), headers=second.headers)
@@ -649,16 +641,15 @@ class TestConnectionVisibility:
         a = await acting_user(guild_role=GuildRole.admin)
         app = await _install(session, a)
         member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
-        await client.post(
-            member.g(f"/apps/{app.id}/connections/github/connect"),
-            headers=member.headers,
-        )
+        await _connected(session, member, app)
 
         body = (
             await client.get(member.g(f"/apps/{app.id}"), headers=member.headers)
         ).json()
         github = next(c for c in body["connections"] if c["id"] == "github")
-        assert github["status"] == "pending"
+        assert github["status"] == "connected"
+        assert github["values"] == {"login": "someone"}
+        assert "gho_member" not in str(body)
 
     async def test_a_member_may_not_read_the_members_view(
         self, client: AsyncClient, acting_user, session: AsyncSession
@@ -683,10 +674,7 @@ class TestConnectionVisibility:
         first = await acting_user(guild_role=GuildRole.member, guild=a.guild)
         second = await acting_user(guild_role=GuildRole.member, guild=a.guild)
         for actor in (first, second):
-            await client.post(
-                actor.g(f"/apps/{app.id}/connections/github/connect"),
-                headers=actor.headers,
-            )
+            await _connected(session, actor, app)
 
         body = (
             await client.get(a.g(f"/apps/{app.id}/members"), headers=a.headers)
@@ -708,11 +696,8 @@ class TestConnectionVisibility:
         a = await acting_user(guild_role=GuildRole.admin)
         app = await _install(session, a)
         member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
-        started = await client.post(
-            member.g(f"/apps/{app.id}/connections/github/connect"),
-            headers=member.headers,
-        )
-        ref = started.json()["connection_ref"]
+        started = await _connected(session, member, app)
+        ref = started.connection_ref
 
         response = await client.get(a.g(f"/apps/{app.id}/members"), headers=a.headers)
         assert ref not in response.text
@@ -723,9 +708,7 @@ class TestConnectionVisibility:
     ):
         a = await acting_user(guild_role=GuildRole.admin)
         app = await _install(session, a)
-        await client.post(
-            a.g(f"/apps/{app.id}/connections/github/connect"), headers=a.headers
-        )
+        await _connected(session, a, app)
         stranger = await acting_user(guild_role=GuildRole.admin)
 
         response = await client.get(
@@ -750,10 +733,7 @@ class TestGovernance:
         a = await acting_user(guild_role=GuildRole.superadmin)
         app = await _install(session, a)
         member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
-        await client.post(
-            member.g(f"/apps/{app.id}/connections/github/connect"),
-            headers=member.headers,
-        )
+        await _connected(session, member, app)
 
         response = await client.delete(
             a.g(f"/apps/{app.id}/members/{member.user.id}/connections/github"),
@@ -769,10 +749,7 @@ class TestGovernance:
         a = await acting_user(guild_role=GuildRole.admin)
         app = await _install(session, a)
         member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
-        await client.post(
-            member.g(f"/apps/{app.id}/connections/github/connect"),
-            headers=member.headers,
-        )
+        await _connected(session, member, app)
         await client.delete(
             a.g(f"/apps/{app.id}/members/{member.user.id}/connections/github"),
             headers=a.headers,
@@ -794,10 +771,7 @@ class TestGovernance:
         a = await acting_user(guild_role=GuildRole.superadmin)
         app = await _install(session, a)
         member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
-        await client.post(
-            member.g(f"/apps/{app.id}/connections/github/connect"),
-            headers=member.headers,
-        )
+        await _connected(session, member, app)
 
         blocked = await client.post(
             a.g(f"/apps/{app.id}/members/{member.user.id}/connections/github/block"),
@@ -819,10 +793,7 @@ class TestGovernance:
         a = await acting_user(guild_role=GuildRole.superadmin)
         app = await _install(session, a)
         member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
-        await client.post(
-            member.g(f"/apps/{app.id}/connections/github/connect"),
-            headers=member.headers,
-        )
+        await _connected(session, member, app)
         await client.post(
             a.g(f"/apps/{app.id}/members/{member.user.id}/connections/github/block"),
             headers=a.headers,
@@ -896,10 +867,7 @@ class TestGovernance:
             for _ in range(2)
         ]
         for member in members:
-            await client.post(
-                member.g(f"/apps/{app.id}/connections/github/connect"),
-                headers=member.headers,
-            )
+            await _connected(session, member, app)
 
         response = await client.post(
             a.g(f"/apps/{app.id}/revoke-all"), headers=a.headers
@@ -1075,9 +1043,7 @@ class TestUpgrade:
 async def _connected_member(client, acting_user, session, admin):
     app = await _install(session, admin)
     member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
-    await client.post(
-        member.g(f"/apps/{app.id}/connections/github/connect"), headers=member.headers
-    )
+    await _connected(session, member, app)
     return app, member
 
 
@@ -1166,10 +1132,7 @@ class TestRelationshipCascades:
         b = await acting_user(guild_role=GuildRole.admin)
         _, member = await _connected_member(client, acting_user, session, a)
         app_b = await _install(session, b)
-        await client.post(
-            f"/api/v1/c/{b.guild.id}/apps/{app_b.id}/connections/github/connect",
-            headers=b.headers,
-        )
+        await _connected(session, b, app_b)
 
         await client.delete(
             f"/api/v1/communities/{a.guild.id}/leave", headers=member.headers
@@ -1238,11 +1201,9 @@ class TestAccountDeletionSweep:
         # The same person, in a second guild, connected there too.
         app_b = await _install(session, admin_b)
         await create_guild_membership(session, user=member.user, guild=admin_b.guild)
-        connected = await client.post(
-            f"/api/v1/c/{admin_b.guild.id}/apps/{app_b.id}/connections/github/connect",
-            headers=member.headers,
+        await _connected(
+            session, SimpleNamespace(guild=admin_b.guild, user=member.user), app_b
         )
-        assert connected.status_code == 200, connected.text
 
         response = await client.post(
             "/api/v1/users/me/delete-account",

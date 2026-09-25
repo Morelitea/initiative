@@ -1285,6 +1285,13 @@ async def create_publisher(
     return row
 
 
+def sealed_vendor_values(values: dict[str, str]) -> dict[str, str]:
+    """Vendor values as a registration stores them: one ciphertext per key."""
+    from app.core.encryption import SALT_APP_VENDOR, encrypt_field
+
+    return {key: encrypt_field(value, SALT_APP_VENDOR) for key, value in values.items()}
+
+
 async def create_app_service_registration(
     session: AsyncSession,
     *,

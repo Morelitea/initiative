@@ -29,6 +29,12 @@ SALT_EVENT_PUBLISHER_PAYLOAD = b"event-publisher-payload"
 # connection form. Held per key inside a JSONB map rather than in a column of
 # its own, because one install can hold several.
 SALT_APP_CONFIG = b"app-config"
+# What an operator supplies for an app's vendor client (its secret, its
+# signing key), one ciphertext per field on the app's registration.
+SALT_APP_VENDOR = b"app-vendor"
+# The state an app connection's vendor flow carries through the vendor and
+# back. Transient: it lives ten minutes and is never stored.
+SALT_APP_CONNECTION_FLOW = b"app-connection-flow"
 # The base32 seed behind an account's authenticator-app factor.
 SALT_TOTP_SECRET = b"totp-secret"
 # The access tokens the app platform's token endpoint issues. Transient: a

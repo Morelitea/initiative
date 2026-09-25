@@ -466,7 +466,13 @@ async def _resolve_connections(
                     GuildAppMessages.CONNECTION_BLOCKED, 403
                 )
                 continue
-            if row is None or not app_config_service.is_satisfied(
+            # A flow's connection is usable only while it is connected: one
+            # whose refresh was refused reads as expired until it is made again.
+            usable = row is not None and (
+                row.status == "connected"
+                or not app_config_service.runs_vendor_flow(connection)
+            )
+            if not usable or not app_config_service.is_satisfied(
                 connection, row.config, row.config_secrets
             ):
                 refusal = refusal or AppDataError(
@@ -484,6 +490,11 @@ async def _resolve_connections(
         ):
             refusal = refusal or AppDataError(AppDataMessages.NEEDS_CONFIGURATION, 409)
             continue
+        # A guild-wide connection the app can ask a token for travels by its
+        # handle too.
+        guild_ref = (app.connection_refs or {}).get(connection_id)
+        if isinstance(guild_ref, str) and guild_ref:
+            refs[connection_id] = guild_ref
         satisfied.append(connection_id)
 
     if needs_all and len(satisfied) != len(required):

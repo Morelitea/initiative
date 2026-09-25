@@ -98,8 +98,14 @@ GITHUB_CONNECTION = {
     "id": "github",
     "scope": "interactive",
     "label": {"en": "GitHub"},
-    "connect_path": "/connect/github",
-    "fields": [_field("access_token", "secret", managed=True)],
+    "flow": {
+        "type": "oauth2",
+        "authorize_url": "https://github.test/login/oauth/authorize",
+        "token_url": "https://github.test/login/oauth/access_token",
+        "client_id": "{vendor.client_id}",
+        "after_connect": True,
+    },
+    "fields": [_field("login", "string", managed=True)],
 }
 
 

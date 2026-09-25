@@ -33,7 +33,6 @@ nothing, whether or not the guild wanted it.
 import logging
 from datetime import datetime, timezone
 from typing import Annotated, Any, List, Optional
-from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -50,8 +49,6 @@ from app.api.deps import (
     require_seat,
 )
 from app.core.audit_events import AuditEventType
-from app.core.config import settings
-from app.core.security import AppPlatformSigningNotConfiguredError
 from app.core.messages import (
     GuildAppMessages,
     InitiativeMessages,
@@ -92,7 +89,6 @@ from app.services import audit as audit_service
 from app.services.marketplace import app_refs
 from app.services.marketplace import catalog as catalog_service
 from app.services.marketplace import registration_lookup
-from app.services.marketplace.context_jwt import mint_connect_return_token
 from app.services.marketplace.definitions import (
     APP_KINDS,
     GUILD_INSTALLABLE_APP_KINDS,
@@ -104,6 +100,7 @@ from app.services.marketplace.installs import (
 from app.services.membership import initiative_scope_clause
 from app.services.platform import guilds as guilds_service
 from app.services.tenant import app_config as app_config_service
+from app.services.tenant import app_connection_flows as flows_service
 from app.services.tenant import app_connections as connections_service
 from app.services.tenant import app_member_consents as consents_service
 from app.services.tenant import app_handoff as handoff_service
@@ -806,14 +803,17 @@ async def uninstall_guild_app(
     await webhook_subscriptions_service.deactivate_for_install(
         session, guild_id=routed_guild_id(session), app_install_id=app.id
     )
-    if app.config_secrets or app.config:
+    for stored_id in sorted({*(app.config or {}), *(app.config_secrets or {})}):
         revocation_service.queue_revocation(
             session,
-            revocation_service.RevocationIntent(
+            revocation_service.intent_for(
                 guild_id=routed_guild_id(session),
                 app_id=app.id,
                 listing_uid=app.listing_uid,
-                connection_id="*",
+                definition=app.definition,
+                connection_id=stored_id,
+                config=(app.config or {}).get(stored_id),
+                secrets=(app.config_secrets or {}).get(stored_id),
                 reason="uninstalled",
             ),
         )
@@ -880,13 +880,12 @@ async def update_guild_app_config(
     response reports which fields hold a value.
 
     Only guild-scoped connections are settable here. A per-member one is that
-    member's to make, and the fields an app marks ``managed`` arrive on the
-    app's own write-back path rather than through a form.
+    member's to make, and the fields an app marks ``managed`` come from its
+    ``after_connect`` hook when a flow completes rather than through a form.
     """
     require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     # Both configuration maps are rewritten whole below, so the row is taken
-    # first — an app writing a flow's result back is doing the same thing to
-    # the same values.
+    # first — a flow completing is doing the same thing to the same values.
     app = await _load(session, app_id, for_update=True)
 
     config = dict(app.config or {})
@@ -925,6 +924,9 @@ async def update_guild_app_config(
             secrets[connection_id] = new_secrets
         else:
             secrets.pop(connection_id, None)
+        if flows_service.token_of(connection) is not None:
+            # A connection the app asks a token for is addressed by a handle.
+            app_config_service.guild_connection_ref(app, connection_id)
 
     app.config = config
     app.config_secrets = secrets
@@ -1259,17 +1261,12 @@ async def connect_guild_app(
       already reach.
     * **The guild's own credential**, where the vendor authorizes an
       organization through a page of its own rather than through anything an
-      admin could type. A guild admin only — it is one credential for everybody,
-      and the install it produces is the guild's boundary, so this is governance
-      in exactly the way configuring the same connection by hand is.
+      admin could type. The seat only — it is one credential for everybody.
 
-    Either way the opaque handle is minted here so the app has something to
-    write its result against, and the flow itself runs at the app's own URL.
-    That URL is assembled server-side — the registration supplies the address,
-    the manifest supplies the path — and carries the ``connection_ref`` so the
-    app knows which credential it is about to hold. The ref is an identifier,
-    not a credential: it authorizes nothing on its own, and the app writes its
-    result back over its own authenticated channel.
+    Initiative runs the flow: the answer is the vendor's own address (its
+    authorization page, or its install page for a connection an organization
+    installs), and the vendor returns the person to Initiative's callback.
+    Nothing is stored until it does.
     """
     app = await _load(session, app_id)
     if not app.enabled:
@@ -1285,193 +1282,54 @@ async def connect_guild_app(
             status_code=status.HTTP_409_CONFLICT,
             detail=GuildAppMessages.CONNECTION_NOT_INTERACTIVE,
         )
-    connect_path = connection["connect_path"]
     guild_wide = connection.get("scope") == "static"
     if guild_wide:
         require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
 
-    # The vendor flow runs at the app's own URL, so it has to be wired up and
-    # switched on before anyone is sent anywhere.
     registration = await handoff_service.require_live_registration(app)
 
     if guild_wide:
-        return await _start_guild_connect(
+        stored_config = (app.config or {}).get(connection_id) or {}
+        satisfied = app_config_service.is_satisfied(
+            connection,
+            stored_config,
+            (app.config_secrets or {}).get(connection_id) or {},
+        )
+        current_status = "connected" if satisfied else "pending"
+        user_id = None
+    else:
+        existing = await connections_service.get_connection(
             session,
-            app,
+            app_id=app.id,
+            connection_id=connection_id,
+            user_id=current_user.id,
+        )
+        if connections_service.is_blocked(existing):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=GuildAppMessages.CONNECTION_BLOCKED,
+            )
+        stored_config = existing.config if existing is not None else {}
+        current_status = existing.status if existing is not None else "pending"
+        user_id = current_user.id
+
+    try:
+        connect_url = await flows_service.start_url(
+            app=app,
             connection=connection,
-            connect_path=connect_path,
-            registration=registration,
+            guild_id=guild_context.guild_id,
+            user_id=user_id,
+            started_by=current_user.id,
+            public_id=registration.public_id,
+            fields=flows_service.stored_fields(stored_config),
         )
-
-    existing = await connections_service.get_connection(
-        session, app_id=app.id, connection_id=connection_id, user_id=current_user.id
-    )
-    if connections_service.is_blocked(existing):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildAppMessages.CONNECTION_BLOCKED,
-        )
-
-    row = await connections_service.connect(
-        session, app=app, connection_id=connection_id, user_id=current_user.id
-    )
-    await session.commit()
-    await session.refresh(row)
-
-    return await _connect_start(
-        registration,
-        guild_ref=await app_refs.ensure_app_guild_ref(
-            guild_id=routed_guild_id(session), app_install_id=app.id
-        ),
-        app_install_id=app.id,
-        connection_id=row.connection_id,
-        connection_ref=row.connection_ref,
-        connect_path=connect_path,
-        status=row.status,
-    )
-
-
-async def _start_guild_connect(
-    session: AsyncSession,
-    app: GuildApp,
-    *,
-    connection: dict[str, Any],
-    connect_path: str,
-    registration: Any,
-) -> GuildAppConnectStart:
-    """Start the flow behind the guild's own credential.
-
-    There is no row to mint: a guild-wide credential lives on the install, and
-    so does the handle the app writes it back against. Kept once minted, so an
-    admin repeating the flow — moving to a different organization, widening what
-    it may see — writes over the same connection rather than creating a second.
-
-    The status is read off what is stored rather than set to ``pending``, so an
-    admin who opens the vendor's page and then closes the tab has changed
-    nothing about a credential that was already working.
-    """
-    connection_id = connection["id"]
-    # The handle map is rewritten whole, so the row is taken first: two admins
-    # starting the same flow at once would otherwise each mint against a map
-    # read before the other's, and the handle one of them carried to the vendor
-    # would no longer be one the write-back finds.
-    locked = await guild_apps_service.lock_install(session, app.id)
-    if locked is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildAppMessages.NOT_FOUND,
-        )
-    app = locked
-    connection_ref = app_config_service.guild_connection_ref(app, connection_id)
-    app.updated_at = datetime.now(timezone.utc)
-    session.add(app)
-    await session.commit()
-    await session.refresh(app)
-
-    satisfied = app_config_service.is_satisfied(
-        connection,
-        (app.config or {}).get(connection_id) or {},
-        (app.config_secrets or {}).get(connection_id) or {},
-    )
-    return await _connect_start(
-        registration,
-        guild_ref=await app_refs.ensure_app_guild_ref(
-            guild_id=routed_guild_id(session), app_install_id=app.id
-        ),
-        app_install_id=app.id,
-        connection_id=connection_id,
-        connection_ref=connection_ref,
-        connect_path=connect_path,
-        status="connected" if satisfied else "pending",
-    )
-
-
-async def _connect_start(
-    registration: Any,
-    *,
-    guild_ref: str,
-    app_install_id: int,
-    connection_id: str,
-    connection_ref: str,
-    connect_path: str,
-    status: str,
-) -> GuildAppConnectStart:
-    """Where to send somebody, and what they are about to connect.
-
-    A browser is what follows this, so it is built from the address a browser
-    can resolve rather than the one Initiative's own server calls the app on.
-
-    The guild travels with the ref because the app writes its result back with
-    an installation token, and the reference minted for this install — the
-    same name the app is given everywhere else, not a row id — is what it asks
-    for that token with. A ref on its own names nothing it can look up.
-    """
-    query = [
-        ("connection_ref", connection_ref),
-        ("guild_ref", guild_ref),
-    ]
-    query += _return_address(
-        registration.public_id,
-        guild_ref=guild_ref,
-        app_install_id=app_install_id,
-        connection_id=connection_id,
-        connection_ref=connection_ref,
-    )
-
+    except flows_service.ConnectionFlowError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
     return GuildAppConnectStart(
         connection_id=connection_id,
-        connection_ref=connection_ref,
-        connect_path=connect_path,
-        connect_url=(
-            # ``urlencode`` percent-encodes every reserved character, so the
-            # signed token survives as one value of this query.
-            f"{registration.browser_base}{connect_path}?{urlencode(query)}"
-        ),
-        status=status,
+        connect_url=connect_url,
+        status=current_status,
     )
-
-
-def _return_address(
-    public_id: str,
-    *,
-    guild_ref: str,
-    app_install_id: int,
-    connection_id: str,
-    connection_ref: str,
-) -> list[tuple[str, str]]:
-    """Where the app sends this member when the vendor is done with them.
-
-    An app knows a ``connection_ref`` and a guild reference, and has never been
-    told what language that person reads — so an app that renders the ending
-    renders it in one language, forever. Initiative knows, so Initiative
-    renders it, and what the app does is hand the member back with one word
-    saying how it went.
-
-    The address travels as ``return_token``, a JWT under the app platform's
-    key (:func:`~app.services.marketplace.context_jwt.mint_connect_return_token`)
-    that carries it as the ``return_url`` claim. The app verifies it against
-    the published key set before following it.
-
-    Empty when the platform key is not configured. The app then says its piece
-    on its own page, which is the same thing it does for a member who arrived
-    by a hand-copied link.
-    """
-    landing = (
-        f"{settings.APP_URL.rstrip('/')}/apps/connected"
-        f"?{urlencode([('app', public_id), ('connection', connection_id)])}"
-    )
-    try:
-        token = mint_connect_return_token(
-            public_id=public_id,
-            guild_ref=guild_ref,
-            app_install_id=app_install_id,
-            connection_id=connection_id,
-            connection_ref=connection_ref,
-            return_url=landing,
-        )
-    except AppPlatformSigningNotConfiguredError:
-        return []
-    return [("return_token", token)]
 
 
 @router.delete(
@@ -1503,11 +1361,14 @@ async def disconnect_guild_app(
         ):
             revocation_service.queue_revocation(
                 session,
-                revocation_service.RevocationIntent(
+                revocation_service.intent_for(
                     guild_id=routed_guild_id(session),
                     app_id=app.id,
                     listing_uid=app.listing_uid,
+                    definition=app.definition,
                     connection_id=connection_id,
+                    config=(app.config or {}).get(connection_id),
+                    secrets=(app.config_secrets or {}).get(connection_id),
                     reason="disconnected",
                 ),
             )
@@ -1521,10 +1382,8 @@ async def disconnect_guild_app(
             for key, value in (app.config_secrets or {}).items()
             if key != connection_id
         }
-        # The handle goes with them. It is what a write-back is matched on, so
-        # keeping it would leave a flow the admin has just ended still able to
-        # land its result and bring the connection back. Starting the flow again
-        # mints a fresh one, which is the whole of what reconnecting needs.
+        # The handle goes with them, so a token asked for by the old one is
+        # refused. Connecting again mints a fresh one.
         app.connection_refs = {
             key: value
             for key, value in (app.connection_refs or {}).items()

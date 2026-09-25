@@ -1627,8 +1627,8 @@ export const useDeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost =
  * response reports which fields hold a value.
  *
  * Only guild-scoped connections are settable here. A per-member one is that
- * member's to make, and the fields an app marks ``managed`` arrive on the
- * app's own write-back path rather than through a form.
+ * member's to make, and the fields an app marks ``managed`` come from its
+ * ``after_connect`` hook when a flow completes rather than through a form.
  * @summary Update Guild App Config
  */
 export const updateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPut = (
@@ -2385,17 +2385,12 @@ export const useCreateGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPost 
  *   already reach.
  * * **The guild's own credential**, where the vendor authorizes an
  *   organization through a page of its own rather than through anything an
- *   admin could type. A guild admin only — it is one credential for everybody,
- *   and the install it produces is the guild's boundary, so this is governance
- *   in exactly the way configuring the same connection by hand is.
+ *   admin could type. The seat only — it is one credential for everybody.
  *
- * Either way the opaque handle is minted here so the app has something to
- * write its result against, and the flow itself runs at the app's own URL.
- * That URL is assembled server-side — the registration supplies the address,
- * the manifest supplies the path — and carries the ``connection_ref`` so the
- * app knows which credential it is about to hold. The ref is an identifier,
- * not a credential: it authorizes nothing on its own, and the app writes its
- * result back over its own authenticated channel.
+ * Initiative runs the flow: the answer is the vendor's own address (its
+ * authorization page, or its install page for a connection an organization
+ * installs), and the vendor returns the person to Initiative's callback.
+ * Nothing is stored until it does.
  * @summary Connect Guild App
  */
 export const connectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnectPost = (

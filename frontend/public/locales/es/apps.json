@@ -90,8 +90,10 @@
     "status": {
       "pending": "Pendiente de terminar",
       "connected": "Conectada",
-      "blocked": "Bloqueada"
-    }
+      "blocked": "Bloqueada",
+      "expired": "Caducada"
+    },
+    "expired": "Esta conexión ha caducado. Vuelve a conectar para seguir usándola."
   },
   "members": {
     "title": "Miembros",
@@ -205,6 +207,10 @@
     "awaiting_approval": {
       "title": "Esperando una aprobación",
       "body": "El otro servicio ha pedido a alguien que sea propietario de esa organización que apruebe esta app. No ha fallado nada y aún no hay nada configurado: cuando la aprueben, vuelve a conectar desde los ajustes de la app."
+    },
+    "sign_in_required": {
+      "title": "Inicia sesión para terminar",
+      "body": "Termina de conectar en el navegador donde has iniciado sesión en Initiative, como la persona que lo empezó."
     },
     "closeTab": "Puedes cerrar esta pestaña."
   },

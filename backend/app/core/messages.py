@@ -1171,6 +1171,9 @@ class GuildAppMessages:
     CONNECTION_BLOCKED = "GUILD_APP_CONNECTION_BLOCKED"
     #: The app is installed but turned off, so nothing flows through it.
     DISABLED = "GUILD_APP_DISABLED"
+    #: The connection's flow needs values this deployment's operator has not
+    #: supplied for the app's vendor client, or a field it names is empty.
+    CONNECTION_VENDOR_NOT_CONFIGURED = "GUILD_APP_CONNECTION_VENDOR_NOT_CONFIGURED"
 
     # --- acting as a member ---
     #: No request from this app to act as the caller, by that id.
@@ -1285,6 +1288,10 @@ class AppServiceMessages:
     #: asked to change. The operator keeps its switch, mandatory flag, origins
     #: and, for a container, its location.
     REGISTRY_MANAGED = "APP_SERVICE_REGISTRY_MANAGED"
+    #: A vendor value named a field the app's manifest does not declare.
+    UNKNOWN_VENDOR_FIELD = "APP_SERVICE_UNKNOWN_VENDOR_FIELD"
+    #: A vendor value that is too long, or not the address its field asks for.
+    INVALID_VENDOR_VALUE = "APP_SERVICE_INVALID_VENDOR_VALUE"
 
 
 class AppMessages:
@@ -1369,6 +1376,13 @@ class AppChannelMessages:
     CONNECTION_NOT_FOUND = "APP_CHANNEL_CONNECTION_NOT_FOUND"
     #: A guild admin stopped this member's connection; the app may not revive it.
     CONNECTION_BLOCKED = "APP_CHANNEL_CONNECTION_BLOCKED"
+    #: The member's connection could not be refreshed and has to be made again.
+    CONNECTION_EXPIRED = "APP_CHANNEL_CONNECTION_EXPIRED"
+    #: The connection holds no token: never completed, or one whose flow keeps
+    #: none and declares no token of its own.
+    CONNECTION_NO_TOKEN = "APP_CHANNEL_CONNECTION_NO_TOKEN"
+    #: The vendor did not answer with a token.
+    TOKEN_UNAVAILABLE = "APP_CHANNEL_TOKEN_UNAVAILABLE"
 
     # --- what the app sent ---
     #: The body is not the JSON object this channel expects.

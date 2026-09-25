@@ -1194,7 +1194,8 @@ PUBLIC_RLS: dict[str, TableRls] = {
     "app_setting_secrets": FORCED_NO_POLICY,
     # Everything else is the system engine's. An installed app's standing reads
     # the registration its token was issued to (its column grant is public_id,
-    # listing_uid, enabled, publisher_id, jwks, jwks_uri and base_url alone).
+    # listing_uid, enabled, publisher_id, jwks, jwks_uri, base_url and
+    # vendor_ready alone).
     "app_service_registrations": TableRls(
         policies=(
             Policy(

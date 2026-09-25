@@ -90,8 +90,10 @@
     "status": {
       "pending": "Wartet auf Abschluss",
       "connected": "Verbunden",
-      "blocked": "Gesperrt"
-    }
+      "blocked": "Gesperrt",
+      "expired": "Abgelaufen"
+    },
+    "expired": "Diese Verbindung ist abgelaufen. Verbinde dich erneut, um sie weiter zu nutzen."
   },
   "members": {
     "title": "Mitglieder",
@@ -205,6 +207,10 @@
     "awaiting_approval": {
       "title": "Warten auf eine Freigabe",
       "body": "Der andere Dienst hat jemanden, dem diese Organisation gehört, um Freigabe dieser App gebeten. Es ist nichts schiefgegangen und noch nichts eingerichtet – sobald sie freigegeben ist, verbinde dich erneut über die Einstellungen der App."
+    },
+    "sign_in_required": {
+      "title": "Zum Abschließen anmelden",
+      "body": "Schließe die Verbindung in dem Browser ab, in dem du bei Initiative angemeldet bist, als die Person, die sie begonnen hat."
     },
     "closeTab": "Du kannst diesen Tab schließen."
   },

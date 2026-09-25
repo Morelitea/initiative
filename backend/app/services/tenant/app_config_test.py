@@ -56,8 +56,14 @@ MEMBER_CONNECTION = {
     "id": "github",
     "scope": "interactive",
     "label": {"en": "GitHub"},
-    "connect_path": "/connect/github",
-    "fields": [_field("access_token", "secret", managed=True)],
+    "flow": {
+        "type": "oauth2",
+        "authorize_url": "https://github.test/login/oauth/authorize",
+        "token_url": "https://github.test/login/oauth/access_token",
+        "client_id": "{vendor.client_id}",
+        "after_connect": True,
+    },
+    "fields": [_field("login", "string", managed=True)],
 }
 
 #: A guild-wide credential obtained rather than typed.
@@ -70,7 +76,14 @@ WORKSPACE_CONNECTION = {
     "id": "workspace",
     "scope": "static",
     "label": {"en": "Organization"},
-    "connect_path": "/install/github",
+    "flow": {
+        "type": "oauth2",
+        "authorize_url": "https://github.test/login/oauth/authorize",
+        "token_url": "https://github.test/login/oauth/access_token",
+        "client_id": "{vendor.client_id}",
+        "install_url": "https://github.test/apps/x/installations/new",
+        "after_connect": True,
+    },
     "fields": [_field("owner", "string", required=True, managed=True)],
 }
 
@@ -169,21 +182,34 @@ class TestValidation:
         with pytest.raises(AppConfigError) as exc:
             apply_connection_values(
                 MEMBER_CONNECTION,
-                {"access_token": "gho_x"},
+                {"login": "alice"},
                 current={},
                 current_secrets={},
             )
         assert exc.value.code == GuildAppMessages.CONFIG_MANAGED_FIELD
 
-    def test_the_app_itself_may_write_a_managed_field(self):
-        _, secrets = apply_connection_values(
+    def test_a_flow_may_write_a_managed_field(self):
+        config, _ = apply_connection_values(
             MEMBER_CONNECTION,
-            {"access_token": "gho_x"},
+            {"login": "alice"},
             current={},
             current_secrets={},
             allow_managed=True,
         )
-        assert decrypt_field(secrets["access_token"], SALT_APP_CONFIG) == "gho_x"
+        assert config["login"] == "alice"
+
+    def test_a_flows_token_keys_are_not_fields(self):
+        """The reserved keys a flow keeps its tokens under are no field of the
+        connection, and nothing writes them through a form."""
+        with pytest.raises(AppConfigError) as exc:
+            apply_connection_values(
+                MEMBER_CONNECTION,
+                {"access_token": "gho_x"},
+                current={},
+                current_secrets={},
+                allow_managed=True,
+            )
+        assert exc.value.code == GuildAppMessages.CONFIG_UNKNOWN_FIELD
 
     def test_a_required_field_left_empty_is_refused(self):
         with pytest.raises(AppConfigError) as exc:
@@ -320,11 +346,33 @@ class TestPruningToANewDefinition:
         assert dropped == set()
 
 
+class TestAFlowsTokens:
+    def test_an_upgrade_keeps_a_flows_tokens(self):
+        """The reserved keys are no declared field, and pruning to a new
+        version's fields must not take a flow's tokens with it."""
+        definition = {"connections": [MEMBER_CONNECTION, WORKSPACE_CONNECTION]}
+        config, secrets, dropped = prune_to_definition(
+            definition,
+            {"workspace": {"owner": "acme", "expires_at": 1, "stray": "x"}},
+            {"workspace": {"access_token": "sealed", "refresh_token": "sealed"}},
+        )
+        assert config == {"workspace": {"owner": "acme", "expires_at": 1}}
+        assert secrets == {
+            "workspace": {"access_token": "sealed", "refresh_token": "sealed"}
+        }
+        assert dropped == set()
+
+    def test_a_flow_with_no_fields_is_satisfied_by_its_token(self):
+        bare = {**MEMBER_CONNECTION, "fields": []}
+        assert is_satisfied(bare, {}, {}) is False
+        assert is_satisfied(bare, {}, {"access_token": "sealed"}) is True
+
+
 class TestWhichConnectionsRunAFlow:
-    def test_a_flow_is_a_connect_path_and_not_a_scope(self):
+    def test_a_flow_is_a_declared_flow_and_not_a_scope(self):
         """Two independent questions, and they used to look like one.
 
-        The scope says whose credential comes back. The ``connect_path`` says
+        The scope says whose credential comes back. The ``flow`` says
         whether a vendor is involved in getting it. A guild-wide connection may
         have one, and an admin running an organization-wide install is the case
         it exists for.
@@ -340,8 +388,7 @@ class TestTheHandleAGuildFlowIsJoinedBy:
         """Reconnecting writes over one connection rather than making a second.
 
         A fresh handle each time would leave the app holding one this side no
-        longer recognizes, so the write-back at the end of the flow an admin
-        actually completed would be refused.
+        longer recognizes, so the token it asks for with it would be refused.
         """
         install = _Install()
         first = guild_connection_ref(install, "workspace")

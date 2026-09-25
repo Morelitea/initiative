@@ -839,6 +839,8 @@ export interface AppPublisherUpdate {
 
 export type AppServiceRegistrationCreateJwks = { [key: string]: unknown } | null;
 
+export type AppServiceRegistrationCreateVendorValues = { [key: string]: string | null } | null;
+
 /**
  * Wire an app service up.
  *
@@ -864,9 +866,25 @@ export interface AppServiceRegistrationCreate {
   scope_ceiling?: string[] | null;
   mandatory?: boolean;
   enabled?: boolean;
+  vendor_values?: AppServiceRegistrationCreateVendorValues;
 }
 
 export type AppServiceRegistrationReadJwks = { [key: string]: unknown } | null;
+
+export type AppServiceRegistrationReadVendorValues = { [key: string]: string };
+
+export type AppVendorFieldReadLabel = { [key: string]: string };
+
+/**
+ * One value an operator supplies for the app's vendor client, as the
+ * listing's manifest declares it.
+ */
+export interface AppVendorFieldRead {
+  key: string;
+  type: string;
+  required: boolean;
+  label: AppVendorFieldReadLabel;
+}
 
 /**
  * A registration as the owner's settings see it.
@@ -889,6 +907,12 @@ export interface AppServiceRegistrationRead {
   enabled: boolean;
   source: string;
   image_digest: string | null;
+  vendor_fields: AppVendorFieldRead[];
+  vendor_values: AppServiceRegistrationReadVendorValues;
+  vendor_set: string[];
+  vendor_ready: boolean;
+  connection_callback_url: string;
+  connection_setup_url: string;
   live: boolean;
   created_at: string;
   updated_at: string;
@@ -896,12 +920,16 @@ export interface AppServiceRegistrationRead {
 
 export type AppServiceRegistrationUpdateJwks = { [key: string]: unknown } | null;
 
+export type AppServiceRegistrationUpdateVendorValues = { [key: string]: string | null } | null;
+
 /**
  * Partial edit.
  *
  * An empty ``embed_origin`` clears it, putting both surfaces back on
  * ``base_url``. An empty ``jwks_uri`` clears it, and an empty ``jwks``
- * object clears the pasted set.
+ * object clears the pasted set. In ``vendor_values`` a key sent empty or
+ * null clears that value, and a key left out keeps it, so a secret is kept
+ * by not sending it.
  */
 export interface AppServiceRegistrationUpdate {
   listing_uid?: string | null;
@@ -913,6 +941,7 @@ export interface AppServiceRegistrationUpdate {
   scope_ceiling?: string[] | null;
   mandatory?: boolean | null;
   enabled?: boolean | null;
+  vendor_values?: AppServiceRegistrationUpdateVendorValues;
 }
 
 /**
@@ -4205,24 +4234,15 @@ export interface GuildAppConfigUpdate {
 }
 
 /**
- * Where to send the member so the app can run the vendor's flow.
+ * Where to send the person connecting: the vendor's authorization page,
+ * or its install page for a connection an organization installs.
  *
- * ``connection_ref`` is the handle the app will store its result against, and
- * the only name it ever learns for this person. It travels in the URL because
- * it is an identifier rather than a credential — random, per (install,
- * connection, member), and useless without the app's own authenticated
- * write-back channel.
- *
- * ``connect_url`` is the address to open: the registration's base URL joined
- * to the path the manifest declared. It is absent when this deployment has no
- * live registration for the app, in which case there is nowhere to send
- * anyone; ``connect_path`` still reports what the manifest asked for.
+ * Initiative runs the flow, and the vendor returns the person to Initiative's
+ * own callback. Nothing is stored until it does.
  */
 export interface GuildAppConnectStart {
   connection_id: string;
-  connection_ref: string;
-  connect_path: string;
-  connect_url: string | null;
+  connect_url: string;
   status: string;
 }
 
@@ -4254,7 +4274,7 @@ export interface GuildAppConnectionRead {
   values: GuildAppConnectionReadValues;
   has_value: GuildAppConnectionReadHasValue;
   satisfied: boolean;
-  connect_path: string | null;
+  runs_flow: boolean;
   status: string | null;
   account_label: string | null;
   blocked: boolean;

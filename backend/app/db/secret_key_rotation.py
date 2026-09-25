@@ -49,6 +49,7 @@ from app.core.config import settings
 from app.core.encryption import (
     SALT_AI_API_KEY,
     SALT_APP_CONFIG,
+    SALT_APP_VENDOR,
     SALT_EMAIL,
     SALT_IMPORT_CREDENTIAL,
     SALT_OIDC_CLIENT_SECRET,
@@ -98,6 +99,12 @@ _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
     # ciphertext and same salt as the two address columns above, so it is
     # re-keyed with them.
     ("auth_challenges", "email_encrypted", SALT_EMAIL),
+]
+
+# Shared-table JSONB columns holding one ciphertext per key: what an operator
+# supplied for an app's vendor client.
+_PUBLIC_JSON_MAPS: list[tuple[str, str, bytes]] = [
+    ("app_service_registrations", "vendor_values", SALT_APP_VENDOR),
 ]
 
 # Columns rotated once per ``guild_<id>`` schema (the live copies). The member
@@ -434,6 +441,20 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
         for table, column, salt in _PUBLIC_FERNET_COLUMNS:
             summary.columns.append(
                 await _rotate_fernet_column(
+                    read_conn,
+                    write_conn,
+                    "public",
+                    table,
+                    column,
+                    salt,
+                    old_key,
+                    new_key,
+                    dry_run,
+                )
+            )
+        for table, column, salt in _PUBLIC_JSON_MAPS:
+            summary.columns.append(
+                await _rotate_fernet_json_map(
                     read_conn,
                     write_conn,
                     "public",

@@ -33,9 +33,12 @@ from app.schemas.platform.app_service import (
     AppServiceRegistrationCreate,
     AppServiceRegistrationRead,
     AppServiceRegistrationUpdate,
+    AppVendorFieldRead,
 )
 from app.services.marketplace import publishers as publishers_service
 from app.services.marketplace import registrations as registrations_service
+from app.services.marketplace import vendor_values as vendor_values_service
+from app.services.tenant import app_connection_flows as flows_service
 
 router = APIRouter()
 publishers_router = APIRouter()
@@ -48,8 +51,12 @@ AppsManageDep = Annotated[User, Depends(require_capability(Capability.APPS_MANAG
 
 def _to_read(
     view: registrations_service.RegistrationView,
+    definitions: dict[str, dict],
 ) -> AppServiceRegistrationRead:
     row = view.row
+    vendor = vendor_values_service.vendor_view(
+        row, definitions.get(row.listing_uid or "")
+    )
     return AppServiceRegistrationRead(
         id=row.id,
         public_id=row.public_id,
@@ -68,6 +75,12 @@ def _to_read(
         enabled=row.enabled,
         source=row.source,
         image_digest=row.image_digest,
+        vendor_fields=[AppVendorFieldRead(**field) for field in vendor.fields],
+        vendor_values=vendor.values,
+        vendor_set=vendor.set_keys,
+        vendor_ready=bool(row.vendor_ready),
+        connection_callback_url=flows_service.callback_url(),
+        connection_setup_url=flows_service.setup_url(),
         live=view.live,
         created_at=row.created_at,
         updated_at=row.updated_at,
@@ -83,7 +96,17 @@ async def _read_one(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=AppServiceMessages.NOT_FOUND,
         )
-    return _to_read(views[0])
+    return _to_read(views[0], await _definitions(session, views))
+
+
+async def _definitions(
+    session: AsyncSession, views: list[registrations_service.RegistrationView]
+) -> dict[str, dict]:
+    """The latest manifest of each registration's listing, for its vendor
+    fields."""
+    return await vendor_values_service.listing_definitions(
+        session, [view.row.listing_uid for view in views]
+    )
 
 
 @router.get("/", response_model=List[AppServiceRegistrationRead])
@@ -93,7 +116,8 @@ async def list_app_services(
 ) -> List[AppServiceRegistrationRead]:
     """Every app service this deployment has wired up (``apps.manage``)."""
     views = await registrations_service.registration_views(session)
-    return [_to_read(view) for view in views]
+    definitions = await _definitions(session, views)
+    return [_to_read(view, definitions) for view in views]
 
 
 @router.post(
@@ -121,6 +145,7 @@ async def create_app_service(
         scope_ceiling=payload.scope_ceiling,
         mandatory=payload.mandatory,
         enabled=payload.enabled,
+        vendor_values=payload.vendor_values,
         actor_user_id=owner.id,
     )
     return await _read_one(session, row.id)
@@ -143,7 +168,7 @@ async def update_app_service(
     owner: AppsManageDep,
 ) -> AppServiceRegistrationRead:
     """Enable/disable, change the listing, repoint either address, replace the
-    keys, or change the powers conferred."""
+    keys, change the powers conferred, or set the vendor values."""
     row = await registrations_service.update_registration(
         session,
         registration_id,
@@ -156,6 +181,7 @@ async def update_app_service(
         scope_ceiling=payload.scope_ceiling,
         mandatory=payload.mandatory,
         enabled=payload.enabled,
+        vendor_values=payload.vendor_values,
         actor_user_id=owner.id,
     )
     return await _read_one(session, row.id)

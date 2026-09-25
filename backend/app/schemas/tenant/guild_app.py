@@ -135,10 +135,12 @@ class GuildAppConnectionRead(SanitizedBaseModel):
     has_value: Dict[str, bool] = {}
     #: Whether everything this connection declared it needs is present.
     satisfied: bool = False
-    #: Where the app runs its vendor flow. Present on an interactive connection,
-    #: and on a guild-wide one an admin connects rather than types.
-    connect_path: Optional[str] = None
-    #: The viewer's own state on an interactive connection.
+    #: Whether the connection is established through the vendor's own flow,
+    #: which Initiative runs: always on an interactive connection, and on a
+    #: guild-wide one an admin connects rather than types.
+    runs_flow: bool = False
+    #: The viewer's own state on an interactive connection: ``pending``,
+    #: ``connected``, ``expired`` (reconnect) or ``blocked``.
     status: Optional[str] = None
     account_label: Optional[str] = None
     blocked: bool = False
@@ -379,26 +381,18 @@ class GuildAppListResponse(SanitizedBaseModel):
 
 
 class GuildAppConnectStart(SanitizedBaseModel):
-    """Where to send the member so the app can run the vendor's flow.
+    """Where to send the person connecting: the vendor's authorization page,
+    or its install page for a connection an organization installs.
 
-    ``connection_ref`` is the handle the app will store its result against, and
-    the only name it ever learns for this person. It travels in the URL because
-    it is an identifier rather than a credential — random, per (install,
-    connection, member), and useless without the app's own authenticated
-    write-back channel.
-
-    ``connect_url`` is the address to open: the registration's base URL joined
-    to the path the manifest declared. It is absent when this deployment has no
-    live registration for the app, in which case there is nowhere to send
-    anyone; ``connect_path`` still reports what the manifest asked for.
+    Initiative runs the flow, and the vendor returns the person to Initiative's
+    own callback. Nothing is stored until it does.
     """
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     connection_id: str
-    connection_ref: str
-    connect_path: str
-    connect_url: Optional[str] = None
+    connect_url: str
+    #: The viewer's current state on this connection, before the flow runs.
     status: str
 
 
@@ -559,20 +553,27 @@ def serialize_connection(
             (member_row.config_secrets or {}) if member_row is not None else {}
         )
 
+    declared = {
+        field.get("key")
+        for field in connection.get("fields") or []
+        if isinstance(field, dict)
+    }
     return GuildAppConnectionRead(
         id=connection_id,
         scope=scope,
         label=connection.get("label") or {},
         fields=connection.get("fields") or [],
         access_hint=connection.get("access_hint"),
-        values=dict(stored_config),
+        # Declared fields only: a flow's tokens and their expiry sit beside
+        # them under reserved keys, and are nobody's to read here.
+        values={key: value for key, value in stored_config.items() if key in declared},
         has_value=app_config_service.has_value_map(
             connection, stored_config, stored_secrets
         ),
         satisfied=app_config_service.is_satisfied(
             connection, stored_config, stored_secrets
         ),
-        connect_path=connection.get("connect_path"),
+        runs_flow=app_config_service.runs_vendor_flow(connection),
         status=member_row.status if member_row is not None else None,
         account_label=member_row.account_label if member_row is not None else None,
         blocked=member_row is not None and member_row.blocked_at is not None,
