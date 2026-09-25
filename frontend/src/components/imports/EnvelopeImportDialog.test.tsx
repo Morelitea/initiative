@@ -16,21 +16,19 @@ vi.mock("@/lib/chesterToast", () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }));
 
-const initiative = buildInitiative({ id: 7, name: "Target" });
+const initiative = buildInitiative({
+  id: 7,
+  name: "Target",
+  can: {
+    manage: false,
+    moderate: false,
+    view: [],
+    create: [Tool.queue, Tool.document, Tool.project, Tool.gallery],
+  },
+});
 
 vi.mock("@/hooks/useInitiatives", () => ({
   useInitiatives: () => ({ data: [initiative] }),
-}));
-vi.mock("@/hooks/useInitiativeAccess", () => ({
-  useInitiativeAccess: () => ({
-    filterVisible: (list: unknown[]) => list,
-    permissionsFor: () => ({
-      [Tool.queue]: { create: true },
-      [Tool.document]: { create: true },
-      [Tool.project]: { create: true },
-      [Tool.gallery]: { create: true },
-    }),
-  }),
 }));
 
 import { toast } from "@/lib/chesterToast";

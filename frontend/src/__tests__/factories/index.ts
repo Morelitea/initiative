@@ -1,3 +1,4 @@
+export { ownerCan, readerCan, writerCan } from "./can";
 export {
   buildComment,
   buildReactionGroup,

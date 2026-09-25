@@ -209,9 +209,7 @@ type ProjectTasksSectionProps = {
    *  view of their own yet and the URL doesn't name one. */
   projectDefaultViewMode?: string | null;
   canEditTaskDetails: boolean;
-  canWriteProject: boolean;
   projectIsArchived: boolean;
-  canViewTaskDetails: boolean;
   taskHref: (taskId: number) => string;
   initialComposerOpen?: boolean;
   onComposerOpenChange?: (isOpen: boolean) => void;
@@ -223,9 +221,7 @@ export const ProjectTasksSection = ({
   taskStatuses,
   projectDefaultViewMode,
   canEditTaskDetails,
-  canWriteProject,
   projectIsArchived,
-  canViewTaskDetails,
   taskHref,
   initialComposerOpen,
   onComposerOpenChange,
@@ -1147,7 +1143,6 @@ export const ProjectTasksSection = ({
             groupedTasks={groupedTasks}
             collapsedStatusIds={collapsedStatuses}
             canReorderTasks={canReorderTasks}
-            canOpenTask={canViewTaskDetails}
             taskHref={taskHref}
             priorityVariant={priorityVariant}
             sensors={kanbanSensors}
@@ -1198,7 +1193,6 @@ export const ProjectTasksSection = ({
             sensors={listSensors}
             canReorderTasks={canReorderTasks}
             canEditTaskDetails={canEditTaskDetails}
-            canOpenTask={canViewTaskDetails}
             taskActionsDisabled={taskActionsDisabled}
             onDragStart={handleTaskDragStart}
             onDragEnd={handleListDragEnd}
@@ -1239,7 +1233,7 @@ export const ProjectTasksSection = ({
             onFocusDateChange={setCalendarFocusDate}
             onEntryClick={(entry) => {
               const meta = entry.meta as { taskId?: number } | undefined;
-              if (meta?.taskId && canViewTaskDetails) void navigate({ to: taskHref(meta.taskId) });
+              if (meta?.taskId) void navigate({ to: taskHref(meta.taskId) });
             }}
             onEntryReschedule={canEditTaskDetails ? handleCalendarReschedule : undefined}
             weekStartsOn={weekStartsOn}
@@ -1254,7 +1248,7 @@ export const ProjectTasksSection = ({
             onOpenChange={(open) => (open ? setIsComposerOpen(true) : closeComposer())}
           >
             <ProjectTaskComposer
-              canWrite={canWriteProject}
+              canWrite={canEditTaskDetails}
               isArchived={projectIsArchived}
               isSubmitting={createTask.isPending}
               hasError={Boolean(createTask.isError)}

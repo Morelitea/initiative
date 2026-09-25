@@ -348,10 +348,6 @@ const initiativeRoles = (initiativeId: number): Spec => ({
   guildExact: [`/api/v1/initiatives/${initiativeId}/roles`],
 });
 
-const myPermissions = (initiativeId: number): Spec => ({
-  guildExact: [`/api/v1/initiatives/${initiativeId}/my-permissions`],
-});
-
 const initiativeMembers = (initiativeId: number): Spec => ({
   guildExact: [`/api/v1/initiatives/${initiativeId}/members`],
 });
@@ -687,7 +683,6 @@ export const q = {
   latestVersion,
   memberAI,
   myAI,
-  myPermissions,
   notifications,
   operatorUsers,
   platformAIConnections,

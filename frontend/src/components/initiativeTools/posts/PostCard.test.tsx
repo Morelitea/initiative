@@ -13,7 +13,7 @@
 import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildPost } from "@/__tests__/factories";
+import { buildPost, ownerCan } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 
 import { PostCard } from "./PostCard";
@@ -79,12 +79,12 @@ describe("PostCard", () => {
   });
 
   it("offers the pin control only to a reader who may pin", async () => {
-    const { unmount } = renderCard({ my_permission_level: "owner" }, false);
+    const { unmount } = renderCard({ can: ownerCan() }, false);
     await screen.findByTestId("post-body");
     expect(screen.queryByRole("button", { name: /pin/i })).not.toBeInTheDocument();
     unmount();
 
-    renderCard({ my_permission_level: "owner" }, true);
+    renderCard({ can: ownerCan() }, true);
     expect(await screen.findByRole("button", { name: /pin to top/i })).toBeInTheDocument();
   });
 

@@ -36,7 +36,6 @@ import {
 } from "@/components/tools/settings/ToolSettingsContext";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { extractSubPath, isGuildScopedPath, useGuildPath } from "@/lib/guildUrl";
-import { hasOwnerAccess, hasWriteAccess } from "@/lib/permissions";
 import { matchActiveTab } from "@/lib/tabs";
 import {
   TOOL_SETTINGS_DEFAULT_SECTION,
@@ -110,17 +109,14 @@ export const ToolSettingsLayout = ({
     return <p className="text-destructive">{t("common:toolSettings.notFound")}</p>;
   }
 
-  const canManage = hasWriteAccess(entity.my_permission_level);
-  const isOwner = hasOwnerAccess(entity.my_permission_level);
-
   const sectionPath = (section: string) =>
     gp(toolSettingsSectionRoute(tool, entity.initiative_id, entity.id, section));
 
   const tabs = [
     { value: "details", label: t("common:toolSettings.tabDetails"), path: sectionPath("details") },
-    // The bar only offers sharing to someone who may change it; the section
-    // refuses it too, for the address someone types.
-    ...(canManage
+    // Whoever may edit it sees who it is shared with; only the owner changes
+    // that, which the section asks itself.
+    ...(entity.can.edit
       ? [
           {
             value: "access",
@@ -136,11 +132,8 @@ export const ToolSettingsLayout = ({
     })),
     // Advanced holds a tool's own extra operations, archiving, exporting and
     // deletion, so it is offered only when this entity has one of them to
-    // offer. Exporting and deletion are both the owner's. The
-    // archive leg reads its own answer rather than `canManage`: an archived
-    // entity caps that at read, which would hide the tab that holds the only
-    // way back out.
-    ...(advancedExtra || isOwner || canUseArchiveCard(entity)
+    // offer.
+    ...(advancedExtra || entity.can.export || entity.can.delete || canUseArchiveCard(entity)
       ? [
           {
             value: "advanced",
@@ -189,8 +182,6 @@ export const ToolSettingsLayout = ({
         value={{
           tool,
           entity,
-          canManage,
-          isOwner,
           update,
           setGrants,
           remove,

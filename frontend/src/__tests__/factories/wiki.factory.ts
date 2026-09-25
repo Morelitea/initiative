@@ -6,6 +6,8 @@ import {
   WikiReadingWidth,
 } from "@/api/generated/initiativeAPI.schemas";
 
+import { ownerCan } from "./can";
+
 let counter = 0;
 
 export function resetCounter(): void {
@@ -24,7 +26,6 @@ export function buildWiki(overrides: Partial<WikiRead> = {}): WikiRead {
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
     archived_at: null,
-    can_unarchive: false,
     page_count: 0,
     home_page_id: null,
     page_order: WikiPageOrder.manual,
@@ -34,7 +35,7 @@ export function buildWiki(overrides: Partial<WikiRead> = {}): WikiRead {
     reading_width: WikiReadingWidth.comfortable,
     accent_color: null,
     template_page_id: null,
-    my_permission_level: "owner",
+    can: ownerCan(),
     comments_enabled: true,
     comment_count: 0,
     tags: [],

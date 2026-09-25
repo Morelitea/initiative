@@ -22,7 +22,6 @@ import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
-import { hasWriteAccess } from "@/lib/permissions";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 export function DashboardDetailPage() {
@@ -54,7 +53,7 @@ export function DashboardDetailPage() {
   const catalogQuery = useWidgetCatalog();
   // Arranging and binding are authoring — they write the dashboard's own row —
   // so the canvas is static without DAC write rather than merely looking it.
-  const canEdit = hasWriteAccess(dashboard?.my_permission_level);
+  const canEdit = Boolean(dashboard?.can.edit);
   const editor = useDashboardEditor(dashboard, catalogQuery.data, canEdit);
   const [configuringId, setConfiguringId] = useState<string | null>(null);
   const configuring =

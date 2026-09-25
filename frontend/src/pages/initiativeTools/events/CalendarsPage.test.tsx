@@ -4,7 +4,7 @@ import { endOfMonth, startOfMonth } from "date-fns";
 import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
-import { buildProject, buildTask } from "@/__tests__/factories";
+import { buildProject, buildTask, writerCan } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { createTestQueryClient, renderPage } from "@/__tests__/helpers/render";
@@ -172,10 +172,9 @@ describe("CalendarsView on a guild calendar", () => {
     created_by: 1,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-    my_permission_level: "write",
+    can: writerCan(),
     comments_enabled: true,
     archived_at: null,
-    can_unarchive: false,
     tags: [],
     grants: [],
   };
@@ -243,10 +242,9 @@ describe("CalendarsView on the calendar app's own surface", () => {
     created_by: 1,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-    my_permission_level: "write",
+    can: writerCan(),
     comments_enabled: true,
     archived_at: null,
-    can_unarchive: false,
     tags: [],
     grants: [],
   });
@@ -329,7 +327,7 @@ describe("CalendarsView on the calendar app's own surface", () => {
     attendee_previews: [],
     property_values: [],
     tags: [],
-    my_permission_level: "write",
+    can: writerCan(),
   };
 
   it("lets a reader hide one of them, and keeps it hidden the next time", async () => {

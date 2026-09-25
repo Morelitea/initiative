@@ -1,20 +1,20 @@
 import { FileDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import type { Tool } from "@/api/generated/initiativeAPI.schemas";
+import type { Tool, ToolCan } from "@/api/generated/initiativeAPI.schemas";
 import { ExportButton } from "@/components/exports/ExportButton";
 import { TOOL_EXPORT_FORMATS } from "@/components/exports/formats";
 import { Button } from "@/components/ui/button";
 import { exportFilenameStem } from "@/lib/exportDownload";
-import { canExportAll } from "@/lib/permissions";
+import { everyCan } from "@/lib/permissions";
 import { toolExportEndpoint, toolExportIdsParam, toolRouteSegment } from "@/lib/tools";
 
 interface BulkExportButtonProps {
   /** The canonical tool — endpoint, selector param, and formats all derive
    * from the registry, so a bulk-export surface can't drift per page. */
   tool: Tool;
-  /** The selected entities, with the rung the viewer holds on each. */
-  items: { id: number; my_permission_level?: string | null }[];
+  /** The selected entities, with what the viewer may do to each. */
+  items: { id: number; can: ToolCan }[];
 }
 
 /** Bulk-selection export for a tool's list page: one artifact per selected
@@ -29,7 +29,7 @@ export function BulkExportButton({ tool, items }: BulkExportButtonProps) {
   if (!formats || items.length === 0) {
     return null;
   }
-  if (!canExportAll(items)) {
+  if (!everyCan(items, "export")) {
     return <BulkExportUnavailable title={t("export.ownerRequired")} />;
   }
   return (

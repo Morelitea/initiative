@@ -86,7 +86,7 @@ export const InitiativeDirectory = ({ entries, onCreate }: InitiativeDirectoryPr
   const { t } = useTranslation(["guildHome", "initiatives", "nav"]);
   const gp = useGuildPath();
   const { user } = useAuth();
-  const { isGuildAdmin, permissionsFor } = useInitiativeAccess();
+  const { isGuildAdmin } = useInitiativeAccess();
   const guildId = useActiveGuildId();
 
   // One reading for everyone, guild admin included: a card is yours when you
@@ -186,8 +186,7 @@ export const InitiativeDirectory = ({ entries, onCreate }: InitiativeDirectoryPr
     if (!initiative) {
       return null;
     }
-    const access = permissionsFor(initiative);
-    return TOOLS.filter((tool) => access[tool].view).map((tool) => {
+    return TOOLS.filter((tool) => initiative.can.view.includes(tool)).map((tool) => {
       const Icon = TOOL_ICONS[tool];
       const { counts, isLoading } = toolCounts[tool];
       const label = t("directory.toolCount", {

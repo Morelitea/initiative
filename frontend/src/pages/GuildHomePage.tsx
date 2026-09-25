@@ -38,7 +38,7 @@ import { isToolSortField, type ToolSortField, ToolTable } from "@/components/too
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useGuildToolRows } from "@/hooks/useGuildToolRows";
-import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
+import { liveInitiatives, useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiativeDirectory, useInitiatives } from "@/hooks/useInitiatives";
 import { renderableBanner } from "@/lib/banner";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -66,7 +66,7 @@ export function GuildHomePage() {
   const initiativesQuery = useInitiatives();
   const directoryQuery = useInitiativeDirectory();
   const directoryEntries = directoryQuery.data ?? [];
-  const { filterVisible, permissionsFor, isGuildAdmin } = useInitiativeAccess();
+  const { isGuildAdmin } = useInitiativeAccess();
 
   // Creating an initiative is guild-admin only (the backend enforces it), and
   // the affordance is threaded down as a callback: passing one IS the gate.
@@ -89,8 +89,8 @@ export function GuildHomePage() {
   }, [search.create]);
 
   const visibleInitiatives = useMemo(
-    () => filterVisible(initiativesQuery.data),
-    [initiativesQuery.data, filterVisible]
+    () => liveInitiatives(initiativesQuery.data),
+    [initiativesQuery.data]
   );
 
   // Nothing to browse: the tool rail and table would be six empty circles over
@@ -108,9 +108,9 @@ export function GuildHomePage() {
       return TOOLS.filter((tool) => DEFAULT_ENABLED_TOOLS.has(tool));
     }
     return TOOLS.filter((tool) =>
-      visibleInitiatives.some((initiative) => permissionsFor(initiative)[tool].view)
+      visibleInitiatives.some((initiative) => initiative.can.view.includes(tool))
     );
-  }, [visibleInitiatives, permissionsFor]);
+  }, [visibleInitiatives]);
 
   const requested = search.tool ? toolForRouteSegment(search.tool) : null;
   // An unknown or unreachable `?tool=` falls back to the first circle rather

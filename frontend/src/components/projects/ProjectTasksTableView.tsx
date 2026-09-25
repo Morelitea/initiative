@@ -66,7 +66,6 @@ type ProjectTasksListViewProps = {
   sensors: DndContextProps["sensors"];
   canReorderTasks: boolean;
   canEditTaskDetails: boolean;
-  canOpenTask: boolean;
   taskActionsDisabled: boolean;
   onDragStart: (event: DragStartEvent) => void;
   onDragEnd: (event: DragEndEvent) => void;
@@ -186,7 +185,6 @@ const ProjectTasksTableViewComponent = ({
   sensors,
   canReorderTasks,
   canEditTaskDetails,
-  canOpenTask,
   taskActionsDisabled,
   onDragStart,
   onDragEnd,
@@ -346,9 +344,7 @@ const ProjectTasksTableViewComponent = ({
             </div>
           );
         },
-        cell: ({ row }) => (
-          <MemoizedTaskCell task={row.original} canOpenTask={canOpenTask} taskHref={taskHref} />
-        ),
+        cell: ({ row }) => <MemoizedTaskCell task={row.original} taskHref={taskHref} />,
         enableSorting: true,
         sortFn: "alphanumeric",
         enableHiding: false,
@@ -505,7 +501,6 @@ const ProjectTasksTableViewComponent = ({
       },
     ],
     [
-      canOpenTask,
       gp,
       onStatusChange,
       taskHref,
@@ -658,7 +653,6 @@ export const ProjectTasksTableView = memo(
       prevProps.sensors === nextProps.sensors &&
       prevProps.canReorderTasks === nextProps.canReorderTasks &&
       prevProps.canEditTaskDetails === nextProps.canEditTaskDetails &&
-      prevProps.canOpenTask === nextProps.canOpenTask &&
       prevProps.taskActionsDisabled === nextProps.taskActionsDisabled &&
       prevProps.initiativeId === nextProps.initiativeId
       // Note: Intentionally ignoring callback prop changes as they're functionally the same
@@ -690,11 +684,10 @@ const DragHandleCell = () => {
 
 type TaskCellProps = {
   task: TaskListRead;
-  canOpenTask: boolean;
   taskHref: (taskId: number) => string;
 };
 
-const TaskCell = ({ task, canOpenTask, taskHref }: TaskCellProps) => {
+const TaskCell = ({ task, taskHref }: TaskCellProps) => {
   const { t } = useTranslation(["projects", "dates", "comments"]);
   const unreadDot = useUnreadTree().hasSubject(task.guild_id, "task", task.id) ? (
     <UnreadDot />
@@ -716,21 +709,14 @@ const TaskCell = ({ task, canOpenTask, taskHref }: TaskCellProps) => {
   return (
     <div className="flex items-center gap-2">
       <div className="flex w-full min-w-60 flex-col items-start text-left">
-        {canOpenTask ? (
-          <Link
-            to={taskHref(task.id)}
-            draggable={false}
-            className="flex items-center gap-2 rounded-sm font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-1 focus-visible:ring-ring"
-          >
-            {task.title}
-            {unreadDot}
-          </Link>
-        ) : (
-          <p className="flex items-center gap-2 font-medium opacity-70">
-            {task.title}
-            {unreadDot}
-          </p>
-        )}
+        <Link
+          to={taskHref(task.id)}
+          draggable={false}
+          className="flex items-center gap-2 rounded-sm font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          {task.title}
+          {unreadDot}
+        </Link>
         <div className="space-y-1 text-muted-foreground text-xs">
           {task.assignees.length > 0 ? (
             <TaskAssigneeList assignees={task.assignees} className="text-xs" />
@@ -755,7 +741,6 @@ const MemoizedTaskCell = memo(TaskCell, (prevProps, nextProps) => {
     prevProps.task.start_date === nextProps.task.start_date &&
     prevProps.task.due_date === nextProps.task.due_date &&
     prevProps.task.assignees.length === nextProps.task.assignees.length &&
-    prevProps.canOpenTask === nextProps.canOpenTask &&
     prevProps.taskHref === nextProps.taskHref
   );
 });

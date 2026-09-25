@@ -11,6 +11,7 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
+import { writerCan } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
@@ -32,8 +33,7 @@ const CALENDAR = {
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
   archived_at: null,
-  can_unarchive: false,
-  my_permission_level: "write",
+  can: writerCan(),
   comments_enabled: true,
   tags: [],
   grants: [],

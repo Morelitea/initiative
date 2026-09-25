@@ -24,7 +24,6 @@ import { useServerForm } from "@/hooks/useServerForm";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
-import { hasWriteAccess } from "@/lib/permissions";
 import { toolDetailRoute } from "@/lib/tools";
 
 export const DocumentSettingsPage = () => {
@@ -48,7 +47,7 @@ export const DocumentSettingsPage = () => {
   const setGrants = useSetDocumentGrants(parsedId);
   const remove = useDeleteDocument();
 
-  const canManageDocument = hasWriteAccess(document?.my_permission_level);
+  const canManageDocument = Boolean(document?.can.edit);
 
   // A whiteboard's pictures are drawn from the scene the server holds; the
   // editor has saved it by the time anybody is here.

@@ -10,7 +10,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
-import { hasWriteAccess } from "@/lib/permissions";
 
 /** A derived, read-only "calendar" for one project's tasks — rendered from the
  * calendar-entries tasks payload, never stored server-side. */
@@ -106,9 +105,7 @@ export const CalendarListPanel = ({
         ) : (
           <ul className="space-y-0.5">
             {calendars.map((calendar) => {
-              const settingsPath = hasWriteAccess(calendar.my_permission_level)
-                ? (settingsPathFor?.(calendar) ?? null)
-                : null;
+              const settingsPath = calendar.can.edit ? (settingsPathFor?.(calendar) ?? null) : null;
               return (
                 <li
                   key={`${calendar.guild_id}-${calendar.id}`}

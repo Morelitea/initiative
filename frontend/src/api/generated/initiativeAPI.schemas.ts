@@ -5200,6 +5200,7 @@ export const Tool = {
  */
 export interface InitiativeCan {
   manage: boolean;
+  moderate: boolean;
   view: Tool[];
   create: Tool[];
 }

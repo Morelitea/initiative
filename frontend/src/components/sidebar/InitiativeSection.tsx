@@ -21,12 +21,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { InitiativeToolAccess } from "@/hooks/useInitiativeAccess";
-import { canModerate } from "@/hooks/useModeration";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { initiativeAppPath } from "@/lib/appSurfaces";
 import { guildPath } from "@/lib/guildUrl";
-import { hasWriteAccess } from "@/lib/permissions";
 import { getItem, setItem } from "@/lib/storage";
 import {
   initiativeRoute,
@@ -42,11 +39,7 @@ import { cn } from "@/lib/utils";
 export interface InitiativeSectionProps {
   initiative: InitiativeRead;
   projects: ProjectRead[];
-  canManageInitiative: boolean;
   activeProjectId: number | null;
-  userId: number | undefined;
-  /** Per-tool view/create access, from useInitiativeAccess().permissionsFor. */
-  access: InitiativeToolAccess;
   /** Per-tool sidebar counts. Every in-app list tool shows one — the rows all
    *  present the same way; a hand-off (embedded) tool has no list to count. */
   /** One count per tool. Required keys, not `Partial`: a tool left out of
@@ -55,8 +48,6 @@ export interface InitiativeSectionProps {
   /** The guild's installed apps. Those declaring a surface for this reader
    *  inside an initiative get a row here, drawn from the same one install. */
   apps: GuildAppRead[];
-  /** Whether the reader is a guild admin, which clears every surface's rung. */
-  isGuildAdmin: boolean;
   activeGuildId: number | null;
   /** Changing this value re-syncs the open/closed state from storage. */
   collapseKey?: number;
@@ -66,13 +57,9 @@ export const InitiativeSection = memo(
   ({
     initiative,
     projects,
-    canManageInitiative,
     activeProjectId,
-    userId,
-    access,
     counts,
     apps,
-    isGuildAdmin,
     activeGuildId,
     collapseKey,
   }: InitiativeSectionProps) => {
@@ -82,22 +69,11 @@ export const InitiativeSection = memo(
     const unread = useUnreadTree();
     // Helper to create guild-scoped paths
     const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
-    // Pure DAC: check if user has write access to a specific project
-    const canManageProject = (project: ProjectRead): boolean => {
-      if (!userId) return false;
-      return hasWriteAccess(project.my_permission_level);
-    };
-
     /** Whether a tool's row renders at all. */
-    const showTool = (tool: Tool): boolean => access[tool].view;
-
-    // "Full access" in this initiative, or guild admin: the standing the
-    // moderation tables admit, read off the flag the role carries rather than
-    // its name.
-    const showModeration = canModerate(initiative, userId, isGuildAdmin);
+    const showTool = (tool: Tool): boolean => initiative.can.view.includes(tool);
 
     /** Whether to surface a create affordance for a tool. */
-    const canCreateTool = (tool: Tool): boolean => access[tool].create;
+    const canCreateTool = (tool: Tool): boolean => initiative.can.create.includes(tool);
 
     // Apps offering this reader a surface inside *this* initiative, as the
     // server computed it for them.
@@ -176,7 +152,7 @@ export const InitiativeSection = memo(
               </Link>
             </Button>
           </div>
-          {canManageInitiative && (
+          {initiative.can.manage && (
             <>
               {/* Desktop: Show hover-reveal settings button */}
               <Tooltip delayDuration={300}>
@@ -242,7 +218,7 @@ export const InitiativeSection = memo(
                   It is not a tool — nothing shares it, nothing turns it off —
                   and it is drawn only for whoever already reaches every item in
                   the initiative, which is what the tables themselves admit. */}
-              {showModeration && (
+              {initiative.can.moderate && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild size="sm" className="min-w-0">
                     <Link
@@ -309,7 +285,7 @@ export const InitiativeSection = memo(
               })}
 
               {/* Projects List */}
-              {access[Tool.project].view &&
+              {showTool(Tool.project) &&
                 projects.map((project) => (
                   <SidebarMenuItem key={project.id}>
                     <div className="group/project flex w-full min-w-0 items-center gap-1">
@@ -329,7 +305,7 @@ export const InitiativeSection = memo(
                           <span className="min-w-0 flex-1 truncate">{project.name}</span>
                         </Link>
                       </SidebarMenuButton>
-                      {canManageProject(project) && (
+                      {project.can.edit && (
                         <>
                           {/* Desktop: Show hover-reveal settings button */}
                           <Tooltip delayDuration={300}>

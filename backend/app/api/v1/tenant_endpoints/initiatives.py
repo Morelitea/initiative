@@ -94,6 +94,7 @@ def _roster_options(guild_context: ActorContext) -> tuple:
     role = selectinload(Initiative.memberships).selectinload(InitiativeMember.role_ref)
     return (
         undefer(Initiative.permitted_keys),
+        undefer(Initiative.full_access),
         selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
         role.noload(InitiativeRoleModel.permissions)
         if guild_context.user_id is None
@@ -155,6 +156,7 @@ async def _get_initiative_or_404(
         .execution_options(populate_existing=True)
         .options(
             undefer(Initiative.permitted_keys),
+            undefer(Initiative.full_access),
             selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
             selectinload(Initiative.memberships)
             .selectinload(InitiativeMember.role_ref)

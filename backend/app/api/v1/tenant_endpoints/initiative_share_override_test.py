@@ -174,14 +174,13 @@ async def test_moderator_reaches_restricted_content(
     )
     assert resp.status_code == 200
 
-    # The roster reflects the capability for the client.
+    # The initiative offers the moderation surface on the same answer.
     resp = await client.get(
         f"/api/v1/c/{guild.id}/initiatives/{initiative.id}",
         headers=pm.headers,
     )
     assert resp.status_code == 200
-    me = next(m for m in resp.json()["members"] if m["user"]["id"] == pm.user.id)
-    assert me["override_share_restrictions"] is True
+    assert resp.json()["can"]["moderate"] is True
 
 
 # ── Who may hand out the role ────────────────────────────────────────────────

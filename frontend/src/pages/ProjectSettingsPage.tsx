@@ -6,7 +6,6 @@ import { ProjectSettingsAdvancedTab } from "@/components/projects/settings/Proje
 import { ProjectSettingsDetailsTab } from "@/components/projects/settings/ProjectSettingsDetailsTab";
 import { ToolSettingsLayout } from "@/components/tools/settings/ToolSettingsLayout";
 import { useDeleteProject, useProject, useSetProjectGrants } from "@/hooks/useProjects";
-import { hasWriteAccess } from "@/lib/permissions";
 
 export const ProjectSettingsPage = () => {
   const { projectId } = useParams({ strict: false }) as { projectId?: string };
@@ -19,7 +18,7 @@ export const ProjectSettingsPage = () => {
   const remove = useDeleteProject();
 
   const project = projectQuery.data;
-  const canWrite = hasWriteAccess(project?.my_permission_level);
+  const canWrite = Boolean(project?.can.edit);
 
   return (
     <ToolSettingsLayout

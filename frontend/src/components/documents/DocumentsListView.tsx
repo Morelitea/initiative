@@ -19,7 +19,6 @@ import { useProperties } from "@/hooks/useProperties";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { getFileTypeLabel } from "@/lib/fileUtils";
 import { useGuildPath } from "@/lib/guildUrl";
-import { hasOwnerAccess } from "@/lib/permissions";
 import { dateSortingFn } from "@/lib/sorting";
 import type { AppColumnDef } from "@/lib/table";
 import { toolDetailRoute } from "@/lib/tools";
@@ -186,7 +185,7 @@ export const DocumentsListView = ({
           if (row.original.owner_app) {
             return <span>{row.original.owner_app.name}</span>;
           }
-          const ownerGrant = (row.original.grants ?? []).find((g) => hasOwnerAccess(g.level));
+          const ownerGrant = (row.original.grants ?? []).find((g) => g.level === "owner");
           if (!ownerGrant || ownerGrant.user_id == null) {
             return <span className="text-muted-foreground">—</span>;
           }

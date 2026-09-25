@@ -12,7 +12,6 @@
 import { useParams } from "@tanstack/react-router";
 
 import type { InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
-import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { administersGuildContent } from "@/lib/permissions";
@@ -39,7 +38,6 @@ export function useInitiativeSettings(): InitiativeSettingsContext {
   const hasValidInitiativeId = Boolean(initiativeIdParam) && Number.isFinite(parsedInitiativeId);
   const initiativeId = hasValidInitiativeId ? parsedInitiativeId : 0;
 
-  const { user } = useAuth();
   const { activeGuild } = useGuilds();
   // Addressed by id, not picked out of the caller's own list: a guild admin
   // reaches every initiative in their guild whether or not they have joined it,
@@ -48,8 +46,6 @@ export function useInitiativeSettings(): InitiativeSettingsContext {
   const initiative = initiativeQuery.data ?? null;
 
   const isGuildAdmin = administersGuildContent(activeGuild);
-  const membership = initiative?.members.find((member) => member.user.id === user?.id);
-  const isInitiativeManager = Boolean(membership?.is_manager);
 
   return {
     initiativeId,
@@ -57,7 +53,7 @@ export function useInitiativeSettings(): InitiativeSettingsContext {
     initiative,
     isLoading: initiativeQuery.isLoading,
     isGuildAdmin,
-    canManageMembers: Boolean(isGuildAdmin || isInitiativeManager),
+    canManageMembers: Boolean(initiative?.can.manage),
     canDeleteInitiative: Boolean(isGuildAdmin),
   };
 }

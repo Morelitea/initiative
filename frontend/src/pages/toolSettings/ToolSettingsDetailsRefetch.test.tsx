@@ -13,6 +13,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { ownerCan } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
@@ -31,12 +32,11 @@ const buildEntity = (overrides: Partial<ToolSettingsEntity> = {}): ToolSettingsE
   name: "Q3 Roadmap",
   description: "A description",
   initiative_id: 3,
-  my_permission_level: "owner",
+  can: ownerCan(),
   tags: [],
   grants: [],
   comments_enabled: true,
   archived_at: null,
-  can_unarchive: false,
   ...overrides,
 });
 
@@ -58,8 +58,6 @@ const renderSection = (arrived: ToolSettingsEntity) => {
           value={{
             tool: Tool.queue,
             entity,
-            canManage: true,
-            isOwner: true,
             update: noopMutation(),
             setGrants: noopMutation(),
             remove: noopMutation(),

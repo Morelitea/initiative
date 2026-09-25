@@ -8,6 +8,7 @@ import type {
   ResourceGrantBulkItem,
   ResourceGrantSchema,
   Tool,
+  ToolCan,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
   getListInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGetQueryKey,
@@ -53,6 +54,7 @@ export interface BulkAccessItem {
   id: number;
   initiative_id: number;
   grants?: ResourceGrantSchema[] | null;
+  can: ToolCan;
 }
 
 interface BulkEditAccessDialogProps extends DialogWithSuccessProps {

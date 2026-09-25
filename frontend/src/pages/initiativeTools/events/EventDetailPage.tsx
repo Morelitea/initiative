@@ -32,7 +32,6 @@ import { useReadOnOpen } from "@/hooks/useNotifications";
 import { toast } from "@/lib/chesterToast";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
-import { hasWriteAccess } from "@/lib/permissions";
 import { hour12Option } from "@/lib/timeFormat";
 import { eventSettingsRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 import { getUserDisplayName } from "@/lib/userDisplay";
@@ -177,7 +176,7 @@ export function EventDetailPage() {
 
   // An event takes its level from its calendar; editing and deleting both ask
   // for write on it.
-  const canWrite = hasWriteAccess(event?.my_permission_level);
+  const canWrite = Boolean(event?.can.edit);
 
   // Find current user's RSVP status
   const myAttendee = useMemo(() => {

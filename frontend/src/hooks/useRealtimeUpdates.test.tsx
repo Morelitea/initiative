@@ -154,12 +154,12 @@ describe("realtime resource frames", () => {
   });
 
   it("refreshes the roster, the roles and what they permit", () => {
-    // A membership row and a role row have no route of their own, so all three
-    // of these report as the initiative — one frame has to cover them.
+    // A membership row and a role row have no route of their own, so these
+    // report as the initiative — one frame has to cover them. What the roles
+    // permit is on the initiative's own read.
     const initiative = seed([`/api/v1/c/${GUILD}/initiatives/${ENTITY_ID}`]);
     const members = seed([`/api/v1/c/${GUILD}/initiatives/${ENTITY_ID}/members`]);
     const roles = seed([`/api/v1/c/${GUILD}/initiatives/${ENTITY_ID}/roles`]);
-    const permissions = seed([`/api/v1/c/${GUILD}/initiatives/${ENTITY_ID}/my-permissions`]);
 
     applyChanges([
       { resource: { type: "initiatives", id: ENTITY_ID }, parents: [], action: "updated" },
@@ -168,7 +168,6 @@ describe("realtime resource frames", () => {
     expect(initiative(), "initiative").toBe(true);
     expect(members(), "members").toBe(true);
     expect(roles(), "roles").toBe(true);
-    expect(permissions(), "my permissions").toBe(true);
   });
 
   it("refreshes the app list and an install's own reads", () => {

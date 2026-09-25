@@ -269,16 +269,20 @@ def attach_access_level(model: type[SQLModel], tool: "Tool") -> None:
     )
 
 
-def attach_permitted_keys(model: type[SQLModel], defaults: dict[str, bool]) -> None:
-    """Map ``permitted_keys`` on the initiative: which of the role permission
-    keys (``defaults``, each with the value it takes when a role stores none)
-    the request holds there, answered by the schema's own
-    ``initiative_role_permits`` in the same SELECT as the row — the function
-    the content policies call, so what an initiative reports and what its
-    tables admit are one rule.
+def attach_initiative_standing(
+    model: type[SQLModel], defaults: dict[str, bool]
+) -> None:
+    """Map what the request holds in an initiative, answered by the schema's
+    own gates in the same SELECT as the row — the functions the content
+    policies call, so what an initiative reports and what its tables admit are
+    one rule.
+
+    ``permitted_keys``: which of the role permission keys (``defaults``, each
+    with the value it takes when a role stores none) ``initiative_role_permits``
+    grants. ``full_access``: ``initiative_full_access`` for a write.
 
     Deferred like ``access_level``; the loaders that serialize an initiative
-    ask for it with ``undefer``."""
+    ask for them with ``undefer``."""
     keys = values(
         column("key", String), column("fallback", Boolean), name="permission_keys"
     ).data(list(defaults.items()))
@@ -296,6 +300,17 @@ def attach_permitted_keys(model: type[SQLModel], defaults: dict[str, bool]) -> N
                 )
             )
             .scalar_subquery(),
+            deferred=True,
+        ),
+    )
+    model.__mapper__.add_property(  # type: ignore[attr-defined]
+        "full_access",
+        column_property(
+            func.initiative_full_access(
+                model.id,  # type: ignore[attr-defined]
+                True,
+                _standing(),
+            ),
             deferred=True,
         ),
     )

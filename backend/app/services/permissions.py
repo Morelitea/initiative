@@ -871,13 +871,14 @@ def can_configure_project(project: Project, *, context: ActorContext | None) -> 
     Configuring a project — pinning it, setting its default view, curating its
     filter presets — is a step above being able to edit its content. Three
     ways to hold it: a guild admin, a manager of the owning initiative, or the
-    project's own owner. Plain write access is deliberately not enough.
+    project's own owner. Plain write access is deliberately not enough, and
+    nobody configures a project while it or its community is frozen.
 
     Read off the standing and the level the database answered, so the routes
     that configure a project and the ``can.configure`` a project reports are
     the same answer.
     """
-    if context is None:
+    if context is None or _frozen_community(context) or row_is_frozen(project):
         return False
     if context.is_admin:
         return True

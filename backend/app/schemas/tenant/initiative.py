@@ -195,6 +195,8 @@ class InitiativeCan(SanitizedBaseModel):
 
     #: Run the initiative itself — its settings, roster and roles.
     manage: bool = False
+    #: Act on its moderation reports ("Full access", or the community's admin).
+    moderate: bool = False
     #: The tools the caller may open here.
     view: List[Tool] = Field(default_factory=list)
     #: The tools the caller may make a new one of here.
@@ -385,6 +387,7 @@ def initiative_can(
     authors = not (context.content_read_only or context.is_pam)
     return InitiativeCan(
         manage=context.is_admin or initiative.id in context.manager_initiatives,
+        moderate=bool(initiative.full_access),
         view=[t for t in switched_on if t.view_permission in permitted],
         create=[t for t in switched_on if authors and t.create_permission in permitted],
     )

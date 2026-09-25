@@ -28,6 +28,7 @@ vi.mock("@excalidraw/excalidraw", () => ({
 
 import { exportToBlob } from "@excalidraw/excalidraw";
 
+import { ownerCan } from "@/__tests__/factories";
 import { downloadBlob } from "@/lib/csv";
 
 const noopMutation = () => ({ mutate: vi.fn(), isPending: false });
@@ -53,15 +54,12 @@ function DocumentExportCard({
           id: documentId,
           name: title,
           initiative_id: 1,
-          my_permission_level: "owner",
+          can: ownerCan(),
           tags: [],
           grants: [],
           comments_enabled: true,
           archived_at: null,
-          can_unarchive: false,
         },
-        canManage: true,
-        isOwner: true,
         setGrants: noopMutation(),
         remove: noopMutation(),
         exportOptions,

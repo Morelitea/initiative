@@ -36,7 +36,6 @@ import { useCounterGroupRealtime } from "@/hooks/useResourceRealtime";
 import { getContrastingTextColor } from "@/lib/counter-color";
 import { isAtMax, isAtMin } from "@/lib/counter-math";
 import { useGuildPath } from "@/lib/guildUrl";
-import { hasWriteAccess } from "@/lib/permissions";
 import { counterRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -87,7 +86,7 @@ export function CounterDetailPage() {
   );
   const counter = currentIndex >= 0 ? counters[currentIndex] : null;
 
-  const canWrite = hasWriteAccess(group?.my_permission_level);
+  const canWrite = Boolean(group?.can.edit);
 
   const goToCounter = (index: number) => {
     if (counters.length === 0 || !guildId || !groupId) return;

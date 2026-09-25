@@ -39,7 +39,6 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useFileDrop } from "@/hooks/useFileDrop";
-import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useRelatedStates } from "@/hooks/useRelatedStates";
 import {
@@ -188,11 +187,9 @@ export const RelationsSection = ({
   // may be made at all. Unknown until the initiative loads, which reads as no.
   const canAdd = canEdit && assertable.length > 0;
   const { maxUploadBytes } = useAppConfig();
-  const { permissionsFor } = useInitiativeAccess();
   const initiativesQuery = useInitiatives({ enabled: canAdd && initiativeId != null });
   const initiative = initiativesQuery.data?.find((item) => item.id === initiativeId);
-  const documentAccess = initiative ? permissionsFor(initiative)[Tool.document] : null;
-  const canUpload = canAdd && Boolean(documentAccess?.view && documentAccess.create);
+  const canUpload = canAdd && Boolean(initiative?.can.create.includes(Tool.document));
 
   const { data: rows = [], isLoading, isError } = useRelationshipsFor(entity);
   // Only walked while the picture is the thing on screen: a second hop is a

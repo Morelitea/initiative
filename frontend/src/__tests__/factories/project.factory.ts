@@ -4,6 +4,8 @@ import type {
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
 
+import { ownerCan } from "./can";
+
 let counter = 0;
 
 export function resetCounter(): void {
@@ -83,9 +85,7 @@ export function buildProject(overrides: Partial<ProjectRead> = {}): ProjectRead 
     owner_app: null,
     initiative: null,
     grants: [],
-    can_unarchive: false,
-    can_configure: false,
-    my_permission_level: "owner",
+    can: { ...ownerCan(), configure: false },
     sort_order: counter,
     is_favorited: false,
     last_viewed_at: null,

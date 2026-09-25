@@ -9,7 +9,7 @@
  * generated enum).
  */
 
-import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
+import type { ToolCan, UserRead } from "@/api/generated/initiativeAPI.schemas";
 
 export const Capability = {
   usersRead: "users.read",
@@ -102,8 +102,6 @@ export const rungReaches = (
   return at >= 0 && at >= GUILD_LADDER.indexOf(rung);
 };
 
-/** True when a server-computed per-resource permission level allows writing.
- * Reads `my_permission_level` — never derive this client-side. */
 /**
  * Whether this request holds the community's top seat.
  *
@@ -180,17 +178,7 @@ export const changesGuildSettings = (
   guild: { can_write_settings?: boolean } | null | undefined
 ): boolean => guild?.can_write_settings === true;
 
-export const hasWriteAccess = (level: string | null | undefined): boolean =>
-  level === "owner" || level === "write";
-
-/** Whether this rung is the owner's: what only an owner may do — delete,
- *  change the sharing, export — reads this. */
-export const hasOwnerAccess = (level: string | null | undefined): boolean => level === "owner";
-
-/** Whether this rung may export the thing: an export hands the whole thing
- *  over, so it is the owner's, as deleting it is. The server asks the same. */
-export const canExport = hasOwnerAccess;
-
-/** Whether every selected item may be exported by this viewer. */
-export const canExportAll = (items: { my_permission_level?: string | null }[]): boolean =>
-  items.length > 0 && items.every((item) => canExport(item.my_permission_level));
+/** Whether the viewer may take `action` on every one of `items` — a selection
+ *  read against each row's server-computed `can`. */
+export const everyCan = (items: readonly { can: ToolCan }[], action: keyof ToolCan): boolean =>
+  items.length > 0 && items.every((item) => item.can[action]);

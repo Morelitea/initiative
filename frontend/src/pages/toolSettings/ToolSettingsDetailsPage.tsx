@@ -27,7 +27,8 @@ import { toast } from "@/lib/chesterToast";
 
 export const ToolSettingsDetailsPage = () => {
   const { t } = useTranslation("common");
-  const { tool, entity, canManage, update, detailsExtra } = useToolSettings();
+  const { tool, entity, update, detailsExtra } = useToolSettings();
+  const canManage = entity.can.edit;
 
   // Name and description wait for Save, so a refetch arriving mid-sentence
   // must not take the sentence away.

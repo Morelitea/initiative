@@ -1,12 +1,13 @@
 import { useState } from "react";
 
 import type { Tool } from "@/api/generated/initiativeAPI.schemas";
-import { BulkAccessBar, canManageSharing } from "@/components/access/BulkAccessBar";
+import { BulkAccessBar } from "@/components/access/BulkAccessBar";
 import {
   type BulkAccessItem,
   BulkEditAccessDialog,
 } from "@/components/access/BulkEditAccessDialog";
 import { BulkExportButton } from "@/components/exports/BulkExportButton";
+import { everyCan } from "@/lib/permissions";
 
 /** The slice of {@link useGridSelection} this section drives. */
 interface GridSelectionLike<T> {
@@ -15,9 +16,7 @@ interface GridSelectionLike<T> {
   exit: () => void;
 }
 
-interface BulkAccessSectionProps<
-  T extends BulkAccessItem & { my_permission_level?: string | null },
-> {
+interface BulkAccessSectionProps<T extends BulkAccessItem> {
   /** The grid selection driving this page's cards. Its state stays on the page. */
   selection: GridSelectionLike<T>;
   /** The tool being listed — routes the bulk export and access endpoints. */
@@ -33,9 +32,11 @@ interface BulkAccessSectionProps<
  * Entering selection mode is the toolbar's overflow menu's job, so this renders
  * nothing at all until something is selected.
  */
-export function BulkAccessSection<
-  T extends BulkAccessItem & { my_permission_level?: string | null },
->({ selection, tool, invalidate }: BulkAccessSectionProps<T>) {
+export function BulkAccessSection<T extends BulkAccessItem>({
+  selection,
+  tool,
+  invalidate,
+}: BulkAccessSectionProps<T>) {
   const [dialogOpen, setDialogOpen] = useState(false);
 
   return (
@@ -43,7 +44,7 @@ export function BulkAccessSection<
       {selection.active ? (
         <BulkAccessBar
           count={selection.selectedItems.length}
-          canManage={canManageSharing(selection.selectedItems)}
+          canManage={everyCan(selection.selectedItems, "share")}
           onEditAccess={() => setDialogOpen(true)}
           onExit={selection.exit}
         >
