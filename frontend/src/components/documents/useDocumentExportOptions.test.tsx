@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
-import type { DocumentReadDocumentType } from "@/api/generated/initiativeAPI.schemas";
+import type { DocumentType } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import type { WhiteboardScene } from "@/components/documents/WhiteboardDocumentEditor";
 import { ToolExportCard } from "@/components/tools/settings/ToolExportCard";
@@ -40,7 +40,7 @@ function DocumentExportCard({
   whiteboardScene,
 }: {
   documentId: number;
-  documentType: DocumentReadDocumentType;
+  documentType: DocumentType;
   title: string;
   whiteboardScene?: WhiteboardScene;
 }) {

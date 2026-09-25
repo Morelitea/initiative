@@ -9,7 +9,7 @@ from pydantic import ConfigDict, Field
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.archive import ArchiveState
 
-from app.schemas.tenant.resource_grant import ResourceGrantSchema
+from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.services.fields.spec import FieldType
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.services.tenant.dashboard_definition import (
@@ -57,11 +57,7 @@ class DashboardCreate(DashboardBase):
     config: Dict[str, Any] = Field(default_factory=dict)
     # Initial sharing — the same grant list the PUT /grants endpoint takes.
     # Defaults to Viewer for all initiative members.
-    grants: List[ResourceGrantSchema] = Field(
-        default_factory=lambda: [
-            ResourceGrantSchema(all_initiative_members=True, level="read")
-        ]
-    )
+    grants: List[ResourceGrantSchema] = Field(default_factory=initiative_readable)
 
 
 class DashboardInstalledListings(SanitizedBaseModel):

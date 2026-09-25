@@ -10,7 +10,7 @@ from app.core.identity_boundary import GuildId, PersonId
 from app.models.tenant.wiki import WikiPageOrder, WikiReadingWidth
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.archive import ArchiveState
-from app.schemas.tenant.resource_grant import ResourceGrantSchema
+from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.tenant.tag import TagSummary
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -29,11 +29,7 @@ class WikiCreate(WikiBase):
     # Initial sharing — the same grant list the PUT /grants endpoint takes. A
     # wiki defaults to readable by the whole initiative: it is written to be
     # read.
-    grants: List[ResourceGrantSchema] = Field(
-        default_factory=lambda: [
-            ResourceGrantSchema(all_initiative_members=True, level="read")
-        ]
-    )
+    grants: List[ResourceGrantSchema] = Field(default_factory=initiative_readable)
 
 
 class WikiSettings(SanitizedBaseModel):

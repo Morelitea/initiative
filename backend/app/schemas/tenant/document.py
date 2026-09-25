@@ -12,7 +12,7 @@ from app.schemas.tenant.archive import ArchiveState
 
 from app.models.tenant.document import DocumentType
 from app.models.tenant.resource_grant import ResourceAccessLevel
-from app.schemas.tenant.resource_grant import ResourceGrantSchema
+from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.platform.user import UserPublic
 from app.schemas.tenant.initiative import InitiativeSummary
 from app.schemas.tenant.ownership import OwnerAppSummary
@@ -30,7 +30,6 @@ LexicalState = Dict[str, Any]
 #: One sheet of a workbook, in the canonical shape
 #: ``normalize_spreadsheet_content`` produces.
 SpreadsheetSheet = Dict[str, Any]
-DocumentTypeStr = Literal["native", "file", "whiteboard", "smart_link", "spreadsheet"]
 
 
 class DocumentProjectLink(SanitizedBaseModel):
@@ -52,14 +51,15 @@ class DocumentBase(SanitizedBaseModel):
 
 class DocumentCreate(DocumentBase):
     content: Optional[LexicalState] = Field(default_factory=dict)
-    document_type: DocumentTypeStr = "native"
+    #: A file document is made by uploading the file (``POST /documents/upload``).
+    document_type: Literal[
+        DocumentType.native,
+        DocumentType.whiteboard,
+        DocumentType.smart_link,
+        DocumentType.spreadsheet,
+    ] = DocumentType.native
     # Initial sharing — the same grant list the PUT /grants endpoint takes.
-    # Defaults to Viewer for all initiative members.
-    grants: List[ResourceGrantSchema] = Field(
-        default_factory=lambda: [
-            ResourceGrantSchema(all_initiative_members=True, level="read")
-        ]
-    )
+    grants: List[ResourceGrantSchema] = Field(default_factory=initiative_readable)
 
 
 class DocumentUpdate(SanitizedBaseModel):
@@ -116,7 +116,7 @@ class DocumentSummary(DocumentBase, ArchiveState):
     tags: List[TagSummary] = Field(default_factory=list)
     properties: List[PropertySummary] = Field(default_factory=list)
     # File document fields
-    document_type: DocumentTypeStr = "native"
+    document_type: DocumentType = DocumentType.native
     file_url: Optional[str] = None
     file_content_type: Optional[str] = None
     file_size: Optional[int] = None
@@ -273,9 +273,7 @@ def serialize_document_summary(
         grants=serialize_grants(document, context=context),
         tags=annotated_tags(document),
         properties=_serialize_document_properties(document),
-        document_type=document.document_type.value
-        if document.document_type
-        else "native",
+        document_type=document.document_type,
         file_url=document.file_url,
         file_content_type=document.file_content_type,
         file_size=document.file_size,

@@ -9,7 +9,7 @@ from app.core.identity_boundary import GuildId, PersonId
 from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
 from app.schemas.tenant.archive import ArchiveState
 
-from app.schemas.tenant.resource_grant import ResourceGrantSchema
+from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.tenant.initiative import InitiativeSummary
 from app.schemas.tenant.ownership import OwnerAppSummary
 from app.schemas.tenant.document import ProjectDocumentSummary
@@ -40,17 +40,11 @@ class ProjectBase(SanitizedBaseModel):
 
 class ProjectCreate(ProjectBase):
     name: TitleStr
-    owner_id: Optional[PersonId] = None
     initiative_id: Optional[int] = None
     is_template: bool = False
     template_id: Optional[int] = None
     # Initial sharing — the same grant list the PUT /grants endpoint takes.
-    # Defaults to Viewer for all initiative members.
-    grants: List[ResourceGrantSchema] = Field(
-        default_factory=lambda: [
-            ResourceGrantSchema(all_initiative_members=True, level="read")
-        ]
-    )
+    grants: List[ResourceGrantSchema] = Field(default_factory=initiative_readable)
 
 
 class ProjectUpdate(SanitizedBaseModel):

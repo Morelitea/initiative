@@ -19,7 +19,6 @@ from typing import Annotated, Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
-from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -35,7 +34,6 @@ from app.api.deps import (
 from app.core.audit_events import AuditEventType
 from app.core.messages import (
     DashboardMessages,
-    InitiativeMessages,
     MarketplaceMessages,
 )
 from app.core.tools import Tool
@@ -46,8 +44,7 @@ from app.models.platform.marketplace import (
 )
 from app.models.platform.user import User
 from app.models.tenant.dashboard import Dashboard
-from app.models.tenant.initiative import Initiative
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.models.tenant.resource_grant import ResourceGrant
 from app.schemas.tenant.dashboard import (
     DashboardDataResponse,
     DashboardWidgetData,
@@ -66,7 +63,6 @@ from app.db.session import rls_context_params
 from app.schemas.sql_query import QueryColumnDescription, QueryResponse
 from app.services import audit as audit_service
 from app.services import query as query_service
-from app.services import permissions as permissions_service
 from app.services.marketplace.installs import (
     count_install,
     ListingInstallError,
@@ -167,28 +163,6 @@ def _listing_canvas(version: MarketplaceListingVersion) -> dict:
     return dict((version.definition or {}).get("definition") or {})
 
 
-async def _get_initiative_for_dashboard(
-    session: RLSSessionDep,
-    initiative_id: int,
-) -> Initiative:
-    stmt = (
-        select(Initiative)
-        .where(Initiative.id == initiative_id)
-        .options(
-            selectinload(Initiative.memberships),
-            selectinload(Initiative.roles),
-        )
-    )
-    result = await session.exec(stmt)
-    initiative = result.one_or_none()
-    if not initiative:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=InitiativeMessages.NOT_FOUND,
-        )
-    return initiative
-
-
 async def _refetch_dashboard(session: RLSSessionDep, dashboard_id: int) -> Dashboard:
     dashboard = await dashboards_service.get_dashboard(
         session, dashboard_id, populate_existing=True
@@ -279,16 +253,8 @@ async def create_dashboard(
 ) -> DashboardRead:
     """Create a dashboard. Requires create_dashboards permission on the
     initiative (or guild admin); the creator gets the owner grant."""
-    initiative = await _get_initiative_for_dashboard(
-        session, dashboard_in.initiative_id
-    )
-    if not initiative.dashboards_enabled:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=Tool.dashboard.feature_disabled_code,
-        )
-    await resource_access.require_create(
-        session, Tool.dashboard, initiative, current_user, guild_context
+    initiative = await resource_access.prepare_create(
+        session, Tool.dashboard, dashboard_in.initiative_id, current_user, guild_context
     )
 
     listing_id: Optional[int] = None
@@ -324,29 +290,15 @@ async def create_dashboard(
     )
     session.add(dashboard)
     await session.flush()
-
-    session.add(
-        ResourceGrant(
-            resource_type="dashboard",
-            resource_id=dashboard.id,
-            user_id=current_user.id,
-            role_id=None,
-            level=ResourceAccessLevel.owner,
-            initiative_id=initiative.id,
-        )
-    )
-
-    # Apply the initial sharing exactly the way edits do — one grant list, one
-    # code path (defaults to Viewer for all initiative members).
-    await permissions_service.replace_resource_grants(
+    await resource_access.grant_initial_sharing(
         session,
-        resource_type="dashboard",
+        guild_context,
+        Tool.dashboard,
+        user=current_user,
         resource_id=dashboard.id,
-        guild_id=guild_context.guild_id,
         initiative_id=initiative.id,
-        owner_id=current_user.id,
+        payload=dashboard_in,
         grants=dashboard_in.grants,
-        actor_user_id=current_user.id,
     )
 
     if dashboard_in.tag_ids:

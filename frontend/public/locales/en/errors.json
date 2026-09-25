@@ -138,7 +138,6 @@
   "ATTACHMENT_TOO_LARGE": "Image is too large (max 10 MB)",
   "ATTACHMENT_STORAGE_QUOTA_EXCEEDED": "This community has reached its storage limit",
   "DOCUMENT_NOT_FOUND": "Document not found",
-  "DOCUMENT_INITIATIVE_MEMBERSHIP_REQUIRED": "Initiative membership required",
   "DOCUMENT_PERMISSION_REQUIRED": "Your initiative role doesn't include documents.",
   "DOCUMENT_WRITE_ACCESS_REQUIRED": "You need write access to this document",
   "DOCUMENT_OWNER_REQUIRED": "Document owner permission required",

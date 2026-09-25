@@ -221,18 +221,6 @@ async def test_without_sharing_write_a_create_shares_nothing(
     assert refused.json()["detail"] == AppMessages.SHARING_NOT_AVAILABLE
 
 
-async def test_a_create_names_no_owner_even_with_sharing(
-    client, session, acting_user, role_session
-):
-    await lift_person_and_guild_ids(session)
-    installed = await install_app(session, acting_user, role_session, granted=SHARE)
-    headers = install_headers(installed, SHARE)
-    seat_ref = await _seat_ref(client, session, installed, headers)
-    refused = await _own_project(client, installed, headers, owner_id=seat_ref)
-    assert refused.status_code == 403, refused.text
-    assert refused.json()["detail"] == AppMessages.SHARING_NOT_AVAILABLE
-
-
 @pytest.mark.parametrize("sees", [False, True])
 async def test_sharing_read_shows_an_install_the_grants(
     client, session, acting_user, role_session, sees

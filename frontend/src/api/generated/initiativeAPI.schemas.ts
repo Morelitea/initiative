@@ -3386,7 +3386,6 @@ export type DocumentCreateDocumentType =
 
 export const DocumentCreateDocumentType = {
   native: "native",
-  file: "file",
   whiteboard: "whiteboard",
   smart_link: "smart_link",
   spreadsheet: "spreadsheet",
@@ -3452,10 +3451,12 @@ export interface DocumentProjectLink {
   attached_at: string;
 }
 
-export type DocumentSummaryDocumentType =
-  (typeof DocumentSummaryDocumentType)[keyof typeof DocumentSummaryDocumentType];
+/**
+ * Discriminator for document type.
+ */
+export type DocumentType = (typeof DocumentType)[keyof typeof DocumentType];
 
-export const DocumentSummaryDocumentType = {
+export const DocumentType = {
   native: "native",
   file: "file",
   whiteboard: "whiteboard",
@@ -3484,7 +3485,7 @@ export interface DocumentSummary {
   grants: ResourceGrantSchema[];
   tags: TagSummary[];
   properties: PropertySummary[];
-  document_type: DocumentSummaryDocumentType;
+  document_type: DocumentType;
   file_url: string | null;
   file_content_type: string | null;
   file_size: number | null;
@@ -3503,17 +3504,6 @@ export interface DocumentListResponse {
   sort_by: string | null;
   sort_dir: string | null;
 }
-
-export type DocumentReadDocumentType =
-  (typeof DocumentReadDocumentType)[keyof typeof DocumentReadDocumentType];
-
-export const DocumentReadDocumentType = {
-  native: "native",
-  file: "file",
-  whiteboard: "whiteboard",
-  smart_link: "smart_link",
-  spreadsheet: "spreadsheet",
-} as const;
 
 export type DocumentReadContent = { [key: string]: unknown };
 
@@ -3538,7 +3528,7 @@ export interface DocumentRead {
   grants: ResourceGrantSchema[];
   tags: TagSummary[];
   properties: PropertySummary[];
-  document_type: DocumentReadDocumentType;
+  document_type: DocumentType;
   file_url: string | null;
   file_content_type: string | null;
   file_size: number | null;
@@ -3548,19 +3538,6 @@ export interface DocumentRead {
   yjs_updated_at: string | null;
   content: DocumentReadContent;
 }
-
-/**
- * Discriminator for document type.
- */
-export type DocumentType = (typeof DocumentType)[keyof typeof DocumentType];
-
-export const DocumentType = {
-  native: "native",
-  file: "file",
-  whiteboard: "whiteboard",
-  smart_link: "smart_link",
-  spreadsheet: "spreadsheet",
-} as const;
 
 export type DocumentUpdateContent = { [key: string]: unknown } | null;
 
@@ -7152,7 +7129,6 @@ export interface ProjectCreate {
   icon?: string | null;
   start_date?: string | null;
   end_date?: string | null;
-  owner_id?: number | null;
   initiative_id?: number | null;
   is_template?: boolean;
   template_id?: number | null;

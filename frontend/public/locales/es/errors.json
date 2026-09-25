@@ -138,7 +138,6 @@
   "ATTACHMENT_FILE_EMPTY": "El archivo subido está vacío",
   "ATTACHMENT_INVALID_IMAGE": "No se pudo validar el contenido de la imagen",
   "DOCUMENT_NOT_FOUND": "Documento no encontrado",
-  "DOCUMENT_INITIATIVE_MEMBERSHIP_REQUIRED": "Se requiere membresía de la iniciativa",
   "DOCUMENT_PERMISSION_REQUIRED": "Tu rol en la iniciativa no incluye documentos.",
   "DOCUMENT_WRITE_ACCESS_REQUIRED": "Necesitas acceso de escritura a este documento",
   "DOCUMENT_OWNER_REQUIRED": "Se requiere permiso de propietario del documento",

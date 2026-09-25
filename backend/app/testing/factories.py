@@ -672,16 +672,9 @@ async def create_project(
         await session.refresh(project)
 
         # The owner grant IS the ownership — projects carry no owner column.
-        session.add(
-            ResourceGrant(
-                resource_type="project",
-                resource_id=project.id,
-                user_id=owner.id,
-                level=ResourceAccessLevel.owner,
-                initiative_id=project.initiative_id,
-            )
+        await create_resource_grant(
+            session, project, level=ResourceAccessLevel.owner, user=owner
         )
-        await session.commit()
 
     return project
 
@@ -824,17 +817,9 @@ async def create_queue(
         await session.commit()
         await session.refresh(queue)
 
-        # Owner grant for creator.
-        session.add(
-            ResourceGrant(
-                resource_type="queue",
-                resource_id=queue.id,
-                user_id=creator.id,
-                initiative_id=queue.initiative_id,
-                level=ResourceAccessLevel.owner,
-            )
+        await create_resource_grant(
+            session, queue, level=ResourceAccessLevel.owner, user=creator
         )
-        await session.commit()
 
     return queue
 
@@ -1158,25 +1143,14 @@ async def create_calendar(
         await session.commit()
         await session.refresh(calendar)
 
-        session.add(
-            ResourceGrant(
-                resource_type="calendar",
-                resource_id=calendar.id,
-                user_id=creator.id,
-                level=ResourceAccessLevel.owner,
-                initiative_id=calendar.initiative_id,
-            )
+        await create_resource_grant(
+            session,
+            calendar,
+            level=ResourceAccessLevel.owner,
+            user=creator,
+            commit=False,
         )
-        session.add(
-            ResourceGrant(
-                resource_type="calendar",
-                resource_id=calendar.id,
-                all_initiative_members=True,
-                level=ResourceAccessLevel.read,
-                initiative_id=calendar.initiative_id,
-            )
-        )
-        await session.commit()
+        await create_resource_grant(session, calendar, all_initiative_members=True)
 
     return calendar
 
@@ -1211,25 +1185,13 @@ async def create_guild_calendar(
     await session.commit()
     await session.refresh(calendar)
 
-    session.add(
-        ResourceGrant(
-            resource_type="calendar",
-            resource_id=calendar.id,
-            user_id=creator.id,
-            level=ResourceAccessLevel.owner,
-            initiative_id=None,
-        )
+    await create_resource_grant(
+        session, calendar, level=ResourceAccessLevel.owner, user=creator, commit=False
     )
     if shared_with_everyone:
         # At guild scope the everyone grant reads as every member of the guild.
-        session.add(
-            ResourceGrant(
-                resource_type="calendar",
-                resource_id=calendar.id,
-                all_initiative_members=True,
-                level=ResourceAccessLevel.read,
-                initiative_id=None,
-            )
+        await create_resource_grant(
+            session, calendar, all_initiative_members=True, commit=False
         )
     await session.commit()
     return calendar
@@ -1522,25 +1484,14 @@ async def create_dashboard(
         await session.commit()
         await session.refresh(dashboard)
 
-        session.add(
-            ResourceGrant(
-                resource_type="dashboard",
-                resource_id=dashboard.id,
-                user_id=creator.id,
-                level=ResourceAccessLevel.owner,
-                initiative_id=dashboard.initiative_id,
-            )
+        await create_resource_grant(
+            session,
+            dashboard,
+            level=ResourceAccessLevel.owner,
+            user=creator,
+            commit=False,
         )
-        session.add(
-            ResourceGrant(
-                resource_type="dashboard",
-                resource_id=dashboard.id,
-                all_initiative_members=True,
-                level=ResourceAccessLevel.read,
-                initiative_id=dashboard.initiative_id,
-            )
-        )
-        await session.commit()
+        await create_resource_grant(session, dashboard, all_initiative_members=True)
 
     return dashboard
 
@@ -1619,25 +1570,10 @@ async def create_post(
         await session.commit()
         await session.refresh(post)
 
-        session.add(
-            ResourceGrant(
-                resource_type="post",
-                resource_id=post.id,
-                user_id=creator.id,
-                level=ResourceAccessLevel.owner,
-                initiative_id=post.initiative_id,
-            )
+        await create_resource_grant(
+            session, post, level=ResourceAccessLevel.owner, user=creator, commit=False
         )
-        session.add(
-            ResourceGrant(
-                resource_type="post",
-                resource_id=post.id,
-                all_initiative_members=True,
-                level=ResourceAccessLevel.read,
-                initiative_id=post.initiative_id,
-            )
-        )
-        await session.commit()
+        await create_resource_grant(session, post, all_initiative_members=True)
 
     return post
 
@@ -1743,25 +1679,14 @@ async def create_gallery(
         await session.commit()
         await session.refresh(gallery)
 
-        session.add(
-            ResourceGrant(
-                resource_type="gallery",
-                resource_id=gallery.id,
-                user_id=creator.id,
-                level=ResourceAccessLevel.owner,
-                initiative_id=gallery.initiative_id,
-            )
+        await create_resource_grant(
+            session,
+            gallery,
+            level=ResourceAccessLevel.owner,
+            user=creator,
+            commit=False,
         )
-        session.add(
-            ResourceGrant(
-                resource_type="gallery",
-                resource_id=gallery.id,
-                all_initiative_members=True,
-                level=ResourceAccessLevel.read,
-                initiative_id=gallery.initiative_id,
-            )
-        )
-        await session.commit()
+        await create_resource_grant(session, gallery, all_initiative_members=True)
 
     return gallery
 
@@ -1938,17 +1863,9 @@ async def create_document(
     await (session.commit() if commit else session.flush())
     if commit:
         await session.refresh(document)
-    session.add(
-        ResourceGrant(
-            resource_type="document",
-            resource_id=document.id,
-            user_id=creator.id,
-            level=ResourceAccessLevel.owner,
-            initiative_id=document.initiative_id,
-        )
+    await create_resource_grant(
+        session, document, level=ResourceAccessLevel.owner, user=creator, commit=commit
     )
-    if commit:
-        await session.commit()
 
     return document
 
@@ -2146,16 +2063,9 @@ async def create_counter_group(
         await session.commit()
         await session.refresh(group)
 
-        session.add(
-            ResourceGrant(
-                resource_type="counter_group",
-                resource_id=group.id,
-                user_id=creator.id,
-                level=ResourceAccessLevel.owner,
-                initiative_id=group.initiative_id,
-            )
+        await create_resource_grant(
+            session, group, level=ResourceAccessLevel.owner, user=creator
         )
-        await session.commit()
 
     return group
 
@@ -2464,25 +2374,10 @@ async def create_wiki(
         await session.commit()
         await session.refresh(wiki)
 
-        session.add(
-            ResourceGrant(
-                resource_type="wiki",
-                resource_id=wiki.id,
-                user_id=creator.id,
-                level=ResourceAccessLevel.owner,
-                initiative_id=wiki.initiative_id,
-            )
+        await create_resource_grant(
+            session, wiki, level=ResourceAccessLevel.owner, user=creator, commit=False
         )
-        session.add(
-            ResourceGrant(
-                resource_type="wiki",
-                resource_id=wiki.id,
-                all_initiative_members=True,
-                level=ResourceAccessLevel.read,
-                initiative_id=wiki.initiative_id,
-            )
-        )
-        await session.commit()
+        await create_resource_grant(session, wiki, all_initiative_members=True)
 
     return wiki
 

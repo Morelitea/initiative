@@ -140,7 +140,6 @@
   "ATTACHMENT_FILE_EMPTY": "Die hochgeladene Datei ist leer",
   "ATTACHMENT_INVALID_IMAGE": "Bildinhalt konnte nicht validiert werden",
   "DOCUMENT_NOT_FOUND": "Dokument nicht gefunden",
-  "DOCUMENT_INITIATIVE_MEMBERSHIP_REQUIRED": "Mitgliedschaft in der Initiative erforderlich",
   "DOCUMENT_PERMISSION_REQUIRED": "Deine Initiativen-Rolle umfasst keine Dokumente.",
   "DOCUMENT_WRITE_ACCESS_REQUIRED": "Du brauchst Schreibzugriff auf dieses Dokument",
   "DOCUMENT_OWNER_REQUIRED": "Eigentümerberechtigung für das Dokument erforderlich",

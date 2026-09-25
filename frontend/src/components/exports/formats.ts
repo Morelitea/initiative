@@ -1,10 +1,10 @@
-import type { DocumentReadDocumentType } from "@/api/generated/initiativeAPI.schemas";
+import type { DocumentType } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import type { ExportFormatOption } from "@/components/exports/ExportButton";
 import { NON_EXPORTABLE_TOOLS, SIDEBAR_TOOLS } from "@/lib/tools";
 
 // Engine formats per document type — mirrors the backend adapter's rules.
-export const DOCUMENT_TYPE_FORMATS: Record<DocumentReadDocumentType, ExportFormatOption[]> = {
+export const DOCUMENT_TYPE_FORMATS: Record<DocumentType, ExportFormatOption[]> = {
   native: [
     { format: "pdf", labelKey: "export.formatPdf" },
     { format: "md", labelKey: "export.formatMarkdown" },
@@ -43,7 +43,7 @@ const GENERIC_FORMAT_LABELS: Record<string, string> = {
  * A single-type selection keeps its type's own (more precise) labels; a
  * mixed selection gets generic ones. Empty when the types share nothing
  * (e.g. an upload + a text document). */
-export function documentSelectionFormats(types: DocumentReadDocumentType[]): ExportFormatOption[] {
+export function documentSelectionFormats(types: DocumentType[]): ExportFormatOption[] {
   const unique = [...new Set(types)];
   if (unique.length === 0) return [];
   if (unique.length === 1) return DOCUMENT_TYPE_FORMATS[unique[0]] ?? [];

@@ -85,7 +85,7 @@ class DocumentAdapter(ToolExportAdapter):
         from app.services.tenant.documents import get_document_for_export
 
         return await get_document_for_export(
-            session, user, guild_id, document_id=document_id, access=access
+            session, document_id=document_id, access=access
         )
 
     async def initiative_ids(
@@ -94,7 +94,7 @@ class DocumentAdapter(ToolExportAdapter):
         from app.services.tenant.documents import list_document_ids_for_export
 
         return await list_document_ids_for_export(
-            session, user, guild_id, initiative_ids=[initiative_id]
+            session, initiative_ids=[initiative_id]
         )
 
     async def load(

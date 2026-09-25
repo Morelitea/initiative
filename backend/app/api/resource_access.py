@@ -271,19 +271,6 @@ def refuse_app_sharing(actor: ActorContext, payload: Any, *fields: str) -> None:
     require_install_may_share(actor, None)
 
 
-def refuse_app_owner(actor: ActorContext, payload: Any, *fields: str) -> None:
-    """Raise 403 when an installed app's create names an owner in any of
-    ``fields``. What it creates is its own: the tool table's trigger writes
-    that owner row."""
-    if not isinstance(actor, InstallContext):
-        return
-    if any(field in payload.model_fields_set for field in fields):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=AppMessages.SHARING_NOT_AVAILABLE,
-        )
-
-
 def require_install_may_share(actor: ActorContext, kind: Optional[Tool]) -> None:
     """Raise 403 unless an installed app's standing lets it change sharing:
     ``sharing:write``, the tool's write scope when ``kind`` is named, and the
