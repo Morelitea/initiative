@@ -31,8 +31,6 @@ import type {
   GuildAppConsentAnswer,
   GuildAppConsentRead,
   GuildAppDecline,
-  GuildAppDelegationGrant,
-  GuildAppDelegationRead,
   GuildAppDetail,
   GuildAppHandoff,
   GuildAppInstall,
@@ -2632,394 +2630,6 @@ export const useDisconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdD
   );
 };
 /**
- * What the caller has authorized this app to do as them.
- * @summary Get My Delegation
- */
-export const getMyDelegationApiV1CGuildIdAppsAppIdDelegationGet = (
-  guildId: number,
-  appId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<GuildAppDelegationRead>(
-    { url: `/api/v1/c/${guildId}/apps/${appId}/delegation`, method: "GET", signal },
-    options
-  );
-};
-
-export const getGetMyDelegationApiV1CGuildIdAppsAppIdDelegationGetQueryKey = (
-  guildId: number,
-  appId: number
-) => {
-  return [`/api/v1/c/${guildId}/apps/${appId}/delegation`] as const;
-};
-
-export const getGetMyDelegationApiV1CGuildIdAppsAppIdDelegationGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getMyDelegationApiV1CGuildIdAppsAppIdDelegationGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  appId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getMyDelegationApiV1CGuildIdAppsAppIdDelegationGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey =
-    queryOptions?.queryKey ??
-    getGetMyDelegationApiV1CGuildIdAppsAppIdDelegationGetQueryKey(guildId, appId);
-
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getMyDelegationApiV1CGuildIdAppsAppIdDelegationGet>>
-  > = ({ signal }) =>
-    getMyDelegationApiV1CGuildIdAppsAppIdDelegationGet(guildId, appId, requestOptions, signal);
-
-  return {
-    queryKey,
-    queryFn,
-    enabled: guildId !== null && guildId !== undefined && appId !== null && appId !== undefined,
-    ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof getMyDelegationApiV1CGuildIdAppsAppIdDelegationGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type GetMyDelegationApiV1CGuildIdAppsAppIdDelegationGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getMyDelegationApiV1CGuildIdAppsAppIdDelegationGet>>
->;
-export type GetMyDelegationApiV1CGuildIdAppsAppIdDelegationGetQueryError =
-  ErrorType<HTTPValidationError>;
-
-export function useGetMyDelegationApiV1CGuildIdAppsAppIdDelegationGet<
-  TData = Awaited<ReturnType<typeof getMyDelegationApiV1CGuildIdAppsAppIdDelegationGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  appId: number,
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getMyDelegationApiV1CGuildIdAppsAppIdDelegationGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getMyDelegationApiV1CGuildIdAppsAppIdDelegationGet>>,
-          TError,
-          Awaited<ReturnType<typeof getMyDelegationApiV1CGuildIdAppsAppIdDelegationGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetMyDelegationApiV1CGuildIdAppsAppIdDelegationGet<
-  TData = Awaited<ReturnType<typeof getMyDelegationApiV1CGuildIdAppsAppIdDelegationGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  appId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getMyDelegationApiV1CGuildIdAppsAppIdDelegationGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getMyDelegationApiV1CGuildIdAppsAppIdDelegationGet>>,
-          TError,
-          Awaited<ReturnType<typeof getMyDelegationApiV1CGuildIdAppsAppIdDelegationGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetMyDelegationApiV1CGuildIdAppsAppIdDelegationGet<
-  TData = Awaited<ReturnType<typeof getMyDelegationApiV1CGuildIdAppsAppIdDelegationGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  appId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getMyDelegationApiV1CGuildIdAppsAppIdDelegationGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary Get My Delegation
- */
-
-export function useGetMyDelegationApiV1CGuildIdAppsAppIdDelegationGet<
-  TData = Awaited<ReturnType<typeof getMyDelegationApiV1CGuildIdAppsAppIdDelegationGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  appId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getMyDelegationApiV1CGuildIdAppsAppIdDelegationGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetMyDelegationApiV1CGuildIdAppsAppIdDelegationGetQueryOptions(
-    guildId,
-    appId,
-    options
-  );
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
- * Authorize this app to act as you, and say whether it may write.
- *
- * Nobody grants this for anybody else — not a guild admin, and not the app.
- * The install is what a guild decides; whose name the app may carry is each
- * member's own answer, so this endpoint acts on the caller and takes no user
- * id at all.
- *
- * Signed-in only (``require_first_party_session``), because the act hands out
- * authority rather than exercising it.
- * @summary Grant My Delegation
- */
-export const grantMyDelegationApiV1CGuildIdAppsAppIdDelegationPut = (
-  guildId: number,
-  appId: number,
-  guildAppDelegationGrant: BodyType<GuildAppDelegationGrant>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<GuildAppDelegationRead>(
-    {
-      url: `/api/v1/c/${guildId}/apps/${appId}/delegation`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: guildAppDelegationGrant,
-      signal,
-    },
-    options
-  );
-};
-
-export const getGrantMyDelegationApiV1CGuildIdAppsAppIdDelegationPutMutationKey = () =>
-  ["grantMyDelegationApiV1CGuildIdAppsAppIdDelegationPut"] as const;
-
-export const getGrantMyDelegationApiV1CGuildIdAppsAppIdDelegationPutMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof grantMyDelegationApiV1CGuildIdAppsAppIdDelegationPut>>,
-    TError,
-    GrantMyDelegationApiV1CGuildIdAppsAppIdDelegationPutMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof grantMyDelegationApiV1CGuildIdAppsAppIdDelegationPut>>,
-  TError,
-  GrantMyDelegationApiV1CGuildIdAppsAppIdDelegationPutMutationVariables,
-  TContext
-> => {
-  const mutationKey = getGrantMyDelegationApiV1CGuildIdAppsAppIdDelegationPutMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof grantMyDelegationApiV1CGuildIdAppsAppIdDelegationPut>>,
-    GrantMyDelegationApiV1CGuildIdAppsAppIdDelegationPutMutationVariables
-  > = (props) => {
-    const { guildId, appId, data } = props ?? {};
-
-    return grantMyDelegationApiV1CGuildIdAppsAppIdDelegationPut(
-      guildId,
-      appId,
-      data,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type GrantMyDelegationApiV1CGuildIdAppsAppIdDelegationPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof grantMyDelegationApiV1CGuildIdAppsAppIdDelegationPut>>
->;
-export type GrantMyDelegationApiV1CGuildIdAppsAppIdDelegationPutMutationBody =
-  BodyType<GuildAppDelegationGrant>;
-export type GrantMyDelegationApiV1CGuildIdAppsAppIdDelegationPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type GrantMyDelegationApiV1CGuildIdAppsAppIdDelegationPutMutationVariables = {
-  guildId: number;
-  appId: number;
-  data: BodyType<GuildAppDelegationGrant>;
-};
-
-/**
- * @summary Grant My Delegation
- */
-export const useGrantMyDelegationApiV1CGuildIdAppsAppIdDelegationPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof grantMyDelegationApiV1CGuildIdAppsAppIdDelegationPut>>,
-      TError,
-      GrantMyDelegationApiV1CGuildIdAppsAppIdDelegationPutMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof grantMyDelegationApiV1CGuildIdAppsAppIdDelegationPut>>,
-  TError,
-  GrantMyDelegationApiV1CGuildIdAppsAppIdDelegationPutMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getGrantMyDelegationApiV1CGuildIdAppsAppIdDelegationPutMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Withdraw your own authorization. The app stops acting as you at once.
- *
- * Deliberately not gated on the app still holding the grant: an app whose
- * grant an operator cleared can no longer act, but a member who wants their
- * record of it withdrawn should not be told to come back later.
- * @summary Revoke My Delegation
- */
-export const revokeMyDelegationApiV1CGuildIdAppsAppIdDelegationDelete = (
-  guildId: number,
-  appId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<void>(
-    { url: `/api/v1/c/${guildId}/apps/${appId}/delegation`, method: "DELETE", signal },
-    options
-  );
-};
-
-export const getRevokeMyDelegationApiV1CGuildIdAppsAppIdDelegationDeleteMutationKey = () =>
-  ["revokeMyDelegationApiV1CGuildIdAppsAppIdDelegationDelete"] as const;
-
-export const getRevokeMyDelegationApiV1CGuildIdAppsAppIdDelegationDeleteMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof revokeMyDelegationApiV1CGuildIdAppsAppIdDelegationDelete>>,
-    TError,
-    RevokeMyDelegationApiV1CGuildIdAppsAppIdDelegationDeleteMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof revokeMyDelegationApiV1CGuildIdAppsAppIdDelegationDelete>>,
-  TError,
-  RevokeMyDelegationApiV1CGuildIdAppsAppIdDelegationDeleteMutationVariables,
-  TContext
-> => {
-  const mutationKey = getRevokeMyDelegationApiV1CGuildIdAppsAppIdDelegationDeleteMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof revokeMyDelegationApiV1CGuildIdAppsAppIdDelegationDelete>>,
-    RevokeMyDelegationApiV1CGuildIdAppsAppIdDelegationDeleteMutationVariables
-  > = (props) => {
-    const { guildId, appId } = props ?? {};
-
-    return revokeMyDelegationApiV1CGuildIdAppsAppIdDelegationDelete(guildId, appId, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type RevokeMyDelegationApiV1CGuildIdAppsAppIdDelegationDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof revokeMyDelegationApiV1CGuildIdAppsAppIdDelegationDelete>>
->;
-
-export type RevokeMyDelegationApiV1CGuildIdAppsAppIdDelegationDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-export type RevokeMyDelegationApiV1CGuildIdAppsAppIdDelegationDeleteMutationVariables = {
-  guildId: number;
-  appId: number;
-};
-
-/**
- * @summary Revoke My Delegation
- */
-export const useRevokeMyDelegationApiV1CGuildIdAppsAppIdDelegationDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof revokeMyDelegationApiV1CGuildIdAppsAppIdDelegationDelete>>,
-      TError,
-      RevokeMyDelegationApiV1CGuildIdAppsAppIdDelegationDeleteMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof revokeMyDelegationApiV1CGuildIdAppsAppIdDelegationDelete>>,
-  TError,
-  RevokeMyDelegationApiV1CGuildIdAppsAppIdDelegationDeleteMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getRevokeMyDelegationApiV1CGuildIdAppsAppIdDelegationDeleteMutationOptions(options),
-    queryClient
-  );
-};
-/**
  * What this app has asked to do as you, one line per purpose, and how you
  * answered. Yours only.
  * @summary List My Consents
@@ -3990,15 +3600,15 @@ export const useUnblockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnec
     );
   };
 /**
- * Withdraw one member's authorization for this app, and every answer they
- * gave its requests to act as them.
+ * End every answer one member gave this app's requests to act as them,
+ * pending requests included.
  *
- * An admin ends it and cannot give it back: the member authorizes again
- * themselves, or nobody does. Governance runs one way here, which is what
- * keeps "the app acts as me" something its subject actually decided.
- * @summary Revoke Member Delegation
+ * An admin ends an answer and cannot give one: the member allows a request
+ * again themselves, or nobody does. Governance runs one way here, which is
+ * what keeps "the app acts as me" something its subject actually decided.
+ * @summary Revoke Member Consents
  */
-export const revokeMemberDelegationApiV1CGuildIdAppsAppIdMembersUserIdDelegationDelete = (
+export const revokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDelete = (
   guildId: number,
   appId: number,
   userId: number,
@@ -4007,7 +3617,7 @@ export const revokeMemberDelegationApiV1CGuildIdAppsAppIdMembersUserIdDelegation
 ) => {
   return apiMutator<void>(
     {
-      url: `/api/v1/c/${guildId}/apps/${appId}/members/${userId}/delegation`,
+      url: `/api/v1/c/${guildId}/apps/${appId}/members/${userId}/consents`,
       method: "DELETE",
       signal,
     },
@@ -4015,30 +3625,30 @@ export const revokeMemberDelegationApiV1CGuildIdAppsAppIdMembersUserIdDelegation
   );
 };
 
-export const getRevokeMemberDelegationApiV1CGuildIdAppsAppIdMembersUserIdDelegationDeleteMutationKey =
-  () => ["revokeMemberDelegationApiV1CGuildIdAppsAppIdMembersUserIdDelegationDelete"] as const;
+export const getRevokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDeleteMutationKey =
+  () => ["revokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDelete"] as const;
 
-export const getRevokeMemberDelegationApiV1CGuildIdAppsAppIdMembersUserIdDelegationDeleteMutationOptions =
+export const getRevokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDeleteMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof revokeMemberDelegationApiV1CGuildIdAppsAppIdMembersUserIdDelegationDelete>
+        ReturnType<typeof revokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDelete>
       >,
       TError,
-      RevokeMemberDelegationApiV1CGuildIdAppsAppIdMembersUserIdDelegationDeleteMutationVariables,
+      RevokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
-      ReturnType<typeof revokeMemberDelegationApiV1CGuildIdAppsAppIdMembersUserIdDelegationDelete>
+      ReturnType<typeof revokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDelete>
     >,
     TError,
-    RevokeMemberDelegationApiV1CGuildIdAppsAppIdMembersUserIdDelegationDeleteMutationVariables,
+    RevokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDeleteMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getRevokeMemberDelegationApiV1CGuildIdAppsAppIdMembersUserIdDelegationDeleteMutationKey();
+      getRevokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDeleteMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -4047,13 +3657,13 @@ export const getRevokeMemberDelegationApiV1CGuildIdAppsAppIdMembersUserIdDelegat
 
     const mutationFn: MutationFunction<
       Awaited<
-        ReturnType<typeof revokeMemberDelegationApiV1CGuildIdAppsAppIdMembersUserIdDelegationDelete>
+        ReturnType<typeof revokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDelete>
       >,
-      RevokeMemberDelegationApiV1CGuildIdAppsAppIdMembersUserIdDelegationDeleteMutationVariables
+      RevokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDeleteMutationVariables
     > = (props) => {
       const { guildId, appId, userId } = props ?? {};
 
-      return revokeMemberDelegationApiV1CGuildIdAppsAppIdMembersUserIdDelegationDelete(
+      return revokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDelete(
         guildId,
         appId,
         userId,
@@ -4064,47 +3674,45 @@ export const getRevokeMemberDelegationApiV1CGuildIdAppsAppIdMembersUserIdDelegat
     return { mutationFn, ...mutationOptions };
   };
 
-export type RevokeMemberDelegationApiV1CGuildIdAppsAppIdMembersUserIdDelegationDeleteMutationResult =
+export type RevokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDeleteMutationResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof revokeMemberDelegationApiV1CGuildIdAppsAppIdMembersUserIdDelegationDelete>
+      ReturnType<typeof revokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDelete>
     >
   >;
 
-export type RevokeMemberDelegationApiV1CGuildIdAppsAppIdMembersUserIdDelegationDeleteMutationError =
+export type RevokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDeleteMutationError =
   ErrorType<HTTPValidationError>;
-export type RevokeMemberDelegationApiV1CGuildIdAppsAppIdMembersUserIdDelegationDeleteMutationVariables =
+export type RevokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDeleteMutationVariables =
   { guildId: number; appId: number; userId: number };
 
 /**
- * @summary Revoke Member Delegation
+ * @summary Revoke Member Consents
  */
-export const useRevokeMemberDelegationApiV1CGuildIdAppsAppIdMembersUserIdDelegationDelete = <
+export const useRevokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof revokeMemberDelegationApiV1CGuildIdAppsAppIdMembersUserIdDelegationDelete>
+        ReturnType<typeof revokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDelete>
       >,
       TError,
-      RevokeMemberDelegationApiV1CGuildIdAppsAppIdMembersUserIdDelegationDeleteMutationVariables,
+      RevokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDeleteMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<
-    ReturnType<typeof revokeMemberDelegationApiV1CGuildIdAppsAppIdMembersUserIdDelegationDelete>
-  >,
+  Awaited<ReturnType<typeof revokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDelete>>,
   TError,
-  RevokeMemberDelegationApiV1CGuildIdAppsAppIdMembersUserIdDelegationDeleteMutationVariables,
+  RevokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDeleteMutationVariables,
   TContext
 > => {
   return useMutation(
-    getRevokeMemberDelegationApiV1CGuildIdAppsAppIdMembersUserIdDelegationDeleteMutationOptions(
+    getRevokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDeleteMutationOptions(
       options
     ),
     queryClient
@@ -4113,48 +3721,47 @@ export const useRevokeMemberDelegationApiV1CGuildIdAppsAppIdMembersUserIdDelegat
 /**
  * Stop this app acting as anybody, without uninstalling it.
  *
- * Withdraws every member's authorization, and every answer to the app's
- * requests to act as them, pending ones included. The companion to ``revoke-all`` for connections: for a suspected app
- * compromise, reacting fast should not cost the guild its configuration.
- * Members may authorize again once the guild is satisfied.
- * @summary Revoke All Member Delegations
+ * Ends every member's answer to the app's requests to act as them, pending
+ * ones included. The companion to ``revoke-all`` for connections: for a
+ * suspected app compromise, reacting fast should not cost the guild its
+ * configuration. Members may allow requests again once the guild is
+ * satisfied.
+ * @summary Revoke All Member Consents
  */
-export const revokeAllMemberDelegationsApiV1CGuildIdAppsAppIdDelegationsRevokeAllPost = (
+export const revokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPost = (
   guildId: number,
   appId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/c/${guildId}/apps/${appId}/delegations/revoke-all`, method: "POST", signal },
+    { url: `/api/v1/c/${guildId}/apps/${appId}/consents/revoke-all`, method: "POST", signal },
     options
   );
 };
 
-export const getRevokeAllMemberDelegationsApiV1CGuildIdAppsAppIdDelegationsRevokeAllPostMutationKey =
-  () => ["revokeAllMemberDelegationsApiV1CGuildIdAppsAppIdDelegationsRevokeAllPost"] as const;
+export const getRevokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPostMutationKey =
+  () => ["revokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPost"] as const;
 
-export const getRevokeAllMemberDelegationsApiV1CGuildIdAppsAppIdDelegationsRevokeAllPostMutationOptions =
+export const getRevokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPostMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof revokeAllMemberDelegationsApiV1CGuildIdAppsAppIdDelegationsRevokeAllPost>
+        ReturnType<typeof revokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPost>
       >,
       TError,
-      RevokeAllMemberDelegationsApiV1CGuildIdAppsAppIdDelegationsRevokeAllPostMutationVariables,
+      RevokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
-    Awaited<
-      ReturnType<typeof revokeAllMemberDelegationsApiV1CGuildIdAppsAppIdDelegationsRevokeAllPost>
-    >,
+    Awaited<ReturnType<typeof revokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPost>>,
     TError,
-    RevokeAllMemberDelegationsApiV1CGuildIdAppsAppIdDelegationsRevokeAllPostMutationVariables,
+    RevokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPostMutationVariables,
     TContext
   > => {
     const mutationKey =
-      getRevokeAllMemberDelegationsApiV1CGuildIdAppsAppIdDelegationsRevokeAllPostMutationKey();
+      getRevokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPostMutationKey();
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -4163,13 +3770,13 @@ export const getRevokeAllMemberDelegationsApiV1CGuildIdAppsAppIdDelegationsRevok
 
     const mutationFn: MutationFunction<
       Awaited<
-        ReturnType<typeof revokeAllMemberDelegationsApiV1CGuildIdAppsAppIdDelegationsRevokeAllPost>
+        ReturnType<typeof revokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPost>
       >,
-      RevokeAllMemberDelegationsApiV1CGuildIdAppsAppIdDelegationsRevokeAllPostMutationVariables
+      RevokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPostMutationVariables
     > = (props) => {
       const { guildId, appId } = props ?? {};
 
-      return revokeAllMemberDelegationsApiV1CGuildIdAppsAppIdDelegationsRevokeAllPost(
+      return revokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPost(
         guildId,
         appId,
         requestOptions
@@ -4179,49 +3786,45 @@ export const getRevokeAllMemberDelegationsApiV1CGuildIdAppsAppIdDelegationsRevok
     return { mutationFn, ...mutationOptions };
   };
 
-export type RevokeAllMemberDelegationsApiV1CGuildIdAppsAppIdDelegationsRevokeAllPostMutationResult =
+export type RevokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPostMutationResult =
   NonNullable<
-    Awaited<
-      ReturnType<typeof revokeAllMemberDelegationsApiV1CGuildIdAppsAppIdDelegationsRevokeAllPost>
-    >
+    Awaited<ReturnType<typeof revokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPost>>
   >;
 
-export type RevokeAllMemberDelegationsApiV1CGuildIdAppsAppIdDelegationsRevokeAllPostMutationError =
+export type RevokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPostMutationError =
   ErrorType<HTTPValidationError>;
-export type RevokeAllMemberDelegationsApiV1CGuildIdAppsAppIdDelegationsRevokeAllPostMutationVariables =
-  { guildId: number; appId: number };
+export type RevokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPostMutationVariables = {
+  guildId: number;
+  appId: number;
+};
 
 /**
- * @summary Revoke All Member Delegations
+ * @summary Revoke All Member Consents
  */
-export const useRevokeAllMemberDelegationsApiV1CGuildIdAppsAppIdDelegationsRevokeAllPost = <
+export const useRevokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof revokeAllMemberDelegationsApiV1CGuildIdAppsAppIdDelegationsRevokeAllPost>
+        ReturnType<typeof revokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPost>
       >,
       TError,
-      RevokeAllMemberDelegationsApiV1CGuildIdAppsAppIdDelegationsRevokeAllPostMutationVariables,
+      RevokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPostMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<
-    ReturnType<typeof revokeAllMemberDelegationsApiV1CGuildIdAppsAppIdDelegationsRevokeAllPost>
-  >,
+  Awaited<ReturnType<typeof revokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPost>>,
   TError,
-  RevokeAllMemberDelegationsApiV1CGuildIdAppsAppIdDelegationsRevokeAllPostMutationVariables,
+  RevokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPostMutationVariables,
   TContext
 > => {
   return useMutation(
-    getRevokeAllMemberDelegationsApiV1CGuildIdAppsAppIdDelegationsRevokeAllPostMutationOptions(
-      options
-    ),
+    getRevokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPostMutationOptions(options),
     queryClient
   );
 };

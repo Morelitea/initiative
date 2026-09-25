@@ -2,8 +2,8 @@
 
 Two properties, pulling in opposite directions, and both are load-bearing.
 
-**The pinned definition travels.** A reader — the settings page, and the
-automation delegate on its delegated read — has to be able to say what *this*
+**The pinned definition travels.** A reader — the settings page, and an
+installed app reading its own install — has to be able to say what *this*
 install is, including the blocks this build assigns no meaning to. Serving the
 snapshot the guild pinned rather than whatever the catalog holds today is what
 makes that answer true of the install rather than of the listing.
@@ -89,8 +89,8 @@ def test_the_pinned_definition_is_passed_through_verbatim():
     payload = serialize_guild_app(_app(), context=CONTEXT)
 
     assert payload.definition == DEFINITION
-    # Including the block this build never interprets — the delegate reads it
-    # here rather than through an endpoint that would have to understand it.
+    # Including the block this build never interprets — an app reads it here
+    # rather than through an endpoint that would have to understand it.
     assert payload.definition["automation"] == {"nodes": [{"id": "low_stock"}]}
 
 

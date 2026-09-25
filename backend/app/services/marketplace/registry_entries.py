@@ -19,7 +19,7 @@ that the files are the ones the entry names, and turns the entry into rows:
   ``source='registry'``): the listing it speaks for, its keys, its scope
   ceiling (only the scopes this build defines), its reference sectors, and
   either the container image (the operator gives the location) or the hosted
-  address. The operator keeps the switch, grants, mandatory flag, origins and a
+  address. The operator keeps the switch, mandatory flag, origins and a
   container's location; nothing here writes those. An operator's registration
   for the same app wins.
 
@@ -599,7 +599,6 @@ async def _apply_registration(
                 if browser
                 else []
             ),
-            grants=[],
             jwks=jwks,
             jwks_uri=jwks_uri,
             scope_ceiling=ceiling,

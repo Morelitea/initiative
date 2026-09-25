@@ -48,8 +48,8 @@ from app.models.tenant.ai_member_key import GuildAIMemberKey
 from app.models.tenant.ai_member_pref import GuildAIMemberPref
 from app.models.tenant.comment import Comment
 from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
+from app.models.tenant.app_member_consent import AppMemberConsent
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
-from app.models.tenant.guild_app_user_delegation import GuildAppUserDelegation
 from app.models.tenant.initiative import InitiativeJoinRequest
 from app.models.tenant.reaction import Reaction
 from app.models.tenant.reaction_digest import ReactionDigestItem
@@ -153,14 +153,23 @@ async def _seed(session: AsyncSession) -> SimpleNamespace:
             blocked_at=now,
             blocked_by_id=victim.id,
         ),
-        # An authorization for an app to act as them, and one they withdrew.
-        "delegation": GuildAppUserDelegation(
-            app_id=app.id, user_id=victim.id, can_read=True
+        # Consent for an app to act as them, and one they withdrew for
+        # somebody else.
+        "consent": AppMemberConsent(
+            install_id=app.id,
+            user_id=victim.id,
+            label="Act as me",
+            requested_access="read",
+            granted_access="read",
+            granted_at=now,
         ),
-        "revoked_delegation": GuildAppUserDelegation(
-            app_id=app.id,
+        "revoked_consent": AppMemberConsent(
+            install_id=app.id,
             user_id=keeper.id,
-            can_read=True,
+            label="Act as me",
+            requested_access="read",
+            granted_access="read",
+            granted_at=now,
             revoked_at=now,
             revoked_by_id=victim.id,
         ),
@@ -343,9 +352,7 @@ async def test_erasure_ends_what_an_app_could_do_as_them(
 ):
     s = await _seed(session)
     await user_service.soft_delete_user(await role_session("app_admin"), s.victim_id)
-    assert (
-        await _reread(session, s.guild_id, GuildAppUserDelegation, s.delegation) is None
-    )
+    assert await _reread(session, s.guild_id, AppMemberConsent, s.consent) is None
 
 
 async def test_the_reminder_ledger_forgets_them(session: AsyncSession, role_session):
@@ -359,16 +366,14 @@ async def test_the_reminder_ledger_forgets_them(session: AsyncSession, role_sess
 # --- the row stays, still naming them ----------------------------------------
 
 
-async def test_a_delegation_they_revoked_keeps_naming_them(
+async def test_a_consent_they_revoked_keeps_naming_them(
     session: AsyncSession, role_session
 ):
-    """Their own grants go; a withdrawal they performed on somebody else's is a
-    record of something they did, and reads like the block above."""
+    """Their own consents go; a withdrawal they performed on somebody else's is
+    a record of something they did, and reads like the block above."""
     s = await _seed(session)
     await user_service.soft_delete_user(await role_session("app_admin"), s.victim_id)
-    row = await _reread(
-        session, s.guild_id, GuildAppUserDelegation, s.revoked_delegation
-    )
+    row = await _reread(session, s.guild_id, AppMemberConsent, s.revoked_consent)
     assert row is not None
     assert row.revoked_by_id == s.victim_id
 

@@ -41,7 +41,6 @@ import httpx
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.services.marketplace.registration_lookup import any_delegate_registered
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.services.safe_http import request_public_target
 from app.services.tenant import webhook_refs
@@ -55,11 +54,6 @@ logger = logging.getLogger(__name__)
 
 
 _TIMEOUT = httpx.Timeout(connect=3.0, read=5.0, write=5.0, pool=5.0)
-
-#: Whether this process has already said that dispatch is inert. Every write
-#: that produces an event calls the dispatcher, so the explanation is worth
-#: saying once per process and never per event.
-_inert_logged = False
 
 
 def _sign(secret: str, timestamp: str, body: bytes) -> str:
@@ -167,23 +161,7 @@ async def dispatch_event(
     all deliveries return or time out (5s each). For v0 that latency is
     acceptable because the typical case is zero or one subscriber.
     Move to a background queue when delivery counts climb.
-
-    With no automation delegate configured this returns immediately: the
-    delegate owns delivery targets, so on such a deployment there are none to
-    deliver to. Returning before the query keeps the cost of the feature at
-    zero on the write path rather than one query per event.
     """
-    if not await any_delegate_registered():
-        global _inert_logged
-        if not _inert_logged:
-            _inert_logged = True
-            logger.info(
-                "webhook dispatch inert: no delegate registered "
-                "(grant an app service the delegation power and provision the "
-                "keys it signs with)"
-            )
-        return
-
     statement = select(WebhookSubscription).where(
         WebhookSubscription.active.is_(True),
         # An app that is no longer installed is sent nothing, whatever its

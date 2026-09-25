@@ -41,8 +41,6 @@ class AppServiceRegistrationRead(SanitizedBaseModel):
     #: Where a browser loads its surfaces. Null when that is ``base_url`` too.
     embed_origin: Optional[str] = None
     allowed_origins: List[str] = []
-    #: Operator-conferred powers. A manifest can never claim one.
-    grants: List[str] = []
     #: Public keys this app signs with. Shown in full — the
     #: public half is meant to be read, and an operator provisioning it needs
     #: to see which ``kid`` landed.
@@ -56,8 +54,8 @@ class AppServiceRegistrationRead(SanitizedBaseModel):
     mandatory: bool = False
     enabled: bool = True
     #: ``operator`` (added here or in ``APP_SERVICES_CONFIG``) or ``registry``.
-    #: A registry registration takes only its switch, grants, mandatory flag,
-    #: origins and, for a container, its address.
+    #: A registry registration takes only its switch, mandatory flag, origins
+    #: and, for a container, its address.
     source: str = "operator"
     #: The container image a registry app runs, pinned by digest.
     image_digest: Optional[str] = None
@@ -85,7 +83,6 @@ class AppServiceRegistrationCreate(SanitizedBaseModel):
     base_url: str = Field(max_length=1000)
     embed_origin: Optional[str] = Field(default=None, max_length=1000)
     allowed_origins: Optional[List[str]] = None
-    grants: Optional[List[str]] = None
     #: JWKS holding the public half of the app's signing keys.
     jwks: Optional[Dict[str, Any]] = None
     jwks_uri: Optional[str] = Field(default=None, max_length=1000)
@@ -108,7 +105,6 @@ class AppServiceRegistrationUpdate(SanitizedBaseModel):
     base_url: Optional[str] = Field(default=None, max_length=1000)
     embed_origin: Optional[str] = Field(default=None, max_length=1000)
     allowed_origins: Optional[List[str]] = None
-    grants: Optional[List[str]] = None
     #: Replace the key set. An empty object clears it.
     jwks: Optional[Dict[str, Any]] = None
     jwks_uri: Optional[str] = Field(default=None, max_length=1000)

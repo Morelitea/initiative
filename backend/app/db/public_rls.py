@@ -1241,7 +1241,6 @@ PUBLIC_RLS: dict[str, TableRls] = {
     "user_totp_secrets": FORCED_NO_POLICY,
     "storage_backfill_state": FORCED_NO_POLICY,
     "alembic_version": NO_RLS,
-    "auto_delegation_jti_blocklist": NO_RLS,
     "billing_jti_blocklist": NO_RLS,
     "email_outbox": NO_RLS,
     "push_tokens": TableRls(

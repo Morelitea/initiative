@@ -489,8 +489,6 @@ def test_decode_session_token_rejects_garbage():
 # ──────────────────────────────────────────────────────────────────────────
 
 
-DELEGATE_KID_SHAPE = "acme.auto-delegation-1"
-
 _KEYPAIRS = [
     rsa.generate_private_key(public_exponent=65537, key_size=2048) for _ in range(3)
 ]
@@ -506,11 +504,6 @@ def private_pem(index: int) -> str:
         )
         .decode()
     )
-
-
-def public_key(index: int):
-    """One verifying key, as a caller that resolved it would hold it."""
-    return _KEYPAIRS[index].public_key()
 
 
 def public_bundle(*indexes: int) -> str:
@@ -564,119 +557,6 @@ def test_loader_refuses_a_private_key():
     """Only the public half belongs in a verifying setting."""
     with pytest.raises(security.PublicKeyBundleError):
         security.load_verification_keys(private_pem(0))
-
-
-# --- delegation: which key a token is accepted under ------------------------
-
-#: The shape a real ``sub`` has here: the pairwise subject the platform minted
-#: for one member at one install, opaque to the app that holds it. These tests
-#: are about key selection and carry it only so it can be read back out.
-_SUBJECT = "mBqR7xK2wPL0vN4tZ8yC6sD1fG3hJ5nA"
-#: The reference the delegate knows the guild by, as it would arrive.
-_GUILD_REF = "gapp_wRkC8mBv1xQ2fTn6JhLpZs4dY7eA0uKq"
-
-
-def _mint_delegation(
-    *, signed_by: int, expires_in: int = 900, kid: str | None = None
-) -> str:
-    now = datetime.now(timezone.utc)
-    return jwt.encode(
-        {
-            "jti": uuid.uuid4().hex,
-            "sub": _SUBJECT,
-            "aud": security.AUTO_DELEGATION_AUDIENCE,
-            "iss": security.AUTO_DELEGATION_ISSUER,
-            "iat": int(now.timestamp()),
-            "exp": now + timedelta(seconds=expires_in),
-            "guild_ref": _GUILD_REF,
-        },
-        private_pem(signed_by),
-        algorithm="RS256",
-        headers={"kid": kid} if kid else None,
-    )
-
-
-@pytest.mark.unit
-def test_delegation_accepts_the_key_it_was_given():
-    claims = security.verify_auto_delegation_token(
-        _mint_delegation(signed_by=0), keys=[public_key(0)]
-    )
-    assert (claims.subject, claims.guild_ref) == (_SUBJECT, _GUILD_REF)
-
-
-@pytest.mark.unit
-def test_delegation_accepts_either_key_while_the_delegate_rotates():
-    """The point of passing a set: both keys work, so an app can publish its
-    replacement and switch at its own pace rather than in one instant."""
-    for index in (0, 1):
-        assert (
-            security.verify_auto_delegation_token(
-                _mint_delegation(signed_by=index), keys=[public_key(0), public_key(1)]
-            ).subject
-            == _SUBJECT
-        )
-
-
-@pytest.mark.unit
-def test_delegation_refuses_a_key_it_was_not_given():
-    """Holding two keys is not holding every RS256 signer."""
-    with pytest.raises(security.AutoDelegationVerificationError):
-        security.verify_auto_delegation_token(
-            _mint_delegation(signed_by=2), keys=[public_key(0), public_key(1)]
-        )
-
-
-@pytest.mark.unit
-def test_delegation_refuses_when_nothing_resolved():
-    """An empty set is the "no registration published this kid" case, and it
-    answers the same way a bad signature does."""
-    with pytest.raises(security.AutoDelegationVerificationError):
-        security.verify_auto_delegation_token(_mint_delegation(signed_by=0), keys=[])
-
-
-@pytest.mark.unit
-def test_delegation_stops_accepting_a_dropped_key():
-    """Rotation ends by dropping an entry, so that key must stop working."""
-    with pytest.raises(security.AutoDelegationVerificationError):
-        security.verify_auto_delegation_token(
-            _mint_delegation(signed_by=0), keys=[public_key(1)]
-        )
-
-
-@pytest.mark.unit
-def test_a_token_key_id_does_not_steer_verification():
-    """The ``kid`` selects which registration's keys are tried; within them it
-    decides nothing. A token stamped with a misleading one still stands or
-    falls on the key that actually signed it."""
-    assert (
-        security.verify_auto_delegation_token(
-            _mint_delegation(signed_by=1, kid="names-the-other-key"),
-            keys=[public_key(0), public_key(1)],
-        ).subject
-        == _SUBJECT
-    )
-    with pytest.raises(security.AutoDelegationVerificationError):
-        security.verify_auto_delegation_token(
-            _mint_delegation(signed_by=2, kid=DELEGATE_KID_SHAPE),
-            keys=[public_key(0), public_key(1)],
-        )
-
-
-@pytest.mark.unit
-def test_delegation_reports_expiry_rather_than_the_next_key():
-    """With several keys tried, the reported failure is the real one."""
-    with pytest.raises(security.AutoDelegationVerificationError) as excinfo:
-        security.verify_auto_delegation_token(
-            _mint_delegation(signed_by=0, expires_in=-30),
-            keys=[public_key(0), public_key(1)],
-        )
-    assert "expired" in str(excinfo.value).lower()
-
-
-@pytest.mark.unit
-def test_delegation_is_off_where_no_app_platform_is_configured(monkeypatch):
-    monkeypatch.setattr(security.settings, "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM", None)
-    assert security.delegation_possible() is False
 
 
 def test_the_sign_in_dummy_bcrypt_cost_is_pinned_not_inherited() -> None:

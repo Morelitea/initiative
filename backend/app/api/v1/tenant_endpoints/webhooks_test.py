@@ -1,7 +1,6 @@
 """Webhook subscription endpoints.
 
-These cover the three things registration decides, now that the delegate gate is
-gone:
+These cover the three things registration decides:
 
 * **Who may register one** — any guild member, because registering grants no
   access: delivery reads the change log as the creator, so a subscription's

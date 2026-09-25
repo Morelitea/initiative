@@ -1,6 +1,5 @@
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Annotated, Any, NoReturn, Optional, Sequence
 
 from fastapi import Cookie, Depends, HTTPException, Path, Query, Request, status
@@ -56,12 +55,8 @@ from app.core.messages import (
 from app.core.security import (
     SESSION_COOKIE_NAME,
     STEP_UP_CHALLENGE,
-    AutoDelegationVerificationError,
     UploadTokenError,
-    delegation_possible,
-    delegation_token_kid,
     decode_session_token,
-    verify_auto_delegation_token,
     verify_upload_token,
 )
 from app.core.identity_boundary import InstallBoundary, admit_install
@@ -103,8 +98,6 @@ from app.schemas.platform.token import TokenPayload
 from app.services.auth.subject import account_for_subject
 from app.services.platform import access_grants as access_grants_service
 from app.services.platform import api_keys as api_keys_service
-from app.services.marketplace import registration_lookup
-from app.services.platform import auto_delegation_blocklist
 from app.services.platform import user_tokens
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
@@ -124,7 +117,6 @@ _SAFE_HTTP_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 CREDENTIAL_SESSION = "session"
 CREDENTIAL_API_KEY = "api_key"
 CREDENTIAL_DEVICE_TOKEN = "device_token"
-CREDENTIAL_DELEGATION = "delegation"
 #: An installed app's access token. Only a route that names an app scope
 #: admits one (:func:`app_scope`).
 CREDENTIAL_INSTALL = "install"
@@ -161,164 +153,13 @@ async def _authenticate_device_token(
     return user
 
 
-async def _authenticate_auto_delegation(
-    request: Request,
-    session: AsyncSession,
-    token: str,
-) -> Optional[User]:
-    """Try to interpret ``token`` as a delegation JWT from initiative-auto.
-
-    Returns the named user when the token verifies; ``None`` otherwise so
-    the caller can fall through to other auth methods (regular JWT, API
-    key, etc.) without 401-ing on what's actually a session-token-shaped
-    bearer arriving at the same header.
-
-    Authorization beyond authentication still happens downstream — this
-    function only resolves identity. RLS, role-permission checks, and
-    master switches gate the actual operation as if the user were
-    calling directly.
-
-    Two security checks fire here in order:
-      1. Token verifies (signature, audience, issuer, required claims).
-      2. ``jti`` is not in the blocklist — first presentation only.
-
-    A verified token also pins the request's guild context. The token names its
-    guild by a ``guild_ref`` claim — the reference the app was given, not a row
-    id — which is resolved here to the guild it stands for and put on
-    ``request.state.delegated_guild_id``: delegation tokens are minted for
-    exactly one guild, and a machine caller has no guild context of its own to
-    resolve from. The resolved guild is validated against the user's memberships
-    and must agree with the ``/c/{guild_id}`` path, so an auto workflow always
-    acts in the guild its token was issued for.
-    """
-    if not delegation_possible():
-        return None  # no app platform here — let other auth paths run
-
-    # Which app signed this decides which keys may verify it. The token names a
-    # `kid`, and the registrations that published it must be enabled and hold
-    # the `delegation` grant, so an operator ends an app's ability to act with
-    # an edit rather than a key rotation. Resolving nothing ends the attempt:
-    # there is no other key this token could be held against.
-    candidates = await registration_lookup.delegation_keys_for(
-        delegation_token_kid(token) or ""
-    )
-
-    # One candidate at a time, so the app this call is attributed to is the one
-    # whose key actually verified. Two apps may publish the same `kid` — it is
-    # an opaque label each picks — and everything downstream (which install must
-    # exist, which app acted) has to follow the signature, not the order.
-    claims = None
-    signer = None
-    for candidate in candidates:
-        try:
-            claims = verify_auto_delegation_token(token, keys=[candidate.key])
-        except AutoDelegationVerificationError:
-            # Could also be a session JWT or API key arriving on the same
-            # header; falling through lets the caller try those.
-            continue
-        signer = candidate
-        break
-
-    if claims is None or signer is None:
-        return None
-
-    request.state.delegating_app = signer.registration.public_id
-
-    # Replay guard: a delegation JWT is one-shot. Even though the JWT is
-    # technically valid for 15 minutes, a captured token must not be
-    # usable a second time. The pre-flight ``is_jti_redeemed`` is a fast
-    # path; the ``record_jti`` insert below is the actual race-safe
-    # guarantee (unique-violation on the PK).
-    if await auto_delegation_blocklist.is_jti_redeemed(session, claims.jti):
-        return None
-
-    # The token names its guild by reference too, so the id everything below
-    # works in is resolved here rather than taken from the token.
-    from app.services.marketplace.app_refs import resolve_app_guild_ref
-
-    resolved_guild = await resolve_app_guild_ref(ref=claims.guild_ref)
-    if resolved_guild is None:
-        return None
-    guild_id, install_id = resolved_guild
-    # Which install this delegate is, here. The reference it named the guild by
-    # was minted for exactly one, so the sector is already settled by the time
-    # the token verifies — and a handler that has to name something back to
-    # this delegate needs the same sector to name it in.
-    request.state.delegating_install_id = install_id
-
-    # The token names its member by the reference the app was given, not by a
-    # user id. Resolving it takes both the guild it was minted in and the app
-    # that signed, which together are the sector it belongs to.
-    resolved = await registration_lookup.resolve_delegated_member(
-        guild_id, signer.registration.public_id, claims.subject
-    )
-    if resolved is None:
-        return None
-
-    statement = select(User).where(User.id == resolved)
-    result = await session.exec(statement)
-    user = result.one_or_none()
-    if user is None or user.status != UserStatus.active:
-        # The member the subject names has been deactivated since it was
-        # minted. A delegate cannot act for a non-active account — workflows
-        # die when their owner leaves, by design.
-        return None
-
-    # Identity settled, authorization next. Two parties have to have said yes:
-    # the guild installed the app, and this member authorized it to carry their
-    # name — to the depth this call needs. Checked against the token's own
-    # claims rather than the path, so it holds for every route a delegated call
-    # can reach, including the cross-guild `/me/*` views that have no path
-    # guild.
-    #
-    # The read/write split follows the request method, the same line
-    # `_enforce_api_key_scope` draws for a read-only PAT.
-    if not await registration_lookup.delegation_allowed(
-        guild_id,
-        signer.registration.public_id,
-        resolved,
-        need_write=request.method not in _SAFE_HTTP_METHODS,
-    ):
-        return None
-
-    # Burn the jti now. Two requests racing past the pre-flight check
-    # collide on the PK and the loser's ``record_jti`` raises
-    # ``DelegationReplayError``, which we convert to the same None
-    # signal — the request will be re-authenticated by another path or
-    # rejected by the standard 401.
-    try:
-        await auto_delegation_blocklist.record_jti(
-            session, jti=claims.jti, expires_at=_delegation_exp_from_jwt(token)
-        )
-    except auto_delegation_blocklist.DelegationReplayError:
-        return None
-
-    # Bind the request to the token's guild (see docstring). Stored on
-    # request.state so the guild-context resolver can read it without the
-    # claims object having to travel through every auth signature.
-    request.state.delegated_guild_id = guild_id
-
-    return user
-
-
-def _delegation_exp_from_jwt(token: str) -> datetime:
-    """Pull the ``exp`` timestamp out of a delegation JWT without
-    re-verifying. Caller has already verified — we just need the value
-    for the blocklist row's ``expires_at`` column so the cleanup job
-    can prune expired entries.
-    """
-    payload = jwt.decode(token, options={"verify_signature": False})
-    return datetime.fromtimestamp(int(payload["exp"]), tz=timezone.utc)
-
-
 def _enforce_api_key_scope(request: Request, api_key: UserApiKey) -> None:
     """Apply a scoped PAT's restrictions at authentication time.
 
     ``read_only`` keys may only issue safe (non-mutating) HTTP methods. A
     ``guild_id``-bound key stashes its guild on ``request.state`` for
     ``get_guild_membership`` to pin against the ``/c/{guild_id}`` path — the one
-    place that sees both the token's guild and the path's, mirroring how
-    delegation tokens are pinned.
+    place that sees both the token's guild and the path's.
     """
     if api_key.read_only and request.method not in _SAFE_HTTP_METHODS:
         raise HTTPException(
@@ -396,15 +237,6 @@ async def get_current_user(
         _enforce_api_key_scope(request, api_key)
         set_api_key_credential(True)
         request.state.credential = CREDENTIAL_API_KEY
-        return user
-
-    # Try delegation JWT from initiative-auto (RS256, distinct audience).
-    # Returns None on shape/algorithm mismatch so a regular HS256 session
-    # JWT carrying through this header gracefully falls through to the
-    # next branch.
-    user = await _authenticate_auto_delegation(request, session, token)
-    if user:
-        request.state.credential = CREDENTIAL_DELEGATION
         return user
 
     # Try JWT authentication. Any PyJWTError (expired signature, bad sig,
@@ -932,9 +764,8 @@ async def _load_guild_context(
     it reaches the privileged ``SET ROLE``/``search_path`` sink.
 
     Transport-agnostic: it takes only the resolved ``guild_id``. The REST-only
-    auto-delegation guard (token-guild must equal path-guild) lives in
-    ``get_guild_membership``, where both values exist — WS / keepalive callers
-    have no delegation token, so the shared resolver never deals with one.
+    guild-bound API key guard (key-guild must equal path-guild) lives in
+    ``get_guild_membership``, where both values exist.
 
     ``for_settings`` is the community's own configuration surface, which a
     guild administrator keeps while its content is frozen: a ``read_only``
@@ -1076,27 +907,6 @@ async def _load_guild_context(
     )
 
 
-def addressed_guild_id(request: Request, path_guild_id: int) -> int:
-    """Which guild this request operates in.
-
-    Two kinds of caller say it two ways.
-
-    A **browser** says it in the path, and has to: a tab, a download, an
-    ``<img>``, an SSE stream and a WebSocket all carry the guild, and the URL is
-    the only thing all of them can carry (#680 removed the header version).
-
-    A **delegate** says it in its token, and only there. It holds one
-    credential, that credential is for one guild, and which guild was settled
-    when the call authenticated. Our id is an index and its reference is minted
-    for it alone, so neither is a name it should be spelling into a URL — the
-    segment it writes is its own business, and this does not read it.
-
-    See ``history/opaque-identity-design.md`` §13.
-    """
-    delegated = getattr(request.state, "delegated_guild_id", None)
-    return path_guild_id if delegated is None else delegated
-
-
 async def get_guild_membership(
     request: Request,
     session: SessionDep,
@@ -1107,18 +917,16 @@ async def get_guild_membership(
     community the path addresses, and the session routed to match.
 
     Every guild-scoped router mounts under ``/c/{guild_id}``, so FastAPI injects
-    the segment here; :func:`addressed_guild_id` decides whether that is the
-    answer or whether the call's delegation already gave one. Membership (or a
-    live PAM grant) is validated fresh; a non-member or stale grant gets 403. A
-    guild-scoped route mounted *outside* the prefix fails at startup (missing
-    path param) — a useful guard that every such route is path-addressed.
+    the segment here. Membership (or a live PAM grant) is validated fresh; a
+    non-member or stale grant gets 403. A guild-scoped route mounted *outside*
+    the prefix fails at startup (missing path param) — a useful guard that every
+    such route is path-addressed.
 
     The context it returns carries the standing computed in the routed schema,
     so it is resolved and applied together rather than in two steps that could
     disagree. ``RLSSessionDep`` is the other half of this one call: FastAPI
     caches a dependency per request, so it hands back the session this routed.
     """
-    guild_id = addressed_guild_id(request, guild_id)
     # A guild-bound API key (PAT) is pinned to one guild the same way: refuse if
     # the path addresses a different guild than the key was scoped to.
     key_guild = getattr(request.state, "api_key_guild_id", None)
@@ -1396,7 +1204,6 @@ async def get_guild_settings_context(
     the settings that govern them. A suspended community has no settings
     surface for its members: it is in time out.
     """
-    guild_id = addressed_guild_id(request, guild_id)
     key_guild = getattr(request.state, "api_key_guild_id", None)
     if key_guild is not None and key_guild != guild_id:
         raise HTTPException(
@@ -2247,8 +2054,8 @@ async def _resolve_upload_user(
     Two trust tiers, by where the credential arrives:
 
       * Authorization header or HttpOnly cookie — not exposed in URLs, so the
-        full credential set is honored (session JWT, API key, delegation JWT,
-        DeviceToken scheme). This is the web <img> path (cookie) and direct API
+        full credential set is honored (session JWT, API key, DeviceToken
+        scheme). This is the web <img> path (cookie) and direct API
         callers.
       * ``?token=`` query param — leaks via logs/history/Referer, so only a
         short-lived uploads-scoped token or a device token is accepted (see
@@ -2322,18 +2129,6 @@ async def _resolve_upload_user(
             )
         _enforce_api_key_scope(request, api_key)
         set_api_key_credential(True)
-        return user
-
-    # Try delegation JWT from initiative-auto. Same chain placement as
-    # ``get_current_user`` so /uploads/* accepts auto-driven workflow
-    # downloads without per-route changes. Falls through on shape /
-    # algorithm / audience mismatch so a regular HS256 session JWT
-    # arriving on the same header still hits the standard JWT branch
-    # below.
-    user = await _authenticate_auto_delegation(request, session, token)
-    if user:
-        # Delegation already enforces ``user.status == active``;
-        # ``_authenticate_auto_delegation`` returned None otherwise.
         return user
 
     # Try JWT authentication. Expired / malformed tokens are 401 (not 403)

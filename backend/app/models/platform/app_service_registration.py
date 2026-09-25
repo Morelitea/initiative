@@ -3,8 +3,8 @@
 A marketplace **listing** says what an app is and what it declares. A
 **registration** is the separate, operator-owned statement that a particular
 deployment has wired that app up: which listing it is, where it lives, the
-public keys it signs with, and the powers the operator confers on it. Nothing
-in this table can be claimed by a manifest — a publisher describes their app,
+public keys it signs with, and the most any install of it may be granted.
+Nothing in this table can be claimed by a manifest — a publisher describes their app,
 an operator decides what this deployment does with it.
 
 A registration holds no secret. Every call the app makes to Initiative is a
@@ -20,17 +20,6 @@ Some columns exist only because of that split:
 * ``publisher_id`` — the publisher the ``public_id`` prefix names
   (:mod:`app.models.platform.publisher`). Its switch outranks the
   registration's own.
-* ``grants`` — powers beyond what any app gets by default, from a closed
-  vocabulary. Conferring one is an operator edit; revoking it is the same edit
-  in reverse.
-
-  * ``delegation`` — the holder may call Initiative's API as a real user, under
-    that user's own gates.
-  * ``app_directory`` — the holder may ask where *another* installed app's
-    service answers. Separate from ``delegation`` because the two confer
-    different things: an app that acts for its own members has no call to read
-    another app's address. An automation service holds both, because acting on
-    one app's behalf at another is what it is for.
 * ``scope_ceiling`` — the most any install of this app may be granted, from
   the app scope vocabulary (``app.core.app_scopes``). A community's seat grants
   within it; nothing outside it can be granted. Empty means nothing may be.
@@ -48,8 +37,8 @@ endpoints, or ``APP_SERVICES_CONFIG`` at boot) is theirs entirely. A registry
 row (``source='registry'``) is written by the registry refresh from a verified
 listing: the listing it speaks for, its keys, its ceiling, its reference
 sectors, and either the image it runs (a container) or where it is hosted. The
-operator keeps the kill switch, the grants, the mandatory flag, the origin
-list and, for a container, its location.
+operator keeps the kill switch, the mandatory flag, the origin list and, for a
+container, its location.
 
 Lives in ``public``: a registration is platform-wide and carries no guild data.
 It is written on the system engine by ``apps.manage`` (owner) endpoints, by
@@ -76,7 +65,6 @@ from sqlmodel import Field, SQLModel
 from app.models.platform.identity_ref import IdentityPurpose
 
 __all__ = [
-    "APP_SERVICE_GRANTS",
     "IMAGE_REFERENCE_MAX_LENGTH",
     "MAX_APP_ID_LENGTH",
     "REFERENCE_SECTORS",
@@ -86,11 +74,6 @@ __all__ = [
     "browser_base",
     "registration_live_sql",
 ]
-
-#: The closed vocabulary of operator-conferred powers. A value outside this set
-#: is refused on write rather than stored as something no code resolves — the
-#: same "declare it or it does not exist" rule the listing validator applies.
-APP_SERVICE_GRANTS: frozenset[str] = frozenset({"delegation", "app_directory"})
 
 #: The widest ``public_id`` a registration may carry. An app id longer than
 #: this cannot name a registration, so it is refused without a query.
@@ -184,14 +167,8 @@ class AppServiceRegistration(SQLModel, table=True):
         default_factory=list,
         sa_column=Column(JSONB, nullable=False, server_default="[]"),
     )
-    # Operator-conferred powers (see module docstring). Validated against
-    # APP_SERVICE_GRANTS on every write.
-    grants: List[str] = Field(
-        default_factory=list,
-        sa_column=Column(JSONB, nullable=False, server_default="[]"),
-    )
     # Public half of the keys this app signs with, in JWKS shape: the client
-    # assertions it presents at the token endpoint, and its delegation tokens.
+    # assertions it presents at the token endpoint.
     # A set rather than one key because an app rotates by publishing the
     # replacement alongside the current entry while JWTs signed by the first
     # drain out; every entry carries a ``kid``, which is what a JWT names.

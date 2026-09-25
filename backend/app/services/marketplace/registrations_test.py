@@ -4,8 +4,6 @@ A registration is stated, not discovered: nothing here calls an app.
 """
 
 import json
-import re
-from pathlib import Path
 
 import pytest
 from fastapi import HTTPException
@@ -13,10 +11,7 @@ from sqlmodel import select
 
 from app.core.config import settings
 from app.core.messages import AppServiceMessages
-from app.models.platform.app_service_registration import (
-    APP_SERVICE_GRANTS,
-    AppServiceRegistration,
-)
+from app.models.platform.app_service_registration import AppServiceRegistration
 from app.models.platform.publisher import Publisher
 from app.services.marketplace import registrations as service
 from app.services.marketplace.registration_lookup import load_registrations
@@ -43,48 +38,6 @@ def _signing_key(monkeypatch):
     )
 
 
-# --- grants vocabulary -------------------------------------------------------
-
-
-def test_grants_vocabulary_accepts_only_known_powers():
-    assert service.normalize_grants(["delegation"]) == ["delegation"]
-    assert service.normalize_grants(["delegation", "delegation"]) == ["delegation"]
-    assert service.normalize_grants(None) == []
-
-
-@pytest.mark.parametrize("value", ["admin", "write", "DELEGATION!", "", "*"])
-def test_grants_outside_the_vocabulary_are_refused(value):
-    with pytest.raises(HTTPException) as excinfo:
-        service.normalize_grants([value])
-    assert excinfo.value.status_code == 400
-    assert excinfo.value.detail == AppServiceMessages.UNKNOWN_GRANT
-
-
-# backend/app/services/marketplace/<this file> -> repo root
-_APP_SERVICES_TS = (
-    Path(__file__).resolve().parents[4] / "frontend" / "src" / "lib" / "appServices.ts"
-)
-
-
-def test_the_settings_form_knows_every_grant():
-    """The vocabulary is written twice: here, and as the list the settings form
-    builds its controls from. Nothing connects them at build time, so a grant
-    added on this side and not the other is one an operator has no way to
-    confer — and one a save would take back off a registration that had it.
-
-    Read out of the TypeScript rather than mirrored again here, so this fails on
-    the file that would be wrong.
-    """
-    source = _APP_SERVICES_TS.read_text(encoding="utf-8")
-    match = re.search(
-        r"export const APP_SERVICE_GRANTS = \[(.*?)\] as const;", source, re.S
-    )
-    assert match, f"APP_SERVICE_GRANTS is not declared in {_APP_SERVICES_TS.name}"
-
-    declared = set(re.findall(r'"([^"]+)"', match.group(1)))
-    assert declared == set(APP_SERVICE_GRANTS)
-
-
 def _rsa_jwk(kid: str) -> dict:
     """A usable public JWK, generated rather than pasted so the test asserts on
     the parser rather than on one frozen key."""
@@ -98,7 +51,7 @@ def _rsa_jwk(kid: str) -> dict:
 
 
 def test_jwks_accepts_a_usable_key_set():
-    key_set = {"keys": [_rsa_jwk("auto.core-delegation-1")]}
+    key_set = {"keys": [_rsa_jwk("auto.core-1")]}
     assert service.normalize_jwks(key_set) == key_set
 
 
@@ -342,28 +295,16 @@ async def test_moving_the_base_url_rechecks_the_key_set_address(session):
 
 
 async def test_keys_are_provisioned_and_cleared(session):
-    key_set = {"keys": [_rsa_jwk("acme.shopify-delegation-1")]}
-    row = await _create(session, grants=["delegation"], jwks=key_set)
+    key_set = {"keys": [_rsa_jwk("acme.shopify-1")]}
+    row = await _create(session, jwks=key_set)
     assert row.jwks == key_set
 
-    rotated = {"keys": [_rsa_jwk("acme.shopify-delegation-2")]}
+    rotated = {"keys": [_rsa_jwk("acme.shopify-2")]}
     updated = await service.update_registration(session, row.id, jwks=rotated)
     assert updated.jwks == rotated
 
     cleared = await service.update_registration(session, row.id, jwks={})
     assert cleared.jwks is None
-
-
-async def test_the_key_set_does_not_follow_the_delegation_grant(session):
-    """The key set is the app's client credential, so dropping the delegation
-    grant leaves it where it is."""
-    key_set = {"keys": [_rsa_jwk("acme.widgets-1")]}
-    row = await _create(session, grants=["delegation"], jwks=key_set)
-
-    updated = await service.update_registration(session, row.id, grants=[])
-
-    assert updated.grants == []
-    assert updated.jwks == key_set
 
 
 # --- addresses ---------------------------------------------------------------
@@ -406,15 +347,6 @@ async def test_clearing_the_browser_address_puts_both_surfaces_back(session):
 
     assert updated.embed_origin is None
     assert updated.allowed_origins == [BASE_URL]
-
-
-async def test_update_refuses_a_grant_outside_the_vocabulary(session):
-    row = await _create(session)
-
-    with pytest.raises(HTTPException) as excinfo:
-        await service.update_registration(session, row.id, grants=["superuser"])
-
-    assert excinfo.value.detail == AppServiceMessages.UNKNOWN_GRANT
 
 
 async def test_update_changes_the_listing(session):
@@ -506,7 +438,6 @@ async def test_reconcile_creates_registrations_from_the_mounted_file(
                     "base_url": BASE_URL,
                     "listing_uid": LISTING_UID,
                     "allowed_origins": ["https://app.example.com"],
-                    "grants": ["delegation"],
                     "mandatory": True,
                 }
             ],
@@ -525,7 +456,6 @@ async def test_reconcile_creates_registrations_from_the_mounted_file(
     ).one()
     assert row.base_url == BASE_URL
     assert row.allowed_origins == ["https://app.example.com"]
-    assert row.grants == ["delegation"]
     assert row.mandatory is True
     assert row.listing_uid == LISTING_UID
 
@@ -679,9 +609,12 @@ async def test_reconcile_reads_the_key_set_address(session, tmp_path, monkeypatc
     assert row.jwks_uri == f"{HTTPS_BASE_URL}/jwks.json"
 
 
-async def test_reconcile_skips_an_entry_claiming_an_unknown_grant(
-    session, tmp_path, monkeypatch
+async def test_reconcile_ignores_grants_in_a_file_written_for_an_earlier_release(
+    session, tmp_path, monkeypatch, caplog
 ):
+    """A registration no longer has grants. An entry that still names them is
+    registered without them and the pass says so, so the file does not stop a
+    boot."""
     monkeypatch.setattr(
         settings,
         "APP_SERVICES_CONFIG",
@@ -689,18 +622,28 @@ async def test_reconcile_skips_an_entry_claiming_an_unknown_grant(
             tmp_path,
             [
                 {
-                    "public_id": "acme.overreach",
+                    "public_id": "acme.earlier",
                     "base_url": BASE_URL,
                     "listing_uid": LISTING_UID,
-                    "grants": ["superuser"],
+                    "grants": ["delegation", "app_directory"],
                 }
             ],
         ),
     )
 
-    result = await service.reconcile_from_config(session)
+    with caplog.at_level("WARNING", logger="app.services.marketplace.registrations"):
+        result = await service.reconcile_from_config(session)
 
-    assert (result.created, result.skipped) == (0, 1)
+    assert (result.created, result.skipped) == (1, 0)
+    assert any("names grants" in record.getMessage() for record in caplog.records)
+    row = (
+        await session.exec(
+            select(AppServiceRegistration).where(
+                AppServiceRegistration.public_id == "acme.earlier"
+            )
+        )
+    ).one()
+    assert not hasattr(row, "grants")
 
 
 async def test_reconcile_reads_the_scope_ceiling_from_the_file(

@@ -368,7 +368,7 @@ async def test_the_seat_revokes_every_answer_at_once(
     assert (await _grant_token(client, installed, member_ref)).status_code == 200
 
     stopped = await client.post(
-        installed.seat.g(f"/apps/{installed.app.id}/delegations/revoke-all"),
+        installed.seat.g(f"/apps/{installed.app.id}/consents/revoke-all"),
         headers=installed.seat.headers,
     )
     assert stopped.status_code == 204, stopped.text

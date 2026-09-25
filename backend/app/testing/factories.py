@@ -51,7 +51,6 @@ from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
 from app.models.tenant.wiki import Wiki, WikiPage
 from app.models.tenant.post_poll import PostPoll, PostPollOption
 from app.models.tenant.guild_app import GuildApp
-from app.models.tenant.guild_app_user_delegation import GuildAppUserDelegation
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
@@ -1293,7 +1292,6 @@ async def create_app_service_registration(
     base_url: str = "https://app.example.test",
     listing_uid: str | None = None,
     allowed_origins: list[str] | None = None,
-    grants: list[str] | None = None,
     mandatory: bool = False,
     enabled: bool = True,
     jwks: dict[str, Any] | None = None,
@@ -1319,7 +1317,6 @@ async def create_app_service_registration(
             "allowed_origins": allowed_origins
             if allowed_origins is not None
             else [base_url],
-            "grants": grants or [],
             "jwks": (jwks or None) if jwks is not None else sample_app_jwks(),
             "mandatory": mandatory,
             "enabled": enabled,
@@ -1330,37 +1327,6 @@ async def create_app_service_registration(
     await session.commit()
     await session.refresh(row)
     invalidate_registrations()
-    return row
-
-
-async def create_app_delegation(
-    session: AsyncSession,
-    app: GuildApp,
-    user: User,
-    *,
-    can_read: bool = True,
-    can_write: bool = False,
-    **overrides: Any,
-) -> GuildAppUserDelegation:
-    """A member's standing authorization for one install to act as them.
-
-    Written straight into the guild's schema, so a suite that is about what a
-    delegated call may do does not have to walk the consent flow first.
-    """
-    await route_session_to_guild(session, guild_of(app))
-
-    row = GuildAppUserDelegation(
-        **{
-            "app_id": app.id,
-            "user_id": user.id,
-            "can_read": can_read,
-            "can_write": can_write,
-            **overrides,
-        }
-    )
-    session.add(row)
-    await session.commit()
-    await session.refresh(row)
     return row
 
 

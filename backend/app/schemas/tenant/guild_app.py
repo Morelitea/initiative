@@ -256,43 +256,9 @@ class GuildAppRead(SanitizedBaseModel):
     #: service app whose registration is missing or switched off — the install
     #: stays where it is and says why it is doing nothing.
     available: bool = True
-    #: Whether this app is one that acts as members, and so has something for
-    #: each of them to authorize. An app that never carries anyone's name does
-    #: not ask the question.
-    delegates: bool = False
     created_by: int
     created_at: datetime
     updated_at: datetime
-
-
-class GuildAppDelegationRead(SanitizedBaseModel):
-    """What the viewer has authorized this app to do as them.
-
-    Always answerable, so the absence of a grant is a state rather than a 404:
-    ``granted`` false is "you have not authorized this", which is exactly what
-    the settings page needs to draw the question.
-    """
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    granted: bool = False
-    can_read: bool = False
-    can_write: bool = False
-    granted_at: Optional[datetime] = None
-    revoked_at: Optional[datetime] = None
-    #: How the member was signed in when they authorized it.
-    confirmed_factor: Optional[str] = None
-
-
-class GuildAppDelegationGrant(SanitizedBaseModel):
-    """Authorize the app to act as you.
-
-    ``can_read`` is not asked for: authorizing at all is what lets the app act,
-    so the only remaining question is whether it may change things. Withdrawing
-    is how a member says no.
-    """
-
-    can_write: bool = False
 
 
 class GuildAppConsentRead(SanitizedBaseModel):
@@ -325,18 +291,11 @@ class GuildAppConsentAnswer(SanitizedBaseModel):
     access: ConsentAccess
 
 
-class GuildAppMemberDelegation(SanitizedBaseModel):
-    """One member's authorization, in the admin's Members view."""
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+class GuildAppMemberConsent(GuildAppConsentRead):
+    """One member's answer to one of the app's requests, in the seat's Members
+    view."""
 
     user_id: int
-    can_read: bool = False
-    can_write: bool = False
-    revoked: bool = False
-    granted_at: datetime
-    revoked_at: Optional[datetime] = None
-    updated_at: datetime
 
 
 class AppSurfaceSummary(SanitizedBaseModel):
@@ -392,10 +351,6 @@ class GuildAppDetail(GuildAppRead):
     """
 
     connections: List[GuildAppConnectionRead] = []
-    #: What the *viewer* has authorized this app to do as them. Present on every
-    #: install so the settings page can draw the question without a second
-    #: request; it says nothing about anybody else.
-    delegation: Optional[GuildAppDelegationRead] = None
     #: The viewer's own answers to this app's requests to act as them, one per
     #: purpose, the app-wide one first. Nobody else's.
     consents: List[GuildAppConsentRead] = []
@@ -503,11 +458,11 @@ class GuildAppMembersResponse(SanitizedBaseModel):
 
     summary: List[GuildAppConnectionSummary] = []
     items: List[GuildAppMemberConnection] = []
-    #: Who has authorized this app to act as them, and how deeply. Beside the
+    #: Every member's answers to this app's requests to act as them. Beside the
     #: connections rather than in a view of its own: both answer "what does this
     #: app have of this member's", and an admin governing one wants the other in
     #: the same place.
-    delegations: List[GuildAppMemberDelegation] = []
+    consents: List[GuildAppMemberConsent] = []
 
 
 # --- serialization ----------------------------------------------------------
@@ -573,7 +528,6 @@ def serialize_guild_app(
         granted_scopes=sorted(app.granted_scopes or []),
         mandatory=service_state.mandatory,
         available=service_state.available,
-        delegates=service_state.delegates,
         created_by=app.created_by,
         created_at=app.created_at,
         updated_at=app.updated_at,
@@ -632,7 +586,6 @@ def serialize_guild_app_detail(
     member_rows: Dict[str, Any],
     install_state: Optional[InstallState] = None,
     avatar_url: Optional[str] = None,
-    delegation_row: Any = None,
     update_offer: Any = None,
     placements: Sequence[Any] = (),
     consent_rows: Sequence[Any] = (),
@@ -658,7 +611,6 @@ def serialize_guild_app_detail(
     return GuildAppDetail(
         **base.model_dump(),
         connections=connections,
-        delegation=serialize_delegation(delegation_row),
         consents=[serialize_consent(row) for row in consent_rows],
         update_version=update_offer.version if update_offer is not None else None,
         pending_update=serialize_upgrade_asks(app, update_offer),
@@ -710,41 +662,6 @@ def serialize_member_connection(row: Any) -> GuildAppMemberConnection:
     )
 
 
-def serialize_delegation(row: Any) -> GuildAppDelegationRead:
-    """The viewer's own authorization, present or not.
-
-    A member who has never been asked and one who withdrew are different
-    answers, so a withdrawn row still reports its dates — the page can say "you
-    stopped this on Tuesday" rather than showing a blank offer.
-    """
-    if row is None:
-        return GuildAppDelegationRead()
-    return GuildAppDelegationRead(
-        granted=row.revoked_at is None and row.can_read,
-        can_read=row.can_read,
-        can_write=row.can_write,
-        granted_at=row.granted_at,
-        revoked_at=row.revoked_at,
-        confirmed_factor=row.confirmed_factor,
-    )
-
-
-class GuildAppServiceRead(SanitizedBaseModel):
-    """Where one installed app's service answers.
-
-    Not part of :class:`GuildAppRead`: ``base_url`` is operator wiring rather
-    than anything an install describes, and nothing in the UI draws it.
-    """
-
-    #: The app's registered service id, echoed so a caller can check it got the
-    #: app it meant rather than matching on the install id alone.
-    public_id: str
-    base_url: str
-    #: Whether anything may flow through this app right now: the guild's own
-    #: switch and the operator's, together.
-    available: bool
-
-
 def serialize_consent(row: Any) -> GuildAppConsentRead:
     return GuildAppConsentRead(
         id=row.id,
@@ -762,13 +679,7 @@ def serialize_consent(row: Any) -> GuildAppConsentRead:
     )
 
 
-def serialize_member_delegation(row: Any) -> GuildAppMemberDelegation:
-    return GuildAppMemberDelegation(
-        user_id=row.user_id,
-        can_read=row.can_read,
-        can_write=row.can_write,
-        revoked=row.revoked_at is not None,
-        granted_at=row.granted_at,
-        revoked_at=row.revoked_at,
-        updated_at=row.updated_at,
+def serialize_member_consent(row: Any) -> GuildAppMemberConsent:
+    return GuildAppMemberConsent(
+        **serialize_consent(row).model_dump(), user_id=row.user_id
     )

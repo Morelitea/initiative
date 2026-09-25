@@ -9,7 +9,7 @@ Three ways a registration arrives, and they meet in the same checks:
 * **The registry brings one** with a verified app listing
   (:mod:`app.services.marketplace.registry_entries`). Its row keeps what the
   registry says about the app; the operator edits only what is theirs on it
-  (the switch, grants, mandatory flag, origins, and a container's location),
+  (the switch, mandatory flag, origins, and a container's location),
   and an ``APP_SERVICES_CONFIG``
   entry for the same app takes the row over as the operator's.
 
@@ -50,7 +50,6 @@ from app.core.config import settings
 from app.core.messages import AppServiceMessages
 from app.core.security import app_platform_signing_enabled
 from app.models.platform.app_service_registration import (
-    APP_SERVICE_GRANTS,
     MAX_APP_ID_LENGTH,
     AppServiceRegistration,
     RegistrationSource,
@@ -80,7 +79,6 @@ AUDITED_FIELDS: tuple[str, ...] = (
     "embed_origin",
     "allowed_origins",
     "jwks_uri",
-    "grants",
     "scope_ceiling",
     "mandatory",
     "enabled",
@@ -104,7 +102,6 @@ __all__ = [
     "normalize_jwks",
     "normalize_jwks_uri",
     "normalize_embed_origin",
-    "normalize_grants",
     "normalize_listing_uid",
     "normalize_origin",
     "normalize_origins",
@@ -290,9 +287,8 @@ def normalize_jwks(value: Optional[dict]) -> Optional[dict]:
     the ``kid`` a JWT names.
 
     The set is the app's client credential: the token endpoint verifies the
-    assertions it signs against it, and the delegation path its delegation
-    tokens. So it is kept whatever the registration's grants are. A
-    registration with neither this set nor a ``jwks_uri`` is not live.
+    assertions it signs against it. A registration with neither this set nor
+    a ``jwks_uri`` is not live.
 
     Parsed on the way in rather than at first use, so an operator provisioning
     a key learns here whether it landed instead of at the first call that
@@ -400,25 +396,6 @@ def normalize_jwks_uri(value: Optional[str], *, base_url: str) -> Optional[str]:
     return cleaned
 
 
-def normalize_grants(values: Optional[Iterable[str]]) -> list[str]:
-    """Check operator-conferred powers against the closed vocabulary.
-
-    A value outside it is refused rather than stored: a grant no code resolves
-    would read, in the owner's settings, as a power this deployment had conferred.
-    """
-    normalized: list[str] = []
-    for value in values or []:
-        cleaned = value.strip().lower() if isinstance(value, str) else ""
-        if cleaned not in APP_SERVICE_GRANTS:
-            raise _bad_request(
-                AppServiceMessages.UNKNOWN_GRANT,
-                f"{value!r} is not one of {sorted(APP_SERVICE_GRANTS)}",
-            )
-        if cleaned not in normalized:
-            normalized.append(cleaned)
-    return normalized
-
-
 def normalize_scope_ceiling(values: Optional[Iterable[str]]) -> list[str]:
     """Check a scope ceiling against the app scope vocabulary.
 
@@ -522,7 +499,6 @@ async def create_registration(
     base_url: str,
     embed_origin: Optional[str] = None,
     allowed_origins: Optional[Iterable[str]] = None,
-    grants: Optional[Iterable[str]] = None,
     jwks: Optional[dict] = None,
     jwks_uri: Optional[str] = None,
     scope_ceiling: Optional[Iterable[str]] = None,
@@ -542,7 +518,6 @@ async def create_registration(
     base_url = normalize_base_url(base_url)
     embed = normalize_embed_origin(embed_origin) if embed_origin else None
     origins = normalize_origins(allowed_origins, browser_base=embed or base_url)
-    grant_list = normalize_grants(grants)
     key_set = normalize_jwks(jwks)
     key_uri = normalize_jwks_uri(jwks_uri, base_url=base_url)
     ceiling = normalize_scope_ceiling(scope_ceiling)
@@ -561,7 +536,6 @@ async def create_registration(
         base_url=base_url,
         embed_origin=embed,
         allowed_origins=origins,
-        grants=grant_list,
         jwks=key_set,
         jwks_uri=key_uri,
         scope_ceiling=ceiling,
@@ -594,7 +568,6 @@ async def update_registration(
     base_url: Optional[str] = None,
     embed_origin: Optional[str] = None,
     allowed_origins: Optional[Iterable[str]] = None,
-    grants: Optional[Iterable[str]] = None,
     jwks: Optional[dict] = None,
     jwks_uri: Optional[str] = None,
     scope_ceiling: Optional[Iterable[str]] = None,
@@ -609,8 +582,8 @@ async def update_registration(
     ``base_url`` moves is checked against the new origin.
 
     A registration the registry brought takes only the operator's fields (the
-    switch, grants, mandatory flag, origins, and a container's location); a
-    change to anything else answers 409.
+    switch, mandatory flag, origins, and a container's location); a change to
+    anything else answers 409.
     """
     row = await get_registration(session, registration_id)
     if row.source == RegistrationSource.REGISTRY:
@@ -653,8 +626,6 @@ async def update_registration(
             )
     elif origins_were_default and new_base is not None:
         row.allowed_origins = normalize_origins(None, browser_base=new_base)
-    if grants is not None:
-        row.grants = normalize_grants(grants)
     if jwks is not None:
         # Replaces rather than merges, and an empty object clears: a key set is
         # provisioned whole, so two entries mean a rotation is in flight and
@@ -791,9 +762,13 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
     """Bring the table in line with the mounted config file.
 
     Each entry is ``{public_id, listing_uid, base_url}`` and optionally
-    ``embed_origin``, ``allowed_origins``, ``grants``, ``jwks``, ``jwks_uri``,
+    ``embed_origin``, ``allowed_origins``, ``jwks``, ``jwks_uri``,
     ``scope_ceiling`` and ``mandatory``. Database-only: this upserts rows and
     stops.
+
+    An entry naming ``grants`` is read without it, and the pass logs that it
+    was: the field is no longer part of a registration, and a file written for
+    an earlier release still boots.
 
     A malformed file or an unreadable path costs that file, and a refused entry
     costs that entry, and nothing else — the caller keeps booting.
@@ -831,7 +806,6 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
             origins = normalize_origins(
                 entry.get("allowed_origins"), browser_base=embed or base_url
             )
-            grants = normalize_grants(entry.get("grants"))
             key_set = normalize_jwks(entry.get("jwks"))
             declared_uri = entry.get("jwks_uri")
             key_uri = normalize_jwks_uri(
@@ -848,6 +822,12 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
             )
             skipped += 1
             continue
+        if "grants" in entry:
+            logger.warning(
+                "app services: entry %r names grants, which a registration no "
+                "longer has; the field is ignored",
+                public_id,
+            )
 
         if public_id in seen:
             logger.warning(
@@ -870,7 +850,6 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
                 base_url=base_url,
                 embed_origin=embed,
                 allowed_origins=origins,
-                grants=grants,
                 jwks=key_set,
                 jwks_uri=key_uri,
                 scope_ceiling=ceiling,
@@ -894,7 +873,6 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
             or base_url != row.base_url
             or embed != row.embed_origin
             or origins != list(row.allowed_origins or [])
-            or grants != list(row.grants or [])
             or key_set != row.jwks
             or key_uri != row.jwks_uri
             or ceiling != list(row.scope_ceiling or [])
@@ -909,7 +887,6 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
         row.base_url = base_url
         row.embed_origin = embed
         row.allowed_origins = origins
-        row.grants = grants
         row.jwks = key_set
         row.jwks_uri = key_uri
         row.scope_ceiling = ceiling

@@ -142,12 +142,10 @@ SUPPORT_WRITE_PROTECTED_TABLES: tuple[str, ...] = (
     # outside system through this guild is access management, not the
     # edit-existing-content a scoped read_write grant is for.
     "guild_app_user_connections",
-    # A member's own authorization for an installed app to act as them. Access
-    # management for the same reason, and pointedly so: the row holds what one
-    # person decided about their own name, which is not a support grantee's to
-    # write in either direction.
-    "guild_app_user_delegations",
-    # A member's answer to an app asking to act as them, for the same reason.
+    # A member's answer to an app asking to act as them. Access management for
+    # the same reason, and pointedly so: the row holds what one person decided
+    # about their own name, which is not a support grantee's to write in either
+    # direction.
     "app_member_consents",
 )
 

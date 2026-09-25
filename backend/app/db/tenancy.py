@@ -63,7 +63,6 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "user_api_keys",
         "user_tokens",
         "push_tokens",
-        "auto_delegation_jti_blocklist",
         "user_view_preferences",  # personal UI state (filters/sort/view-mode)
         # What one account wants to be told about. Off ``users`` on purpose:
         # that table is read whole by the platform tiers.
@@ -268,14 +267,8 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # guild-governed access, not private property). The ciphertext is never
         # returned by the API to anyone, admin included.
         "guild_app_user_connections",
-        # A member's authorization for an installed app to act as them. Same
-        # shape and same reasons as the connections beside it: no FK to any
-        # initiative (an app is guild-wide), one owner per row, and guild-
-        # governed access rather than private property — so own_row_* policies,
-        # owner OR guild admin.
-        "guild_app_user_delegations",
         # A member's answer to an installed app asking to act as them, one per
-        # purpose. The same shape as the delegations beside it: no FK to any
+        # purpose. The same shape as the connections beside it: no FK to any
         # initiative is required (a purpose may be app-wide), one owner per
         # row, and the community's administration reads and revokes, so
         # own_row_* policies. A member token's standing reads the member's own
@@ -315,7 +308,6 @@ OWN_ROW_TABLES: dict[str, str] = {
     "guild_ai_member_keys": "user_id",
     "guild_ai_member_prefs": "user_id",
     "guild_app_user_connections": "user_id",
-    "guild_app_user_delegations": "user_id",
     "app_member_consents": "user_id",
 }
 
@@ -366,7 +358,6 @@ CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
         "guild_ai_member_keys",
         "guild_ai_member_prefs",
         "guild_app_user_connections",
-        "guild_app_user_delegations",
         "app_member_consents",
         "post_reads",
         # A fact about an install: where it appears. The rows a new initiative's

@@ -43,15 +43,8 @@ from app.testing import (
     create_app_service_registration,
     create_guild,
     create_guild_app,
-    create_guild_membership,
     create_user,
     route_session_to_guild,
-)
-from app.testing.delegation import (
-    DELEGATE_PUBLIC_ID,
-    authorize_delegate,
-    delegate_subject,
-    register_delegate,
 )
 
 pytestmark = pytest.mark.integration
@@ -85,14 +78,6 @@ MEMBER_CONNECTION = {
     "scope": "interactive",
     "label": {"en": "GitHub"},
     "connect_path": "/connect/github",
-    "fields": [_field("access_token", "secret", managed=True)],
-}
-
-SECOND_CONNECTION = {
-    "id": "gitlab",
-    "scope": "interactive",
-    "label": {"en": "GitLab"},
-    "connect_path": "/connect/gitlab",
     "fields": [_field("access_token", "secret", managed=True)],
 }
 
@@ -458,119 +443,6 @@ class TestConnections:
 
         assert response.status_code == 200, response.text
         assert response.json()["items"][0]["blocked"] is True
-
-
-# ---------------------------------------------------------------------------
-# Resolving a delegate's subject to this app's own handle
-# ---------------------------------------------------------------------------
-
-
-class TestResolveDelegatedConnection:
-    """One app is handed a token naming a member by another app's subject, and
-    has to find its *own* credential for that person."""
-
-    async def _delegated(
-        self,
-        session: AsyncSession,
-        *,
-        definition: dict | None = None,
-        authorize: bool = True,
-        connected: bool = True,
-        blocked: bool = False,
-    ):
-        await _register(session)
-        guild, _owner, app = await _install(session, definition=definition)
-        member = await create_user(session)
-        await create_guild_membership(session, user=member, guild=guild)
-        await register_delegate(session)
-        subject = await delegate_subject(session, guild, member)
-        if authorize:
-            await authorize_delegate(session, guild, member)
-        if connected:
-            await _member_connection(
-                session, guild=guild, app=app, user=member, blocked=blocked
-            )
-        return guild, app, member, subject
-
-    async def _resolve(self, client, guild, app, *, delegate=DELEGATE_PUBLIC_ID, **q):
-        return await client.get(
-            f"{BASE}/connections/resolve",
-            params={"delegate": delegate, **q},
-            headers=_headers(guild, app),
-        )
-
-    async def test_a_subject_resolves_to_this_apps_own_reference(
-        self, client: AsyncClient, session: AsyncSession
-    ):
-        guild, app, member, subject = await self._delegated(session)
-
-        response = await self._resolve(client, guild, app, subject=subject)
-
-        assert response.status_code == 200, response.text
-        body = response.json()
-        assert body["connection_ref"] == "cr_member_one"
-        assert body["connection_id"] == "github"
-        assert "user_id" not in response.text
-        assert member.seeded_address not in response.text
-        assert MEMBER_TOKEN not in response.text
-
-    @pytest.mark.parametrize(
-        "case", ["not connected", "blocked", "not authorized", "unknown subject"]
-    )
-    async def test_every_miss_is_the_same_answer(
-        self, client: AsyncClient, session: AsyncSession, case: str
-    ):
-        guild, app, _, subject = await self._delegated(
-            session,
-            connected=case != "not connected",
-            blocked=case == "blocked",
-            authorize=case != "not authorized",
-        )
-        if case == "unknown subject":
-            subject = "notasubjectatall"
-
-        response = await self._resolve(client, guild, app, subject=subject)
-
-        assert response.status_code == 404
-        assert response.json()["detail"] == AppChannelMessages.CONNECTION_NOT_FOUND
-
-    async def test_a_subject_minted_for_another_app_does_not_resolve(
-        self, client: AsyncClient, session: AsyncSession
-    ):
-        guild, app, _, subject = await self._delegated(session)
-
-        response = await self._resolve(
-            client, guild, app, delegate=SHOP, subject=subject
-        )
-
-        assert response.status_code == 404
-
-    async def test_two_connections_are_not_guessed_between(
-        self, client: AsyncClient, session: AsyncSession
-    ):
-        definition = _definition()
-        definition["connections"] = [*definition["connections"], SECOND_CONNECTION]
-        guild, app, member, subject = await self._delegated(
-            session, definition=definition
-        )
-        await _member_connection(
-            session,
-            guild=guild,
-            app=app,
-            user=member,
-            connection_id="gitlab",
-            connection_ref="cr_member_two",
-        )
-
-        unspecified = await self._resolve(client, guild, app, subject=subject)
-        assert unspecified.status_code == 422
-        assert unspecified.json()["detail"] == AppChannelMessages.CONNECTION_UNSPECIFIED
-
-        named = await self._resolve(
-            client, guild, app, subject=subject, connection="gitlab"
-        )
-        assert named.status_code == 200, named.text
-        assert named.json()["connection_ref"] == "cr_member_two"
 
 
 # ---------------------------------------------------------------------------

@@ -128,7 +128,7 @@ from app.core.audit_events import AuditEventType
 from app.services import audit as audit_service
 from app.services.auth.identity import has_federated_identity
 from app.services.tenant import app_connections as app_connections_service
-from app.services.tenant import app_delegations as app_delegations_service
+from app.services.tenant import app_member_consents as consents_service
 from app.services.tenant import app_revocation as app_revocation_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import ownership as ownership_service
@@ -1876,7 +1876,7 @@ async def delete_user(
         session, user_id=user_id, reason="removed_from_guild"
     )
     # And what they let this guild's apps do as them, for the same reason.
-    await app_delegations_service.delete_member_delegations(session, user_id=user_id)
+    await consents_service.delete_member_consents(session, user_id=user_id)
 
     removed_role = membership.role
     await session.delete(membership)

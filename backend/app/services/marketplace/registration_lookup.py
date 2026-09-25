@@ -27,8 +27,6 @@ from typing import Any, Mapping, Optional
 
 from jwt import PyJWK
 from sqlalchemy import literal_column
-from sqlalchemy import true as sa_true
-from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
 
 from app.db import session as db_session
@@ -43,19 +41,13 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "CACHE_TTL_SECONDS",
-    "DelegationKey",
     "InstallState",
     "RegistrationSnapshot",
-    "any_delegate_registered",
     "app_is_offered",
-    "delegation_allowed",
-    "resolve_delegated_member",
-    "delegation_keys_for",
     "enabled_service_ids",
     "frame_origins",
     "install_state",
     "invalidate_registrations",
-    "live_delegate",
     "live_registration_clause",
     "load_registrations",
     "mandatory_registrations",
@@ -83,11 +75,9 @@ class RegistrationSnapshot:
     embed_origin: Optional[str]
     #: Origins this app's surfaces may be framed from and postMessage'd to.
     allowed_origins: tuple[str, ...]
-    #: Operator-conferred powers, for callers that gate on one.
-    grants: tuple[str, ...]
     #: Public verification keys this app signs with — its client assertions at
-    #: the token endpoint, and its delegation tokens — by the ``kid`` a JWT
-    #: names. Parsed once when the snapshot is built rather than per token.
+    #: the token endpoint — by the ``kid`` a JWT names. Parsed once when the
+    #: snapshot is built rather than per token.
     #: Empty on an app that has not been provisioned with a pasted set.
     keys: Mapping[str, Any]
     #: The deployment installs this app in every guild (§7.7).
@@ -186,7 +176,6 @@ async def load_registrations(*, force: bool = False) -> dict[str, RegistrationSn
             base_url=row.base_url or "",
             embed_origin=row.embed_origin,
             allowed_origins=tuple(row.allowed_origins or []),
-            grants=tuple(row.grants or []),
             keys=_parse_keys(row),
             mandatory=bool(row.mandatory),
             enabled=bool(row.enabled),
@@ -272,10 +261,6 @@ class InstallState:
 
     mandatory: bool = False
     available: bool = True
-    #: Whether this app is one that acts as members, and so has something for
-    #: each of them to authorize. An operator clearing the grant takes the
-    #: question away everywhere the app is installed.
-    delegates: bool = False
     #: The most the operator allows any install of this app to be granted.
     scope_ceiling: tuple[str, ...] = ()
 
@@ -297,7 +282,6 @@ async def install_state(definition: dict[str, Any] | None) -> InstallState:
     return InstallState(
         mandatory=snapshot.mandatory,
         available=snapshot.live,
-        delegates="delegation" in snapshot.grants,
         scope_ceiling=snapshot.scope_ceiling,
     )
 
@@ -351,194 +335,3 @@ async def mandatory_registrations() -> list[RegistrationSnapshot]:
         for snapshot in (await load_registrations()).values()
         if snapshot.mandatory and snapshot.live
     ]
-
-
-@dataclass(frozen=True)
-class DelegationKey:
-    """A verification key, and the app whose registration published it."""
-
-    registration: RegistrationSnapshot
-    key: Any
-
-
-async def delegation_keys_for(kid: str) -> tuple[DelegationKey, ...]:
-    """Every key a delegation token's ``kid`` could name.
-
-    Only from registrations that are live and hold the ``delegation`` grant, so
-    an operator ends an app's ability to act with an edit rather than a key
-    rotation.
-
-    All matches rather than the first: a ``kid`` is an opaque label its owner
-    chooses, so two apps may pick the same one, and the token belongs to
-    whichever key verifies it. Resolution is by ``kid`` rather than by reading
-    an app's name out of it, for the same reason.
-
-    """
-    if not kid:
-        return ()
-    return tuple(
-        DelegationKey(registration=snapshot, key=key)
-        for snapshot in (await load_registrations()).values()
-        if snapshot.live and "delegation" in snapshot.grants
-        for key in (snapshot.keys.get(kid),)
-        if key is not None
-    )
-
-
-async def live_delegate(public_id: str) -> Optional[RegistrationSnapshot]:
-    """The registration behind a named delegate, when it may act right now.
-
-    One rule, stated once: the registration must be live and hold the
-    ``delegation`` grant. Both the published key set and any lookup made on a
-    delegate's say-so read it here, so an operator's edit reaches every one of
-    them together within the cache TTL rather than some of them.
-    """
-    snapshot = (await load_registrations()).get(public_id)
-    if snapshot is None or not snapshot.live or "delegation" not in snapshot.grants:
-        return None
-    return snapshot
-
-
-async def directory_reader(public_id: str) -> Optional[RegistrationSnapshot]:
-    """The registration behind a caller that may ask where other apps answer.
-
-    A live delegate that also holds ``app_directory``. Two grants rather than
-    one because they confer different things: acting for a member is what most
-    delegates are for, and reading another app's address is not part of it. An
-    automation service is conferred both; an app that works its own vendor is
-    conferred at most the first.
-    """
-    snapshot = await live_delegate(public_id)
-    if snapshot is None or "app_directory" not in snapshot.grants:
-        return None
-    return snapshot
-
-
-async def any_delegate_registered() -> bool:
-    """Whether some app on this deployment may delegate and can be verified.
-
-    What every surface that is delegate-owned reads: the subscription
-    endpoints refuse without one and the outbound dispatcher stays inert.
-    """
-    return any(
-        snapshot.live and "delegation" in snapshot.grants and snapshot.keys
-        for snapshot in (await load_registrations()).values()
-    )
-
-
-async def resolve_delegated_member(
-    guild_id: int, public_id: str, subject: str
-) -> int | None:
-    """Which member a delegation token's subject names, or None.
-
-    A subject is pairwise — derived per install — so resolving one needs both
-    the guild it was minted in and the app it was minted for. Scoping to the
-    signer is the part that matters: without it, an app could present a subject
-    another app was given and act as that person.
-
-    Read on the system engine, because the caller at this point is nobody yet.
-    The session is routed into the guild for the install lookup; the reference
-    itself lives in a platform-wide table, so ``resolve_app_ref`` takes the
-    guild as a predicate rather than inheriting it from the schema.
-    """
-    if not public_id or not subject:
-        return None
-
-    from app.models.tenant.guild_app import GuildApp
-    from app.services.marketplace.app_refs import resolve_app_ref
-
-    async with db_session.SystemSessionLocal() as session:
-        try:
-            # The reference first, on the unrouted session: it lives in a
-            # platform-wide table the guild roles hold nothing on.
-            row = await resolve_app_ref(session, ref=subject, guild_id=guild_id)
-            if row is None:
-                return None
-            # Then the install, which lives in the guild's own schema.
-            await db_session.set_rls_context(session, guild_id=guild_id)
-            # The reference resolved — now check it was minted for *this*
-            # app's install.
-            install = (
-                await session.exec(
-                    select(GuildApp.id).where(
-                        GuildApp.id == row.sector_id,
-                        GuildApp.enabled.is_(True),
-                        GuildApp.definition["app_kind"].astext == "service",
-                        GuildApp.definition["service"]["public_id"].astext == public_id,
-                    )
-                )
-            ).first()
-            if install is None:
-                return None
-            return row.entity_id
-        except SQLAlchemyError:
-            logger.warning(
-                "app services: subject lookup could not read guild %s", guild_id
-            )
-            return None
-
-
-async def delegation_allowed(
-    guild_id: int, public_id: str, user_id: int, *, need_write: bool
-) -> bool:
-    """Whether this app may act as this member, here, right now.
-
-    Two separate parties have to have said yes, and this asks both in one read
-    of the guild's own schema:
-
-    * **The guild installed the app.** The install is what makes an app present
-      in a guild, so it is also what bounds a delegate to the guilds that chose
-      it — uninstalling ends that reach, which is the property §10.3 of the
-      platform design claims.
-    * **The member authorized it to act as them**, to at least the depth this
-      call needs. Installing is the guild's decision; carrying one person's name
-      is that person's.
-
-    The install is matched on the pinned definition's service id, the same
-    identity :func:`registration_for_definition` resolves an install by.
-
-    Read per call rather than cached: the registration snapshot can afford a
-    TTL because an operator's kill switch is deployment-wide and rare, while an
-    uninstall and a withdrawal are each a decision made here and expected to
-    bite at once.
-    """
-    if not public_id:
-        return False
-
-    from app.models.tenant.guild_app import GuildApp
-    from app.models.tenant.guild_app_user_delegation import GuildAppUserDelegation
-
-    write_leg = GuildAppUserDelegation.can_write.is_(True) if need_write else sa_true()
-
-    async with db_session.SystemSessionLocal() as session:
-        try:
-            # Guild content lives in the guild's own schema, so the read is
-            # routed there. `admin` because this asks what the guild has and
-            # what one member said, not what any particular caller may see.
-            await db_session.set_rls_context(session, guild_id=guild_id)
-            found = (
-                await session.exec(
-                    select(GuildApp.id)
-                    .join(
-                        GuildAppUserDelegation,
-                        GuildAppUserDelegation.app_id == GuildApp.id,
-                    )
-                    .where(
-                        GuildApp.enabled.is_(True),
-                        GuildApp.definition["app_kind"].astext == "service",
-                        GuildApp.definition["service"]["public_id"].astext == public_id,
-                        GuildAppUserDelegation.user_id == user_id,
-                        GuildAppUserDelegation.revoked_at.is_(None),
-                        GuildAppUserDelegation.can_read.is_(True),
-                        write_leg,
-                    )
-                )
-            ).first()
-        except SQLAlchemyError:
-            # A guild id naming no guild has no schema to route into, and
-            # nothing is installed in a guild that is not there.
-            logger.warning(
-                "app services: delegation check could not read guild %s", guild_id
-            )
-            return False
-    return found is not None

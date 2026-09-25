@@ -9,9 +9,9 @@ why that principal decided nothing the declared scope had not already decided.
 
 What the tests below hold is the replacement: the scope decides, the scope is
 all that decides, and an account going away does not end a community's
-integration. What an automation may *do* with a delivery is a separate gate in
-a separate place — a delegation naming a member, re-read on every call — and is
-not exercised here.
+integration. What an app may *do* with a delivery is a separate gate in a
+separate place — its own token's standing, read on every call — and is not
+exercised here.
 """
 
 from __future__ import annotations

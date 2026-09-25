@@ -111,9 +111,6 @@ _WRAPPERS: dict[tuple[str, str], str] = {
 #: Every call site that routes into a community, and why it may.
 _ALLOWED: dict[tuple[str, str], str] = {
     # --- The seam itself ---------------------------------------------------
-    (f"{_ENDPOINTS}/delegation_exchange.py", "exchange_delegation"): (
-        "routes the delegated member through establish_guild_access"
-    ),
     (f"{_ENDPOINTS}/guilds.py", "leave_guild"): (
         "routes the leaving member through establish_guild_access"
     ),

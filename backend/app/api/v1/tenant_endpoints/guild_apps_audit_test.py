@@ -264,5 +264,5 @@ class TestUninstalling:
         assert row["detail"] == {
             "listing_uid": CALENDAR_APP_UID,
             "connections": 0,
-            "delegations": 0,
+            "consents": 0,
         }

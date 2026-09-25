@@ -10,8 +10,7 @@ and is refused.
   values an admin supplied, and the per-member values the app wrote back. The
   one place stored plaintext leaves.
 * ``GET /installation/connections`` — the app's per-member connections, by
-  opaque reference, with status only. ``/resolve`` turns a delegate's subject
-  into the caller's own handle for that member.
+  opaque reference, with status only.
 * ``PUT /installation/connections/{connection_ref}`` — what a vendor flow
   produced, written back into the platform's custody.
 * ``POST /installation/config-status`` — the app's verdict on the
@@ -31,7 +30,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import (
@@ -49,11 +48,9 @@ from app.core.app_access_token import (
     is_access_token,
     unseal_access_token,
 )
-from app.core.messages import AppChannelMessages, AuthMessages
+from app.core.messages import AuthMessages
 from app.db.session import clear_rls_context, get_system_session
-from app.models.platform.app_service_registration import MAX_APP_ID_LENGTH
 from app.models.tenant.guild_app import GuildApp
-from app.models.tenant.guild_app_user_connection import CONNECTION_ID_LENGTH
 from app.schemas.tenant.app_channel import (
     AppConnectionRead,
     AppConnectionsResponse,
@@ -64,7 +61,6 @@ from app.schemas.tenant.app_channel import (
     AppStatusReport,
 )
 from app.services.marketplace import registration_lookup
-from app.services.marketplace.app_refs import REF_MAX_LENGTH
 from app.services.marketplace.registration_lookup import RegistrationSnapshot
 from app.services.tenant import app_channels as channels_service
 from app.services.tenant.app_channels import AppChannelError
@@ -202,70 +198,6 @@ async def list_installation_connections(
     except AppChannelError as exc:
         raise _to_http(exc) from exc
     return AppConnectionsResponse(items=[AppConnectionRead(**row) for row in rows])
-
-
-#: Which app minted the subject, by the public id its registration carries.
-DelegateParam = Annotated[str, Query(min_length=1, max_length=MAX_APP_ID_LENGTH)]
-#: The pairwise subject itself, bounded to the width the column stores.
-SubjectParam = Annotated[str, Query(min_length=1, max_length=REF_MAX_LENGTH)]
-#: Which of the install's connections is meant, by manifest id.
-ConnectionParam = Annotated[Optional[str], Query(max_length=CONNECTION_ID_LENGTH)]
-
-
-async def _delegated_member(guild_id: int, delegate: str, subject: str) -> int:
-    """The member a delegate's subject names, in this community.
-
-    Three questions, and the answer to any of them being no is the same
-    refusal — see :func:`resolve_installation_connection`.
-    """
-    miss = AppChannelError(AppChannelMessages.CONNECTION_NOT_FOUND, status_code=404)
-    if await registration_lookup.live_delegate(delegate) is None:
-        raise miss
-    user_id = await registration_lookup.resolve_delegated_member(
-        guild_id, delegate, subject
-    )
-    if user_id is None:
-        raise miss
-    # Read at the moment it is used: a member who has withdrawn is no longer
-    # someone this delegate may name.
-    if not await registration_lookup.delegation_allowed(
-        guild_id, delegate, user_id, need_write=False
-    ):
-        raise miss
-    return user_id
-
-
-# Declared ahead of the ``{connection_ref}`` route below, so a literal segment
-# is matched before a parameterized one.
-@router.get("/connections/resolve", response_model=AppConnectionRead)
-async def resolve_installation_connection(
-    installation: InstallationDep,
-    delegate: DelegateParam,
-    subject: SubjectParam,
-    session: SystemSessionDep,
-    connection: ConnectionParam = None,
-) -> AppConnectionRead:
-    """Turn a delegate's subject into the caller's own handle for that member.
-
-    A delegation token names the member by a subject minted for the delegate,
-    and the app it is presented to knows them by its own opaque reference. Only
-    Initiative holds both, so this is where the two meet, and what comes back
-    is a reference the caller already had.
-
-    Three parties have to still be saying yes, all read now: the delegate is
-    live and allowed to delegate; the subject was minted for that delegate's
-    install in this community; and the member authorized that delegate to
-    carry their name. Every miss answers ``404``.
-    """
-    try:
-        app = await _load(session, installation)
-        user_id = await _delegated_member(installation.guild_id, delegate, subject)
-        row = await channels_service.connection_for_member(
-            session, app, user_id=user_id, connection_id=connection
-        )
-    except AppChannelError as exc:
-        raise _to_http(exc) from exc
-    return AppConnectionRead(**row)
 
 
 @router.put("/connections/{connection_ref}", response_model=AppConnectionRead)

@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { hasGrant, parseAllowedOrigins } from "@/lib/appServices";
+import { parseAllowedOrigins } from "@/lib/appServices";
 
 /** What the operator stated, before it is shaped into a create or a patch. */
 export interface AppServiceFormValues {
@@ -26,12 +26,10 @@ export interface AppServiceFormValues {
   /** Where a browser loads the app, or "" when that is the base URL too. */
   embedOrigin: string;
   allowedOrigins: string[];
-  delegation: boolean;
   /** Parsed JWKS, or null to leave the stored key set untouched. */
   jwks: Record<string, unknown> | null;
   /** Where the app publishes its key set, or "" for none. */
   jwksUri: string;
-  appDirectory: boolean;
   mandatory: boolean;
 }
 
@@ -41,10 +39,8 @@ interface FormState {
   baseUrl: string;
   embedOrigin: string;
   allowedOrigins: string;
-  delegation: boolean;
   jwks: string;
   jwksUri: string;
-  appDirectory: boolean;
   mandatory: boolean;
 }
 
@@ -54,10 +50,8 @@ const EMPTY_FORM: FormState = {
   baseUrl: "",
   embedOrigin: "",
   allowedOrigins: "",
-  delegation: false,
   jwks: "",
   jwksUri: "",
-  appDirectory: false,
   mandatory: false,
 };
 
@@ -100,10 +94,8 @@ export const AppServiceFormDialog = ({
         baseUrl: editing.base_url ?? "",
         embedOrigin: editing.embed_origin ?? "",
         allowedOrigins: editing.allowed_origins.join("\n"),
-        delegation: hasGrant(editing, "delegation"),
         jwks: editing.jwks ? JSON.stringify(editing.jwks, null, 2) : "",
         jwksUri: editing.jwks_uri ?? "",
-        appDirectory: hasGrant(editing, "app_directory"),
         mandatory: editing.mandatory,
       });
     } else {
@@ -140,8 +132,6 @@ export const AppServiceFormDialog = ({
       embedOrigin: form.embedOrigin.trim(),
       allowedOrigins: parseAllowedOrigins(form.allowedOrigins),
       jwksUri: form.jwksUri.trim(),
-      delegation: form.delegation,
-      appDirectory: form.appDirectory,
       mandatory: form.mandatory,
     });
   };
@@ -277,42 +267,7 @@ export const AppServiceFormDialog = ({
           </fieldset>
 
           <div className="space-y-2 rounded-md border border-amber-500/50 p-3">
-            <div>
-              <p className="font-medium text-sm">{t("appServices.grantsTitle")}</p>
-              <p className="text-muted-foreground text-xs">{t("appServices.grantsHelp")}</p>
-            </div>
-            <div className="flex items-start justify-between gap-3 pt-1">
-              <div>
-                <Label htmlFor="app-service-delegation" className="font-medium">
-                  {t("appServices.delegationLabel")}
-                </Label>
-                <p className="text-muted-foreground text-xs">{t("appServices.delegationHelp")}</p>
-              </div>
-              <Switch
-                id="app-service-delegation"
-                checked={form.delegation}
-                onCheckedChange={(checked) =>
-                  setForm((prev) => ({ ...prev, delegation: Boolean(checked) }))
-                }
-              />
-            </div>
-            <div className="flex items-start justify-between gap-3 pt-1">
-              <div>
-                <Label htmlFor="app-service-app-directory" className="font-medium">
-                  {t("appServices.appDirectoryLabel")}
-                </Label>
-                <p className="text-muted-foreground text-xs">{t("appServices.appDirectoryHelp")}</p>
-              </div>
-              <Switch
-                id="app-service-app-directory"
-                checked={form.appDirectory}
-                onCheckedChange={(checked) =>
-                  setForm((prev) => ({ ...prev, appDirectory: Boolean(checked) }))
-                }
-              />
-            </div>
-
-            <div className="flex items-start justify-between gap-3 pt-1">
+            <div className="flex items-start justify-between gap-3">
               <div>
                 <Label htmlFor="app-service-mandatory" className="font-medium">
                   {t("appServices.mandatoryLabel")}

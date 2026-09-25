@@ -19,7 +19,6 @@ const buildRegistration = (
   base_url: "http://initiative-github:8080",
   embed_origin: null,
   allowed_origins: [],
-  grants: [],
   jwks: { keys: [{ kty: "OKP", crv: "Ed25519", kid: "k1", x: "abc" }] },
   jwks_uri: null,
   scope_ceiling: [],
@@ -127,122 +126,38 @@ describe("SettingsAppServicesPage", () => {
     });
   });
 
-  describe("operator-conferred powers", () => {
-    it("shows mandatory and delegation on the registration that carries them", () => {
+  describe("reach", () => {
+    it("shows mandatory on the registration that carries it", () => {
       registrations = [
-        buildRegistration({
-          id: 1,
-          public_id: "core.automation",
-          mandatory: true,
-          grants: ["delegation"],
-        }),
+        buildRegistration({ id: 1, public_id: "core.automation", mandatory: true }),
         buildRegistration({ id: 2, public_id: "acme.shopify" }),
       ];
       renderAsOperator();
 
       // Scannable on the row...
       expect(screen.getByText("In every community")).toBeInTheDocument();
-      expect(screen.getByText("Acts as members")).toBeInTheDocument();
-      // ...and spelled out, because a reviewer has to know what they mean.
+      // ...and spelled out, because a reviewer has to know what it means.
       expect(
         screen.getByText(
           "Installed into every community automatically. Community admins cannot remove it or turn it off."
         )
       ).toBeInTheDocument();
-      expect(
-        screen.getByText(
-          "This app may call the API as a real member, under that member's own permissions."
-        )
-      ).toBeInTheDocument();
     });
 
-    it("shows the app directory grant too", () => {
-      registrations = [
-        buildRegistration({
-          id: 1,
-          public_id: "core.automation",
-          grants: ["delegation", "app_directory"],
-        }),
-      ];
-      renderAsOperator();
-
-      expect(screen.getByText("Finds other apps")).toBeInTheDocument();
-    });
-
-    it("confers the pair an automation service needs", async () => {
+    it("confers no powers beyond the scope ceiling", async () => {
       const user = userEvent.setup();
       renderAsOperator();
 
       await user.click(screen.getByRole("button", { name: "Add app service" }));
+      await screen.findByLabelText("App identifier");
 
-      await user.type(await screen.findByLabelText("App identifier"), "core.automation");
-      await user.type(screen.getByLabelText("Listing"), "aut0mat10n0000");
-      await user.type(screen.getByLabelText("Base URL"), "http://automation:8080");
-      await user.click(screen.getByRole("switch", { name: "Act as members (delegation)" }));
-      await user.click(screen.getByRole("switch", { name: "Find other apps (app directory)" }));
-      await user.click(screen.getByRole("button", { name: "Save" }));
-
-      expect(createMutate).toHaveBeenCalledWith(
-        expect.objectContaining({ grants: ["delegation", "app_directory"] }),
-        expect.anything()
-      );
-    });
-
-    it("keeps the grants it was not asked to change", async () => {
-      const user = userEvent.setup();
-      // The whole list is replaced by a PATCH, so editing an unrelated field
-      // has to carry the conferred powers back untouched.
-      registrations = [buildRegistration({ grants: ["delegation", "app_directory"] })];
-      renderAsOperator();
-
-      await user.click(screen.getByRole("button", { name: "Edit" }));
-      const baseUrl = await screen.findByLabelText("Base URL");
-      await user.clear(baseUrl);
-      await user.type(baseUrl, "http://moved:8080");
-      await user.click(screen.getByRole("button", { name: "Save" }));
-
-      expect(updateMutate).toHaveBeenCalledWith(
-        {
-          registrationId: 1,
-          data: expect.objectContaining({
-            base_url: "http://moved:8080",
-            grants: ["delegation", "app_directory"],
-          }),
-        },
-        expect.anything()
-      );
-    });
-
-    it("carries through a grant this build has no control for", async () => {
-      const user = userEvent.setup();
-      // A backend that has learned a new power ahead of this frontend. The
-      // form cannot show it, which is not a reason to revoke it.
-      registrations = [buildRegistration({ grants: ["delegation", "some_later_grant"] })];
-      renderAsOperator();
-
-      await user.click(screen.getByRole("button", { name: "Edit" }));
-      await user.click(await screen.findByRole("button", { name: "Save" }));
-
-      expect(updateMutate.mock.calls[0][0].data.grants).toEqual(["delegation", "some_later_grant"]);
-    });
-
-    it("revokes a power the operator switches off", async () => {
-      const user = userEvent.setup();
-      registrations = [buildRegistration({ grants: ["delegation", "app_directory"] })];
-      renderAsOperator();
-
-      await user.click(screen.getByRole("button", { name: "Edit" }));
-      await user.click(
-        await screen.findByRole("switch", { name: "Find other apps (app directory)" })
-      );
-      await user.click(screen.getByRole("button", { name: "Save" }));
-
-      expect(updateMutate.mock.calls[0][0].data.grants).toEqual(["delegation"]);
+      // One switch left in the operator's box: whether every community gets it.
+      expect(within(screen.getByRole("dialog")).getAllByRole("switch")).toHaveLength(1);
     });
   });
 
   describe("registering", () => {
-    it("registers a new service with its listing and the powers the operator chose", async () => {
+    it("registers a new service with its listing and its keys", async () => {
       const user = userEvent.setup();
       renderAsOperator();
 
@@ -255,7 +170,6 @@ describe("SettingsAppServicesPage", () => {
         screen.getByLabelText("Key set address"),
         "https://shopify.example.com/.well-known/jwks.json"
       );
-      await user.click(screen.getByRole("switch", { name: "Act as members (delegation)" }));
       await user.click(screen.getByRole("button", { name: "Save" }));
 
       expect(createMutate).toHaveBeenCalledWith(
@@ -266,7 +180,6 @@ describe("SettingsAppServicesPage", () => {
           // Left blank: the app answers both surfaces at the base URL.
           embed_origin: null,
           allowed_origins: null,
-          grants: ["delegation"],
           // Nothing pasted: the keys come from the address.
           jwks: null,
           jwks_uri: "https://shopify.example.com/.well-known/jwks.json",

@@ -5,9 +5,9 @@ before the work) and the append-only, actor-attributed record of billing
 writes. ``guild_id`` is a weak reference (no FK) so rows outlive the guild.
 
 ``BillingJti`` is the one-shot redemption blocklist for billing service
-JWTs, mirroring ``auto_delegation_jti_blocklist``. ``expires_at`` mirrors
-the JWT ``exp`` so the shared jti janitor can prune old rows
-(``app.services.platform.jti_purge``).
+JWTs, the shape every jti blocklist shares (``app.db.jti_blocklist``).
+``expires_at`` mirrors the JWT ``exp`` so the shared jti janitor can prune old
+rows (``app.services.platform.jti_purge``).
 
 ``BillingOp`` / ``BillingSource`` are the closed audit vocabulary shared
 with ``initiative_auto``'s ``billing_event_log`` so the two logs correlate

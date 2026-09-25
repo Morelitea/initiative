@@ -118,7 +118,7 @@ async def test_owner_lists_registrations_with_their_publisher(
     client: AsyncClient, session: AsyncSession
 ):
     headers = await _owner_headers(session)
-    await _seed(session, grants=["delegation"], mandatory=True)
+    await _seed(session, mandatory=True)
 
     response = await client.get(BASE, headers=headers)
 
@@ -127,7 +127,7 @@ async def test_owner_lists_registrations_with_their_publisher(
     assert len(body) == 1
     entry = body[0]
     assert entry["public_id"] == "acme.widgets"
-    assert entry["grants"] == ["delegation"]
+    assert "grants" not in entry
     assert entry["mandatory"] is True
     assert entry["publisher_prefix"] == "acme"
     assert entry["live"] is True
@@ -182,12 +182,11 @@ async def test_patch_sets_the_operator_only_fields(
     response = await client.patch(
         f"{BASE}{row.id}",
         headers=headers,
-        json={"grants": ["delegation"], "mandatory": True, "enabled": False},
+        json={"mandatory": True, "enabled": False},
     )
 
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["grants"] == ["delegation"]
     assert body["mandatory"] is True
     assert body["enabled"] is False
 
@@ -251,13 +250,6 @@ async def test_the_browser_address_round_trips_and_clears(
 @pytest.mark.parametrize(
     ("case", "body", "detail"),
     [
-        # A power no code resolves would read in the owner's settings as something this
-        # deployment had conferred.
-        (
-            "a grant outside the vocabulary",
-            {**NEW, "grants": ["superuser"]},
-            AppServiceMessages.UNKNOWN_GRANT,
-        ),
         (
             "a scope outside the vocabulary",
             {**NEW, "scope_ceiling": ["root:write"]},

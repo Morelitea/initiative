@@ -135,8 +135,8 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # only reader and writer — the owner-gated CRUD endpoints run on
     # SystemSessionDep (as access_grants and auth_providers do), boot
     # reconciliation upserts from APP_SERVICES_CONFIG, and the registration
-    # snapshot and delegation-key lookups read it. No request-path role holds
-    # anything on it beyond the install floor's column grant.
+    # snapshot reads it. No request-path role holds anything on it beyond the
+    # install floor's column grant.
     "app_service_registrations": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # Publishers: written by the apps.manage routes, seeded at boot, added when
     # a registration names a new prefix, and read with every registration.
@@ -295,11 +295,6 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # known, so the lookup + create + deactivate all run on the system engine
     # (no request-path grant, no own-row policy), like auth_sessions
     "user_api_keys": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
-    # SELECT/INSERT for the redemption path; DELETE for the shared jti janitor
-    # (app.services.platform.jti_purge) that prunes expired rows — expired
-    # jtis are inert (the JWT's own exp refuses replay before the blocklist is
-    # read), so pruning never re-opens a replay window.
-    "auto_delegation_jti_blocklist": frozenset({"SELECT", "INSERT", "DELETE"}),
     # billing boundary: writes happen ONLY under the dedicated (SET ROLE)
     # initiative_billing role, never the system engine. app_admin keeps
     # read-only visibility into the append-only evidence, and may prune
@@ -335,9 +330,6 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # system-engine-only credential store; the request path never touches it
     # (auth lookup + management endpoints run on app_admin), like auth_sessions
     "user_api_keys": None,
-    # Redemption reads and records a jti while authenticating the request,
-    # before any routing.
-    "auto_delegation_jti_blocklist": frozenset({"SELECT", "INSERT"}),
     "app_settings": frozenset({"SELECT"}),
     # The settings' stored credentials are the system engine's alone.
     "app_setting_secrets": None,
@@ -604,9 +596,6 @@ SHARED_TABLE_APP_GUILD_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     # guild floor reaches neither table.
     "user_tokens": None,
     "push_tokens": None,
-    # 0357: redemption runs on the bare login role and its janitor on the
-    # system engine; neither floor reaches the table.
-    "auto_delegation_jti_blocklist": None,
     # 0134: the billing boundary took both floors back; only the SET ROLE
     # initiative_billing role reaches these.
     "billing_event_log": None,
@@ -698,7 +687,6 @@ SHARED_TABLE_PLATFORM_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     # conflicts on and returns it, and unregistering deletes it. The policies
     # admit the account's own rows (0358).
     "push_tokens": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
-    "auto_delegation_jti_blocklist": None,
     "billing_event_log": None,
     "billing_jti_blocklist": None,
     "alembic_version": None,
@@ -779,7 +767,6 @@ SHARED_TABLE_APP_SUPERADMIN_GRANTS: dict[str, frozenset[str] | None] = {
     "user_api_keys": None,
     "user_tokens": None,
     "push_tokens": None,
-    "auto_delegation_jti_blocklist": None,
     "billing_event_log": None,
     "billing_jti_blocklist": None,
     "alembic_version": None,
@@ -885,7 +872,6 @@ SHARED_TABLE_APP_INSTALL_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "user_api_keys": None,
     "user_tokens": None,
     "push_tokens": None,
-    "auto_delegation_jti_blocklist": None,
     "billing_event_log": None,
     "billing_jti_blocklist": None,
     "alembic_version": None,

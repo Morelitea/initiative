@@ -35,7 +35,7 @@ from datetime import datetime, timezone
 from typing import Annotated, Any, List, Optional
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -67,15 +67,12 @@ from app.schemas.tenant.guild_app import (
     AppPlacementRead,
     AppPlacementUpdate,
     GuildAppScopesUpdate,
-    GuildAppServiceRead,
     GuildAppConfigUpdate,
     GuildAppConnectionSummary,
     GuildAppConnectStart,
     GuildAppConsentAnswer,
     GuildAppConsentRead,
     GuildAppDecline,
-    GuildAppDelegationGrant,
-    GuildAppDelegationRead,
     GuildAppDetail,
     GuildAppHandoff,
     GuildAppInstall,
@@ -85,11 +82,10 @@ from app.schemas.tenant.guild_app import (
     GuildAppUpdate,
     GuildAppUpgrade,
     serialize_consent,
-    serialize_delegation,
     serialize_guild_app,
     serialize_guild_app_detail,
     serialize_member_connection,
-    serialize_member_delegation,
+    serialize_member_consent,
     upgrade_asks_read,
 )
 from app.services import audit as audit_service
@@ -109,7 +105,6 @@ from app.services.membership import initiative_scope_clause
 from app.services.platform import guilds as guilds_service
 from app.services.tenant import app_config as app_config_service
 from app.services.tenant import app_connections as connections_service
-from app.services.tenant import app_delegations as delegations_service
 from app.services.tenant import app_member_consents as consents_service
 from app.services.tenant import app_handoff as handoff_service
 from app.services.tenant import app_revocation as revocation_service
@@ -408,9 +403,6 @@ async def get_guild_app(
         avatar_url=await _app_avatar(session, app),
         member_rows=await _member_rows(session, app_id=app.id, user_id=current_user.id),
         install_state=await registration_lookup.install_state(app.definition),
-        delegation_row=await delegations_service.get_delegation(
-            session, app_id=app.id, user_id=current_user.id
-        ),
         update_offer=await app_updates_service.update_offer(session, app),
         context=guild_context,
         placements=await _placements(session, app),
@@ -803,8 +795,10 @@ async def uninstall_guild_app(
         session, guild_context.guild_id
     )
     connections = await connections_service.delete_app_connections(session, app=app)
-    delegations = await delegations_service.delete_app_delegations(
-        session, app_id=app.id
+    # Every member's answers to its requests go with it. The foreign key would
+    # take them with the install row; removed here so the record counts them.
+    consents = await consents_service.delete_install_consents(
+        session, install_id=app.id
     )
     # An install is what makes an app present in a guild, so removing it ends
     # what that app is sent. Switched off rather than deleted: the row records
@@ -845,7 +839,7 @@ async def uninstall_guild_app(
         detail={
             "listing_uid": listing_uid,
             "connections": connections,
-            "delegations": delegations,
+            "consents": consents,
         },
     )
     await session.commit()
@@ -1557,158 +1551,6 @@ async def disconnect_guild_app(
 # ---------------------------------------------------------------------------
 
 
-async def _require_delegating_app(app: GuildApp) -> None:
-    """Refuse an app that never acts as anybody.
-
-    Read from the registration rather than the pinned definition: whether an app
-    may carry a person's name is the operator's grant, and it can be taken away
-    after the install pinned its manifest. An app that lost the grant stops
-    being able to ask, and the authorizations it already holds stop counting —
-    the resolver checks the same grant on every call.
-    """
-    state = await registration_lookup.install_state(app.definition)
-    if not state.delegates:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildAppMessages.DELEGATION_NOT_OFFERED,
-        )
-
-
-# Off the schema: only a machine calls it.
-@router.get(
-    "/{app_id}/service", response_model=GuildAppServiceRead, include_in_schema=False
-)
-async def read_app_service_address(
-    app_id: int,
-    request: Request,
-    session: RLSSessionDep,
-    guild_context: GuildContextDep,
-) -> GuildAppServiceRead:
-    """Where this install's service answers.
-
-    An automation service acts on apps as well as on Initiative: it asks one to
-    open a GitHub issue the same way it asks us to create a task, and to do
-    that it needs the app's address. Only the registration carries one, so it is
-    served here rather than on :class:`GuildAppRead`.
-
-    Requires a delegation token from a registration holding both ``delegation``
-    and ``app_directory``. Anything else answers 404, as does an install with no
-    service behind it.
-
-    ``available`` is reported rather than folded into the 404: a caller told an
-    app is switched off can park its work and say why.
-    """
-    delegate = getattr(request.state, "delegating_app", None)
-    if not delegate or await registration_lookup.directory_reader(delegate) is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildAppMessages.NOT_FOUND,
-        )
-
-    app = await _load(session, app_id)
-    public_id = registration_lookup.service_public_id(app.definition)
-    if public_id is None:
-        # A tool instance or an embed: installed, but with no container behind
-        # it, so there is no address for one to be given.
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildAppMessages.NOT_FOUND,
-        )
-
-    snapshot = (await registration_lookup.load_registrations()).get(public_id)
-    if snapshot is None:
-        # Installed here, but this deployment never wired the service up (or no
-        # longer does). Nothing it offers can be reached, and there is no
-        # address to hand over.
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildAppMessages.NOT_FOUND,
-        )
-
-    return GuildAppServiceRead(
-        public_id=public_id,
-        base_url=snapshot.base_url,
-        available=bool(app.enabled) and snapshot.live,
-    )
-
-
-@router.get("/{app_id}/delegation", response_model=GuildAppDelegationRead)
-async def get_my_delegation(
-    app_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUser,
-    guild_context: GuildContextDep,
-) -> GuildAppDelegationRead:
-    """What the caller has authorized this app to do as them."""
-    app = await _load(session, app_id)
-    return serialize_delegation(
-        await delegations_service.get_delegation(
-            session, app_id=app.id, user_id=current_user.id
-        )
-    )
-
-
-@router.put("/{app_id}/delegation", response_model=GuildAppDelegationRead)
-async def grant_my_delegation(
-    app_id: int,
-    payload: GuildAppDelegationGrant,
-    session: RLSSessionDep,
-    current_user: CurrentUser,
-    guild_context: GuildContextDep,
-    credential: Annotated[str, Depends(require_first_party_session)],
-) -> GuildAppDelegationRead:
-    """Authorize this app to act as you, and say whether it may write.
-
-    Nobody grants this for anybody else — not a guild admin, and not the app.
-    The install is what a guild decides; whose name the app may carry is each
-    member's own answer, so this endpoint acts on the caller and takes no user
-    id at all.
-
-    Signed-in only (``require_first_party_session``), because the act hands out
-    authority rather than exercising it.
-    """
-    app = await _load(session, app_id)
-    await _require_delegating_app(app)
-
-    row = await delegations_service.grant(
-        session,
-        app=app,
-        user_id=current_user.id,
-        can_write=payload.can_write,
-        confirmed_factor=credential,
-        actor_user_id=current_user.id,
-        via="self",
-    )
-    await session.commit()
-    await session.refresh(row)
-    return serialize_delegation(row)
-
-
-@router.delete("/{app_id}/delegation", status_code=status.HTTP_204_NO_CONTENT)
-async def revoke_my_delegation(
-    app_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUser,
-    guild_context: GuildContextDep,
-) -> None:
-    """Withdraw your own authorization. The app stops acting as you at once.
-
-    Deliberately not gated on the app still holding the grant: an app whose
-    grant an operator cleared can no longer act, but a member who wants their
-    record of it withdrawn should not be told to come back later.
-    """
-    app = await _load(session, app_id)
-    await delegations_service.revoke(
-        session,
-        app_id=app.id,
-        user_id=current_user.id,
-        revoked_by_id=current_user.id,
-        actor_user_id=current_user.id,
-        via="self",
-    )
-    await session.commit()
-
-
 async def _own_consent(
     session: AsyncSession, *, app_id: int, consent_id: int, user_id: int
 ) -> AppMemberConsent:
@@ -1856,10 +1698,10 @@ async def list_guild_app_members(
     return GuildAppMembersResponse(
         summary=summary,
         items=[serialize_member_connection(row) for row in rows],
-        delegations=[
-            serialize_member_delegation(row)
-            for row in await delegations_service.list_app_delegations(
-                session, app_id=app.id
+        consents=[
+            serialize_member_consent(row)
+            for row in await consents_service.list_install_consents(
+                session, install_id=app.id
             )
         ],
     )
@@ -1949,34 +1791,26 @@ async def unblock_member_connection(
 
 
 @router.delete(
-    "/{app_id}/members/{user_id}/delegation",
+    "/{app_id}/members/{user_id}/consents",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-async def revoke_member_delegation(
+async def revoke_member_consents(
     app_id: int,
     user_id: int,
     session: RLSSessionDep,
     current_user: CurrentUser,
     guild_context: GuildContextDep,
 ) -> None:
-    """Withdraw one member's authorization for this app, and every answer they
-    gave its requests to act as them.
+    """End every answer one member gave this app's requests to act as them,
+    pending requests included.
 
-    An admin ends it and cannot give it back: the member authorizes again
-    themselves, or nobody does. Governance runs one way here, which is what
-    keeps "the app acts as me" something its subject actually decided.
+    An admin ends an answer and cannot give one: the member allows a request
+    again themselves, or nobody does. Governance runs one way here, which is
+    what keeps "the app acts as me" something its subject actually decided.
     """
     require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     app = await _load(session, app_id)
 
-    await delegations_service.revoke(
-        session,
-        app_id=app.id,
-        user_id=user_id,
-        revoked_by_id=current_user.id,
-        actor_user_id=current_user.id,
-        via="admin",
-    )
     await consents_service.revoke_member_consents(
         session,
         install_id=app.id,
@@ -1987,8 +1821,8 @@ async def revoke_member_delegation(
     await session.commit()
 
 
-@router.post("/{app_id}/delegations/revoke-all", status_code=status.HTTP_204_NO_CONTENT)
-async def revoke_all_member_delegations(
+@router.post("/{app_id}/consents/revoke-all", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_all_member_consents(
     app_id: int,
     session: RLSSessionDep,
     current_user: CurrentUser,
@@ -1996,21 +1830,15 @@ async def revoke_all_member_delegations(
 ) -> None:
     """Stop this app acting as anybody, without uninstalling it.
 
-    Withdraws every member's authorization, and every answer to the app's
-    requests to act as them, pending ones included. The companion to ``revoke-all`` for connections: for a suspected app
-    compromise, reacting fast should not cost the guild its configuration.
-    Members may authorize again once the guild is satisfied.
+    Ends every member's answer to the app's requests to act as them, pending
+    ones included. The companion to ``revoke-all`` for connections: for a
+    suspected app compromise, reacting fast should not cost the guild its
+    configuration. Members may allow requests again once the guild is
+    satisfied.
     """
     require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     app = await _load(session, app_id)
 
-    await delegations_service.revoke_all(
-        session,
-        app_id=app.id,
-        revoked_by_id=current_user.id,
-        actor_user_id=current_user.id,
-        via="admin",
-    )
     await consents_service.revoke_all(
         session,
         install_id=app.id,

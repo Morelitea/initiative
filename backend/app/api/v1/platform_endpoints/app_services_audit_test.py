@@ -67,7 +67,6 @@ async def test_registering_an_app_service_names_what_it_confers(
             "public_id": PUBLIC_ID,
             "listing_uid": LISTING_UID,
             "base_url": APP_URL,
-            "grants": ["delegation"],
             "mandatory": True,
         },
     )
@@ -87,14 +86,12 @@ async def test_registering_an_app_service_names_what_it_confers(
         "listing_uid",
         "publisher_id",
         "base_url",
-        "grants",
         "mandatory",
         "enabled",
     } <= set(detail["changed"])
     assert detail["values"]["mandatory"] == {"from": None, "to": True}
-    # The address and the powers list are strings: named, never copied.
+    # The address is a string: named, never copied.
     assert "base_url" not in detail["values"]
-    assert "grants" not in detail["values"]
     # The acme prefix was new here, so its publisher was added with it.
     publishers = [
         e for e in envelopes if e["event_type"] == AuditEventType.APP_PUBLISHER_CREATED
