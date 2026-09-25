@@ -12,9 +12,9 @@ button. Not ``hard_delete_user`` — anonymizing keeps the row, so the work the
 account touched still tells one departed author from another.
 
 Polled by ``background_tasks._loop_worker`` once an hour on
-``SystemSessionLocal`` (the ``app_admin`` login). ``soft_delete_user`` routes
-into each guild schema itself to scrub mention markup, so there is nothing to
-route here.
+``SystemSessionLocal`` (the ``app_admin`` login). ``soft_delete_user`` does
+each guild's part on a system session from that guild's cohort, so this session
+stays in ``public``.
 """
 
 from __future__ import annotations
@@ -111,9 +111,6 @@ async def purge_due_accounts(session: AsyncSession, *, now: datetime) -> int:
     user_ids = await _due_user_ids(session, now=now, retention=retention)
     erased = 0
     for user_id in user_ids:
-        # ids collide across guild schemas, and soft_delete_user visits all of
-        # them, so the identity map is cleared between accounts.
-        session.expunge_all()
         try:
             # Imported here rather than at module scope: ``users`` reaches back
             # into this package, and the two would import each other.

@@ -20,22 +20,23 @@ signs with a key its registration publishes (RFC 7523 §2.2,
   installation token, and a consent bound to an initiative is only used by a
   token narrowed to it.
 
-Everything here runs on the system engine. A community's rows are read with
-the session routed by ``guild_id`` alone, as any sweep reads them.
+Everything here runs on the system engine. A community's rows are read on a
+system session from its cohort, routed by ``guild_id`` alone, as any sweep
+reads them.
 """
 
 from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
 import jwt
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
-from sqlalchemy import text
+from sqlalchemy import Row, TextClause, text
 from sqlalchemy.exc import DBAPIError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -55,7 +56,8 @@ from app.core.app_scopes import (
     validate_scopes,
 )
 from app.core.config import API_V1_STR, settings
-from app.db.session import clear_rls_context, set_rls_context
+from app.db import cohorts
+from app.db.session import set_rls_context
 from app.models.platform.app_assertion_jti import ASSERTION_JTI_MAX_LENGTH
 from app.models.platform.app_service_registration import registration_live_sql
 from app.models.platform.guild import GuildMembership
@@ -420,8 +422,21 @@ _INSTALL_SQL_TEXT = (
 _INSTALL_SQL = text(_INSTALL_SQL_TEXT)
 
 
+async def _read_in_community(
+    guild_id: int, statement: TextClause, params: dict[str, Any]
+) -> Sequence[Row[Any]] | None:
+    """``statement``'s rows in one community's schema, read on a system session
+    from its cohort, or ``None`` when the community has no role left to route
+    into."""
+    async with cohorts.system_session(guild_id) as session:
+        try:
+            await set_rls_context(session, guild_id=guild_id)
+            return (await session.exec(statement, params=params)).all()
+        except DBAPIError:
+            return None
+
+
 async def _installation_token(
-    session: AsyncSession,
     client: RegistrationSnapshot,
     *,
     installation: str,
@@ -433,19 +448,8 @@ async def _installation_token(
         raise OAuthError("invalid_grant", "unknown installation")
     guild_id, install_id = resolved
 
-    try:
-        await set_rls_context(session, guild_id=guild_id)
-        row = (
-            await session.exec(_INSTALL_SQL, params={"install_id": install_id})
-        ).first()
-    except DBAPIError as exc:
-        # A community that was deleted has no role left to route into.
-        await session.rollback()
-        raise OAuthError("invalid_grant", "unknown installation") from exc
-    finally:
-        clear_rls_context(session)
-    await session.rollback()
-
+    rows = await _read_in_community(guild_id, _INSTALL_SQL, {"install_id": install_id})
+    row = rows[0] if rows else None
     if (
         row is None
         or client.listing_uid is None
@@ -565,26 +569,12 @@ async def _member_token(
     ).first()
     await session.rollback()
 
-    try:
-        await set_rls_context(session, guild_id=guild_id)
-        row = (
-            await session.exec(
-                _MEMBER_INSTALL_SQL,
-                params={
-                    "install_id": install_id,
-                    "user_id": user_id,
-                    "purpose": purpose,
-                },
-            )
-        ).first()
-    except DBAPIError as exc:
-        # A community that was deleted has no role left to route into.
-        await session.rollback()
-        raise _invalid_grant("unknown installation") from exc
-    finally:
-        clear_rls_context(session)
-    await session.rollback()
-
+    rows = await _read_in_community(
+        guild_id,
+        _MEMBER_INSTALL_SQL,
+        {"install_id": install_id, "user_id": user_id, "purpose": purpose},
+    )
+    row = rows[0] if rows else None
     if (
         row is None
         or client.listing_uid is None
@@ -691,7 +681,6 @@ async def issue_token(
     if not installation:
         raise OAuthError("invalid_request", "installation is empty")
     return await _installation_token(
-        session,
         client,
         installation=installation,
         scope=scope,

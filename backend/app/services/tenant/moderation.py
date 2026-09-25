@@ -38,6 +38,7 @@ from app.core.moderation import (
 )
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
+from app.db import cohorts
 from app.db.session import set_rls_context
 from app.models.platform import user_profile_view
 from app.models.platform.user import User
@@ -121,11 +122,13 @@ async def file_report(
 ) -> ReportFiled:
     """Route one report to whoever handles that kind of thing.
 
-    ``reporter_session`` is the reporter's own session, and the target is
-    resolved **on it** — so a person can only report something they can
-    already see, and the database is what decides that rather than a check here.
-    ``guild_id`` says which community they were standing in; it is validated as
-    theirs before it is used, and it decides nothing about the venue.
+    The target is resolved as the reporter — a platform target on
+    ``reporter_session``, their own platform session, and a community target
+    on a session of theirs from that community's cohort — so a person can only
+    report something they can already see, and the database is what decides
+    that rather than a check here. ``guild_id`` says which community they were
+    standing in; it is validated as theirs before it is used, and it decides
+    nothing about the venue.
     """
     moment = now or datetime.now(timezone.utc)
     venue = venue_for(target)
@@ -133,7 +136,6 @@ async def file_report(
     if venue is ReportVenue.initiative:
         assert isinstance(target, SearchEntityType)
         located = await _locate_as_reporter(
-            reporter_session,
             reporter=reporter,
             target=target,
             target_id=target_id,
@@ -197,12 +199,11 @@ async def _place_in_initiative(
 ) -> None:
     """Open or join the community's report for this target.
 
-    Its own system session, routed as the guild admin: the row belongs to the
-    initiative's moderators, and the reporter must not be able to read it back.
+    Its own system session from the community's cohort, routed as the guild
+    admin: the row belongs to the initiative's moderators, and the reporter
+    must not be able to read it back.
     """
-    from app.db.session import SystemSessionLocal
-
-    async with SystemSessionLocal() as session:
+    async with cohorts.system_session(guild_id) as session:
         await set_rls_context(session, guild_id=guild_id)
         # Two people reporting the same thing in the same instant both look for
         # an open row before either writes one. They queue here instead, so the
@@ -268,7 +269,6 @@ _ACCOUNT_TARGETS = frozenset(
 
 
 async def _locate_as_reporter(
-    reporter_session: AsyncSession,
     *,
     reporter: "User",
     target: SearchEntityType,
@@ -277,21 +277,24 @@ async def _locate_as_reporter(
 ) -> Optional[tuple[int, int]]:
     """``(guild_id, initiative_id)`` for a target this reporter can see.
 
-    Routed as the reporter through the ordinary entry point, so membership,
-    the auth policy and every gate apply exactly as they do on a read. A row
-    the reporter cannot see resolves to nothing, and so does an id that names
-    a different row in a community they merely claimed to be in — ids are
-    unique only within a schema.
+    On a request session from the community's cohort, routed as the reporter
+    through the ordinary entry point, so membership, the auth policy and every
+    gate apply exactly as they do on a read. A row the reporter cannot see
+    resolves to nothing, and so does an id that names a different row in a
+    community they merely claimed to be in — ids are unique only within a
+    schema.
     """
     if guild_id is None:
         return None
     from app.api.deps import GuildAccessError, establish_guild_access
 
-    try:
-        await establish_guild_access(reporter_session, reporter, guild_id)
-    except GuildAccessError:
-        return None
-    initiative_id = await _resolve_initiative(reporter_session, target, target_id)
+    async with cohorts.request_sessionmaker(guild_id)() as session:
+        account = await session.merge(reporter, load=False)
+        try:
+            await establish_guild_access(session, account, guild_id)
+        except GuildAccessError:
+            return None
+        initiative_id = await _resolve_initiative(session, target, target_id)
     return None if initiative_id is None else (guild_id, initiative_id)
 
 

@@ -14,16 +14,14 @@ and everything past it works on the id as before.
 
 from __future__ import annotations
 
-from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import ValidationError
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import SessionDep
 from app.core.messages import BillingMessages
-from app.db import session as db_session
-from app.db.session import get_system_session, set_billing_context
+from app.db import cohorts
+from app.db.session import set_billing_context
 from app.schemas.platform.billing import (
     BillingGuildNameRead,
     BillingGuildNameRequest,
@@ -46,11 +44,6 @@ from app.services.platform.billing import (
 )
 
 router = APIRouter(include_in_schema=False)
-
-# The storage read needs the system engine to reach the guild schema (the
-# billing role is confined to public); the billing session still owns the
-# jti burn.
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 
 def _payload_error_code(exc: ValidationError) -> str:
@@ -166,7 +159,7 @@ async def apply_guild_tier(
     ):
         # Told once, on the way in, and on the system engine: the billing
         # role writes guild status and caps and nothing else.
-        async with db_session.SystemSessionLocal() as system_session:
+        async with cohorts.system_session(guild_id) as system_session:
             await guilds_service.announce_on_hold(system_session, guild_id)
     return result
 
@@ -219,24 +212,20 @@ async def guild_status(request: Request, session: SessionDep) -> BillingGuildSta
 
 
 @router.post("/usage", response_model=BillingUsageRead)
-async def guild_usage(
-    request: Request, session: SessionDep, system_session: SystemSessionDep
-) -> BillingUsageRead:
+async def guild_usage(request: Request, session: SessionDep) -> BillingUsageRead:
     """Signed read: current stored bytes for one guild.
 
     Envelope-verified and jti-burned on the billing session like the other
-    reads; the actual ``SUM(uploads.size_bytes)`` runs on ``system_session``
-    routed into the guild schema (the billing role can't reach it). A missing
-    guild 404s with the jti unredeemed (retryable).
+    reads; the actual ``SUM(uploads.size_bytes)`` runs on a system session from
+    the guild's cohort routed into its schema (the billing role can't reach
+    it). A missing guild 404s with the jti unredeemed (retryable).
     """
     claims, payload = await _verify_and_parse(request, BillingUsageRequest)
     guild_id = await _resolve_guild(payload.guild_ref)
     await set_billing_context(session, guild_id=guild_id)
     await _burn_jti(session, claims)
     try:
-        usage_bytes = await billing_service.guild_storage_usage(
-            system_session, guild_id
-        )
+        usage_bytes = await billing_service.guild_storage_usage(guild_id)
     except BillingGuildNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

@@ -3,7 +3,8 @@
 The app's own request is routed and stood up by the install seam, which also
 resolves the member it names in the install's own sector. What it then writes —
 the request row in the community's schema, and the member's notification in
-``public`` — is written here on the system engine: the app's role holds nothing
+``public`` — is written here on a system session from the community's
+cohort: the app's role holds nothing
 on either table, and neither write decides what anybody may reach. The row is a
 question for the member, and only the member's answer makes it count.
 """
@@ -16,7 +17,7 @@ from typing import Optional
 
 from sqlmodel import select
 
-from app.db import session as db_session
+from app.db import cohorts
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildMembership
 from app.models.platform.notification import NotificationType
@@ -86,7 +87,7 @@ async def record_request(
     already made is returned, and a new one raises
     :class:`ConsentRequestLimited`.
     """
-    async with db_session.SystemSessionLocal() as session:
+    async with cohorts.system_session(guild_id) as session:
         belongs = (
             await session.exec(
                 select(GuildMembership.user_id)

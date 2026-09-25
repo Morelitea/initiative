@@ -63,8 +63,9 @@ from app.core.encryption import (
     encrypt_field,
     hash_email,
 )
+from app.db import cohorts
 from app.db import session as db_session
-from app.db.schema_provisioning import guild_role_name, guild_schema_name
+from app.db.schema_provisioning import guild_schema_name
 
 logger = logging.getLogger(__name__)
 
@@ -423,9 +424,8 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
         )
 
     summary = RotationSummary(dry_run=dry_run)
-    # System engine (policy-bound): the public half runs as app_admin under its
-    # enumerated `_system` policies; each guild schema is entered by assuming
-    # that guild's own role (app_admin holds INHERIT FALSE membership in all).
+    # The public half runs on the platform system engine; each guild schema on
+    # system sessions from that guild's cohort, routed into it.
     engine = db_session.system_engine
 
     # Platform tables (public). Reads stream on one connection; writes commit on a
@@ -467,7 +467,7 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
                 )
             )
 
-    # Guild-scoped live copies — one write transaction per guild schema (independently
+    # Guild-scoped live copies: one write transaction per guild schema (independently
     # resumable). A guild whose schema is missing/broken is logged and skipped.
     async with engine.connect() as conn:
         # Pooled connection: shed any guild role a prior checkout assumed (a
@@ -483,21 +483,13 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
         schema = guild_schema_name(gid)
         try:
             async with (
-                engine.connect() as read_conn,
-                engine.begin() as write_conn,
+                cohorts.system_session(gid) as reader,
+                cohorts.system_session(gid) as writer,
             ):
-                # Transaction-local: the guild role dies with each connection's
-                # transaction (the write txn's commit, the read txn's rollback
-                # on close). A session-level set_config survives the write
-                # txn's COMMIT, so the pooled connection would return to the
-                # pool still wearing guild_<id> and every later system-engine
-                # checkout would read shared tables RLS-filtered — boot seeding
-                # then tries to re-create the primary guild (issue #927).
-                for conn_ in (read_conn, write_conn):
-                    await conn_.execute(
-                        text("SELECT set_config('role', :r, true)"),
-                        {"r": guild_role_name(gid)},
-                    )
+                for session in (reader, writer):
+                    await db_session.set_rls_context(session, guild_id=gid)
+                read_conn = await reader.connection()
+                write_conn = await writer.connection()
                 for table, column, salt in _GUILD_SCHEMA_COLUMNS:
                     summary.columns.append(
                         await _rotate_fernet_column(
@@ -526,6 +518,7 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
                             dry_run,
                         )
                     )
+                await writer.commit()
         except Exception:
             logger.exception(
                 "secret-key rotation: failed to rotate schema %s — skipping", schema

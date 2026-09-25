@@ -6,13 +6,19 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import SALT_OIDC_CLIENT_SECRET, decrypt_field
+from app.db.session import set_rls_context
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_provider_secret import AuthProviderSecret
 from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.user import UserRole
+from app.models.tenant.initiative import InitiativeMember
+from app.testing import route_session_to_guild
 from app.testing.factories import (
     create_auth_provider,
     create_federated_identity,
+    create_guild,
+    create_initiative,
+    create_initiative_member,
     create_user,
     get_auth_headers,
 )
@@ -215,7 +221,18 @@ async def test_delete_cascades_identity_links(
     provider = await create_auth_provider(session, slug="corp")
     user = await create_user(session)
     await create_federated_identity(session, user, provider=provider)
-    provider_id, user_id = provider.id, user.id
+    guild = await create_guild(session, creator=user)
+    member = await create_initiative_member(
+        session,
+        await create_initiative(session, guild, user),
+        await create_user(session),
+    )
+    member.oidc_provider_id = provider.id
+    session.add(member)
+    await session.commit()
+    await set_rls_context(session)
+    provider_id, user_id, guild_id = provider.id, user.id, guild.id
+    managed = (member.initiative_id, member.user_id)
 
     response = await client.delete(f"{BASE}{provider_id}", headers=headers)
     assert response.status_code == 204
@@ -230,6 +247,18 @@ async def test_delete_cascades_identity_links(
         )
     ).all()
     assert identities == []
+    # The initiative membership the provider managed is released in the
+    # guild's schema.
+    await route_session_to_guild(session, guild_id)
+    released = (
+        await session.exec(
+            select(InitiativeMember.oidc_provider_id).where(
+                InitiativeMember.initiative_id == managed[0],
+                InitiativeMember.user_id == managed[1],
+            )
+        )
+    ).one()
+    assert released is None
 
 
 async def test_delete_refused_when_provider_is_a_sole_credential(

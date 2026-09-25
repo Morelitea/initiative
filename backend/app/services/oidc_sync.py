@@ -7,10 +7,10 @@ from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
-from app.db.session import set_rls_context
 from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, GuildRole
 from app.services import audit as audit_service
 from app.services.auth import guild_provider_connections as guild_connections
+from app.services.guild_sweeps import Scope, each_guild
 from app.services.platform import provider_placement
 from app.services.platform import account_stream
 from app.services.platform import billing_ping
@@ -41,14 +41,9 @@ _VIA = "claim_sync"
 
 
 async def _record(session: AsyncSession, **fields) -> None:
-    """Write one record out where it is made.
-
-    This module walks from guild to guild and detaches what it is holding on
-    each hop (``expunge_all``), so a record left pending would not survive the
-    walk. Flushed here, it is in the transaction the whole sync commits at the
-    end — and the actor is always absent, because the sync runs off asserted
-    claims rather than a request.
-    """
+    """Write one record out where it is made, in the transaction ``session``
+    commits. The actor is always absent, because the sync runs off asserted
+    claims rather than a request."""
     await audit_service.record(session, actor_user_id=None, **fields)
     await session.flush()
 
@@ -240,19 +235,58 @@ async def sync_oidc_assignments(
             else:
                 initiative_role_candidates.setdefault(mapping.initiative_id, [])
 
-    # ``oidc_claim_mappings`` is shared, but initiatives/roles/members are
-    # guild-scoped (per-guild schemas). Every guild-scoped read/write below is
-    # therefore routed into the relevant guild's schema as its guild role.
+    # ``oidc_claim_mappings`` and guild memberships are shared; initiatives,
+    # their roles and members live in each guild's schema. The shared half runs
+    # on ``session``, and each guild's half on a system session from that
+    # guild's cohort.
 
-    # --- Guild memberships (shared table — public/system context) ---
+    # --- Stale guild memberships: the guild's half first ---
+    # An oidc-managed membership the claims no longer grant. The initiative
+    # rows and owned content in the guild go first, and the shared membership
+    # only where they did, so a guild whose half fails keeps the member it
+    # still holds initiative rows for, for the next sync to finish.
+    from app.services.tenant.initiatives import remove_user_from_guild_initiatives
+
+    # The role comes back with the id: it is gone once the delete below lands,
+    # and the record says what the person held.
+    stale_roles = {
+        stale_gid: stale_role
+        for stale_gid, stale_role in (
+            await session.exec(
+                select(GuildMembership.guild_id, GuildMembership.role).where(
+                    GuildMembership.user_id == user_id,
+                    GuildMembership.oidc_provider_id == provider_id,
+                    GuildMembership.role != GuildRole.superadmin,
+                )
+            )
+        ).all()
+        if stale_gid not in matched_guild_ids
+    }
+    left: set[int] = set()
+
+    async def leave_initiatives(guild_session: AsyncSession, gid: int) -> None:
+        await remove_user_from_guild_initiatives(
+            guild_session, guild_id=gid, user_id=user_id
+        )
+        await guild_session.commit()
+        left.add(gid)
+
+    if stale_roles:
+        await each_guild(
+            [(Scope.LIVE, leave_initiatives)],
+            name="oidc-sync-leave",
+            only=stale_roles.keys(),
+        )
+
+    # --- Guild memberships (shared) ---
     # Apply matched guild roles, and ensure a membership exists for every guild
     # that has a matched initiative so the initiative member can be added below.
     ensure_member_guilds = set(guild_roles) | set(initiative_guild.values())
     # Guilds this sync admits the user to for the first time, as a plain member.
     # They are as new to the guild as an invite redeemer, so the guild's
-    # auto-join initiatives take them in the same way (below, in the routed
-    # per-guild loop). Admins are left out for the same reason the invite path
-    # leaves them out — standing access already, and no member role to hold.
+    # auto-join initiatives take them in the same way (below, in each guild's
+    # half). Admins are left out for the same reason the invite path leaves
+    # them out — standing access already, and no member role to hold.
     newly_admitted_guilds: set[int] = set()
     for guild_id in sorted(ensure_member_guilds):
         desired = guild_roles.get(guild_id)
@@ -313,9 +347,28 @@ async def sync_oidc_assignments(
             billing_ping.notify_membership_changed(guild_id)
     await session.flush()
 
+    for stale_gid in sorted(left):
+        await _record(
+            session,
+            event_type=AuditEventType.GUILD_MEMBER_REMOVED,
+            target_user_id=user_id,
+            guild_id=stale_gid,
+            target_type="guild",
+            target_id=stale_gid,
+            detail={"role": stale_roles[stale_gid].value, "via": _VIA},
+        )
+        await session.exec(
+            delete(GuildMembership).where(
+                GuildMembership.user_id == user_id,
+                GuildMembership.guild_id == stale_gid,
+            )
+        )
+        result.guilds_removed.append(stale_gid)
+        billing_ping.notify_membership_changed(stale_gid)
+
     # Guilds to visit for guild-scoped work: those the claims map to, plus every
-    # guild the user already belongs to (so stale oidc-managed initiative
-    # memberships get cleaned up). guild_memberships is shared/public.
+    # guild the user still belongs to (so stale oidc-managed initiative
+    # memberships get cleaned up).
     existing_guild_ids = set(
         (
             await session.exec(
@@ -325,20 +378,18 @@ async def sync_oidc_assignments(
             )
         ).all()
     )
-    relevant_guilds = sorted(
+    relevant_guilds = (
         existing_guild_ids | set(initiative_guild.values()) | set(guild_roles)
-    )
+    ) - left
+    await session.commit()
 
-    # --- Initiative resolution + membership (guild-scoped, routed per guild) ---
+    # --- Initiative resolution + membership (each guild's half) ---
     from app.services.tenant.initiatives import (
         clear_user_task_assignments_for_initiative,
         enroll_in_auto_join_initiatives,
     )
 
-    for gid in relevant_guilds:
-        session.expunge_all()
-        await set_rls_context(session, guild_id=gid)
-
+    async def sync_initiatives(guild_session: AsyncSession, gid: int) -> None:
         guild_inits = {iid for iid, g in initiative_guild.items() if g == gid}
         # Drop references to initiatives that no longer exist in this schema
         # (oidc_claim_mappings has no cross-schema FK, so a purged initiative can
@@ -346,7 +397,7 @@ async def sync_oidc_assignments(
         if guild_inits:
             present = set(
                 (
-                    await session.exec(
+                    await guild_session.exec(
                         select(Initiative.id).where(Initiative.id.in_(guild_inits))
                     )
                 ).all()
@@ -363,7 +414,7 @@ async def sync_oidc_assignments(
             role_id: int | None = None
             if unique_ids:
                 roles = (
-                    await session.exec(
+                    await guild_session.exec(
                         select(InitiativeRoleModel).where(
                             InitiativeRoleModel.id.in_(unique_ids)
                         )
@@ -376,7 +427,7 @@ async def sync_oidc_assignments(
 
         for iid, role_id in guild_init_roles.items():
             im = await _get_initiative_membership(
-                session, user_id=user_id, initiative_id=iid
+                guild_session, user_id=user_id, initiative_id=iid
             )
             if im:
                 if im.oidc_provider_id != provider_id:
@@ -384,10 +435,10 @@ async def sync_oidc_assignments(
                 if role_id is not None and im.role_id != role_id:
                     previous_role_id = im.role_id
                     im.role_id = role_id
-                    session.add(im)
+                    guild_session.add(im)
                     result.initiatives_updated.append(iid)
                     await _record(
-                        session,
+                        guild_session,
                         event_type=AuditEventType.INITIATIVE_MEMBER_ROLE_CHANGED,
                         target_user_id=user_id,
                         guild_id=gid,
@@ -395,14 +446,14 @@ async def sync_oidc_assignments(
                         target_id=iid,
                         detail={
                             "from_role_id": previous_role_id,
-                            "from": await _role_name(session, previous_role_id),
+                            "from": await _role_name(guild_session, previous_role_id),
                             "to_role_id": role_id,
-                            "to": await _role_name(session, role_id),
+                            "to": await _role_name(guild_session, role_id),
                         },
                     )
             else:
                 await _create_initiative_membership(
-                    session,
+                    guild_session,
                     user_id=user_id,
                     initiative_id=iid,
                     guild_id=gid,
@@ -414,7 +465,7 @@ async def sync_oidc_assignments(
         # Remove stale oidc-managed initiative memberships in THIS guild that the
         # claims no longer grant.
         stale_inits = (
-            await session.exec(
+            await guild_session.exec(
                 select(InitiativeMember).where(
                     InitiativeMember.user_id == user_id,
                     InitiativeMember.oidc_provider_id == provider_id,
@@ -424,10 +475,10 @@ async def sync_oidc_assignments(
         for im in stale_inits:
             if im.initiative_id not in matched_initiative_ids:
                 await clear_user_task_assignments_for_initiative(
-                    session, initiative_id=im.initiative_id, user_id=user_id
+                    guild_session, initiative_id=im.initiative_id, user_id=user_id
                 )
                 await _record(
-                    session,
+                    guild_session,
                     event_type=AuditEventType.INITIATIVE_MEMBER_REMOVED,
                     target_user_id=user_id,
                     guild_id=gid,
@@ -435,7 +486,7 @@ async def sync_oidc_assignments(
                     target_id=im.initiative_id,
                     detail={"via": _VIA},
                 )
-                await session.delete(im)
+                await guild_session.delete(im)
                 result.initiatives_removed.append(im.initiative_id)
 
         # Onboarding for a first-time arrival, once the claims have had their
@@ -449,71 +500,14 @@ async def sync_oidc_assignments(
         # The rows are ordinary (no managing provider), so the sweep above
         # leaves them alone and a later sync neither reaps nor fights them.
         if gid in newly_admitted_guilds:
-            try:
-                async with session.begin_nested():
-                    await enroll_in_auto_join_initiatives(
-                        session, guild_id=gid, user_id=user_id
-                    )
-            except Exception:
-                logger.exception(
-                    "auto-join: user %s was admitted to guild %s by claim sync "
-                    "but enrolled in none of its auto-join initiatives",
-                    user_id,
-                    gid,
-                )
-        await session.flush()
-
-    # --- Remove stale guild memberships ---
-    # For each oidc-managed guild the claims no longer grant: re-home owned
-    # projects + drop initiative memberships (guild-scoped, routed), then delete
-    # the shared GuildMembership row in public context.
-    from app.services.tenant.initiatives import remove_user_from_guild_initiatives
-
-    session.expunge_all()
-    await set_rls_context(session)
-    # The role comes back with the id: it is gone once the delete below lands,
-    # and the record says what the person held.
-    stale_memberships = (
-        await session.exec(
-            select(GuildMembership.guild_id, GuildMembership.role).where(
-                GuildMembership.user_id == user_id,
-                GuildMembership.oidc_provider_id == provider_id,
-                GuildMembership.role != GuildRole.superadmin,
+            await enroll_in_auto_join_initiatives(
+                guild_session, guild_id=gid, user_id=user_id
             )
-        )
-    ).all()
-    for stale_gid, stale_role in stale_memberships:
-        if stale_gid in matched_guild_ids:
-            continue
-        session.expunge_all()
-        await set_rls_context(session, guild_id=stale_gid)
-        await remove_user_from_guild_initiatives(
-            session, guild_id=stale_gid, user_id=user_id
-        )
-        await session.flush()
-        session.expunge_all()
-        await set_rls_context(session)
-        await _record(
-            session,
-            event_type=AuditEventType.GUILD_MEMBER_REMOVED,
-            target_user_id=user_id,
-            guild_id=stale_gid,
-            target_type="guild",
-            target_id=stale_gid,
-            detail={"role": stale_role.value, "via": _VIA},
-        )
-        await session.exec(
-            delete(GuildMembership).where(
-                GuildMembership.user_id == user_id,
-                GuildMembership.guild_id == stale_gid,
-            )
-        )
-        result.guilds_removed.append(stale_gid)
-        billing_ping.notify_membership_changed(stale_gid)
 
-    session.expunge_all()
-    await set_rls_context(session)
-    await session.commit()
+    if relevant_guilds:
+        await each_guild(
+            [(Scope.LIVE, sync_initiatives)], name="oidc-sync", only=relevant_guilds
+        )
     return result
 
 

@@ -54,7 +54,7 @@ from app.core.messages import (
     InitiativeMessages,
     MarketplaceMessages,
 )
-from app.db import session as db_session
+from app.db import cohorts
 from app.models.platform.guild import GuildMembership
 from app.models.platform.user import User
 from app.models.tenant.app_member_consent import AppMemberConsent
@@ -523,7 +523,7 @@ async def install_guild_app(
         context=guild_context,
         placements=await _placements(session, app),
     )
-    await _count_install(listing.id)
+    await _count_install(guild_context.guild_id, listing.id)
     return installed
 
 
@@ -1752,14 +1752,15 @@ async def revoke_all_member_connections(
     await _flush_revocations(session)
 
 
-async def _count_install(listing_id: Optional[int]) -> None:
+async def _count_install(guild_id: int, listing_id: Optional[int]) -> None:
     """Tally the install against its listing, after the fact and best-effort —
     the catalog has no request-path writer, and a failed tally must not undo an
-    install that already happened."""
+    install that already happened. On a system session from the installing
+    community's cohort."""
     if listing_id is None:
         return
     try:
-        async with db_session.SystemSessionLocal() as system_session:
+        async with cohorts.system_session(guild_id) as system_session:
             await catalog_service.bump_installs_count(system_session, listing_id)
             await system_session.commit()
     except Exception:

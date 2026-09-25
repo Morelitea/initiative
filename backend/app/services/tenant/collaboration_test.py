@@ -342,25 +342,11 @@ async def test_an_unchanged_room_is_not_rewritten(monkeypatch) -> None:
 
     written: list[int] = []
 
-    async def fake_write(room, _session):
+    async def fake_save(room):
         written.append(room.resource_id)
         room.mark_persisted(room._revision)
 
-    monkeypatch.setattr(manager, "_write_room", fake_write)
-
-    class NullSession:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *_a):
-            return False
-
-    monkeypatch.setattr(collaboration_module, "SystemSessionLocal", NullSession)
-
-    async def no_context(*_a, **_k):
-        return None
-
-    monkeypatch.setattr(collaboration_module, "set_rls_context", no_context)
+    monkeypatch.setattr(manager, "save", fake_save)
 
     assert await manager.persist_dirty_rooms() == 1
     assert written == [6]

@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.db import bootstrap
@@ -1006,11 +1007,15 @@ async def search_operator_ready() -> bool:
 SEARCH_REINDEX_BATCH = 500
 
 
-async def reindex_guild_search(engine, schema: str, *, force: bool = False) -> int:
+async def reindex_guild_search(
+    session: AsyncSession, guild_id: int, *, force: bool = False
+) -> int:
     """Rebuild one guild's search entries when its generation marker is stale.
 
-    The marker is a comment on the guild's ``search_entries``, the same shape
-    as the provisioning stamp on the schema. Adding a source or changing an
+    ``session`` is a system session routed into the guild, and each batch
+    commits on it. The marker is a comment on the guild's ``search_entries``,
+    the same shape as the provisioning stamp on the schema, written on the
+    provisioning engine, which owns the table. Adding a source or changing an
     extraction moves :func:`search_generation`, and this walks each source table
     in batches, writing through the same function the refresh trigger uses.
 
@@ -1018,16 +1023,13 @@ async def reindex_guild_search(engine, schema: str, *, force: bool = False) -> i
     """
     from app.db.search_index import reindex_plan, search_generation
 
-    # The schema names its community, and the role to assume for it is named
-    # from the same id — a role name carries a per-checkout prefix, so it is
-    # not the schema's own spelling.
-    role = guild_role_name(int(schema.removeprefix("guild_")))
+    schema = guild_schema_name(guild_id)
     generation = search_generation()
-    async with engine.connect() as conn:
-        current = await conn.scalar(
-            text("SELECT obj_description(to_regclass(:t), 'pg_class')"),
-            {"t": f'"{schema}".search_entries'},
-        )
+    conn = await session.connection()
+    current = await conn.scalar(
+        text("SELECT obj_description(to_regclass(:t), 'pg_class')"),
+        {"t": f'"{schema}".search_entries'},
+    )
     if current == generation and not force:
         return 0
 
@@ -1035,67 +1037,48 @@ async def reindex_guild_search(engine, schema: str, *, force: bool = False) -> i
     for _entity_type, statement in reindex_plan():
         cursor = 0
         while True:
-            async with engine.begin() as conn:
-                # System routing: no user id, so the sign-in gate reads this as
-                # a system session; the index's own policy admits the write by
-                # the connection's login, which is the system engine's.
-                # Both names are built from the community's id, not from
-                # anything a request supplies, the way every other identifier
-                # in this module is.
-                await conn.exec_driver_sql(
-                    f"SELECT set_config('search_path', '\"{schema}\", public', true),"
-                    f" set_config('role', '{role}', true),"
-                    " set_config('app.current_user_id', '', true),"
-                    " set_config('app.guild_auth_ok', 'true', true)"
+            conn = await session.connection()
+            rows = (
+                await conn.execute(
+                    text(statement),
+                    {
+                        "schema": schema,
+                        "cursor": cursor,
+                        "batch": SEARCH_REINDEX_BATCH,
+                    },
                 )
-                rows = (
-                    await conn.execute(
-                        text(statement),
-                        {
-                            "schema": schema,
-                            "cursor": cursor,
-                            "batch": SEARCH_REINDEX_BATCH,
-                        },
-                    )
-                ).all()
+            ).all()
+            await session.commit()
             if not rows:
                 break
             cursor = max(r.id for r in rows)
             written += len(rows)
 
-    async with engine.begin() as conn:
+    async with db_session.provisioning_engine.begin() as conn:
         await conn.exec_driver_sql(
             f"COMMENT ON TABLE \"{schema}\".search_entries IS '{generation}'"
         )
     return written
 
 
-async def community_schemas(conn: AsyncConnection) -> list[str]:
-    """Every community's schema, sorted. ``guild_template`` is not one."""
-    rows = await conn.execute(
-        text(
-            "SELECT nspname FROM pg_namespace "
-            "WHERE nspname ~ '^guild_[0-9]+$' ORDER BY nspname"
-        )
-    )
-    return [r[0] for r in rows.all()]
-
-
 async def backfill_guild_search() -> int:
     """Reindex every guild whose search generation is stale.
 
-    Runs after schema provisioning, on its own connections: a guild's content is
-    walked in bounded transactions, so a large install fills in progressively
-    instead of holding one transaction open across the whole sweep.
+    Runs after schema provisioning, visiting each guild on a system session
+    from its cohort. A guild's content is walked in bounded transactions, so a
+    large install fills in progressively instead of holding one transaction
+    open across the whole sweep. A guild that fails is logged and the others
+    carry on.
     """
-    async with db_session.provisioning_engine.connect() as conn:
-        schemas = await community_schemas(conn)
+    from app.services.guild_sweeps import Scope, each_guild
+
     total = 0
-    for schema in schemas:
-        try:
-            total += await reindex_guild_search(db_session.system_engine, schema)
-        except Exception:
-            logger.exception("search reindex failed for %s", schema)
+
+    async def reindex(session: AsyncSession, guild_id: int) -> None:
+        nonlocal total
+        total += await reindex_guild_search(session, guild_id)
+
+    await each_guild([(Scope.PROVISIONED, reindex)], name="search-reindex")
     if total:
         logger.info("search reindex wrote %d entries", total)
     return total

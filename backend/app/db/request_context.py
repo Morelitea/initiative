@@ -87,12 +87,11 @@ class SystemGuild(GuildScoped):
     context that names itself as unattended, because nothing else about the
     call says so.
 
-    Three helpers route system work into a guild schema and they are not
-    interchangeable — this shape, :func:`app.db.session.set_system_guild_context`
-    and :func:`app.db.session.guild_schema_context`. Which one a job needs
+    Two helpers route system work into a guild schema and they are not
+    interchangeable — this shape and
+    :func:`app.db.session.set_system_guild_context`. Which one a job needs
     depends on what it touches; each function's own docstring says what it
-    routes as. ``services/platform/users.py`` uses two of them a few lines
-    apart, for two operations on the same guild.
+    routes as.
     """
 
 

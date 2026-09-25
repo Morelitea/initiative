@@ -11,7 +11,7 @@ A call site is a call, in one of those two trees, to something that routes a
 session into ``guild_<id>`` and is given a community to route into:
 
 * the primitives — ``set_rls_context`` with a ``guild_id``,
-  ``set_system_guild_context``, ``guild_schema_context``,
+  ``set_system_guild_context``,
   ``establish_guild_access``, and the test helpers ``route_as`` /
   ``route_system``;
 * a *wrapper* — a function in those trees, other than a route handler, that
@@ -48,7 +48,6 @@ _SCANNED = ("api/v1/platform_endpoints", "services/platform")
 _PRIMITIVES: dict[str, tuple[str, int | None]] = {
     "set_rls_context": ("guild_id", 2),
     "set_system_guild_context": ("guild_id", None),
-    "guild_schema_context": ("guild_id", None),
     "establish_guild_access": ("guild_id", 2),
     "route_as": ("guild_id", None),
     "route_system": ("guild_id", None),
@@ -63,26 +62,16 @@ _SERVICES = "app/services/platform"
 
 #: Functions that route into whichever community their caller names.
 _WRAPPERS: dict[tuple[str, str], str] = {
+    (f"{_SERVICES}/users.py", "hard_delete_user.erase"): (
+        "erases a deleted account's rows in one community, on that community's "
+        "cohort session"
+    ),
+    (f"{_SERVICES}/users.py", "soft_delete_user.scrub"): (
+        "scrubs a purged account's mentions and keys in one community, on that "
+        "community's cohort session"
+    ),
     (f"{_SERVICES}/billing.py", "guild_storage_usage"): (
         "storage aggregate for the billing service"
-    ),
-    (f"{_SERVICES}/guilds.py", "align_admin_initiative_roles"): (
-        "reconciles a promoted admin's initiative rows, on the system engine "
-        "beside the membership role write (the guild role holds no UPDATE on "
-        "guild_memberships)"
-    ),
-    (f"{_SERVICES}/guilds.py", "enroll_new_member_in_auto_join_initiatives"): (
-        "enrolls a new member in the community's auto-join initiatives"
-    ),
-    (f"{_SERVICES}/guilds.py", "ensure_membership"): (
-        "adds a membership and its auto-join enrolments"
-    ),
-    (f"{_SERVICES}/guilds.py", "join_community_guild"): (
-        "the caller joins a listed community"
-    ),
-    (f"{_SERVICES}/guilds.py", "restore_guild"): (
-        "brings a deleted community back and seats its superadmin, with the "
-        "seat's auto-join enrolments (ensure_membership)"
     ),
     (f"{_SERVICES}/guilds.py", "seed_guild_content"): (
         "provisions and seeds a new community's schema"
@@ -107,34 +96,35 @@ _WRAPPERS: dict[tuple[str, str], str] = {
 
 #: Every call site that routes into a community, and why it may.
 _ALLOWED: dict[tuple[str, str], str] = {
+    (
+        f"{_SERVICES}/guilds.py",
+        "align_admin_initiative_roles.align_guild_admin_membership_roles",
+    ): (
+        "reconciles a promoted admin's initiative rows after the role write "
+        "commits, on the community's cohort session"
+    ),
+    (
+        f"{_SERVICES}/guilds.py",
+        "enroll_new_member_in_auto_join_initiatives.enroll_in_auto_join_initiatives",
+    ): (
+        "enrolls a new member in the auto-join initiatives after the membership "
+        "commits, on the community's cohort session"
+    ),
+    (f"{_SERVICES}/users.py", "_in_each_guild"): (
+        "an account's per-community part of deactivation and erasure, one "
+        "cohort session per community it belonged to"
+    ),
     # --- The seam itself ---------------------------------------------------
     (f"{_ENDPOINTS}/guilds.py", "leave_guild"): (
         "routes the leaving member through establish_guild_access"
     ),
     # --- The caller's own community, behind its settings gate -------------
-    (f"{_ENDPOINTS}/guilds.py", "update_guild_membership"): (
-        "the caller's own community's role route, as its settings admin: the "
-        "role write and the initiative reconcile after it run on the system "
-        "engine (the guild role holds no UPDATE on guild_memberships)"
-    ),
     # --- Joining and creating ----------------------------------------------
     (f"{_ENDPOINTS}/auth.py", "_register_account"): (
         "a new account joins the community it was invited to, or creates one"
     ),
     (f"{_ENDPOINTS}/guilds.py", "create_guild"): ("seeds a community just created"),
-    (f"{_ENDPOINTS}/guilds.py", "join_community_guild"): (
-        "the caller joins a listed community"
-    ),
-    (f"{_SERVICES}/guilds.py", "create_guild"): (
-        "the creator's membership in a community just created"
-    ),
-    (f"{_SERVICES}/guilds.py", "redeem_invite_for_user"): (
-        "the invitee joins the community the invite names"
-    ),
     # --- Lifecycle -----------------------------------------------------------
-    (f"{_ENDPOINTS}/settings.py", "restore_platform_guild"): (
-        "restores a deleted community and seats its superadmin (guilds.manage)"
-    ),
     (f"{_SERVICES}/app_settings.py", "ensure_defaults"): (
         "startup seeding of the primary community"
     ),
@@ -146,18 +136,6 @@ _ALLOWED: dict[tuple[str, str], str] = {
         "storage usage for the billing service"
     ),
     # --- Account closure and erasure -----------------------------------------
-    (f"{_SERVICES}/users.py", "_drop_user_memberships"): (
-        "account closure: the account's own communities"
-    ),
-    (f"{_SERVICES}/users.py", "_end_app_access_everywhere"): (
-        "account closure: the account's own communities"
-    ),
-    (f"{_SERVICES}/users.py", "soft_delete_user"): (
-        "account erasure: every community the account's content may be in"
-    ),
-    (f"{_SERVICES}/users.py", "hard_delete_user"): (
-        "account erasure: every community the account's content may be in"
-    ),
     # --- Intake: the platform owner's setting, in the operations community ---
     (f"{_SERVICES}/intake.py", "stream_is_bound"): (
         "intake: opens a case in the operations community on the deployment's behalf"

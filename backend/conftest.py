@@ -27,6 +27,7 @@ from alembic.script import ScriptDirectory
 from cryptography.hazmat.primitives import serialization as _serialization
 from cryptography.hazmat.primitives.asymmetric import rsa as _rsa
 from httpx import ASGITransport, AsyncClient
+from starlette.requests import HTTPConnection
 from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
@@ -39,6 +40,7 @@ from app.db.session import (
     clear_rls_context,
     get_system_session,
     get_session,
+    served_guild_id,
 )
 from app.testing.schema_harness import clear_search_path_pin
 from app.db.tenancy import SHARED_TABLES
@@ -750,6 +752,8 @@ async def _schema_test_harness(engine, monkeypatch):
         schema_provisioning, "provision_guild", _tracking_provision_guild
     )
     yield
+    # Community steps a commit started finish before the pools close.
+    await cohorts.settle_all()
     await test_system_engine.dispose()
     await test_query_engine.dispose()
     await test_app_engine.dispose()
@@ -919,28 +923,41 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     Each request/system session is bound to a single connection so the per-request
     ``SET ROLE`` / ``search_path`` GUCs persist across the request's statements.
     """
-    app_engine = create_async_engine(
-        _test_url_for_role("app_user"), echo=False, pool_pre_ping=True
-    )
-    system_engine = create_async_engine(
-        _test_url_for_role("app_admin"), echo=False, pool_pre_ping=True
-    )
-    req_conn = await app_engine.connect()
-    admin_conn = await system_engine.connect()
+    # One connection per (login, pool) a request can be served from: each
+    # cohort, and the platform pool for a request that names no community.
+    # Each is tagged like the production pool it stands in for, so a session
+    # routed outside its cohort raises here as it would be counted there.
+    # Opened on first use; a test pays only for the pools it reaches.
+    #
     # NOTE on deadlocks: the request path (app_user) and system path (app_admin)
-    # are now SEPARATE connections, so an endpoint that locks a row on one and
+    # are SEPARATE connections, so an endpoint that locks a row on one and
     # waits on the other can app-level deadlock — a wait Postgres can't detect.
     # The net is the DATABASE-level statement_timeout armed in _run_test_migrations
     # (covers EVERY connection, incl. the privileged setup/provisioning conn that a
     # per-connection SET here would miss — which is what hung admin_test).
-    req_session = async_sessionmaker(
-        bind=req_conn, class_=AsyncSession, expire_on_commit=False, autoflush=False
-    )()
-    system_session = async_sessionmaker(
-        bind=admin_conn, class_=AsyncSession, expire_on_commit=False, autoflush=False
-    )()
-    # What get_session marks on the session it hands out.
-    cohorts.mark_request_session(req_session)
+    served: dict[tuple[str, int | str], tuple[AsyncSession, Any, Any]] = {}
+
+    async def _served_session(login: str, guild_id: int | None) -> AsyncSession:
+        if guild_id is not None:
+            tag: int | str = cohorts.cohort_of(guild_id)
+        else:
+            tag = cohorts.PLATFORM if login == "app_user" else cohorts.PLATFORM_SYSTEM
+        key = (login, tag)
+        if key not in served:
+            pool_engine = create_async_engine(
+                _test_url_for_role(login), echo=False, pool_pre_ping=True
+            )
+            cohorts.tag_engine(pool_engine, tag)
+            conn = await pool_engine.connect()
+            fresh = async_sessionmaker(
+                bind=conn, class_=AsyncSession, expire_on_commit=False, autoflush=False
+            )()
+            if login == "app_user":
+                cohorts.mark_request_session(fresh)
+            else:
+                cohorts.mark_system_session(fresh)
+            served[key] = (fresh, conn, pool_engine)
+        return served[key][0]
 
     async def _publish_setup_state() -> None:
         """Commit the setup ``session`` so the request — on its OWN real-role
@@ -966,34 +983,37 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     # leaves an open transaction (e.g. SELECT ... FOR UPDATE then a 4xx without
     # commit) leaks its row locks onto the next request, or onto a follow-up setup
     # write on the SAME row, which then blocks until statement_timeout.
-    async def override_get_session() -> AsyncGenerator[AsyncSession, None]:
+    async def _override(login: str, connection: HTTPConnection):
         await _publish_setup_state()
+        reused = await _served_session(login, served_guild_id(connection))
         # Production gets a FRESH session (empty info) per request; this reused
         # session must drop the previous request's stored context or the next
         # transaction would replay it (stale user/guild) — including any
         # harness pin the before_flush net recorded during the previous
         # request's tenant writes. The DB side needs no reset:
         # transaction-local context died with the request's rollback.
-        clear_rls_context(req_session)
-        clear_search_path_pin(req_session)
+        clear_rls_context(reused)
+        clear_search_path_pin(reused)
         # A fresh session also starts with an empty identity map: a row an
         # earlier request loaded would otherwise come back as that request saw
         # it, not as the database now holds it.
-        req_session.expunge_all()
+        reused.expunge_all()
         try:
-            yield req_session
+            yield reused
         finally:
-            await req_session.rollback()
+            await reused.rollback()
 
-    async def override_get_system_session() -> AsyncGenerator[AsyncSession, None]:
-        await _publish_setup_state()
-        clear_rls_context(system_session)
-        clear_search_path_pin(system_session)
-        system_session.expunge_all()
-        try:
-            yield system_session
-        finally:
-            await system_session.rollback()
+    async def override_get_session(
+        connection: HTTPConnection,
+    ) -> AsyncGenerator[AsyncSession, None]:
+        async for reused in _override("app_user", connection):
+            yield reused
+
+    async def override_get_system_session(
+        connection: HTTPConnection,
+    ) -> AsyncGenerator[AsyncSession, None]:
+        async for reused in _override("app_admin", connection):
+            yield reused
 
     app.dependency_overrides[get_session] = override_get_session
     app.dependency_overrides[get_system_session] = override_get_system_session
@@ -1030,10 +1050,7 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         # connection. ``engine.dispose()`` is the guaranteed backstop — it
         # force-closes the pooled connection even if the graceful role-reset above
         # it failed — so it runs for every engine regardless.
-        for sess, conn, eng in (
-            (req_session, req_conn, app_engine),
-            (system_session, admin_conn, system_engine),
-        ):
+        for sess, conn, eng in served.values():
             with suppress(Exception):
                 await sess.close()
             with suppress(Exception):

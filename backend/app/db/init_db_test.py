@@ -9,6 +9,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 import app.db.init_db as init_db
 from app.core.config import settings
 from app.core.encryption import hash_email
+from app.db import schema_provisioning
+from app.db.session import set_rls_context
 from app.models.platform.guild import Guild
 from app.models.platform.user_email import UserEmail
 from app.models.platform.user import User
@@ -35,9 +37,12 @@ async def test_init_owner_cleans_up_when_guild_seed_fails(engine, monkeypatch):
     monkeypatch.setattr(settings, "FIRST_OWNER_PASSWORD", "securepassword123")
     monkeypatch.setattr(settings, "FIRST_OWNER_FULL_NAME", "Boot Fail")
 
-    async def _boom(seed_session, *args, **kwargs):
-        # Abort the transaction like a real failing query would, so the cleanup
-        # path must rollback before it can delete the stranded rows.
+    async def _boom(seed_session, *, guild_id, **kwargs):
+        # Provision and route into the community, then abort the transaction
+        # like a real failing query would: the cleanup must roll back and leave
+        # the community it removes before it deletes the stranded rows.
+        await schema_provisioning.provision_guild(guild_id)
+        await set_rls_context(seed_session, guild_id=guild_id)
         await seed_session.exec(text("SELECT * FROM does_not_exist_xyz"))
 
     monkeypatch.setattr(guilds_service, "seed_guild_content", _boom)

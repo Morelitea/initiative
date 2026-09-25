@@ -30,8 +30,9 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.core.config import settings
+from app.db import cohorts
 from app.db import session as db_session
-from app.db.schema_provisioning import guild_role_name, guild_schema_name
+from app.db.schema_provisioning import guild_schema_name
 from app.services import storage_config
 from app.services.storage import S3Storage, StorageBackend, build_s3_client
 
@@ -193,13 +194,14 @@ async def backfill_uploads_to_s3(
     if cfg.backend != "s3" or not cfg.bucket:
         raise ValueError("backfill requires an S3 backend with S3_BUCKET configured")
     client = build_s3_client(cfg)
-    engine = db_session.system_engine  # system engine; guild schemas via SET ROLE
-    async with engine.connect() as conn:
+    # The lock and the guild list are read on a platform connection, and each
+    # guild's uploads on a system session from that guild's cohort.
+    async with db_session.system_engine.connect() as conn:
         # Pooled connection: shed any guild role a previous checkout assumed.
         await conn.execute(text("SELECT set_config('role', 'none', false)"))
-        # One backfill at a time, cluster-wide. pg_try_advisory_lock is per-session
-        # (held for this connection, independent of SET ROLE); a second worker that
-        # can't take it backs off rather than double-copying every guild.
+        # One backfill at a time, cluster-wide. pg_try_advisory_lock is held for
+        # this connection; a second worker that can't take it backs off rather
+        # than double-copying every guild.
         locked = (
             await conn.execute(
                 text("SELECT pg_try_advisory_lock(:k)"), {"k": _BACKFILL_LOCK_KEY}
@@ -219,15 +221,11 @@ async def backfill_uploads_to_s3(
                 guild_dir = root / f"guild_{gid}"
                 if not guild_dir.is_dir():
                     continue
-                # Assume the guild's own role for the schema read (the system
-                # login holds no standing guild-schema access). Transaction-local:
-                # the role dies with this connection's transaction instead of
-                # riding the pooled connection into later checkouts.
-                await conn.execute(
-                    text("SELECT set_config('role', :r, true)"),
-                    {"r": guild_role_name(gid)},
-                )
-                meta = await _guild_upload_meta(conn, guild_schema_name(gid))
+                async with cohorts.system_session(gid) as session:
+                    await db_session.set_rls_context(session, guild_id=gid)
+                    meta = await _guild_upload_meta(
+                        await session.connection(), guild_schema_name(gid)
+                    )
                 # Always a real S3 backend, even on a dry run, so the exists() skip
                 # check reflects what's already in the bucket.
                 dest = S3Storage(
@@ -239,15 +237,11 @@ async def backfill_uploads_to_s3(
                 backfill_guild_dir(
                     guild_dir, meta, dest, summary, guild_id=gid, dry_run=dry_run
                 )
-                # The callback persists status via its own system session, so this
-                # connection's guild role doesn't affect it.
                 if on_progress is not None:
                     await on_progress(summary)
         finally:
-            # Roll back first: it clears the transaction-local guild role AND
-            # any aborted-transaction state, so the unlock below always runs
-            # (a failed statement would otherwise fault it). The advisory lock
-            # is session-scoped and survives the rollback.
+            # Roll back first, so the unlock below runs in a fresh transaction.
+            # The advisory lock is session-scoped and survives the rollback.
             await conn.rollback()
             await conn.execute(
                 text("SELECT pg_advisory_unlock(:k)"), {"k": _BACKFILL_LOCK_KEY}

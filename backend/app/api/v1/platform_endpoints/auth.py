@@ -28,6 +28,7 @@ from app.api.deps import (
     get_current_user_optional,
     require_first_party_session,
 )
+from app.db import cohorts
 from app.db.session import get_system_session, set_rls_context
 from app.core.config import API_V1_STR, settings
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -509,6 +510,7 @@ async def _register_account(
                 role=GuildRole.member,
             )
             await session.commit()
+            await cohorts.settle(session)
         else:
             guild_name_source = (user.full_name or "").strip() or user.username
             guild_name = (
@@ -523,15 +525,12 @@ async def _register_account(
                 session, name=guild_name, creator=user
             )
             await session.commit()
-            # Capture ids before the seed: the rollback in the failure path expires
-            # the ORM objects, so reading guild.id / user.id afterwards would reload.
             guild_id = guild.id
             user_id = user.id
             try:
                 await guilds_service.seed_guild_content(
                     session, guild_id=guild_id, owner=user
                 )
-                await session.commit()
             except Exception:
                 from contextlib import suppress as _suppress
 
@@ -540,13 +539,6 @@ async def _register_account(
                 logger.exception(
                     "Guild %s setup failed during registration; rolling back", guild_id
                 )
-                # Roll back FIRST. If the seed failed on a DB error the session is
-                # aborted; without this rollback every cleanup query below raises
-                # PendingRollbackError and the already-committed user + guild rows
-                # are stranded. Rollback also reverts the seed's SET ROLE (Postgres
-                # SET is transactional) so deprovision can DROP the role; this is an
-                # system-engine session (BYPASSRLS), so removing the shared rows isn't filtered.
-                await session.rollback()
                 with _suppress(Exception):
                     await deprovision_guild(guild_id)
                 # Bulk DELETEs by captured id (CASCADE clears the roster) — never
@@ -570,10 +562,8 @@ async def _register_account(
             detail=AuthMessages.UNABLE_TO_CREATE_USER,
         ) from exc
 
-    # Seeding a new guild leaves the session routed into it, and a guild role
-    # reaches nothing on ``public.users``. Everything from here is about the
-    # account rather than the guild, so the session comes back to the platform
-    # path before it reads one.
+    # Everything from here is about the account, so it is read on the
+    # account's own platform path.
     await set_rls_context(session, user_id=user.id)
     await session.refresh(user)
 
@@ -1875,8 +1865,9 @@ async def _complete_provider_login(
         user_id=user.id,
         claims=dict(claims or {}),
     )
-    # It commits per community and rolls back the ones at capacity, either of
-    # which leaves this copy of the account stale.
+    await cohorts.settle(system_session)
+    # It commits and rolls back the communities at capacity, either of which
+    # leaves this copy of the account stale.
     await system_session.refresh(user)
 
     # OIDC claim-to-role sync (the id_token claims are verified upstream now).

@@ -28,7 +28,7 @@ from app.core.config import settings
 from app.core.security import SESSION_COOKIE_NAME
 from app.core.encryption import SALT_APP_CONFIG, decrypt_field, encrypt_field
 from app.core.messages import AppChannelMessages
-from app.db import session as db_session
+from app.db import cohorts
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.platform.app_install import AppInstall
@@ -668,7 +668,7 @@ class TestTokens:
         row = await _connected_row(session, a, app, expires_in=30)
 
         async def read_token():
-            async with db_session.SystemSessionLocal() as own:
+            async with cohorts.system_session(a.guild.id) as own:
                 await set_rls_context(own, guild_id=a.guild.id)
                 install = (
                     await own.exec(select(GuildApp).where(GuildApp.id == app.id))

@@ -433,26 +433,28 @@ async def guild_lifecycle_status(
     return None if status is None else GuildStatus(status)
 
 
-async def guild_storage_usage(system_session: AsyncSession, guild_id: int) -> int:
+async def guild_storage_usage(guild_id: int) -> int:
     """Current stored bytes for one guild, for the signed usage read.
 
     ``uploads`` lives in the per-guild ``guild_<id>`` schema, which the
-    column-scoped ``initiative_billing`` role cannot reach — so this runs on
-    the **system engine** routed into the guild (``guild_role='admin'``, the
+    column-scoped ``initiative_billing`` role cannot reach — so this runs on a
+    **system session from the guild's cohort** routed into the guild (the
     trash-purge pattern), not the billing-context session. The billing session
     still owns envelope verification + the jti burn in the endpoint; this only
     reads the same ``SUM(uploads.size_bytes)`` that ``enforce_storage_quota``
     enforces against. Read-only — the app never pushes usage anywhere.
     """
+    from app.db import cohorts
     from app.db.session import set_rls_context
     from app.services.tenant.attachments import get_guild_storage_usage
 
-    # Existence check at the public baseline before routing into the schema.
-    exists = (
-        await system_session.exec(select(Guild.id).where(Guild.id == guild_id))
-    ).one_or_none()
-    if exists is None:
-        raise BillingGuildNotFoundError(guild_id)
+    async with cohorts.system_session(guild_id) as session:
+        # Existence check at the public baseline before routing into the schema.
+        exists = (
+            await session.exec(select(Guild.id).where(Guild.id == guild_id))
+        ).one_or_none()
+        if exists is None:
+            raise BillingGuildNotFoundError(guild_id)
 
-    await set_rls_context(system_session, guild_id=guild_id)
-    return await get_guild_storage_usage(system_session)
+        await set_rls_context(session, guild_id=guild_id)
+        return await get_guild_storage_usage(session)

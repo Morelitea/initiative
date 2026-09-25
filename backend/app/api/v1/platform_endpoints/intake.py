@@ -3,9 +3,9 @@
 Every route is ``config.manage``. Binding a stream is deployment configuration
 of the same class as OIDC, SMTP and branding, and sits at the same capability.
 
-The session is the system engine, which is what reaches both the shared
-singleton and — routed by the guild alone — the guild's own schema. That is the
-pattern the OIDC-mapping routes beside this already use.
+The session is the platform system engine, which reads and writes the shared
+singleton. The guild's own schema is reached on a system session from that
+guild's cohort (``app.services.platform.intake_setup``).
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.v1.platform_endpoints.operator import ConfigManageDep
 from app.core.intake import IntakeStream
 from app.core.messages import IntakeMessages
-from app.db.session import get_system_session, set_rls_context
+from app.db.session import get_system_session
 from app.models.platform.guild import Guild
 from app.models.platform.user import User
 from app.schemas.platform.intake import (
@@ -74,7 +74,6 @@ async def _settings(session: AsyncSession) -> IntakeSettingsRead:
     guild_id, views = await intake_setup.list_bindings(session)
     guild_name = None
     if guild_id is not None:
-        await set_rls_context(session)
         guild_name = (
             await session.exec(select(Guild.name).where(Guild.id == guild_id))
         ).one_or_none()

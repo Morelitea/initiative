@@ -57,6 +57,7 @@ from app.core.security import (
     STEP_UP_CHALLENGE,
 )
 from app.core.identity_boundary import InstallBoundary, admit_install
+from app.db import cohorts
 from app.db.guild_standing import (
     ActorContext,
     GuildContext,
@@ -225,19 +226,18 @@ async def get_current_user_optional(
         return None
 
 
-async def _account_holds_factor(user: User) -> bool:
+async def _account_holds_factor(user: User, guild_id: int | None) -> bool:
     """Whether this account holds a second factor.
 
     Both credential stores are ``app_admin``-only, so the question goes to the
-    system engine — the shape a personal API key's own lookup already uses.
+    system engine — the shape a personal API key's own lookup already uses —
+    from the cohort of the community the request serves, if it serves one.
 
     Asked afresh each time rather than remembered against the request: the
     answer changes the moment somebody enrols, and that is exactly the moment
     they are trying to get back in.
     """
-    from app.db.session import SystemSessionLocal
-
-    async with SystemSessionLocal() as system_session:
+    async with cohorts.system_session(guild_id) as system_session:
         return await auth_posture.holds_second_factor(system_session, user_id=user.id)
 
 
@@ -245,6 +245,7 @@ async def platform_factor_unmet(
     session: AsyncSession,
     user: User,
     *,
+    guild_id: int | None,
     level: SecondFactorRequirement | None = None,
 ) -> bool:
     """Whether the deployment asks this account for a second factor it lacks.
@@ -264,6 +265,8 @@ async def platform_factor_unmet(
     so the question costs that path no round trip of its own. Left out, it is
     what the credential validator recorded beside the account, and read here
     only where nothing was.
+
+    ``guild_id`` is the community the request serves, or ``None``.
     """
     if SECOND_FACTOR_AMR in auth_context.session_amr():
         auth_context.set_platform_factor(True)
@@ -275,7 +278,7 @@ async def platform_factor_unmet(
     if not auth_posture.rule_covers(level, user.role):
         auth_context.set_platform_factor(True)
         return False
-    held = await _account_holds_factor(user)
+    held = await _account_holds_factor(user, guild_id)
     auth_context.set_platform_factor(held)
     return not held
 
@@ -325,12 +328,15 @@ async def get_current_active_user(
     because this one is the deployment's.
     """
     user = await _active_user(request, current_user)
-    await _require_platform_factor(session, user)
+    await _require_platform_factor(request, session, user)
     return user
 
 
-async def _require_platform_factor(session: AsyncSession, user: User) -> None:
-    if await platform_factor_unmet(session, user):
+async def _require_platform_factor(
+    request: Request, session: AsyncSession, user: User
+) -> None:
+    guild_id = cohorts.addressed_guild_id(request.path_params)
+    if await platform_factor_unmet(session, user, guild_id=guild_id):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED,
@@ -350,7 +356,7 @@ async def get_current_account_holder(
     sessions, its notifications — and nothing another person can see.
     """
     user = await _active_user(request, current_user, admit_suspended=True)
-    await _require_platform_factor(session, user)
+    await _require_platform_factor(request, session, user)
     return user
 
 
@@ -710,7 +716,9 @@ async def _load_guild_context(
         # because the sockets, the keepalive and the stream re-check resolve
         # their guild through this function and never run that one — off the
         # row the read above already carried.
-        if await platform_factor_unmet(session, current_user, level=asked):
+        if await platform_factor_unmet(
+            session, current_user, guild_id=guild_id, level=asked
+        ):
             raise GuildAccessError(GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED)
         # A grantee holds no membership row, and none is invented for them:
         # what the two grants reach is computed from the rows themselves by
@@ -754,7 +762,9 @@ async def _load_guild_context(
             else GuildMessages.AGE_CONFIRMATION_REQUIRED
         )
     # And the deployment's own question, off the row the gate read carried.
-    if await platform_factor_unmet(session, current_user, level=asked):
+    if await platform_factor_unmet(
+        session, current_user, guild_id=guild_id, level=asked
+    ):
         raise GuildAccessError(GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED)
     return GuildContext(
         guild=guild,
@@ -1211,6 +1221,8 @@ async def establish_install_access(
 ) -> InstallContext:
     """Route ``session`` as an installed app and compute its standing — the
     establishment seam for an install, beside :func:`establish_guild_access`.
+    On a request, ``session`` is the one :func:`get_session` hands out, which
+    is from the cohort of the community the install's token names.
 
     Two statements and no lookup ahead of them: the routing (the community's
     ``guild_<id>_app`` role, the install, its client, its token's scopes, the
@@ -1903,7 +1915,8 @@ async def get_upload_user(
     user = await _resolve_upload_user(
         request, session, bearer_token, token_param, session_cookie
     )
-    if await platform_factor_unmet(session, user):
+    guild_id = cohorts.addressed_guild_id(request.path_params)
+    if await platform_factor_unmet(session, user, guild_id=guild_id):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED,

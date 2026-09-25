@@ -654,14 +654,13 @@ async def get_user_stats(
     """Get comprehensive user statistics, routed per guild.
 
     Tasks/projects/initiatives live in per-guild schemas, so no single query
-    can span them. We route into each target guild's schema
-    and compute there: one guild when
+    can span them. Each target guild is entered through the seam
+    (``gather_across_guilds``) and computed there: one guild when
     ``guild_id`` is given (exact), otherwise every guild the user belongs to,
-    merged.
+    merged. These numbers count what a request to that community would have
+    shown this reader and nothing else.
     """
-    from app.api.deps import GuildAccessError, establish_guild_access
-    from app.db.session import set_rls_context
-    from app.services.cross_guild import member_guild_ids
+    from app.services.cross_guild import gather_across_guilds, member_guild_ids
 
     # Always restrict to the user's own guilds (membership is the access gate);
     # a guild_id the user isn't in yields no stats rather than routing into a
@@ -670,21 +669,10 @@ async def get_user_stats(
         session, user.id, restrict_to=[guild_id] if guild_id is not None else None
     )
 
-    parts: List[UserStatsResponse] = []
-    for gid in target_guilds:
-        session.expunge_all()
-        # Through the seam, so these numbers count what a request to that
-        # community would have shown this reader and nothing else.
-        try:
-            await establish_guild_access(session, user, gid)
-        except GuildAccessError:
-            continue
-        parts.append(await _compute_guild_stats(session, user, gid, days))
+    async def fetch(routed: AsyncSession, gid: int) -> List[UserStatsResponse]:
+        return [await _compute_guild_stats(routed, user, gid, days)]
 
-    # Reset to the user-only (public) baseline so the caller's session isn't
-    # left routed into the last guild.
-    session.expunge_all()
-    await set_rls_context(session, user_id=user.id)
+    parts = await gather_across_guilds(session, user.id, target_guilds, fetch)
 
     if not parts:
         return UserStatsResponse(

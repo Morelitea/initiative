@@ -15,6 +15,7 @@ from app.core.guild_auth_options import GuildAuthOption
 from app.core.intake import IntakeStream
 from app.core.encryption import encrypt_field, SALT_EMAIL
 from app.core.messages import GuildMessages
+from app.db import cohorts
 from app.models.platform.guild import (
     BANNER_TEXT_COLORS,
     GUILD_ADMIN_ROLES,
@@ -289,10 +290,6 @@ async def ensure_membership(
         target_id=guild_id,
         detail=detail,
     )
-    # Written out here, where the caller's own context still applies. The
-    # enrolment below borrows the session for the guild's schema, and a record
-    # left pending would be carried into that excursion instead.
-    await session.flush()
     # Belonging somewhere new can change what this account is asked for — a
     # listed community asks its members their age — and the person may have
     # had nothing to do with arriving here. Their open tabs re-read the
@@ -301,67 +298,59 @@ async def ensure_membership(
     # Nudge billing that this guild's membership changed. No-op unless a
     # hosted deployment configured the outbound billing settings.
     billing_ping.notify_membership_changed(guild_id)
-    await enroll_new_member_in_auto_join_initiatives(
+    enroll_new_member_in_auto_join_initiatives(
         session, guild_id=guild_id, user_id=user_id, role=role
     )
     return membership
 
 
-async def enroll_new_member_in_auto_join_initiatives(
+def enroll_new_member_in_auto_join_initiatives(
     session: AsyncSession,
     *,
     guild_id: int,
     user_id: int,
     role: GuildRole,
 ) -> None:
-    """Put a brand-new guild member into the guild's auto-join initiatives.
+    """Put a brand-new guild member into the guild's auto-join initiatives once
+    ``session`` commits.
 
     Called on a genuine membership insert only, which is what makes this the
     onboarding hook rather than a sweep: someone who was already in the guild
     is returned earlier and is never re-enrolled.
 
-    A guild admin is skipped. Their membership row is written before the guild's
-    schema exists at all — guild creation is the case — and their standing
-    already reaches every initiative, so nothing here is theirs to be handed.
-    They pick which initiatives they navigate by joining them.
+    A guild admin is skipped. Their standing already reaches every initiative,
+    so nothing here is theirs to be handed. They pick which initiatives they
+    navigate by joining them.
 
-    The initiatives live in the guild's schema and the join paths that reach here
-    run on the system engine with ``search_path = public``, so the work is done
-    through a routed excursion that hands the session back as it found it. The
-    whole excursion sits inside a savepoint: landing somewhere useful is a
-    convenience, and it must never be the reason someone's guild join fails.
+    The enrolment runs on a system session from the guild's cohort, after the
+    membership commits. Landing somewhere useful is a convenience, and it is
+    never the reason someone's guild join fails.
     """
     if role in GUILD_ADMIN_ROLES:
         return
-    from app.db.session import guild_schema_context
+    from app.db.session import set_rls_context
     from app.services.tenant import initiatives as initiatives_service
 
-    try:
-        async with session.begin_nested():
-            async with guild_schema_context(session, guild_id=guild_id):
-                # A second savepoint so a failure unwinds before the excursion
-                # restores the caller's context, rather than during it.
-                async with session.begin_nested():
-                    await initiatives_service.enroll_in_auto_join_initiatives(
-                        session, guild_id=guild_id, user_id=user_id
-                    )
-    except Exception:
-        logger.exception(
-            "auto-join: user %s joined guild %s but was enrolled in none of its "
-            "auto-join initiatives",
-            user_id,
-            guild_id,
-        )
+    async def enroll_in_auto_join_initiatives() -> None:
+        async with cohorts.system_session(guild_id) as guild_session:
+            await set_rls_context(guild_session, guild_id=guild_id)
+            await initiatives_service.enroll_in_auto_join_initiatives(
+                guild_session, guild_id=guild_id, user_id=user_id
+            )
+            await guild_session.commit()
+
+    cohorts.after_commit(session, enroll_in_auto_join_initiatives)
 
 
-async def align_admin_initiative_roles(
+def align_admin_initiative_roles(
     session: AsyncSession,
     *,
     guild_id: int,
     user_id: int,
     role: GuildRole,
 ) -> None:
-    """Bring a freshly promoted guild admin's initiative rows up to their standing.
+    """Bring a freshly promoted guild admin's initiative rows up to their
+    standing once ``session`` commits.
 
     A guild admin's membership row carries a manager role, which every write
     path settles for itself. A promotion changes the guild role and nothing
@@ -372,34 +361,23 @@ async def align_admin_initiative_roles(
     in place, which is an ordinary initiative role for an ordinary member to
     hold, and taking it away would be a second decision nobody asked for.
 
-    The initiatives live in the guild's schema and this runs on the system
-    engine with ``search_path = public``, so the work is done through a routed
-    excursion that hands the session back as it found it. The whole excursion
-    sits inside a savepoint: the role change is the thing being asked for, and
-    reconciling rows underneath it must never be what makes it fail. Flush-only;
-    the caller owns the transaction.
+    The reconciliation runs on a system session from the guild's cohort, after
+    the role change commits, so it is never what makes the role change fail.
     """
     if role not in GUILD_ADMIN_ROLES:
         return
-    from app.db.session import guild_schema_context
+    from app.db.session import set_rls_context
     from app.services.tenant import initiatives as initiatives_service
 
-    try:
-        async with session.begin_nested():
-            async with guild_schema_context(session, guild_id=guild_id):
-                # A second savepoint so a failure unwinds before the excursion
-                # restores the caller's context, rather than during it.
-                async with session.begin_nested():
-                    await initiatives_service.align_guild_admin_membership_roles(
-                        session, guild_id=guild_id, user_id=user_id
-                    )
-    except Exception:
-        logger.exception(
-            "admin promotion: user %s became an admin of guild %s but their "
-            "existing initiative roles were not reconciled",
-            user_id,
-            guild_id,
-        )
+    async def align_guild_admin_membership_roles() -> None:
+        async with cohorts.system_session(guild_id) as guild_session:
+            await set_rls_context(guild_session, guild_id=guild_id)
+            await initiatives_service.align_guild_admin_membership_roles(
+                guild_session, guild_id=guild_id, user_id=user_id
+            )
+            await guild_session.commit()
+
+    cohorts.after_commit(session, align_guild_admin_membership_roles)
 
 
 # Advisory-lock namespace for per-guild membership-cap admission. A fixed ASCII
@@ -794,9 +772,10 @@ async def seed_guild_content(
     one" to exactly the admin who may — asks that question once, instead of
     answering it wrongly and making them undo it.
 
-    The shared guild row must already exist; this provisions the schema + role and
-    seeds into it (the caller commits around the call). On failure the caller
-    should ``deprovision_guild`` and remove the shared rows.
+    The shared guild row must already exist, committed; this provisions the
+    schema + role and seeds into it on a system session from the guild's cohort,
+    which it commits. ``session`` is the caller's, and is left as it was. On
+    failure the caller should ``deprovision_guild`` and remove the shared rows.
 
     Mandatory apps (§7.7) land here because that is what "every guild has it"
     means. They are also the one part allowed to fail quietly: the install is a
@@ -810,22 +789,24 @@ async def seed_guild_content(
     await provision_guild(guild_id)
     # Seeding is the system engine's, routed into the new schema: the guild
     # has no members yet and nobody is asking for anything.
-    await set_rls_context(session, guild_id=guild_id)
-    await create_guild_settings(session, guild_id)
-    try:
-        # Inside a savepoint, so a failure here rolls back the app install and
-        # nothing else: the guild being created must survive whatever an app's
-        # listing or registration is doing.
-        async with session.begin_nested():
-            await mandatory_apps_service.install_mandatory_apps(
-                session, guild_id=guild_id, created_by=owner.id
+    async with cohorts.system_session(guild_id) as guild_session:
+        await set_rls_context(guild_session, guild_id=guild_id)
+        await create_guild_settings(guild_session, guild_id)
+        try:
+            # Inside a savepoint, so a failure here rolls back the app install
+            # and nothing else: the guild being created must survive whatever
+            # an app's listing or registration is doing.
+            async with guild_session.begin_nested():
+                await mandatory_apps_service.install_mandatory_apps(
+                    guild_session, guild_id=guild_id, created_by=owner.id
+                )
+        except Exception:
+            logger.exception(
+                "mandatory apps: guild %s was created without them; the boot "
+                "sweep installs what is missing",
+                guild_id,
             )
-    except Exception:
-        logger.exception(
-            "mandatory apps: guild %s was created without them; the boot sweep "
-            "installs what is missing",
-            guild_id,
-        )
+        await guild_session.commit()
 
 
 #: The characters a hex colour is made of, checked one at a time. An explicit

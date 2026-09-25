@@ -27,7 +27,8 @@ from sqlalchemy import update as sa_update
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
-from app.db.session import SystemSessionLocal, set_rls_context
+from app.db import cohorts
+from app.db.session import set_rls_context
 from app.services.content_sockets import resource_room, sockets
 from app.services.tenant.collaborative_resources import (
     YJS_STATE_COLUMN,
@@ -405,13 +406,14 @@ class CollaborationManager:
                 return False
 
     async def save(self, room: CollaborationRoom) -> None:
-        """Write one room, through the system engine routed to its community.
+        """Write one room, on a system session from its community's cohort
+        routed into it.
 
         The one way a room reaches the database: the sweep, the last
         connection leaving and a handed-over edit all come here, so none of
         them depends on whose request happened to be last in the room.
         """
-        async with SystemSessionLocal() as session:
+        async with cohorts.system_session(room.guild_id) as session:
             await set_rls_context(session, guild_id=room.guild_id)
             await self._write_room(room, session)
 

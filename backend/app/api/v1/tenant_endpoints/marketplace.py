@@ -81,7 +81,7 @@ from app.services.marketplace.tool_listings import (
 )
 from app.core.audit_events import AuditEventType
 from app.core.user_display import handle_of
-from app.db import session as db_session
+from app.db import cohorts
 from app.services import audit as audit_service
 from app.services.platform import app_settings as app_settings_service
 
@@ -400,9 +400,9 @@ async def share_to_marketplace(
         else None
     )
 
-    # The catalogue's writer is the system engine; the member's session has
-    # done its part by reading the item.
-    async with db_session.SystemSessionLocal() as system:
+    # The catalogue's writer is the system engine, on this community's cohort;
+    # the member's session has done its part by reading the item.
+    async with cohorts.system_session(guild_context.guild_id) as system:
         hold = not await app_settings_service.marketplace_members_publish_directly(
             system
         )

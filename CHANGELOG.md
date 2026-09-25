@@ -54,6 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Anyone who can edit a calendar can delete its events** — the delete button only showed for whoever created the event.
 - **My pages update after you create something** — creating a queue, counter group, calendar, dashboard, notice, picture gallery or wiki now refreshes your cross-community lists straight away.
 - **Whiteboards and file documents keep what you wrote** — a whiteboard opened while it was still loading could save an empty drawing over the real one, and a name or cover change made to a file or link document while offline was never saved.
+- **Starting the server no longer rebuilds every search index** — each start reindexed every community's search and then failed to record that it had, so the next start did it all again. It now records the rebuild, so a start only reindexes a community whose index is out of date.
 - **Tagging calendar events and wiki pages in bulk works** — adding or removing tags on several events or wiki pages at once failed with an error.
 - **A tag's page lists everything tagged with it** — it showed only tasks, projects and documents. Every tool now has its own tab.
 - **Notifications open what they're about** — event notifications opened the community home page instead of the event, notifications about a comment on a wiki page opened the wiki rather than the page, and comment notifications on queues, counters, calendars, dashboards, pictures and wikis showed no title.
