@@ -267,6 +267,14 @@
     "fallbackText": "If this wasn't you, use one of your recovery codes to set a password straight away and get in touch with whoever runs this site.",
     "textBody": "Your account no longer has a password. You now sign in with your passkey or your sign-in provider."
   },
+  "passwordChanged": {
+    "subject": "Your password was changed",
+    "title": "Your password was changed",
+    "greeting": "Hello <strong>{{name}}</strong>,",
+    "body": "The password for your account was just changed. Every other device signed in to your account has been signed out.",
+    "fallbackText": "If this wasn't you, reset your password straight away and get in touch with whoever runs this site.",
+    "textBody": "The password for your account was just changed. Every other device signed in to your account has been signed out. If this wasn't you, reset your password straight away."
+  },
   "passkey": {
     "greeting": "Hello <strong>{{name}}</strong>,",
     "fallbackText": "If this wasn't you, change your password straight away and get in touch with whoever runs this site.",

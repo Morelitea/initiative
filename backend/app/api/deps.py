@@ -4,7 +4,6 @@ from typing import Annotated, Any, NoReturn, Optional, Sequence
 
 from fastapi import Cookie, Depends, HTTPException, Path, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer
-import jwt
 from sqlalchemy.exc import DBAPIError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -24,20 +23,21 @@ from app.core.capabilities import Capability, user_has_capability
 from app.core.config import API_V1_STR
 from app.core.login_methods import LoginMethod
 from app.core import auth_context
-from app.core.auth_context import (
-    set_api_key_credential,
-    set_asked_of_account,
-    set_device_token_id,
-    set_satisfied_providers,
-    set_session_amr,
-    claims_from_provider_auth,
-    set_satisfied_claims,
-)
+from app.services.auth import credentials
 from app.services.auth import guild_provider_connections as guild_connections
+from app.services.auth.credentials import (
+    DEVICE_TOKEN_SCHEME,
+    HEADER_CREDENTIALS,
+    URL_CREDENTIALS,
+    Authenticated,
+    CredentialKind,
+    CredentialRefused,
+    asked_of_an_account,
+    clear_recorded_credential,
+)
 from app.services.auth.assurance import (
     SECOND_FACTOR_AMR,
     carries_passkey,
-    policy_markers,
 )
 from app.core.login_methods import SecondFactorRequirement
 from app.models.platform.app_setting import AppSetting
@@ -55,9 +55,6 @@ from app.core.messages import (
 from app.core.security import (
     SESSION_COOKIE_NAME,
     STEP_UP_CHALLENGE,
-    UploadTokenError,
-    decode_session_token,
-    verify_upload_token,
 )
 from app.core.identity_boundary import InstallBoundary, admit_install
 from app.db.guild_standing import (
@@ -80,7 +77,6 @@ from app.models.platform.access_grant import (
     AccessGrantPurpose,
     AccessLevel,
 )
-from app.models.platform.api_key import UserApiKey
 from app.models.platform.guild import (
     LIVE_STATUS_VALUES,
     Guild,
@@ -94,11 +90,7 @@ from app.models.platform.user import (
     User,
     UserStatus,
 )
-from app.schemas.platform.token import TokenPayload
-from app.services.auth.subject import account_for_subject
 from app.services.platform import access_grants as access_grants_service
-from app.services.platform import api_keys as api_keys_service
-from app.services.platform import user_tokens
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
@@ -114,9 +106,9 @@ _SAFE_HTTP_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 #: through a script is still that person. It matters where the *act* is granting
 #: something authority the credential itself carries, because there the
 #: credential is a party to the decision rather than a way of transporting it.
-CREDENTIAL_SESSION = "session"
-CREDENTIAL_API_KEY = "api_key"
-CREDENTIAL_DEVICE_TOKEN = "device_token"
+CREDENTIAL_SESSION = CredentialKind.session.value
+CREDENTIAL_API_KEY = CredentialKind.api_key.value
+CREDENTIAL_DEVICE_TOKEN = CredentialKind.device_token.value
 #: An installed app's access token. Only a route that names an app scope
 #: admits one (:func:`app_scope`).
 CREDENTIAL_INSTALL = "install"
@@ -128,46 +120,43 @@ CREDENTIAL_INSTALL = "install"
 FIRST_PARTY_CREDENTIALS = frozenset({CREDENTIAL_SESSION, CREDENTIAL_DEVICE_TOKEN})
 
 
-async def _authenticate_device_token(
-    session: AsyncSession, token: str
-) -> Optional[User]:
-    """Authenticate using a device token and return the associated user.
+def _admit(request: Request, authenticated: Authenticated) -> User:
+    """Hand the request the account a credential named, and say which
+    credential it was.
 
-    Records which token it was (see ``app.core.auth_context``). That row is the
-    server's only durable name for one installed client, and two registrations
-    that have to end up pointing at the same phone -- its push token and its
-    message key store -- both read it from there rather than being told an id
-    by the client.
-
-    The token is resolved on the system engine, as a personal API key is; the
-    account it names is loaded on the request's own session.
+    ``read_only`` API keys may only issue safe (non-mutating) HTTP methods;
+    that is the one part of a key's scope that needs the request itself. The
+    guild a key is limited to was recorded where it was read, and the
+    guild-access gate applies it.
     """
-    device_token = await user_tokens.authenticate_device_token(token)
-    if not device_token:
-        return None
-    statement = select(User).where(User.id == device_token.user_id)
-    result = await session.exec(statement)
-    user = result.one_or_none()
-    if user is not None:
-        set_device_token_id(device_token.id)
-    return user
-
-
-def _enforce_api_key_scope(request: Request, api_key: UserApiKey) -> None:
-    """Apply a scoped PAT's restrictions at authentication time.
-
-    ``read_only`` keys may only issue safe (non-mutating) HTTP methods. A
-    ``guild_id``-bound key stashes its guild on ``request.state`` for
-    ``get_guild_membership`` to pin against the ``/c/{guild_id}`` path — the one
-    place that sees both the token's guild and the path's.
-    """
-    if api_key.read_only and request.method not in _SAFE_HTTP_METHODS:
+    api_key = authenticated.api_key
+    if (
+        api_key is not None
+        and api_key.read_only
+        and request.method not in _SAFE_HTTP_METHODS
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=UserMessages.API_KEY_READ_ONLY,
         )
-    if api_key.guild_id is not None:
-        request.state.api_key_guild_id = api_key.guild_id
+    request.state.credential = authenticated.kind.value
+    # Which session this request is: what lets an endpoint act on the
+    # account's other ones and leave the caller where they are.
+    if authenticated.session_id is not None:
+        request.state.session_id = str(authenticated.session_id)
+    return authenticated.user
+
+
+def _presented(
+    request: Request, bearer_token: str | None, session_cookie: str | None
+) -> tuple[str | None, frozenset[CredentialKind]]:
+    """The credential a request's headers or cookie carry, and the kinds it
+    may be. The ``DeviceToken`` scheme names its own kind; a bearer token or
+    the session cookie may be a session or a personal API key."""
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("DeviceToken "):
+        return auth_header.removeprefix("DeviceToken "), DEVICE_TOKEN_SCHEME
+    return bearer_token or session_cookie, HEADER_CREDENTIALS
 
 
 async def get_current_user(
@@ -176,117 +165,24 @@ async def get_current_user(
     bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
     session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
 ) -> User:
-    # Start from the fail-closed empty satisfied-provider set; only the session
-    # JWT branch below records a real one (see app.core.auth_context).
-    set_satisfied_providers(None)
-    set_satisfied_claims(None)
-    set_session_amr(None)
-    set_device_token_id(None)
-    set_asked_of_account(None)
-    # Not an API key until the branch below says so, which is the answer a
-    # community that declines them admits.
-    set_api_key_credential(False)
-    # Which kind of credential this turns out to be, for the few endpoints that
-    # care (see `require_first_party_session`). Set before any branch can
-    # return, so an unrecognized path reads as something other than a session.
+    # Nothing recorded until a credential is read, so a request that presents
+    # none reads as something other than a session.
+    clear_recorded_credential()
     request.state.credential = None
-
-    # Check for Authorization header - could be Bearer, DeviceToken, or API key
-    auth_header = request.headers.get("Authorization", "")
-
-    # Handle DeviceToken scheme
-    if auth_header.startswith("DeviceToken "):
-        device_token = auth_header[12:]  # len("DeviceToken ") = 12
-        user = await _authenticate_device_token(session, device_token)
-        if user:
-            request.state.credential = CREDENTIAL_DEVICE_TOKEN
-            return user
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=AuthMessages.INVALID_DEVICE_TOKEN,
-            headers={"WWW-Authenticate": "DeviceToken"},
-        )
-
-    # Use the bearer token from OAuth2 scheme, fall back to HttpOnly cookie (web sessions)
-    token = bearer_token or session_cookie
+    token, allow = _presented(request, bearer_token, session_cookie)
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=AuthMessages.NOT_AUTHENTICATED,
             headers={"WWW-Authenticate": "Bearer"},
         )
-
-    # An installed app's access token is never a person. It is refused here,
-    # before anything is read, and admitted only by a route that names an app
-    # scope (``app_scope``), which reads it without coming through here.
-    if is_access_token(token):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS,
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # A personal API key names itself by its prefix; anything else is not one.
-    api_auth = (
-        await api_keys_service.authenticate_api_key(session, token)
-        if token.startswith(api_keys_service.API_KEY_PREFIX)
-        else None
-    )
-    if api_auth:
-        user, api_key = api_auth
-        _enforce_api_key_scope(request, api_key)
-        set_api_key_credential(True)
-        request.state.credential = CREDENTIAL_API_KEY
-        return user
-
-    # Try JWT authentication. Any PyJWTError (expired signature, bad sig,
-    # malformed claims, …) is a credentials problem, so it should be 401
-    # "please re-authenticate", not 403 "you're not allowed". The SPA's
-    # 401 interceptor depends on this to auto-redirect to /welcome when
-    # the access token expires.
+    # A credential that cannot be read is 401 "please re-authenticate", not
+    # 403: the SPA's 401 interceptor sends an expired session to /welcome.
     try:
-        payload = decode_session_token(token)
-        token_data = TokenPayload(**payload)
-    except jwt.PyJWTError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS,
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from exc
-
-    # The satisfied-provider set the guild auth-policy gate reads. A
-    # non-session credential never reaches this branch and leaves it empty.
-    set_satisfied_providers(frozenset(token_data.sat or ()))
-    set_satisfied_claims(claims_from_provider_auth(token_data.satd))
-    # What the sign-in wrote about how it was made — the second-factor marker
-    # where a code was presented, the passkey markers where a key answered.
-    # Empty on every credential that is not a session.
-    set_session_amr(policy_markers(token_data.amr))
-
-    if not token_data.sub:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=AuthMessages.INVALID_TOKEN_PAYLOAD,
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    account = await account_for_subject(session, subject=token_data.sub)
-    if not account:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
-        )
-    user, settings_row = account
-    if token_data.ver is None or token_data.ver != user.token_version:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail=AuthMessages.INVALID_TOKEN
-        )
-    # What the deployment asks of an account, off the row the lookup carried.
-    set_asked_of_account(_asked_of_an_account(settings_row))
-    request.state.credential = CREDENTIAL_SESSION
-    # Which session this request is: what lets an endpoint act on the
-    # account's other ones and leave the caller where they are.
-    request.state.session_id = token_data.sid
-    return user
+        authenticated = await credentials.authenticate(session, token, allow=allow)
+    except CredentialRefused as exc:
+        raise exc.as_http() from exc
+    return _admit(request, authenticated)
 
 
 def require_first_party_session(request: Request) -> str:
@@ -649,6 +545,14 @@ def declines_this_credential(guild: Guild) -> bool:
     return not guild.allow_api_keys and auth_context.api_key_credential()
 
 
+def pinned_elsewhere(guild_id: int) -> bool:
+    """Whether this request's API key is limited to a guild other than
+    ``guild_id``. False for a key limited to no guild and for every other
+    credential."""
+    pinned = auth_context.api_key_guild_id()
+    return pinned is not None and pinned != guild_id
+
+
 def _enforce_guild_api_access(guild: Guild) -> None:
     """A community that declines personal API keys is not reached with one.
 
@@ -663,18 +567,6 @@ def _enforce_guild_api_access(guild: Guild) -> None:
     """
     if declines_this_credential(guild):
         raise GuildAccessError(detail=GuildMessages.GUILD_API_KEYS_REFUSED)
-
-
-def _asked_of_an_account(settings_row: AppSetting | None) -> SecondFactorRequirement:
-    """What the deployment asks, from the row the gate read.
-
-    A database with no singleton yet asks nothing — the same conclusion
-    ``public.platform_factor_satisfied()`` reaches from the same absence, so
-    the two layers agree on a deployment that has not finished starting.
-    """
-    if settings_row is None:
-        return SecondFactorRequirement.nobody
-    return auth_posture.requirement_from_row(settings_row)
 
 
 async def _read_membership_gate(
@@ -723,7 +615,7 @@ async def _read_membership_gate(
     age_gate_on = bool(
         settings_row is not None and settings_row.community_age_gate_enabled
     )
-    return membership, guild, policy, _asked_of_an_account(settings_row), age_gate_on
+    return membership, guild, policy, asked_of_an_account(settings_row), age_gate_on
 
 
 async def _read_grant_gate(
@@ -743,7 +635,7 @@ async def _read_grant_gate(
     ).one_or_none()
     if row is None:
         raise ValueError(GuildMessages.GUILD_NOT_FOUND)
-    return row[0], row[1], _asked_of_an_account(row[2])
+    return row[0], row[1], asked_of_an_account(row[2])
 
 
 async def _load_guild_context(
@@ -763,9 +655,9 @@ async def _load_guild_context(
     fails closed. The caller has already coerced ``guild_id`` to ``int`` before
     it reaches the privileged ``SET ROLE``/``search_path`` sink.
 
-    Transport-agnostic: it takes only the resolved ``guild_id``. The REST-only
-    guild-bound API key guard (key-guild must equal path-guild) lives in
-    ``get_guild_membership``, where both values exist.
+    Transport-agnostic: it takes only the resolved ``guild_id``. A personal
+    API key limited to one guild is refused every other one here, so the rule
+    holds on every surface that resolves a guild through this function.
 
     ``for_settings`` is the community's own configuration surface, which a
     guild administrator keeps while its content is frozen: a ``read_only``
@@ -783,6 +675,8 @@ async def _load_guild_context(
     # one of its members was suspended. Nothing is revoked: the membership is
     # still theirs when the suspension lifts.
     if current_user.status == UserStatus.suspended:
+        raise GuildAccessError()
+    if pinned_elsewhere(guild_id):
         raise GuildAccessError()
 
     # Establish the caller context before loading their membership.
@@ -927,14 +821,6 @@ async def get_guild_membership(
     disagree. ``RLSSessionDep`` is the other half of this one call: FastAPI
     caches a dependency per request, so it hands back the session this routed.
     """
-    # A guild-bound API key (PAT) is pinned to one guild the same way: refuse if
-    # the path addresses a different guild than the key was scoped to.
-    key_guild = getattr(request.state, "api_key_guild_id", None)
-    if key_guild is not None and key_guild != guild_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_ACCESS_DENIED,
-        )
     try:
         return await establish_guild_access(session, current_user, guild_id)
     except GuildAccessError as exc:
@@ -1204,12 +1090,6 @@ async def get_guild_settings_context(
     the settings that govern them. A suspended community has no settings
     surface for its members: it is in time out.
     """
-    key_guild = getattr(request.state, "api_key_guild_id", None)
-    if key_guild is not None and key_guild != guild_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_ACCESS_DENIED,
-        )
     try:
         return await establish_guild_access(
             session, current_user, guild_id, for_settings=True
@@ -1967,77 +1847,6 @@ async def get_user_session(
 UserSessionDep = Annotated[AsyncSession, Depends(get_user_session)]
 
 
-async def _load_active_user_by_id(session: AsyncSession, user_id: int) -> User:
-    """Load a user by id for the uploads route, enforcing active status.
-
-    Shared by the scoped-upload-token path so a deactivated account can't
-    keep pulling media with a still-valid token.
-    """
-    statement = select(User).where(User.id == user_id)
-    result = await session.exec(statement)
-    user = result.one_or_none()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
-        )
-    if user.status != UserStatus.active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
-        )
-    return user
-
-
-async def _authenticate_upload_query_token(
-    session: AsyncSession, token_param: str
-) -> User:
-    """Resolve a ``?token=`` query-param credential for /uploads/*.
-
-    Query params leak via logs, browser history, and Referer headers, so this
-    path deliberately accepts ONLY URL-safe, narrowly-scoped credentials:
-
-      1. A short-lived, uploads-scoped JWT minted by ``POST /auth/upload-token``
-         (native <img>/<iframe> media loads can't send headers or cookies).
-      2. A device token (native long-lived credential, already used this way).
-
-    It intentionally does NOT accept a full session JWT or an API key — those
-    are long-lived, full-API credentials that must never ride in a URL. A
-    session JWT presented here therefore 401s.
-    """
-    # 1. Scoped upload token (preferred for native media).
-    try:
-        (
-            user_id,
-            token_satisfied,
-            token_claims,
-            token_markers,
-        ) = verify_upload_token(token_param)
-    except UploadTokenError:
-        pass
-    else:
-        # The scoped token copied its minting session's satisfied set — record
-        # it so the guild auth-policy gate treats this request as that session.
-        set_satisfied_providers(token_satisfied)
-        set_satisfied_claims(token_claims)
-        set_session_amr(policy_markers(token_markers))
-        return await _load_active_user_by_id(session, user_id)
-
-    # 2. Device token fallback (native apps historically pass these as ?token=).
-    user = await _authenticate_device_token(session, token_param)
-    if user:
-        if user.status != UserStatus.active:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=AuthMessages.INACTIVE_USER,
-            )
-        return user
-
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail=AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS,
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-
 async def _resolve_upload_user(
     request: Request,
     session: SessionDep,
@@ -2047,131 +1856,33 @@ async def _resolve_upload_user(
 ) -> User:
     """Auth dependency for /uploads/* and authenticated document downloads.
 
-    Held to the deployment's second-factor rule like any other request: this
-    resolves its own caller rather than going through
-    ``get_current_active_user``, so it asks the same question itself.
-
     Two trust tiers, by where the credential arrives:
 
-      * Authorization header or HttpOnly cookie — not exposed in URLs, so the
-        full credential set is honored (session JWT, API key, DeviceToken
-        scheme). This is the web <img> path (cookie) and direct API
-        callers.
+      * Authorization header or HttpOnly cookie — not exposed in URLs, so what
+        every other route accepts is accepted here.
       * ``?token=`` query param — leaks via logs/history/Referer, so only a
-        short-lived uploads-scoped token or a device token is accepted (see
-        ``_authenticate_upload_query_token``). A full session JWT here is
-        rejected; native clients fetch a scoped token from
-        ``POST /auth/upload-token`` instead.
+        short-lived uploads-scoped token or a device token is accepted. A
+        session token or API key there is refused; native clients fetch a
+        scoped token from ``POST /auth/upload-token`` instead.
+
+    Held to the same account status rule as every other route.
     """
-    # Fail-closed default; the session-JWT and scoped-token branches record the
-    # credential's real satisfied set (see app.core.auth_context).
-    set_satisfied_providers(None)
-    set_satisfied_claims(None)
-    set_session_amr(None)
-    set_device_token_id(None)
-    set_api_key_credential(False)
-    set_asked_of_account(None)
-
-    auth_header = request.headers.get("Authorization", "")
-
-    # 1. DeviceToken scheme (Authorization header only — device tokens aren't safe in URLs)
-    if auth_header.startswith("DeviceToken "):
-        device_token = auth_header[12:]  # len("DeviceToken ") = 12
-        user = await _authenticate_device_token(session, device_token)
-        if user:
-            if user.status != UserStatus.active:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=AuthMessages.INACTIVE_USER,
-                )
-            return user
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=AuthMessages.INVALID_DEVICE_TOKEN,
-            headers={"WWW-Authenticate": "DeviceToken"},
-        )
-
-    # 2. Header bearer or cookie carries the full-trust credential. A ?token=
-    #    query param, by contrast, is restricted to URL-safe scoped credentials.
-    header_token = bearer_token or session_cookie
-    if not header_token:
-        if token_param:
-            return await _authenticate_upload_query_token(session, token_param)
+    clear_recorded_credential()
+    request.state.credential = None
+    token, allow = _presented(request, bearer_token, session_cookie)
+    if not token and token_param:
+        token, allow = token_param, URL_CREDENTIALS
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=AuthMessages.NOT_AUTHENTICATED,
             headers={"WWW-Authenticate": "Bearer"},
         )
-
-    token = header_token
-
-    # An installed app's access token is never a person, here as on every
-    # other route that names no app scope.
-    if is_access_token(token):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS,
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # A personal API key names itself by its prefix; anything else is not one.
-    api_auth = (
-        await api_keys_service.authenticate_api_key(session, token)
-        if token.startswith(api_keys_service.API_KEY_PREFIX)
-        else None
-    )
-    if api_auth:
-        user, api_key = api_auth
-        if user.status != UserStatus.active:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=AuthMessages.INACTIVE_USER,
-            )
-        _enforce_api_key_scope(request, api_key)
-        set_api_key_credential(True)
-        return user
-
-    # Try JWT authentication. Expired / malformed tokens are 401 (not 403)
-    # so the SPA can auto-redirect to /welcome when the session lapses.
     try:
-        payload = decode_session_token(token)
-        token_data = TokenPayload(**payload)
-    except jwt.PyJWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS,
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    if not token_data.sub:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=AuthMessages.INVALID_TOKEN_PAYLOAD,
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    account = await account_for_subject(session, subject=token_data.sub)
-    if not account:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
-        )
-    user, settings_row = account
-    if token_data.ver is None or token_data.ver != user.token_version:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail=AuthMessages.INVALID_TOKEN
-        )
-    set_asked_of_account(_asked_of_an_account(settings_row))
-    if user.status != UserStatus.active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
-        )
-    set_satisfied_providers(frozenset(token_data.sat or ()))
-    set_satisfied_claims(claims_from_provider_auth(token_data.satd))
-    # What the session proved about the person, read from its own ``amr`` as
-    # ``get_current_user`` reads it — a community asking for either answers a
-    # picture and a download the same way it answers a page.
-    set_session_amr(policy_markers(token_data.amr))
-    return user
+        authenticated = await credentials.authenticate(session, token, allow=allow)
+    except CredentialRefused as exc:
+        raise exc.as_http() from exc
+    return await _active_user(request, _admit(request, authenticated))
 
 
 async def get_upload_user(

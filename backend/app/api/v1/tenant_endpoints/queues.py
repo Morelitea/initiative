@@ -433,8 +433,7 @@ async def delete_queue(
 ) -> None:
     """Soft-delete a queue. Cascades to its items. Requires owner permission
     or guild admin."""
-    from app.services.platform import guilds as guilds_service
-    from app.services.tenant.soft_delete import soft_delete_entity
+    from app.services.tenant.soft_delete import trash
 
     queue = await resource_access.load_authorized(
         session, Tool.queue, queue_id, current_user, guild_context, access="read"
@@ -445,14 +444,10 @@ async def delete_queue(
         require_owner=True,
         context=guild_context,
     )
-    retention_days = await guilds_service.get_guild_retention_days(
-        session, guild_context.guild_id
-    )
-    await soft_delete_entity(
+    await trash(
         session,
         queue,
         deleted_by_user_id=current_user.id,
-        retention_days=retention_days,
     )
     await session.commit()
     # Pass guild_id explicitly: the queue is soft-deleted, so _emit_queue's
@@ -595,8 +590,7 @@ async def delete_queue_item(
     guild_context: GuildContextDep,
 ) -> None:
     """Soft-delete a queue item. Requires write access on the parent queue."""
-    from app.services.platform import guilds as guilds_service
-    from app.services.tenant.soft_delete import soft_delete_entity
+    from app.services.tenant.soft_delete import trash
 
     queue = await resource_access.load_authorized(
         session, Tool.queue, queue_id, current_user, guild_context, access="write"
@@ -607,14 +601,10 @@ async def delete_queue_item(
         queue.current_item_id = None
         session.add(queue)
 
-    retention_days = await guilds_service.get_guild_retention_days(
-        session, guild_context.guild_id
-    )
-    await soft_delete_entity(
+    await trash(
         session,
         item,
         deleted_by_user_id=current_user.id,
-        retention_days=retention_days,
     )
     await session.commit()
     await _emit_queue(session, queue_id, "item_removed", {"id": item_id})
@@ -923,16 +913,6 @@ async def read_after_write(
 # ---------------------------------------------------------------------------
 
 
-async def _ws_authenticate(token: str, session) -> Optional[User]:
-    """Validate a session JWT or device token and return the user, or None.
-
-    Delegates to the shared ``authenticate_ws_token`` helper so the
-    ``token_version`` revocation check stays in lockstep with the HTTP auth
-    path and the other realtime WebSocket endpoints (SEC-4).
-    """
-    return await authenticate_ws_token(token, session)
-
-
 @router.websocket("/{queue_id}/ws")
 async def websocket_queue(
     websocket: WebSocket,
@@ -975,7 +955,7 @@ async def websocket_queue(
 
     # Authenticate and check access using a short-lived session
     async with request_sessionmaker(guild_id)() as session:
-        user = await _ws_authenticate(token, session)
+        user = await authenticate_ws_token(token, session)
         if not user:
             logger.warning(f"Queue WS: auth failed for queue {queue_id}")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)

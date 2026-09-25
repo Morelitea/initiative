@@ -259,3 +259,29 @@ async def test_the_cross_guild_aggregate_leaves_out_a_guild_that_declines_keys(
 
     by_key = await client.get("/api/v1/me/projects", headers=key_headers)
     assert {p["name"] for p in by_key.json()["items"]} == {names[open_guild.id]}
+
+
+async def test_a_key_limited_to_one_guild_reads_only_that_guild_across_guilds(
+    client: AsyncClient, session: AsyncSession
+):
+    """``/me/*`` visits each guild the account belongs to; a key limited to
+    one guild visits that one and no other."""
+    user = await create_user(session)
+    pinned = await create_guild(session, creator=user)
+    other = await create_guild(session, creator=user)
+    names = {}
+    for guild in (pinned, other):
+        await create_guild_membership(
+            session, user=user, guild=guild, role=GuildRole.member
+        )
+        initiative = await create_initiative(session, guild, user)
+        project = await create_project(session, initiative, user)
+        names[guild.id] = project.name
+    pinned_id = pinned.id
+
+    headers = get_auth_headers(user)
+    key_headers = await _key_headers(client, headers, guild_id=pinned_id)
+
+    by_key = await client.get("/api/v1/me/projects", headers=key_headers)
+    assert by_key.status_code == 200, by_key.text
+    assert {p["name"] for p in by_key.json()["items"]} == {names[pinned_id]}

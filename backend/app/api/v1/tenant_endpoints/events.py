@@ -3,7 +3,6 @@ import contextlib
 import json
 import logging
 from time import monotonic
-from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 from sqlalchemy import text
@@ -16,7 +15,6 @@ from app.core.security import SESSION_COOKIE_NAME
 from app.db.cohorts import request_sessionmaker
 from app.db.session import CONNECTION_RESET_SQL
 from app.models.tenant.initiative import Initiative
-from app.models.platform.user import User
 from app.services.membership import initiative_scope_clause
 from app.services.realtime import manager
 from app.services.tenant.room_sink import EVERYTHING, missed_while_away
@@ -37,16 +35,6 @@ HEARTBEAT_SECONDS = 30.0
 #: The beat itself. Named rather than empty so it is legible on the wire; it
 #: carries no changes, which is the whole of what the client does with it.
 HEARTBEAT_FRAME = {"heartbeat": True}
-
-
-async def _user_from_token(token: str, session: AsyncSession) -> Optional[User]:
-    """Validate a session JWT or device token and return the user, or None.
-
-    Delegates to the shared ``authenticate_ws_token`` helper so the
-    ``token_version`` revocation check stays in lockstep with the HTTP auth
-    path and the other realtime WebSocket endpoints (SEC-4).
-    """
-    return await authenticate_ws_token(token, session)
 
 
 async def _accessible_initiative_ids(
@@ -142,7 +130,7 @@ async def websocket_updates(websocket: WebSocket, guild_id: int):
         # Taken before the row is read, so it is never later than the value
         # that read comes back with.
         presence_known_at = monotonic()
-        user = await _user_from_token(token, session)
+        user = await authenticate_ws_token(token, session)
         if user is None:
             logger.warning("Events WebSocket: Auth failed")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)

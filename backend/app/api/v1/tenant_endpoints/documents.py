@@ -1332,8 +1332,7 @@ async def delete_document(
     (the active-row filter hides it). Both URL-orphan cleanup for native
     docs and the 1:1 Upload cleanup for file-type docs run later, at
     hard-purge time, via ``purge_document_uploads``."""
-    from app.services.platform import guilds as guilds_service
-    from app.services.tenant.soft_delete import soft_delete_entity
+    from app.services.tenant.soft_delete import trash
 
     document = await resource_access.load_authorized(
         session,
@@ -1344,14 +1343,10 @@ async def delete_document(
         require_owner=True,
         hydrated=True,
     )
-    retention_days = await guilds_service.get_guild_retention_days(
-        session, guild_context.guild_id
-    )
-    await soft_delete_entity(
+    await trash(
         session,
         document,
         deleted_by_user_id=current_user.id,
-        retention_days=retention_days,
     )
     await session.commit()
 

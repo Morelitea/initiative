@@ -359,8 +359,7 @@ async def delete_counter_group(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
-    from app.services.platform import guilds as guilds_service
-    from app.services.tenant.soft_delete import soft_delete_entity
+    from app.services.tenant.soft_delete import trash
 
     group = await resource_access.load_authorized(
         session,
@@ -376,14 +375,10 @@ async def delete_counter_group(
         require_owner=True,
         context=guild_context,
     )
-    retention_days = await guilds_service.get_guild_retention_days(
-        session, guild_context.guild_id
-    )
-    await soft_delete_entity(
+    await trash(
         session,
         group,
         deleted_by_user_id=current_user.id,
-        retention_days=retention_days,
     )
     await session.commit()
     # Pass guild_id explicitly: the group is soft-deleted, so _emit_counter's
@@ -565,8 +560,7 @@ async def delete_counter(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
-    from app.services.platform import guilds as guilds_service
-    from app.services.tenant.soft_delete import soft_delete_entity
+    from app.services.tenant.soft_delete import trash
 
     await resource_access.load_authorized(
         session,
@@ -577,14 +571,10 @@ async def delete_counter(
         access="write",
     )
     counter = await _get_counter_for_group(session, group_id, counter_id)
-    retention_days = await guilds_service.get_guild_retention_days(
-        session, guild_context.guild_id
-    )
-    await soft_delete_entity(
+    await trash(
         session,
         counter,
         deleted_by_user_id=current_user.id,
-        retention_days=retention_days,
     )
     await session.commit()
     await _emit_counter(session, group_id, "counter_removed", {"id": counter_id})
@@ -832,16 +822,6 @@ async def read_after_write(
 # ---------------------------------------------------------------------------
 
 
-async def _ws_authenticate(token: str, session) -> Optional[User]:
-    """Validate a session JWT or device token and return the user, or None.
-
-    Delegates to the shared ``authenticate_ws_token`` helper so the
-    ``token_version`` revocation check stays in lockstep with the HTTP auth
-    path and the other realtime WebSocket endpoints (SEC-4).
-    """
-    return await authenticate_ws_token(token, session)
-
-
 @router.websocket("/{group_id}/ws")
 async def websocket_counter_group(
     websocket: WebSocket,
@@ -875,7 +855,7 @@ async def websocket_counter_group(
         return
 
     async with request_sessionmaker(guild_id)() as session:
-        user = await _ws_authenticate(token, session)
+        user = await authenticate_ws_token(token, session)
         if not user:
             logger.warning(f"Counter WS: auth failed for group {group_id}")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)

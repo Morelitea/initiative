@@ -10,7 +10,6 @@ Handles:
 
 import json
 import logging
-from typing import Optional
 
 from typing import Annotated
 
@@ -72,16 +71,6 @@ MSG_AWARENESS = 3  # Join / leave / roster, server to client (JSON)
 MSG_AWARENESS_BINARY = 4  # y-protocols awareness (binary, relayed as-is)
 MSG_AUTH = 5  # Authentication message (JSON: {token, guild_id})
 MSG_CONTENT = 6  # Editor's JSON rendering of the document, for the content column
-
-
-async def _get_user_from_token(token: str, session) -> Optional[User]:
-    """Validate a session JWT or device token and return the user, or None.
-
-    Delegates to the shared ``authenticate_ws_token`` helper so the
-    ``token_version`` revocation check stays in lockstep with the HTTP auth
-    path and the other realtime WebSocket endpoints (SEC-4).
-    """
-    return await authenticate_ws_token(token, session)
 
 
 def _addresses_the_same_thing(
@@ -208,7 +197,7 @@ async def _collaborate(
 
     # Authenticate and check permissions using a short-lived session
     async with request_sessionmaker(guild_id)() as session:
-        user = await _get_user_from_token(token, session)
+        user = await authenticate_ws_token(token, session)
         if not user:
             logger.warning(
                 f"Collaboration: Auth failed for {spec.resource_type} {resource_id}"

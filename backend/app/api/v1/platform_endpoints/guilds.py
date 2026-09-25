@@ -678,7 +678,7 @@ async def read_guild(
         role=guild_context.rung,
         writes_settings=guild_context.writes_settings,
         position=_position_of(guild_context),
-        retention_days=await guilds_service.get_guild_retention_days(session, guild_id),
+        retention_days=await guilds_service.get_guild_retention_days(session),
         member_count=await guilds_service.count_members(session, guild_id=guild_id),
         administration=await guilds_service.get_administration(
             session, guild_id=guild_id
@@ -726,7 +726,7 @@ async def update_guild(
         _GUILD_PROFILE_FIELDS,
     )
     retention_before = (
-        await guilds_service.get_guild_retention_days(session, guild_id)
+        await guilds_service.get_guild_retention_days(session)
         if retention_days_provided
         else None
     )
@@ -783,13 +783,11 @@ async def update_guild(
             area="retention",
             before={"retention_days": retention_before},
             after={
-                "retention_days": await guilds_service.get_guild_retention_days(
-                    session, guild_id
-                )
+                "retention_days": await guilds_service.get_guild_retention_days(session)
             },
         )
     await session.commit()
-    retention_days = await guilds_service.get_guild_retention_days(session, guild_id)
+    retention_days = await guilds_service.get_guild_retention_days(session)
     member_count = await guilds_service.count_members(session, guild_id=guild_id)
     # Only a guild admin reaches this endpoint, so the caps belong in the reply.
     administration = await guilds_service.get_administration(session, guild_id=guild_id)
@@ -1035,7 +1033,7 @@ async def _guild_payload_after_image_change(
         role=guild_context.rung,
         writes_settings=guild_context.writes_settings,
         position=_position_of(guild_context),
-        retention_days=await guilds_service.get_guild_retention_days(session, guild_id),
+        retention_days=await guilds_service.get_guild_retention_days(session),
         member_count=await guilds_service.count_members(session, guild_id=guild_id),
         administration=await guilds_service.get_administration(
             session, guild_id=guild_id

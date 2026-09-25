@@ -254,12 +254,20 @@ async def test_an_address_is_taken_whichever_account_holds_it(
 
 @pytest.mark.integration
 async def test_a_password_reset_finds_any_of_an_accounts_addresses(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, monkeypatch
 ):
+    from app.services import email as email_service
+    from app.services.platform import app_settings as app_settings_service
+
+    row = await app_settings_service.get_app_settings(session)
+    row.smtp_host = "smtp.example.com"
+    row.smtp_from_address = "noreply@example.com"
+    session.add(row)
     user = await create_user(session, email="reset-primary@example.com")
+    user_id = user.id
     addresses.record_address(
         session,
-        user_id=user.id,
+        user_id=user_id,
         email="reset-second@example.com",
         source=addresses.SOURCE_ADDED,
         verified=True,
@@ -267,20 +275,42 @@ async def test_a_password_reset_finds_any_of_an_accounts_addresses(
     )
     await session.commit()
 
+    letters: list[int] = []
+
+    async def _capture(session_, user_, token):
+        letters.append(user_.id)
+
+    monkeypatch.setattr(email_service, "send_password_reset_email", _capture)
+
     async def _forgot(email: str) -> int:
         return (
             await client.post("/api/v1/auth/password/forgot", json={"email": email})
         ).status_code
 
-    # An address nobody holds is answered as if it had been sent; one that
-    # reaches an account goes on to actually send. The secondary address has to
-    # land on the same side of that as the primary.
-    assert await _forgot("reset-second@example.com") == await _forgot(
-        "reset-primary@example.com"
+    # Every address gets the same answer; only the ones that reach an account
+    # are sent a letter, and the secondary address reaches it as the primary does.
+    assert await _forgot("nobody@example.com") == 200
+    assert letters == []
+    assert await _forgot("reset-second@example.com") == 200
+    assert await _forgot("reset-primary@example.com") == 200
+    assert letters == [user_id, user_id]
+
+
+@pytest.mark.integration
+async def test_a_password_reset_without_mail_is_refused_for_every_address(
+    client: AsyncClient, session: AsyncSession
+):
+    await create_user(session, email="reset-nomail@example.com")
+
+    held = await client.post(
+        "/api/v1/auth/password/forgot", json={"email": "reset-nomail@example.com"}
     )
-    assert await _forgot("nobody@example.com") != await _forgot(
-        "reset-primary@example.com"
+    unheld = await client.post(
+        "/api/v1/auth/password/forgot", json={"email": "nobody-nomail@example.com"}
     )
+
+    assert held.status_code == unheld.status_code == 400
+    assert held.json() == unheld.json() == {"detail": "SMTP_NOT_CONFIGURED"}
 
 
 @pytest.mark.unit

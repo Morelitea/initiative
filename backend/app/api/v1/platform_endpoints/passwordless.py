@@ -314,4 +314,5 @@ async def recover_with_code(
         ) from exc
     # Open connections stand on credentials the recovery has just ended.
     await stream_authority.revoke_user_everywhere(user_id)
+    await email_service.announce_password_changed(system_session, user)
     return VerificationSendResponse(status="reset")

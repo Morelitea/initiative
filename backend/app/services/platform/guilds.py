@@ -614,7 +614,7 @@ async def list_memberships(
         async def _retention(
             routed: AsyncSession, guild_id: int
         ) -> list[tuple[int, int | None]]:
-            return [(guild_id, await get_guild_retention_days(routed, guild_id))]
+            return [(guild_id, await get_guild_retention_days(routed))]
 
         retention = dict(
             await gather_across_guilds(
@@ -1076,9 +1076,9 @@ async def set_guild_status(
     return guild
 
 
-async def get_guild_retention_days(session: AsyncSession, guild_id: int) -> int | None:
-    """Return the per-guild trash retention period in days, or None for
-    "never auto-purge".
+async def get_guild_retention_days(session: AsyncSession) -> int | None:
+    """Return the trash retention period in days of the guild the session is
+    routed to, or None for "never auto-purge".
 
     Selecting the full row (not the column) is intentional: NULL in
     ``retention_days`` is the user's explicit "never" choice, and we must

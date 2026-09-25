@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **One-tap thumbs up** — comments and posts have a 👍 button beside **Add a reaction**, so agreeing takes one tap instead of opening the picker. Once someone has given a thumbs up, its reaction takes the button's place.
 - **Connecting an app's account goes through Initiative** — when you connect an app to an outside service, such as your GitHub account or your organization's GitHub install, Initiative now sends you to that service and takes you back itself, and keeps the connection so the app never holds it. A connection the service will no longer renew shows **Reconnect**. For operators, an app that needs its service's client details asks for them under **Settings → Platform → Integrations → App services**, which also shows the two addresses to register with the service; the app is not live until they are set. They can also come from environment variables named by `vendor_env` in `APP_SERVICES_CONFIG`. Anyone who connected an account before this release connects once more.
 - **Apps can use other apps** — an app may now ask to use another app installed in your community, such as opening an issue through it. The install dialog lists this as **Use {app} in this community**, and it is granted or taken back like any other access, there or in the app's settings.
+- **An email when your password changes** — changing, resetting or recovering your password now emails every address on your account, as adding a passkey or turning off two-factor already did.
 - **Database pool settings** — `DB_POOL_SIZE` and `DB_MAX_OVERFLOW` set how many database connections each pool keeps, instead of a fixed 5 plus 10. On servers with many communities, `DB_COHORTS` splits communities into groups, each with its own request pool, so each database connection uses less memory. Behind a connection pooler, set `DB_COHORT_DATABASE` to give each group its own pooler database.
 
 ### Changed
@@ -24,8 +25,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The update check asks Docker Hub less often** — the server asks at most every six hours, and every visitor shares the answer, instead of asking on every page load. A server without internet access logs that once and stops trying for 15 minutes at a time.
 - **Password sign-in switches off after wrong answers** — five wrong passwords or codes within 15 minutes turn off password and code sign-in for that account for 15 minutes, and its email addresses are told. Three of those in a day and it stays off until a moderator turns it back on from **Operator dashboard → Users**. Passkeys, and anywhere already signed in, keep working throughout.
 
+- **Password reset and sign-up say the same thing for every address** — asking for a reset link gets the same answer whether or not the address has an account, and the link is sent after the answer. A server with no mail set up says so for every address. Where signing up needs an invite, sign-up asks for the invite before checking whether the address is already taken.
+
 ### Fixed
 
+- **Turning off password sign-in covers the app** — the app's email-and-password sign-in kept working after an operator turned password sign-in off. It is now refused like the browser's.
+- **A community's shorter session limit applies to every sign-in** — the app's sign-in, single sign-on, and the extra check a community asks for all gave out access that outlasted the limit. Only the browser's password sign-in kept to it before.
+- **API keys limited to one community stay in it** — such a key could still reach other communities through views that span communities, such as **My Tasks**, and through community sign-in settings and file links. It now reaches only its own community.
+- **Back to the page you were on after signing in** — signing in from a link to a community page now takes you there, provided you're a member of that community; before, it always went to the home page. Single sign-on now checks membership the same way.
+- **Comments go to the trash with what they're on** — deleting a project, queue, counter group, calendar or dashboard now moves its comments to the trash with it, and restoring it brings them back. Before, they stayed behind.
+- **A deleted wiki shows once in the trash** — the trash lists a deleted wiki as one item. Before, it also listed each of its pages and comments, and restoring one of those on its own failed.
+- **Faster delete, restore and purge** — deleting, restoring, purging and archiving something large, like an initiative with thousands of tasks, now takes a few database queries instead of one per item inside it.
 - **A search error at startup** — every start logged `search reindex failed for guild_template`. It was harmless, since search in your communities was already up to date, and it no longer appears.
 
 ## [0.72.0] - 2026-09-24

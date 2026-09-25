@@ -22,7 +22,7 @@ from starlette.routing import Match
 from sqlalchemy.exc import DBAPIError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import declines_this_credential, get_upload_user
+from app.api.deps import declines_this_credential, get_upload_user, pinned_elsewhere
 from app.api.embed_csp import app_frame_policy
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.csrf import CsrfOriginMiddleware
@@ -534,6 +534,10 @@ async def serve_upload_file(
     from app.services.platform import access_grants as access_grants_service
     from app.services.platform import guilds as guilds_service
 
+    # A key limited to another guild reaches nothing here, and is told so the
+    # way somebody with no access is.
+    if pinned_elsewhere(guild_id):
+        raise HTTPException(status_code=404)
     membership = await guilds_service.get_membership(
         session, guild_id=guild_id, user_id=current_user.id
     )
