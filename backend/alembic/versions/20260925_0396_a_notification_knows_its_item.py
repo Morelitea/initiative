@@ -17,16 +17,16 @@ tool's own row is also its ``resource_id``.
 ``email_outbox.security`` marks an account-security letter: sent at once, on
 its own, to every proven address, whatever the account's notification settings.
 
-Revision ID: 20260925_0395
-Revises: 20260925_0394
+Revision ID: 20260925_0396
+Revises: 20260925_0395
 Create Date: 2026-09-25
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "20260925_0395"
-down_revision = "20260925_0394"
+revision = "20260925_0396"
+down_revision = "20260925_0395"
 branch_labels = None
 depends_on = None
 
