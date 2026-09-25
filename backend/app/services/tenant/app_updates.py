@@ -47,7 +47,7 @@ from app.db.session import routed_guild_id, set_rls_context
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.platform.notification import NotificationType
 from app.models.tenant.guild_app import GuildApp
-from app.services.marketplace import registration_lookup
+from app.services.marketplace import app_installs, registration_lookup
 from app.services.marketplace.definitions import GUILD_INSTALLABLE_APP_KINDS
 from app.services.marketplace.installs import (
     ListingInstallError,
@@ -197,6 +197,7 @@ async def apply_version(
     app: GuildApp,
     pending: PendingUpdate,
     *,
+    guild_id: int,
     add_scopes: Iterable[str] = (),
 ) -> GuildApp:
     """Re-pin one install to a newer version of its listing.
@@ -268,6 +269,9 @@ async def apply_version(
                 reason="upgraded",
                 definition=previous,
             )
+    # The new version may route its webhooks by another value, or have
+    # dropped the connection that held it.
+    await app_installs.record(guild_id, app)
     return app
 
 
@@ -388,7 +392,11 @@ async def _update_guild(
             # The registration stands in for the seat, as at install.
             from_version = app.listing_version
             await apply_version(
-                session, app, pending, add_scopes=offer.asks.added_scopes
+                session,
+                app,
+                pending,
+                guild_id=guild_id,
+                add_scopes=offer.asks.added_scopes,
             )
             applied += 1
             logger.info(
@@ -422,7 +430,7 @@ async def _update_guild(
                 )
             continue
         from_version = app.listing_version
-        await apply_version(session, app, pending)
+        await apply_version(session, app, pending, guild_id=guild_id)
         applied += 1
         logger.info(
             "app auto-update: guild=%s app=%s listing=%s %s -> %s",

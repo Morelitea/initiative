@@ -3,7 +3,7 @@
   "schema": {
     "$id": "https://initiative.morels.me/schemas/app-manifest-v1.json",
     "title": "Initiative app manifest (the 'definition' body)",
-    "description": "What a service app declares it can do. This is the 'definition' field of the document served at /.well-known/initiative-app.json, NOT that whole document: a registrar also requires protocol_version, public_id and kind alongside it, and refuses a definition served bare. Generated from the platform's own validator vocabulary. A manifest that satisfies this schema is well-formed, not necessarily acceptable. Cross-references (the endpoint a widget binds, a requires term's connection, an endpoint's service prefix), the direction-specific rules on an endpoint, the features/blocks cross-check in both directions, UTF-8 byte-size caps, and the rules tying a connection's flow and token to its scope and fields are enforced by the platform on publish and are not expressible here."
+    "description": "What a service app declares it can do. This is the 'definition' field of the document served at /.well-known/initiative-app.json, NOT that whole document: a registrar also requires protocol_version, public_id and kind alongside it, and refuses a definition served bare. Generated from the platform's own validator vocabulary. A manifest that satisfies this schema is well-formed, not necessarily acceptable. Cross-references (the endpoint a widget binds, a requires term's connection, an endpoint's service prefix), the direction-specific rules on an endpoint, the features/blocks cross-check in both directions, UTF-8 byte-size caps, and the rules tying a connection's flow and token to its scope and fields, and what a webhooks block names, are enforced by the platform on publish and are not expressible here."
   },
   "charsets": {
     "identifier": "-0123456789_abcdefghijklmnopqrstuvwxyz",
@@ -11,6 +11,8 @@
     "publicId": "-.0123456789_abcdefghijklmnopqrstuvwxyz",
     "uid": "0123456789ABCDEFGHJKMNPQRSTVWXYZ",
     "path": "-./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz",
+    "headerName": "-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
+    "fieldPath": "-.0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz",
     "localeTag": "-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
     "version": "0123456789.-+abcdefghijklmnopqrstuvwxyz",
     "artwork": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/._-"
@@ -55,6 +57,14 @@
       "secret",
       "string",
       "url"
+    ],
+    "webhookScheme": [
+      "hmac_sha1",
+      "hmac_sha256"
+    ],
+    "webhookEncoding": [
+      "base64",
+      "hex"
     ],
     "paramType": [
       "bool",
@@ -628,6 +638,96 @@
         }
       }
     },
+    "webhooks": {
+      "type": "object",
+      "description": "The vendor's webhooks, received by Initiative at one address per app on the deployment, '/api/v1/app-hooks/<public_id>'. Initiative checks each delivery's signature, drops one it has already delivered, finds the communities it belongs to by a value in its body, and forwards it to the app's webhook hook once for each.",
+      "required": [
+        "verify",
+        "dedup",
+        "route"
+      ],
+      "properties": {
+        "verify": {
+          "ref": "webhookVerify"
+        },
+        "dedup": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": "identifierLength",
+          "patternFrom": "headerName",
+          "patternForm": "plus",
+          "description": "The header carrying the vendor's id for one delivery, such as 'X-GitHub-Delivery'. A delivery with an id already forwarded to a community is not forwarded to it again."
+        },
+        "route": {
+          "ref": "webhookRoute"
+        }
+      }
+    },
+    "webhookVerify": {
+      "type": "object",
+      "description": "How a delivery's signature is checked: an HMAC over the raw body under a vendor value.",
+      "required": [
+        "scheme",
+        "header",
+        "encoding",
+        "secret"
+      ],
+      "properties": {
+        "scheme": {
+          "enum": "webhookScheme"
+        },
+        "header": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": "identifierLength",
+          "patternFrom": "headerName",
+          "patternForm": "plus",
+          "description": "The header carrying the signature, such as 'X-Hub-Signature-256'."
+        },
+        "prefix": {
+          "type": "string",
+          "maxLength": "identifierLength",
+          "description": "What precedes the signature in the header, such as 'sha256='. Absent: nothing does."
+        },
+        "encoding": {
+          "enum": "webhookEncoding",
+          "description": "How the signature is written."
+        },
+        "secret": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": "urlLength",
+          "description": "The signing secret, as one vendor value: '{vendor.<key>}'."
+        }
+      }
+    },
+    "webhookRoute": {
+      "type": "object",
+      "description": "Which communities a delivery belongs to: a value in its body, matched against one field of a static connection as each community's connect stored it.",
+      "required": [
+        "path",
+        "connection",
+        "field"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": "pathLength",
+          "patternFrom": "fieldPath",
+          "patternForm": "plus",
+          "description": "Where the value is in the JSON body, as keys joined by '.', such as 'installation.id'."
+        },
+        "connection": {
+          "ref": "identifier",
+          "description": "A static connection this app declares."
+        },
+        "field": {
+          "ref": "identifier",
+          "description": "A field that connection declares, whose stored value the body's value is matched against."
+        }
+      }
+    },
     "namespacedId": {
       "type": "string",
       "maxLength": "endpointIdLength",
@@ -1026,6 +1126,9 @@
         "items": {
           "ref": "connection"
         }
+      },
+      "webhooks": {
+        "ref": "webhooks"
       },
       "endpoints": {
         "type": "array",

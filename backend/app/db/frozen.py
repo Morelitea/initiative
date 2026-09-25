@@ -172,6 +172,7 @@ FREEZE_EXEMPT_TABLES: frozenset[str] = frozenset(
         "project_orders",
         "project_favorites",
         "event_outbox",
+        "app_event_outbox",
         "search_entries",
         "reaction_digest_items",
         "task_assignment_digest_items",

@@ -14,8 +14,8 @@ and is refused.
   token for one connection, refreshed or minted first.
 * ``POST /installation/config-status`` — the app's verdict on the
   configuration it was handed.
-* ``POST /installation/events`` — a third-party event, re-emitted through the
-  dispatcher.
+* ``POST /installation/events`` — an event the app emits, kept for the outbox
+  poller to deliver to the community's subscriptions.
 
 The token is checked by the install seam (``establish_install_access``),
 whose standing statement admits the install only while it may act: the
@@ -90,6 +90,8 @@ class Installation:
     guild_id: int
     install_id: int
     registration: RegistrationSnapshot
+    #: The initiative the token is narrowed to, when it is.
+    initiative_id: Optional[int] = None
 
 
 async def installation_caller(
@@ -149,6 +151,7 @@ async def installation_caller(
         guild_id=context.guild_id,
         install_id=context.install_id,
         registration=registration,
+        initiative_id=context.scope_initiative_id,
     )
 
 
@@ -254,21 +257,24 @@ async def ingest_installation_event(
     installation: InstallationDep,
     session: SystemSessionDep,
 ) -> dict[str, str]:
-    """Re-emit one third-party event into the community this install is in.
+    """Emit one event in the community this install is in.
 
     The event type must be one the pinned definition declares, namespaced
-    under the calling app. Answers ``202``: the event was handed to the
-    dispatcher, and what subscribers do with it is not the emitting app's to
-    know.
+    under the calling app, and the payload at most 8 KiB. An event about an
+    initiative names one the install is placed in (403 otherwise). Answers
+    ``202``: the event is kept and delivered to the community's subscriptions,
+    and what subscribers do with it is not the emitting app's to know.
     """
     try:
-        app = await _load(session, installation)
+        app = await _load(session, installation, for_write=True)
         await channels_service.emit_event(
             session,
             app,
             installation.registration,
             event_type=payload.event_type,
             payload=payload.payload,
+            initiative_id=payload.initiative_id,
+            token_initiative_id=installation.initiative_id,
         )
     except AppChannelError as exc:
         raise _to_http(exc) from exc

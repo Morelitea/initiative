@@ -7,14 +7,15 @@ host resolves to a fixed public address, and the request is answered here by
 the host it names.
 
 The vendor side is an OAuth 2.0 authorization server with PKCE, refresh,
-revocation and a GitHub-style installation token exchange. The app side answers
-the two hooks.
+revocation and a GitHub-style installation token exchange, and signs the
+webhooks it sends. The app side answers the hooks.
 """
 
 from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 import ipaddress
 import itertools
 import json
@@ -57,6 +58,8 @@ class FakeVendor:
     hook_status: int = 200
     #: The status the vendor's revocation endpoint answers with.
     revoke_status: int = 200
+    #: What the vendor signs its webhooks with.
+    webhook_secret: str = "webhook-secret-789"
 
     codes: dict[str, str] = field(default_factory=dict)
     token_requests: list[dict[str, str]] = field(default_factory=list)
@@ -89,6 +92,22 @@ class FakeVendor:
         code = f"code-{next(self._serial)}"
         self.codes[code] = challenge or ""
         return code
+
+    def webhook(
+        self, payload: dict[str, Any], *, delivery: str = "delivery-1"
+    ) -> tuple[bytes, dict[str, str]]:
+        """One webhook delivery as the vendor sends it: the body, and its
+        headers with the signature over it."""
+        body = json.dumps(payload).encode("utf-8")
+        digest = hmac.new(
+            self.webhook_secret.encode("utf-8"), body, hashlib.sha256
+        ).hexdigest()
+        return body, {
+            "Content-Type": "application/json",
+            "X-GitHub-Event": "issues",
+            "X-GitHub-Delivery": delivery,
+            "X-Hub-Signature-256": f"sha256={digest}",
+        }
 
     # --- the vendor's and the app's side --------------------------------
 

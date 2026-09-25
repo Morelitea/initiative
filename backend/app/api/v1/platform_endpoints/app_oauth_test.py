@@ -216,7 +216,10 @@ async def _upgrade_dropping(session: AsyncSession, installed: InstalledApp, keep
         "service": {**row.definition["service"], "scopes": list(keep)},
     }
     await app_updates.apply_version(
-        session, row, app_updates.PendingUpdate(version="1.1.0", definition=definition)
+        session,
+        row,
+        app_updates.PendingUpdate(version="1.1.0", definition=definition),
+        guild_id=installed.guild.id,
     )
     await session.commit()
     app_revocation.drain_revocations(session)
@@ -226,7 +229,7 @@ async def test_a_scope_the_pinned_version_dropped_is_not_issued(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
     """The seat's grant is left as it was; the next token carries only what
-    the pinned version still requests, and so does the installs list."""
+    the pinned version still requests."""
     installed = await install_app(
         session,
         acting_user,
@@ -245,12 +248,6 @@ async def test_a_scope_the_pinned_version_dropped_is_not_issued(
     refused = await _ask(client, installation=installation, scope="documents:write")
     assert refused.status_code == 400
     assert _error(refused) == "invalid_scope"
-
-    app_token = (await _ask(client)).json()["access_token"]
-    listed = await client.get(
-        INSTALLATIONS_URL, headers={"Authorization": f"Bearer {app_token}"}
-    )
-    assert listed.json()[0]["scopes"] == ["comments:read"]
 
     (row,) = (await session.exec(select(GuildApp))).all()
     assert sorted(row.granted_scopes) == ["comments:read", "documents:write"]
@@ -437,30 +434,31 @@ async def test_a_json_body_is_an_invalid_request(client: AsyncClient):
 # ---------------------------------------------------------------------------
 
 
-async def test_an_app_token_lists_the_installs(
+async def test_an_app_token_lists_the_installs_a_page_at_a_time(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
-    installed = await install_app(
-        session,
-        acting_user,
-        role_session,
-        granted=["documents:write", "comments:read"],
+    """Read from the install index, with the next page named in a ``Link``
+    header until the last."""
+    first = await install_app(
+        session, acting_user, role_session, granted=["documents:write"]
+    )
+    second = await install_app(
+        session, acting_user, role_session, granted=[], register=False
     )
     app_token = (await _ask(client)).json()["access_token"]
+    headers = {"Authorization": f"Bearer {app_token}"}
 
-    response = await client.get(
-        INSTALLATIONS_URL, headers={"Authorization": f"Bearer {app_token}"}
-    )
+    page = await client.get(INSTALLATIONS_URL, params={"limit": 1}, headers=headers)
 
-    assert response.status_code == 200, response.text
-    assert response.json() == [
-        {
-            "installation": await _installation(installed),
-            "scopes": ["comments:read", "documents:write"],
-            "initiatives": [installed.placed.id],
-            "active": True,
-        }
+    assert page.status_code == 200, page.text
+    assert page.json() == [{"installation": await _installation(first), "active": True}]
+    link = page.headers["link"]
+    assert link.startswith("<?") and link.endswith('>; rel="next"')
+    last = await client.get(f"{INSTALLATIONS_URL}{link[1:-13]}", headers=headers)
+    assert last.json() == [
+        {"installation": await _installation(second), "active": True}
     ]
+    assert "link" not in last.headers
 
 
 @pytest.mark.parametrize("paused_by", ["install_off", "guild_on_hold", "guild_deleted"])
@@ -477,12 +475,12 @@ async def test_a_paused_install_is_listed_as_inactive(
     app_token = (await _ask(client)).json()["access_token"]
     installation = await _installation(installed)
     if paused_by == "install_off":
-        await route_session_to_guild(session, installed.guild.id)
-        row = (
-            await session.exec(select(GuildApp).where(GuildApp.id == installed.app.id))
-        ).one()
-        row.enabled = False
-        session.add(row)
+        switched = await client.patch(
+            installed.seat.g(f"/apps/{installed.app.id}"),
+            json={"enabled": False},
+            headers=installed.seat.headers,
+        )
+        assert switched.status_code == 200, switched.text
     else:
         status = "on_hold" if paused_by == "guild_on_hold" else "deleted"
         await session.exec(

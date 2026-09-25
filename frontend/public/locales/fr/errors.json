@@ -466,6 +466,7 @@
   "APP_CHANNEL_INVALID_PAYLOAD": "Ce service applicatif a envoyé quelque chose que cette version ne sait pas lire.",
   "APP_CHANNEL_UNKNOWN_EVENT_TYPE": "Ce type d'évènement ne fait pas partie de ceux déclarés par cette application.",
   "APP_CHANNEL_EVENT_TOO_LARGE": "Cet évènement dépasse ce que cette version peut transporter.",
+  "APP_CHANNEL_INITIATIVE_NOT_PLACED": "Cette application n'est pas placée dans cette initiative.",
   "APP_CHANNEL_INVALID_CONFIG_STATE": "Ce service applicatif a signalé un état que cette version ne reconnaît pas.",
   "APP_DATA_ENDPOINT_NOT_FOUND": "Ce widget est lié à des données que l'application ne propose plus.",
   "APP_DATA_ADMIN_ONLY": "Seule l'administration de la communauté peut voir les données de cette application.",

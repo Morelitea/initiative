@@ -1191,6 +1191,7 @@ PUBLIC_RLS: dict[str, TableRls] = {
         ),
     ),
     "app_assertion_jtis": FORCED_NO_POLICY,
+    "app_installs": FORCED_NO_POLICY,
     "app_setting_secrets": FORCED_NO_POLICY,
     # Everything else is the system engine's. An installed app's standing reads
     # the registration its token was issued to (its column grant is public_id,

@@ -414,6 +414,7 @@ def written_columns() -> dict[type[SQLModel], tuple[str, ...]]:
 NOT_SEARCHABLE: dict[str, str] = {
     "search_entries": "the index itself",
     "event_outbox": "change log, not content",
+    "app_event_outbox": "app events awaiting delivery, not content",
     "resource_grants": "sharing rows carry no text",
     "property_definitions": "field config, reached from the tool it configures",
     "webhook_subscriptions": "integration config",

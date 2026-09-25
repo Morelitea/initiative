@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import secrets
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
-from sqlalchemy import func, or_
+from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import webhook_events
+from app.core.app_scopes import app_scope
+from app.db import session as db_session
+from app.db.session import set_rls_context
 from app.core.audit_events import AuditEventType
 from app.db.guild_standing import InstallContext
 from app.models.tenant.guild_app import GuildApp
@@ -23,6 +26,8 @@ from app.schemas.tenant.webhook_subscription import (
 )
 from app.services import audit as audit_service
 from app.services import guild_work
+from app.services.marketplace.registration_lookup import service_public_id
+from app.services.marketplace.service_apps import ENDPOINT_ID_PREFIX
 
 #: The fields a rewrite reports as moved. ``fields`` is a list of names, so
 #: it is reported as having moved and never copied.
@@ -50,23 +55,67 @@ class WebhookSubscriptionVocabularyError(Exception):
         self.code = code
 
 
-def assert_vocabulary(event_types: list[str] | None, fields: list[str] | None) -> None:
+async def app_event_emitters(
+    guild_id: int, event_types: Sequence[str]
+) -> dict[str, str]:
+    """The installed app that emits each ``app.<public_id>.<event>`` type
+    named, by its ``public_id``: an install in this community whose pinned
+    definition declares the event as ``emit``. A type no install declares is
+    absent.
+
+    Read on the system engine, routed into the community: an installed app's
+    own request does not reach ``guild_apps``.
+    """
+    wanted = {name for name in event_types if name.startswith(ENDPOINT_ID_PREFIX)}
+    if not wanted:
+        return {}
+    async with db_session.SystemSessionLocal() as session:
+        await set_rls_context(session, guild_id=guild_id, read_only=True)
+        definitions = (
+            await session.exec(
+                select(GuildApp.definition).where(GuildApp.app_kind == "service")
+            )
+        ).all()
+    emitters: dict[str, str] = {}
+    for definition in definitions:
+        public_id = service_public_id(definition)
+        for endpoint in (definition or {}).get("endpoints") or []:
+            event_type = endpoint.get("id") if isinstance(endpoint, dict) else None
+            if (
+                public_id is not None
+                and event_type in wanted
+                and endpoint.get("direction") == "emit"
+                and event_type.startswith(f"{ENDPOINT_ID_PREFIX}{public_id}.")
+            ):
+                emitters[event_type] = public_id
+    return emitters
+
+
+async def assert_vocabulary(
+    event_types: list[str] | None, fields: list[str] | None, *, guild_id: int
+) -> dict[str, str]:
     """Reject event types and field names that could never fire.
 
-    Callers pass the values the row will END UP with. Both vocabularies derive
-    from the capture registry, so this is what turns a typo into a 400 rather
-    than a subscription that looks healthy and never delivers.
+    Callers pass the values the row will END UP with. The change vocabulary
+    derives from the capture registry; an app event is one an app installed
+    here declares it emits. This is what turns a typo into a 400 rather than a
+    subscription that looks healthy and never delivers. Returns the app events
+    named, each with the app that emits it (:func:`app_event_emitters`).
     """
     from app.core.messages import WebhookSubscriptionMessages
 
-    if event_types and webhook_events.unknown_event_types(event_types):
+    named = list(event_types or [])
+    emitters = await app_event_emitters(guild_id, named)
+    changes = [name for name in named if name not in emitters]
+    if changes and webhook_events.unknown_event_types(changes):
         raise WebhookSubscriptionVocabularyError(
             WebhookSubscriptionMessages.UNKNOWN_EVENT_TYPE
         )
-    if fields and webhook_events.unknown_fields(fields, event_types or []):
+    if fields and webhook_events.unknown_fields(fields, changes):
         raise WebhookSubscriptionVocabularyError(
             WebhookSubscriptionMessages.UNKNOWN_FIELD
         )
+    return emitters
 
 
 class WebhookSubscriptionScopeError(Exception):
@@ -86,13 +135,16 @@ def assert_install_may_subscribe(
     *,
     event_types: Sequence[str],
     initiative_id: int | None,
+    emitters: Mapping[str, str],
 ) -> None:
     """Refuse a subscription an installed app's standing does not cover.
 
-    - Every event type needs the read scope of the resource it reports on
-      (``webhook_events.read_scope_for``), held now: the seat's grant and the
-      token's scopes together, as the standing computed them. An event type
-      no scope reaches (an app's own install changing) is never an app's.
+    - Every change event type needs the read scope of the resource it reports
+      on (``webhook_events.read_scope_for``), held now: the seat's grant and
+      the token's scopes together, as the standing computed them. An event
+      type no scope reaches (an app's own install changing) is never an app's.
+    - Every app event needs ``apps:<public_id>`` of the app that emits it
+      (``emitters``), among the token's scopes.
     - A token narrowed to one initiative subscribes to that initiative only.
     - A community-wide subscription needs a token that is not narrowed.
     - A named initiative is one the install is placed in.
@@ -106,6 +158,11 @@ def assert_install_may_subscribe(
     refused = WebhookSubscriptionScopeError(AppMessages.SCOPE_REQUIRED)
     readable = set(context.install_read)
     for event_type in event_types:
+        emitter = emitters.get(event_type)
+        if emitter is not None:
+            if app_scope(emitter) not in context.token_scopes:
+                raise refused
+            continue
         resource = webhook_events.read_scope_for(event_type)
         if resource is None or resource.value not in readable:
             raise refused
@@ -223,7 +280,9 @@ async def create_subscription(
     record names. ``None`` for an installed app acting as its community, which
     names no person (:func:`create_install_subscription`).
     """
-    assert_vocabulary(list(payload.event_types), payload.fields)
+    await assert_vocabulary(
+        list(payload.event_types), payload.fields, guild_id=guild_id
+    )
 
     secret = _generate_hmac_secret()
     now = datetime.now(timezone.utc)
@@ -275,11 +334,14 @@ async def create_install_subscription(
     (:func:`assert_install_may_subscribe`), then written like any other, naming
     the install and no person. ``session`` is the one the install seam routed.
     """
-    assert_vocabulary(list(payload.event_types), payload.fields)
+    emitters = await assert_vocabulary(
+        list(payload.event_types), payload.fields, guild_id=context.guild_id
+    )
     assert_install_may_subscribe(
         context,
         event_types=list(payload.event_types),
         initiative_id=payload.initiative_id,
+        emitters=emitters,
     )
     return await create_subscription(
         session,
@@ -318,11 +380,12 @@ async def update_subscription(
     subscription = await get_subscription(
         session, subscription_id=subscription_id, guild_id=guild_id, for_update=True
     )
-    assert_vocabulary(
+    await assert_vocabulary(
         payload.event_types
         if payload.event_types is not None
         else subscription.event_types,
         payload.fields if payload.fields is not None else subscription.fields,
+        guild_id=guild_id,
     )
 
     data = payload.model_dump(exclude_unset=True)
@@ -392,24 +455,6 @@ async def deactivate_for_install(
         row.updated_at = datetime.now(timezone.utc)
         session.add(row)
     return len(rows)
-
-
-def registered_install_is_live():
-    """A subscription whose install is still there, or that never had one.
-
-    Deactivating at uninstall is what stops deliveries promptly; this is what
-    makes it true regardless. ``app_install_id`` carries no foreign key —
-    ``guild_apps`` rows and these are both guild content, but nothing enforces
-    the link — so the delivery paths ask rather than assume. It rides inside the
-    selector they already run, and ``guild_apps`` is guild-level, so any routed
-    session can answer it.
-    """
-    return or_(
-        WebhookSubscription.app_install_id.is_(None),
-        select(GuildApp.id)
-        .where(GuildApp.id == WebhookSubscription.app_install_id)
-        .exists(),
-    )
 
 
 async def delete_subscription(

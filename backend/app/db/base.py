@@ -51,6 +51,8 @@ from app.models.tenant.calendar_event import (
     CalendarEventAttendee,
 )
 from app.models.tenant.event_outbox import EventOutbox
+from app.models.tenant.app_event_outbox import AppEventOutbox
+from app.models.tenant.app_hook_delivery import AppHookDelivery
 from app.models.tenant.search_entry import SearchEntry
 from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
 from app.models.tenant.dashboard import Dashboard
@@ -126,6 +128,7 @@ from app.models.platform.ai_connection import PlatformAIConnection
 from app.models.platform.app_service_registration import AppServiceRegistration
 from app.models.platform.publisher import Publisher
 from app.models.platform.app_assertion_jti import AppAssertionJti
+from app.models.platform.app_install import AppInstall
 from app.models.tenant.ai_connection import GuildAIConnection
 from app.models.tenant.ai_member_key import GuildAIMemberKey
 from app.models.tenant.ai_member_pref import GuildAIMemberPref
@@ -187,6 +190,8 @@ __all__ = [
     "CalendarEvent",
     "CalendarEventAttendee",
     "EventOutbox",
+    "AppEventOutbox",
+    "AppHookDelivery",
     "SearchEntry",
     "EventReminderDispatch",
     "Dashboard",
@@ -235,6 +240,7 @@ __all__ = [
     "AppServiceRegistration",
     "Publisher",
     "AppAssertionJti",
+    "AppInstall",
     "MarketplaceMedia",
     "MarketplaceRegistryStatus",
     "MarketplaceTufMetadata",

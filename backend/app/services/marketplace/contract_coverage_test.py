@@ -108,6 +108,17 @@ def maximal_manifest() -> dict:
                 ],
             },
         ],
+        "webhooks": {
+            "verify": {
+                "scheme": "hmac_sha256",
+                "header": "X-Acme-Signature",
+                "prefix": "sha256=",
+                "encoding": "hex",
+                "secret": "{vendor.private_key}",
+            },
+            "dedup": "X-Acme-Delivery",
+            "route": {"path": "install.id", "connection": "vendor", "field": "choice"},
+        },
         "endpoints": [
             {
                 "id": READ_ENDPOINT,
@@ -244,6 +255,9 @@ def _nodes(published: dict) -> list[tuple[str, dict]]:
         ("connectionToken", connection["token"]),
         ("vendor", published["vendor"]),
         ("vendorField", published["vendor"]["fields"][0]),
+        ("webhooks", published["webhooks"]),
+        ("webhookVerify", published["webhooks"]["verify"]),
+        ("webhookRoute", published["webhooks"]["route"]),
         ("accessHint", connection["access_hint"]),
         # A read carries the caller-side fields and a write carries the
         # identity; no single direction carries every field, so the two are

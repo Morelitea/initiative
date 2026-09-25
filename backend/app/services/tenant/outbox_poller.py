@@ -1,4 +1,9 @@
-"""Drain ``event_outbox`` to each subscription's target.
+"""Drain ``event_outbox`` and ``app_event_outbox`` to each subscription's target.
+
+The change log and the events installed apps emit share one delivery: the same
+ledger, backoff, dead-letter and retention, and one envelope per transaction,
+where an app event is one entry in ``changes`` carrying its payload. An app
+event reaches a subscription by the rules in :func:`_matches_app_event`.
 
 **A subscription's reach is the scope it names.** ``initiative_id`` set means
 that initiative's changes; naming none means the community's. ``_matches``
@@ -60,21 +65,23 @@ import asyncio
 
 import logging
 import uuid
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import ARRAY, Integer, and_, bindparam, func, or_, text
+from sqlalchemy import ARRAY, Integer, and_, bindparam, delete, func, or_, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import webhook_events
-from app.core.app_scopes import UnknownAppScope, expand
+from app.core.app_scopes import UnknownAppScope, app_scope_target, expand
 from app.db.session import (
     set_rls_context,
     set_system_guild_context,
 )
+from app.models.tenant.app_event_outbox import AppEventOutbox
+from app.models.tenant.app_hook_delivery import AppHookDelivery
 from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.event_outbox import EventOutbox
 from app.models.tenant.guild_app import GuildApp
@@ -135,13 +142,15 @@ class InstallReach:
     """What an installed app may hear right now, for a subscription it holds.
 
     Read with the subscription roster, in the same statement, once per pass:
-    whether the install is live, the initiatives it is placed in, and the
-    resources the seat's grant lets it read (writing implies reading).
+    whether the install is live, the initiatives it is placed in, the
+    resources the seat's grant lets it read (writing implies reading), and the
+    apps it may hear from (``apps:<public_id>``).
     """
 
     live: bool
     placed: frozenset[int]
     readable: frozenset[str]
+    apps: frozenset[str] = frozenset()
 
     @classmethod
     def from_row(
@@ -152,7 +161,12 @@ class InstallReach:
         granted_scopes: Iterable[str] | None,
     ) -> "InstallReach":
         readable: set[str] = set()
+        apps: set[str] = set()
         for scope in granted_scopes or ():
+            target = app_scope_target(scope)
+            if target is not None:
+                apps.add(target)
+                continue
             # A scope the vocabulary no longer has grants nothing.
             try:
                 read, _write = expand([scope])
@@ -163,6 +177,17 @@ class InstallReach:
             live=bool(live),
             placed=frozenset(placed or ()),
             readable=frozenset(readable),
+            apps=frozenset(apps),
+        )
+
+    def hears_app(self, emitter: str, initiative_id: int | None) -> bool:
+        """Whether it may hear an event ``emitter`` emitted about
+        ``initiative_id`` (``None`` for the community): it is live, holds
+        ``apps:<emitter>``, and is placed in that initiative."""
+        return (
+            self.live
+            and emitter in self.apps
+            and (initiative_id is None or initiative_id in self.placed)
         )
 
 
@@ -213,6 +238,37 @@ def _matches(
     return True
 
 
+def _matches_app_event(
+    event: AppEventOutbox,
+    emitter: str,
+    emitter_placed: Iterable[int],
+    subscription: WebhookSubscription,
+    reach: InstallReach | None = None,
+) -> bool:
+    """Whether one app event belongs in this subscription's batch.
+
+    An event about an initiative reaches a subscription in that initiative, or
+    the community's. One about no initiative — a vendor organization is not an
+    initiative — reaches the community's, and one narrowed to an initiative
+    the emitting app is placed in too. A subscription an installed app
+    registered also answers to its reach (:meth:`InstallReach.hears_app`),
+    in the initiative the event lands in.
+    """
+    if event.event_type not in subscription.event_types:
+        return False
+    lands_in = event.initiative_id
+    if subscription.initiative_id is not None:
+        if lands_in is None and subscription.initiative_id in set(emitter_placed):
+            lands_in = subscription.initiative_id
+        if lands_in != subscription.initiative_id:
+            return False
+    if subscription.app_install_id is not None and (
+        reach is None or not reach.hears_app(emitter, lands_in)
+    ):
+        return False
+    return True
+
+
 def _envelope(
     subscription: WebhookSubscription,
     txn_id: int,
@@ -221,6 +277,7 @@ def _envelope(
     guild_ref: str,
     actor_ref: str | None,
     actor_app: str | None = None,
+    app_events: Sequence[tuple[AppEventOutbox, str]] = (),
 ) -> dict[str, Any]:
     """One transaction's matching rows as a single envelope.
 
@@ -236,8 +293,12 @@ def _envelope(
     ``actor_app`` is the ``public_id`` of the app whose request wrote the
     change, so an app can recognise its own writes. It is set independently of
     ``actor_ref``: an app acting as its community names no person.
+
+    ``app_events`` are the events apps emitted in the transaction, each with
+    its emitter's ``public_id``. Each is one entry in ``changes`` carrying its
+    payload.
     """
-    first = rows[0]
+    first = rows[0] if rows else app_events[0][0]
     return {
         "event_id": _event_id(subscription.id, txn_id),
         "subscription_id": subscription.id,
@@ -258,6 +319,15 @@ def _envelope(
                 "changed": list(row.changed),
             }
             for row in rows
+        ]
+        + [
+            {
+                "event_type": event.event_type,
+                "initiative_id": event.initiative_id,
+                "app": emitter,
+                "payload": event.payload,
+            }
+            for event, emitter in app_events
         ],
     }
 
@@ -284,7 +354,8 @@ async def _pending_transactions(
     rows = await session.exec(
         text(
             "SELECT o.txn_id "
-            "FROM event_outbox o "
+            "FROM (SELECT id, txn_id FROM event_outbox "
+            "      UNION ALL SELECT id, txn_id FROM app_event_outbox) o "
             "WHERE pg_visible_in_snapshot(o.txn_id::text::xid8, pg_current_snapshot()) "
             "  AND NOT EXISTS ("
             "    SELECT 1 FROM webhook_deliveries d "
@@ -386,6 +457,15 @@ async def _settle(
     return (bool(row[0]), row[1]) if row is not None else (False, None)
 
 
+def _emitter_placed() -> Any:
+    """The initiatives an app event's emitting install is placed in."""
+    return (
+        select(func.array_agg(AppPlacement.initiative_id))
+        .where(AppPlacement.install_id == AppEventOutbox.install_id)
+        .scalar_subquery()
+    )
+
+
 async def _drain_subscription(
     session: AsyncSession,
     subscription: WebhookSubscription,
@@ -446,7 +526,20 @@ async def _drain_subscription(
             if _matches(row, subscription, reach)
         ]
         batch = [row for row, _listing_uid in matched]
-        if not batch:
+        # An emitter is named by its install's listing, so an install that is
+        # gone emits to nobody.
+        app_events = [
+            (event, emitter)
+            for event, listing_uid, placed in await session.exec(
+                select(AppEventOutbox, GuildApp.listing_uid, _emitter_placed())
+                .outerjoin(GuildApp, GuildApp.id == AppEventOutbox.install_id)
+                .where(AppEventOutbox.txn_id == txn_id)
+                .order_by(AppEventOutbox.id.asc())
+            )
+            if (emitter := (app_ids or {}).get(listing_uid or "")) is not None
+            and _matches_app_event(event, emitter, placed or (), subscription, reach)
+        ]
+        if not batch and not app_events:
             # Nothing in this transaction was for this subscriber. Record it so
             # it is not reconsidered every pass; no request was made, so nothing
             # is claimed about the target.
@@ -455,14 +548,18 @@ async def _drain_subscription(
 
         # One transaction, one actor — the batch is what a single request
         # touched. Named for this subscriber, in the sector its install or its
-        # own registration gives it.
-        actor_id = batch[0].actor_user_id
-        actor_listing = matched[0][1]
-        actor_app = (
-            None
-            if batch[0].actor_install_id is None or actor_listing is None
-            else (app_ids or {}).get(actor_listing)
-        )
+        # own registration gives it. An app's events name the app that emitted
+        # them and no person.
+        if batch:
+            actor_id = batch[0].actor_user_id
+            actor_listing = matched[0][1]
+            actor_app = (
+                None
+                if batch[0].actor_install_id is None or actor_listing is None
+                else (app_ids or {}).get(actor_listing)
+            )
+        else:
+            actor_id, actor_app = None, app_events[0][1]
         guild_ref, actor_refs = await webhook_refs.name_for_subscriber(
             guild_id=guild_id,
             app_install_id=subscription.app_install_id,
@@ -480,6 +577,7 @@ async def _drain_subscription(
                 guild_ref=guild_ref,
                 actor_ref=None if actor_id is None else actor_refs[actor_id],
                 actor_app=actor_app,
+                app_events=app_events,
             ),
         )
         dead_lettered, retry_at = await _settle(
@@ -536,9 +634,8 @@ def _roster(live_listings: Iterable[str]):
         .outerjoin(GuildApp, GuildApp.id == WebhookSubscription.app_install_id)
         .where(
             WebhookSubscription.active.is_(True),
-            # The rule ``registered_install_is_live`` states for the
-            # dispatcher, read off the join: an install that is gone is
-            # drained to nobody.
+            # An install that is gone is drained to nobody: its subscription
+            # carries no foreign key to it, so the join is what asks.
             or_(
                 WebhookSubscription.app_install_id.is_(None),
                 GuildApp.id.is_not(None),
@@ -631,26 +728,30 @@ async def drain_guild(
 
 
 async def expire_history(session: AsyncSession, guild_id: int) -> None:
-    """Drop the community's outbox history, and the ledger rows referencing
-    it, past the window.
+    """Drop the community's outbox history past the window: change events and
+    app events, the ledger rows naming their transactions, and the vendor
+    webhook delivery ids past their expiry.
 
-    Age-based on purpose: a subscription weeks behind is broken, and holding the
-    log open for it would grow the table without bound on every instance that
-    never configures a target at all. Ledger rows go with the events they
+    Age-based on purpose: a subscription weeks behind is broken, and holding
+    the log open for it would grow the table without bound on every instance
+    that never configures a target at all. Ledger rows go with the events they
     describe, so the pair stays the same size.
     """
-    cutoff = datetime.now(timezone.utc) - timedelta(days=OUTBOX_RETENTION_DAYS)
-    stale = list(
-        await session.exec(select(EventOutbox).where(EventOutbox.occurred_at < cutoff))
-    )
-    if not stale:
-        return
-    txn_ids = sorted({row.txn_id for row in stale})
-    for row in stale:
-        await session.delete(row)
-    await session.exec(
-        text("DELETE FROM webhook_deliveries WHERE txn_id = ANY(:txn_ids)").bindparams(
-            txn_ids=txn_ids
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=OUTBOX_RETENTION_DAYS)
+    txn_ids: set[int] = set()
+    for log in (EventOutbox, AppEventOutbox):
+        removed = await session.exec(
+            delete(log).where(log.occurred_at < cutoff).returning(log.txn_id)
         )
-    )
-    logger.info("outbox retention: guild=%s removed=%s", guild_id, len(stale))
+        txn_ids.update(txn_id for (txn_id,) in removed.all())
+    if txn_ids:
+        await session.exec(
+            text(
+                "DELETE FROM webhook_deliveries WHERE txn_id = ANY(:txn_ids)"
+            ).bindparams(txn_ids=sorted(txn_ids))
+        )
+        logger.info(
+            "outbox retention: guild=%s transactions=%s", guild_id, len(txn_ids)
+        )
+    await session.exec(delete(AppHookDelivery).where(AppHookDelivery.expires_at < now))

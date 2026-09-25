@@ -1,21 +1,10 @@
-"""Outbound webhook dispatcher.
+"""Signing and sending one webhook envelope.
 
-When something interesting happens (``task.created``,
-``task.status_changed``, …), call :func:`dispatch_event` with the event
-type, scope, and payload. The dispatcher looks up matching active
-subscriptions, builds an envelope, signs it with the subscription's
-HMAC secret, and POSTs to the target URL.
-
-:func:`dispatch_event` itself is a synchronous, best-effort, one-shot send: a
-subscriber that's slow or down does NOT block the user write that produced the
-event, and a failed send here is not retried — it is logged and dropped. That
-is the right tradeoff for its one caller (re-emitting a verified third-party app
-event), which has nothing durable to retry from.
-
-:func:`deliver`, the actual POST, is shared with
-``app.services.tenant.outbox_poller``, which is where retry, backoff, and
-dead-lettering live: it drains ``event_outbox`` to each guild webhook
-subscription on its own schedule, independent of any request.
+:func:`deliver` POSTs one envelope to one subscription's target, signed with
+the subscription's HMAC secret. The outbox poller
+(``app.services.tenant.outbox_poller``) is its caller: it drains the change log
+and the events apps emit to each subscription, and holds the retry, backoff and
+dead-letter state around each send.
 
 Verification (the receiver's job, in initiative-auto):
 
@@ -28,23 +17,16 @@ Verification (the receiver's job, in initiative-auto):
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import hmac
 import json
 import logging
-import uuid
 from datetime import datetime, timezone
 from typing import Any
 
 import httpx
-from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.services.safe_http import request_public_target
-from app.services.tenant import webhook_refs
-from app.services.tenant import webhook_subscriptions
 from app.services.webhook_target_url import (
     WebhookTargetUrlError,
     WebhookTargetUrlPrivateError,
@@ -136,94 +118,3 @@ async def deliver(
         return False
 
     return True
-
-
-async def dispatch_event(
-    session: AsyncSession,
-    *,
-    event_type: str,
-    guild_id: int,
-    payload: dict[str, Any],
-    initiative_id: int | None = None,
-) -> None:
-    """Find matching subscriptions and POST the event to each.
-
-    Matches require:
-      * the subscription is in this community's schema (RLS already enforces)
-      * subscription.event_types includes event_type
-      * subscription.active is true
-      * subscription.initiative_id is None OR equal to event initiative_id
-        (a guild-scoped subscription matches initiative-scoped events too,
-        which is the right semantics — guild-scoped means "any event in
-        the guild")
-
-    Deliveries fan out concurrently. Caller's request is awaited until
-    all deliveries return or time out (5s each). For v0 that latency is
-    acceptable because the typical case is zero or one subscriber.
-    Move to a background queue when delivery counts climb.
-    """
-    statement = select(WebhookSubscription).where(
-        WebhookSubscription.active.is_(True),
-        # An app that is no longer installed is sent nothing, whatever its
-        # subscriptions still say.
-        webhook_subscriptions.registered_install_is_live(),
-        WebhookSubscription.event_types.contains([event_type]),
-    )
-    if initiative_id is not None:
-        # ``initiative_id IS NULL OR initiative_id = :initiative_id``
-        # — guild-wide subs always match, initiative-scoped only when
-        # they match the event's initiative.
-        statement = statement.where(
-            (WebhookSubscription.initiative_id.is_(None))
-            | (WebhookSubscription.initiative_id == initiative_id)
-        )
-    else:
-        # No initiative_id on the event → only guild-scoped subs match.
-        statement = statement.where(WebhookSubscription.initiative_id.is_(None))
-
-    rows = (await session.exec(statement)).all()
-    if not rows:
-        return
-
-    envelope_base = {
-        "event_type": event_type,
-        "occurred_at": datetime.now(timezone.utc).isoformat(),
-        "initiative_id": initiative_id,
-        "payload": payload,
-    }
-
-    # Per-subscription envelope copies. Each delivery gets a fresh
-    # ``event_id`` so a receiver dedup-ing on that header doesn't drop
-    # legitimate fan-out to multiple subscriptions of the same logical
-    # event, and so future per-target retry logic can dedup retries
-    # without colliding across subscriptions. ``subscription_id`` is included
-    # for the receiver's routing.
-    #
-    # The guild is named per subscription rather than once, because a reference
-    # is pairwise: two subscribers hold two unrelated names for this guild.
-    deliveries: list[asyncio.Task] = []
-    for sub in rows:
-        guild_ref, _ = await webhook_refs.name_for_subscriber(
-            guild_id=guild_id,
-            app_install_id=sub.app_install_id,
-            subscription_id=sub.id,
-        )
-        envelope = {
-            **envelope_base,
-            "event_id": str(uuid.uuid4()),
-            "subscription_id": sub.id,
-            "guild_ref": guild_ref,
-        }
-        deliveries.append(
-            asyncio.create_task(
-                deliver(
-                    target_url=sub.target_url,
-                    secret=sub.hmac_secret,
-                    envelope=envelope,
-                )
-            )
-        )
-
-    # Wait for all to complete; ``_deliver`` swallows its own errors so
-    # ``return_exceptions=True`` is just belt-and-suspenders.
-    await asyncio.gather(*deliveries, return_exceptions=True)

@@ -146,6 +146,9 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # shared jti janitor prunes the ones past their assertion's exp. Never
     # updated — a spent jti has one state.
     "app_assertion_jtis": frozenset({"SELECT", "INSERT", "DELETE"}),
+    # The install index: kept in step with each community's installs, read to
+    # list an app's installs and to route its vendor webhooks.
+    "app_installs": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # Registry client state: read and written by the refresh job alone. The
     # verified TUF metadata is replaced role by role, so a superseded version
     # is deleted; the status is one row, recycled in place.
@@ -342,6 +345,7 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     "publishers": None,
     # Client-assertion jtis: spent on the system engine alone.
     "app_assertion_jtis": None,
+    "app_installs": None,
     # Refresh bookkeeping — system engine only, surfaced to an operator through
     # a capability-gated endpoint rather than read on the request path.
     "marketplace_tuf_metadata": None,
@@ -509,6 +513,7 @@ SHARED_TABLE_APP_GUILD_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "app_service_registrations": None,
     "publishers": None,
     "app_assertion_jtis": None,
+    "app_installs": None,
     "marketplace_tuf_metadata": None,
     "marketplace_registry_status": None,
     # 0360: served on the bare login role alone.
@@ -633,6 +638,7 @@ SHARED_TABLE_PLATFORM_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "app_service_registrations": None,
     "publishers": None,
     "app_assertion_jtis": None,
+    "app_installs": None,
     "marketplace_tuf_metadata": None,
     "marketplace_registry_status": None,
     # 0360: served on the bare login role alone.
@@ -723,6 +729,7 @@ SHARED_TABLE_APP_SUPERADMIN_GRANTS: dict[str, frozenset[str] | None] = {
     "app_service_registrations": None,
     "publishers": None,
     "app_assertion_jtis": None,
+    "app_installs": None,
     "marketplace_tuf_metadata": None,
     "marketplace_registry_status": None,
     "marketplace_media": None,
@@ -823,6 +830,7 @@ SHARED_TABLE_APP_INSTALL_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     # 20260924_0387).
     "publishers": None,
     "app_assertion_jtis": None,
+    "app_installs": None,
     "sign_in_locks": None,
     "marketplace_tuf_metadata": None,
     "marketplace_registry_status": None,

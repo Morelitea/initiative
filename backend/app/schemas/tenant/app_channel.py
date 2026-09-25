@@ -138,12 +138,13 @@ class AppStatusRead(SanitizedBaseModel):
 
 
 class AppInstallationEvent(SanitizedBaseModel):
-    """A third-party event an app is re-emitting into the community whose
-    install its token names.
+    """An event an app emits in the community whose install its token names.
 
     ``event_type`` is checked against the pinned definition and against the
-    caller's own namespace.
+    caller's own namespace. ``initiative_id`` names the initiative the event
+    is about, when it is about one.
     """
 
     event_type: str = Field(max_length=200)
     payload: Dict[str, Any] = {}
+    initiative_id: Optional[int] = None

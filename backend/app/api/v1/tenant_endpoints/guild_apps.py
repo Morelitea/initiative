@@ -86,6 +86,7 @@ from app.schemas.tenant.guild_app import (
     upgrade_asks_read,
 )
 from app.services import audit as audit_service
+from app.services.marketplace import app_installs as app_installs_service
 from app.services.marketplace import app_refs
 from app.services.marketplace import catalog as catalog_service
 from app.services.marketplace import registration_lookup
@@ -513,6 +514,7 @@ async def install_guild_app(
             detail=GuildAppMessages.ALREADY_INSTALLED,
         ) from exc
     await session.refresh(app)
+    await app_installs_service.record(guild_context.guild_id, app)
 
     installed = serialize_guild_app(
         app,
@@ -606,6 +608,7 @@ async def upgrade_guild_app(
         app_updates_service.PendingUpdate(
             version=version.version, definition=definition
         ),
+        guild_id=guild_context.guild_id,
         add_scopes=add_scopes,
     )
     record: dict[str, Any] = {
@@ -769,6 +772,7 @@ async def update_guild_app(
         )
     await session.commit()
     await session.refresh(app)
+    await app_installs_service.record(guild_context.guild_id, app)
     return serialize_guild_app(
         app,
         install_state=await registration_lookup.install_state(app.definition),
@@ -858,6 +862,7 @@ async def uninstall_guild_app(
     )
     await session.commit()
     await _flush_revocations(session)
+    await app_installs_service.forget(guild_id, install_id)
     # What this install called each member. Removed explicitly, because the
     # reference lives in a platform-wide table that no foreign key reaches from
     # here — and last, after the revocations the commit above queued, so those
@@ -971,6 +976,7 @@ async def update_guild_app_config(
         )
     await session.commit()
     await session.refresh(app)
+    await app_installs_service.record(guild_context.guild_id, app)
     offer = await app_updates_service.update_offer(session, app)
     return serialize_guild_app_detail(
         app,
@@ -1419,6 +1425,9 @@ async def disconnect_guild_app(
 
     await session.commit()
     await _flush_revocations(session)
+    if connection.get("scope") == "static":
+        await session.refresh(app)
+        await app_installs_service.record(guild_context.guild_id, app)
 
 
 # ---------------------------------------------------------------------------

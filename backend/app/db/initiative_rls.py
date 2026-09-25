@@ -1214,6 +1214,10 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     # through the REST path, where sharing decides. The initiative gate is
     # what scopes it. See outbox_poller's module docstring.
     "event_outbox": direct(),
+    # The events installed apps emit, scoped by the initiative an event names
+    # like the change log beside it. Written by the system engine alone
+    # (app.db.guild_ddl._TRIGGER_WRITTEN_INSERT) and read by the poller.
+    "app_event_outbox": direct(),
     # The search index. Derived from the content tables, and gated like them.
     "search_entries": search_entries_path(),
     # Integration config, reached by whoever can reach what it watches.
@@ -1669,6 +1673,7 @@ class Emit:
 EVENT_SOURCES: dict[str, Emit | Silent] = {
     # -- Silent ------------------------------------------------------------
     "event_outbox": Silent("the log cannot log itself"),
+    "app_event_outbox": Silent("delivered by the poller as events of its own"),
     # What one member did with their own UI, not a change to the initiative's
     # content, so every subscription would pay for pure noise.
     "recent_views": Silent("one member's own viewing state"),

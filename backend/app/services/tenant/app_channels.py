@@ -35,20 +35,23 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Optional, Protocol, Sequence
 
+from sqlalchemy import func, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import routed_guild_id
 from app.core.messages import AppChannelMessages
+from app.db.event_capture import OUTBOX_CHANNEL
 from app.db.session import set_rls_context
 from app.models.platform.guild import LIVE_STATUS_VALUES, Guild, GuildStatus
+from app.models.tenant.app_event_outbox import AppEventOutbox
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.marketplace.app_refs import ensure_app_guild_ref
 from app.services.marketplace.service_apps import ENDPOINT_ID_PREFIX
 from app.services.tenant import app_config as app_config_service
 from app.services.tenant import app_connection_flows as flows
-from app.services.tenant.webhook_dispatcher import dispatch_event
+from app.services.tenant import guild_apps as guild_apps_service
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +69,7 @@ __all__ = [
 #: What one event body may carry. An event is a notification that something
 #: happened, not a data transfer — an app with more to say serves it from a data
 #: source the platform fetches on demand.
-MAX_EVENT_PAYLOAD_BYTES = 64 * 1024
+MAX_EVENT_PAYLOAD_BYTES = 8 * 1024
 
 #: The states an app may report about the configuration it was handed.
 #: ``unverified`` is this build's resting value and is not something an app
@@ -423,21 +426,22 @@ async def emit_event(
     *,
     event_type: str,
     payload: dict[str, Any],
+    initiative_id: Optional[int],
+    token_initiative_id: Optional[int],
 ) -> None:
-    """Re-emit a third-party event into this guild's own dispatcher.
+    """Keep one event the app emits, for the outbox poller to deliver.
 
-    The app has verified the third party's signature and worked out which of its
-    installs the event belongs to; what this adds is the platform's half —
-    the type is an `emit` endpoint the *pinned* definition declares, namespaced
-    under the calling app, and the guild has that app installed and enabled.
+    The type is an ``emit`` endpoint the *pinned* definition declares,
+    namespaced under the calling app. `emit` and not merely declared: reads
+    and writes share the id space, and an app that could announce under a
+    read's id would be emitting something a subscriber has no way to have
+    asked for.
 
-    `emit` and not merely declared: reads and writes share the id space, and an
-    app that could announce under a read's id would be emitting something a
-    subscriber has no way to have asked for.
-
-    From there it is an ordinary event: the existing dispatcher delivers it to
-    the community's subscriptions for that type. This route only emits; a
-    subscription is registered on the webhook routes.
+    An event about an initiative names one the install is placed in; a token
+    narrowed to an initiative emits in that one. The row is written in the
+    request's transaction, which wakes the outbox drain as a captured change
+    does, and the poller delivers it to the community's subscriptions with the
+    change log, retrying until each accepts it.
     """
     definition = app.definition if isinstance(app.definition, dict) else {}
     declared = definition.get("endpoints")
@@ -457,9 +461,27 @@ async def emit_event(
     if _payload_size(payload) > MAX_EVENT_PAYLOAD_BYTES:
         raise AppChannelError(AppChannelMessages.EVENT_TOO_LARGE, status_code=413)
 
-    await dispatch_event(
-        session,
-        event_type=event_type,
-        guild_id=routed_guild_id(session),
-        payload=payload,
+    if initiative_id is None:
+        initiative_id = token_initiative_id
+    if initiative_id is not None and (
+        token_initiative_id not in (None, initiative_id)
+        or not await guild_apps_service.is_placed(session, app.id, initiative_id)
+    ):
+        raise AppChannelError(AppChannelMessages.INITIATIVE_NOT_PLACED, status_code=403)
+
+    session.add(
+        AppEventOutbox(
+            txn_id=func.txid_current(),
+            install_id=app.id,
+            event_type=event_type,
+            initiative_id=initiative_id,
+            payload=payload,
+        )
     )
+    # The same hint the capture trigger raises, heard once this commits.
+    await session.exec(
+        text(
+            "SELECT pg_notify(:channel, current_schema() || ':' || txid_current())"
+        ).bindparams(channel=OUTBOX_CHANNEL)
+    )
+    await session.commit()

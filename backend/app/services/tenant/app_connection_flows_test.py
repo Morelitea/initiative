@@ -31,6 +31,8 @@ from app.core.messages import AppChannelMessages
 from app.db import session as db_session
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.app_install import AppInstall
+from app.models.tenant.app_hook_delivery import AppHookDelivery
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.marketplace.registration_lookup import load_registrations
@@ -38,6 +40,7 @@ from app.services.tenant import app_connection_flows, app_revocation
 from app.testing import (
     create_app_service_registration,
     create_guild_app,
+    create_marketplace_listing,
     route_session_to_guild,
     sealed_vendor_values,
 )
@@ -68,6 +71,7 @@ VENDOR_VALUES = {
     "app_slug": "initiative-test",
     "app_id": "4242",
     "private_key": PRIVATE_KEY_PEM,
+    "webhook_secret": "webhook-secret-789",
 }
 
 
@@ -131,7 +135,28 @@ DEFINITION = {
     "app_kind": "service",
     "service": {"public_id": PUBLIC_ID, "protocol": 1},
     "features": [],
+    "vendor": {
+        "fields": [
+            {"key": key, "type": "string", "label": {"en": key}}
+            for key in VENDOR_VALUES
+        ]
+    },
     "connections": [ACCOUNT, HOOKED, WORKSPACE],
+    "webhooks": {
+        "verify": {
+            "scheme": "hmac_sha256",
+            "header": "X-Hub-Signature-256",
+            "prefix": "sha256=",
+            "encoding": "hex",
+            "secret": "{vendor.webhook_secret}",
+        },
+        "dedup": "X-GitHub-Delivery",
+        "route": {
+            "path": "installation.id",
+            "connection": "workspace",
+            "field": "installation_id",
+        },
+    },
 }
 
 
@@ -188,6 +213,14 @@ async def _member_row(
             )
         )
     ).first()
+
+
+async def _indexed(
+    session: AsyncSession, guild_id: int, app_id: int
+) -> AppInstall | None:
+    """The install's row in the install index."""
+    session.expunge_all()
+    return await session.get(AppInstall, (guild_id, app_id))
 
 
 async def _reload(session: AsyncSession, guild_id: int, app_id: int) -> GuildApp:
@@ -530,6 +563,8 @@ class TestInstallationStyleFlow:
         assert "workspace" not in (stored.config_secrets or {})
         assert stored.connection_refs.get("workspace")
         assert await _member_row(session, a.guild.id, app.id, "workspace") is None
+        # The vendor's webhooks for installation 42 now route here.
+        assert (await _indexed(session, a.guild.id, app.id)).hook_route == "42"
 
     async def test_losing_the_seat_mid_flow_refuses_it(
         self, client: AsyncClient, acting_user, session, vendor, registration
@@ -893,3 +928,128 @@ class TestVendorLiveness:
         )
         snapshot = (await load_registrations(force=True))["tests.ready"]
         assert snapshot.live is True
+
+
+# ---------------------------------------------------------------------------
+# The vendor's webhooks
+# ---------------------------------------------------------------------------
+
+HOOK_ROUTE = f"/api/v1/app-hooks/{PUBLIC_ID}"
+
+
+def _connected(installation_id: str) -> dict:
+    """The community connection as a completed install-style flow leaves it."""
+    return {"workspace": {"owner": "acme", "installation_id": installation_id}}
+
+
+@pytest.fixture
+async def listing(session: AsyncSession, registration):
+    """The listing whose manifest declares the webhooks."""
+    return await create_marketplace_listing(
+        session, uid=LISTING_UID, public_id=PUBLIC_ID, kind="app", definition=DEFINITION
+    )
+
+
+async def _deliveries(session: AsyncSession, guild_id: int) -> list[AppHookDelivery]:
+    await route_session_to_guild(session, guild_id)
+    session.expunge_all()
+    return list((await session.exec(select(AppHookDelivery))).all())
+
+
+class TestVendorWebhooks:
+    async def test_a_delivery_reaches_each_community_that_connected_it_once(
+        self, client: AsyncClient, acting_user, session, vendor, listing
+    ):
+        """Two communities connected installation 42 and a third connected 7.
+        A delivery for 42 is forwarded to each of the two, on a lifecycle
+        token naming that install, and a redelivery forwards nothing."""
+        seats = [await acting_user(guild_role=GuildRole.superadmin) for _ in range(3)]
+        apps = [
+            await _install(session, seat, config=_connected(value))
+            for seat, value in zip(seats, ("42", "42", "7"))
+        ]
+        body, headers = vendor.webhook({"action": "opened", "installation": {"id": 42}})
+
+        response = await client.post(HOOK_ROUTE, content=body, headers=headers)
+        assert response.status_code == 202, response.text
+
+        forwarded = [
+            (call, token) for name, call, token in vendor.hooks if name == "webhook"
+        ]
+        claims = [
+            jwt.decode(
+                token.removeprefix("Bearer "), options={"verify_signature": False}
+            )
+            for _, token in forwarded
+        ]
+        assert [claim["app_install_id"] for claim in claims] == [
+            apps[0].id,
+            apps[1].id,
+        ]
+        assert {claim["hook"] for claim in claims} == {"webhook"}
+        assert claims[0]["guild_ref"] != claims[1]["guild_ref"]
+        call = forwarded[0][0]
+        assert call["connection"] == "workspace"
+        assert call["body"] == body.decode()
+        assert call["headers"]["x-github-event"] == "issues"
+        assert call["headers"]["x-github-delivery"] == "delivery-1"
+        assert "x-hub-signature-256" not in call["headers"]
+
+        again = await client.post(HOOK_ROUTE, content=body, headers=headers)
+        assert again.status_code == 202
+        assert len([name for name, _, _ in vendor.hooks if name == "webhook"]) == 2
+        assert await _deliveries(session, seats[2].guild.id) == []
+
+    @pytest.mark.parametrize("problem", ["bad_signature", "unroutable"])
+    async def test_nothing_is_forwarded_or_stored_for_a_delivery_it_cannot_route(
+        self, client: AsyncClient, acting_user, session, vendor, listing, problem
+    ):
+        seat = await acting_user(guild_role=GuildRole.superadmin)
+        await _install(session, seat, config=_connected("42"))
+        installation = 999 if problem == "unroutable" else 42
+        body, headers = vendor.webhook({"installation": {"id": installation}})
+        if problem == "bad_signature":
+            headers["X-Hub-Signature-256"] = "sha256=" + "0" * 64
+
+        response = await client.post(HOOK_ROUTE, content=body, headers=headers)
+
+        assert response.status_code == (401 if problem == "bad_signature" else 202)
+        assert [name for name, _, _ in vendor.hooks] == []
+        assert await _deliveries(session, seat.guild.id) == []
+
+    async def test_a_forward_that_fails_is_retried_by_the_vendor(
+        self, client: AsyncClient, acting_user, session, vendor, listing
+    ):
+        """A community whose app did not accept a delivery records nothing, so
+        the vendor's redelivery reaches it."""
+        seat = await acting_user(guild_role=GuildRole.superadmin)
+        await _install(session, seat, config=_connected("42"))
+        body, headers = vendor.webhook({"installation": {"id": 42}})
+
+        vendor.hook_status = 500
+        failed = await client.post(HOOK_ROUTE, content=body, headers=headers)
+        assert failed.status_code == 502
+        assert await _deliveries(session, seat.guild.id) == []
+
+        vendor.hook_status = 200
+        retried = await client.post(HOOK_ROUTE, content=body, headers=headers)
+        assert retried.status_code == 202
+        [recorded] = await _deliveries(session, seat.guild.id)
+        assert recorded.delivery_id == "delivery-1"
+
+    async def test_disconnecting_and_uninstalling_remove_the_route(
+        self, client: AsyncClient, acting_user, session, vendor, registration
+    ):
+        a = await acting_user(guild_role=GuildRole.superadmin)
+        app = await _install(session, a, config=_connected("42"))
+        assert (await _indexed(session, a.guild.id, app.id)).hook_route == "42"
+
+        response = await client.delete(
+            a.g(f"/apps/{app.id}/connections/workspace"), headers=a.headers
+        )
+        assert response.status_code == 204, response.text
+        assert (await _indexed(session, a.guild.id, app.id)).hook_route is None
+
+        response = await client.delete(a.g(f"/apps/{app.id}"), headers=a.headers)
+        assert response.status_code == 204, response.text
+        assert await _indexed(session, a.guild.id, app.id) is None

@@ -628,7 +628,11 @@ class TestVersionsThatAskForMore:
         offer = await app_updates.update_offer(session, waiting)
         assert offer is not None
         await app_updates.apply_version(
-            session, waiting, offer.update, add_scopes=offer.asks.added_scopes
+            session,
+            waiting,
+            offer.update,
+            guild_id=guild.id,
+            add_scopes=offer.asks.added_scopes,
         )
         await session.commit()
 

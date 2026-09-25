@@ -335,8 +335,8 @@ _COMMANDS = (
     ("delete", "DELETE", "USING", True),
 )
 
-# Tables written only by a trigger, never by hand: their INSERT policy admits the
-# capture trigger instead of re-deciding the writer's access.
+# Tables written only by a trigger or the system engine: their INSERT policy
+# admits that writer instead of re-deciding the writer's access.
 #
 # ``event_outbox`` is the one. A row lands there as a consequence of a content
 # write that already cleared its own table's gate, so the log RECORDS what
@@ -349,6 +349,8 @@ _TRIGGER_WRITTEN_INSERT: dict[str, str] = {
     # consequence of a content write that already cleared its own table's gate.
     # The reindex sweep routes as the guild admin, which is the second leg.
     "search_entries": f"pg_trigger_depth() > 0 OR {SYSTEM_SESSION} OR {GUILD_ADMIN}",
+    # An app's events are written by the system engine, on the app's behalf.
+    "app_event_outbox": SYSTEM_SESSION,
 }
 
 

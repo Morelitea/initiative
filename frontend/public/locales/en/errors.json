@@ -466,6 +466,7 @@
   "APP_CHANNEL_INVALID_PAYLOAD": "That app service sent something this version can't read.",
   "APP_CHANNEL_UNKNOWN_EVENT_TYPE": "That event type isn't one this app declared.",
   "APP_CHANNEL_EVENT_TOO_LARGE": "That event is larger than this version will carry.",
+  "APP_CHANNEL_INITIATIVE_NOT_PLACED": "That app isn't placed in that initiative.",
   "APP_CHANNEL_INVALID_CONFIG_STATE": "That app service reported a status this version doesn't recognize.",
   "APP_DATA_ENDPOINT_NOT_FOUND": "This widget is bound to data the app no longer offers.",
   "APP_DATA_ADMIN_ONLY": "Only community admins can see this app's data.",

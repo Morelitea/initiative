@@ -450,6 +450,65 @@ class TestConnections:
                 ],
             )
 
+    @pytest.mark.parametrize(
+        ("verify", "route", "problem"),
+        [
+            ({"secret": "{vendor.nope}"}, {}, "verify.secret"),
+            ({"secret": "x{vendor.client_secret}"}, {}, "verify.secret"),
+            ({}, {"connection": "account"}, "not a static connection"),
+            ({}, {"field": "login"}, "not a field of the connection"),
+            ({"header": "X-Sig nature"}, {}, "not allowed"),
+        ],
+        ids=[
+            "an undeclared vendor value",
+            "more than one vendor value",
+            "a member's connection",
+            "an undeclared field",
+            "a header name with a space",
+        ],
+    )
+    def test_webhooks_route_by_a_static_field_under_a_vendor_secret(
+        self, verify, route, problem
+    ):
+        webhooks = {
+            "verify": {
+                "scheme": "hmac_sha256",
+                "header": "X-Hub-Signature-256",
+                "prefix": "sha256=",
+                "encoding": "hex",
+                "secret": "{vendor.client_secret}",
+            },
+            "dedup": "X-GitHub-Delivery",
+            "route": {
+                "path": "installation.id",
+                "connection": "workspace",
+                "field": "owner",
+            },
+        }
+        connections = [
+            {
+                "id": "workspace",
+                "scope": "static",
+                "label": _label(),
+                "flow": FLOW,
+                "fields": [_managed()],
+            },
+            {
+                "id": "account",
+                "scope": "interactive",
+                "label": _label(),
+                "flow": FLOW,
+                "fields": [_managed("login")],
+            },
+        ]
+        kept = _normalize(vendor=VENDOR, connections=connections, webhooks=webhooks)
+        assert kept["webhooks"] == webhooks
+
+        webhooks["verify"].update(verify)
+        webhooks["route"].update(route)
+        with pytest.raises(ListingDefinitionError, match=problem):
+            _normalize(vendor=VENDOR, connections=connections, webhooks=webhooks)
+
     def test_a_field_may_not_take_a_token_key(self):
         with pytest.raises(ListingDefinitionError, match="keeps its tokens"):
             _normalize(
