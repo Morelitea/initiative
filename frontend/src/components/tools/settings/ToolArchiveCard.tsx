@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useArchiveEntity, useUnarchiveEntity } from "@/hooks/useArchive";
 import { toast } from "@/lib/chesterToast";
+import { hasWriteAccess } from "@/lib/permissions";
 
 /** Whether this viewer has anything to do here — what gates the card and, in
  *  the layout, the tab that holds it. */
@@ -31,9 +32,7 @@ export const canUseArchiveCard = (entity: {
   can_unarchive: boolean;
   my_permission_level: string | null;
 }): boolean =>
-  entity.archived_at !== null
-    ? entity.can_unarchive
-    : entity.my_permission_level === "owner" || entity.my_permission_level === "write";
+  entity.archived_at !== null ? entity.can_unarchive : hasWriteAccess(entity.my_permission_level);
 
 export const ToolArchiveCard = () => {
   const { t } = useTranslation("common");

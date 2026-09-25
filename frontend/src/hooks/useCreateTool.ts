@@ -1,47 +1,25 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-
 import type { Tool } from "@/api/generated/initiativeAPI.schemas";
-import { apiMutator } from "@/api/mutator";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { toolApiPath, toolRouteSegment } from "@/lib/tools";
+import { invalidate, q } from "@/api/query-keys";
+import { TOOL_HOOKS } from "@/hooks/toolHooks";
+import { useGuildMutation } from "@/hooks/useApiMutation";
 
 /** All a tool needs to exist: a name, and where it lives. */
-export interface NewTool {
+interface NewTool {
   tool: Tool;
   name: string;
   initiativeId: number;
 }
 
 /**
- * Making any tool, derived from the enum.
+ * Making any tool, when which one is only known at the moment it is made.
  *
- * Every tool is created the same way — POST a name and an initiative to its own
- * collection — so this needs no line per tool and gains a seventh the day the
- * enum does. The path comes from `toolApiPath`, which every other tool surface
- * already builds its URLs from.
- *
- * It deliberately does NOT go through the six generated `useCreateX` hooks. One
- * per tool is one to forget, and forgetting would mean a tool that quietly
- * cannot be made rather than one that visibly cannot compile.
+ * The same create every tool's table entry in `TOOL_HOOKS` carries, and the
+ * same lists refreshed afterwards, so this is that path with the tool chosen
+ * late rather than a second way in.
  */
-export const useCreateTool = () => {
-  const guildId = useActiveGuildId();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ tool, name, initiativeId }: NewTool) =>
-      apiMutator<{ id: number }>({
-        url: `/api/v1/c/${guildId}${toolApiPath(tool).replace("/api/v1", "")}/`,
-        method: "POST",
-        data: { name, initiative_id: initiativeId },
-      }),
-    onSuccess: (_made, { tool }) => {
-      // Whatever lists this tool, refreshed — matched on the tool's own path
-      // segment, so this is derived too rather than a set of keys to maintain.
-      const segment = toolRouteSegment(tool);
-      void queryClient.invalidateQueries({
-        predicate: (query) => JSON.stringify(query.queryKey).includes(segment),
-      });
-    },
+export const useCreateTool = () =>
+  useGuildMutation<{ id: number }, NewTool>({
+    mutationFn: (guildId, { tool, name, initiativeId }) =>
+      TOOL_HOOKS[tool].create(guildId, { name, initiative_id: initiativeId }),
+    invalidate: (_made, { tool }) => invalidate(q.toolList(tool)),
   });
-};

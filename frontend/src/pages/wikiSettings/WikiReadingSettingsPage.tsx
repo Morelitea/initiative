@@ -31,6 +31,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { useUpdateWiki, useWiki } from "@/hooks/useWikis";
+import { hasWriteAccess } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
 /** What the picker opens on when the wiki has no accent of its own. */
@@ -75,7 +76,7 @@ export const WikiReadingSettingsPage = () => {
     return <p className="text-muted-foreground text-sm">{t("loading")}</p>;
   }
 
-  const canWrite = wiki.my_permission_level === "write" || wiki.my_permission_level === "owner";
+  const canWrite = hasWriteAccess(wiki.my_permission_level);
   const save = (patch: Parameters<typeof update.mutate>[0]) => {
     if (canWrite) update.mutate(patch);
   };

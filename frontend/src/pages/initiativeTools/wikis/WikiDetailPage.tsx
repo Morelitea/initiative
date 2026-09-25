@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useCreateWikiPage, useWiki, useWikiPages } from "@/hooks/useWikis";
 import { useGuildPath } from "@/lib/guildUrl";
+import { hasWriteAccess } from "@/lib/permissions";
 import { wikiPageRoute } from "@/lib/tools";
 
 /**
@@ -40,9 +41,7 @@ export const WikiDetailPage = () => {
   const pages = pagesQuery.data?.items ?? [];
   const addPage = () => createPage.mutate({});
 
-  const canWrite =
-    wikiQuery.data?.my_permission_level === "write" ||
-    wikiQuery.data?.my_permission_level === "owner";
+  const canWrite = hasWriteAccess(wikiQuery.data?.my_permission_level);
 
   // Inside a wiki, the thing to create is a page. Without this the button in
   // the corner keeps whatever the list before it registered — a second wiki.

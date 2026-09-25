@@ -399,7 +399,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       await apiClient.put("/communities/order", { guildIds: payload });
     } catch (err) {
       console.error("Failed to save guild order", err);
-      toast.error("Unable to save community order. Refreshing…");
+      toast.error(getErrorMessage(err, "errors:unableToSaveGuildOrder"));
       await refreshGuilds();
     }
   }, [refreshGuilds]);

@@ -40,7 +40,6 @@ const queues = TOOL_HOOKS[Tool.queue];
 
 export const useQueuesList = queues.useList;
 export const useQueue = queues.useDetail;
-export const useCreateQueue = queues.useCreate;
 export const useUpdateQueue = queues.useUpdate;
 export const useDeleteQueue = queues.useDelete;
 export const useSetQueueGrants = queues.useSetGrants;

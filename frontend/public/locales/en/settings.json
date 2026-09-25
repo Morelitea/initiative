@@ -268,6 +268,15 @@
     "updateSuccess": "Interface preferences updated",
     "updateError": "Unable to update interface preferences",
     "themePreview": "Theme preview",
+    "themeDescriptions": {
+      "kobold": "The classic Initiative theme with deep indigo tones.",
+      "displacer": "Catppuccin-inspired soothing pastel theme (Latte/Macchiato).",
+      "strahd": "Dark gothic theme with purple accents (Dracula/Alucard).",
+      "unicorn": "Full-spectrum neon rainbow — loud and proud.",
+      "darkKnight": "AMOLED black theme with dark red and yellow accents.",
+      "orc": "Earthy green theme with vivid orc-skin green accents. ORC ORC ORC!",
+      "aboleth": "Monokai-inspired dark lair with vivid bioluminescent accent colors."
+    },
     "lightMode": "Light",
     "darkMode": "Dark",
     "taskCompletionVisualFeedback": {

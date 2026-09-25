@@ -131,7 +131,7 @@ export const VersionDialog = ({
                         </div>
                       </div>
                       {entry.changes.trim() ? (
-                        <Markdown content={entry.changes} />
+                        <Markdown remoteImages content={entry.changes} />
                       ) : (
                         <p className="text-muted-foreground text-sm">
                           {t("version.noDetailedChanges")}

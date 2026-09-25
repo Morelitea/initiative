@@ -48,7 +48,7 @@
  */
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { queryClient } from "@/lib/queryClient";
-import { singularOf, toolIdParam } from "@/lib/tools";
+import { singularOf, TOOLS, toolApiPath, toolIdParam, toolRouteSegment } from "@/lib/tools";
 
 // The active guild is per-tab React state in `GuildProvider`, mirrored here (a
 // module var is per-JS-context, so it stays per-tab — unlike shared storage) so
@@ -242,11 +242,7 @@ const allTasks = (): Spec => compose(resourceAndMe("tasks"), resourceAndMe("cale
 
 const task = (taskId: number): Spec => ({ guildExact: [`/api/v1/tasks/${taskId}`] });
 
-// ── Projects (guild + me) ────────────────────────────────────────────────────
-
-const allProjects = (): Spec => resourceAndMe("projects");
-
-const project = (projectId: number): Spec => ({ guildExact: [`/api/v1/projects/${projectId}`] });
+// ── Projects (guild) ─────────────────────────────────────────────────────────
 
 const projectTaskStatuses = (projectId: number): Spec => ({
   guildExact: [`/api/v1/projects/${projectId}/task-statuses/`],
@@ -267,13 +263,7 @@ const favoriteProjects = (): Spec => ({ guildExact: ["/api/v1/projects/favorites
 
 const writableProjects = (): Spec => ({ guildExact: ["/api/v1/projects/writable"] });
 
-// ── Documents (guild + me) ───────────────────────────────────────────────────
-
-const allDocuments = (): Spec => resourceAndMe("documents");
-
-const document = (documentId: number): Spec => ({
-  guildExact: [`/api/v1/documents/${documentId}`],
-});
+// ── Documents (guild) ────────────────────────────────────────────────────────
 
 /** Every read of the graph. One path serves them all, so one bucket does. */
 const relationships = (): Spec => ({
@@ -523,21 +513,7 @@ const guildInvites = (guildId: number): Spec => ({
   personalExact: [`/api/v1/communities/${guildId}/invites`],
 });
 
-// ── Queues (guild) ───────────────────────────────────────────────────────────
-
-const allQueues = (): Spec => ({ guildPrefix: ["/api/v1/queues"] });
-
-const queue = (queueId: number): Spec => ({ guildExact: [`/api/v1/queues/${queueId}`] });
-
-// ── Counter Groups (guild) ───────────────────────────────────────────────────
-
-const allCounterGroups = (): Spec => ({ guildPrefix: ["/api/v1/counter-groups"] });
-
-const counterGroup = (groupId: number): Spec => ({
-  guildExact: [`/api/v1/counter-groups/${groupId}`],
-});
-
-// ── Calendars & Calendar Events (guild + me) ─────────────────────────────────
+// ── Calendar Events (guild + me) ─────────────────────────────────────────────
 
 // The calendar-entries aggregate unions events + task markers; name it too so
 // event mutations reflect on the calendar surfaces.
@@ -550,28 +526,7 @@ const calendarEvent = (eventId: number): Spec => ({
   guildExact: [`/api/v1/calendar-events/${eventId}`],
 });
 
-// Calendar (the container) mutations also reach the events + entries views —
-// renames/colors/sharing change what those surfaces show.
-const allCalendars = (): Spec =>
-  compose({ guildPrefix: ["/api/v1/calendars"] }, allCalendarEvents());
-
-const calendar = (calendarId: number): Spec => ({
-  guildExact: [`/api/v1/calendars/${calendarId}`],
-});
-
-// ── Dashboards (guild) ───────────────────────────────────────────────────────
-
-const allDashboards = (): Spec => ({ guildPrefix: ["/api/v1/dashboards"] });
-
-const dashboard = (dashboardId: number): Spec => ({
-  guildExact: [`/api/v1/dashboards/${dashboardId}`],
-});
-
 // ── Posts (guild) ────────────────────────────────────────────────────────────
-
-const allPosts = (): Spec => ({ guildPrefix: ["/api/v1/posts"] });
-
-const post = (postId: number): Spec => ({ guildExact: [`/api/v1/posts/${postId}`] });
 
 /**
  * The board's timeline rail only.
@@ -586,12 +541,6 @@ const postTimeline = (): Spec => ({ guildPrefix: ["/api/v1/posts/timeline"] });
 
 // ── Galleries (guild) ────────────────────────────────────────────────────────
 
-const allGalleries = (): Spec => ({ guildPrefix: ["/api/v1/galleries"] });
-
-const gallery = (galleryId: number): Spec => ({
-  guildExact: [`/api/v1/galleries/${galleryId}`],
-});
-
 /** A gallery's pictures — every page of the list, the timeline rail, and
  *  each picture's own reads and versions — without the gallery row itself. */
 const galleryImages = (galleryId: number): Spec => ({
@@ -599,12 +548,6 @@ const galleryImages = (galleryId: number): Spec => ({
 });
 
 // ── Wikis (guild) ────────────────────────────────────────────────────────────
-
-const allWikis = (): Spec => ({ guildPrefix: ["/api/v1/wikis"] });
-
-const wiki = (wikiId: number): Spec => ({
-  guildExact: [`/api/v1/wikis/${wikiId}`],
-});
 
 /** A wiki's pages — the tree, each page's own read, and its connections —
  *  without the wiki row itself. */
@@ -626,39 +569,47 @@ const allTaskStatuses = (): Spec => ({ guildPrefix: ["/api/v1/projects"] });
 
 const allProperties = (): Spec => ({ guildPrefix: ["/api/v1/property-definitions"] });
 
-// ── One tool entity (guild, cross-tool) ──────────────────────────────────────
-// What every generic per-tool mutation — set tags, flip the comment switch —
-// makes stale: that tool's list and detail queries. `Record<Tool, …>` so a new
-// Tool member fails to compile until it declares its invalidation.
+// ── Tools (guild + me) ───────────────────────────────────────────────────────
+// Every tool is cached the same way, so its keys are one rule over the `Tool`
+// enum rather than a table per tool: a new member is covered the day it lands.
 
-const TOOL_LISTS: Record<Tool, () => Spec> = {
-  [Tool.project]: allProjects,
-  [Tool.document]: allDocuments,
-  [Tool.queue]: allQueues,
-  [Tool.counter_group]: allCounterGroups,
-  [Tool.calendar]: allCalendars,
-  [Tool.dashboard]: allDashboards,
-  [Tool.post]: allPosts,
-  [Tool.gallery]: allGalleries,
-  [Tool.wiki]: allWikis,
+/**
+ * Every list of one tool — its guild-wide list and the cross-guild `/me` twin
+ * every tool has. A calendar's also reaches the events and entries views, which
+ * show its name and colour.
+ */
+const toolList = (which: Tool): Spec => {
+  const lists = resourceAndMe(toolRouteSegment(which));
+  return which === Tool.calendar ? compose(lists, allCalendarEvents()) : lists;
 };
 
-const TOOL_ENTITIES: Record<Tool, (id: number) => Spec> = {
-  [Tool.project]: project,
-  [Tool.document]: document,
-  [Tool.queue]: queue,
-  [Tool.counter_group]: counterGroup,
-  [Tool.calendar]: calendar,
-  [Tool.dashboard]: dashboard,
-  [Tool.post]: post,
-  [Tool.gallery]: gallery,
-  [Tool.wiki]: wiki,
-};
+/** One tool entity's own read. */
+const toolEntity = (which: Tool, id: number): Spec => ({
+  guildExact: [`${toolApiPath(which)}/${id}`],
+});
 
-/** Every list of one tool — what creating entities of it (an import) makes stale. */
-const toolList = (which: Tool): Spec => TOOL_LISTS[which]();
+/** One entity and every list it sits in — what a generic per-tool write makes stale. */
+const tool = (which: Tool, id: number): Spec => compose(toolEntity(which, id), toolList(which));
 
-const tool = (which: Tool, id: number): Spec => compose(TOOL_ENTITIES[which](id), toolList(which));
+// The same two, by name, for the call sites that already know their tool.
+const allProjects = (): Spec => toolList(Tool.project);
+const project = (id: number): Spec => toolEntity(Tool.project, id);
+const allDocuments = (): Spec => toolList(Tool.document);
+const document = (id: number): Spec => toolEntity(Tool.document, id);
+const allQueues = (): Spec => toolList(Tool.queue);
+const queue = (id: number): Spec => toolEntity(Tool.queue, id);
+const allCounterGroups = (): Spec => toolList(Tool.counter_group);
+const counterGroup = (id: number): Spec => toolEntity(Tool.counter_group, id);
+const allCalendars = (): Spec => toolList(Tool.calendar);
+const calendar = (id: number): Spec => toolEntity(Tool.calendar, id);
+const allDashboards = (): Spec => toolList(Tool.dashboard);
+const dashboard = (id: number): Spec => toolEntity(Tool.dashboard, id);
+const allPosts = (): Spec => toolList(Tool.post);
+const post = (id: number): Spec => toolEntity(Tool.post, id);
+const allGalleries = (): Spec => toolList(Tool.gallery);
+const gallery = (id: number): Spec => toolEntity(Tool.gallery, id);
+const allWikis = (): Spec => toolList(Tool.wiki);
+const wiki = (id: number): Spec => toolEntity(Tool.wiki, id);
 
 // ── Everything this guild shows (cross-tool) ─────────────────────────────────
 // Two callers, one description. Gaining (or losing) a membership row changes
@@ -668,20 +619,7 @@ const tool = (which: Tool, id: number): Spec => compose(TOOL_ENTITIES[which](id)
 // name its rows one by one says so instead, and this is the answer.
 
 const guildContent = (): Spec =>
-  compose(
-    allInitiatives(),
-    allProjects(),
-    allDocuments(),
-    allQueues(),
-    allCounterGroups(),
-    allCalendars(),
-    allDashboards(),
-    allPosts(),
-    allGalleries(),
-    allWikis(),
-    allTasks(),
-    allComments()
-  );
+  compose(allInitiatives(), ...TOOLS.map(toolList), allTasks(), allComments());
 
 /** Every description, by name. The only export a call site needs beside `invalidate`. */
 export const q = {

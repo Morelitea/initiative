@@ -11,29 +11,29 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import {
-  type AppConfigValue,
-  type AppConnectStart,
-  type AppMembersResponse,
-  blockMemberConnection,
-  connectGuildApp,
-  declineGuildAppUpgrade,
-  disconnectGuildApp,
-  type GuildAppDetail,
-  getGuildApp,
-  getGuildAppMembers,
-  grantAppConsent,
-  revokeAllMemberConnections,
-  revokeAllMemberConsents,
-  revokeAppConsent,
-  revokeMemberConnection,
-  revokeMemberConsents,
-  unblockMemberConnection,
-  updateGuildAppConfig,
-  upgradeGuildApp,
-} from "@/api/appConnections";
+  blockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPost,
+  connectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnectPost,
+  declineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost,
+  disconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdDelete,
+  getGuildAppApiV1CGuildIdAppsAppIdGet,
+  grantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPut,
+  listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet,
+  revokeAllMemberConnectionsApiV1CGuildIdAppsAppIdRevokeAllPost,
+  revokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPost,
+  revokeMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDelete,
+  revokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDelete,
+  revokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDelete,
+  unblockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDelete,
+  updateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPut,
+  upgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePost,
+} from "@/api/generated/apps/apps";
 import type {
   ConsentAccess,
+  GuildAppConfigUpdateValues,
+  GuildAppConnectStart,
   GuildAppConsentRead,
+  GuildAppDetail,
+  GuildAppMembersResponse,
   GuildAppUpgrade,
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
@@ -49,16 +49,16 @@ export const useGuildAppDetail = (appId: number) => {
   const guildId = useActiveGuildId();
   return useQuery<GuildAppDetail>({
     queryKey: guildAppDetailKey(guildId, appId),
-    queryFn: () => getGuildApp(guildId, appId),
+    queryFn: () => getGuildAppApiV1CGuildIdAppsAppIdGet(guildId, appId),
   });
 };
 
 /** Guild admins only; the server refuses everyone else. */
 export const useGuildAppMembers = (appId: number, enabled: boolean) => {
   const guildId = useActiveGuildId();
-  return useQuery<AppMembersResponse>({
+  return useQuery<GuildAppMembersResponse>({
     queryKey: guildAppMembersKey(guildId, appId),
-    queryFn: () => getGuildAppMembers(guildId, appId),
+    queryFn: () => listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet(guildId, appId),
     enabled,
   });
 };
@@ -68,10 +68,13 @@ export const useGuildAppMembers = (appId: number, enabled: boolean) => {
 // Members view and the sidebar disagreeing about what is configured — and a
 // write from here refreshes exactly what a frame off the realtime bus does.
 
+/** Values keyed by connection, then field. A key sent as `null` clears it; a
+ *  key left out is untouched. */
 export const useUpdateAppConfig = (appId: number) => {
   const guildId = useActiveGuildId();
-  return useMutation<GuildAppDetail, unknown, Record<string, Record<string, AppConfigValue>>>({
-    mutationFn: (values) => updateGuildAppConfig(guildId, appId, values),
+  return useMutation<GuildAppDetail, unknown, GuildAppConfigUpdateValues>({
+    mutationFn: (values) =>
+      updateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPut(guildId, appId, { values }),
     onSuccess: () => invalidate(q.apps()),
   });
 };
@@ -80,7 +83,8 @@ export const useUpdateAppConfig = (appId: number) => {
 export const useUpgradeApp = (appId: number) => {
   const guildId = useActiveGuildId();
   return useMutation<GuildAppDetail, unknown, GuildAppUpgrade | undefined>({
-    mutationFn: (consent) => upgradeGuildApp(guildId, appId, consent),
+    mutationFn: (consent) =>
+      upgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePost(guildId, appId, consent),
     // Refreshed on failure too: a refusal means the offer moved, and the panel
     // should show what is offered now.
     onSettled: () => invalidate(q.apps()),
@@ -91,15 +95,21 @@ export const useUpgradeApp = (appId: number) => {
 export const useDeclineAppUpgrade = (appId: number) => {
   const guildId = useActiveGuildId();
   return useMutation<GuildAppDetail, unknown, string>({
-    mutationFn: (version) => declineGuildAppUpgrade(guildId, appId, version),
+    mutationFn: (version) =>
+      declineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost(guildId, appId, { version }),
     onSettled: () => invalidate(q.apps()),
   });
 };
 
 export const useConnectApp = (appId: number) => {
   const guildId = useActiveGuildId();
-  return useMutation<AppConnectStart, unknown, string>({
-    mutationFn: (connectionId) => connectGuildApp(guildId, appId, connectionId),
+  return useMutation<GuildAppConnectStart, unknown, string>({
+    mutationFn: (connectionId) =>
+      connectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnectPost(
+        guildId,
+        appId,
+        connectionId
+      ),
     onSuccess: () => invalidate(q.apps()),
   });
 };
@@ -107,7 +117,12 @@ export const useConnectApp = (appId: number) => {
 export const useDisconnectApp = (appId: number) => {
   const guildId = useActiveGuildId();
   return useMutation<void, unknown, string>({
-    mutationFn: (connectionId) => disconnectGuildApp(guildId, appId, connectionId),
+    mutationFn: (connectionId) =>
+      disconnectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdDelete(
+        guildId,
+        appId,
+        connectionId
+      ),
     onSuccess: () => invalidate(q.apps()),
   });
 };
@@ -121,7 +136,12 @@ export const useRevokeMemberConnection = (appId: number) => {
   const guildId = useActiveGuildId();
   return useMutation<void, unknown, MemberConnectionTarget>({
     mutationFn: ({ userId, connectionId }) =>
-      revokeMemberConnection(guildId, appId, userId, connectionId),
+      revokeMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdDelete(
+        guildId,
+        appId,
+        userId,
+        connectionId
+      ),
     onSuccess: () => invalidate(q.apps()),
   });
 };
@@ -133,8 +153,18 @@ export const useBlockMemberConnection = (appId: number) => {
     // it would mean two hooks that must stay in step about what "blocked" means.
     mutationFn: ({ userId, connectionId, blocked }) =>
       blocked
-        ? unblockMemberConnection(guildId, appId, userId, connectionId)
-        : blockMemberConnection(guildId, appId, userId, connectionId),
+        ? unblockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockDelete(
+            guildId,
+            appId,
+            userId,
+            connectionId
+          )
+        : blockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPost(
+            guildId,
+            appId,
+            userId,
+            connectionId
+          ),
     onSuccess: () => invalidate(q.apps()),
   });
 };
@@ -142,7 +172,7 @@ export const useBlockMemberConnection = (appId: number) => {
 export const useRevokeAllConnections = (appId: number) => {
   const guildId = useActiveGuildId();
   return useMutation<void, unknown, void>({
-    mutationFn: () => revokeAllMemberConnections(guildId, appId),
+    mutationFn: () => revokeAllMemberConnectionsApiV1CGuildIdAppsAppIdRevokeAllPost(guildId, appId),
     onSuccess: () => invalidate(q.apps()),
   });
 };
@@ -154,7 +184,8 @@ export const useRevokeAllConnections = (appId: number) => {
 export const useRevokeMemberConsents = (appId: number) => {
   const guildId = useActiveGuildId();
   return useMutation<void, unknown, number>({
-    mutationFn: (userId) => revokeMemberConsents(guildId, appId, userId),
+    mutationFn: (userId) =>
+      revokeMemberConsentsApiV1CGuildIdAppsAppIdMembersUserIdConsentsDelete(guildId, appId, userId),
     onSuccess: () => invalidate(q.apps()),
   });
 };
@@ -163,7 +194,8 @@ export const useRevokeMemberConsents = (appId: number) => {
 export const useRevokeAllConsents = (appId: number) => {
   const guildId = useActiveGuildId();
   return useMutation<void, unknown, void>({
-    mutationFn: () => revokeAllMemberConsents(guildId, appId),
+    mutationFn: () =>
+      revokeAllMemberConsentsApiV1CGuildIdAppsAppIdConsentsRevokeAllPost(guildId, appId),
     onSuccess: () => invalidate(q.apps()),
   });
 };
@@ -177,7 +209,10 @@ export interface ConsentAnswer {
 export const useGrantAppConsent = (appId: number) => {
   const guildId = useActiveGuildId();
   return useMutation<GuildAppConsentRead, unknown, ConsentAnswer>({
-    mutationFn: ({ consentId, access }) => grantAppConsent(guildId, appId, consentId, access),
+    mutationFn: ({ consentId, access }) =>
+      grantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPut(guildId, appId, consentId, {
+        access,
+      }),
     onSuccess: () => invalidate(q.apps()),
   });
 };
@@ -186,7 +221,8 @@ export const useGrantAppConsent = (appId: number) => {
 export const useRevokeAppConsent = (appId: number) => {
   const guildId = useActiveGuildId();
   return useMutation<void, unknown, number>({
-    mutationFn: (consentId) => revokeAppConsent(guildId, appId, consentId),
+    mutationFn: (consentId) =>
+      revokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDelete(guildId, appId, consentId),
     onSuccess: () => invalidate(q.apps()),
   });
 };

@@ -13,6 +13,7 @@ import { useToolSettings } from "@/components/tools/settings/ToolSettingsContext
 import { ToolSettingsPermissionRequired } from "@/components/tools/settings/ToolSettingsGuard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/lib/chesterToast";
+import { hasOwnerAccess } from "@/lib/permissions";
 
 export const ToolSettingsAccessPage = () => {
   const { t } = useTranslation(["common", "access"]);
@@ -22,7 +23,7 @@ export const ToolSettingsAccessPage = () => {
     return <ToolSettingsPermissionRequired />;
   }
 
-  const ownerId = entity.grants.find((grant) => grant.level === "owner")?.user_id ?? null;
+  const ownerId = entity.grants.find((grant) => hasOwnerAccess(grant.level))?.user_id ?? null;
 
   return (
     <Card>

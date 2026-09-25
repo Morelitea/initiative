@@ -11,7 +11,6 @@ import type {
 import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
 import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
 import { Button } from "@/components/ui/button";
-import { DateTimePicker } from "@/components/ui/date-time-picker";
 import {
   Dialog,
   DialogContent,
@@ -28,32 +27,32 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAuth } from "@/hooks/useAuth";
 import { useCreateCalendarEvent } from "@/hooks/useCalendarEvents";
 import { useCalendar, useCalendarsList } from "@/hooks/useCalendars";
+import { hasWriteAccess } from "@/lib/permissions";
 import { getItem, setItem } from "@/lib/storage";
-import { formatClockSlot } from "@/lib/timeFormat";
 import type { DialogProps } from "@/types/dialog";
 
-import {
-  datesAreValid,
-  endTimeOptionsFor,
-  offsetEndTime,
-  parseLocalDate,
-  reconcileEndTime,
-  shiftEndPreservingDuration,
-  TIME_OPTIONS,
-} from "./eventDateTime";
+import { EventDateTimeFields, type EventTiming, useEventTiming } from "./EventDateTimeFields";
+import { offsetEndTime } from "./eventDateTime";
 
 /** A calendar the user may author events in — write access on the calendar
  * is the event-create gate (like task creation via project write). */
 export const isWritableCalendar = (calendar: CalendarSummary): boolean =>
-  calendar.my_permission_level === "write" || calendar.my_permission_level === "owner";
+  hasWriteAccess(calendar.my_permission_level);
 
 const LAST_CALENDAR_KEY = "initiative-last-event-calendar";
+
+const INITIAL_TIMING: EventTiming = {
+  allDay: false,
+  startDate: "",
+  startTime: "09:00",
+  endDate: "",
+  endTime: "10:00",
+};
 
 type CreateEventDialogProps = DialogProps & {
   /** If provided, the calendar is locked and the picker is hidden. */
@@ -84,11 +83,8 @@ export const CreateEventDialog = ({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [startTime, setStartTime] = useState("09:00");
-  const [endDate, setEndDate] = useState("");
-  const [endTime, setEndTime] = useState("10:00");
-  const [allDay, setAllDay] = useState(false);
+  const [timing, setTiming] = useState(INITIAL_TIMING);
+  const patchTiming = (patch: Partial<EventTiming>) => setTiming((prev) => ({ ...prev, ...patch }));
   const [attendeeIds, setAttendeeIds] = useState<number[]>([]);
   const [recurrence, setRecurrence] = useState<TaskRecurrenceOutput | null>(null);
   const [recurrenceStrategy, setRecurrenceStrategy] =
@@ -144,23 +140,18 @@ export const CreateEventDialog = ({
     if (open) {
       // The creator attends their own event by default.
       setAttendeeIds(user ? [user.id] : []);
-      if (defaultStartDate) {
-        setStartDate(defaultStartDate);
-        setEndDate(defaultStartDate);
-      }
-      if (defaultStartTime) {
-        setStartTime(defaultStartTime);
-        setEndTime(offsetEndTime(defaultStartTime));
-      }
+      setTiming((prev) => ({
+        ...prev,
+        ...(defaultStartDate ? { startDate: defaultStartDate, endDate: defaultStartDate } : {}),
+        ...(defaultStartTime
+          ? { startTime: defaultStartTime, endTime: offsetEndTime(defaultStartTime) }
+          : {}),
+      }));
     } else {
       setTitle("");
       setDescription("");
       setLocation("");
-      setStartDate("");
-      setStartTime("09:00");
-      setEndDate("");
-      setEndTime("10:00");
-      setAllDay(false);
+      setTiming(INITIAL_TIMING);
       setAttendeeIds([]);
       setRecurrence(null);
       setRecurrenceStrategy("fixed");
@@ -168,38 +159,9 @@ export const CreateEventDialog = ({
     }
   }, [open, defaultCalendarId, defaultStartDate, defaultStartTime, user]);
 
-  // Apply a new start date/time, shifting the end so the event keeps its
-  // current length (a 90-minute event stays 90 minutes; a multi-day event keeps
-  // its span). The end may land on a later day — that's how multi-day timed
-  // events are created.
-  const applyStart = (nextDate: string, nextTime: string) => {
-    setStartDate(nextDate);
-    setStartTime(nextTime);
-    const shifted = shiftEndPreservingDuration(
-      startDate,
-      startTime,
-      endDate,
-      endTime,
-      nextDate,
-      nextTime
-    );
-    if (shifted) {
-      setEndDate(shifted.endDate);
-      setEndTime(shifted.endTime);
-    }
-  };
-
-  const endTimeOptions = useMemo(
-    () => endTimeOptionsFor(startDate, endDate, startTime),
-    [startDate, endDate, startTime]
-  );
-
-  // Guard submit against an end that lands before the start (possible after the
-  // user edits the end date/time independently).
-  const datesValid = useMemo(
-    () => datesAreValid(allDay, startDate, startTime, endDate, endTime),
-    [allDay, startDate, endDate, startTime, endTime]
-  );
+  // Null while the end lands before the start (possible after the user edits
+  // the end date/time independently), which holds the submit back.
+  const range = useEventTiming(timing);
 
   const createEvent = useCreateCalendarEvent({
     onSuccess: (event) => {
@@ -210,29 +172,18 @@ export const CreateEventDialog = ({
   });
 
   const isCreating = createEvent.isPending;
-  const canSubmit = title.trim() && datesValid && !!effectiveCalendarId && !isCreating;
+  const canSubmit = title.trim() && !!range && !!effectiveCalendarId && !isCreating;
 
   const handleSubmit = () => {
     const trimmedTitle = title.trim();
-    if (!trimmedTitle || !datesValid || !effectiveCalendarId) return;
-
-    let startISO: string;
-    let endISO: string;
-    if (allDay) {
-      startISO = new Date(`${startDate}T00:00:00`).toISOString();
-      endISO = new Date(`${endDate || startDate}T23:59:59`).toISOString();
-    } else {
-      startISO = new Date(`${startDate}T${startTime}:00`).toISOString();
-      endISO = new Date(`${endDate || startDate}T${endTime}:00`).toISOString();
-    }
+    if (!trimmedTitle || !range || !effectiveCalendarId) return;
 
     createEvent.mutate({
       title: trimmedTitle,
       description: description.trim() || undefined,
       location: location.trim() || undefined,
-      start_at: startISO,
-      end_at: endISO,
-      all_day: allDay,
+      ...range,
+      all_day: timing.allDay,
       calendar_id: effectiveCalendarId,
       attendee_ids: attendeeIds.length > 0 ? attendeeIds : undefined,
       recurrence: recurrence
@@ -253,7 +204,7 @@ export const CreateEventDialog = ({
     });
   };
 
-  const referenceDate = startDate ? `${startDate}T${startTime}:00` : undefined;
+  const referenceDate = timing.startDate ? `${timing.startDate}T${timing.startTime}:00` : undefined;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -322,7 +273,7 @@ export const CreateEventDialog = ({
                       <span className="inline-flex items-center gap-2">
                         <span
                           className="inline-block h-2.5 w-2.5 rounded-full"
-                          style={{ backgroundColor: calendar.color ?? "#6366f1" }}
+                          style={{ backgroundColor: calendar.color }}
                         />
                         {calendar.name}
                       </span>
@@ -333,100 +284,7 @@ export const CreateEventDialog = ({
             </div>
           )}
 
-          <div className="flex items-center gap-3">
-            <Switch id="create-event-all-day" checked={allDay} onCheckedChange={setAllDay} />
-            <Label htmlFor="create-event-all-day">{t("allDay")}</Label>
-          </div>
-
-          {allDay ? (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>{t("startDate")}</Label>
-                <DateTimePicker
-                  value={startDate}
-                  includeTime={false}
-                  onChange={(next) => {
-                    setStartDate(next);
-                    if (!endDate || next > endDate) {
-                      setEndDate(next);
-                    }
-                  }}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>{t("endDate")}</Label>
-                <DateTimePicker
-                  value={endDate}
-                  includeTime={false}
-                  onChange={setEndDate}
-                  calendarProps={(() => {
-                    const min = parseLocalDate(startDate);
-                    return min ? { disabled: { before: min } } : undefined;
-                  })()}
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>{t("startDate")}</Label>
-                  <DateTimePicker
-                    value={startDate}
-                    includeTime={false}
-                    onChange={(next) => applyStart(next, startTime)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>{t("startTime")}</Label>
-                  <Select value={startTime} onValueChange={(value) => applyStart(startDate, value)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-60">
-                      {TIME_OPTIONS.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          {formatClockSlot(opt.value)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>{t("endDate")}</Label>
-                  <DateTimePicker
-                    value={endDate}
-                    includeTime={false}
-                    onChange={(next) => {
-                      setEndDate(next);
-                      setEndTime(reconcileEndTime(startDate, startTime, next, endTime));
-                    }}
-                    calendarProps={(() => {
-                      const min = parseLocalDate(startDate);
-                      return min ? { disabled: { before: min } } : undefined;
-                    })()}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>{t("endTime")}</Label>
-                  <Select value={endTime} onValueChange={setEndTime}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-60">
-                      {endTimeOptions.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          {formatClockSlot(opt.value)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-          )}
+          <EventDateTimeFields value={timing} onChange={patchTiming} />
 
           {/* Attendees come from whatever the calendar belongs to — an
               initiative's members, or the whole guild for a guild calendar,

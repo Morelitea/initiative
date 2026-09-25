@@ -268,6 +268,15 @@
     "updateSuccess": "Preferencias de interfaz actualizadas",
     "updateError": "No se pudieron actualizar las preferencias de interfaz",
     "themePreview": "Vista previa del tema",
+    "themeDescriptions": {
+      "kobold": "El tema clásico de Initiative, en tonos índigo intensos.",
+      "displacer": "Tema pastel relajante inspirado en Catppuccin (Latte/Macchiato).",
+      "strahd": "Tema gótico oscuro con acentos morados (Dracula/Alucard).",
+      "unicorn": "Arcoíris de neón de espectro completo, llamativo y orgulloso.",
+      "darkKnight": "Tema negro AMOLED con acentos rojo oscuro y amarillo.",
+      "orc": "Tema verde terroso con acentos del verde intenso de la piel de orco. ¡ORCO ORCO ORCO!",
+      "aboleth": "Guarida oscura inspirada en Monokai, con vivos acentos bioluminiscentes."
+    },
     "lightMode": "Claro",
     "darkMode": "Oscuro",
     "taskCompletionVisualFeedback": {

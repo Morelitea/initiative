@@ -14,6 +14,7 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
+  buildEventCalendarEntry,
   buildTaskCalendarEntries,
   CALENDAR_VIEW_MODE_KEY,
   type CalendarEntry,
@@ -21,6 +22,7 @@ import {
   CalendarView,
   type CalendarViewMode,
   calendarVisibleRange,
+  useCalendarVisibility,
 } from "@/components/calendar";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
@@ -76,8 +78,6 @@ const VISIBILITY_KEY = "initiative-calendar-visibility";
 
 const STATUS_CATEGORIES: TaskStatusCategory[] = ["backlog", "todo", "in_progress", "done"];
 
-const DEFAULT_EVENT_COLOR = "#6366f1";
-
 interface StoredPrefs {
   statusFilters: TaskStatusCategory[];
   priorityFilters: TaskPriority[];
@@ -109,37 +109,6 @@ const readStoredPrefs = (): StoredPrefs => {
   } catch {
     return PREFS_DEFAULTS;
   }
-};
-
-// Visibility persists as HIDDEN id sets (per guild) so a newly created
-// calendar or project appears checked by default — tasks default on.
-interface StoredVisibility {
-  hiddenCalendarIds: number[];
-  hiddenProjectIds: number[];
-}
-
-const readStoredVisibility = (guildId: number): StoredVisibility => {
-  try {
-    const raw = getItem(`${VISIBILITY_KEY}:${guildId}`);
-    if (!raw) return { hiddenCalendarIds: [], hiddenProjectIds: [] };
-    const parsed = JSON.parse(raw);
-    return {
-      hiddenCalendarIds: Array.isArray(parsed?.hiddenCalendarIds) ? parsed.hiddenCalendarIds : [],
-      hiddenProjectIds: Array.isArray(parsed?.hiddenProjectIds) ? parsed.hiddenProjectIds : [],
-    };
-  } catch {
-    return { hiddenCalendarIds: [], hiddenProjectIds: [] };
-  }
-};
-
-const toggleInSet = (prev: ReadonlySet<number>, id: number): Set<number> => {
-  const next = new Set(prev);
-  if (next.has(id)) {
-    next.delete(id);
-  } else {
-    next.add(id);
-  }
-  return next;
 };
 
 type CalendarsViewProps = {
@@ -223,40 +192,19 @@ export const CalendarsView = ({
   // longer take the top of the page before the list itself.
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  // Per-calendar / per-project visibility (persisted per guild as hidden sets).
-  const storedVisibility = useMemo(() => readStoredVisibility(guildId), [guildId]);
-  const [hiddenCalendarIds, setHiddenCalendarIds] = useState<Set<number>>(
-    () => new Set(storedVisibility.hiddenCalendarIds)
-  );
-  const [hiddenProjectIds, setHiddenProjectIds] = useState<Set<number>>(
-    () => new Set(storedVisibility.hiddenProjectIds)
-  );
+  // Per-calendar / per-project visibility, kept per guild.
+  const visibility = useCalendarVisibility(`${VISIBILITY_KEY}:${guildId}`);
+  const { showCalendar } = visibility;
 
   // A deep-linked calendar is always shown, whatever the stored toggles say.
   useEffect(() => {
-    if (focusCalendarId === undefined) return;
-    setHiddenCalendarIds((prev) => {
-      if (!prev.has(focusCalendarId)) return prev;
-      const next = new Set(prev);
-      next.delete(focusCalendarId);
-      return next;
-    });
-  }, [focusCalendarId]);
+    if (focusCalendarId !== undefined) showCalendar(guildId, focusCalendarId);
+  }, [focusCalendarId, guildId, showCalendar]);
 
   // Persist preferences
   useEffect(() => {
     setItem(STORAGE_KEY, JSON.stringify({ statusFilters, priorityFilters, propertyFilters }));
   }, [statusFilters, priorityFilters, propertyFilters]);
-
-  useEffect(() => {
-    setItem(
-      `${VISIBILITY_KEY}:${guildId}`,
-      JSON.stringify({
-        hiddenCalendarIds: [...hiddenCalendarIds],
-        hiddenProjectIds: [...hiddenProjectIds],
-      })
-    );
-  }, [guildId, hiddenCalendarIds, hiddenProjectIds]);
 
   // The span the current view renders — the window events + tasks fetch over.
   const visibleRange = useMemo(
@@ -412,39 +360,27 @@ export const CalendarsView = ({
     const entries: CalendarEntry[] = [];
 
     for (const event of entriesQuery.data?.events ?? []) {
-      if (hiddenCalendarIds.has(event.calendar_id)) continue;
-      const calendar = calendarsById.get(event.calendar_id);
-      entries.push({
-        id: `event-${event.id}`,
-        title: event.title,
-        description: event.description,
-        startAt: event.start_at,
-        endAt: event.end_at,
-        allDay: event.all_day,
-        // Events render in their calendar's stored color.
-        color: calendar?.color ?? DEFAULT_EVENT_COLOR,
-        attendees: (event.attendee_previews ?? []).map((att) => ({
-          name: att.name,
-          avatarUrl: att.avatar_url,
-          userId: att.user_id,
-        })),
-        properties: event.property_values,
-        tags: event.tags,
-        draggable: event.my_permission_level === "write" || event.my_permission_level === "owner",
-        unread: unread.hasSubject(event.guild_id, "calendar_event", event.id),
-        meta: { type: "event", eventId: event.id, calendarId: event.calendar_id },
-      });
+      if (visibility.isCalendarHidden(guildId, event.calendar_id)) continue;
+      entries.push(
+        buildEventCalendarEntry(
+          event,
+          calendarsById.get(event.calendar_id)?.color,
+          unread.hasSubject(event.guild_id, "calendar_event", event.id)
+        )
+      );
     }
 
     for (const task of entriesQuery.data?.tasks ?? []) {
-      if (task.project_id != null && hiddenProjectIds.has(task.project_id)) continue;
+      if (task.project_id != null && visibility.isProjectHidden(guildId, task.project_id)) {
+        continue;
+      }
       // Task chips stay non-draggable here: per-project edit rights vary
       // across the visible projects; the task page is the editing surface.
       entries.push(...buildTaskCalendarEntries(task, getProjectColor(task.project_id), false));
     }
 
     return entries;
-  }, [entriesQuery.data, hiddenCalendarIds, hiddenProjectIds, calendarsById, unread]);
+  }, [entriesQuery.data, visibility, guildId, calendarsById, unread]);
 
   // Create dialog state
   const {
@@ -486,25 +422,14 @@ export const CalendarsView = ({
   // Hidden calendars count too: the reader has narrowed what the grid shows,
   // and nothing else on screen says so once the panel is closed.
   const activeFilterCount =
-    hiddenCalendarIds.size +
-    hiddenProjectIds.size +
-    statusFilters.length +
-    priorityFilters.length +
-    propertyFilters.length;
+    visibility.hiddenCount + statusFilters.length + priorityFilters.length + propertyFilters.length;
 
-  const clearFilters = useCallback(() => {
-    setHiddenCalendarIds(new Set());
-    setHiddenProjectIds(new Set());
+  const clearFilters = () => {
+    visibility.clear();
     setStatusFilters([]);
     setPriorityFilters([]);
     setPropertyFilters([]);
-  }, [
-    setHiddenCalendarIds,
-    setHiddenProjectIds,
-    setStatusFilters,
-    setPriorityFilters,
-    setPropertyFilters,
-  ]);
+  };
 
   const handleEventCreated = (event: { id: number; calendar_id: number }) => {
     void router.navigate({
@@ -588,14 +513,10 @@ export const CalendarsView = ({
     <CalendarPanelDropdown
       calendars={calendars}
       projectCalendars={projectCalendars}
-      isCalendarHidden={(calendar) => hiddenCalendarIds.has(calendar.id)}
-      isProjectHidden={(project) => hiddenProjectIds.has(project.projectId)}
-      onToggleCalendar={(calendar) =>
-        setHiddenCalendarIds((prev) => toggleInSet(prev, calendar.id))
-      }
-      onToggleProject={(project) =>
-        setHiddenProjectIds((prev) => toggleInSet(prev, project.projectId))
-      }
+      isCalendarHidden={(calendar) => visibility.isCalendarHidden(guildId, calendar.id)}
+      isProjectHidden={(project) => visibility.isProjectHidden(guildId, project.projectId)}
+      onToggleCalendar={(calendar) => visibility.toggleCalendar(guildId, calendar.id)}
+      onToggleProject={(project) => visibility.toggleProject(guildId, project.projectId)}
       settingsPathFor={(calendar) =>
         gp(toolSettingsRoute(Tool.calendar, calendar.initiative_id, calendar.id))
       }

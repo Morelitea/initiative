@@ -90,8 +90,8 @@
   "calendar": "Calendrier",
   "selectCalendar": "Sélectionner un calendrier",
   "createCalendar": "Nouveau calendrier",
-  "calendarName": "Nom du calendrier",
-  "calendarNamePlaceholder": "p. ex. Planning d'équipe",
+  "name": "Nom du calendrier",
+  "namePlaceholder": "p. ex. Planning d'équipe",
   "calendarDescriptionPlaceholder": "À quoi sert ce calendrier ?",
   "calendarColor": "Couleur",
   "panel": {

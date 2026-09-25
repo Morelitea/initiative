@@ -25,10 +25,11 @@ import { Loader2, ShieldOff, UserX } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { AppConnectionSummary, AppMemberConnection } from "@/api/appConnections";
 import {
   ConsentAccess,
   ConsentStatus,
+  type GuildAppConnectionSummary,
+  type GuildAppMemberConnection,
   type GuildAppMemberConsent,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Badge } from "@/components/ui/badge";
@@ -295,8 +296,8 @@ function ConnectionMembers({
   nameFor,
 }: {
   appId: number;
-  summary: AppConnectionSummary;
-  items: AppMemberConnection[];
+  summary: GuildAppConnectionSummary;
+  items: GuildAppMemberConnection[];
   nameFor: (userId: number) => string;
 }) {
   const { t, i18n } = useTranslation(["apps", "common"]);
@@ -313,13 +314,13 @@ function ConnectionMembers({
     onError: (error: unknown) => toast.error(getErrorMessage(error, "apps:error")),
   });
 
-  const revokeMember = (item: AppMemberConnection) =>
+  const revokeMember = (item: GuildAppMemberConnection) =>
     revoke.mutate(
       { userId: item.user_id, connectionId: item.connection_id },
       notify(t("apps:members.revoked"))
     );
 
-  const toggleBlock = (item: AppMemberConnection) =>
+  const toggleBlock = (item: GuildAppMemberConnection) =>
     block.mutate(
       { userId: item.user_id, connectionId: item.connection_id, blocked: item.blocked },
       notify(t(item.blocked ? "apps:members.unblocked" : "apps:members.blockedDone"))

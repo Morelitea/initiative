@@ -222,7 +222,7 @@ export const MemberMultiSelect = ({
     if (total === 1) {
       if (chosenTokens.length === 1) return chosenTokens[0].label;
       const only = seen.get(selectedIds[0]);
-      return getUserDisplayName(only ?? { id: selectedIds[0] }, `User #${selectedIds[0]}`);
+      return getUserDisplayName(only ?? { id: selectedIds[0] });
     }
     return t("common:countSelected", { count: total });
   }, [selectedIds, tokens, seen, resolvedPlaceholder, t]);
@@ -266,7 +266,7 @@ export const MemberMultiSelect = ({
                 <div className="flex flex-wrap gap-1">
                   {selectedIds.map((id) => {
                     const user = seen.get(id) ?? { id, full_name: null };
-                    const label = getUserDisplayName(user, `User #${id}`);
+                    const label = getUserDisplayName(user);
                     return (
                       <span
                         key={id}
@@ -442,7 +442,7 @@ export const MemberSelect = ({
 
   const selected = value != null ? (seen.get(value) ?? selectedUser ?? { id: value }) : null;
   const triggerLabel = selected
-    ? getUserDisplayName(selected, `User #${value}`)
+    ? getUserDisplayName(selected)
     : (placeholder ?? t("common:selectAnOption"));
 
   return (

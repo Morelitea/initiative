@@ -17,7 +17,6 @@
  * door that would not open.
  */
 
-import type { LocalizedText } from "@/api/appConnections";
 import { initiativeRoute } from "@/lib/tools";
 
 export interface AppEmbed {
@@ -27,7 +26,8 @@ export interface AppEmbed {
   scopes?: string[];
   /** Opened by the community's admins alone, whatever a placement allows. */
   admin_only?: boolean;
-  name?: LocalizedText;
+  /** Localized label, keyed by language. */
+  name?: Record<string, string>;
   /** Browser features the surface asked its frame for, from the closed
    *  vocabulary the manifest validator checks. Absent means it asked for none. */
   capabilities?: string[];

@@ -239,6 +239,7 @@
   "QUERY_EXECUTION_FAILED": "La base de datos no pudo terminar esta consulta: revisa si hay una división por cero, un valor que no se puede convertir o una función con un argumento de tipo incorrecto.",
   "RATE_LIMITED": "Demasiadas solicitudes. Por favor espera un momento e intenta de nuevo.",
   "unableToLoadGuilds": "No se pudieron cargar las comunidades.",
+  "unableToSaveGuildOrder": "No se pudo guardar el orden de las comunidades. Actualizando…",
   "TRASH_ITEM_NOT_FOUND": "Ese elemento de la papelera ya no está disponible.",
   "TRASH_PURGE_REQUIRES_ADMIN": "Solo los administradores de la comunidad pueden eliminar permanentemente.",
   "TRASH_UNKNOWN_ENTITY_TYPE": "Tipo de elemento de papelera desconocido.",

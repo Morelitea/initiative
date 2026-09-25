@@ -86,6 +86,12 @@ export const toLocalDateTimeInput = (value: string | null | undefined): string =
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 };
 
+/** Whole minutes from now until `expiresAt` (never below 0), or `null` when there is none. */
+export const minutesLeft = (expiresAt?: string | null): number | null => {
+  if (!expiresAt) return null;
+  return Math.max(0, Math.round((new Date(expiresAt).getTime() - Date.now()) / 60000));
+};
+
 /** The inverse: a picker's local wall-clock string as an ISO instant, or `null`. */
 export const fromLocalDateTimeInput = (value: string): string | null => {
   if (!value) return null;

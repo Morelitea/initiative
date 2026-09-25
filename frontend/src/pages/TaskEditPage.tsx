@@ -379,10 +379,9 @@ export const TaskEditPage = () => {
   const creationContext = useMemo(() => {
     if (!task?.created_at) return null;
     const anonymized = isAnonymizedUser(creator);
-    const displayName = creator
-      ? getUserDisplayName(creator)
-      : task.created_by != null
-        ? `User #${task.created_by}`
+    const displayName =
+      creator || task.created_by != null
+        ? getUserDisplayName(creator ?? { id: task.created_by })
         : null;
     const avatarSrc = creator && !anonymized ? getAvatarSrc(creator) : undefined;
     return {

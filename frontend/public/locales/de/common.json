@@ -1,5 +1,7 @@
 {
   "deletedUserName": "Gelöschter Benutzer #{{id}}",
+  "user": "Benutzer",
+  "userWithId": "Benutzer #{{id}}",
   "save": "Speichern",
   "cancel": "Abbrechen",
   "delete": "Löschen",

@@ -48,7 +48,7 @@ const FREQUENCY_LABELS: Record<
   yearly: { singular: "year", plural: "years" },
 };
 
-const getReferenceDate = (value?: string | null): Date => {
+export const getReferenceDate = (value?: string | null): Date => {
   if (!value) {
     return new Date();
   }
@@ -59,7 +59,7 @@ const getReferenceDate = (value?: string | null): Date => {
   return parsed;
 };
 
-const getWeekdayFromDate = (date: Date): TaskRecurrenceOutputWeekdaysItem => {
+export const getWeekdayFromDate = (date: Date): TaskRecurrenceOutputWeekdaysItem => {
   // Normalize to midnight local time to get the date's weekday regardless of time
   const normalized = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   const day = normalized.getDay(); // 0 (Sun) - 6 (Sat)
@@ -67,7 +67,7 @@ const getWeekdayFromDate = (date: Date): TaskRecurrenceOutputWeekdaysItem => {
   return match ? match.value : "monday";
 };
 
-const getWeekPosition = (date: Date): TaskWeekPosition => {
+export const getWeekPosition = (date: Date): TaskWeekPosition => {
   const day = date.getDate();
   const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
   if (day + 7 > daysInMonth) {

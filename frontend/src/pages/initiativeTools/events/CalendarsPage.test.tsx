@@ -317,34 +317,38 @@ describe("CalendarsView on the calendar app's own surface", () => {
     expect(projectList).toEqual([]);
   });
 
-  it("lets a reader hide one of them", async () => {
-    stubGuildScope(
-      [guildCalendar(42, "Holidays"), guildCalendar(43, "Game nights")],
-      [
-        {
-          id: 1,
-          calendar_id: 42,
-          title: "Midsummer",
-          description: null,
-          start_at: inFocusMonth(3),
-          end_at: inFocusMonth(3),
-          all_day: true,
-          attendee_previews: [],
-          property_values: [],
-          tags: [],
-          my_permission_level: "write",
-        },
-      ]
-    );
+  const midsummer = {
+    id: 1,
+    calendar_id: 42,
+    guild_id: 1,
+    title: "Midsummer",
+    description: null,
+    start_at: inFocusMonth(3),
+    end_at: inFocusMonth(3),
+    all_day: true,
+    attendee_previews: [],
+    property_values: [],
+    tags: [],
+    my_permission_level: "write",
+  };
+
+  it("lets a reader hide one of them, and keeps it hidden the next time", async () => {
+    stubGuildScope([guildCalendar(42, "Holidays"), guildCalendar(43, "Game nights")], [midsummer]);
 
     const user = userEvent.setup();
-    renderGuildScope();
+    const { unmount } = renderGuildScope();
 
     expect(await screen.findByText("Midsummer")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /calendars/i }));
     await user.click(await screen.findByRole("checkbox", { name: "Holidays" }));
     await waitFor(() => expect(screen.queryByText("Midsummer")).toBeNull());
+
+    unmount();
+    renderGuildScope();
+
+    expect(await screen.findByRole("button", { name: /1 calendar hidden/i })).toBeInTheDocument();
+    expect(screen.queryByText("Midsummer")).toBeNull();
   });
 
   it("puts the picker and the way to add a calendar on the page, not behind the filter button", async () => {

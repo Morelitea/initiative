@@ -61,7 +61,9 @@ describe("Markdown", () => {
 
   it("opens a picture full size, paging through the others in reading order", async () => {
     const user = userEvent.setup();
-    render(<Markdown content={"![First](/a.png)\n\ntext\n\n![Second](/b.png)"} />);
+    render(
+      <Markdown content={"![First](/uploads/1/a.png)\n\ntext\n\n![Second](/uploads/1/b.png)"} />
+    );
 
     await user.click(screen.getByRole("button", { name: "View Second full size" }));
 
@@ -71,16 +73,39 @@ describe("Markdown", () => {
   });
 
   it("leaves a picture inside a link to the link", () => {
-    render(<Markdown content="[![Badge](/badge.svg)](https://example.com)" />);
+    render(<Markdown content="[![Badge](/uploads/1/badge.svg)](https://example.com)" />);
 
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect(screen.getByRole("link").querySelector("img")).not.toBeNull();
   });
 
   it("draws the picture without a way to open it when zooming is off", () => {
-    render(<Markdown content="![Shot](/a.png)" zoomImages={false} />);
+    render(<Markdown content="![Shot](/uploads/1/a.png)" zoomImages={false} />);
 
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Shot" })).toBeInTheDocument();
+  });
+
+  it("turns a picture from anywhere else into a link unless the text is trusted", () => {
+    const markdown = "![pixel](https://tracker.example/p.gif)";
+    const { container, rerender } = render(<Markdown content={markdown} />);
+
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByRole("link", { name: "pixel" })).toHaveAttribute(
+      "href",
+      "https://tracker.example/p.gif"
+    );
+
+    rerender(<Markdown content={markdown} remoteImages />);
+    expect(screen.getByRole("img", { name: "pixel" })).toBeInTheDocument();
+  });
+
+  it("opens a link to another site in a new tab and keeps an in-app link here", () => {
+    render(<Markdown content="[away](https://example.com) and [home](/c/1/projects)" />);
+
+    const away = screen.getByRole("link", { name: "away" });
+    expect(away).toHaveAttribute("target", "_blank");
+    expect(away).toHaveAttribute("rel", "noopener noreferrer");
+    expect(screen.getByRole("link", { name: "home" })).not.toHaveAttribute("target");
   });
 });

@@ -1,8 +1,8 @@
 /**
  * The widget data plane: what an installed app contributes, and its rows.
  *
- * Hand-written rather than generated for the same reason `appConnections.ts` is
- * — these routes carry a rule worth keeping visible at the call site. **A widget
+ * Hand-written rather than generated because these routes carry a rule worth
+ * keeping visible at the call site. **A widget
  * never names an address.** It names a read endpoint on an installed app, and
  * the request below carries the dashboard that widget sits on, because the
  * dashboard's own gates are what decide whether this viewer may see anything

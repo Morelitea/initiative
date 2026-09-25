@@ -18,7 +18,7 @@ import { screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderPage } from "@/__tests__/helpers/render";
-import type { GuildAppDetail } from "@/api/appConnections";
+import type { GuildAppDetail } from "@/api/generated/initiativeAPI.schemas";
 
 import { AppPlacementPanel } from "./AppPlacementPanel";
 

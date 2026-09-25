@@ -155,7 +155,10 @@ function ThemeColorPreview({ themeId }: { themeId: string }) {
   }
 
   return (
-    <SettingsSection title={t("interface.themePreview")} description={theme.description}>
+    <SettingsSection
+      title={t("interface.themePreview")}
+      description={t(`interface.themeDescriptions.${theme.id}` as never)}
+    >
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <p className="font-medium text-muted-foreground text-xs">{t("interface.lightMode")}</p>

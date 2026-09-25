@@ -36,9 +36,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { minutesLeft } from "@/lib/formatDate";
 import { assertForBreakGlass, describePasskeyPromptError } from "@/lib/passkeys";
 import { Capability, hasCapability } from "@/lib/permissions";
 import { classifySecondFactorAnswer } from "@/lib/secondFactorAnswer";
+import { getUserDisplayName } from "@/lib/userDisplay";
 
 const STATUS_VARIANT: Record<
   AccessGrantStatus,
@@ -49,11 +51,6 @@ const STATUS_VARIANT: Record<
   denied: "destructive",
   revoked: "destructive",
   expired: "outline",
-};
-
-const minutesLeft = (expiresAt?: string | null): number | null => {
-  if (!expiresAt) return null;
-  return Math.max(0, Math.round((new Date(expiresAt).getTime() - Date.now()) / 60000));
 };
 
 // Always surface the guild id alongside the name so approvers can
@@ -570,8 +567,8 @@ const ApprovalQueue = () => {
                 <li key={grant.id} className="flex items-center justify-between gap-3 p-3">
                   <div className="min-w-0">
                     <p className="truncate text-sm">
-                      {grant.user_email ?? `user #${grant.user_id}`} → {guildLabel(grant)} ·{" "}
-                      {grantScope(grant)} ·{" "}
+                      {grant.user_email ?? getUserDisplayName({ id: grant.user_id })} →{" "}
+                      {guildLabel(grant)} · {grantScope(grant)} ·{" "}
                       {t("accessGrants.minutes", { minutes: grant.requested_duration_minutes })}
                     </p>
                     <p className="truncate text-muted-foreground text-xs">{grant.reason}</p>
@@ -618,8 +615,8 @@ const ApprovalQueue = () => {
                   <li key={grant.id} className="flex items-center justify-between gap-3 p-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm">
-                        {grant.user_email ?? `user #${grant.user_id}`} → {guildLabel(grant)} ·{" "}
-                        {grantScope(grant)}
+                        {grant.user_email ?? getUserDisplayName({ id: grant.user_id })} →{" "}
+                        {guildLabel(grant)} · {grantScope(grant)}
                       </p>
                       {left !== null && (
                         <p className="text-muted-foreground text-xs">

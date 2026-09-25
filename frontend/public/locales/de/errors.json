@@ -251,6 +251,7 @@
   "QUERY_EXECUTION_FAILED": "Die Datenbank konnte diese Abfrage nicht abschließen — prüfe auf eine Division durch null, einen nicht konvertierbaren Wert oder eine Funktion mit einem falschen Argumenttyp.",
   "RATE_LIMITED": "Zu viele Anfragen. Bitte warte einen Moment und versuche es erneut.",
   "unableToLoadGuilds": "Communitys konnten nicht geladen werden.",
+  "unableToSaveGuildOrder": "Die Reihenfolge der Communitys konnte nicht gespeichert werden. Wird neu geladen…",
   "TRASH_ITEM_NOT_FOUND": "Dieses Element im Papierkorb ist nicht mehr verfügbar.",
   "TRASH_PURGE_REQUIRES_ADMIN": "Nur Community-Administratoren können Elemente endgültig löschen.",
   "TRASH_UNKNOWN_ENTITY_TYPE": "Unbekannter Papierkorb-Elementtyp.",

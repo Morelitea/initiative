@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Webhooks, imports and exports start sooner** — a webhook delivery goes out about a second after the change it reports, and an import or export starts as soon as it is queued, instead of waiting for the next poll. Background work also goes through each community far less often, which matters on a server with many communities.
+- **Pictures from other sites show as links** — a picture written into a description, a document's text or a notice as an address on another site is shown as a link to it, the way comments and messages already did. Pictures uploaded here show as before.
+- **Links to other sites open in a new tab** — everywhere text is shown, a link to another site opens in a new tab and a link inside Initiative stays in the one you're on. Documents used to open every link in place, and comments every link in a new tab.
+- **Hidden calendars are remembered per community** — a community's calendar page now remembers which calendars you hid the same way My Calendar does. Any you had hidden there show again once.
 - **Checked checklist items are not crossed out** — ticking a line in a document's checklist leaves its words as they were, which suits a register or an attendance list. For a line that is a task, use a task checkbox chip.
 - **Smart chips and embeds count as links** — a document's backlinks, and a thing's **Mentioned in**, include the pages that show it in a smart chip or an embed, as they do for a `#` link.
 - **The app installs only updates Initiative published** — each release now signs the app update it serves, and the app checks that signature before installing it. A server whose update isn't signed, such as one built from source, leaves the app on the version it has and says so once.
@@ -46,6 +49,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Anyone who can edit a calendar can delete its events** — the delete button only showed for whoever created the event.
+- **My pages update after you create something** — creating a queue, counter group, calendar, dashboard, notice, picture gallery or wiki now refreshes your cross-community lists straight away.
+- **Whiteboards and file documents keep what you wrote** — a whiteboard opened while it was still loading could save an empty drawing over the real one, and a name or cover change made to a file or link document while offline was never saved.
 - **Tagging calendar events and wiki pages in bulk works** — adding or removing tags on several events or wiki pages at once failed with an error.
 - **A tag's page lists everything tagged with it** — it showed only tasks, projects and documents. Every tool now has its own tab.
 - **Notifications open what they're about** — event notifications opened the community home page instead of the event, notifications about a comment on a wiki page opened the wiki rather than the page, and comment notifications on queues, counters, calendars, dashboards, pictures and wikis showed no title.

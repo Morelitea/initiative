@@ -175,7 +175,9 @@ export function EventDetailPage() {
     },
   });
 
-  const isOwner = event?.created_by === user?.id;
+  // An event takes its level from its calendar; editing and deleting both ask
+  // for write on it.
+  const canWrite = hasWriteAccess(event?.my_permission_level);
 
   // Find current user's RSVP status
   const myAttendee = useMemo(() => {
@@ -241,20 +243,22 @@ export function EventDetailPage() {
 
         <div className="flex items-center gap-2">
           {event.all_day && <Badge variant="secondary">{t("allDay")}</Badge>}
-          <Button variant="ghost" size="sm" asChild>
-            <Link to={gp(eventSettingsRoute(initiativeId, event.calendar_id, event.id))}>
-              <Settings className="h-4 w-4" />
-            </Link>
-          </Button>
-          {isOwner && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-destructive hover:text-destructive"
-              onClick={() => setDeleteConfirmOpen(true)}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+          {canWrite && (
+            <>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to={gp(eventSettingsRoute(initiativeId, event.calendar_id, event.id))}>
+                  <Settings className="h-4 w-4" />
+                </Link>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive"
+                onClick={() => setDeleteConfirmOpen(true)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -340,7 +344,7 @@ export function EventDetailPage() {
                   className="flex items-center justify-between rounded-md border px-3 py-2"
                 >
                   <span className="font-medium text-sm">
-                    {getUserDisplayName(attendee.user, `User #${attendee.user_id}`)}
+                    {getUserDisplayName(attendee.user ?? { id: attendee.user_id })}
                   </span>
                   <Badge variant={rsvpBadgeVariant(attendee.rsvp_status)}>
                     {t(rsvpLabelKey(attendee.rsvp_status))}
@@ -383,7 +387,7 @@ export function EventDetailPage() {
         tool={Tool.calendar}
         entity={event}
         target={{ type: SearchEntityType.calendar_event, id: parsedId }}
-        canEdit={hasWriteAccess(event.my_permission_level)}
+        canEdit={canWrite}
         entityTitle={event.title}
       />
 

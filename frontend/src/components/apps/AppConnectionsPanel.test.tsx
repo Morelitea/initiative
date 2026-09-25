@@ -13,7 +13,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderPage } from "@/__tests__/helpers/render";
-import type { AppConnection } from "@/api/appConnections";
+import type { GuildAppConnectionRead } from "@/api/generated/initiativeAPI.schemas";
 
 import { AppConnectionsPanel } from "./AppConnectionsPanel";
 
@@ -30,34 +30,37 @@ vi.mock("@/hooks/useGuildAppDetail", async (importOriginal) => ({
 
 const opened = vi.fn();
 
-const base: AppConnection = {
+const base: GuildAppConnectionRead = {
   id: "workspace",
   scope: "static",
   label: { en: "GitHub organization" },
   fields: [],
+  access_hint: null,
   values: {},
   has_value: {},
   satisfied: false,
   runs_flow: false,
+  status: null,
+  account_label: null,
   blocked: false,
 };
 
 /** The community's own credential, granted at the vendor rather than typed. */
-const vendorFlow: AppConnection = {
+const vendorFlow: GuildAppConnectionRead = {
   ...base,
   runs_flow: true,
   fields: [{ key: "owner", type: "string", label: { en: "Owner" }, required: true, managed: true }],
 };
 
 /** The other kind: a form an admin fills in. */
-const typed: AppConnection = {
+const typed: GuildAppConnectionRead = {
   ...base,
   id: "admin",
   label: { en: "Admin API" },
   fields: [{ key: "shop_domain", type: "string", label: { en: "Shop domain" }, required: true }],
 };
 
-const render = (connection: AppConnection, isGuildAdmin = true) =>
+const render = (connection: GuildAppConnectionRead, isGuildAdmin = true) =>
   renderPage(() => (
     <AppConnectionsPanel appId={3} connections={[connection]} isGuildAdmin={isGuildAdmin} />
   ));
@@ -131,7 +134,7 @@ describe("a community credential that is typed", () => {
 });
 
 describe("a member's own account", () => {
-  const personal: AppConnection = {
+  const personal: GuildAppConnectionRead = {
     ...base,
     id: "account",
     scope: "interactive",

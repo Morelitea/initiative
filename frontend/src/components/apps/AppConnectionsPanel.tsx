@@ -30,7 +30,7 @@ import { KeyRound, Loader2, Plug, ShieldCheck, TriangleAlert } from "lucide-reac
 import { Fragment, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { AppConfigValue, AppConnection, AppConnectionField } from "@/api/appConnections";
+import type { GuildAppConnectionRead } from "@/api/generated/initiativeAPI.schemas";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,9 +48,25 @@ import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { localized } from "@/lib/widgets/widgetMeta";
 
+/** One typed input in a connection's form, as the pinned definition declares
+ *  it. The read carries fields and the access hint untyped, because their shape
+ *  is the manifest's rather than the API's. */
+interface AppConnectionField {
+  key: string;
+  type: "string" | "secret" | "url" | "bool" | "select" | "int";
+  label: Record<string, string>;
+  required?: boolean;
+  options?: string[];
+  /** Returned by the app when a vendor flow finishes — never typed. */
+  managed?: boolean;
+}
+
+/** A value being set, or `null` to clear it. */
+type AppConfigValue = string | number | boolean | null;
+
 export interface AppConnectionsPanelProps {
   appId: number;
-  connections: AppConnection[];
+  connections: GuildAppConnectionRead[];
   isGuildAdmin: boolean;
 }
 
@@ -90,14 +106,14 @@ function ConnectionShell({
   scopeLabel,
   children,
 }: {
-  connection: AppConnection;
+  connection: GuildAppConnectionRead;
   icon: React.ReactNode;
   scopeLabel: string;
   children: React.ReactNode;
 }) {
   const { t, i18n } = useTranslation(["apps"]);
   const name = localized(connection.label, i18n.language) ?? connection.id;
-  const hint = connection.access_hint;
+  const hint = connection.access_hint as { api?: string; scopes?: string[] } | null;
 
   return (
     <section className="space-y-3 rounded-lg border p-4">
@@ -136,7 +152,7 @@ function GuildConnection({
   canManage,
 }: {
   appId: number;
-  connection: AppConnection;
+  connection: GuildAppConnectionRead;
   canManage: boolean;
 }) {
   const { t, i18n } = useTranslation(["apps", "common"]);
@@ -152,7 +168,8 @@ function GuildConnection({
   // A managed field is filled when a vendor flow finishes, never typed here,
   // so a connection whose every field is managed has no form at all — which is
   // exactly the case a flow exists for.
-  const typed = connection.fields.filter((field) => !field.managed);
+  const fields = connection.fields as unknown as AppConnectionField[];
+  const typed = fields.filter((field) => !field.managed);
   const vendorFlow = connection.runs_flow;
 
   // What the flow recorded, shown rather than reduced to "Set". Otherwise the
@@ -160,7 +177,7 @@ function GuildConnection({
   // they chose — and no way to notice they chose the wrong one. Secrets are
   // absent by construction: `values` carries the non-secret half and the other
   // one is never sent back.
-  const recorded = connection.fields.filter(
+  const recorded = fields.filter(
     (field) => field.managed && connection.values[field.key] !== undefined
   );
 
@@ -285,7 +302,7 @@ function ConnectionFieldInput({
   onChange,
 }: {
   field: AppConnectionField;
-  connection: AppConnection;
+  connection: GuildAppConnectionRead;
   value: AppConfigValue;
   onChange: (value: AppConfigValue) => void;
 }) {
@@ -367,7 +384,13 @@ function ConnectionFieldInput({
 
 // --- a member's own account --------------------------------------------------
 
-function PersonalConnection({ appId, connection }: { appId: number; connection: AppConnection }) {
+function PersonalConnection({
+  appId,
+  connection,
+}: {
+  appId: number;
+  connection: GuildAppConnectionRead;
+}) {
   const { t } = useTranslation(["apps", "common"]);
   const connect = useConnectApp(appId);
   const disconnect = useDisconnectApp(appId);
