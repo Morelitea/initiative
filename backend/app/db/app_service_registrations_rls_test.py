@@ -60,9 +60,9 @@ async def _make_row(session, public_id: str = "acme.widgets") -> None:
     await session.exec(
         text(
             f"INSERT INTO {TABLE} "
-            "(public_id, publisher_id, base_url, allowed_origins, grants, jwks, "
+            "(public_id, publisher_id, base_url, allowed_origins, jwks, "
             " mandatory, enabled, created_at, updated_at) "
-            "SELECT :pid, p.id, 'http://127.0.0.1:9100', '[]'::jsonb, '[]'::jsonb, "
+            "SELECT :pid, p.id, 'http://127.0.0.1:9100', '[]'::jsonb, "
             " '{\"keys\": []}'::jsonb, false, true, now(), now() "
             "FROM public.publishers p WHERE p.prefix = 'acme'"
         ),
