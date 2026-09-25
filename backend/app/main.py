@@ -20,9 +20,14 @@ from slowapi.middleware import SlowAPIMiddleware, _should_exempt, sync_check_lim
 from starlette.routing import Match
 
 from sqlalchemy.exc import DBAPIError
-from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import declines_this_credential, get_upload_user, pinned_elsewhere
+from app.api.deps import (
+    GuildAccessError,
+    SessionDep,
+    establish_guild_access,
+    get_upload_user,
+    raise_for_guild_access,
+)
 from app.api.embed_csp import app_frame_policy
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.csrf import CsrfOriginMiddleware
@@ -38,7 +43,7 @@ from app.core.request_audit import RequestAuditMiddleware
 from app.core.version import __version__
 from app.db.errors import INSUFFICIENT_PRIVILEGE_SQLSTATE, dbapi_sqlstate
 from app.db.frozen import FROZEN_PARENT_CONSTRAINT, frozen_refusal
-from app.db.session import SystemSessionLocal, get_system_session
+from app.db.session import SystemSessionLocal
 from app.models.platform.user import User
 from app.services import background_tasks as background_tasks_service
 from app.services import captcha_config
@@ -519,7 +524,7 @@ async def serve_upload_file(
     guild_id: int,
     filename: str,
     current_user: Annotated[User, Depends(get_upload_user)],
-    session: Annotated[AsyncSession, Depends(get_system_session)],
+    session: SessionDep,
 ) -> Response:
     """Serve an uploaded file — requires authentication and an Upload row in
     the path-addressed guild."""
@@ -529,63 +534,19 @@ async def serve_upload_file(
 
     from app.services.storage import build_upload_response, get_guild_storage
 
-    # Guild authorization via the ``/uploads/{guild_id}/…`` path: media is
-    # referenced by pages inside a guild, and ``<img>``/iframe can't send headers,
-    # so the guild rides in the URL (and a cookie is per-browser, not per-tab).
-    # Validate access (membership or live PAM grant) against the path guild →
-    # route into that ONE guild schema and look the filename up there. Fail
-    # closed: no access, no schema, or no Upload row in that guild all 404
-    # without confirming the blob exists.
-    from app.db.session import set_rls_context
-    from app.db.schema_provisioning import guild_schema_name
-    from app.models.platform.guild import LIVE_STATUS_VALUES
-    from app.services.platform import access_grants as access_grants_service
-    from app.services.platform import guilds as guilds_service
-
-    # A key limited to another guild reaches nothing here, and is told so the
-    # way somebody with no access is.
-    if pinned_elsewhere(guild_id):
-        raise HTTPException(status_code=404)
-    membership = await guilds_service.get_membership(
-        session, guild_id=guild_id, user_id=current_user.id
-    )
-    if membership is None:
-        grant = await access_grants_service.get_live_grant(
-            session, user_id=current_user.id, guild_id=guild_id
-        )
-        if grant is None:
-            raise HTTPException(status_code=404)
-
-    guild = await guilds_service.get_guild(session, guild_id=guild_id)
-    if membership is not None and guild.status not in LIVE_STATUS_VALUES:
-        # A guild that is not live is unreadable to its members (mirrors the
-        # resolver gate in deps._load_guild_context; this route resolves access
-        # inline). The grant branch above deliberately skips the status — PAM
-        # overrides it. read_only needs nothing here: serving a file is a read.
-        raise HTTPException(status_code=404)
-    # And the same resolver's question about the credential, which binds
-    # members and grantees alike. Asked once access is settled, so it is
-    # answered only to somebody who reaches the guild.
-    if declines_this_credential(guild):
-        raise HTTPException(
-            status_code=403, detail=GuildMessages.GUILD_API_KEYS_REFUSED
-        )
-
-    # The system login role has NO table grants on a guild schema, so SET ROLE
-    # into the guild role (``set_rls_context``) before reading its ``uploads``
-    # — and only if the schema actually exists (pg_namespace is readable by
-    # any role; SET ROLE into a missing role would error).
+    # Media is referenced by pages inside a guild, and ``<img>``/iframe can't
+    # send headers, so the guild rides in the URL (and a cookie is per-browser,
+    # not per-tab). Access is established through the one seam every guild
+    # request uses, which routes the session into that guild. No access and no
+    # Upload row both 404, so the blob's existence is never confirmed; a
+    # refusal that names what is missing answers as it does everywhere else.
+    try:
+        await establish_guild_access(session, current_user, guild_id)
+    except GuildAccessError as exc:
+        if exc.detail == GuildMessages.GUILD_ACCESS_DENIED:
+            raise HTTPException(status_code=404) from exc
+        raise_for_guild_access(exc)
     fname = FilePath(filename).name
-    schema = guild_schema_name(int(guild_id))
-    exists = (
-        await session.exec(
-            text("SELECT 1 FROM pg_namespace WHERE nspname = :ns"),
-            params={"ns": schema},
-        )
-    ).first()
-    if exists is None:
-        raise HTTPException(status_code=404)
-    await set_rls_context(session, guild_id=int(guild_id))
     hit = (
         await session.exec(
             text("SELECT content_type FROM uploads WHERE filename = :fn LIMIT 1"),

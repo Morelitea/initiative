@@ -188,8 +188,8 @@ async def test_an_unpinned_key_does_not_reach_a_guild_that_declines_them(
 async def test_an_upload_is_not_served_to_a_key_the_guild_declines(
     client: AsyncClient, session: AsyncSession, tmp_path, monkeypatch
 ):
-    """``/uploads`` resolves its guild inline rather than through the gate, so
-    it asks the same question where it does that."""
+    """``/uploads`` reaches its guild through the same seam as REST, so a
+    guild that declines keys declines them there too."""
     from app.core.config import settings
     from app.models.tenant.upload import Upload
     from app.services.storage import get_guild_storage
