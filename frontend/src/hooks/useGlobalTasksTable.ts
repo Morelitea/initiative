@@ -25,13 +25,7 @@ import { useUpdateTaskInGuild } from "@/hooks/useTasks";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-
-const statusFallbackOrder: Record<TaskStatusCategory, TaskStatusCategory[]> = {
-  backlog: ["backlog"],
-  todo: ["todo", "backlog"],
-  in_progress: ["in_progress", "todo", "backlog"],
-  done: ["done", "in_progress", "todo", "backlog"],
-};
+import { statusForCategory } from "@/lib/taskStatusDefaults";
 
 const SORT_DEFAULTS: SortField[] = [
   { field: "date_group", dir: "asc" },
@@ -415,14 +409,7 @@ export function useGlobalTasksTable() {
   const resolveStatusIdForCategory = useCallback(
     async (projectId: number, category: TaskStatusCategory, guildId: number | null) => {
       const statuses = await fetchProjectStatuses(projectId, guildId);
-      const fallback = statusFallbackOrder[category] ?? [category];
-      for (const candidate of fallback) {
-        const match = statuses.find((status) => status.category === candidate);
-        if (match) {
-          return match.id;
-        }
-      }
-      return null;
+      return statusForCategory(statuses, category)?.id ?? null;
     },
     [fetchProjectStatuses]
   );

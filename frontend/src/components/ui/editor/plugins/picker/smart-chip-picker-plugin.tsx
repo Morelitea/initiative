@@ -1,4 +1,5 @@
 import type { TFunction } from "i18next";
+import { PanelTop } from "lucide-react";
 
 import { ComponentPickerOption } from "@/components/ui/editor/plugins/picker/component-picker-option";
 import { SmartChipInsertDialog } from "@/components/ui/editor/plugins/smart-chip-insert-dialog";
@@ -31,5 +32,27 @@ export function SmartChipPickerPlugins(
           />
         )),
     });
+  });
+}
+
+/** The `/` entry for `![[ ]]`, for whoever does not know the syntax: a thing
+ *  shown in full, in a callout. */
+export function EmbedPickerPlugin(
+  t: TFunction<"documents">,
+  initiativeId: number | null
+): ComponentPickerOption {
+  const title = t("embeds.insert");
+  return new ComponentPickerOption(title, {
+    icon: <PanelTop className="size-4" />,
+    keywords: ["embed", "description", "details", "card", "transclude", "callout"],
+    onSelect: (_, editor, showModal) =>
+      showModal(title, (onClose) => (
+        <SmartChipInsertDialog
+          embed
+          initiativeId={initiativeId}
+          activeEditor={editor}
+          onClose={onClose}
+        />
+      )),
   });
 }

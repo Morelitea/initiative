@@ -1,3 +1,4 @@
+import { $insertNodeToNearestRoot } from "@lexical/utils";
 import type { LexicalEditor } from "lexical";
 import { $insertNodes } from "lexical";
 import { useEffect, useRef, useState } from "react";
@@ -15,10 +16,12 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { $createReferenceEmbedNode } from "@/components/ui/editor/nodes/reference-embed-node";
 import { $createSmartChipNode } from "@/components/ui/editor/nodes/smart-chip-node";
 import { SMART_CHIP_MENU } from "@/components/ui/editor/plugins/smart-chip-menu";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useGuildPickerSuggestions } from "@/hooks/useSearch";
+import { MENTIONABLE_TYPES } from "@/lib/mentions";
 import { hitIcon } from "@/lib/searchResults";
 import { CHIP_ENTITY_TYPES, chipEntityType, chipKindsFor } from "@/lib/smartChips";
 import { cn } from "@/lib/utils";
@@ -30,6 +33,9 @@ interface SmartChipInsertDialogProps {
   /** The fact to show, where the caller already chose one — the `/` menu has
    *  an entry per fact. `null` asks for the thing first and the fact after. */
   chipKind?: SmartChipKind | null;
+  /** Insert the chosen thing in full — what `![[ ]]` writes — rather than a
+   *  chip. Anything a `#` link can name can be embedded. */
+  embed?: boolean;
   initiativeId: number | null;
   activeEditor: LexicalEditor;
   onClose: () => void;
@@ -42,10 +48,12 @@ interface SmartChipInsertDialogProps {
  * can be about. Entered from `/task status` the kind is already settled, so
  * this asks only which task; entered from the toolbar it asks for the thing
  * first and then which of its facts to show — and skips that second step for a
- * thing with only one, because there is nothing to choose.
+ * thing with only one, because there is nothing to choose. Asked for an
+ * embed, it asks only which thing.
  */
 export function SmartChipInsertDialog({
   chipKind = null,
+  embed = false,
   initiativeId,
   activeEditor,
   onClose,
@@ -67,7 +75,11 @@ export function SmartChipInsertDialog({
     return () => cancelAnimationFrame(frame);
   }, [chosen]);
 
-  const types: SearchEntityType[] = chipKind ? [chipEntityType(chipKind)] : CHIP_ENTITY_TYPES;
+  const types: SearchEntityType[] = embed
+    ? MENTIONABLE_TYPES
+    : chipKind
+      ? [chipEntityType(chipKind)]
+      : CHIP_ENTITY_TYPES;
   // A chip points at work inside this document's own initiative, so a document
   // that belongs to none has nothing to offer and should say so.
   const hasInitiative = (initiativeId ?? 0) > 0;
@@ -95,6 +107,15 @@ export function SmartChipInsertDialog({
   };
 
   const choose = (suggestion: SearchSuggestion) => {
+    if (embed) {
+      activeEditor.update(() => {
+        $insertNodeToNearestRoot(
+          $createReferenceEmbedNode(suggestion.entity_type, suggestion.entity_id, suggestion.title)
+        );
+      });
+      onClose();
+      return;
+    }
     if (chipKind) return insert(chipKind, suggestion);
     const kinds = chipKindsFor(suggestion.entity_type);
     // One fact means no question to ask.
@@ -178,7 +199,7 @@ export function SmartChipInsertDialog({
                   >
                     <Icon className="h-4 w-4 shrink-0" />
                     <span className="truncate">{suggestion.title}</span>
-                    {!chipKind && (
+                    {types.length > 1 && (
                       <span className="ml-auto shrink-0 text-muted-foreground text-xs">
                         {t(`search:types.${suggestion.entity_type}` as never)}
                       </span>

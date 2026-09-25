@@ -7835,6 +7835,26 @@ export interface RecoveryCodesRegenerate {
 }
 
 /**
+ * A reference shown in full — ``![[ ]]`` rather than ``#``.
+ *
+ * The same reference and the same gate as a link; what it adds is what the
+ * thing says about itself, for the kinds that carry a description.
+ */
+export interface ReferenceEmbed {
+  ref: string;
+  entity_type: SearchEntityType;
+  title: string;
+  description: string | null;
+}
+
+/**
+ * The embeds that could be read; anything gone or out of reach is absent.
+ */
+export interface ReferenceEmbedList {
+  items: ReferenceEmbed[];
+}
+
+/**
  * How a caller with no cookie presents its refresh token.
  *
  * The browser sends nothing here — its refresh token is a cookie it cannot
@@ -8261,6 +8281,7 @@ export const SmartChipAspect = {
   value: "value",
   when: "when",
   progress: "progress",
+  checklist: "checklist",
 } as const;
 
 export type SmartChipKind = (typeof SmartChipKind)[keyof typeof SmartChipKind];
@@ -8273,6 +8294,7 @@ export const SmartChipKind = {
   "task:due": "task:due",
   "task:priority": "task:priority",
   "task:status": "task:status",
+  "task:checklist": "task:checklist",
 } as const;
 
 /**
@@ -8310,6 +8332,7 @@ export interface SmartChipState {
   color: string | null;
   date: string | null;
   number: string | null;
+  writable: boolean;
 }
 
 /**
@@ -10940,7 +10963,15 @@ export type SuggestGuildApiV1CGuildIdSearchSuggestGetParams = {
 
 export type ReadSmartChipsApiV1CGuildIdSmartChipsGetParams = {
   /**
-   * A chip to read, as `kind:id:aspect` — `task:12:status`. Repeat it for every chip on the page; they are read together. Pairs that name no chip are ignored. Available: calendar_event:when, counter:value, project:progress, task:assignee, task:due, task:priority, task:status
+   * A chip to read, as `kind:id:aspect` — `task:12:status`. Repeat it for every chip on the page; they are read together. Pairs that name no chip are ignored. Available: calendar_event:when, counter:value, project:progress, task:assignee, task:due, task:priority, task:status, task:checklist
+   * @maxItems 100
+   */
+  ref?: string[];
+};
+
+export type ReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGetParams = {
+  /**
+   * A reference to show in full, as `kind:id` — `task:12`.
    * @maxItems 100
    */
   ref?: string[];
