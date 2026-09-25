@@ -231,7 +231,8 @@ async def _billing_ref(guild_id: int) -> str | None:
 
 @pytest.fixture
 def lifecycle_pings(monkeypatch):
-    """Billing configured, and the lifecycle pings captured instead of sent."""
+    """Billing configured, the lifecycle pings captured instead of sent, and
+    the membership pings from seating a guild's creator dropped."""
     monkeypatch.setattr(
         config_module.settings, "BILLING_SERVICE_URL", "https://billing.internal"
     )
@@ -241,7 +242,11 @@ def lifecycle_pings(monkeypatch):
     async def _capture(guild_id: int) -> None:
         sent.append(guild_id)
 
+    async def _drop(guild_id: int) -> None:
+        pass
+
     monkeypatch.setattr(billing_ping, "_send_lifecycle_ping", _capture)
+    monkeypatch.setattr(billing_ping, "_send_membership_ping", _drop)
     return sent
 
 
