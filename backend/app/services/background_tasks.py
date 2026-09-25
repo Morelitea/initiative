@@ -97,10 +97,10 @@ def start_background_tasks() -> list[asyncio.Task]:
         process_import_gc,
     )
     from app.services.export.worker import (
-        process_export_jobs,
-        process_export_gc,
-        EXPORT_POLL_SECONDS,
         EXPORT_GC_POLL_SECONDS,
+        EXPORT_POLL_SECONDS,
+        dispatch_export_jobs,
+        process_export_gc,
     )
     from app.services.marketplace.tuf_registry import (
         process_registry_refresh,
@@ -239,8 +239,10 @@ def start_background_tasks() -> list[asyncio.Task]:
                 "session-purge",
             )
         ),
+        # Imports and exports share one dispatcher. A pass starts what it
+        # claims as tasks of its own and returns without waiting for them.
         asyncio.create_task(
-            _loop_worker(process_export_jobs, EXPORT_POLL_SECONDS, "export-jobs")
+            _loop_worker(dispatch_export_jobs, EXPORT_POLL_SECONDS, "export-jobs")
         ),
         asyncio.create_task(
             _loop_worker(process_export_gc, EXPORT_GC_POLL_SECONDS, "export-gc")

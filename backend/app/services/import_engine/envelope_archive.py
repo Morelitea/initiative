@@ -20,44 +20,58 @@ before anything is written.
 
 from __future__ import annotations
 
-import json
+import asyncio
 import zipfile
+from pathlib import Path
 from typing import Any
 
-from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import ImportEngineMessages
 from app.models.platform.user import User
 from app.services.import_engine import engine as import_engine
-from app.services.import_engine import limits as import_limits
-from app.services.import_engine.backup import open_backup_zip
+from app.services.import_engine.archive_assets import (
+    ArchiveAsset,
+    AssetKind,
+    remove_written,
+    restore_assets,
+)
 from app.services.import_engine.contract import ImportEngineError, InlineImport
+from app.services.import_engine.zip_bounds import json_cap, open_zip, read_json_member
 
 #: Where the files an envelope names sit in its zip.
 ASSET_DIR = "assets/"
 
 
-def read_envelope_archive(payload: bytes) -> tuple[zipfile.ZipFile, dict[str, Any]]:
-    """The zip, bound-checked, and the one envelope at its top level."""
-    archive = open_backup_zip(payload)
-    candidates = [
-        info
-        for info in archive.infolist()
-        if not info.is_dir() and "/" not in info.filename
-    ]
-    envelopes = [info for info in candidates if info.filename.endswith(".json")]
-    if len(envelopes) != 1:
-        raise ImportEngineError(ImportEngineMessages.IMPORT_ARCHIVE_NO_ENVELOPE)
-    [info] = envelopes
-    if info.file_size > import_limits.IMPORT_MAX_ENVELOPE_BYTES:
-        raise ImportEngineError(ImportEngineMessages.IMPORT_TOO_LARGE)
+def read_envelope_archive(
+    payload: bytes | Path,
+) -> tuple[zipfile.ZipFile, dict[str, Any]]:
+    """The zip, bound-checked, and the one envelope at its top level. The
+    caller closes the zip. Blocking; run it in a thread from async code."""
+    archive = open_zip(payload)
     try:
-        envelope = json.loads(archive.read(info))
-    except Exception as exc:
-        raise ImportEngineError(ImportEngineMessages.IMPORT_INVALID_ENVELOPE) from exc
-    if not isinstance(envelope, dict) or not isinstance(envelope.get("type"), str):
-        raise ImportEngineError(ImportEngineMessages.IMPORT_INVALID_ENVELOPE)
+        candidates = [
+            info
+            for info in archive.infolist()
+            if not info.is_dir() and "/" not in info.filename
+        ]
+        envelopes = [info for info in candidates if info.filename.endswith(".json")]
+        if len(envelopes) != 1:
+            raise ImportEngineError(ImportEngineMessages.IMPORT_ARCHIVE_NO_ENVELOPE)
+        [info] = envelopes
+        try:
+            envelope = read_json_member(archive, info, max_bytes=json_cap())
+        except ImportEngineError:
+            raise
+        except Exception as exc:
+            raise ImportEngineError(
+                ImportEngineMessages.IMPORT_INVALID_ENVELOPE
+            ) from exc
+        if not isinstance(envelope, dict) or not isinstance(envelope.get("type"), str):
+            raise ImportEngineError(ImportEngineMessages.IMPORT_INVALID_ENVELOPE)
+    except BaseException:
+        archive.close()
+        raise
     return archive, envelope
 
 
@@ -85,27 +99,12 @@ async def restore_archive_assets(
     should be — ``"picture"`` or ``"file"``; each record's ``content_type`` is
     set to what the file turned out to be, since that is what the importer
     stores. Returns the keys written — for the caller to remove if the import
-    then fails — and the warnings to report.
+    then fails — and the warnings to report. A file the envelope lists but the
+    zip does not carry is left to the importer, which counts it as missing
+    unless it is already stored here.
     """
-    from app.models.tenant.upload import Upload
-    from app.services.storage import get_guild_storage
-    from app.services.tenant.attachments import (
-        StorageQuotaExceededError,
-        enforce_storage_quota,
-        store_upload,
-        validate_document_file,
-    )
-    from app.services.tenant.galleries import (
-        EmptyImageError,
-        InvalidImageError,
-        validate_image,
-    )
-
-    storage = get_guild_storage(guild_id)
-    warnings: list[str] = []
-    pending: list[tuple[str, zipfile.ZipInfo, list[dict[str, Any]]]] = []
     by_key: dict[str, list[dict[str, Any]]] = {}
-    kinds: dict[str, str] = {}
+    kinds: dict[str, AssetKind] = {}
     for record, kind in assets:
         key = _flat_key(record.get("storage_key"))
         if key is None:
@@ -113,88 +112,28 @@ async def restore_archive_assets(
         by_key.setdefault(key, []).append(record)
         # A key named as a picture anywhere is held to the picture rule.
         if kinds.get(key) != "picture":
-            kinds[key] = kind
+            kinds[key] = "picture" if kind == "picture" else "file"
 
-    incoming = 0
-    for key, records in by_key.items():
-        try:
-            info = archive.getinfo(f"{ASSET_DIR}{key}")
-        except KeyError:
-            # Not in the zip: the envelope still lists it, and the importer
-            # counts it as missing unless it is already stored here.
-            continue
-        already = (
-            await session.exec(select(Upload.id).where(Upload.filename == key))
-        ).first() is not None
-        if already or storage.exists(key):
-            # Stored already — a re-import of the same zip. Never written over.
-            continue
-        incoming += info.file_size
-        pending.append((key, info, records))
-
-    try:
-        await enforce_storage_quota(session, guild_id=guild_id, incoming_bytes=incoming)
-    except StorageQuotaExceededError as exc:
-        raise ImportEngineError(
-            ImportEngineMessages.IMPORT_QUOTA_EXCEEDED, status_code=400
-        ) from exc
-
-    written: list[str] = []
-    read_total = 0
-    try:
-        for key, info, records in pending:
-            data = archive.read(info)
-            read_total += len(data)
-            if read_total > incoming:
-                # The sizes the zip declared are what the quota was checked
-                # against, so they bound what is written too.
-                raise ImportEngineError(
-                    ImportEngineMessages.IMPORT_QUOTA_EXCEEDED, status_code=400
-                )
-            if kinds[key] == "picture":
-                try:
-                    header, _extension = validate_image(data)
-                except (EmptyImageError, InvalidImageError):
-                    warnings.append(f"not_a_picture:{key}")
-                    continue
-                content_type = header.content_type
-            else:
-                try:
-                    content_type, _extension = validate_document_file(
-                        data,
-                        records[0].get("original_filename"),
-                        records[0].get("content_type"),
-                    )
-                except ValueError:
-                    warnings.append(f"unsupported_file:{key}")
-                    continue
-            await store_upload(
-                session,
-                guild_id=guild_id,
-                filename=key,
-                data=data,
-                content_type=content_type,
-                created_by=user.id,
+    restored = await restore_assets(
+        session,
+        archive,
+        [
+            ArchiveAsset(
+                key=key,
+                member=f"{ASSET_DIR}{key}",
+                kind=kinds[key],
+                original_filename=records[0].get("original_filename"),
+                content_type=records[0].get("content_type"),
             )
-            written.append(key)
-            for record in records:
-                record["content_type"] = content_type
-    except BaseException:
-        remove_written(guild_id, written)
-        raise
-    return written, warnings
-
-
-def remove_written(guild_id: int, keys: list[str]) -> None:
-    """Best-effort removal of files an import wrote before it failed."""
-    from app.services.storage import get_guild_storage
-
-    storage = get_guild_storage(guild_id)
-    for key in keys:
-        try:
-            storage.delete(key)
-        except Exception:  # pragma: no cover - backend-specific failures
-            pass
+            for key, records in by_key.items()
+        ],
+        guild_id=guild_id,
+        user=user,
+    )
+    for key, content_type in restored.content_types.items():
+        for record in by_key[key]:
+            record["content_type"] = content_type
+    return restored.written, restored.warnings
 
 
 async def start_envelope_archive_import(
@@ -203,7 +142,7 @@ async def start_envelope_archive_import(
     user: User,
     guild_id: int,
     initiative_id: int,
-    payload: bytes,
+    payload: bytes | Path,
     expected_type: str | None = None,
 ):
     """Import an exported zip into an initiative: authorize, put its files in
@@ -213,7 +152,29 @@ async def start_envelope_archive_import(
     from; a zip holding another tool's export is refused rather than landing
     somewhere nobody looked for it.
     """
-    archive, envelope = read_envelope_archive(payload)
+    archive, envelope = await asyncio.to_thread(read_envelope_archive, payload)
+    with archive:
+        return await _import_archive(
+            session,
+            archive,
+            envelope,
+            user=user,
+            guild_id=guild_id,
+            initiative_id=initiative_id,
+            expected_type=expected_type,
+        )
+
+
+async def _import_archive(
+    session: AsyncSession,
+    archive: zipfile.ZipFile,
+    envelope: dict[str, Any],
+    *,
+    user: User,
+    guild_id: int,
+    initiative_id: int,
+    expected_type: str | None,
+):
     if expected_type is not None and envelope["type"] != expected_type:
         raise ImportEngineError(ImportEngineMessages.IMPORT_WRONG_TOOL)
     importer = import_engine.get_importer(envelope["type"])

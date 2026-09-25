@@ -707,7 +707,6 @@ class UserMessages:
 class ProjectExportMessages:
     SCHEMA_VERSION_UNSUPPORTED = "PROJECT_EXPORT_SCHEMA_VERSION_UNSUPPORTED"
     INVALID_PAYLOAD = "PROJECT_EXPORT_INVALID_PAYLOAD"
-    INITIATIVE_NOT_FOUND = "PROJECT_EXPORT_INITIATIVE_NOT_FOUND"
     NO_TASK_STATUSES = "PROJECT_EXPORT_NO_TASK_STATUSES"
 
 
@@ -721,11 +720,19 @@ class ExportMessages:
     EXPORT_OWNER_REQUIRED = "EXPORT_OWNER_REQUIRED"
     EXPORT_JOB_NOT_FOUND = "EXPORT_JOB_NOT_FOUND"
     EXPORT_NOT_READY = "EXPORT_NOT_READY"
+    #: A finished export whose artifact is past its expiry.
+    EXPORT_EXPIRED = "EXPORT_EXPIRED"
     EXPORT_SUPERADMIN_REQUIRED = "EXPORT_SUPERADMIN_REQUIRED"
     EXPORT_THIRD_PARTY_APP = "EXPORT_THIRD_PARTY_APP"
     EXPORT_DESTINATION_REQUIRED = "EXPORT_DESTINATION_REQUIRED"
     EXPORT_COOLDOWN_ACTIVE = "EXPORT_COOLDOWN_ACTIVE"
     EXPORT_DELIVERED = "EXPORT_DELIVERED"
+    #: Recorded on a job whose creator's account is no longer active.
+    EXPORT_CREATOR_INACTIVE = "EXPORT_CREATOR_INACTIVE"
+    #: Recorded on a job whose creator no longer reaches the community.
+    EXPORT_ACCESS_REVOKED = "EXPORT_ACCESS_REVOKED"
+    #: Recorded on a job whose render failed for any other reason.
+    EXPORT_RENDER_FAILED = "EXPORT_RENDER_FAILED"
 
 
 class ImportEngineMessages:
@@ -752,6 +759,9 @@ class ImportEngineMessages:
     IMPORT_ARCHIVE_NO_ENVELOPE = "IMPORT_ARCHIVE_NO_ENVELOPE"
     #: An export of a different tool than the one it was imported from.
     IMPORT_WRONG_TOOL = "IMPORT_WRONG_TOOL"
+    #: A backup's file entry whose file was not restored: left out of the
+    #: backup, or refused when it was read.
+    IMPORT_ASSET_MISSING = "IMPORT_ASSET_MISSING"
 
     # Reading a foreign source. These name what the SOURCE said or did, which
     # is a different thing from anything the envelope path can go wrong at:

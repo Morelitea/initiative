@@ -168,3 +168,56 @@ def test_delivery_keeps_a_name_inside_the_community_directory(tmp_path, monkeypa
     assert ref == str(tmp_path / "guild_1" / "elsewhere.zip")
     assert (tmp_path / "guild_1" / "elsewhere.zip").exists()
     assert not (tmp_path / "elsewhere.zip").exists()
+
+
+# ---------------------------------------------------------------------------
+# A job's render beats once per artifact
+# ---------------------------------------------------------------------------
+
+
+class _Streaming:
+    async def render_stream(self, req):
+        for item in req.batch:
+            yield _artifact(item.key, item.key.encode())
+
+
+class _RecordingStorage:
+    def __init__(self) -> None:
+        self.written: dict[str, bytes] = {}
+
+    def write(self, key, data, *, content_type=None):
+        self.written[key] = data
+
+    def write_file(self, key, path, *, content_type=None):
+        from pathlib import Path
+
+        self.written[key] = Path(path).read_bytes()
+
+
+@pytest.mark.parametrize("force_zip", [False, True], ids=["eager", "on-disk"])
+async def test_render_to_storage_beats_once_per_artifact(monkeypatch, force_zip):
+    """The worker's heartbeat is awaited after every rendered artifact, on
+    both the in-memory path and the on-disk archive, and the archive still
+    lands in storage whole."""
+    from types import SimpleNamespace
+
+    from app.services.export import engine
+    from app.services.export.adapters import ADAPTERS
+
+    storage = _RecordingStorage()
+    monkeypatch.setattr(engine, "get_backend", lambda: _Streaming())
+    monkeypatch.setattr(engine, "get_guild_storage", lambda _guild_id: storage)
+    monkeypatch.setitem(ADAPTERS, "beat-test", SimpleNamespace(force_zip=force_zip))
+    beats: list[int] = []
+
+    async def beat() -> None:
+        beats.append(1)
+
+    location = await engine.render_to_storage(
+        _request("a", "b", "c"), job_id=9, source="beat-test", heartbeat=beat
+    )
+
+    assert len(beats) == 3
+    assert location.artifact_ref in storage.written
+    archive = zipfile.ZipFile(io.BytesIO(storage.written[location.artifact_ref]))
+    assert sorted(archive.namelist()) == ["a.zip", "b.zip", "c.zip"]

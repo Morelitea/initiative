@@ -631,19 +631,34 @@ const allProperties = (): Spec => ({ guildPrefix: ["/api/v1/property-definitions
 // makes stale: that tool's list and detail queries. `Record<Tool, …>` so a new
 // Tool member fails to compile until it declares its invalidation.
 
-const TOOL_SPECS: Record<Tool, (id: number) => Spec> = {
-  [Tool.project]: (id) => compose(project(id), allProjects()),
-  [Tool.document]: (id) => compose(document(id), allDocuments()),
-  [Tool.queue]: (id) => compose(queue(id), allQueues()),
-  [Tool.counter_group]: (id) => compose(counterGroup(id), allCounterGroups()),
-  [Tool.calendar]: (id) => compose(calendar(id), allCalendars()),
-  [Tool.dashboard]: (id) => compose(dashboard(id), allDashboards()),
-  [Tool.post]: (id) => compose(post(id), allPosts()),
-  [Tool.gallery]: (id) => compose(gallery(id), allGalleries()),
-  [Tool.wiki]: (id) => compose(wiki(id), allWikis()),
+const TOOL_LISTS: Record<Tool, () => Spec> = {
+  [Tool.project]: allProjects,
+  [Tool.document]: allDocuments,
+  [Tool.queue]: allQueues,
+  [Tool.counter_group]: allCounterGroups,
+  [Tool.calendar]: allCalendars,
+  [Tool.dashboard]: allDashboards,
+  [Tool.post]: allPosts,
+  [Tool.gallery]: allGalleries,
+  [Tool.wiki]: allWikis,
 };
 
-const tool = (which: Tool, id: number): Spec => TOOL_SPECS[which](id);
+const TOOL_ENTITIES: Record<Tool, (id: number) => Spec> = {
+  [Tool.project]: project,
+  [Tool.document]: document,
+  [Tool.queue]: queue,
+  [Tool.counter_group]: counterGroup,
+  [Tool.calendar]: calendar,
+  [Tool.dashboard]: dashboard,
+  [Tool.post]: post,
+  [Tool.gallery]: gallery,
+  [Tool.wiki]: wiki,
+};
+
+/** Every list of one tool — what creating entities of it (an import) makes stale. */
+const toolList = (which: Tool): Spec => TOOL_LISTS[which]();
+
+const tool = (which: Tool, id: number): Spec => compose(TOOL_ENTITIES[which](id), toolList(which));
 
 // ── Everything this guild shows (cross-tool) ─────────────────────────────────
 // Two callers, one description. Gaining (or losing) a membership row changes
@@ -760,6 +775,7 @@ export const q = {
   task,
   taskComments,
   tool,
+  toolList,
   toolComments,
   userStats,
   version,

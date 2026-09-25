@@ -34,6 +34,7 @@ from app.services.export.adapters._common import (
     envelope_key,
 )
 from app.services.export.contract import RenderItem
+from app.services.permissions import EXPORT_ACCESS
 
 #: What one gallery contributes to a batch: its row and its pictures.
 Loaded = tuple[Gallery, list[GalleryImage]]
@@ -51,13 +52,33 @@ class GalleryAdapter(ToolExportAdapter):
     force_zip = True
 
     async def fetch(
-        self, session: AsyncSession, user: User, guild_id: int, gallery_id: int, /
+        self,
+        session: AsyncSession,
+        user: User,
+        guild_id: int,
+        gallery_id: int,
+        /,
+        *,
+        access: str = EXPORT_ACCESS,
     ) -> Loaded:
         from app.services.tenant.galleries import get_gallery_for_export
 
         return await get_gallery_for_export(
-            session, user, guild_id, gallery_id=gallery_id
+            session, user, guild_id, gallery_id=gallery_id, access=access
         )
+
+    async def initiative_ids(
+        self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
+    ) -> list[int]:
+        from app.services.tenant.galleries import list_gallery_ids_for_export
+
+        return await list_gallery_ids_for_export(
+            session, user, guild_id, initiative_ids=[initiative_id]
+        )
+
+    def title(self, loaded: Loaded, /) -> str:
+        gallery, _images = loaded
+        return gallery.name
 
     def rows(self, loaded: Loaded, /) -> int:
         # A gallery's size is what is in it, not the single row naming it:

@@ -8,6 +8,7 @@ import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { queryClient } from "@/lib/queryClient";
 
 import { EnvelopeImportDialog } from "./EnvelopeImportDialog";
 
@@ -78,6 +79,28 @@ describe("EnvelopeImportDialog", () => {
     await waitFor(() =>
       expect(toast.success).toHaveBeenCalledWith(expect.stringContaining("Restored Queue"))
     );
+  });
+
+  it("refreshes the tool's list once the import lands", async () => {
+    server.use(
+      guildHttp.post("/imports/envelope", () =>
+        HttpResponse.json(
+          { result: { entity_title: "Restored Queue", created: {}, unmatched_handles: [] } },
+          { status: 201 }
+        )
+      )
+    );
+    const listKey = ["/api/v1/c/1/queues/", { initiative_id: 7 }];
+    queryClient.setQueryData(listKey, { items: [] });
+
+    renderWithProviders(<EnvelopeImportDialog tool={Tool.queue} open onOpenChange={() => {}} />);
+
+    selectFile({ type: "initiative-queue", name: "Restored Queue", schema_version: 1 });
+    const importBtn = await screen.findByRole("button", { name: /^import$/i });
+    await waitFor(() => expect(importBtn).not.toBeDisabled());
+    await userEvent.click(importBtn);
+
+    await waitFor(() => expect(queryClient.getQueryState(listKey)?.isInvalidated).toBe(true));
   });
 
   it("sends a zipped export as it is, saying which tool it is for", async () => {

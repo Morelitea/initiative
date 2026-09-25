@@ -76,7 +76,7 @@ class TasksTableAdapter:
     template_id = "task-table"
     # The one-task-per-page detailed report (layout=detailed, PDF only).
     detail_template_id = "task-detail"
-    formats = frozenset({"pdf", "csv", "xlsx", "md"})
+    formats = ("pdf", "csv", "xlsx", "md")
 
     async def count(
         self,
