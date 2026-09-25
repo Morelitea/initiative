@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+. Backups and device transfers leave out the WebView's storage
+     (the message key store and the offline cache) and the account's
+     credentials (the InitiativeCredentials Preferences group, see
+     src/lib/storage.ts). A restored phone keeps its settings and server
+     address and signs in again. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="app_webview/" />
+        <exclude domain="sharedpref" path="InitiativeCredentials.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="app_webview/" />
+        <exclude domain="sharedpref" path="InitiativeCredentials.xml" />
+    </device-transfer>
+</data-extraction-rules>

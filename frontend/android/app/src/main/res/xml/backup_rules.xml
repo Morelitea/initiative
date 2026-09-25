@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 and older: the same exclusions as data_extraction_rules.xml. -->
+<full-backup-content>
+    <exclude domain="root" path="app_webview/" />
+    <exclude domain="sharedpref" path="InitiativeCredentials.xml" />
+</full-backup-content>

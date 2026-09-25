@@ -33,7 +33,8 @@ vi.mock("@/api/client", () => ({
 }));
 
 const getItem = vi.fn((_key: string): string | null => null);
-vi.mock("@/lib/storage", () => ({
+vi.mock("@/lib/storage", async (importOriginal) => ({
+  CREDENTIAL_KEYS: (await importOriginal<typeof import("@/lib/storage")>()).CREDENTIAL_KEYS,
   getItem: (key: string) => getItem(key),
   setItem: vi.fn(),
   removeItem: vi.fn(),
@@ -52,7 +53,7 @@ vi.mock("@/lib/passkeys", () => ({
   stepUpWithPasskey: () => presentPasskey(),
 }));
 
-import { REFRESH_TOKEN_KEY } from "@/lib/nativeSession";
+import { CREDENTIAL_KEYS } from "@/lib/storage";
 
 import { AuthProvider, useAuth } from "./useAuth";
 
@@ -221,7 +222,9 @@ describe("useAuth identity ordering", () => {
     // A native client's refresh token is the only thing that tells the server
     // which of the account's sessions is going; without it the others would
     // have to go too.
-    getItem.mockImplementation((key) => (key === REFRESH_TOKEN_KEY ? "rt-this-device" : null));
+    getItem.mockImplementation((key) =>
+      key === CREDENTIAL_KEYS.refreshToken ? "rt-this-device" : null
+    );
     get.mockResolvedValueOnce({ data: buildUser({ full_name: "Signed in" }) });
     renderAuth();
     await waitFor(() => expect(auth.user).not.toBeNull());

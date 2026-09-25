@@ -44,6 +44,10 @@ When your community's server moves to a new version, the app fetches the matchin
 
 Every so often a release changes the app's native shell rather than the web part, and then it'll say so and point you at a new APK. That's the only time it needs you.
 
+### New phone, same app
+
+Restore your old phone's backup onto a new one and the app comes back with your server address and settings where you left them. It asks you to sign in again, because your sign-in and your message keys belong to the old phone and don't travel in the backup.
+
 ??? techspec "How the over-the-air update works"
     Each Docker image ships the Capacitor web bundle that matches its version, served from `/api/v1/native/bundle/`, along with a statement of that bundle (its version, checksum and the oldest app it runs on) signed with Initiative's release key. On launch the app checks the signature against the keys it was built with, compares the signed version with the one it's running, downloads the difference, verifies its checksum, and swaps it in behind the splash screen. A bundle without a valid signature, from a server built from source, is left alone and the app stays on the version it has.
 

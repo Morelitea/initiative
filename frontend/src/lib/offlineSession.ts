@@ -19,9 +19,8 @@
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
 import { OFFLINE_CACHE_MAX_AGE_MS } from "@/lib/offlineCache";
 import { getStoredServerUrl } from "@/lib/serverStorage";
-import { getItem, removeItem, setItem } from "@/lib/storage";
+import { CREDENTIAL_KEYS, getItem, removeItem, setItem } from "@/lib/storage";
 
-const SESSION_SNAPSHOT_KEY = "initiative-offline-session";
 const GUILDS_SNAPSHOT_KEY = "initiative-offline-guilds";
 
 interface SessionSnapshot {
@@ -55,7 +54,7 @@ export const currentServerKey = (): string => getStoredServerUrl() ?? "default";
 export const saveOfflineSession = (user: UserRead, serverUrl: string): void => {
   try {
     const snapshot: SessionSnapshot = { user, savedAt: Date.now(), serverUrl };
-    setItem(SESSION_SNAPSHOT_KEY, JSON.stringify(snapshot));
+    setItem(CREDENTIAL_KEYS.offlineSession, JSON.stringify(snapshot));
   } catch {
     // Storage refused. Offline reading is a convenience — never a reason to
     // fail a sign-in that has otherwise succeeded.
@@ -63,7 +62,7 @@ export const saveOfflineSession = (user: UserRead, serverUrl: string): void => {
 };
 
 export const clearOfflineSession = (): void => {
-  removeItem(SESSION_SNAPSHOT_KEY);
+  removeItem(CREDENTIAL_KEYS.offlineSession);
   removeItem(GUILDS_SNAPSHOT_KEY);
 };
 
@@ -73,7 +72,7 @@ export const clearOfflineSession = (): void => {
  * snapshot on the way out.
  */
 export const readOfflineSession = (serverUrl: string): UserRead | null => {
-  const raw = getItem(SESSION_SNAPSHOT_KEY);
+  const raw = getItem(CREDENTIAL_KEYS.offlineSession);
   if (!raw) return null;
 
   let parsed: unknown;
