@@ -17,8 +17,8 @@ import type { ProfileDecorationsOutput } from "@/api/generated/initiativeAPI.sch
 import { AgeUnansweredPanel } from "@/components/contacts/UnreachableEmptyState";
 import { ConversationList } from "@/components/messages/ConversationList";
 import { HistoryAskNotice } from "@/components/messages/HistoryAskNotice";
-import { HistoryRequestPanel } from "@/components/messages/HistoryRequestPanel";
 import { MessageContent } from "@/components/messages/MessageContent";
+import { NewDevicePrompt } from "@/components/messages/NewDevicePrompt";
 import { PeerKeyChangeNotice } from "@/components/messages/PeerKeyChangeNotice";
 import { StartWithPerson } from "@/components/messages/StartWithPerson";
 import { ReactionPicker } from "@/components/reactions/ReactionPicker";
@@ -292,7 +292,7 @@ export function MyMessagesPage() {
       {/* Above the thread, because it is about the account rather than about
           whoever is on screen — and because a device waiting on an answer is
           waiting on a person who has to see it to give one. */}
-      <HistoryRequestPanel />
+      <NewDevicePrompt />
 
       {/* The other side of the same comparison, on the device that asked. */}
       <PeerKeyChangeNotice nameOf={nameOf} />

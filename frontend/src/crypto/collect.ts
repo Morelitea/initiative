@@ -14,47 +14,45 @@ import { type Context, ensureDeviceContext } from "./device";
 import { type Batch, KINDS, type KindSpec, unpack } from "./envelope";
 import { requestHistory, serveHistory } from "./historySync";
 import { acknowledge } from "./send";
-import { type Destination, openInboundSession, readWithHeldSession } from "./sessions";
-import { accountPickle } from "./store";
+import { type Destination, readPreKey, readWithHeldSession } from "./sessions";
+import { accountPickle, peerKeyChanges } from "./store";
 import { runThreadCatchUps, serveThreadHistory } from "./threadHistory";
 
+/** The members of one conversation other than this account, as the server lists them. */
+async function rosterOf(ctx: Context, conversationId: string): Promise<number[]> {
+  return (await ctx.conversations()).find((row) => row.id === conversationId)?.member_ids ?? [];
+}
+
 /**
- * The identity keys a pre-key message in each conversation could have come from.
+ * The device a pre-key message in one conversation came from, by the identity
+ * it names.
  *
- * The queue row carries no sender, so it is one of the conversation's members
- * or one of this account's own clients -- a pre-key message anywhere may be its
- * own outbox arriving from another client. Only conversations that actually
- * have one are looked up.
+ * The queue row carries no sender, so it is one of this account's own
+ * confirmed devices -- its outbox arriving from another client -- or a device
+ * of somebody on the conversation's roster. A device of this account's that is
+ * waiting to be confirmed is noted as having something here, and its message
+ * waits in the queue until it is.
  */
-async function identitiesForPreKeys(
+async function senderOf(
   ctx: Context,
-  conversationIds: Set<string>
-): Promise<Map<string, Destination[]>> {
-  const candidates = new Map<string, Destination[]>();
-  if (conversationIds.size === 0) return candidates;
-  const ours: Destination[] = ctx.ownDevices.map((device) => ({
-    id: device.id,
-    identityKey: device.identity_key,
-    origin: "self",
-  }));
-  const conversations = await ctx.conversations();
-  for (const conversationId of conversationIds) {
-    const roster = conversations.find((row) => row.id === conversationId)?.member_ids ?? [];
-    const theirs = await Promise.all(
-      roster.map(async (userId) =>
-        (await ctx.directory(userId)).devices.map(
-          (device): Destination => ({
-            id: device.device_id,
-            identityKey: device.identity_key,
-            origin: "other",
-            userId,
-          })
-        )
-      )
-    );
-    candidates.set(conversationId, [...theirs.flat(), ...ours]);
+  conversationId: string,
+  identityKey: string,
+  asking: Set<string>
+): Promise<Destination | undefined> {
+  const own = ctx.own.devices.find((device) => device.identityKey === identityKey);
+  if (own) return { ...own, origin: "self" };
+  const waiting = ctx.own.held.find((device) => device.identityKey === identityKey);
+  if (waiting) {
+    asking.add(waiting.id);
+    return undefined;
   }
-  return candidates;
+  for (const userId of await rosterOf(ctx, conversationId)) {
+    const theirs = (await ctx.directory(userId)).devices.find(
+      (device) => device.identityKey === identityKey
+    );
+    if (theirs) return { ...theirs, origin: "other" };
+  }
+  return undefined;
 }
 
 /**
@@ -104,28 +102,19 @@ async function collectOnce({ receipts = true }: { receipts?: boolean }): Promise
   if (items.length > 0 && !(await accountPickle.get())) {
     throw new Error("this device has no key store");
   }
-  // Reading a directory claims nothing, so it costs no prekey.
-  const candidates = await identitiesForPreKeys(
-    ctx,
-    new Set(items.filter((item) => item.message_type === 0).map((item) => item.conversation_id))
-  );
 
-  const batch: Batch = { ownDevices: ctx.ownDevices, landed: new Map(), asking: [] };
+  const batch: Batch = { own: ctx.own.devices, landed: new Map(), asking: [] };
+  const waiting = new Set<string>();
   const touched = new Set<string>();
   const collected: number[] = [];
   for (const item of items) {
     try {
-      // Every message is offered to the sessions this device already holds
-      // before any new one is opened -- pre-key messages included. A session
-      // goes on marking what it sends as pre-key until it hears back on it, so
-      // the second and third of those name a prekey the receiver has already
-      // spent: opening a session is the one thing that cannot answer them, and
-      // the session that can is sitting right here.
       const read =
-        (await readWithHeldSession(item)) ??
-        (item.message_type === 0
-          ? await openInboundSession(item, candidates.get(item.conversation_id) ?? [])
-          : null);
+        item.message_type === 0
+          ? await readPreKey(item, (identityKey) =>
+              senderOf(ctx, item.conversation_id, identityKey, waiting)
+            )
+          : await readWithHeldSession(item, new Set(await rosterOf(ctx, item.conversation_id)));
       if (read === null) continue;
       // `null` is a kind from a later version: understood well enough to know it
       // is not for this one, and taken off the server rather than tried again.
@@ -143,6 +132,7 @@ async function collectOnce({ receipts = true }: { receipts?: boolean }): Promise
             createdAt: item.created_at,
             mine: read.mine,
             author: read.author,
+            device: read.device,
           },
           batch
         );
@@ -157,6 +147,9 @@ async function collectOnce({ receipts = true }: { receipts?: boolean }): Promise
   if (collected.length > 0) {
     await ackQueue({ device_id: ctx.device, message_ids: collected });
   }
+  // What the prompt about a new device of this account's reads, so the
+  // history it asked for is offered already ticked.
+  await peerKeyChanges.markAsked([...waiting]);
 
   // After the acknowledgement, so a request that arrived in this batch is
   // served in it -- and on an empty queue too, for one approved since the

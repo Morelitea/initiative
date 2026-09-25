@@ -649,7 +649,9 @@ SHARED_TABLE_PLATFORM_BASE_GRANTS: dict[str, frozenset[str] | None] = {
     "user_dm_guild_optouts": frozenset({"SELECT", "INSERT", "DELETE"}),
     "contact_grants": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     "user_ignores": frozenset({"SELECT", "INSERT", "DELETE"}),
-    "dm_devices": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # UPDATE is column-scoped to last_seen_at, device_token_id and signature
+    # (migration 0395), so it lives in the column ACL, not here.
+    "dm_devices": frozenset({"SELECT", "INSERT", "DELETE"}),
     "dm_one_time_keys": frozenset({"SELECT", "INSERT", "DELETE"}),
     "dm_conversations": frozenset({"SELECT", "INSERT", "DELETE"}),
     "dm_conversation_members": frozenset({"SELECT", "INSERT", "DELETE"}),

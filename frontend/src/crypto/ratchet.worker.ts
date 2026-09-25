@@ -18,13 +18,19 @@ import {
   decrypt,
   encrypt,
   generateKeys,
+  inspectPreKey,
+  signDevice,
+  verifyDevice,
 } from "./engine";
 
 /** The only calls the worker will make. Not every export of `engine`. */
 const methods = {
   createAccount,
   generateKeys,
+  signDevice,
+  verifyDevice,
   createOutboundSession,
+  inspectPreKey,
   createInboundSession,
   encrypt,
   decrypt,

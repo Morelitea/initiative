@@ -99,24 +99,35 @@
     "today": "Today",
     "yesterday": "Yesterday"
   },
-  "historyRequest": {
-    "title": "One of your devices is asking for your messages",
-    "body": "{{device}} signed in and has no history of its own. Send it this device's messages? Check it is showing the same pictures, in the same order.",
+  "newDevice": {
+    "title": "New device signed in",
+    "body": "{{device}} signed in to your account. Is this yours? It should be showing these pictures, in the same order.",
     "unknownDevice": "A device",
-    "codeLabel": "Device code",
-    "approve": "Send my messages",
-    "decline": "Not now"
+    "sendHistory": "Send it my message history",
+    "confirm": "Yes, it's mine",
+    "remove": "No, remove it",
+    "error": "Couldn't save your answer. Try again."
+  },
+  "deviceCode": {
+    "label": "Device code"
   },
   "historyAsk": {
-    "title": "Waiting for your messages",
-    "body": "This device has asked your other devices for the messages you already had. Open one of them and approve it there — these are the pictures it will show you.",
+    "title": "Confirm this device on another of yours",
+    "body": "Open Messages on a device you already use and confirm this one there. It will show you these pictures. Your message history arrives once you do.",
     "dismiss": "Dismiss",
-    "dismissNote": "Dismissing this only hides it. Your messages still arrive if you approve on your other device."
+    "dismissNote": "Dismissing this only hides it. Your messages still arrive once you confirm this device on your other one."
   },
   "peerKeyChange": {
-    "title": "A device key changed in this conversation",
-    "body": "This conversation now includes a device key for {{name}} that this browser had not seen before. Usually that means they added, replaced, or reinstalled a device. It can also mean someone else enrolled a device in their name. Check these pictures with them somewhere other than here before you send anything private.",
-    "acknowledge": "I've checked this"
+    "title": "{{name}}'s devices changed",
+    "body": "Usually that means they added, replaced, or reinstalled a device. It can also mean someone else added a device in their name. Compare your safety number with them somewhere other than here before you send anything private.",
+    "compare": "Compare safety number"
+  },
+  "safetyNumber": {
+    "title": "Safety number with {{name}}",
+    "description": "Read these numbers with {{name}} in person or on a call. If both screens show the same numbers, your messages reach only the devices you both expect.",
+    "you": "You",
+    "matches": "They match",
+    "verified": "You've compared this number with {{name}}."
   },
   "safetyEmoji": {
     "dog": "Dog",

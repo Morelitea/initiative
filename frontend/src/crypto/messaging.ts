@@ -11,13 +11,18 @@
  */
 
 export { collect } from "./collect";
-export { ensureDevice, forgetMessagesOnThisDevice, registeredDevice } from "./device";
 export {
-  answerHistoryRequest,
+  ensureDevice,
+  ensureDeviceContext,
+  forgetMessagesOnThisDevice,
+  registeredDevice,
+  thisDevice,
+} from "./device";
+export {
+  answerNewDevice,
   HISTORY_ASK_NOTICE_MS,
   type HistoryAskWaiting,
   historyAskWaiting,
-  historyRequestToAnswer,
 } from "./historySync";
 export { markRead, unreadIn } from "./readState";
 export {
@@ -28,6 +33,12 @@ export {
   sendRemove,
   sendText,
 } from "./send";
-export { historyAsk, messageLog, peerKeyChanges, type StoredMessage } from "./store";
+export { historyAsk, messageLog, type PeerKeyChange, type StoredMessage } from "./store";
 export { wantThreadHistory } from "./threadHistory";
-export { peerKeyChangesWaiting } from "./trust";
+export {
+  acknowledgeSafetyNumber,
+  ownDeviceWaiting,
+  pairSafetyNumber,
+  peerKeyChangesWaiting,
+  type SafetyNumber,
+} from "./trust";

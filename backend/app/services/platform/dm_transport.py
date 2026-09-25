@@ -28,8 +28,11 @@ from sqlalchemy import delete, func, insert, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from app.core.messages import DirectMessageTransportMessages as Messages
+from app.core.transitions import DM_SIGNED_DEVICES
 from app.models.platform.dm_conversation import (
     DmConversation,
     DmConversationKind,
@@ -51,6 +54,7 @@ from app.schemas.platform.dm_transport import (
     DmRosterMember,
     DmSessionKey,
 )
+from app.services.platform import app_settings as app_settings_service
 from app.services.platform import presence as presence_service
 
 #: A public key is 32 bytes on both curves.
@@ -166,18 +170,84 @@ async def _own_device(
 # --------------------------------------------------------------------------
 
 
+#: The byte strings a device signs, as the ratchet builds them
+#: (``crypto/src/lib.rs``): its keys and account, and each key it publishes.
+_DEVICE_TAG = b"initiative-dm-device-v1\0"
+_ONE_TIME_KEY_TAG = b"initiative-dm-otk-v1\0"
+_FALLBACK_KEY_TAG = b"initiative-dm-fallback-v1\0"
+SIGNATURE_BYTES = 64
+
+
+def _device_bytes(user_id: int, identity_key: bytes, fingerprint_key: bytes) -> bytes:
+    return _DEVICE_TAG + user_id.to_bytes(8, "big") + identity_key + fingerprint_key
+
+
+def _signature(fingerprint_key: bytes, message: bytes, signature: str | None) -> bytes:
+    """The raw signature, once it verifies against the device's fingerprint key."""
+    if signature is None:
+        raise DmTransportError(Messages.INVALID_SIGNATURE)
+    raw = _decode(signature, expect=SIGNATURE_BYTES)
+    try:
+        Ed25519PublicKey.from_public_bytes(fingerprint_key).verify(raw, message)
+    except (InvalidSignature, ValueError) as exc:
+        raise DmTransportError(Messages.INVALID_SIGNATURE) from exc
+    return raw
+
+
+def _key_row(
+    device: DmDevice, key: DmOneTimeKeyUpload, *, fallback: bool
+) -> DmOneTimeKey:
+    """A published key, its signature checked when the device signs."""
+    public_key = _decode(key.public_key, expect=KEY_BYTES)
+    signature = (
+        _signature(
+            device.fingerprint_key,
+            (_FALLBACK_KEY_TAG if fallback else _ONE_TIME_KEY_TAG) + public_key,
+            key.signature,
+        )
+        if device.signature is not None
+        else None
+    )
+    return DmOneTimeKey(
+        device_id=device.id,
+        key_id=key.key_id,
+        public_key=public_key,
+        fallback=fallback,
+        signature=signature,
+    )
+
+
+def _add_keys(
+    session: AsyncSession,
+    device: DmDevice,
+    *,
+    fallback_key: DmOneTimeKeyUpload | None,
+    one_time_keys: list[DmOneTimeKeyUpload],
+) -> None:
+    if len({key.key_id for key in one_time_keys}) != len(one_time_keys):
+        raise DmTransportError(Messages.DUPLICATE_KEY_ID)
+    if fallback_key is not None:
+        session.add(_key_row(device, fallback_key, fallback=True))
+    session.add_all(_key_row(device, key, fallback=False) for key in one_time_keys)
+
+
 async def register_device(
     session: AsyncSession,
     *,
     user_id: int,
     identity_key: str,
     fingerprint_key: str,
+    signature: str | None,
     fallback_key: DmOneTimeKeyUpload,
     one_time_keys: list[DmOneTimeKeyUpload],
     label: str | None,
     device_token_id: int | None = None,
 ) -> DmDevice:
-    """Publish a new installed client's public keys.
+    """Publish a new installed client's public keys, signed by the device.
+
+    An unsigned registration is accepted until this deployment's
+    ``DM_SIGNED_DEVICES`` transition ends, from app bundles that do not sign
+    yet. A signed device's keys must be signed too.
 
     A fallback key is required rather than optional: without one, a device whose
     prekeys run out becomes unreachable to anyone starting a new conversation,
@@ -189,10 +259,23 @@ async def register_device(
     registers without one (the web, which has no device token) simply never
     holds one -- it is not something a caller may assert about itself.
     """
+    identity = _decode(identity_key, expect=KEY_BYTES)
+    fingerprint = _decode(fingerprint_key, expect=KEY_BYTES)
+    if signature is None and await app_settings_service.transition_over(
+        session, DM_SIGNED_DEVICES
+    ):
+        raise DmTransportError(Messages.INVALID_SIGNATURE)
     device = DmDevice(
         user_id=user_id,
-        identity_key=_decode(identity_key, expect=KEY_BYTES),
-        fingerprint_key=_decode(fingerprint_key, expect=KEY_BYTES),
+        identity_key=identity,
+        fingerprint_key=fingerprint,
+        signature=(
+            _signature(
+                fingerprint, _device_bytes(user_id, identity, fingerprint), signature
+            )
+            if signature is not None
+            else None
+        ),
         label=label,
         device_token_id=device_token_id,
     )
@@ -208,36 +291,33 @@ async def register_device(
             device_id=device.id,
             device_token_id=device_token_id,
         )
-
-    session.add(
-        DmOneTimeKey(
-            device_id=device.id,
-            key_id=fallback_key.key_id,
-            public_key=_decode(fallback_key.public_key, expect=KEY_BYTES),
-            fallback=True,
-        )
-    )
-    _add_one_time_keys(session, device_id=device.id, keys=one_time_keys)
+    _add_keys(session, device, fallback_key=fallback_key, one_time_keys=one_time_keys)
     await session.flush()
     return device
 
 
-def _add_one_time_keys(
-    session: AsyncSession, *, device_id: uuid.UUID, keys: list[DmOneTimeKeyUpload]
+async def sign_device(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    device_id: uuid.UUID,
+    signature: str,
+    fallback_key: DmOneTimeKeyUpload,
+    one_time_keys: list[DmOneTimeKeyUpload],
 ) -> None:
-    seen: set[str] = set()
-    for key in keys:
-        if key.key_id in seen:
-            raise DmTransportError(Messages.DUPLICATE_KEY_ID)
-        seen.add(key.key_id)
-        session.add(
-            DmOneTimeKey(
-                device_id=device_id,
-                key_id=key.key_id,
-                public_key=_decode(key.public_key, expect=KEY_BYTES),
-                fallback=False,
-            )
-        )
+    """Sign a device registered before signing, once, and replace the keys it
+    published unsigned with signed ones."""
+    device = await _own_device(session, user_id=user_id, device_id=device_id)
+    if device.signature is not None:
+        raise DmTransportError(Messages.INVALID_SIGNATURE)
+    device.signature = _signature(
+        device.fingerprint_key,
+        _device_bytes(user_id, device.identity_key, device.fingerprint_key),
+        signature,
+    )
+    await session.exec(delete(DmOneTimeKey).where(DmOneTimeKey.device_id == device.id))
+    _add_keys(session, device, fallback_key=fallback_key, one_time_keys=one_time_keys)
+    await session.flush()
 
 
 async def add_one_time_keys(
@@ -248,26 +328,27 @@ async def add_one_time_keys(
     keys: list[DmOneTimeKeyUpload],
 ) -> int:
     """Top a device's pool back up. Returns how many it now holds."""
-    await _own_device(session, user_id=user_id, device_id=device_id)
-    held = await _unclaimed_count(session, device_id)
+    device = await _own_device(session, user_id=user_id, device_id=device_id)
+    held = (await _unclaimed_counts(session, [device.id])).get(device.id, 0)
     if held + len(keys) > MAX_ONE_TIME_KEYS:
         raise DmTransportError(Messages.TOO_MANY_KEYS)
-    _add_one_time_keys(session, device_id=device_id, keys=keys)
+    _add_keys(session, device, fallback_key=None, one_time_keys=keys)
     await session.flush()
     return held + len(keys)
 
 
-async def _unclaimed_count(session: AsyncSession, device_id: uuid.UUID) -> int:
-    return (
-        await session.exec(
-            select(func.count())
-            .select_from(DmOneTimeKey)
-            .where(
-                DmOneTimeKey.device_id == device_id,
-                DmOneTimeKey.fallback.is_(False),
-            )
+async def _unclaimed_counts(
+    session: AsyncSession, device_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, int]:
+    rows = await session.exec(
+        select(DmOneTimeKey.device_id, func.count())
+        .where(
+            DmOneTimeKey.device_id.in_(device_ids),
+            DmOneTimeKey.fallback.is_(False),
         )
-    ).one()
+        .group_by(DmOneTimeKey.device_id)
+    )
+    return {device_id: count for device_id, count in rows.all()}
 
 
 async def list_devices(session: AsyncSession, *, user_id: int) -> list[DmDeviceRead]:
@@ -280,15 +361,17 @@ async def list_devices(session: AsyncSession, *, user_id: int) -> list[DmDeviceR
             )
         ).all()
     )
+    counts = await _unclaimed_counts(session, [device.id for device in devices])
     return [
         DmDeviceRead(
             id=device.id,
             identity_key=_encode(device.identity_key),
             fingerprint_key=_encode(device.fingerprint_key),
+            signature=_encode(device.signature) if device.signature else None,
             label=device.label,
             created_at=device.created_at,
             last_seen_at=device.last_seen_at,
-            one_time_key_count=await _unclaimed_count(session, device.id),
+            one_time_key_count=counts.get(device.id, 0),
         )
         for device in devices
     ]
@@ -307,11 +390,38 @@ async def remove_device(
     await session.flush()
 
 
+def _session_key(
+    device: DmDevice, one_time_key: DmOneTimeKeyUpload | None
+) -> DmSessionKey:
+    return DmSessionKey(
+        device_id=device.id,
+        identity_key=_encode(device.identity_key),
+        fingerprint_key=_encode(device.fingerprint_key),
+        signature=_encode(device.signature) if device.signature else None,
+        one_time_key=one_time_key,
+    )
+
+
+async def _devices_of(
+    session: AsyncSession,
+    user_id: int,
+    *,
+    except_device: uuid.UUID | None = None,
+    only: list[uuid.UUID] | None = None,
+) -> list[DmDevice]:
+    query = select(DmDevice).where(DmDevice.user_id == user_id)
+    if except_device is not None:
+        query = query.where(DmDevice.id != except_device)
+    if only is not None:
+        query = query.where(DmDevice.id.in_(only))
+    return list((await session.exec(query.order_by(DmDevice.created_at))).all())
+
+
 async def claim_session_keys(
-    session: AsyncSession, *, target_id: int
+    session: AsyncSession, *, target_id: int, only: list[uuid.UUID] | None = None
 ) -> list[DmSessionKey]:
-    """The keys the caller needs to open a session with each of that account's
-    devices, spending one prekey per device.
+    """The keys the caller needs to open a session with that account's devices
+    (``only`` those, when named), spending one prekey per device.
 
     A claim is a delete: a prekey that cannot be handed out twice needs no state
     to say so. The reusable fallback key is the exception, and is what a device
@@ -319,30 +429,13 @@ async def claim_session_keys(
     """
     if await _permission(session, target_id) != "open":
         raise DmTransportError(Messages.NOT_REACHABLE)
-
-    devices = list(
-        (
-            await session.exec(
-                select(DmDevice)
-                .where(DmDevice.user_id == target_id)
-                .order_by(DmDevice.created_at)
-            )
-        ).all()
-    )
-    claimed: list[DmSessionKey] = []
-    for device in devices:
-        # One statement, one key. The request path holds no DELETE on another
-        # account's pool, and two callers racing take different rows rather
-        # than the same one.
-        upload = await _claim_for(session, device.id)
-        claimed.append(
-            DmSessionKey(
-                device_id=device.id,
-                identity_key=_encode(device.identity_key),
-                fingerprint_key=_encode(device.fingerprint_key),
-                one_time_key=upload,
-            )
-        )
+    # One statement, one key per device. The request path holds no DELETE on
+    # another account's pool, and two callers racing take different rows rather
+    # than the same one.
+    claimed = [
+        _session_key(device, await _claim_for(session, device.id))
+        for device in await _devices_of(session, target_id, only=only)
+    ]
     await session.flush()
     return claimed
 
@@ -354,13 +447,19 @@ async def _claim_for(
     row = (
         await session.exec(
             text(
-                "SELECT key_id, public_key FROM public.dm_claim_one_time_key(:d)"
+                "SELECT key_id, public_key, fallback, signature "
+                "FROM public.dm_claim_one_time_key(:d)"
             ).bindparams(d=device_id)
         )
     ).first()
     if row is None:
         return None
-    return DmOneTimeKeyUpload(key_id=row[0], public_key=_encode(bytes(row[1])))
+    return DmOneTimeKeyUpload(
+        key_id=row[0],
+        public_key=_encode(bytes(row[1])),
+        fallback=row[2],
+        signature=_encode(bytes(row[3])) if row[3] is not None else None,
+    )
 
 
 async def directory(session: AsyncSession, *, target_id: int) -> list[DmSessionKey]:
@@ -373,28 +472,17 @@ async def directory(session: AsyncSession, *, target_id: int) -> list[DmSessionK
     """
     if await _permission(session, target_id) != "open":
         raise DmTransportError(Messages.NOT_REACHABLE)
-    devices = list(
-        (
-            await session.exec(
-                select(DmDevice)
-                .where(DmDevice.user_id == target_id)
-                .order_by(DmDevice.created_at)
-            )
-        ).all()
-    )
     return [
-        DmSessionKey(
-            device_id=device.id,
-            identity_key=_encode(device.identity_key),
-            fingerprint_key=_encode(device.fingerprint_key),
-            one_time_key=None,
-        )
-        for device in devices
+        _session_key(device, None) for device in await _devices_of(session, target_id)
     ]
 
 
 async def own_session_keys(
-    session: AsyncSession, *, user_id: int, except_device: uuid.UUID
+    session: AsyncSession,
+    *,
+    user_id: int,
+    except_device: uuid.UUID,
+    only: list[uuid.UUID] | None = None,
 ) -> list[DmSessionKey]:
     """Keys for this account's *other* devices.
 
@@ -404,37 +492,12 @@ async def own_session_keys(
     keys, claimed the same way -- ``dm_claim_one_time_key`` already lets an
     owner spend from their own pool, and this is the route to it.
     """
-    devices = list(
-        (
-            await session.exec(
-                select(DmDevice)
-                .where(DmDevice.user_id == user_id, DmDevice.id != except_device)
-                .order_by(DmDevice.created_at)
-            )
-        ).all()
-    )
     return [
-        DmSessionKey(
-            device_id=device.id,
-            identity_key=_encode(device.identity_key),
-            fingerprint_key=_encode(device.fingerprint_key),
-            one_time_key=await _claim_for(session, device.id),
+        _session_key(device, await _claim_for(session, device.id))
+        for device in await _devices_of(
+            session, user_id, except_device=except_device, only=only
         )
-        for device in devices
     ]
-
-
-async def fingerprints(session: AsyncSession, *, user_id: int) -> list[str]:
-    rows = list(
-        (
-            await session.exec(
-                select(DmDevice.fingerprint_key)
-                .where(DmDevice.user_id == user_id)
-                .order_by(DmDevice.created_at)
-            )
-        ).all()
-    )
-    return [_encode(row) for row in rows]
 
 
 # --------------------------------------------------------------------------

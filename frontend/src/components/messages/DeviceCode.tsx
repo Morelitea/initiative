@@ -1,22 +1,23 @@
 import { useTranslation } from "react-i18next";
 
-import { safetyCode } from "@/crypto/safetyCode";
+import type { CodeKeys } from "@/crypto/safetyCode";
+import { useDeviceCode } from "@/hooks/useMyMessages";
 
 /**
- * One device's key, drawn as the pictures a person compares.
+ * One device's code, drawn as the pictures a person compares.
  *
  * The emoji is decoration and the name is the text: a screen reader reads the
- * names in order, which is the same comparison somebody makes by eye, and it
- * is also what two people read to each other over a phone.
+ * names in order, which is the same comparison somebody makes by eye, and it is
+ * also what two people read to each other over a phone.
  */
-export const SafetyCode = ({ fingerprint }: { fingerprint: string }) => {
+export const DeviceCode = ({ userId, ...keys }: { userId: number } & CodeKeys) => {
   const { t } = useTranslation("messages");
-  const code = safetyCode(fingerprint);
-  if (code.length === 0) return null;
+  const code = useDeviceCode(userId, keys);
+  if (!code.data) return null;
 
   return (
-    <ol className="flex flex-wrap gap-x-4 gap-y-2" aria-label={t("historyRequest.codeLabel")}>
-      {code.map((entry, index) => (
+    <ol className="flex flex-wrap gap-x-4 gap-y-2" aria-label={t("deviceCode.label")}>
+      {code.data.map((entry, index) => (
         <li
           // biome-ignore lint/suspicious/noArrayIndexKey: a code is a sequence, and the same picture can come up twice in it — position is the identity
           key={index}

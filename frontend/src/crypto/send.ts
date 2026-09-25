@@ -71,18 +71,20 @@ export async function deliver(
     if (session) await sessionsInConversation.add(conversationId, session);
   }
   const missing = destinations.filter((_, index) => !held[index]);
-  const claimed =
-    missing.length > 0 ? await claimKeysFor(missing, ctx.device) : new Map<string, string>();
+  const claimed = await claimKeysFor(missing, ctx.device);
 
   const messages = [];
   let reached = false;
   for (const [index, destination] of destinations.entries()) {
     const oneTime = claimed.get(destination.id);
-    // A device that published nothing we can open a session with is skipped:
-    // that beats sending it something it cannot read.
-    if (!held[index] && !oneTime) continue;
+    // A device that published nothing we can open a session with is skipped,
+    // as is one whose key does not verify: that beats sending it something it
+    // cannot read.
     const sessionId =
-      held[index] ?? (await openOutboundSession(conversationId, destination, oneTime as string));
+      held[index] ??
+      (oneTime &&
+        (await openOutboundSession(conversationId, destination, oneTime).catch(() => null)));
+    if (!sessionId) continue;
     const encrypted = await withSession(sessionId, async (pickle) => {
       const out = await ratchet.encrypt(pickle, JSON.stringify(envelope));
       return { next: out.session_pickle, value: out };
@@ -124,27 +126,23 @@ export async function sendEnvelope(
   if (directories.every(({ devices }) => devices.length === 0)) {
     // Withholding is this client's own doing and is undone by acknowledging the
     // notice, so it is not the same outcome as an account with no device.
-    if (directories.some(({ withheld }) => withheld > 0)) {
+    if (directories.some(({ held }) => held.length > 0)) {
       throw new RecipientDevicesUnverifiedError();
     }
     return false;
   }
 
-  const theirs: Destination[] = directories.flatMap(({ userId, devices }) =>
-    devices.map((device) => ({
-      id: device.device_id,
-      identityKey: device.identity_key,
-      origin: "other" as const,
-      userId,
-    }))
+  const theirs: Destination[] = directories.flatMap(({ devices }) =>
+    devices.map((device) => ({ ...device, origin: "other" as const }))
   );
   // A receipt is about their message and is for them, so it does not go to
   // this account's own tabs; an outgoing message does, or their copy of the
-  // thread would be missing this side of it.
+  // thread would be missing this side of it. A device of this account's that
+  // is waiting to be confirmed is left out of both.
   const ours: Destination[] = toSelf
-    ? ctx.ownDevices
+    ? ctx.own.devices
         .filter((device) => device.id !== ctx.device)
-        .map((device) => ({ id: device.id, identityKey: device.identity_key, origin: "self" }))
+        .map((device) => ({ ...device, origin: "self" as const }))
     : [];
   return deliver(ctx, conversationId, theirs, ours, envelope, { silent });
 }

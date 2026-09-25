@@ -22,6 +22,7 @@ import type {
   InboundSession,
   KeysGenerated,
   OutboundSession,
+  PreKeyInspected,
 } from "./types";
 
 type Pending = {
@@ -113,8 +114,27 @@ export const ratchet = {
   createAccount: () => call<AccountCreated>("createAccount"),
   generateKeys: (pickle: string, count: number, withFallback: boolean) =>
     call<KeysGenerated>("generateKeys", pickle, count, withFallback),
-  createOutboundSession: (pickle: string, theirIdentityKey: string, theirOneTimeKey: string) =>
-    call<OutboundSession>("createOutboundSession", pickle, theirIdentityKey, theirOneTimeKey),
+  signDevice: (pickle: string, userId: number) => call<string>("signDevice", pickle, userId),
+  verifyDevice: (userId: number, identityKey: string, fingerprintKey: string, signature: string) =>
+    call<boolean>("verifyDevice", userId, identityKey, fingerprintKey, signature),
+  createOutboundSession: (
+    pickle: string,
+    theirIdentityKey: string,
+    theirFingerprintKey: string,
+    theirOneTimeKey: string,
+    oneTimeKeySignature: string | null,
+    fallback: boolean
+  ) =>
+    call<OutboundSession>(
+      "createOutboundSession",
+      pickle,
+      theirIdentityKey,
+      theirFingerprintKey,
+      theirOneTimeKey,
+      oneTimeKeySignature,
+      fallback
+    ),
+  inspectPreKey: (ciphertext: string) => call<PreKeyInspected>("inspectPreKey", ciphertext),
   createInboundSession: (pickle: string, theirIdentityKey: string, ciphertext: string) =>
     call<InboundSession>("createInboundSession", pickle, theirIdentityKey, ciphertext),
   encrypt: (sessionPickle: string, plaintext: string) =>

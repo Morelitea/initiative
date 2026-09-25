@@ -1823,6 +1823,10 @@
     "notOffered": "This site doesn't offer passkeys. The ones you have are kept.",
     "error": "That didn't work. Try again."
   },
+  "messagesDevice": {
+    "title": "This device's code for messages",
+    "description": "When you confirm a new device, or compare with somebody you message, this is the code this device shows."
+  },
   "providerDefaults": {
     "title": "What a community inherits",
     "description": "Answer once for a provider and every community inherits that answer until it gives its own. Useful where this deployment is one organisation: one provider, one tenant, communities that are its teams.",

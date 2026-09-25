@@ -14,11 +14,21 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Path, Response, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    Header,
+    HTTPException,
+    Path,
+    Request,
+    Response,
+    status,
+)
 
 from app.api.deps import UserSessionDep, get_current_active_user
 from app.core.auth_context import device_token_id
 from app.core.messages import DirectMessageTransportMessages as Messages
+from app.core.rate_limit import limiter
 from app.core.user_display import handle_of
 from app.models.platform.user import User
 from app.schemas.platform.dm_transport import (
@@ -30,12 +40,13 @@ from app.schemas.platform.dm_transport import (
     DmConversationRead,
     DmConversationsResponse,
     DmDeviceRegistration,
+    DmDeviceSignature,
     DmDevicesResponse,
     DmOneTimeKeyBatch,
     DmOwnSessionKeysRequest,
+    DmSessionKeysRequest,
     DmQueueAck,
     DmQueueResponse,
-    DmSafetyNumberResponse,
     DmSendRequest,
     DmSendResponse,
     DmSessionKeysResponse,
@@ -55,6 +66,7 @@ _STATUS = {
     Messages.DEVICE_NOT_FOUND: status.HTTP_404_NOT_FOUND,
     Messages.CONVERSATION_NOT_FOUND: status.HTTP_404_NOT_FOUND,
     Messages.MALFORMED_KEY: status.HTTP_422_UNPROCESSABLE_CONTENT,
+    Messages.INVALID_SIGNATURE: status.HTTP_400_BAD_REQUEST,
     Messages.DUPLICATE_KEY_ID: status.HTTP_409_CONFLICT,
     Messages.TOO_MANY_KEYS: status.HTTP_409_CONFLICT,
     Messages.NOT_REACHABLE: status.HTTP_409_CONFLICT,
@@ -90,15 +102,44 @@ async def register_device(
     a device list is more use when it says what actually connected.
     """
     try:
-        await service.register_device(
+        device = await service.register_device(
             session,
             user_id=current_user.id,
             identity_key=body.identity_key,
             fingerprint_key=body.fingerprint_key,
+            signature=body.signature,
             fallback_key=body.fallback_key,
             one_time_keys=body.one_time_keys,
             label=(user_agent or "")[:200] or None,
             device_token_id=device_token_id(),
+        )
+    except service.DmTransportError as exc:
+        raise _error(exc) from exc
+    device_id = device.id
+    await session.commit()
+    return DmDevicesResponse(
+        devices=await service.list_devices(session, user_id=current_user.id),
+        device_id=device_id,
+    )
+
+
+@me_router.put("/dm/devices/{device_id}/signature", response_model=DmDevicesResponse)
+async def sign_device(
+    device_id: uuid.UUID,
+    body: DmDeviceSignature,
+    session: UserSessionDep,
+    current_user: CurrentUser,
+) -> DmDevicesResponse:
+    """Sign a device registered before signing, once, and replace the keys it
+    published with signed ones."""
+    try:
+        await service.sign_device(
+            session,
+            user_id=current_user.id,
+            device_id=device_id,
+            signature=body.signature,
+            fallback_key=body.fallback_key,
+            one_time_keys=body.one_time_keys,
         )
     except service.DmTransportError as exc:
         raise _error(exc) from exc
@@ -160,7 +201,9 @@ async def top_up_keys(
 
 
 @me_router.post("/dm/session-keys", response_model=DmSessionKeysResponse)
+@limiter.limit("60/minute")
 async def claim_own_session_keys(
+    request: Request,
     body: DmOwnSessionKeysRequest,
     session: UserSessionDep,
     current_user: CurrentUser,
@@ -173,17 +216,23 @@ async def claim_own_session_keys(
     its own answer.
     """
     devices = await service.own_session_keys(
-        session, user_id=current_user.id, except_device=body.device_id
+        session,
+        user_id=current_user.id,
+        except_device=body.device_id,
+        only=body.device_ids,
     )
     await session.commit()
     return DmSessionKeysResponse(user_id=current_user.id, devices=devices)
 
 
 @user_router.post("/{user_id}/dm/session-keys", response_model=DmSessionKeysResponse)
+@limiter.limit("60/minute")
 async def claim_session_keys(
+    request: Request,
     user_id: TargetUserId,
     session: UserSessionDep,
     current_user: CurrentUser,
+    body: DmSessionKeysRequest | None = None,
 ) -> DmSessionKeysResponse:
     """Claim what is needed to open a session with each of that account's
     devices.
@@ -196,7 +245,9 @@ async def claim_session_keys(
             detail=Messages.CANNOT_MESSAGE_SELF,
         )
     try:
-        devices = await service.claim_session_keys(session, target_id=user_id)
+        devices = await service.claim_session_keys(
+            session, target_id=user_id, only=body.device_ids if body else None
+        )
     except service.DmTransportError as exc:
         raise _error(exc) from exc
     await session.commit()
@@ -204,7 +255,9 @@ async def claim_session_keys(
 
 
 @user_router.get("/{user_id}/dm/devices", response_model=DmSessionKeysResponse)
+@limiter.limit("120/minute")
 async def read_directory(
+    request: Request,
     user_id: TargetUserId,
     session: UserSessionDep,
     current_user: CurrentUser,
@@ -220,29 +273,6 @@ async def read_directory(
     except service.DmTransportError as exc:
         raise _error(exc) from exc
     return DmSessionKeysResponse(user_id=user_id, devices=devices)
-
-
-@user_router.get("/{user_id}/dm/safety-number", response_model=DmSafetyNumberResponse)
-async def safety_number(
-    user_id: TargetUserId,
-    session: UserSessionDep,
-    current_user: CurrentUser,
-) -> DmSafetyNumberResponse:
-    """Both parties' fingerprints, so the client can render the comparison."""
-    try:
-        theirs = await service.fingerprints(session, user_id=user_id)
-    except service.DmTransportError as exc:
-        raise _error(exc) from exc
-    if not theirs:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=Messages.DEVICE_NOT_FOUND,
-        )
-    return DmSafetyNumberResponse(
-        user_id=user_id,
-        their_fingerprints=theirs,
-        my_fingerprints=await service.fingerprints(session, user_id=current_user.id),
-    )
 
 
 @me_router.post(

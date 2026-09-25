@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Safety numbers and new-device checks in Messages** — every device now signs its own keys. When someone's devices change you get a notice with a safety number to compare with them, and when you sign in somewhere new your other devices ask whether it's yours before sending it anything, with a box for your message history. **User settings → Security** shows this device's code. Joining a group, each member now sends you what they wrote.
 - **Read replica for dashboards and exports** — set `DATABASE_URL_QUERY` to a read replica and dashboard widgets and exports read from it, leaving the main database for everything else. If the replica stops a widget's query partway, the widget tries once more and then says it was interrupted. Unset, nothing changes.
 - **Pictures in descriptions and comments open full size** — click a picture in a description, a comment, a markdown file or a preview to open it at full size, where you can zoom in and swipe or use the arrow keys to move to the others in the same text. Pictures also load as you scroll to them and fade in, the way a gallery's do. A picture that is a link still opens the link.
 - **One-tap thumbs up** — comments and posts have a 👍 button beside **Add a reaction**, so agreeing takes one tap instead of opening the picker. Once someone has given a thumbs up, its reaction takes the button's place.
