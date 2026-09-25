@@ -17,13 +17,11 @@ reads the whole payload rather than checking the field somebody remembered.
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
-import pytest
 
 from app.db.guild_standing import GuildContext
 from app.models.platform.guild import Guild
 from app.schemas.tenant.guild_app import serialize_guild_app
 
-pytestmark = pytest.mark.unit
 
 SECRET_CIPHERTEXT = "gAAAAAB-not-a-real-token"
 

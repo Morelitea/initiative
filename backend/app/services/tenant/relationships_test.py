@@ -38,15 +38,12 @@ from app.testing.factories import (
     create_task,
 )
 
-pytestmark = pytest.mark.integration
-
 
 # ---------------------------------------------------------------------------
 # The vocabulary
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
 def test_kind_codes_are_unique_and_never_reused():
     """Codes are the high bits of every stored node id.
 
@@ -59,13 +56,11 @@ def test_kind_codes_are_unique_and_never_reused():
     assert all(code > 0 for code in codes)
 
 
-@pytest.mark.unit
 def test_node_ids_round_trip():
     for kind in ENDPOINT_KINDS:
         assert decode_node_id(node_id(kind, 4242)) == (kind, 4242)
 
 
-@pytest.mark.unit
 def test_every_kind_resolves_to_a_table():
     from app.db.reference_targets import title_column
 
@@ -74,7 +69,6 @@ def test_every_kind_resolves_to_a_table():
         assert title_column(kind) is not None
 
 
-@pytest.mark.unit
 def test_symmetric_types_declare_no_direction():
     """A symmetric relation has no described end, so it cannot also be
     asymmetric — the two characteristics contradict each other."""

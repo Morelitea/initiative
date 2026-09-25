@@ -13,8 +13,6 @@ from app.models.platform.guild import GuildRole
 from app.testing import create_guild, create_guild_membership, create_user
 from app.testing.factories import get_auth_headers
 
-pytestmark = pytest.mark.integration
-
 
 REGISTRATION = {
     "email": "handle-new@example.com",

@@ -48,7 +48,6 @@ from app.testing import (
     route_session_to_guild,
 )
 
-pytestmark = pytest.mark.integration
 
 BASE = "/api/v1/app-platform/installation"
 SHOP = "tests.shop"

@@ -16,16 +16,12 @@ somehow escaped the migration still resolves rather than reading as an install
 that created nothing.
 """
 
-import pytest
-
 from app.services.marketplace.definitions import MOUNTABLE_TOOLS
 from app.services.tenant.guild_apps import (
     ARTIFACT_HANDLERS,
     app_artifacts,
     legacy_artifacts,
 )
-
-pytestmark = pytest.mark.unit
 
 
 class _App:

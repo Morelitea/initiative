@@ -85,12 +85,10 @@ def _manifest(**overrides):
 # --- the schema is a schema -------------------------------------------------
 
 
-@pytest.mark.unit
 def test_the_schema_is_a_valid_2020_12_document():
     Draft202012Validator.check_schema(contract.manifest_schema())
 
 
-@pytest.mark.unit
 def test_every_ref_resolves():
     """A `$ref` naming a definition that isn't there fails at use rather than at
     load, so it would survive a test that only validated the happy path."""
@@ -112,7 +110,6 @@ def test_every_ref_resolves():
     walk(schema)
 
 
-@pytest.mark.unit
 def test_the_vendored_pair_came_from_one_contract():
     """The schema is generated from the contract, so the two are vendored as a
     pair. Refreshing one without the other leaves this build enforcing a
@@ -132,7 +129,6 @@ def test_the_vendored_pair_came_from_one_contract():
 # --- derived, not restated --------------------------------------------------
 
 
-@pytest.mark.unit
 def test_vocabularies_come_from_the_validator():
     schema = contract.manifest_schema()
     props = schema["properties"]
@@ -159,7 +155,6 @@ def test_vocabularies_come_from_the_validator():
     )
 
 
-@pytest.mark.unit
 def test_caps_come_from_the_validator():
     props = contract.manifest_schema()["properties"]
     assert props["connections"]["maxItems"] == MAX_CONNECTIONS
@@ -174,7 +169,6 @@ def test_caps_come_from_the_validator():
     assert props["embeds"]["maxItems"] == MAX_EMBEDS
 
 
-@pytest.mark.unit
 def test_a_secret_is_not_a_query_parameter():
     """`secret` is a connection field type and deliberately not a param type;
     the schema must not blur the two by sharing one field definition."""
@@ -186,7 +180,6 @@ def test_a_secret_is_not_a_query_parameter():
     assert "managed" not in defs["endpointParam"]["properties"]
 
 
-@pytest.mark.unit
 def test_lengths_come_from_the_validator():
     defs = contract.manifest_schema()["$defs"]
     assert defs["identifier"]["maxLength"] == MAX_IDENTIFIER_LENGTH
@@ -199,7 +192,6 @@ def test_lengths_come_from_the_validator():
     )
 
 
-@pytest.mark.unit
 def test_the_schema_names_itself_stably():
     """An author points a `$schema` at this and a generator keys a cache on it,
     so a drifting `$id` invalidates both."""
@@ -465,7 +457,6 @@ ACCEPTED = [
 ]
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize("manifest", ACCEPTED)
 def test_what_the_platform_accepts_satisfies_the_schema(manifest, validator):
     """The direction that matters most: an author whose manifest installs must
@@ -596,7 +587,6 @@ REFUSED_BY_BOTH = [
 ]
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize("manifest", REFUSED_BY_BOTH)
 def test_what_the_schema_refuses_the_platform_refuses_too(manifest, validator):
     """The other direction, for the rules a schema *can* express: the schema
@@ -606,7 +596,6 @@ def test_what_the_schema_refuses_the_platform_refuses_too(manifest, validator):
         platform_accepts(manifest)
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "name,why",
     [
@@ -630,7 +619,6 @@ def test_a_localized_entry_the_platform_ignores_is_not_an_error(name, why, valid
     assert list(validator.iter_errors(manifest)) == [], why
 
 
-@pytest.mark.unit
 def test_a_localized_object_with_nothing_usable_is_refused(validator):
     """The one thing that does fail, and the only rule left on the type."""
     manifest = _manifest(
@@ -645,7 +633,6 @@ def test_a_localized_object_with_nothing_usable_is_refused(validator):
 # --- where the schema stops -------------------------------------------------
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "manifest,why",
     [
@@ -728,7 +715,6 @@ def test_the_platform_enforces_what_the_schema_cannot(manifest, why, validator):
         platform_accepts(manifest)
 
 
-@pytest.mark.unit
 def test_a_return_is_not_a_control():
     """A select is a control, and the value behind one is a string — so it is a
     param type and never a return type. The schema must not blur the two."""
@@ -738,7 +724,6 @@ def test_a_return_is_not_a_control():
     assert "secret" not in defs["endpointReturn"]["properties"]["type"]["enum"]
 
 
-@pytest.mark.unit
 def test_every_direction_may_describe_itself_and_its_answer():
     """``label`` and ``returns`` sit on the endpoint rather than beside the
     caller-side keys, because an emission has neither caller nor response and
@@ -753,7 +738,6 @@ def test_every_direction_may_describe_itself_and_its_answer():
     }
 
 
-@pytest.mark.unit
 def test_a_param_says_what_it_takes_and_not_what_to_draw_for_it():
     """A manifest describes the API. The control a consumer draws is the
     consumer's, written in its own words — so nothing here names one."""
@@ -769,7 +753,6 @@ def test_a_param_says_what_it_takes_and_not_what_to_draw_for_it():
 # --- scopes and surfaces ----------------------------------------------------
 
 
-@pytest.mark.unit
 def test_requested_scopes_are_stored_sorted_and_absent_when_none():
     """Canonical, so re-publishing the same manifest stores the same document;
     and left out when empty, so "does this app ask for anything?" has one
@@ -793,7 +776,6 @@ def test_requested_scopes_are_stored_sorted_and_absent_when_none():
     assert "scopes" not in bare["service"]
 
 
-@pytest.mark.unit
 def test_app_scopes_are_stored_with_the_rest_and_bounded():
     from app.services.marketplace.service_apps import (
         MAX_APP_SCOPES,
@@ -817,7 +799,6 @@ def test_app_scopes_are_stored_with_the_rest_and_bounded():
         )
 
 
-@pytest.mark.unit
 def test_public_is_stored_only_when_set_and_refused_on_an_emission():
     from app.services.marketplace.service_apps import normalize_service_app_definition
 
@@ -836,7 +817,6 @@ def test_public_is_stored_only_when_set_and_refused_on_an_emission():
         endpoint(direction="emit", public=True)
 
 
-@pytest.mark.unit
 def test_admin_only_defaults_to_false_and_is_always_stored():
     from app.services.marketplace.service_apps import normalize_service_app_definition
 
@@ -852,7 +832,6 @@ def test_admin_only_defaults_to_false_and_is_always_stored():
     assert "visibility" not in embed()
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize("where", ["embed", "endpoint"])
 def test_the_retired_audience_term_is_refused_by_name(where):
     """Every other unknown term is dropped and reported; this one narrowed who
@@ -881,7 +860,6 @@ def test_the_retired_audience_term_is_refused_by_name(where):
         platform_accepts(body)
 
 
-@pytest.mark.unit
 def test_an_endpoint_admin_only_defaults_to_false_and_is_always_stored():
     from app.services.marketplace.service_apps import normalize_service_app_definition
 
@@ -896,7 +874,6 @@ def test_an_endpoint_admin_only_defaults_to_false_and_is_always_stored():
     assert endpoint(admin_only=True)["admin_only"] is True
 
 
-@pytest.mark.unit
 def test_an_emission_is_not_admin_only():
     """Nobody reads or calls an emission, so there is nobody to narrow."""
     from app.services.marketplace.manifest_values import ListingDefinitionError
@@ -916,7 +893,6 @@ def test_an_emission_is_not_admin_only():
         )
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "declared,expected",
     [

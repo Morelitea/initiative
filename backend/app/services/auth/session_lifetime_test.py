@@ -3,7 +3,6 @@
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
-import pytest
 from sqlmodel import select
 
 from app.models.platform.guild import GuildRole
@@ -47,7 +46,6 @@ async def _hold_to_the_standard(session, guild):
     await session.flush()
 
 
-@pytest.mark.integration
 async def test_a_deployment_that_asks_for_no_limit_stamps_none(session):
     """The default. Nothing about an upgrade shortens a session."""
     user = await create_user(session, email="sl-none@example.com")
@@ -61,7 +59,6 @@ async def test_a_deployment_that_asks_for_no_limit_stamps_none(session):
     assert issued.session.expires_at > _AT + timedelta(days=29)
 
 
-@pytest.mark.integration
 async def test_the_deployments_own_figure_ends_the_chain(session):
     user = await create_user(session, email="sl-platform@example.com")
     await _set_platform_hours(session, 48)
@@ -74,7 +71,6 @@ async def test_the_deployments_own_figure_ends_the_chain(session):
     assert issued.session.expires_at == _AT + timedelta(hours=48)
 
 
-@pytest.mark.integration
 async def test_a_community_holds_its_members_to_the_standard(session):
     """Belonging to one settles it, whatever the deployment's own figure says."""
     user = await create_user(session, email="sl-guild@example.com")
@@ -93,7 +89,6 @@ async def test_a_community_holds_its_members_to_the_standard(session):
     )
 
 
-@pytest.mark.integration
 async def test_somebody_in_two_such_communities_has_one_answer(session):
     """One standard rather than a figure each, so there is nothing to compare."""
     user = await create_user(session, email="sl-two@example.com")
@@ -108,7 +103,6 @@ async def test_somebody_in_two_such_communities_has_one_answer(session):
     assert hours == session_lifetime.COMPLIANCE_SESSION_HOURS
 
 
-@pytest.mark.integration
 async def test_a_communitys_standard_only_ever_tightens(session):
     """The deployment's own figure is free-form and may already be shorter.
     A community asking for a stricter session is not a place to lengthen one."""
@@ -124,7 +118,6 @@ async def test_a_communitys_standard_only_ever_tightens(session):
     assert hours == 4
 
 
-@pytest.mark.integration
 async def test_renewing_does_not_move_the_chains_end(session):
     """The idle window slides; the chain's end is the thing that does not."""
     user = await create_user(session, email="sl-rotate@example.com")
@@ -143,7 +136,6 @@ async def test_renewing_does_not_move_the_chains_end(session):
     assert rotated.issued.session.chain_expires_at == _AT + timedelta(hours=48)
 
 
-@pytest.mark.integration
 async def test_a_chain_past_its_end_is_not_renewed(session):
     """Reached, the answer is a fresh sign-in rather than another renewal."""
     user = await create_user(session, email="sl-expired@example.com")
@@ -162,7 +154,6 @@ async def test_a_chain_past_its_end_is_not_renewed(session):
     assert rotated.issued is None
 
 
-@pytest.mark.integration
 async def test_a_device_tokens_window_stops_at_the_limit(session):
     """The device token is the one credential whose window slides without ever
     being renewed against the account, so the limit binds it too."""
@@ -181,7 +172,6 @@ async def test_a_device_tokens_window_stops_at_the_limit(session):
     assert raw
 
 
-@pytest.mark.integration
 async def test_a_device_token_keeps_its_window_when_nothing_is_asked(session):
     """The default changes nothing about the app on somebody's phone."""
     from app.services.platform import user_tokens
@@ -197,7 +187,6 @@ async def test_a_device_token_keeps_its_window_when_nothing_is_asked(session):
     assert row.expires_at > row.created_at + timedelta(days=89)
 
 
-@pytest.mark.integration
 async def test_setting_a_limit_reaches_a_device_token_already_issued(session):
     """The hole a limit would otherwise have: the app on somebody's phone was
     signed in before the figure was set, and its window is ninety days."""
@@ -220,7 +209,6 @@ async def test_setting_a_limit_reaches_a_device_token_already_issued(session):
     assert row.expires_at <= row.created_at + timedelta(hours=6)
 
 
-@pytest.mark.integration
 async def test_the_sweep_only_ever_shortens(session):
     """A limit brings a token in; lifting one does not hand time back."""
     from app.services.platform import user_tokens
@@ -239,7 +227,6 @@ async def test_the_sweep_only_ever_shortens(session):
     assert row.expires_at <= row.created_at + timedelta(hours=6)
 
 
-@pytest.mark.integration
 async def test_a_communitys_standard_reaches_its_members_device_tokens(session):
     from app.services.platform import user_tokens
 
@@ -268,7 +255,6 @@ async def test_a_communitys_standard_reaches_its_members_device_tokens(session):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_an_ordinary_session_keeps_the_deployments_idle_window(session):
     """Nothing asks for less, so the refresh row stands the usual length."""
     from app.core.config import settings as app_config
@@ -284,7 +270,6 @@ async def test_an_ordinary_session_keeps_the_deployments_idle_window(session):
     )
 
 
-@pytest.mark.integration
 async def test_a_community_holds_its_members_to_an_idle_window(session):
     """Belonging to one shortens how long a session may be left alone, the
     same way it shortens how long the session may last at all."""
@@ -304,7 +289,6 @@ async def test_a_community_holds_its_members_to_an_idle_window(session):
     )
 
 
-@pytest.mark.integration
 async def test_renewing_keeps_the_narrow_idle_window(session):
     """The window travels with the chain. A rotation that read the
     deployment's own figure would widen a narrowed session on its first
@@ -330,7 +314,6 @@ async def test_renewing_keeps_the_narrow_idle_window(session):
     )
 
 
-@pytest.mark.integration
 async def test_the_idle_window_never_outlasts_the_chain(session):
     """Both clocks bind and the earlier one wins.
 
@@ -365,7 +348,6 @@ async def test_the_idle_window_never_outlasts_the_chain(session):
     assert issued.session.expires_at == chain_end
 
 
-@pytest.mark.unit
 def test_an_access_token_does_not_outlive_the_session_it_names():
     """Where the row ends sooner than the deployment's access-token life, the
     token takes the row's remaining time instead."""
@@ -386,7 +368,6 @@ def test_an_access_token_does_not_outlive_the_session_it_names():
     assert access_ttl_for(exact, now=_AT) is None
 
 
-@pytest.mark.integration
 async def test_the_deployment_can_set_its_own_idle_window(session):
     """A figure here narrows the window every session is opened with."""
     user = await create_user(session, email="sl-idle-platform@example.com")
@@ -402,7 +383,6 @@ async def test_the_deployment_can_set_its_own_idle_window(session):
     assert issued.session.expires_at == _AT + timedelta(minutes=45)
 
 
-@pytest.mark.integration
 async def test_the_stricter_idle_window_wins(session):
     """The deployment's figure and a community's standard both narrow it, and
     the answer is whichever is shorter — in either direction."""

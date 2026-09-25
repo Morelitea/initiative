@@ -25,7 +25,6 @@ from app.db.system_grants import (
 from app.models.platform.user import UserRole
 from app.testing import as_role, create_user
 
-pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 TABLE = "app_service_registrations"
 

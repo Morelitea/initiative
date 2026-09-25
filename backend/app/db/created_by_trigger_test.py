@@ -9,7 +9,6 @@ that never pass through a flush.
 
 from datetime import datetime, timezone
 
-import pytest
 from sqlalchemy import insert
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -23,8 +22,6 @@ from app.testing.factories import (
     create_user,
 )
 from app.testing import route_as, route_system
-
-pytestmark = [pytest.mark.integration, pytest.mark.service]
 
 
 async def _workspace(session: AsyncSession):

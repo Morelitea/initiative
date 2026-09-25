@@ -26,7 +26,6 @@ from app.db.schema_provisioning import (
 )
 from app.db.session import set_rls_context
 
-pytestmark = pytest.mark.unit
 
 _GUILD_ID_BUILDERS = (
     guild_schema_name,

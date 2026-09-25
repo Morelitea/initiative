@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -25,8 +24,6 @@ from app.models.platform.guild import GuildRole
 from app.models.tenant.initiative import InitiativeRoleModel
 from app.testing import emitted
 from app.testing.factories import create_initiative
-
-pytestmark = pytest.mark.integration
 
 
 def _of(envelopes: list[dict], event: AuditEventType) -> list[dict]:

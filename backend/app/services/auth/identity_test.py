@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import secrets
 
-import pytest
 from sqlmodel import select
 
 from app.core.config import settings
@@ -29,7 +28,6 @@ from app.services.auth.identity import (
 )
 from app.testing import create_user
 
-pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 #: What a deployment offering everything it could permits, and the same set
 #: with one method withdrawn. The counts take this explicitly, so a test says

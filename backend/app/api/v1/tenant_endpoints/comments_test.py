@@ -48,7 +48,6 @@ def _param(tool: Tool) -> str:
     return f"{tool.value}_id"
 
 
-@pytest.mark.integration
 class TestToolComments:
     """The comment surface every tool carries: posting takes write access on
     the entity, reading its thread takes read access — the same DAC decision
@@ -310,7 +309,6 @@ async def test_a_trashed_resource_reads_back_for_its_deleted_event(
     # content to act on. Read payloads do not carry deleted_at today.
 
 
-@pytest.mark.integration
 async def test_guild_calendar_comments_reach_every_member(client, session, acting_user):
     """A guild calendar names no initiative; its everyone-grant reads as the
     whole guild, so any member can join its thread — same rule, wider room."""
@@ -336,7 +334,6 @@ async def test_guild_calendar_comments_reach_every_member(client, session, actin
     assert [c["content"] for c in listed.json()] == ["Game night?"]
 
 
-@pytest.mark.integration
 async def test_recent_drops_comments_of_a_disabled_tool(client, session, acting_user):
     """Switching a tool off takes its threads out of the recent feed, exactly
     as it takes the threads themselves away."""
@@ -368,7 +365,6 @@ def _detail_path(tool: Tool, entity_id: int) -> str:
     return f"/{tool.route_segment}/{entity_id}"
 
 
-@pytest.mark.integration
 class TestToolCommentSwitch:
     """``comments_enabled`` — the Details setting that takes a tool entity's
     thread off its page. Set through the generic
@@ -607,7 +603,6 @@ class TestToolCommentSwitch:
         assert denied.status_code == 403, denied.text
 
 
-@pytest.mark.integration
 class TestEditingAComment:
     """The edit reply is the client's read-back: it has to carry the whole
     comment, author and reactions included, on every surface."""

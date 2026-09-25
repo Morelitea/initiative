@@ -21,14 +21,11 @@ Between the two, a new evented table owes no new API surface.
 
 from __future__ import annotations
 
-import pytest
 
 from app.db.base import *  # noqa: F401,F403 — register every model
 from app.db.event_capture import build_specs
 from app.db.initiative_rls import parent_types
 from app.main import app
-
-pytestmark = pytest.mark.unit
 
 
 def _detail_paths() -> set[str]:

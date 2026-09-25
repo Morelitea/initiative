@@ -1,7 +1,5 @@
 """What an item leaves behind when it is shared, and how its dates travel."""
 
-import pytest
-
 from app.core.tools import Tool
 from app.services.marketplace.publish_profile import (
     DATE_ANCHOR,
@@ -10,8 +8,6 @@ from app.services.marketplace.publish_profile import (
     strip_for_listing,
 )
 from app.services.marketplace.tool_listings import normalize_tool_listing
-
-pytestmark = pytest.mark.unit
 
 
 def _editor(*children: dict) -> dict:

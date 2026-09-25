@@ -18,8 +18,6 @@ from app.db.bootstrap import (
     login_roles,
 )
 
-pytestmark = pytest.mark.unit
-
 
 def _search_operator_statements() -> tuple[str, ...]:
     """The statements that install the guild-search match operator, in order."""
@@ -150,7 +148,6 @@ def test_the_printed_sql_carries_both_shapes():
     assert body.count("set_config('app._bootstrap_attrs_superuser'") == 3
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("created_with", "attribute", "expected"),
     [
@@ -250,7 +247,6 @@ def test_the_printed_handover_and_the_app_run_one_query():
     assert _TRANSFER_STATEMENTS.strip() in bootstrap_sql()
 
 
-@pytest.mark.integration
 async def test_the_wrapper_executes_every_statement_it_is_given(session):
     """Proved on a stub query, not the real one: the real one would move the
     ownership of every object in this worker's database."""
@@ -269,7 +265,6 @@ async def test_the_wrapper_executes_every_statement_it_is_given(session):
     assert ran[0] == "ran"
 
 
-@pytest.mark.integration
 async def test_the_wrapper_is_a_no_op_when_there_is_nothing_to_move(session):
     """A fresh install renders the same block and must pass straight through
     it."""
@@ -281,7 +276,6 @@ async def test_the_wrapper_is_a_no_op_when_there_is_nothing_to_move(session):
     await session.exec(text(block))
 
 
-@pytest.mark.integration
 async def test_nothing_is_said_when_the_connecting_login_owns_its_objects(
     session, caplog
 ):
@@ -305,7 +299,6 @@ async def test_nothing_is_said_when_the_connecting_login_owns_its_objects(
     )
 
 
-@pytest.mark.integration
 async def test_an_object_owned_elsewhere_is_seen(session):
     """A table in a guild schema owned by another login is what the signal is
     looking for."""
@@ -360,7 +353,6 @@ def test_the_bootstrap_keeps_the_functions_it_installs():
         )
 
 
-@pytest.mark.integration
 async def test_the_handover_claims_every_function_the_outgoing_login_owns(session):
     """A database moved to the provisioning role hands over all of its own
     ``public`` functions, not only the ones a trigger or policy points at.
@@ -428,7 +420,6 @@ async def test_the_handover_claims_every_function_the_outgoing_login_owns(sessio
         await session.exec(text(f"DROP FUNCTION IF EXISTS public.{probe}()"))
 
 
-@pytest.mark.integration
 async def test_the_handover_leaves_the_bootstraps_own_functions_alone(session):
     """The match function is installed over the bootstrap connection and
     re-asserted from it on every boot, so it stays with that login."""
@@ -471,7 +462,6 @@ async def test_the_handover_leaves_the_bootstraps_own_functions_alone(session):
     assert not any(SEARCH_MATCH_FUNCTION in label for label in labels)
 
 
-@pytest.mark.integration
 async def test_the_handover_claims_an_object_owned_by_a_third_login(session):
     """The outgoing owner need not be the login running the handover.
 
@@ -524,7 +514,6 @@ async def test_the_handover_claims_an_object_owned_by_a_third_login(session):
         await session.exec(text(f'DROP ROLE IF EXISTS "{other}"'))
 
 
-@pytest.mark.integration
 async def test_the_handover_leaves_alone_what_the_target_already_owns(session):
     """The provisioning login's own objects are not statements to run."""
     from sqlalchemy import text

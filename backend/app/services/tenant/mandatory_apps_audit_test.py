@@ -26,7 +26,6 @@ from app.testing import (
     marketplace_uid,
 )
 
-pytestmark = pytest.mark.integration
 
 PROVIDED_ID = "platform.auditprovided"
 PROVIDED_UID = marketplace_uid("auditprovided")

@@ -402,8 +402,6 @@ def fresh_migrations_db(migrations_db: str) -> Iterator[str]:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.database
-@pytest.mark.slow
 class TestMigrationsAgainstDatabase:
     """End-to-end migration runs against a real Postgres instance."""
 
@@ -555,8 +553,6 @@ class TestMigrationsAgainstDatabase:
         assert _alembic_version_row_count() == 1
 
 
-@pytest.mark.database
-@pytest.mark.slow
 class TestMostRecentRevision:
     """Targeted tests against the most-recent (head) revision.
 

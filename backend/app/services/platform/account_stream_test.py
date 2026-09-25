@@ -67,7 +67,6 @@ def bus_off(monkeypatch):
     monkeypatch.setattr(notify_bus, "notify", _unavailable)
 
 
-@pytest.mark.integration
 async def test_the_frame_says_nothing_about_the_account(
     session, captured_stream
 ) -> None:
@@ -87,7 +86,6 @@ async def test_the_frame_says_nothing_about_the_account(
     assert set(frame) == {"resource", "action", "ids", "timestamp"}
 
 
-@pytest.mark.integration
 async def test_no_frame_before_the_commit(session, captured_stream) -> None:
     """A tab told to re-read before the COMMIT reads the state being replaced."""
     user = await create_user(session)
@@ -100,7 +98,6 @@ async def test_no_frame_before_the_commit(session, captured_stream) -> None:
     assert tab.sent == []
 
 
-@pytest.mark.integration
 async def test_rollback_pokes_nobody(session, captured_stream) -> None:
     user = await create_user(session)
     tab = FakeWebSocket()
@@ -113,7 +110,6 @@ async def test_rollback_pokes_nobody(session, captured_stream) -> None:
     assert tab.sent == []
 
 
-@pytest.mark.integration
 async def test_one_frame_per_channel_per_transaction(session, captured_stream) -> None:
     """Three reasons to re-read one account is still one refetch."""
     user = await create_user(session)
@@ -128,7 +124,6 @@ async def test_one_frame_per_channel_per_transaction(session, captured_stream) -
     assert len(tab.sent) == 1
 
 
-@pytest.mark.integration
 async def test_the_inbox_and_the_account_are_not_the_same_frame(
     session, captured_stream
 ) -> None:
@@ -147,7 +142,6 @@ async def test_the_inbox_and_the_account_are_not_the_same_frame(
     assert {frame["resource"] for frame in tab.sent} == {"account", "notification"}
 
 
-@pytest.mark.integration
 async def test_being_added_to_a_guild_pokes_the_arrival(
     session, captured_stream
 ) -> None:
@@ -166,7 +160,6 @@ async def test_being_added_to_a_guild_pokes_the_arrival(
     assert [frame["resource"] for frame in tab.sent] == ["account"]
 
 
-@pytest.mark.integration
 async def test_re_adding_an_existing_member_pokes_nobody(
     session, captured_stream
 ) -> None:
@@ -187,7 +180,6 @@ async def test_re_adding_an_existing_member_pokes_nobody(
     assert tab.sent == []
 
 
-@pytest.mark.integration
 async def test_listing_a_community_pokes_every_member(
     session, captured_stream, published_remotely
 ) -> None:
@@ -239,7 +231,6 @@ async def test_listing_a_community_pokes_every_member(
     assert here.id in published_remotely
 
 
-@pytest.mark.integration
 async def test_deleting_a_guild_tells_the_people_who_were_in_it(
     session, captured_stream
 ) -> None:

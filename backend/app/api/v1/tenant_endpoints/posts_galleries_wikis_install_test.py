@@ -35,9 +35,6 @@ from app.testing.app_clients import (
 )
 
 
-pytestmark = pytest.mark.integration
-
-
 @dataclass(frozen=True)
 class _Tool:
     """What the tests below vary per tool."""

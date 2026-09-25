@@ -45,7 +45,6 @@ async def _entity(session: AsyncSession, actor, tool: Tool):
     return await create_tool_entity(session, tool, actor.initiative, actor.user)
 
 
-@pytest.mark.integration
 @TOOLS
 async def test_the_owner_shares_it_with_somebody(
     client: AsyncClient, session: AsyncSession, acting_user, tool: Tool
@@ -75,7 +74,6 @@ async def test_the_owner_shares_it_with_somebody(
     ]
 
 
-@pytest.mark.integration
 @TOOLS
 async def test_a_role_can_be_named_instead_of_a_person(
     client: AsyncClient, session: AsyncSession, acting_user, tool: Tool
@@ -103,7 +101,6 @@ async def test_a_role_can_be_named_instead_of_a_person(
     ] == ["read"]
 
 
-@pytest.mark.integration
 @TOOLS
 async def test_a_reader_cannot_reshare_it(
     client: AsyncClient, session: AsyncSession, acting_user, tool: Tool
@@ -126,7 +123,6 @@ async def test_a_reader_cannot_reshare_it(
     assert response.status_code == 403, response.text
 
 
-@pytest.mark.integration
 @TOOLS
 async def test_someone_outside_the_initiative_gets_the_tools_not_found(
     client: AsyncClient, session: AsyncSession, acting_user, tool: Tool
@@ -146,7 +142,6 @@ async def test_someone_outside_the_initiative_gets_the_tools_not_found(
     assert response.json()["detail"] == tool.not_found_code
 
 
-@pytest.mark.integration
 @TOOLS
 async def test_the_room_is_told_that_sharing_moved(
     client: AsyncClient, session: AsyncSession, acting_user, tool: Tool, monkeypatch

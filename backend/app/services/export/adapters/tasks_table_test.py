@@ -2,11 +2,8 @@
 
 from types import SimpleNamespace
 
-import pytest
 
 from app.services.export.adapters.tasks_table import _thread_comments
-
-pytestmark = pytest.mark.unit
 
 
 def _c(id: int, parent: int | None = None):

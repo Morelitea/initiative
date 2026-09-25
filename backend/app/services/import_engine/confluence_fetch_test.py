@@ -16,7 +16,6 @@ from app.services.import_engine.atlassian_bundle import BundleWriter, merge_peop
 from app.services.import_engine.contract import ImportEngineError
 from app.services.import_engine.jira_attachments import bundle_budget
 
-pytestmark = pytest.mark.unit
 
 CREDENTIAL = atlassian.AtlassianCredential(
     site_url="https://acme.atlassian.net",

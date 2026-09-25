@@ -6,7 +6,6 @@ so a caller never has to know that a symmetric edge is stored in node-id order.
 """
 
 from datetime import datetime, timezone
-import pytest
 from httpx import AsyncClient
 
 from app.core.messages import RelationshipMessages
@@ -24,8 +23,6 @@ from app.testing import (
     create_tag,
     create_task,
 )
-
-pytestmark = pytest.mark.integration
 
 
 def _url(a) -> str:

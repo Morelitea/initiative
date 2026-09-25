@@ -63,7 +63,6 @@ def loaded_room(
     return room
 
 
-@pytest.mark.unit
 async def test_the_same_document_id_in_two_guilds_is_two_rooms() -> None:
     manager = CollaborationManager()
     manager._rooms[(1, DOC, 5)] = loaded_room(1, 5)
@@ -78,7 +77,6 @@ async def test_the_same_document_id_in_two_guilds_is_two_rooms() -> None:
     assert set(manager._rooms) == {(1, DOC, 5), (2, DOC, 5)}
 
 
-@pytest.mark.unit
 async def test_the_same_id_in_two_kinds_is_two_rooms() -> None:
     """Document 5 and wiki page 5 are both real, and both exist in the same
     guild. Keyed by the pair alone they would share one Yjs document, and each
@@ -97,7 +95,6 @@ async def test_the_same_id_in_two_kinds_is_two_rooms() -> None:
     assert page_room.resource_type == PAGE
 
 
-@pytest.mark.unit
 async def test_a_room_is_reached_only_from_its_own_guild() -> None:
     manager = CollaborationManager()
     manager._rooms[(1, DOC, 5)] = loaded_room(1, 5)
@@ -107,7 +104,6 @@ async def test_a_room_is_reached_only_from_its_own_guild() -> None:
     assert manager.has_active_collaborators(2, DOC, 5) is False
 
 
-@pytest.mark.unit
 async def test_removing_a_room_leaves_the_other_guild_alone() -> None:
     manager = CollaborationManager()
     manager._rooms[(1, DOC, 5)] = loaded_room(1, 5)
@@ -121,7 +117,6 @@ async def test_removing_a_room_leaves_the_other_guild_alone() -> None:
     assert manager._rooms.get((2, DOC, 5)) is not None
 
 
-@pytest.mark.unit
 async def test_invalidating_a_room_leaves_the_other_guild_alone() -> None:
     manager = CollaborationManager()
     manager._rooms[(1, DOC, 5)] = loaded_room(1, 5)
@@ -133,7 +128,6 @@ async def test_invalidating_a_room_leaves_the_other_guild_alone() -> None:
     assert manager._rooms.get((2, DOC, 5)) is not None
 
 
-@pytest.mark.unit
 async def test_loading_one_room_does_not_stall_another() -> None:
     """The registry lock is not held across the read.
 
@@ -157,7 +151,6 @@ async def test_loading_one_room_does_not_stall_another() -> None:
     assert set(manager._rooms) == {(1, DOC, 5), (2, DOC, 9)}
 
 
-@pytest.mark.unit
 async def test_a_room_is_read_once_however_many_arrive_together() -> None:
     """Two callers on the same new room make one read between them."""
     manager = CollaborationManager()
@@ -175,7 +168,6 @@ async def test_a_room_is_read_once_however_many_arrive_together() -> None:
     assert session.reads == 1
 
 
-@pytest.mark.unit
 async def test_a_room_being_read_in_is_not_collected_as_idle() -> None:
     """An unread room is empty because nobody has arrived, not because they left."""
     manager = CollaborationManager()
@@ -229,7 +221,6 @@ def authority(monkeypatch):
     return fake
 
 
-@pytest.mark.unit
 async def test_two_tabs_of_one_account_are_one_collaborator(authority) -> None:
     """The roster is about people; delivery is about connections."""
     authority.add(1, 5, member(7, name="Ada"))
@@ -241,7 +232,6 @@ async def test_two_tabs_of_one_account_are_one_collaborator(authority) -> None:
     assert sorted(entry["user_id"] for entry in roster) == [7, 9]
 
 
-@pytest.mark.unit
 async def test_a_reader_who_opens_a_writable_tab_can_write(authority) -> None:
     authority.add(1, 5, member(7, can_write=False))
     authority.add(1, 5, member(7, can_write=True))
@@ -249,7 +239,6 @@ async def test_a_reader_who_opens_a_writable_tab_can_write(authority) -> None:
     assert room_roster(1, DOC, 5)[0]["can_write"] is True
 
 
-@pytest.mark.unit
 async def test_a_room_is_kept_while_any_connection_is_in_it(authority) -> None:
     """A room is retired on its connections, one per socket — so one tab
     closing leaves a room that another tab is still holding."""
@@ -264,7 +253,6 @@ async def test_a_room_is_kept_while_any_connection_is_in_it(authority) -> None:
     assert manager._rooms.get((1, DOC, 5)) is not None
 
 
-@pytest.mark.unit
 async def test_a_room_with_unsaved_work_is_not_retired(authority) -> None:
     """Nothing is dropped while it still owes the database something."""
     manager = CollaborationManager()
@@ -304,7 +292,6 @@ class RecordingSession:
         self.rollbacks += 1
 
 
-@pytest.mark.unit
 async def test_a_room_is_clean_once_its_revision_reaches_the_row() -> None:
     manager = CollaborationManager()
     room = loaded_room(1, 5)
@@ -317,7 +304,6 @@ async def test_a_room_is_clean_once_its_revision_reaches_the_row() -> None:
     assert room.is_dirty is False
 
 
-@pytest.mark.unit
 async def test_a_write_that_reaches_no_row_leaves_the_room_unsaved() -> None:
     """A save that matched nothing is not a save.
 
@@ -334,7 +320,6 @@ async def test_a_write_that_reaches_no_row_leaves_the_room_unsaved() -> None:
     assert room.is_dirty is True
 
 
-@pytest.mark.unit
 async def test_an_edit_during_a_write_survives_it() -> None:
     """The revision saved is the one that was serialized, not whatever is
     current when the commit returns."""
@@ -346,7 +331,6 @@ async def test_an_edit_during_a_write_survives_it() -> None:
     assert room.is_dirty is True
 
 
-@pytest.mark.unit
 async def test_an_unchanged_room_is_not_rewritten(monkeypatch) -> None:
     """Idle documents cost nothing to keep open."""
     manager = CollaborationManager()
@@ -384,7 +368,6 @@ async def test_an_unchanged_room_is_not_rewritten(monkeypatch) -> None:
     assert manager._rooms == {}
 
 
-@pytest.mark.unit
 async def test_the_sweep_keeps_a_room_somebody_is_in(authority, monkeypatch) -> None:
     manager = CollaborationManager()
     occupied, arriving = loaded_room(1, 5), loaded_room(1, 6)
@@ -398,7 +381,6 @@ async def test_the_sweep_keeps_a_room_somebody_is_in(authority, monkeypatch) -> 
     assert set(manager._rooms) == {(1, DOC, 5), (1, DOC, 6)}
 
 
-@pytest.mark.unit
 async def test_leaving_saves_then_retires_an_empty_room(monkeypatch) -> None:
     manager = CollaborationManager()
     room = loaded_room(1, 5)
@@ -418,7 +400,6 @@ async def test_leaving_saves_then_retires_an_empty_room(monkeypatch) -> None:
     assert manager._rooms == {}
 
 
-@pytest.mark.unit
 async def test_a_failed_save_on_leaving_keeps_the_room_for_the_sweep(
     monkeypatch,
 ) -> None:
@@ -437,7 +418,6 @@ async def test_a_failed_save_on_leaving_keeps_the_room_for_the_sweep(
     assert manager._rooms.get((1, DOC, 5)) is room
 
 
-@pytest.mark.unit
 async def test_a_room_knows_whether_a_client_has_everything_it_has() -> None:
     from pycrdt import Doc, Text
 
@@ -463,7 +443,6 @@ def _an_update() -> bytes:
     return bytes(doc.get_update())
 
 
-@pytest.mark.unit
 async def test_a_person_is_still_here_while_one_of_their_tabs_remains(
     authority,
 ) -> None:
@@ -473,7 +452,6 @@ async def test_a_person_is_still_here_while_one_of_their_tabs_remains(
     assert user_has_connection(1, DOC, 5, 9) is False
 
 
-@pytest.mark.unit
 async def test_a_room_being_joined_is_not_retired(authority) -> None:
     """A connection is handed its room before it reaches the register.
 
@@ -494,7 +472,6 @@ async def test_a_room_being_joined_is_not_retired(authority) -> None:
     assert manager._rooms.get((1, DOC, 5)) is None
 
 
-@pytest.mark.unit
 async def test_an_empty_room_with_unsaved_work_is_not_invalidated(authority) -> None:
     """External invalidation holds the same line as retirement."""
     manager = CollaborationManager()
@@ -506,7 +483,6 @@ async def test_an_empty_room_with_unsaved_work_is_not_invalidated(authority) -> 
     assert manager._rooms.get((1, DOC, 5)) is room
 
 
-@pytest.mark.unit
 async def test_only_the_tab_that_last_moved_the_document_sets_its_content() -> None:
     """A rendering is current only if it came from the tab that last typed."""
     room = loaded_room(1, 5)
@@ -518,7 +494,6 @@ async def test_only_the_tab_that_last_moved_the_document_sets_its_content() -> N
     assert room.snapshot()[2] == {"root": "as tab a saw it"}
 
 
-@pytest.mark.unit
 async def test_two_writes_of_one_room_do_not_interleave() -> None:
     """A sweep and a disconnect can reach one room together.
 
@@ -556,7 +531,6 @@ async def test_two_writes_of_one_room_do_not_interleave() -> None:
     assert room.is_dirty is False
 
 
-@pytest.mark.unit
 async def test_a_rendering_older_than_the_document_waits_for_a_fresher_one(
     authority,
 ) -> None:
@@ -575,7 +549,6 @@ async def test_a_rendering_older_than_the_document_waits_for_a_fresher_one(
     assert room.snapshot()[2] is None
 
 
-@pytest.mark.unit
 async def test_the_last_rendering_is_written_once_the_room_empties() -> None:
     """With nobody left to send a fresher one, the best held is what is saved."""
     room = loaded_room(1, 5)
@@ -588,7 +561,6 @@ async def test_the_last_rendering_is_written_once_the_room_empties() -> None:
     assert room.snapshot()[2] == {"root": "the last thing seen"}
 
 
-@pytest.mark.unit
 def test_every_collaborative_kind_declares_where_its_body_lives() -> None:
     """A room reads and writes a body through the registry alone, so a kind
     that registered without one would open a socket that saves nowhere."""

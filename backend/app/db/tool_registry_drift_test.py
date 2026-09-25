@@ -16,7 +16,6 @@ Three joins, one per way a tool reaches the schema:
 - the **endpoint kind code** the ``relationships`` node ids are packed from.
 """
 
-import pytest
 from sqlalchemy import text
 
 from app.core.relationships import ENDPOINT_KINDS, node_id
@@ -48,7 +47,6 @@ def test_every_tool_has_a_model_at_the_table_its_name_derives():
     )
 
 
-@pytest.mark.database
 async def test_every_comment_parent_column_exists_on_comments(engine):
     """Every tool carries a comment thread, and the column that hangs it there
     is derived from the enum — so a tool whose migration forgot the column
@@ -78,7 +76,6 @@ async def test_every_comment_parent_column_exists_on_comments(engine):
     )
 
 
-@pytest.mark.database
 async def test_every_endpoint_kind_is_known_to_the_database(engine):
     """``relationships`` packs ``(kind, id)`` into one integer using a Postgres
     function, and the generated node columns are persisted. A kind the function
@@ -104,7 +101,6 @@ async def test_every_endpoint_kind_is_known_to_the_database(engine):
             )
 
 
-@pytest.mark.database
 async def test_the_database_packs_node_ids_the_way_python_does(engine):
     """The one arithmetic both sides do. Python builds node ids to query the
     edge table by; Postgres builds the stored columns. They are the same

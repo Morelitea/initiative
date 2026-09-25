@@ -18,9 +18,6 @@ from app.models.tenant.event_outbox import EventOutbox
 from app.testing import create_resource_grant, create_tag, create_task, route_as
 
 
-pytestmark = pytest.mark.integration
-
-
 async def _outbox(session, guild_id: int) -> list[EventOutbox]:
     await set_rls_context(session, guild_id=guild_id)
     return list(await session.exec(select(EventOutbox).order_by(EventOutbox.id.asc())))

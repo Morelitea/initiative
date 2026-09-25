@@ -8,7 +8,6 @@ request that was refused, and a write that changed nothing, leave no record.
 
 from __future__ import annotations
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -25,7 +24,6 @@ from app.testing.factories import (
     get_auth_token,
 )
 
-pytestmark = pytest.mark.integration
 
 PASSWORD = "testpassword123"
 

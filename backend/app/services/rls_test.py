@@ -31,7 +31,6 @@ from app.testing import (
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
 async def test_is_initiative_manager_with_pm_role(session: AsyncSession):
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
@@ -45,7 +44,6 @@ async def test_is_initiative_manager_with_pm_role(session: AsyncSession):
     assert result is True
 
 
-@pytest.mark.service
 async def test_is_initiative_manager_with_member_role(session: AsyncSession):
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
@@ -64,7 +62,6 @@ async def test_is_initiative_manager_with_member_role(session: AsyncSession):
     assert result is False
 
 
-@pytest.mark.service
 async def test_is_initiative_manager_no_standing_bypass(session: AsyncSession):
     """Phase 3: ``data.bypass`` no longer confers standing manager authority. A
     platform operator who isn't an initiative member (and holds no live grant) is
@@ -92,7 +89,6 @@ async def test_is_initiative_manager_no_standing_bypass(session: AsyncSession):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.service
 async def test_check_initiative_permission_no_standing_bypass(session: AsyncSession):
     """Phase 3: ``data.bypass`` no longer grants every initiative permission. A
     platform operator who isn't a member (and holds no live grant) gets only the
@@ -114,7 +110,6 @@ async def test_check_initiative_permission_no_standing_bypass(session: AsyncSess
         await route_as(session, user_id=operator_user.id, guild_id=guild.id)
 
 
-@pytest.mark.service
 async def test_check_initiative_permission_manager_has_all(
     session: AsyncSession, role_session
 ):
@@ -136,7 +131,6 @@ async def test_check_initiative_permission_manager_has_all(
     assert result is True
 
 
-@pytest.mark.service
 async def test_check_initiative_permission_member_explicit_enabled(
     session: AsyncSession, role_session
 ):
@@ -164,7 +158,6 @@ async def test_check_initiative_permission_member_explicit_enabled(
     assert result is True
 
 
-@pytest.mark.service
 async def test_check_initiative_permission_member_explicit_disabled(
     session: AsyncSession, role_session
 ):
@@ -192,7 +185,6 @@ async def test_check_initiative_permission_member_explicit_disabled(
     assert result is False
 
 
-@pytest.mark.service
 async def test_check_initiative_permission_falls_back_to_default(
     session: AsyncSession, role_session
 ):
@@ -230,7 +222,6 @@ async def test_check_initiative_permission_falls_back_to_default(
         assert result == expected, f"Mismatch for {perm_key}"
 
 
-@pytest.mark.service
 async def test_check_initiative_permission_non_member(session: AsyncSession):
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)

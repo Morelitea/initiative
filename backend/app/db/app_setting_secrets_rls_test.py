@@ -33,7 +33,6 @@ from app.models.platform.app_setting import AppSetting
 from app.services.platform.app_settings import GLOBAL_SETTINGS_ID
 from app.testing import as_role, create_user
 
-pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 TABLE = "app_setting_secrets"
 MOVED_COLUMNS = ("smtp_password_encrypted", "s3_secret_access_key_encrypted")

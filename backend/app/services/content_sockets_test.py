@@ -131,7 +131,6 @@ def _join(
 # ── fan-out ─────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.unit
 async def test_a_signal_is_isolated_by_guild_and_kind(register) -> None:
     same = FakeWebSocket()
     other_guild_same_id = FakeWebSocket()
@@ -151,7 +150,6 @@ async def test_a_signal_is_isolated_by_guild_and_kind(register) -> None:
     assert same_guild_other_kind.sent == []
 
 
-@pytest.mark.unit
 async def test_a_signal_names_the_change_and_carries_no_content(register) -> None:
     ws = FakeWebSocket()
     _join(register, ws, rooms={resource_room(1, "queue", 5)})
@@ -165,7 +163,6 @@ async def test_a_signal_names_the_change_and_carries_no_content(register) -> Non
     assert frame["id"] == 5
 
 
-@pytest.mark.unit
 async def test_an_unrouted_signal_sends_nothing(register) -> None:
     ws = FakeWebSocket()
     _join(register, ws, rooms={resource_room(1, "queue", 5)})
@@ -176,7 +173,6 @@ async def test_an_unrouted_signal_sends_nothing(register) -> None:
     assert ws.sent == []
 
 
-@pytest.mark.unit
 async def test_json_never_reaches_a_byte_stream_and_bytes_never_a_json_one(
     register,
 ) -> None:
@@ -195,7 +191,6 @@ async def test_json_never_reaches_a_byte_stream_and_bytes_never_a_json_one(
     assert watcher.sent_bytes == [] and len(watcher.sent) == 1
 
 
-@pytest.mark.unit
 async def test_emit_bytes_reaches_a_second_connection_of_the_same_account(
     register,
 ) -> None:
@@ -211,7 +206,6 @@ async def test_emit_bytes_reaches_a_second_connection_of_the_same_account(
     assert first.sent_bytes == []
 
 
-@pytest.mark.unit
 async def test_frames_to_one_socket_arrive_in_order(register) -> None:
     ws = FakeWebSocket()
     sub = _join(register, ws, rooms={DOC}, wire=Wire.bytes)
@@ -224,7 +218,6 @@ async def test_frames_to_one_socket_arrive_in_order(register) -> None:
     assert ws.sent_bytes == [b"\x00first", b"\x02second", b"\x01third"]
 
 
-@pytest.mark.unit
 async def test_a_failed_send_drops_the_socket(register) -> None:
     bad = ExplodingWebSocket()
     _join(register, bad, rooms={initiative_room(9, 1)}, guild_id=9)
@@ -235,7 +228,6 @@ async def test_a_failed_send_drops_the_socket(register) -> None:
     assert register.room_size(initiative_room(9, 1)) == 0
 
 
-@pytest.mark.unit
 async def test_a_reader_that_falls_behind_is_closed(register, monkeypatch) -> None:
     """One slow reader never holds up a room: past its outbox it is closed, and
     the others keep receiving."""
@@ -255,7 +247,6 @@ async def test_a_reader_that_falls_behind_is_closed(register, monkeypatch) -> No
     assert [frame["n"] for frame in quick.sent] == [0, 1, 2, 3, 4]
 
 
-@pytest.mark.unit
 async def test_leave_empties_every_room_and_is_idempotent(register) -> None:
     ws = FakeWebSocket()
     _join(
@@ -271,7 +262,6 @@ async def test_leave_empties_every_room_and_is_idempotent(register) -> None:
         assert register.room_size(key) == 0
 
 
-@pytest.mark.unit
 async def test_room_members_carries_the_channels_own_state(register) -> None:
     ws = FakeWebSocket()
     _join(register, ws, rooms={DOC}, meta={"name": "Ada", "can_write": True})
@@ -285,7 +275,6 @@ async def test_room_members_carries_the_channels_own_state(register) -> None:
 # ── presence ────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.unit
 async def test_presence_counts_people_not_sockets_and_only_presence_sockets(
     register,
 ) -> None:
@@ -310,7 +299,6 @@ async def test_presence_counts_people_not_sockets_and_only_presence_sockets(
     assert register.guild_ids() == []
 
 
-@pytest.mark.unit
 async def test_the_guild_count_is_open_tabs_not_dots(register) -> None:
     """Someone appearing offline still has the guild open."""
     _join(
@@ -387,7 +375,6 @@ def _answers(*rooms):
     return authorize
 
 
-@pytest.mark.unit
 async def test_a_socket_still_authorized_keeps_its_room(register, monkeypatch) -> None:
     _patch_entry(monkeypatch)
     ws = FakeWebSocket()
@@ -399,7 +386,6 @@ async def test_a_socket_still_authorized_keeps_its_room(register, monkeypatch) -
     assert register.room_size(DOC) == 1
 
 
-@pytest.mark.unit
 async def test_losing_the_resource_closes_the_socket(register, monkeypatch) -> None:
     _patch_entry(monkeypatch)
     ws = FakeWebSocket()
@@ -411,7 +397,6 @@ async def test_losing_the_resource_closes_the_socket(register, monkeypatch) -> N
     assert register.room_size(DOC) == 0
 
 
-@pytest.mark.unit
 async def test_losing_the_guild_closes_the_socket(register, monkeypatch) -> None:
     _patch_entry(monkeypatch, establish_ok=False)
     ws = FakeWebSocket()
@@ -422,7 +407,6 @@ async def test_losing_the_guild_closes_the_socket(register, monkeypatch) -> None
     assert ws.closed == status.WS_1008_POLICY_VIOLATION
 
 
-@pytest.mark.unit
 async def test_an_authorizer_that_raises_closes_the_socket(
     register, monkeypatch
 ) -> None:
@@ -439,7 +423,6 @@ async def test_an_authorizer_that_raises_closes_the_socket(
     assert ws.closed == status.WS_1008_POLICY_VIOLATION
 
 
-@pytest.mark.unit
 async def test_a_recheck_replaces_the_rooms(register, monkeypatch) -> None:
     """Rooms are left as surely as they are entered: removed from initiative 2
     and added to initiative 3, the socket moves on the next re-check."""
@@ -460,7 +443,6 @@ async def test_a_recheck_replaces_the_rooms(register, monkeypatch) -> None:
     assert ws.closed is None
 
 
-@pytest.mark.unit
 async def test_one_guild_entry_serves_every_socket_of_one_sign_in(
     register, monkeypatch
 ) -> None:
@@ -474,7 +456,6 @@ async def test_one_guild_entry_serves_every_socket_of_one_sign_in(
     assert len(seen) == 1
 
 
-@pytest.mark.unit
 async def test_recheck_room_reaches_only_that_room(register, monkeypatch) -> None:
     _patch_entry(monkeypatch)
     in_room, elsewhere = FakeWebSocket(), FakeWebSocket()
@@ -492,7 +473,6 @@ async def test_recheck_room_reaches_only_that_room(register, monkeypatch) -> Non
     assert elsewhere.closed is None
 
 
-@pytest.mark.unit
 async def test_revoke_is_scoped_to_guild_and_user(register, monkeypatch) -> None:
     _patch_entry(monkeypatch, establish_ok=False)
     target, other_user, other_guild = FakeWebSocket(), FakeWebSocket(), FakeWebSocket()
@@ -519,7 +499,6 @@ async def test_revoke_is_scoped_to_guild_and_user(register, monkeypatch) -> None
     assert other_guild.closed is None
 
 
-@pytest.mark.unit
 async def test_recheck_replays_join_time_satisfied_providers(
     register, monkeypatch
 ) -> None:
@@ -535,7 +514,6 @@ async def test_recheck_replays_join_time_satisfied_providers(
     assert ws.closed is None
 
 
-@pytest.mark.unit
 async def test_recheck_answers_for_the_session_that_opened_the_socket(
     register, monkeypatch
 ) -> None:
@@ -564,7 +542,6 @@ async def test_recheck_answers_for_the_session_that_opened_the_socket(
     assert auth_context.session_amr() == frozenset({"mfa", "hwk"})
 
 
-@pytest.mark.unit
 async def test_recheck_answers_a_narrowed_provider_from_the_socket(
     register, monkeypatch
 ) -> None:
@@ -591,7 +568,6 @@ async def test_recheck_answers_a_narrowed_provider_from_the_socket(
     assert auth_context.satisfied_claims() == {"7": {"hd": ["third.example"]}}
 
 
-@pytest.mark.unit
 async def test_recheck_does_not_carry_the_askers_api_key(register, monkeypatch) -> None:
     """A re-check asked for by a request made with an API key limited to
     another guild is answered for the socket's own sign-in, not the key."""
@@ -615,7 +591,6 @@ async def test_recheck_does_not_carry_the_askers_api_key(register, monkeypatch) 
     assert ws.closed is None
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "account_status",
     [UserStatus.suspended, UserStatus.deactivated, UserStatus.anonymized],
@@ -650,7 +625,6 @@ async def _open(
     return ws
 
 
-@pytest.mark.integration
 async def test_a_socket_on_an_ended_session_is_closed(
     register, monkeypatch, session: AsyncSession
 ) -> None:
@@ -675,7 +649,6 @@ async def test_a_socket_on_an_ended_session_is_closed(
     assert register.room_size(DOC) == 0
 
 
-@pytest.mark.integration
 async def test_a_socket_follows_its_session_through_a_renewal(
     register, monkeypatch, session: AsyncSession
 ) -> None:
@@ -703,7 +676,6 @@ async def test_a_socket_follows_its_session_through_a_renewal(
     assert ws.closed == WS_CREDENTIAL_ENDED
 
 
-@pytest.mark.integration
 async def test_a_token_version_bump_closes_the_socket(
     register, monkeypatch, session: AsyncSession
 ) -> None:
@@ -725,7 +697,6 @@ async def test_a_token_version_bump_closes_the_socket(
     assert ws.closed == WS_CREDENTIAL_ENDED
 
 
-@pytest.mark.integration
 async def test_a_consumed_device_token_closes_only_its_own_socket(
     register, monkeypatch, session: AsyncSession
 ) -> None:

@@ -36,7 +36,6 @@ from app.testing import (
     create_user,
 )
 
-pytestmark = pytest.mark.integration
 
 ActingUser = Callable[..., Awaitable[Actor]]
 

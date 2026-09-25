@@ -22,14 +22,11 @@ Pure metadata checks — no database required.
 
 from __future__ import annotations
 
-import pytest
 from sqlalchemy import ForeignKey
 from sqlmodel import SQLModel
 
 from app.db import base  # noqa: F401  # populates SQLModel.metadata with every table
 from app.db.tenancy import GUILD_SCOPED_TABLES, SHARED_TABLES
-
-pytestmark = pytest.mark.unit
 
 
 def _crossings() -> list[tuple[str, str, str, ForeignKey]]:

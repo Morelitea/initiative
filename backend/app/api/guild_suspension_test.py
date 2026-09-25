@@ -38,8 +38,6 @@ from app.testing import (
     route_as,
 )
 
-pytestmark = pytest.mark.integration
-
 
 async def _set_status(session: AsyncSession, guild: Guild, status: GuildStatus):
     """Flip a guild's lifecycle status the way the (future) operator endpoint

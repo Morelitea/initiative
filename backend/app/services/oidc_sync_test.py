@@ -51,7 +51,6 @@ async def _membership(
     ).one_or_none()
 
 
-@pytest.mark.integration
 async def test_claim_mapped_role_survives_auto_join(session: AsyncSession):
     """A mapped role wins over the plain membership auto-join would write.
 
@@ -143,7 +142,6 @@ async def _sync(session: AsyncSession, *, user_id: int, provider_id: int, claims
     return result
 
 
-@pytest.mark.integration
 async def test_a_rule_lands_where_its_community_counts_the_arrival_as_its_own(
     session: AsyncSession,
 ):
@@ -178,7 +176,6 @@ async def test_a_rule_lands_where_its_community_counts_the_arrival_as_its_own(
     assert await _joined(session, newcomer.id) == {home.id}
 
 
-@pytest.mark.integration
 async def test_a_community_that_has_not_connected_follows_the_deployment_default(
     session: AsyncSession,
 ):
@@ -215,7 +212,6 @@ async def test_a_community_that_has_not_connected_follows_the_deployment_default
     assert await _joined(session, newcomer.id) == {inheriting.id}
 
 
-@pytest.mark.integration
 async def test_leaving_the_tenant_hands_back_what_its_rules_granted(
     session: AsyncSession,
 ):
@@ -243,7 +239,6 @@ async def test_leaving_the_tenant_hands_back_what_its_rules_granted(
     assert await _joined(session, person.id) == set()
 
 
-@pytest.mark.integration
 async def test_auto_join_still_covers_what_the_claims_do_not(session: AsyncSession):
     """Enrolment fills the gaps the mapping left, and only those."""
     provider = await create_auth_provider(session)
@@ -296,7 +291,6 @@ async def test_auto_join_still_covers_what_the_claims_do_not(session: AsyncSessi
     assert enrolled.oidc_provider_id is None
 
 
-@pytest.mark.integration
 async def test_one_providers_sign_in_leaves_anothers_memberships_alone(
     session: AsyncSession,
 ):
@@ -390,7 +384,6 @@ async def test_one_providers_sign_in_leaves_anothers_memberships_alone(
     assert await _guild_ids() == {corp_guild.id, partner_guild.id}
 
 
-@pytest.mark.integration
 async def test_deleting_the_last_rule_hands_back_what_it_granted(
     session: AsyncSession,
 ):
@@ -455,7 +448,6 @@ async def test_deleting_the_last_rule_hands_back_what_it_granted(
     ).all()
 
 
-@pytest.mark.integration
 async def test_stale_provider_claim_preserves_a_promoted_superadmin(
     session: AsyncSession,
 ):
@@ -523,7 +515,6 @@ async def test_stale_provider_claim_preserves_a_promoted_superadmin(
     assert result.guilds_removed == []
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "listed,admitted",
     [
@@ -612,7 +603,6 @@ async def _provider_rule(
     )
 
 
-@pytest.mark.integration
 async def test_a_provider_rule_places_where_the_community_accepts_it(
     session: AsyncSession,
 ):
@@ -636,7 +626,6 @@ async def test_a_provider_rule_places_where_the_community_accepts_it(
     assert await _joined(session, newcomer.id) == {accepting.id}
 
 
-@pytest.mark.integration
 async def test_a_provider_rule_places_everywhere_when_the_deployment_says_so(
     session: AsyncSession,
 ):
@@ -657,7 +646,6 @@ async def test_a_provider_rule_places_everywhere_when_the_deployment_says_so(
     assert await _joined(session, newcomer.id) == {unconnected.id}
 
 
-@pytest.mark.integration
 async def test_a_provider_rule_naming_a_directory_places_only_its_arrivals(
     session: AsyncSession,
 ):
@@ -708,7 +696,6 @@ async def test_a_provider_rule_naming_a_directory_places_only_its_arrivals(
     assert await _joined(session, from_elsewhere.id) == set()
 
 
-@pytest.mark.integration
 async def test_a_provider_rule_places_whatever_the_communitys_own_narrowing_says(
     session: AsyncSession,
 ):

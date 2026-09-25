@@ -47,7 +47,6 @@ def _reset_cache():
     push_config.reset_for_tests()
 
 
-@pytest.mark.integration
 async def test_refresh_loads_db_over_env(
     session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
@@ -75,7 +74,6 @@ async def test_refresh_loads_db_over_env(
     assert cfg.sender_id == "123456"
 
 
-@pytest.mark.integration
 async def test_full_service_account_survives_the_round_trip(
     session: AsyncSession,
 ) -> None:
@@ -105,7 +103,6 @@ async def test_full_service_account_survives_the_round_trip(
     assert json.loads(stored or "{}")["project_id"] == "demo-project"
 
 
-@pytest.mark.integration
 async def test_credential_is_kept_when_not_sent(session: AsyncSession) -> None:
     """Toggling the switch without re-pasting the JSON keeps the JSON."""
     account = _service_account()

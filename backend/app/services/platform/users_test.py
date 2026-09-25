@@ -26,8 +26,6 @@ from app.testing.factories import (
 )
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_the_sole_seat_is_reported(session: AsyncSession):
     """A community whose only superadmin is this account."""
     seat = await create_user(session)
@@ -43,8 +41,6 @@ async def test_the_sole_seat_is_reported(session: AsyncSession):
     assert await user_service.is_last_guild_superadmin(session, seat.id) == [guild.name]
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_another_seat_holder_clears_it(session: AsyncSession):
     """Two superadmins, so neither is the last one."""
     first = await create_user(session, email="first@example.com")
@@ -58,8 +54,6 @@ async def test_another_seat_holder_clears_it(session: AsyncSession):
     assert await user_service.is_last_guild_superadmin(session, first.id) == []
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_an_ordinary_admin_is_not_a_seat(session: AsyncSession):
     """An admin does not count, which is the whole point of the split: their
     leaving never strands a community, because its seat is still there."""
@@ -76,8 +70,6 @@ async def test_an_ordinary_admin_is_not_a_seat(session: AsyncSession):
     assert await user_service.is_last_guild_superadmin(session, admin.id) == []
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_seats_are_reported_per_community(session: AsyncSession):
     """One community where they are the only seat, one where they are not."""
     seat = await create_user(session)
@@ -98,7 +90,6 @@ async def test_seats_are_reported_per_community(session: AsyncSession):
     assert await user_service.is_last_guild_superadmin(session, seat.id) == ["Alone"]
 
 
-@pytest.mark.service
 async def test_check_deletion_eligibility_can_delete(session: AsyncSession):
     """Test that user can be deleted when they have no blocking conditions."""
     # Create a regular member user
@@ -123,8 +114,6 @@ async def test_check_deletion_eligibility_can_delete(session: AsyncSession):
     assert len(blockers) == 0
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_check_deletion_eligibility_blocked_on_the_seat(session: AsyncSession):
     """Holding a community's only seat is what stops an account going."""
     seat = await create_user(session)
@@ -146,8 +135,6 @@ async def test_check_deletion_eligibility_blocked_on_the_seat(session: AsyncSess
     assert any("superadmin" in blocker.lower() for blocker in blockers)
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_an_ordinary_admin_is_not_blocked_from_deleting(session: AsyncSession):
     """Being a community's last *admin* stops nobody: its seat is still there
     and can promote somebody else."""
@@ -169,8 +156,6 @@ async def test_an_ordinary_admin_is_not_blocked_from_deleting(session: AsyncSess
     assert blockers == []
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_removing_the_only_seat_is_refused_where_the_rows_go(
     session: AsyncSession,
 ):
@@ -195,8 +180,6 @@ async def test_removing_the_only_seat_is_refused_where_the_rows_go(
     assert seat.status == UserStatus.active
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_the_only_member_of_a_community_may_go(session: AsyncSession):
     """Nobody to strand, and no remedy to offer: appointing another superadmin
     takes somebody to appoint. The community is left with no members."""
@@ -214,8 +197,6 @@ async def test_the_only_member_of_a_community_may_go(session: AsyncSession):
     assert reloaded.status == UserStatus.deactivated
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_one_other_member_brings_the_block_back(session: AsyncSession):
     """Somebody else is there, so there is somebody to appoint — and somebody
     to strand by not appointing them."""
@@ -236,8 +217,6 @@ async def test_one_other_member_brings_the_block_back(session: AsyncSession):
         await user_service.deactivate_user(session, seat.id)
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_a_second_seat_lets_the_account_go(session: AsyncSession):
     """Somebody else holds it, so nothing is stranded."""
     leaving = await create_user(session, email="leaving@example.com")
@@ -256,8 +235,6 @@ async def test_a_second_seat_lets_the_account_go(session: AsyncSession):
     assert reloaded.status == UserStatus.deactivated
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_deactivate_user(session: AsyncSession):
     """Deactivation flips status, drops memberships, bumps token_version,
     and leaves PII intact so an operator can later reactivate."""
@@ -291,8 +268,6 @@ async def test_deactivate_user(session: AsyncSession):
     )
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_soft_delete_user_anonymizes_pii(session: AsyncSession, role_session):
     """Soft delete (anonymize) clears PII, blocks login, drops memberships,
     demotes platform staff to member, revokes auth artifacts, and keeps
@@ -407,8 +382,6 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession, role_sessi
     assert push_tokens_left == []
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_erasing_a_user_stops_their_references_resolving(
     session: AsyncSession,
 ):
@@ -542,8 +515,6 @@ async def test_soft_delete_user_scrubs_addressed_invites(
     assert open_after.max_uses == 5
 
 
-@pytest.mark.integration
-@pytest.mark.service
 async def test_hard_delete_user_scrubs_addressed_invites(
     session: AsyncSession, role_session
 ):
@@ -594,8 +565,6 @@ async def test_hard_delete_user_scrubs_addressed_invites(
     assert guild_service.invite_is_active(scrubbed) is False
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_users_table_has_rls_delete_deny_policy(session: AsyncSession):
     """``users`` carries FORCE RLS, the ``users_no_delete`` restrictive policy,
     and the per-role policy set that leaves every request-path write on the
@@ -649,8 +618,6 @@ async def test_users_table_has_rls_delete_deny_policy(session: AsyncSession):
     assert deny_policy[2] is False  # restrictive
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_is_last_config_manager_ignores_inactive_targets(session: AsyncSession):
     """An owner whose status isn't ``active`` doesn't contribute to the
     active config-manager count, so they can never be "the last owner".
@@ -687,8 +654,6 @@ async def test_is_last_config_manager_ignores_inactive_targets(session: AsyncSes
     )
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_is_last_config_manager_with_other_active_owner(session: AsyncSession):
     """When a second active owner exists, neither is the last owner."""
     from app.models.platform.user import UserRole
@@ -710,8 +675,6 @@ async def test_is_last_config_manager_with_other_active_owner(session: AsyncSess
     )
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_is_last_config_manager_excludes_operator(session: AsyncSession):
     """An operator does not hold ``config.manage``, so they are not counted
     as a config manager and are never "the last owner"."""
@@ -730,7 +693,6 @@ async def test_is_last_config_manager_excludes_operator(session: AsyncSession):
     )
 
 
-@pytest.mark.integration
 async def test_soft_delete_removes_membership_in_guild_schema(
     session: AsyncSession, role_session
 ):
@@ -783,8 +745,6 @@ async def test_soft_delete_removes_membership_in_guild_schema(
     assert refreshed.status == UserStatus.anonymized
 
 
-@pytest.mark.integration
-@pytest.mark.service
 async def test_soft_delete_scrubs_embedded_mentions(
     session: AsyncSession, role_session
 ):
@@ -985,8 +945,6 @@ async def test_soft_delete_scrubs_embedded_mentions(
     assert refreshed_digest.assigned_by_name == ANONYMIZED_MENTION_NAME
 
 
-@pytest.mark.integration
-@pytest.mark.service
 async def test_hard_delete_anonymized_user_cleans_guild_data(
     session: AsyncSession, role_session
 ):
@@ -1051,8 +1009,6 @@ async def test_hard_delete_anonymized_user_cleans_guild_data(
     ).one_or_none() is not None
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_soft_delete_user_removes_sign_in_sessions(session: AsyncSession):
     """Erasure empties the account of its sign-in sessions too — those rows
     carry a device label, a user agent and an address."""
@@ -1130,8 +1086,6 @@ async def test_soft_delete_user_removes_the_second_factor(session: AsyncSession)
     )
 
 
-@pytest.mark.integration
-@pytest.mark.service
 async def test_soft_delete_user_empties_the_shared_tables(
     session: AsyncSession, role_session
 ):
@@ -1252,7 +1206,6 @@ async def test_soft_delete_user_empties_the_shared_tables(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_erasure_is_acknowledged_at_every_proved_address(session, monkeypatch):
     """The letter goes to the addresses the account proved, read before the
     erasure takes them away."""
@@ -1283,7 +1236,6 @@ async def test_erasure_is_acknowledged_at_every_proved_address(session, monkeypa
     assert sent == [["erased-primary@example.com", "erased-work@example.com"]]
 
 
-@pytest.mark.integration
 async def test_an_erasure_with_nowhere_to_write_still_happens(session, monkeypatch):
     """No proved address means no letter and no failure — the account is gone
     either way."""

@@ -6,14 +6,11 @@ so what comes back is what the policies allowed.
 
 from __future__ import annotations
 
-import pytest
 from sqlmodel import select
 
 from app.models.platform.guild import GuildRole
 from app.models.tenant.queue import Queue
 from app.testing import create_queue, create_resource_grant, grant_role_permission
-
-pytestmark = pytest.mark.integration
 
 
 async def _names(reading_as, guild_id, actor) -> list[str]:

@@ -12,8 +12,6 @@ from app.testing.factories import (
     get_auth_headers,
 )
 
-pytestmark = [pytest.mark.integration]
-
 
 @pytest.fixture
 def asked(monkeypatch):

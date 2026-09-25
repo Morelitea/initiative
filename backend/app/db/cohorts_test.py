@@ -27,13 +27,11 @@ def _connection(path_params: dict[str, str]) -> HTTPConnection:
     return HTTPConnection({"type": "http", "path_params": path_params, "headers": []})
 
 
-@pytest.mark.unit
 def test_a_community_is_in_the_cohort_its_id_leaves_over(monkeypatch):
     monkeypatch.setattr(settings, "DB_COHORTS", 3)
     assert [cohorts.cohort_of(g) for g in (3, 4, 5, 6)] == [0, 1, 2, 0]
 
 
-@pytest.mark.unit
 def test_the_database_template_names_each_cohorts_database(monkeypatch):
     url = "postgresql+asyncpg://app_user:pw@db:6432/initiative"
     assert cohorts.cohort_url(url, 2) == url
@@ -43,7 +41,6 @@ def test_the_database_template_names_each_cohorts_database(monkeypatch):
     )
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "template", ["initiative", "initiative_{shard}", "initiative_{cohort}_{0}"]
 )
@@ -54,14 +51,12 @@ def test_a_database_template_must_name_the_cohort_and_nothing_else(template):
         )
 
 
-@pytest.mark.unit
 def test_the_path_addresses_a_community_only_by_number():
     assert cohorts.addressed_guild_id({"guild_id": "12"}) == 12
     assert cohorts.addressed_guild_id({"guild_id": "a-reference"}) is None
     assert cohorts.addressed_guild_id({}) is None
 
 
-@pytest.mark.unit
 def test_one_cohort_is_the_one_request_pool(monkeypatch):
     monkeypatch.setattr(settings, "DB_COHORTS", 1)
     assert cohorts.request_sessionmaker(7) is db_session.AsyncSessionLocal

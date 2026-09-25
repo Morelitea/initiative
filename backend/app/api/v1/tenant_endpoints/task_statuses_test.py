@@ -6,7 +6,6 @@ including category-driven defaults and PATCH behavior around category changes.
 """
 
 from datetime import datetime, timezone
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -42,7 +41,6 @@ async def _setup_project(session: AsyncSession):
     return project, headers
 
 
-@pytest.mark.integration
 async def test_create_status_uses_category_defaults(
     client: AsyncClient, session: AsyncSession
 ):
@@ -60,7 +58,6 @@ async def test_create_status_uses_category_defaults(
     assert body["icon"] == "circle"
 
 
-@pytest.mark.integration
 async def test_create_status_respects_explicit_color_icon(
     client: AsyncClient, session: AsyncSession
 ):
@@ -83,7 +80,6 @@ async def test_create_status_respects_explicit_color_icon(
     assert body["icon"] == "rocket"
 
 
-@pytest.mark.integration
 async def test_patch_updates_color_and_icon(client: AsyncClient, session: AsyncSession):
     project, headers = await _setup_project(session)
     statuses = await task_statuses_service.ensure_default_statuses(session, project.id)
@@ -102,7 +98,6 @@ async def test_patch_updates_color_and_icon(client: AsyncClient, session: AsyncS
     assert body["icon"] == "star"
 
 
-@pytest.mark.integration
 async def test_patch_category_change_keeps_existing_color_icon(
     client: AsyncClient, session: AsyncSession
 ):
@@ -136,7 +131,6 @@ async def test_patch_category_change_keeps_existing_color_icon(
     assert body["icon"] == "flag"
 
 
-@pytest.mark.integration
 async def test_create_status_rejects_invalid_hex_color(
     client: AsyncClient, session: AsyncSession
 ):
@@ -155,7 +149,6 @@ async def test_create_status_rejects_invalid_hex_color(
     assert response.status_code == 422
 
 
-@pytest.mark.integration
 async def test_default_seeded_statuses_have_category_colors(
     session: AsyncSession,
 ):
@@ -191,7 +184,6 @@ async def test_default_seeded_statuses_have_category_colors(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_initiative_statuses_collapse_across_projects(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -242,7 +234,6 @@ async def test_initiative_statuses_collapse_across_projects(
     ]
 
 
-@pytest.mark.integration
 async def test_initiative_statuses_separate_same_name_by_category(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -270,7 +261,6 @@ async def test_initiative_statuses_separate_same_name_by_category(
     ]
 
 
-@pytest.mark.integration
 async def test_initiative_statuses_only_cover_readable_projects(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -304,7 +294,6 @@ async def test_initiative_statuses_only_cover_readable_projects(
     assert body[0]["projects_total"] == 1
 
 
-@pytest.mark.integration
 async def test_initiative_statuses_skip_archived_and_template_projects(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -339,7 +328,6 @@ async def test_initiative_statuses_skip_archived_and_template_projects(
     assert body[0]["projects_total"] == 1
 
 
-@pytest.mark.integration
 async def test_initiative_statuses_empty_when_no_readable_projects(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -353,7 +341,6 @@ async def test_initiative_statuses_empty_when_no_readable_projects(
     assert response.json() == []
 
 
-@pytest.mark.integration
 async def test_initiative_statuses_cover_the_guild_for_an_admin(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -394,7 +381,6 @@ async def _grant_full_access(session: AsyncSession, initiative, user) -> None:
     await session.commit()
 
 
-@pytest.mark.integration
 async def test_initiative_statuses_cover_the_initiative_on_full_access(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -426,7 +412,6 @@ async def test_initiative_statuses_cover_the_initiative_on_full_access(
     assert body[0]["projects_total"] == 1
 
 
-@pytest.mark.integration
 async def test_initiative_statuses_refused_to_a_non_member(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -447,7 +432,6 @@ async def test_initiative_statuses_refused_to_a_non_member(
     assert response.json()["detail"] == "INITIATIVE_NOT_A_MEMBER"
 
 
-@pytest.mark.integration
 async def test_initiative_statuses_404_for_an_unknown_initiative(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -467,7 +451,6 @@ async def test_initiative_statuses_404_for_an_unknown_initiative(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_delete_moves_tasks_to_the_default_without_a_fallback(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -504,7 +487,6 @@ async def test_delete_moves_tasks_to_the_default_without_a_fallback(
     assert task.json()["task_status_id"] == default_status.id
 
 
-@pytest.mark.integration
 async def test_delete_accepts_a_fallback_in_another_category(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -542,7 +524,6 @@ async def test_delete_accepts_a_fallback_in_another_category(
     assert task.json()["task_status_id"] == in_progress.id
 
 
-@pytest.mark.integration
 async def test_delete_into_done_completes_the_tasks_it_moves(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -578,7 +559,6 @@ async def test_delete_into_done_completes_the_tasks_it_moves(
     assert task.json()["completed_at"] is not None
 
 
-@pytest.mark.integration
 async def test_delete_into_done_advances_a_recurring_task(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -638,7 +618,6 @@ async def test_delete_into_done_advances_a_recurring_task(
     assert successor.recurrence["ends"] == "never"
 
 
-@pytest.mark.integration
 async def test_delete_can_remove_the_last_status_of_a_category(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -663,7 +642,6 @@ async def test_delete_can_remove_the_last_status_of_a_category(
     assert [s["category"] for s in remaining.json()] == ["todo", "in_progress"]
 
 
-@pytest.mark.integration
 async def test_delete_refuses_the_projects_only_status(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -683,7 +661,6 @@ async def test_delete_refuses_the_projects_only_status(
     assert response.json()["detail"] == "TASK_STATUS_CANNOT_REMOVE_LAST"
 
 
-@pytest.mark.integration
 async def test_deleting_the_default_promotes_the_next_entry_column(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -716,7 +693,6 @@ async def test_deleting_the_default_promotes_the_next_entry_column(
     assert default["name"] == "Someday"
 
 
-@pytest.mark.integration
 async def test_a_legacy_projects_entry_column_is_its_backlog_not_its_blocked(
     session: AsyncSession, acting_user
 ):
@@ -788,7 +764,6 @@ async def _tasks_by_title(session: AsyncSession, project_id: int) -> dict[str, T
     return {task.title: task for task in rows}
 
 
-@pytest.mark.integration
 async def test_delete_moves_archived_and_trashed_tasks_with_the_live_ones(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -813,7 +788,6 @@ async def test_delete_moves_archived_and_trashed_tasks_with_the_live_ones(
     assert tasks["Live"].archived_at is None and tasks["Live"].deleted_at is None
 
 
-@pytest.mark.integration
 async def test_delete_retires_a_column_holding_only_trashed_tasks(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -848,7 +822,6 @@ async def test_delete_retires_a_column_holding_only_trashed_tasks(
     assert tasks["Trashed"].deleted_at is not None
 
 
-@pytest.mark.integration
 async def test_delete_into_done_completes_frozen_tasks_without_recurring_them(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -891,7 +864,6 @@ async def test_delete_into_done_completes_frozen_tasks_without_recurring_them(
     assert moved.recurrence is not None
 
 
-@pytest.mark.integration
 async def test_patch_category_realigns_archived_and_trashed_tasks(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

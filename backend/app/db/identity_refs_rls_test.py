@@ -15,8 +15,6 @@ from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
 from app.services.platform import identity_refs
 from app.testing import create_user
 
-pytestmark = [pytest.mark.integration, pytest.mark.database]
-
 
 async def _refs_visible_to(role_session, ref: str) -> int:
     s = await role_session("app_user")

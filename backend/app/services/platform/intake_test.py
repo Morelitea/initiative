@@ -23,8 +23,6 @@ from app.testing import (
     create_user,
 )
 
-pytestmark = pytest.mark.integration
-
 
 async def _point_platform_at(session, guild_id: int | None) -> None:
     """Set (or clear) ``app_settings.operations_guild_id``."""

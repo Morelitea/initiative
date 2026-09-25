@@ -15,8 +15,6 @@ from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.services.tenant import filter_presets as filter_presets_service
 from app.testing.factories import create_project
 
-pytestmark = pytest.mark.integration
-
 
 def _url(project, suffix: str = "/") -> str:
     return f"/api/v1/c/{guild_of(project)}/projects/{project.id}/filter-presets{suffix}"

@@ -8,7 +8,6 @@ its guild's own room.
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import establish_guild_access
@@ -25,7 +24,6 @@ from app.testing import (
 )
 
 
-@pytest.mark.integration
 async def test_rooms_member_sees_only_their_own(
     session: AsyncSession, reading_as
 ) -> None:
@@ -52,7 +50,6 @@ async def test_rooms_member_sees_only_their_own(
     )  # an initiative they're not in is never a room
 
 
-@pytest.mark.integration
 async def test_rooms_guild_admin_sees_all(
     session: AsyncSession,
 ) -> None:
@@ -72,7 +69,6 @@ async def test_rooms_guild_admin_sees_all(
     assert initiative_room(guild.id, two.id) in rooms
 
 
-@pytest.mark.integration
 async def test_rooms_pam_grantee_sees_all(
     session: AsyncSession,
 ) -> None:

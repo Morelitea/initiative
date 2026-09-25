@@ -8,7 +8,6 @@ offering a month the feed then shows as empty is worse than no rail.
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -43,7 +42,6 @@ async def _board(session: AsyncSession, actor):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_the_rail_lists_a_months_notices_newest_first(
     client: AsyncClient, acting_user, session
 ):
@@ -62,7 +60,6 @@ async def test_the_rail_lists_a_months_notices_newest_first(
     assert [b["count"] for b in buckets] == [1, 1, 1]
 
 
-@pytest.mark.integration
 async def test_a_months_count_is_its_notices(client: AsyncClient, acting_user, session):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
@@ -86,7 +83,6 @@ async def test_a_months_count_is_its_notices(client: AsyncClient, acting_user, s
     assert buckets[0]["count"] == 3
 
 
-@pytest.mark.integration
 async def test_the_anchor_lands_on_the_months_first_notice(
     client: AsyncClient, acting_user, session
 ):
@@ -115,7 +111,6 @@ async def test_the_anchor_lands_on_the_months_first_notice(
     assert made["mar"].name not in names
 
 
-@pytest.mark.integration
 async def test_the_month_boundary_is_cut_in_the_readers_zone(
     client: AsyncClient, acting_user, session
 ):
@@ -146,7 +141,6 @@ async def test_the_month_boundary_is_cut_in_the_readers_zone(
     assert [b["period"] for b in auckland.json()["buckets"]] == ["2026-02"]
 
 
-@pytest.mark.integration
 async def test_the_rail_shows_only_months_the_reader_can_open(
     client: AsyncClient, acting_user, session
 ):
@@ -181,7 +175,6 @@ async def test_the_rail_shows_only_months_the_reader_can_open(
     assert other.json()["buckets"] == []
 
 
-@pytest.mark.integration
 async def test_the_rail_narrows_with_the_filters(
     client: AsyncClient, acting_user, session
 ):
@@ -216,7 +209,6 @@ async def test_the_rail_narrows_with_the_filters(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_an_anchored_board_is_strictly_chronological(
     client: AsyncClient, acting_user, session
 ):
@@ -246,7 +238,6 @@ async def test_an_anchored_board_is_strictly_chronological(
     assert [p["name"] for p in anchored.json()["items"]] == ["feb", "jan"]
 
 
-@pytest.mark.integration
 async def test_the_anchor_is_inclusive(client: AsyncClient, acting_user, session):
     """The instant a rail names is a notice's own, so the notice it names has
     to be the first one back — not the one just above it."""
@@ -262,7 +253,6 @@ async def test_the_anchor_is_inclusive(client: AsyncClient, acting_user, session
     assert [p["name"] for p in response.json()["items"]][0] == "feb"
 
 
-@pytest.mark.integration
 async def test_anchoring_keeps_the_other_filters(
     client: AsyncClient, acting_user, session
 ):
@@ -282,7 +272,6 @@ async def test_anchoring_keeps_the_other_filters(
     assert [p["name"] for p in response.json()["items"]] == ["feb"]
 
 
-@pytest.mark.integration
 async def test_a_zone_that_is_not_one_is_refused(
     client: AsyncClient, acting_user, session
 ):
@@ -301,7 +290,6 @@ async def test_a_zone_that_is_not_one_is_refused(
     assert response.json()["detail"] == "UNKNOWN_TIMEZONE"
 
 
-@pytest.mark.integration
 async def test_a_lifted_pin_is_still_in_its_own_month(
     client: AsyncClient, acting_user, session
 ):

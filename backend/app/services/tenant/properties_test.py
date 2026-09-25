@@ -52,8 +52,6 @@ def _make_definition(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_validate_text_accepts_string(session: AsyncSession):
     defn = _make_definition(PropertyType.text)
     cols = await _validate_value_for_type(session, defn, "hello", initiative_id=1)
@@ -61,8 +59,6 @@ async def test_validate_text_accepts_string(session: AsyncSession):
     assert cols["value_number"] is None
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_validate_text_rejects_non_string(session: AsyncSession):
     defn = _make_definition(PropertyType.text)
     with pytest.raises(HTTPException) as exc_info:
@@ -76,8 +72,6 @@ async def test_validate_text_rejects_non_string(session: AsyncSession):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_validate_number_accepts_int_float_and_string(
     session: AsyncSession,
 ):
@@ -93,8 +87,6 @@ async def test_validate_number_accepts_int_float_and_string(
     assert cols_str["value_number"] == Decimal("42.0")
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_validate_number_rejects_non_numeric(session: AsyncSession):
     defn = _make_definition(PropertyType.number)
     with pytest.raises(HTTPException) as exc_info:
@@ -107,8 +99,6 @@ async def test_validate_number_rejects_non_numeric(session: AsyncSession):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_validate_checkbox_accepts_bool(session: AsyncSession):
     defn = _make_definition(PropertyType.checkbox)
     cols = await _validate_value_for_type(session, defn, True, initiative_id=1)
@@ -120,8 +110,6 @@ async def test_validate_checkbox_accepts_bool(session: AsyncSession):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_validate_date_accepts_iso_string(session: AsyncSession):
     defn = _make_definition(PropertyType.date)
     cols = await _validate_value_for_type(session, defn, "2026-04-22", initiative_id=1)
@@ -133,8 +121,6 @@ async def test_validate_date_accepts_iso_string(session: AsyncSession):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_validate_datetime_accepts_iso_with_tz(session: AsyncSession):
     defn = _make_definition(PropertyType.datetime)
     cols = await _validate_value_for_type(
@@ -149,8 +135,6 @@ async def test_validate_datetime_accepts_iso_with_tz(session: AsyncSession):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_validate_url_accepts_http_https(session: AsyncSession):
     defn = _make_definition(PropertyType.url)
 
@@ -159,8 +143,6 @@ async def test_validate_url_accepts_http_https(session: AsyncSession):
         assert cols["value_text"] == ok_url
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_validate_empty_values_are_attached_but_empty(session: AsyncSession):
     """``None``, blank strings, and empty lists yield all-None columns.
 
@@ -196,8 +178,6 @@ async def test_validate_empty_values_are_attached_but_empty(session: AsyncSessio
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_validate_select_slug_in_options(session: AsyncSession):
     defn = _make_definition(
         PropertyType.select,
@@ -207,8 +187,6 @@ async def test_validate_select_slug_in_options(session: AsyncSession):
     assert cols["value_text"] == "live"
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_validate_select_rejects_unknown_slug(session: AsyncSession):
     defn = _make_definition(
         PropertyType.select,
@@ -224,8 +202,6 @@ async def test_validate_select_rejects_unknown_slug(session: AsyncSession):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_validate_multi_select_all_slugs_valid_and_deduped(
     session: AsyncSession,
 ):
@@ -242,8 +218,6 @@ async def test_validate_multi_select_all_slugs_valid_and_deduped(
     assert cols["value_json"] == ["a", "b"]
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_validate_multi_select_rejects_unknown_slug(
     session: AsyncSession,
 ):
@@ -261,8 +235,6 @@ async def test_validate_multi_select_rejects_unknown_slug(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_validate_user_reference_accepts_initiative_member(
     session: AsyncSession,
 ):
@@ -280,8 +252,6 @@ async def test_validate_user_reference_accepts_initiative_member(
     assert cols["value_user_id"] == user.id
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_validate_user_reference_rejects_non_member(
     session: AsyncSession,
 ):
@@ -305,8 +275,6 @@ async def test_validate_user_reference_rejects_non_member(
     assert exc_info.value.detail == "PROPERTY_USER_NOT_IN_INITIATIVE"
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_validate_user_reference_accepts_explicit_initiative_member(
     session: AsyncSession,
 ):
@@ -328,8 +296,6 @@ async def test_validate_user_reference_accepts_explicit_initiative_member(
     assert cols["value_user_id"] == teammate.id
 
 
-@pytest.mark.unit
-@pytest.mark.service
 @pytest.mark.parametrize(
     ("prop_type", "bad"),
     [
@@ -359,13 +325,11 @@ async def test_validate_value_rejects_a_value_of_the_wrong_shape(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
 def test_parse_property_filters_empty_input_returns_empty_list():
     assert parse_property_filters(None) == []
     assert parse_property_filters("") == []
 
 
-@pytest.mark.unit
 def test_parse_property_filters_well_formed_input():
     raw = '[{"property_id": 5, "op": "eq", "value": "x"}]'
     parsed = parse_property_filters(raw)
@@ -375,13 +339,11 @@ def test_parse_property_filters_well_formed_input():
     assert parsed[0].value == "x"
 
 
-@pytest.mark.unit
 def test_parse_property_filters_invalid_json_raises():
     with pytest.raises(ValueError):
         parse_property_filters("not-json")
 
 
-@pytest.mark.unit
 def test_parse_property_filters_caps_at_max():
     raw = (
         "["
@@ -395,26 +357,22 @@ def test_parse_property_filters_caps_at_max():
         parse_property_filters(raw)
 
 
-@pytest.mark.unit
 def test_parse_property_filters_missing_property_id_raises():
     with pytest.raises(ValueError):
         parse_property_filters('[{"op": "eq", "value": "x"}]')
 
 
-@pytest.mark.unit
 def test_parse_property_filters_unknown_op_raises():
     with pytest.raises(ValueError):
         parse_property_filters('[{"property_id": 1, "op": "weird", "value": "x"}]')
 
 
-@pytest.mark.unit
 def test_parse_property_filters_defaults_op_to_eq():
     """op defaults to ``eq`` when omitted."""
     parsed = parse_property_filters('[{"property_id": 1, "value": "x"}]')
     assert parsed[0].op == FilterOp.eq
 
 
-@pytest.mark.unit
 def test_parse_property_filters_is_null_defaults_value_to_true():
     """Omitting ``value`` on an is_null filter means "is empty" (True)."""
     parsed = parse_property_filters('[{"property_id": 1, "op": "is_null"}]')
@@ -422,7 +380,6 @@ def test_parse_property_filters_is_null_defaults_value_to_true():
     assert parsed[0].value is True
 
 
-@pytest.mark.unit
 def test_parse_property_filters_is_null_preserves_explicit_booleans():
     parsed_true = parse_property_filters(
         '[{"property_id": 1, "op": "is_null", "value": true}]'
@@ -434,7 +391,6 @@ def test_parse_property_filters_is_null_preserves_explicit_booleans():
     assert parsed_false[0].value is False
 
 
-@pytest.mark.unit
 def test_parse_property_filters_is_null_rejects_non_bool_value():
     """Non-bool values on is_null raise rather than silently coerce."""
     with pytest.raises(ValueError, match="must be a boolean"):

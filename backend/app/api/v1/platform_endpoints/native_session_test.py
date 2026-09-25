@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -23,7 +22,6 @@ from app.models.platform.user_token import UserToken, UserTokenPurpose
 from app.services.platform import user_tokens
 from app.testing import create_user, emitted
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 PASSWORD = "testpassword123"
 

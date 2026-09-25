@@ -24,8 +24,6 @@ from app.testing import (
     route_as,
 )
 
-pytestmark = pytest.mark.database
-
 
 async def _access(
     session: AsyncSession, initiative_id: int | None, user_id: int, write: bool = False

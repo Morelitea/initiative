@@ -215,7 +215,6 @@ async def _freeze(session, guild) -> None:
 # ── Every tool resolves sharing through the same engine ──────────────────────
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("tool", ALL_TOOLS, ids=lambda t: t.value)
 async def test_every_tool_resolves_sharing_through_one_engine(
     session, role_session, acting_user, tool: Tool
@@ -276,7 +275,6 @@ async def test_every_tool_resolves_sharing_through_one_engine(
 # ── How a grant resolves ─────────────────────────────────────────────────────
 
 
-@pytest.mark.integration
 async def test_a_role_grant_elevates_over_a_users_own(
     session, role_session, acting_user
 ):
@@ -296,7 +294,6 @@ async def test_a_role_grant_elevates_over_a_users_own(
     assert compute_permission(row, context=context) == "write"
 
 
-@pytest.mark.integration
 async def test_general_access_covers_the_initiatives_members_only(
     session, role_session, acting_user
 ):
@@ -314,7 +311,6 @@ async def test_general_access_covers_the_initiatives_members_only(
     assert row is None
 
 
-@pytest.mark.integration
 async def test_membership_alone_grants_nothing(session, role_session, acting_user):
     """The gate is an AND-layer: being in the initiative is not access to its
     resources."""
@@ -324,7 +320,6 @@ async def test_membership_alone_grants_nothing(session, role_session, acting_use
     assert row is None
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("tool", ALL_TOOLS, ids=lambda t: t.value)
 async def test_a_grant_left_behind_after_removal_reaches_nothing(
     session, role_session, acting_user, reading_as, tool: Tool
@@ -357,7 +352,6 @@ async def test_a_grant_left_behind_after_removal_reaches_nothing(
     )
 
 
-@pytest.mark.integration
 async def test_write_holders_follow_the_level(session, role_session, acting_user):
     """Who may be assigned a project's tasks is who holds write on it, asked of
     the roster and the grant rows together."""
@@ -385,7 +379,6 @@ async def test_write_holders_follow_the_level(session, role_session, acting_user
 # ── The overrides that sit above sharing ─────────────────────────────────────
 
 
-@pytest.mark.integration
 async def test_a_guild_admin_bypasses_the_scope_gate(
     session, role_session, acting_user
 ):
@@ -415,7 +408,6 @@ def test_a_standing_for_another_community_is_never_read_back():
     assert db_session.guild_context(_Session({"guild_id": 9, "context": held})) is None
 
 
-@pytest.mark.integration
 async def test_a_platform_owner_holds_no_standing_bypass(
     session, role_session, acting_user
 ):
@@ -430,7 +422,6 @@ async def test_a_platform_owner_holds_no_standing_bypass(
     assert row is None
 
 
-@pytest.mark.integration
 async def test_a_frozen_guild_caps_everyone_at_read(session, role_session, acting_user):
     """A read_only guild caps the level the client sees and refuses every write
     — before the level is read, so full authority does not clear the hold.
@@ -632,7 +623,6 @@ class _Row:
         self.initiative_id = initiative_id
 
 
-@pytest.mark.integration
 async def test_the_audience_is_exactly_who_the_database_admits(
     session, role_session, acting_user
 ):

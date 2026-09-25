@@ -24,7 +24,6 @@ from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserRole
 from app.testing import create_guild, create_guild_membership, create_user, route_as
 
-pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 # The columns an account holder alone writes.
 # The address columns left ``users`` with H3; what stays here is the one

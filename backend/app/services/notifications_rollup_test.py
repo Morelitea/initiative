@@ -7,7 +7,6 @@ reaching channels rather than twenty.
 
 from unittest.mock import AsyncMock, patch
 
-import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -44,7 +43,6 @@ async def _lines(session: AsyncSession, user_id: int) -> list[Notification]:
     return [row[0] if isinstance(row, tuple) else row for row in rows]
 
 
-@pytest.mark.unit
 def test_a_second_comment_extends_the_line():
     first = _rolled_up_comment(None, commenter_name="ana", commenter_id=1)
     assert first["comment_count"] == 1
@@ -56,7 +54,6 @@ def test_a_second_comment_extends_the_line():
     assert second["commenter_count"] == 2
 
 
-@pytest.mark.unit
 def test_the_same_person_twice_is_one_commenter_and_two_comments():
     first = _rolled_up_comment(None, commenter_name="ana", commenter_id=1)
     again = _rolled_up_comment(first, commenter_name="ana", commenter_id=1)
@@ -65,7 +62,6 @@ def test_the_same_person_twice_is_one_commenter_and_two_comments():
     assert [c["name"] for c in again["commenters"]] == ["ana"]
 
 
-@pytest.mark.unit
 def test_the_roster_is_bounded_but_the_count_is_not():
     rolled = _rolled_up_comment(None, commenter_name="p0", commenter_id=0)
     for i in range(1, MAX_ROLLED_UP_COMMENTERS + 5):
@@ -74,7 +70,6 @@ def test_the_roster_is_bounded_but_the_count_is_not():
     assert len(rolled["commenters"]) == MAX_ROLLED_UP_COMMENTERS
 
 
-@pytest.mark.integration
 async def test_many_comments_on_one_task_are_one_line(session: AsyncSession):
     owner = await create_user(session, email="rollup-owner@example.com")
     talkers = [
@@ -97,7 +92,6 @@ async def test_many_comments_on_one_task_are_one_line(session: AsyncSession):
     assert email.await_count == 1
 
 
-@pytest.mark.integration
 async def test_a_different_task_gets_its_own_line(session: AsyncSession):
     owner = await create_user(session, email="rollup-two-tasks@example.com")
     talker = await create_user(session, email="rollup-two-talker@example.com")
@@ -110,7 +104,6 @@ async def test_a_different_task_gets_its_own_line(session: AsyncSession):
     assert len(await _lines(session, owner.id)) == 2
 
 
-@pytest.mark.integration
 async def test_reading_the_line_starts_a_fresh_one(session: AsyncSession):
     """Unread is the window, as it is everywhere else — once somebody has
     looked, the next comment is news again."""

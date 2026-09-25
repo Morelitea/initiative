@@ -7,7 +7,6 @@ service directly.
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from sqlmodel import select
 
 from app.core.tools import Tool
@@ -22,8 +21,6 @@ from app.testing import (
     create_user,
     route_session_to_guild,
 )
-
-pytestmark = pytest.mark.asyncio
 
 
 async def _mentions(user_id: int) -> list[Notification]:
@@ -48,7 +45,6 @@ async def _mention(client, actor, task_id: int, user) -> int:
     return posted.json()["id"]
 
 
-@pytest.mark.integration
 async def test_a_mention_reaches_only_people_the_project_is_shared_with(
     client, session, acting_user
 ):
@@ -99,7 +95,6 @@ async def test_a_mention_reaches_only_people_the_project_is_shared_with(
     assert places.json()["places"] == []
 
 
-@pytest.mark.integration
 async def test_a_mention_of_somebody_outside_the_community_tells_nobody(
     client, session, acting_user
 ):
@@ -117,7 +112,6 @@ async def test_a_mention_of_somebody_outside_the_community_tells_nobody(
     assert await _mentions(stranger.id) == []
 
 
-@pytest.mark.integration
 async def test_a_community_admin_is_among_the_readers(session, acting_user):
     owner = await acting_user(
         guild_role=GuildRole.member, initiative=True, project=True
@@ -136,7 +130,6 @@ async def test_a_community_admin_is_among_the_readers(session, acting_user):
     assert owner.user.id in subject.shared_with
 
 
-@pytest.mark.integration
 async def test_repeated_document_mentions_fold_into_one_line(
     client, session, acting_user
 ):
@@ -163,7 +156,6 @@ async def test_repeated_document_mentions_fold_into_one_line(
     assert lines[0].data["comment_count"] == 3
 
 
-@pytest.mark.integration
 async def test_read_notifications_are_kept_thirty_days_and_unread_forever(session):
     from app.db.session import SystemSessionLocal
 

@@ -52,7 +52,6 @@ async def _create_file_document(
     )
 
 
-@pytest.mark.integration
 async def test_create_refuses_when_documents_are_switched_off(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -74,7 +73,6 @@ async def test_create_refuses_when_documents_are_switched_off(
     assert response.json()["detail"] == "DOCUMENTS_NOT_ENABLED"
 
 
-@pytest.mark.integration
 async def test_a_guild_admin_does_not_list_documents_of_a_switched_off_initiative(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -97,7 +95,6 @@ async def test_a_guild_admin_does_not_list_documents_of_a_switched_off_initiativ
     assert listed.json()["items"] == []
 
 
-@pytest.mark.integration
 async def test_create_document_with_permissions(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -149,7 +146,6 @@ async def test_create_document_with_permissions(
     assert role_grants[0]["level"] == "read"
 
 
-@pytest.mark.integration
 async def test_create_document_defaults_to_all_members_viewer(
     client: AsyncClient, acting_user
 ):
@@ -180,7 +176,6 @@ async def test_create_document_defaults_to_all_members_viewer(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_duplicate_is_held_to_create_and_keeps_the_sources_sharing(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -227,7 +222,6 @@ async def test_duplicate_is_held_to_create_and_keeps_the_sources_sharing(
     assert again.json()["detail"] == "DOCUMENT_NAME_ALREADY_EXISTS"
 
 
-@pytest.mark.integration
 async def test_copy_template_with_read_only_access(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -276,7 +270,6 @@ async def test_copy_template_with_read_only_access(
     assert template.name == "Project Kickoff Template"
 
 
-@pytest.mark.integration
 async def test_copy_non_template_still_requires_write_access(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -310,7 +303,6 @@ async def test_copy_non_template_still_requires_write_access(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_download_owner_can_download(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -328,7 +320,6 @@ async def test_download_owner_can_download(
     assert response.headers.get("x-content-type-options") == "nosniff"
 
 
-@pytest.mark.integration
 async def test_download_unauthenticated_returns_401(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -342,7 +333,6 @@ async def test_download_unauthenticated_returns_401(
     assert response.status_code == 401
 
 
-@pytest.mark.integration
 async def test_download_guild_member_without_permission_returns_403(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -367,7 +357,6 @@ async def test_download_guild_member_without_permission_returns_403(
     assert response.status_code == 403
 
 
-@pytest.mark.integration
 async def test_version_download_answers_like_the_file_download(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -398,7 +387,6 @@ async def test_version_download_answers_like_the_file_download(
     assert stored.status_code == current.status_code
 
 
-@pytest.mark.integration
 async def test_download_non_guild_member_returns_404(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -418,7 +406,6 @@ async def test_download_non_guild_member_returns_404(
     assert response.status_code == 404
 
 
-@pytest.mark.integration
 async def test_download_read_permission_grants_access(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -442,7 +429,6 @@ async def test_download_read_permission_grants_access(
     assert response.status_code == 200
 
 
-@pytest.mark.integration
 async def test_download_inline_returns_no_attachment_header(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -460,7 +446,6 @@ async def test_download_inline_returns_no_attachment_header(
     assert "attachment" not in response.headers.get("content-disposition", "")
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("filename", ["dl_inline.html", "dl_inline.svg"])
 async def test_download_inline_html_svg_is_same_origin_framable_but_scriptless(
     client: AsyncClient, session: AsyncSession, acting_user, filename: str
@@ -485,7 +470,6 @@ async def test_download_inline_html_svg_is_same_origin_framable_but_scriptless(
     assert "attachment" not in response.headers.get("content-disposition", "")
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("filename", ["dl_attach.html", "dl_attach.svg"])
 async def test_download_non_inline_html_svg_keeps_global_deny(
     client: AsyncClient, session: AsyncSession, acting_user, filename: str
@@ -508,7 +492,6 @@ async def test_download_non_inline_html_svg_keeps_global_deny(
     assert "frame-ancestors" not in csp
 
 
-@pytest.mark.integration
 async def test_download_native_document_returns_404(
     client: AsyncClient, acting_user
 ) -> None:
@@ -529,7 +512,6 @@ async def test_download_native_document_returns_404(
     assert response.status_code == 404
 
 
-@pytest.mark.integration
 async def test_update_content_clears_yjs_state(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -580,7 +562,6 @@ async def test_update_content_clears_yjs_state(
     assert doc.yjs_state is None
 
 
-@pytest.mark.integration
 async def test_create_whiteboard_document(client: AsyncClient, acting_user) -> None:
     """POST /documents/ with document_type='whiteboard' creates a whiteboard doc.
 
@@ -644,7 +625,6 @@ def test_normalize_native_still_injects_root() -> None:
     assert isinstance(result["root"], dict)
 
 
-@pytest.mark.integration
 async def test_create_smart_link_document(client: AsyncClient, acting_user) -> None:
     """POST /documents/ with document_type='smart_link' stores only the URL."""
     owner = await acting_user(guild_role=GuildRole.member, initiative=True)
@@ -665,7 +645,6 @@ async def test_create_smart_link_document(client: AsyncClient, acting_user) -> N
     assert body["content"] == {"url": "https://www.figma.com/design/abc/Example"}
 
 
-@pytest.mark.integration
 async def test_create_smart_link_rejects_missing_url(
     client: AsyncClient, acting_user
 ) -> None:
@@ -685,7 +664,6 @@ async def test_create_smart_link_rejects_missing_url(
     assert response.json()["detail"] == "DOCUMENT_SMART_LINK_URL_REQUIRED"
 
 
-@pytest.mark.integration
 async def test_create_smart_link_rejects_non_http_url(
     client: AsyncClient, acting_user
 ) -> None:
@@ -757,7 +735,6 @@ def test_document_content_error_is_value_error() -> None:
     assert exc.code == "SOME_CODE"
 
 
-@pytest.mark.integration
 async def test_list_documents_filters_by_ids(client: AsyncClient, session, acting_user):
     """``ids`` narrows the listing to the requested documents so callers can
     hydrate a known set without walking the whole collection."""
@@ -779,7 +756,6 @@ async def test_list_documents_filters_by_ids(client: AsyncClient, session, actin
     assert other.id not in {item["id"] for item in data["items"]}
 
 
-@pytest.mark.integration
 async def test_list_documents_ids_filter_respects_visibility(
     client: AsyncClient, session, acting_user
 ):
@@ -805,7 +781,6 @@ async def test_list_documents_ids_filter_respects_visibility(
     assert response.json()["items"] == []
 
 
-@pytest.mark.integration
 async def test_list_documents_filters_by_template_and_type(
     client: AsyncClient, session, acting_user
 ):
@@ -855,7 +830,6 @@ async def test_list_documents_filters_by_template_and_type(
     assert [item["id"] for item in response.json()["items"]] == [plain.id]
 
 
-@pytest.mark.integration
 async def test_document_counts_filter_by_template_and_type(
     client: AsyncClient, session, acting_user
 ):
@@ -902,7 +876,6 @@ async def test_document_counts_filter_by_template_and_type(
     assert response.json()["total_count"] == 2
 
 
-@pytest.mark.integration
 async def test_list_documents_rejects_too_many_ids(client: AsyncClient, acting_user):
     actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
@@ -916,7 +889,6 @@ async def test_list_documents_rejects_too_many_ids(client: AsyncClient, acting_u
     assert response.json()["detail"] == "DOCUMENT_TOO_MANY_IDS"
 
 
-@pytest.mark.integration
 async def test_document_counts_by_initiative(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -986,7 +958,6 @@ async def test_reading_a_document_can_leave_the_body_out(
     assert body["updated_at"] == full.json()["updated_at"]
 
 
-@pytest.mark.integration
 async def test_a_content_patch_against_a_live_document_is_refused(
     client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
 ) -> None:
@@ -1018,7 +989,6 @@ async def test_a_content_patch_against_a_live_document_is_refused(
     assert doc.content == original
 
 
-@pytest.mark.integration
 async def test_a_live_document_can_still_be_renamed(
     client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
 ) -> None:

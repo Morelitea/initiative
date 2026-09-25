@@ -31,8 +31,6 @@ from app.testing.app_clients import (
     lift_person_and_guild_ids,
 )
 
-pytestmark = pytest.mark.integration
-
 
 async def _document(client: Any, session: Any, installed: Any, headers: dict) -> int:
     created = await client.post(

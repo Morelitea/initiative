@@ -49,7 +49,6 @@ async def _just_signed_in(session: AsyncSession, user: User) -> dict[str, str]:
     }
 
 
-@pytest.mark.integration
 async def test_an_account_in_no_guild_lists_nothing(
     client: AsyncClient, acting_user
 ) -> None:
@@ -62,7 +61,6 @@ async def test_an_account_in_no_guild_lists_nothing(
     assert response.json() == []
 
 
-@pytest.mark.integration
 async def test_the_guild_list_is_the_callers_memberships_with_their_roles(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -103,7 +101,6 @@ ADMIN_ONLY_GUILD_FIELDS = (
 )
 
 
-@pytest.mark.integration
 async def test_list_guilds_administration_fields_are_admin_only(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -148,7 +145,6 @@ async def test_list_guilds_administration_fields_are_admin_only(
     assert admin_row["auth_options"] == ["providers", "restrictions"]
 
 
-@pytest.mark.integration
 async def test_accepting_an_invite_answers_with_the_member_tier_guild(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -180,7 +176,6 @@ async def test_accepting_an_invite_answers_with_the_member_tier_guild(
         assert body[field] is None, f"{field} must not reach a plain member"
 
 
-@pytest.mark.integration
 async def test_creating_a_guild_seats_its_creator_and_leaves_the_icon_unset(
     client: AsyncClient, acting_user
 ):
@@ -202,7 +197,6 @@ async def test_creating_a_guild_seats_its_creator_and_leaves_the_icon_unset(
     assert data["icon_url"] is None
 
 
-@pytest.mark.integration
 async def test_create_guild_requires_name(client: AsyncClient, acting_user):
     """Test that creating a guild requires a name."""
     a = await acting_user("member")
@@ -230,7 +224,6 @@ def billed(monkeypatch):
     monkeypatch.setattr(config_module.settings, "BILLING_HMAC_SECRET", "a-secret")
 
 
-@pytest.mark.integration
 async def test_a_second_free_community_is_refused_before_it_is_made(
     client: AsyncClient, session: AsyncSession, acting_user, billed
 ):
@@ -258,7 +251,6 @@ async def test_a_second_free_community_is_refused_before_it_is_made(
     assert made == []
 
 
-@pytest.mark.integration
 async def test_a_paid_community_does_not_use_up_the_free_one(
     client: AsyncClient, session: AsyncSession, acting_user, billed
 ):
@@ -286,7 +278,6 @@ async def test_a_paid_community_does_not_use_up_the_free_one(
     assert free.status_code == 201, free.text
 
 
-@pytest.mark.integration
 async def test_a_deployment_without_billing_never_counts_communities(
     client: AsyncClient, acting_user
 ):
@@ -300,7 +291,6 @@ async def test_a_deployment_without_billing_never_counts_communities(
         assert created.status_code == 201, created.text
 
 
-@pytest.mark.integration
 async def test_staff_standing_a_community_up_for_somebody_are_not_refused(
     client: AsyncClient, acting_user, billed
 ):
@@ -327,7 +317,6 @@ async def test_staff_standing_a_community_up_for_somebody_are_not_refused(
 # --- creating a guild for another account ----------------------------------
 
 
-@pytest.mark.integration
 async def test_creating_a_guild_for_another_account_seats_them_and_records_both(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -356,7 +345,6 @@ async def test_creating_a_guild_for_another_account_seats_them_and_records_both(
     ]
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "for_another_account",
     [False, True],
@@ -389,7 +377,6 @@ async def test_a_new_guild_is_created_with_no_initiatives(
     assert (await session.exec(select(InitiativeMember))).all() == []
 
 
-@pytest.mark.integration
 async def test_an_ordinary_user_cannot_name_another_owner(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -410,7 +397,6 @@ async def test_an_ordinary_user_cannot_name_another_owner(
     ).all() == []
 
 
-@pytest.mark.integration
 async def test_naming_yourself_needs_no_capability(client: AsyncClient, acting_user):
     """The field is about handing a guild to someone else; spelling out your
     own id is the ordinary path."""
@@ -426,7 +412,6 @@ async def test_naming_yourself_needs_no_capability(client: AsyncClient, acting_u
     assert response.json()["role"] == "superadmin"
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "owner_id_of",
     ["missing", "deactivated"],
@@ -454,7 +439,6 @@ async def test_an_unusable_owner_is_refused(
     assert response.json()["detail"] == "GUILD_OWNER_NOT_FOUND"
 
 
-@pytest.mark.integration
 async def test_update_guild_as_admin(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -474,7 +458,6 @@ async def test_update_guild_as_admin(
     assert data["description"] == "New description"
 
 
-@pytest.mark.integration
 async def test_an_ordinary_admin_cannot_delete_the_community(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -496,7 +479,6 @@ async def test_an_ordinary_admin_cannot_delete_the_community(
     assert refused.status_code == 403, refused.text
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "password,confirmation,expected_status,expected_detail",
     [
@@ -549,7 +531,6 @@ async def test_deleting_a_guild_asks_for_the_password_and_the_phrase(
         assert response.json()["detail"] == expected_detail
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "credential", ["federated identity", "passkey"], ids=["SSO", "passkey"]
 )
@@ -589,7 +570,6 @@ async def test_an_admin_holding_no_password_confirms_with_a_recent_sign_in(
     assert response.status_code == 204, response.text
 
 
-@pytest.mark.integration
 async def test_delete_guild_linked_admin_holding_a_password_is_asked_for_it(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -613,7 +593,6 @@ async def test_delete_guild_linked_admin_holding_a_password_is_asked_for_it(
     assert response.json()["detail"] == "GUILD_INVALID_PASSWORD"
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "role", ["member", "support", "moderator", "operator", "owner"]
 )
@@ -647,7 +626,6 @@ async def test_reorder_guilds(
     assert [g["id"] for g in listing.json()] == wanted
 
 
-@pytest.mark.integration
 async def test_create_guild_invite_as_admin(client: AsyncClient, acting_user):
     """An admin mints an invite, with a use count and an expiry it chooses."""
     admin = await acting_user(guild_role=GuildRole.admin)
@@ -676,7 +654,6 @@ async def test_create_guild_invite_as_admin(client: AsyncClient, acting_user):
     assert data["invitee_email"] == "i***e@e***m"
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "max_users,extra_members,expected_status",
     [
@@ -712,7 +689,6 @@ async def test_minting_an_invite_respects_the_seat_cap(
         assert response.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
 
 
-@pytest.mark.integration
 async def test_an_admin_lists_and_revokes_the_guilds_invites(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -743,7 +719,6 @@ async def test_an_admin_lists_and_revokes_the_guilds_invites(
     assert [row["id"] for row in remaining.json()] == [invites[1].id]
 
 
-@pytest.mark.integration
 async def test_get_invite_status_valid(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -769,7 +744,6 @@ async def test_get_invite_status_valid(
     assert data["uses"] == 0
 
 
-@pytest.mark.integration
 async def test_get_invite_status_invalid_code(client: AsyncClient):
     """Test getting status of invalid invite code."""
     response = await client.get("/api/v1/communities/invite/invalidcode123")
@@ -780,7 +754,6 @@ async def test_get_invite_status_invalid_code(client: AsyncClient):
     assert data["reason"] is not None
 
 
-@pytest.mark.integration
 async def test_accept_invite_blocked_when_guild_full(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -809,7 +782,6 @@ async def test_accept_invite_blocked_when_guild_full(
     assert response.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "kind,expected_detail",
     [
@@ -942,7 +914,6 @@ async def guild_gate_world(session: AsyncSession, acting_user, monkeypatch):
     }
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "method,path,body,actor_kind,expected_status", list(_gate_cases())
 )
@@ -972,7 +943,6 @@ async def test_each_guild_surface_answers_by_what_the_caller_holds(
 # --- Billing-portal handoff endpoint --------------------------------------
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "billing_url,clear_signing_key,expected_status,expected_detail",
     [
@@ -1017,7 +987,6 @@ async def test_the_billing_handoff_needs_a_portal_and_a_signing_key(
     assert response.json()["detail"] == expected_detail
 
 
-@pytest.mark.integration
 async def test_guild_billing_handoff_succeeds_for_admin(
     client: AsyncClient, acting_user, monkeypatch, handoff_signing_key
 ):
@@ -1051,7 +1020,6 @@ async def test_guild_billing_handoff_succeeds_for_admin(
 # --- Leave guild: the seat a community keeps ------------------------------
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "leaver_role,other_roles,can_leave,expected_status,expected_detail",
     [
@@ -1116,7 +1084,6 @@ async def test_a_departure_is_counted_against_the_communitys_last_seat(
         assert response.json()["detail"] == expected_detail
 
 
-@pytest.mark.integration
 async def test_a_second_seat_frees_the_first(client: AsyncClient, acting_user):
     """Two seats, so either may go; the one left behind then stays."""
     first = await acting_user(guild_role=GuildRole.superadmin)
@@ -1135,7 +1102,6 @@ async def test_a_second_seat_frees_the_first(client: AsyncClient, acting_user):
     assert refused.json()["detail"] == "CANNOT_VACATE_LAST_SUPERADMIN"
 
 
-@pytest.mark.integration
 async def test_leaving_takes_the_lock_before_it_counts_anyone(
     client: AsyncClient, acting_user, monkeypatch
 ):

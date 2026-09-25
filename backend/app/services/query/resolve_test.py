@@ -41,8 +41,6 @@ SUPPORTED_CALLS = (
     "now()",
 )
 
-pytestmark = pytest.mark.unit
-
 
 def refusal(sql: str) -> str:
     with pytest.raises(QueryError) as caught:

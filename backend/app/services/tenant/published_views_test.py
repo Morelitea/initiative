@@ -9,7 +9,6 @@ has it.
 
 from __future__ import annotations
 
-import pytest
 from sqlmodel import select
 
 from app.core.messages import DashboardMessages
@@ -18,8 +17,6 @@ from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserStatus
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.testing import create_project, create_task
-
-pytestmark = pytest.mark.integration
 
 
 COUNT_TASKS = "SELECT count(*) AS n FROM tasks"

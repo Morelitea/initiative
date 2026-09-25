@@ -31,8 +31,6 @@ from app.testing import (
     route_session_to_guild,
 )
 
-pytestmark = pytest.mark.integration
-
 
 async def _board(session: AsyncSession):
     """An author, a reader who shares their initiative, that initiative with

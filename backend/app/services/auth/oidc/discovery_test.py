@@ -17,7 +17,6 @@ from app.services.auth.oidc.discovery import (
     OidcDiscovery,
 )
 
-pytestmark = pytest.mark.unit
 
 ISSUER = "https://idp.example.com"
 

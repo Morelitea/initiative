@@ -26,7 +26,6 @@ OUTBOX_SCAN_MIGRATION = (
     / "20260921_0346_the_poller_scans_the_log_as_the_system.py"
 )
 
-pytestmark = pytest.mark.integration
 
 _EXPECTED_OUTBOX_SCAN_COLUMN_GRANTS = {
     ("event_outbox", "id", "SELECT"),

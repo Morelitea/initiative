@@ -34,7 +34,6 @@ from app.testing import (
     route_as,
 )
 
-pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 GUILD_FLOORS = ("app_guild_base", "app_guild_base_ro")
 PLATFORM_FLOOR = f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
@@ -115,7 +114,6 @@ async def _two_guilds(session):
     return person, one, two
 
 
-@pytest.mark.unit
 def test_the_registry_gives_the_guild_floor_none_of_them():
     for table in PER_PERSON:
         assert SHARED_TABLE_APP_GUILD_BASE_GRANTS[table] is None, table

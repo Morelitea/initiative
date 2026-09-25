@@ -116,7 +116,6 @@ async def _seed_populated_project(session: AsyncSession):
     return owner, assignee, guild, initiative, project
 
 
-@pytest.mark.integration
 async def test_round_trip_into_different_initiative(session: AsyncSession):
     (
         owner,
@@ -208,7 +207,6 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
     assert pv.property_definition.initiative_id == target_initiative.id
 
 
-@pytest.mark.integration
 async def test_property_type_collision_renames(session: AsyncSession):
     (
         owner,
@@ -253,7 +251,6 @@ async def test_property_type_collision_renames(session: AsyncSession):
     assert renamed.type == PropertyType.select
 
 
-@pytest.mark.integration
 async def test_property_options_mismatch_renames(session: AsyncSession):
     """Same name + type but different option values → treat as collision
     and rename. Reusing the existing definition would silently store
@@ -307,7 +304,6 @@ async def test_property_options_mismatch_renames(session: AsyncSession):
     assert {o["value"] for o in (renamed.options or [])} == {"low", "high"}
 
 
-@pytest.mark.integration
 async def test_property_options_label_only_difference_matches(session: AsyncSession):
     """Labels are cosmetic; same value set with different labels still
     counts as a match (no rename, no new definition)."""
@@ -344,7 +340,6 @@ async def test_property_options_label_only_difference_matches(session: AsyncSess
     assert result.property_match_count == 1
 
 
-@pytest.mark.integration
 async def test_unmatched_assignees_reported(session: AsyncSession):
     (
         owner,
@@ -370,7 +365,6 @@ async def test_unmatched_assignees_reported(session: AsyncSession):
     assert result.assignee_unmatched_handles == [handle_of(assignee)]
 
 
-@pytest.mark.integration
 async def test_schema_version_unsupported_rejected(session: AsyncSession):
     owner = await create_user(session)
     guild = await create_guild(session)
@@ -415,7 +409,6 @@ async def test_schema_version_unsupported_rejected(session: AsyncSession):
     assert excinfo.value.detail == "PROJECT_EXPORT_SCHEMA_VERSION_UNSUPPORTED"
 
 
-@pytest.mark.integration
 async def test_a_thread_survives_the_round_trip(session: AsyncSession):
     """A reply is exported naming the comment it answers, and restored
     under the copy of that comment."""
@@ -456,7 +449,6 @@ async def test_a_thread_survives_the_round_trip(session: AsyncSession):
     assert restored["Answer"].parent_comment_id == restored["Question"].id
 
 
-@pytest.mark.integration
 async def test_a_status_with_no_look_gets_its_categorys(session: AsyncSession):
     """Another tool's columns arrive with a name and a category only; each
     looks like its category rather than every one like the backlog."""

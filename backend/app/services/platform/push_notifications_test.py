@@ -9,7 +9,6 @@ registered channels together.
 import re
 from pathlib import Path
 
-import pytest
 from sqlalchemy import text
 from sqlmodel import select
 
@@ -65,7 +64,6 @@ _IN_APP_ONLY = {
 }
 
 
-@pytest.mark.unit
 def test_every_pushed_notification_type_has_a_channel():
     """A new notification type that pushes must pick a channel. Defaulting is
     silent — the notification still arrives, just filed under "General" where
@@ -73,14 +71,12 @@ def test_every_pushed_notification_type_has_a_channel():
     assert set(PUSH_CHANNELS) == set(NotificationType) - _IN_APP_ONLY
 
 
-@pytest.mark.unit
 def test_in_app_only_types_fall_back_to_the_general_channel():
     for notification_type in _IN_APP_ONLY:
         assert channel_for(notification_type) == DEFAULT_CHANNEL
     assert channel_for(None) == DEFAULT_CHANNEL
 
 
-@pytest.mark.unit
 def test_channels_are_registered_by_the_android_app():
     """Every channel the backend routes to must be one the app creates on
     launch. A channel id the app never created is not an error anywhere — the
@@ -102,7 +98,6 @@ def test_channels_are_registered_by_the_android_app():
     )
 
 
-@pytest.mark.unit
 def test_the_manifest_falls_back_to_a_channel_the_app_creates():
     """The web bundle updates over the air; channels ship with the APK.
 
@@ -144,8 +139,6 @@ async def _reset_role(session) -> None:
     await session.exec(text("SELECT set_config('role', 'none', false)"))
 
 
-@pytest.mark.integration
-@pytest.mark.database
 async def test_delivery_reads_stamps_and_prunes_on_the_system_engine(
     session, monkeypatch
 ):

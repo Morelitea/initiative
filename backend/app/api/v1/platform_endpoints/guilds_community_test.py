@@ -99,7 +99,6 @@ async def _membership_of(
     ).one_or_none()
 
 
-@pytest.mark.integration
 async def test_directory_lists_only_opted_in_guilds(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -118,7 +117,6 @@ async def test_directory_lists_only_opted_in_guilds(
     assert [item["name"] for item in data["items"]] == ["Open Table"]
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "condition",
     ["suspended", "frozen", "one seat"],
@@ -150,7 +148,6 @@ async def test_the_directory_re_checks_a_listed_guild_before_offering_it(
     assert response.json() == {"items": [], "total": 0}
 
 
-@pytest.mark.integration
 async def test_directory_card_carries_only_published_fields(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -179,7 +176,6 @@ async def test_directory_card_carries_only_published_fields(
     assert "role" not in card
 
 
-@pytest.mark.integration
 async def test_directory_flags_guilds_the_caller_is_already_in(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -199,7 +195,6 @@ async def test_directory_flags_guilds_the_caller_is_already_in(
     }
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "query,expected_status,expected_names",
     [
@@ -249,7 +244,6 @@ async def test_the_directory_narrows_to_what_was_asked_for(
         )
 
 
-@pytest.mark.integration
 async def test_directory_lists_the_busiest_guilds_first(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -271,7 +265,6 @@ async def test_directory_lists_the_busiest_guilds_first(
     assert [item["member_count"] for item in items] == [3, 0]
 
 
-@pytest.mark.integration
 async def test_directory_searches_every_guild_not_only_a_loaded_page(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -296,7 +289,6 @@ async def test_directory_searches_every_guild_not_only_a_loaded_page(
     assert body["total"] == 1
 
 
-@pytest.mark.integration
 async def test_directory_paginates(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -317,14 +309,12 @@ async def test_directory_paginates(
     assert len(second.json()["items"]) == 1
 
 
-@pytest.mark.integration
 async def test_directory_requires_authentication(client: AsyncClient):
     response = await client.get("/api/v1/communities/directory")
 
     assert response.status_code == 401
 
 
-@pytest.mark.integration
 async def test_joining_a_listed_guild_needs_no_invite_and_repeats_harmlessly(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -352,7 +342,6 @@ async def test_joining_a_listed_guild_needs_no_invite_and_repeats_harmlessly(
     assert [m.role for m in memberships] == [GuildRole.member]
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "condition,expected_detail",
     [
@@ -397,7 +386,6 @@ async def test_a_guild_the_directory_would_not_show_cannot_be_joined(
         )
 
 
-@pytest.mark.integration
 async def test_join_respects_the_member_cap(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -420,7 +408,6 @@ async def test_join_respects_the_member_cap(
     assert response.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
 
 
-@pytest.mark.integration
 async def test_a_member_cannot_opt_the_guild_in(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -438,7 +425,6 @@ async def test_a_member_cannot_opt_the_guild_in(
     assert guild.is_community is False
 
 
-@pytest.mark.integration
 async def test_an_unknown_category_is_rejected(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -458,7 +444,6 @@ async def test_an_unknown_category_is_rejected(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_the_adult_content_declaration_starts_unanswered(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -523,7 +508,6 @@ REFUSED_LISTINGS = (
 )
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "guild_fields,listed_with,body,expected_detail", REFUSED_LISTINGS
 )
@@ -611,7 +595,6 @@ ACCEPTED_LISTINGS = (
 )
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("guild_fields,listed_with,body,expected", ACCEPTED_LISTINGS)
 async def test_an_accepted_listing_patch_is_stored_as_it_reads_back(
     client: AsyncClient,
@@ -654,7 +637,6 @@ async def _switch_directory_off(session: AsyncSession) -> None:
     )
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("surface", ["browsing", "joining", "listing itself"])
 async def test_every_directory_surface_is_refused_where_it_is_switched_off(
     client: AsyncClient, session: AsyncSession, acting_user, surface: str
@@ -696,7 +678,6 @@ async def test_every_directory_surface_is_refused_where_it_is_switched_off(
     assert guild.is_community is listed
 
 
-@pytest.mark.integration
 async def test_a_listed_guild_can_still_unlist_where_the_directory_is_off(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -716,7 +697,6 @@ async def test_a_listed_guild_can_still_unlist_where_the_directory_is_off(
     assert response.json()["is_community"] is False
 
 
-@pytest.mark.integration
 async def test_switching_the_directory_off_keeps_the_guilds_opt_in(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -758,7 +738,6 @@ async def _initiative_with_shared_project(
     return initiative, project
 
 
-@pytest.mark.integration
 async def test_community_join_enrols_in_auto_join_initiatives(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -815,7 +794,6 @@ async def test_community_join_enrols_in_auto_join_initiatives(
     assert rows[0].oidc_provider_id is None
 
 
-@pytest.mark.integration
 async def test_a_profile_names_only_the_listed_communities(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -841,7 +819,6 @@ async def test_a_profile_names_only_the_listed_communities(
     assert response.json()[0]["member_count"] >= 2
 
 
-@pytest.mark.integration
 async def test_a_profile_names_no_communities_where_the_directory_is_off(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

@@ -82,19 +82,16 @@ def _serve(monkeypatch, body=INDEX_BODY, *, fail: bool = False):
     return calls
 
 
-@pytest.mark.unit
 def test_a_self_hosted_deployment_has_no_terms(monkeypatch):
     """No portal, no legal entity behind the service, nothing to accept."""
     monkeypatch.setattr(settings, "BILLING_URL", None)
     assert legal_service.legal_documents_enabled() is False
 
 
-@pytest.mark.unit
 def test_a_portal_makes_it_hosted(hosted):
     assert legal_service.legal_documents_enabled() is True
 
 
-@pytest.mark.unit
 async def test_index_is_read_once_and_then_cached(hosted, monkeypatch):
     calls = _serve(monkeypatch)
 
@@ -106,7 +103,6 @@ async def test_index_is_read_once_and_then_cached(hosted, monkeypatch):
     assert len(calls) == 1
 
 
-@pytest.mark.unit
 async def test_a_portal_that_goes_down_keeps_answering_from_the_last_read(
     hosted, monkeypatch
 ):
@@ -119,14 +115,12 @@ async def test_a_portal_that_goes_down_keeps_answering_from_the_last_read(
     assert [d.version for d in still] == ["2.1", "1.4"]
 
 
-@pytest.mark.unit
 async def test_a_portal_that_was_never_reached_raises(hosted, monkeypatch):
     _serve(monkeypatch, fail=True)
     with pytest.raises(legal_service.LegalPortalUnavailable):
         await legal_service.get_index()
 
 
-@pytest.mark.integration
 async def test_nothing_is_recorded_on_a_self_hosted_deployment(session, monkeypatch):
     monkeypatch.setattr(settings, "BILLING_URL", None)
     user = await create_user(session)
@@ -138,7 +132,6 @@ async def test_nothing_is_recorded_on_a_self_hosted_deployment(session, monkeypa
     assert await legal_service.acceptance_outstanding(session, user=user) is False
 
 
-@pytest.mark.integration
 async def test_acceptance_records_the_revision_that_was_current(
     session, hosted, monkeypatch
 ):
@@ -156,7 +149,6 @@ async def test_acceptance_records_the_revision_that_was_current(
     assert await legal_service.acceptance_outstanding(session, user=user) is False
 
 
-@pytest.mark.integration
 async def test_an_unreachable_portal_still_records_the_acceptance(
     session, hosted, monkeypatch
 ):
@@ -175,7 +167,6 @@ async def test_an_unreachable_portal_still_records_the_acceptance(
     assert await legal_service.acceptance_outstanding(session, user=user) is False
 
 
-@pytest.mark.integration
 async def test_a_half_finished_record_still_owes_the_rest(session, hosted, monkeypatch):
     _serve(monkeypatch)
     user = await create_user(session)
@@ -185,7 +176,6 @@ async def test_a_half_finished_record_still_owes_the_rest(session, hosted, monke
     assert await legal_service.acceptance_outstanding(session, user=user) is True
 
 
-@pytest.mark.integration
 async def test_a_document_nobody_asked_for_does_not_settle_the_debt(
     session, hosted, monkeypatch
 ):
@@ -199,7 +189,6 @@ async def test_a_document_nobody_asked_for_does_not_settle_the_debt(
     assert await legal_service.acceptance_outstanding(session, user=user) is True
 
 
-@pytest.mark.integration
 async def test_a_newer_revision_does_not_interrupt_somebody_already_here(
     session, hosted, monkeypatch
 ):

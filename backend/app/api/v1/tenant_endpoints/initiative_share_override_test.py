@@ -9,7 +9,6 @@ guild admin joining an initiative lands on it. See
 history/initiative-admin-override-design.md.
 """
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -74,7 +73,6 @@ async def _setup(session: AsyncSession, acting_user):
 # ── The built-in roles as created ────────────────────────────────────────────
 
 
-@pytest.mark.integration
 async def test_moderator_holds_full_access_and_project_manager_does_not(
     session: AsyncSession, acting_user
 ):
@@ -91,7 +89,6 @@ async def test_moderator_holds_full_access_and_project_manager_does_not(
     assert pm_role.override_share_restrictions is False
 
 
-@pytest.mark.integration
 async def test_guild_admin_joins_an_initiative_as_moderator(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -126,7 +123,6 @@ async def test_guild_admin_joins_an_initiative_as_moderator(
 # ── Enforcement: end-to-end through the API (integration) ────────────────────
 
 
-@pytest.mark.integration
 async def test_moderator_reaches_restricted_content(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -190,7 +186,6 @@ async def test_moderator_reaches_restricted_content(
 # ── Who may hand out the role ────────────────────────────────────────────────
 
 
-@pytest.mark.integration
 async def test_only_a_guild_admin_puts_a_member_on_the_moderator_role(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -228,7 +223,6 @@ async def test_only_a_guild_admin_puts_a_member_on_the_moderator_role(
     assert (await _role_of(session, initiative, joiner.user)).name == "moderator"
 
 
-@pytest.mark.integration
 async def test_moderator_permissions_are_not_editable(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

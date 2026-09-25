@@ -23,7 +23,6 @@ from app.testing.factories import (
 )
 from app.testing.oidc import ISSUER, FakeIdp
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 OPERATOR_BASE = "/api/v1/settings/auth/providers"
 

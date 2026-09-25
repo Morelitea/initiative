@@ -8,7 +8,6 @@ seen.
 
 from datetime import datetime, timezone
 
-import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.notification import NotificationType
@@ -30,7 +29,6 @@ async def _line(session: AsyncSession, user_id: int, *, guild_id: int, **data):
     )
 
 
-@pytest.mark.integration
 class TestRefreshNotification:
     async def test_news_returns_a_read_line_to_the_top_and_to_unread(
         self, session: AsyncSession
@@ -60,7 +58,6 @@ class TestRefreshNotification:
         assert line.read_at == read_at
 
 
-@pytest.mark.integration
 async def test_find_unread_by_data_matches_every_key(session: AsyncSession):
     """The match is what decides which line a reaction joins, so a near miss on
     any one key must start a new line rather than land on the wrong comment."""

@@ -228,7 +228,6 @@ def test_every_route_that_names_a_scope_is_an_actor_route():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_an_install_reads_people_and_its_community_by_reference(
     client, session, acting_user, role_session
 ):
@@ -260,7 +259,6 @@ async def test_an_install_reads_people_and_its_community_by_reference(
     )
 
 
-@pytest.mark.integration
 async def test_the_same_person_is_called_the_same_thing_every_time(
     client, session, acting_user, role_session
 ):
@@ -274,7 +272,6 @@ async def test_the_same_person_is_called_the_same_thing_every_time(
     assert first.json() == second.json()
 
 
-@pytest.mark.integration
 async def test_a_second_install_sees_different_references(
     client, session, acting_user, role_session
 ):
@@ -301,7 +298,6 @@ async def test_a_second_install_sees_different_references(
     assert {p["id"] for p in a["people"]}.isdisjoint(p["id"] for p in b["people"])
 
 
-@pytest.mark.integration
 async def test_a_person_reads_row_ids_unchanged(client, session, acting_user):
     a = await acting_user(guild_role=GuildRole.member, initiative=True)
     _state["people"] = [a.user.id]
@@ -317,7 +313,6 @@ async def test_a_person_reads_row_ids_unchanged(client, session, acting_user):
     }
 
 
-@pytest.mark.integration
 async def test_an_install_is_refused_a_json_response_the_route_built(
     client, session, acting_user, role_session
 ):
@@ -344,7 +339,6 @@ async def _refs_for(client, installed) -> dict[str, Any]:
     return response.json()
 
 
-@pytest.mark.integration
 async def test_an_install_names_people_by_reference(
     client, session, acting_user, role_session
 ):
@@ -370,7 +364,6 @@ async def test_an_install_names_people_by_reference(
     assert response.json() == {"guild_id": known["guild_id"], "assignees": refs}
 
 
-@pytest.mark.integration
 async def test_a_person_names_people_by_row_id(client, session, acting_user):
     a = await acting_user(guild_role=GuildRole.member, initiative=True)
 
@@ -386,7 +379,6 @@ async def test_a_person_names_people_by_row_id(client, session, acting_user):
     assert response.json() == {"guild_id": a.guild.id, "assignees": [a.user.id]}
 
 
-@pytest.mark.integration
 async def test_what_the_install_does_not_hold_is_unprocessable(
     client, session, acting_user, role_session
 ):
@@ -419,7 +411,6 @@ async def test_what_the_install_does_not_hold_is_unprocessable(
     assert "received" not in _state
 
 
-@pytest.mark.integration
 async def test_a_replaced_reference_resolves_for_its_grace_window(
     client, session, acting_user, role_session
 ):
@@ -452,7 +443,6 @@ async def test_a_replaced_reference_resolves_for_its_grace_window(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_naming_three_people_costs_no_statement_of_its_own(
     client, session, acting_user, role_session
 ):
@@ -476,7 +466,6 @@ async def test_naming_three_people_costs_no_statement_of_its_own(
     assert len(statements) == 2, statements
 
 
-@pytest.mark.integration
 async def test_a_response_mints_once_on_a_cold_cache_and_not_on_a_warm_one(
     client, session, acting_user, role_session
 ):

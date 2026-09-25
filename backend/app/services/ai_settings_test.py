@@ -23,7 +23,6 @@ from app.services.ai_settings import (
 )
 
 
-@pytest.mark.unit
 def test_allow_private_only_for_platform_ollama():
     assert _allow_private_for(AIProvider.ollama, "platform") is True
     # Every other combination is public-only.
@@ -33,7 +32,6 @@ def test_allow_private_only_for_platform_ollama():
     assert _allow_private_for(AIProvider.custom, "guild") is False
 
 
-@pytest.mark.unit
 async def test_guild_ollama_private_base_url_rejected():
     """A guild admin can never persist a private/internal target."""
     with pytest.raises(HTTPException) as exc:
@@ -44,7 +42,6 @@ async def test_guild_ollama_private_base_url_rejected():
     assert exc.value.detail == AIMessages.INVALID_BASE_URL
 
 
-@pytest.mark.unit
 async def test_platform_custom_private_base_url_rejected():
     """Even the operator gets the guard for a custom connection — only Ollama is
     exempt at platform scope."""
@@ -54,7 +51,6 @@ async def test_platform_custom_private_base_url_rejected():
         )
 
 
-@pytest.mark.unit
 async def test_platform_ollama_private_base_url_allowed():
     """The one permitted private egress: an operator Ollama connection."""
     # Should not raise.
@@ -63,12 +59,10 @@ async def test_platform_ollama_private_base_url_allowed():
     )
 
 
-@pytest.mark.unit
 async def test_no_base_url_is_allowed():
     await _validate_connection_base_url(AIProvider.openai, None, "platform")
 
 
-@pytest.mark.unit
 async def test_list_ollama_models_threads_allow_private(monkeypatch):
     captured: dict = {}
 
@@ -93,7 +87,6 @@ async def test_list_ollama_models_threads_allow_private(monkeypatch):
     assert captured["url"].endswith("/api/tags")
 
 
-@pytest.mark.unit
 async def test_list_custom_models_rejects_private_when_not_allowed(monkeypatch):
     # Real pinned egress: a private literal IP with allow_private=False is
     # refused before any network call.
@@ -136,7 +129,6 @@ def _stub_catalog(monkeypatch, catalog: list[dict[str, str]]) -> None:
     monkeypatch.setattr(ai_settings, "request_public_target", fake_request)
 
 
-@pytest.mark.unit
 async def test_list_custom_models_returns_whole_catalog(monkeypatch):
     # Gateways like OpenRouter list hundreds of models; a short cap would hide
     # most of them from the selector and from the probe's membership check.
@@ -149,14 +141,12 @@ async def test_list_custom_models_returns_whole_catalog(monkeypatch):
     assert "vendor/model-399" in models
 
 
-@pytest.mark.unit
 async def test_probe_accepts_model_beyond_the_first_page(monkeypatch):
     _stub_catalog(monkeypatch, _openai_compatible_catalog(400))
     result = await ai_settings._probe(_custom_conn("vendor/model-114"), "key")
     assert result.success is True
 
 
-@pytest.mark.unit
 async def test_probe_reports_a_model_the_catalog_does_not_have(monkeypatch):
     _stub_catalog(monkeypatch, _openai_compatible_catalog(400))
     result = await ai_settings._probe(_custom_conn("vendor/nope"), "key")
@@ -164,7 +154,6 @@ async def test_probe_reports_a_model_the_catalog_does_not_have(monkeypatch):
     assert "not found" in result.message
 
 
-@pytest.mark.unit
 async def test_probe_does_not_reject_against_a_truncated_catalog(monkeypatch):
     # At the cap the listing is known-incomplete, so absence proves nothing.
     _stub_catalog(
@@ -174,7 +163,6 @@ async def test_probe_does_not_reject_against_a_truncated_catalog(monkeypatch):
     assert result.success is True
 
 
-@pytest.mark.unit
 async def test_list_anthropic_models_requests_a_full_page(monkeypatch):
     captured: dict = {}
 

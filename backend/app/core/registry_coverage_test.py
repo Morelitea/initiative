@@ -31,7 +31,6 @@ from app.core.tools import Tool
 from app.services.marketplace.definitions import KIND_AUDIENCE, LISTING_KINDS
 from app.services.tenant.reactions import TARGET_RESOLVERS
 
-pytestmark = pytest.mark.unit
 
 #: (what it is, the hand-written table, the canonical source it answers for)
 REGISTRIES: list[tuple[str, Any, Any]] = [

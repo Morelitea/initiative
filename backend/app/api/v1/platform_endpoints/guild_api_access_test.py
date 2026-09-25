@@ -20,8 +20,6 @@ from app.testing.factories import (
     get_auth_headers,
 )
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
-
 
 async def _key_headers(client: AsyncClient, headers: dict, **body) -> dict[str, str]:
     """Mint a key for the caller and return the headers that present it."""

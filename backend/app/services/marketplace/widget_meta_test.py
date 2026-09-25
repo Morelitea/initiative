@@ -22,7 +22,6 @@ from app.services.marketplace.widget_meta import (
     validate_widget_meta,
 )
 
-pytestmark = pytest.mark.unit
 
 # backend/app/services/marketplace/<this file> -> repo root
 _REPO_ROOT = Path(__file__).resolve().parents[4]

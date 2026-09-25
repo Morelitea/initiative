@@ -10,8 +10,6 @@ from app.services.import_engine import confluence_attachments as ca
 from app.services.import_engine.contract import ImportEngineError
 from app.services.import_engine.jira_attachments import AssetBudget
 
-pytestmark = pytest.mark.unit
-
 
 def attachment(att_id, filename, media_type, size=10):
     return ca.PageAttachment(

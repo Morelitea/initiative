@@ -9,7 +9,6 @@ These read the projection through the request-path role rather than the
 superuser-backed ``session`` fixture, which answers for a role nothing runs as.
 """
 
-import pytest
 from sqlmodel import select
 
 from app.db.session import set_rls_context
@@ -17,8 +16,6 @@ from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
 from app.testing.factories import create_guild, create_guild_membership, create_user
 from app.testing import route_as
-
-pytestmark = pytest.mark.integration
 
 
 async def _name_read_in(role_session, *, user, guild):

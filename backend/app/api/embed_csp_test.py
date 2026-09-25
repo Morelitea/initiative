@@ -7,7 +7,6 @@ operator's kill switch — on the registration or on its publisher — is the th
 that takes an origin back out of it.
 """
 
-import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.embed_csp import app_frame_policy
@@ -152,7 +151,6 @@ class TestThePolicy:
         assert await app_frame_policy() == _ordinary_policy()
 
 
-@pytest.mark.unit
 def test_the_ordinary_policy_frames_no_app():
     """What the middleware puts on every response that is not a document."""
     assert "example.test" not in _directive(_ordinary_policy(), "frame-src")

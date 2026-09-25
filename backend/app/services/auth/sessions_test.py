@@ -12,14 +12,11 @@ import hashlib
 import uuid
 from datetime import datetime, timedelta, timezone
 
-import pytest
 
 from app.models.platform.auth_session import AuthSession
 from app.services.auth import sessions as session_service
 from app.services.auth.sessions import RefreshOutcome
 from app.testing import create_user
-
-pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 
 def _at(*, days: int = 0, minutes: int = 0) -> datetime:

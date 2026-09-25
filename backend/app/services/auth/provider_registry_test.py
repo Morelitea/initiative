@@ -13,7 +13,6 @@ from app.db.errors import UNIQUE_VIOLATION_SQLSTATE
 from app.schemas.platform.settings import AuthProviderCreate
 from app.services.auth import provider_registry
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 PROVIDER_IN = AuthProviderCreate(
     slug="corp",

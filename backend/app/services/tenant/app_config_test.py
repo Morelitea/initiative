@@ -31,8 +31,6 @@ from app.services.tenant.app_config import (
     runs_vendor_flow,
 )
 
-pytestmark = pytest.mark.unit
-
 
 def _field(key: str, field_type: str, **extra) -> dict:
     return {"key": key, "type": field_type, "label": {"en": key}, **extra}

@@ -26,7 +26,6 @@ def _row(emoji: str, user_id: int) -> Reaction:
     )
 
 
-@pytest.mark.unit
 class TestSummarize:
     def test_groups_by_emoji_in_first_reacted_order(self):
         rows = [_row(PARTY, 1), _row(THUMBS, 2), _row(PARTY, 3)]
@@ -52,7 +51,6 @@ class TestSummarize:
         assert len(group.users) <= MAX_NAMED_REACTORS
 
 
-@pytest.mark.unit
 class TestEmojiRule:
     @pytest.mark.parametrize("emoji", list(SUGGESTED_EMOJI))
     def test_every_suggested_emoji_validates(self, emoji):

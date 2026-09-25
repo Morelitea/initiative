@@ -9,7 +9,6 @@ import json
 from typing import Any
 from pathlib import Path
 
-import pytest
 
 from app.core.messages import QueryMessages
 from app.db.session import rls_context_params
@@ -18,8 +17,6 @@ from app.services.fields.spec import FieldType
 from app.services.marketplace import builtin
 from app.services.tenant.dashboard_definition import WIDGET_SPECS
 from app.testing import create_initiative_member, create_project, create_task
-
-pytestmark = pytest.mark.integration
 
 
 async def test_a_member_can_run_a_query(client, acting_user):
@@ -617,7 +614,6 @@ class TestAskingAboutTheReader:
         assert response.json()["detail"] == QueryMessages.RESERVED_NAME
 
 
-@pytest.mark.integration
 async def test_a_trashed_task_is_not_in_the_answer(client, acting_user, session):
     """The trash is a place to recover from, not rows to report on.
 
@@ -657,7 +653,6 @@ async def test_a_trashed_task_is_not_in_the_answer(client, acting_user, session)
     assert listed.json()["rows"] == [["kept"]]
 
 
-@pytest.mark.integration
 async def test_the_trash_is_still_reachable_where_it_is_managed(
     client, acting_user, session
 ):

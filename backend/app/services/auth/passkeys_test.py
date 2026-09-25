@@ -103,7 +103,6 @@ def test_an_app_url_naming_no_host_is_refused(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_a_stored_credential_records_the_domain_it_was_made_under(
     session, monkeypatch
 ):
@@ -121,7 +120,6 @@ async def test_a_stored_credential_records_the_domain_it_was_made_under(
     assert row.rp_id == "first.example.org"
 
 
-@pytest.mark.integration
 async def test_a_stored_credential_keeps_what_the_ceremony_reported(
     session, monkeypatch
 ):
@@ -142,7 +140,6 @@ async def test_a_stored_credential_keeps_what_the_ceremony_reported(
     assert row.transports == ["internal", "hybrid"]
 
 
-@pytest.mark.integration
 async def test_a_name_longer_than_the_column_is_cut_not_refused(session, monkeypatch):
     from app.core.config import settings
 
@@ -155,7 +152,6 @@ async def test_a_name_longer_than_the_column_is_cut_not_refused(session, monkeyp
     assert len(row.name) == passkeys.MAX_NAME_LENGTH
 
 
-@pytest.mark.integration
 async def test_two_registrations_racing_for_the_last_slot_cannot_both_win(
     session, engine, monkeypatch
 ):
@@ -202,7 +198,6 @@ async def test_two_registrations_racing_for_the_last_slot_cannot_both_win(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_registration_excludes_what_the_account_already_holds(
     session, monkeypatch
 ):
@@ -224,7 +219,6 @@ async def test_registration_excludes_what_the_account_already_holds(
     assert len(ceremony.challenge) >= 16
 
 
-@pytest.mark.integration
 async def test_signing_in_may_start_without_naming_an_account(session, monkeypatch):
     """No allow-list is what lets somebody sign in without typing who they are:
     the authenticator offers what it holds and the assertion names it."""
@@ -236,7 +230,6 @@ async def test_signing_in_may_start_without_naming_an_account(session, monkeypat
     assert not ceremony.options.get("allowCredentials")
 
 
-@pytest.mark.integration
 async def test_answering_for_one_account_offers_only_its_own(session, monkeypatch):
     from app.core.config import settings
 
@@ -255,7 +248,6 @@ async def test_answering_for_one_account_offers_only_its_own(session, monkeypatc
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_a_credential_nobody_registered_does_not_answer(session, monkeypatch):
     from app.core.config import settings
 
@@ -271,7 +263,6 @@ async def test_a_credential_nobody_registered_does_not_answer(session, monkeypat
     assert result.passkey is None
 
 
-@pytest.mark.integration
 async def test_a_credential_from_another_domain_does_not_answer(session, monkeypatch):
     """The whole reason the domain is on the row. It is refused before any
     signature is checked, so the answer can be about the domain."""
@@ -296,7 +287,6 @@ async def test_a_credential_from_another_domain_does_not_answer(session, monkeyp
     assert result.passkey.user_id == user.id
 
 
-@pytest.mark.integration
 async def test_the_counter_row_stays_locked_until_the_update_commits(
     session, engine, monkeypatch
 ):
@@ -348,7 +338,6 @@ async def test_the_counter_row_stays_locked_until_the_update_commits(
     assert seen_counts == [10, 11]
 
 
-@pytest.mark.integration
 async def test_a_malformed_credential_id_does_not_raise(session, monkeypatch):
     from app.core.config import settings
 
@@ -361,7 +350,6 @@ async def test_a_malformed_credential_id_does_not_raise(session, monkeypatch):
     assert result.passkey is None
 
 
-@pytest.mark.integration
 async def test_an_assertion_that_does_not_verify_names_its_credential(
     session, monkeypatch
 ):
@@ -392,7 +380,6 @@ async def test_an_assertion_that_does_not_verify_names_its_credential(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_a_passkey_belongs_to_one_account(session, monkeypatch):
     """Rename and remove are refused for somebody else's, rather than reporting
     a row that is not theirs to know about."""
@@ -426,7 +413,6 @@ async def test_a_passkey_belongs_to_one_account(session, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_both_ceremonies_ask_for_the_person(session, monkeypatch):
     """A PIN, a fingerprint or a face, not merely the device — at registration
     and at every sign-in, so an assertion stands for both."""
@@ -472,7 +458,6 @@ def test_the_registration_check_insists_on_it(monkeypatch):
     assert seen["require_user_verification"] is True
 
 
-@pytest.mark.integration
 async def test_the_assertion_check_insists_on_it(session, monkeypatch):
     from app.core.config import settings
 

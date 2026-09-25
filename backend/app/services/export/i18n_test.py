@@ -3,11 +3,9 @@
 import json
 from pathlib import Path
 
-import pytest
 
 from app.services.export.i18n import et, export_locale
 
-pytestmark = pytest.mark.unit
 
 _LOCALES_DIR = Path(__file__).resolve().parents[2] / "locales"
 _LOCALES = ("en", "de", "es", "fr")

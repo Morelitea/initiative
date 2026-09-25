@@ -29,7 +29,6 @@ from app.testing.app_clients import (
     lift_person_and_guild_ids,
 )
 
-pytestmark = pytest.mark.integration
 
 SHARE = ["projects:write", "sharing:write", "members:read", "initiatives:read"]
 

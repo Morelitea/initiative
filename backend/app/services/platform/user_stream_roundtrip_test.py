@@ -42,7 +42,6 @@ async def _wait_for(predicate, timeout: float = 5.0) -> bool:
     return False
 
 
-@pytest.mark.integration
 async def test_a_frame_crosses_between_two_connections(monkeypatch) -> None:
     stream = UserStream()
     monkeypatch.setattr(user_stream, "stream", stream)
@@ -88,7 +87,6 @@ async def test_a_frame_crosses_between_two_connections(monkeypatch) -> None:
         await bus.stop()
 
 
-@pytest.mark.integration
 async def test_our_own_publish_does_not_come_back_around(monkeypatch) -> None:
     """The dedupe, end to end: publish delivers locally exactly once.
 
@@ -119,7 +117,6 @@ async def test_our_own_publish_does_not_come_back_around(monkeypatch) -> None:
         await bus.stop()
 
 
-@pytest.mark.integration
 async def test_a_burst_of_frames_all_reach_the_bus(monkeypatch) -> None:
     """The fan-out shape: many frames published at once, none lost.
 
@@ -155,7 +152,6 @@ async def test_a_burst_of_frames_all_reach_the_bus(monkeypatch) -> None:
         await bus.stop()
 
 
-@pytest.mark.integration
 async def test_a_community_listing_reaches_every_member_on_another_worker(
     monkeypatch,
 ) -> None:

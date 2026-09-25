@@ -14,8 +14,6 @@ from app.models.platform.user_email import UserEmail
 from app.models.platform.user import User
 from app.services.platform import guilds as guilds_service
 
-pytestmark = pytest.mark.database
-
 
 async def test_init_owner_cleans_up_when_guild_seed_fails(engine, monkeypatch):
     """A guild-seed failure during first-boot superuser init must undo the
@@ -65,7 +63,6 @@ async def test_init_owner_cleans_up_when_guild_seed_fails(engine, monkeypatch):
         assert guilds_after == guilds_before, "the primary guild must be removed too"
 
 
-@pytest.mark.unit
 def test_stamp_this_image_lacks_is_refused_with_instructions():
     """A database stamped ahead of the image stops the boot with a message.
 
@@ -86,7 +83,6 @@ def test_stamp_this_image_lacks_is_refused_with_instructions():
     assert said.count(head) == 1
 
 
-@pytest.mark.unit
 def test_stamp_this_image_has_passes():
     """The ordinary upgrade — every stamped revision is in the chain."""
     revisions, head = init_db.migration_chain()
@@ -94,7 +90,6 @@ def test_stamp_this_image_has_passes():
     assert init_db._require_image_knows(sorted(revisions)[:5]) is None
 
 
-@pytest.mark.unit
 def test_unreadable_chain_is_left_to_alembic(monkeypatch):
     """Nothing to compare against is not evidence the database is ahead."""
     monkeypatch.setattr(init_db, "migration_chain", lambda: (frozenset(), None))

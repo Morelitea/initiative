@@ -29,7 +29,6 @@ from app.testing import (
     route_session_to_guild,
 )
 
-pytestmark = pytest.mark.integration
 
 _DEFINITION = {"app_kind": "service", "service": {"public_id": "tests.owner-app"}}
 _WRITES_PROJECTS = ["projects:write"]

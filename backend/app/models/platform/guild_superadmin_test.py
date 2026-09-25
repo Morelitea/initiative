@@ -22,8 +22,6 @@ from app.models.platform.guild import (
     assignable_roles,
 )
 
-pytestmark = pytest.mark.unit
-
 
 def test_a_superadmin_carries_an_admins_authority():
     assert GuildRole.superadmin.reaches(GuildRole.admin)

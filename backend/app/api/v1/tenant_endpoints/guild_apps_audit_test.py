@@ -26,7 +26,6 @@ from app.testing import (
     marketplace_uid,
 )
 
-pytestmark = pytest.mark.integration
 
 CALENDAR_APP_UID = marketplace_uid("auditcalendar")
 UPGRADE_APP_UID = marketplace_uid("auditupgrade")

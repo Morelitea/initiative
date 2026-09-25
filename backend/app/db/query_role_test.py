@@ -16,7 +16,6 @@ from app.db.schema_provisioning import (
     provision_guild_schema,
 )
 
-pytestmark = pytest.mark.database
 
 _GID = 990_140
 _GID_OTHER = 990_141

@@ -9,7 +9,6 @@ a wall re-reads.
 
 import io
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -18,8 +17,6 @@ from app.services.content_sockets import sockets
 from app.testing.sockets import FakeWebSocket, settle, watch_events_bus
 from app.services.tenant import room_sink
 from app.testing import create_gallery, create_gallery_image, create_tag, png_bytes
-
-pytestmark = pytest.mark.integration
 
 
 async def _galleries_enabled(session: AsyncSession, initiative) -> None:
@@ -60,7 +57,6 @@ class _Room:
         ]
 
 
-@pytest.mark.asyncio
 async def test_a_picture_arriving_tells_the_room_about_its_gallery(
     client: AsyncClient, acting_user, session
 ):
@@ -90,7 +86,6 @@ async def test_a_picture_arriving_tells_the_room_about_its_gallery(
         )
 
 
-@pytest.mark.asyncio
 async def test_retagging_and_removing_a_picture_each_tell_the_room(
     client: AsyncClient, acting_user, session
 ):
@@ -123,7 +118,6 @@ async def test_retagging_and_removing_a_picture_each_tell_the_room(
         )
 
 
-@pytest.mark.asyncio
 async def test_a_comment_on_a_gallery_names_it_as_the_parent(
     client: AsyncClient, acting_user, session
 ):

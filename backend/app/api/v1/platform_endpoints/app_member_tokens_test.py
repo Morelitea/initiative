@@ -158,7 +158,6 @@ async def _consent_id(client, member, installed) -> int:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_a_request_notifies_the_member_once_and_repeats_as_it_stands(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -202,7 +201,6 @@ async def test_a_request_notifies_the_member_once_and_repeats_as_it_stands(
     assert other.status_code == 201, other.text
 
 
-@pytest.mark.integration
 async def test_a_request_names_a_member_by_this_install_s_reference(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -222,7 +220,6 @@ async def test_a_request_names_a_member_by_this_install_s_reference(
     assert response.json()["detail"] == AppMessages.REFERENCE_UNKNOWN
 
 
-@pytest.mark.integration
 async def test_a_request_is_bound_only_where_the_install_and_token_reach(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -253,7 +250,6 @@ async def test_a_request_is_bound_only_where_the_install_and_token_reach(
     assert within.status_code == 201, within.text
 
 
-@pytest.mark.integration
 async def test_a_request_bound_to_an_initiative_names_a_member_of_it(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -274,7 +270,6 @@ async def test_a_request_bound_to_an_initiative_names_a_member_of_it(
     assert app_wide.status_code == 201, app_wide.text
 
 
-@pytest.mark.integration
 async def test_a_member_token_cannot_ask(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -296,7 +291,6 @@ async def test_a_member_token_cannot_ask(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_the_member_answers_and_nobody_else_sees_it(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -347,7 +341,6 @@ async def test_the_member_answers_and_nobody_else_sees_it(
     assert listed.json()[0]["status"] == "revoked"
 
 
-@pytest.mark.integration
 async def test_an_api_key_cannot_answer(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -374,7 +367,6 @@ async def test_an_api_key_cannot_answer(
     assert response.json()["detail"] == "SESSION_REQUIRED"
 
 
-@pytest.mark.integration
 async def test_the_seat_revokes_every_answer_at_once(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -404,7 +396,6 @@ async def test_the_seat_revokes_every_answer_at_once(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_a_member_token_waits_for_the_answer(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -448,7 +439,6 @@ async def test_a_member_token_waits_for_the_answer(
     assert read.json() == {"member": member.user.id, "documents": ["Theirs"]}
 
 
-@pytest.mark.integration
 async def test_a_consent_bound_to_an_initiative_issues_only_narrowed_tokens(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -483,7 +473,6 @@ async def test_a_consent_bound_to_an_initiative_issues_only_narrowed_tokens(
     assert token.initiative_id == installed.placed.id
 
 
-@pytest.mark.integration
 async def test_leaving_the_initiative_or_revoking_stops_the_member_token(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -534,7 +523,6 @@ async def test_leaving_the_initiative_or_revoking_stops_the_member_token(
     assert after_revoking.status_code == 401
 
 
-@pytest.mark.integration
 async def test_the_member_grant_is_its_own_client_authentication(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -589,7 +577,6 @@ def limits_on(client, monkeypatch):
     limiter.reset()
 
 
-@pytest.mark.integration
 async def test_new_requests_of_one_member_are_limited_and_repeats_are_not(
     client: AsyncClient, session: AsyncSession, acting_user, role_session, limits_on
 ):
@@ -631,7 +618,6 @@ async def test_new_requests_of_one_member_are_limited_and_repeats_are_not(
     assert len(notices) == 5
 
 
-@pytest.mark.integration
 async def test_an_install_is_limited_however_it_asks(
     client: AsyncClient,
     session: AsyncSession,

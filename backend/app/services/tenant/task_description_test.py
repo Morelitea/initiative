@@ -5,7 +5,6 @@ saved — create, edit, duplicate — and each has its own answer to "who hears
 about it".
 """
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -69,7 +68,6 @@ async def _workspace(acting_user, session: AsyncSession):
     return writer, teammate
 
 
-@pytest.mark.integration
 async def test_creating_a_task_tells_whoever_its_description_names(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -94,7 +92,6 @@ async def test_creating_a_task_tells_whoever_its_description_names(
     assert notice["target_path"] == f"/go/task/{task_id}"
 
 
-@pytest.mark.integration
 async def test_an_edit_tells_only_the_people_it_adds(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -128,7 +125,6 @@ async def test_an_edit_tells_only_the_people_it_adds(
     assert len(await _mentions_for(session, newcomer.user.id)) == 1
 
 
-@pytest.mark.integration
 async def test_nobody_outside_the_initiative_is_told(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -153,7 +149,6 @@ async def test_nobody_outside_the_initiative_is_told(
     assert await _mentions_for(session, outsider.id) == []
 
 
-@pytest.mark.integration
 async def test_naming_yourself_tells_nobody(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -175,7 +170,6 @@ async def test_naming_yourself_tells_nobody(
     assert await _mentions_for(session, writer.user.id) == []
 
 
-@pytest.mark.integration
 async def test_a_description_s_hash_becomes_the_task_s_reference(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -207,7 +201,6 @@ async def test_a_description_s_hash_becomes_the_task_s_reference(
     assert await _references(session, writer.guild.id, task.id) == set()
 
 
-@pytest.mark.integration
 async def test_a_duplicate_points_where_its_original_does_and_tells_nobody(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

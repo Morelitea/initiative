@@ -23,8 +23,6 @@ from app.services.query.build import (
     build,
 )
 
-pytestmark = pytest.mark.unit
-
 
 def build_and_resolve(spec: QuerySpec) -> tuple[str, ResolvedQuery]:
     """The statement, and proof that the surface will run it."""

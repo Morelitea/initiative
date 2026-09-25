@@ -5,8 +5,6 @@ ride it — the inbox and the account. What each frame *means* belongs to the
 channel that sends it.
 """
 
-import pytest
-
 from app.services.platform.user_stream import UserStream
 
 
@@ -32,7 +30,6 @@ class BrokenWebSocket(FakeWebSocket):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
 async def test_frame_reaches_every_tab_of_its_recipient() -> None:
     stream = UserStream()
     laptop, phone = FakeWebSocket(), FakeWebSocket()
@@ -45,7 +42,6 @@ async def test_frame_reaches_every_tab_of_its_recipient() -> None:
     assert phone.sent == [{"resource": "notification"}]
 
 
-@pytest.mark.unit
 async def test_frame_never_reaches_another_user() -> None:
     stream = UserStream()
     mine, theirs = FakeWebSocket(), FakeWebSocket()
@@ -58,7 +54,6 @@ async def test_frame_never_reaches_another_user() -> None:
     assert theirs.sent == []
 
 
-@pytest.mark.unit
 async def test_disconnect_drops_only_that_socket() -> None:
     stream = UserStream()
     laptop, phone = FakeWebSocket(), FakeWebSocket()
@@ -73,7 +68,6 @@ async def test_disconnect_drops_only_that_socket() -> None:
     assert len(stream._sockets.get(7, ())) == 1
 
 
-@pytest.mark.unit
 async def test_last_socket_leaving_empties_the_user() -> None:
     stream = UserStream()
     tab = FakeWebSocket()
@@ -86,7 +80,6 @@ async def test_last_socket_leaving_empties_the_user() -> None:
     assert len(stream._sockets.get(7, ())) == 0
 
 
-@pytest.mark.unit
 async def test_a_dead_socket_is_dropped_and_does_not_block_the_others() -> None:
     stream = UserStream()
     dead, alive = BrokenWebSocket(), FakeWebSocket()

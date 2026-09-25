@@ -11,7 +11,6 @@ JWT must never authenticate via the URL (SEC-12).
 import base64
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from httpx import AsyncClient
 from pycrdt import Doc, Text
 from sqlmodel import select
@@ -69,7 +68,6 @@ def _text_of(yjs_state: bytes) -> str:
     return str(doc.get("body", type=Text))
 
 
-@pytest.mark.integration
 async def test_collaboration_guild_admin_gets_full_access(
     session: AsyncSession, acting_user, role_session
 ) -> None:
@@ -98,7 +96,6 @@ async def test_collaboration_guild_admin_gets_full_access(
     )
 
 
-@pytest.mark.integration
 async def test_a_handover_merges_into_the_room_and_saves_both_views(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -122,7 +119,6 @@ async def test_a_handover_merges_into_the_room_and_saves_both_views(
     assert _text_of(saved.yjs_state) == "written offline"
 
 
-@pytest.mark.integration
 async def test_a_rendering_missing_the_rooms_edits_is_not_taken(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -152,7 +148,6 @@ async def test_a_rendering_missing_the_rooms_edits_is_not_taken(
     assert "from a peer." in merged and "offline" in merged
 
 
-@pytest.mark.integration
 async def test_a_wiki_page_takes_a_handover_too(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -176,7 +171,6 @@ async def test_a_wiki_page_takes_a_handover_too(
     assert _text_of(saved.yjs_state or b"") == "a page written offline"
 
 
-@pytest.mark.integration
 async def test_an_unreadable_update_is_refused(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -193,7 +187,6 @@ async def test_an_unreadable_update_is_refused(
     assert response.json()["detail"] == "DOCUMENT_COLLABORATION_UPDATE_INVALID"
 
 
-@pytest.mark.integration
 async def test_a_session_jwt_is_refused_in_the_query(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -210,7 +203,6 @@ async def test_a_session_jwt_is_refused_in_the_query(
     assert response.status_code == 401
 
 
-@pytest.mark.integration
 async def test_a_handover_answers_a_community_that_asks_for_a_passkey(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -245,7 +237,6 @@ async def test_a_handover_answers_a_community_that_asks_for_a_passkey(
     assert with_a_passkey.status_code == 204, with_a_passkey.text
 
 
-@pytest.mark.integration
 async def test_a_non_member_is_refused(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -282,7 +273,6 @@ async def _approved_grant(session, *, user, guild, owner, level: str) -> AccessG
     return grant
 
 
-@pytest.mark.integration
 async def test_a_break_glass_grantee_can_hand_over(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -304,7 +294,6 @@ async def test_a_break_glass_grantee_can_hand_over(
     assert response.status_code == 204, response.text
 
 
-@pytest.mark.integration
 async def test_a_read_grant_cannot_hand_over(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:

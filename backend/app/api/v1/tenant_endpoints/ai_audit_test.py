@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -19,7 +18,6 @@ from app.models.platform.guild import GuildRole
 from app.schemas.ai_settings import AIProvider, ConnectionScope, ResolvedAISettings
 from app.testing import create_document, create_task, emitted
 
-pytestmark = pytest.mark.integration
 
 CONNECTION_ID = 41
 
