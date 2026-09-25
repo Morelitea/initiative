@@ -12,13 +12,18 @@ from __future__ import annotations
 import pytest
 
 from app.db.bootstrap import (
+    _SEARCH_OPERATOR_STEPS,
     LoginRole,
     bootstrap_sql,
     login_roles,
-    search_operator_sql,
 )
 
 pytestmark = pytest.mark.unit
+
+
+def _search_operator_statements() -> tuple[str, ...]:
+    """The statements that install the guild-search match operator, in order."""
+    return tuple(statement for _label, statement in _SEARCH_OPERATOR_STEPS)
 
 
 def test_roles_come_from_the_connection_urls(monkeypatch):
@@ -113,14 +118,14 @@ def test_printed_sql_is_wrapped_in_one_transaction():
 def test_the_match_function_is_declared_leakproof():
     """Postgres accepts the attribute only from a superuser, and the planner
     needs it to use the index here."""
-    statements = search_operator_sql()
+    statements = _search_operator_statements()
     function = next(s for s in statements if "CREATE OR REPLACE FUNCTION" in s)
     assert "LEAKPROOF" in function
     assert "LANGUAGE plpgsql" in function
 
 
 def test_the_stock_operator_is_not_touched():
-    joined = "\n".join(search_operator_sql())
+    joined = "\n".join(_search_operator_statements())
     assert "public.@@@" in joined
     assert "CREATE OPERATOR pg_catalog" not in joined
 
@@ -347,7 +352,7 @@ def test_the_bootstrap_keeps_the_functions_it_installs():
     """
     from app.db.bootstrap import BOOTSTRAP_OWNED_FUNCTIONS
 
-    installed = "\n".join(search_operator_sql())
+    installed = "\n".join(_search_operator_statements())
     for name in BOOTSTRAP_OWNED_FUNCTIONS:
         assert f"public.{name}(" in installed, (
             f"{name} is excluded from the ownership handover but the bootstrap "

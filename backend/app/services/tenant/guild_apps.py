@@ -79,7 +79,6 @@ __all__ = [
     "find_mounting_app",
     "has_initiative_surfaces",
     "initiative_surface_ids",
-    "get_app_content_id",
     "install_app",
     "is_placed",
     "legacy_artifacts",
@@ -226,16 +225,6 @@ def app_artifacts(app: GuildApp) -> list[dict[str, Any]]:
     if artifacts:
         return artifacts
     return legacy_artifacts(app.definition or {}, app.config or {})
-
-
-def get_app_content_id(app: GuildApp) -> Optional[int]:
-    """The id of the first row this app created, if it created one.
-
-    A convenience for the single-artifact case the UI still links at; anything
-    walking everything an install produced wants :func:`app_artifacts`.
-    """
-    artifacts = app_artifacts(app)
-    return artifacts[0]["id"] if artifacts else None
 
 
 async def lock_install(session: AsyncSession, app_id: int) -> Optional[GuildApp]:

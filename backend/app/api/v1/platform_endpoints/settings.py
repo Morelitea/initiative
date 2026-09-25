@@ -10,8 +10,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import (
     SessionDep,
     UserSessionDep,
-    GuildContext,
-    require_guild_roles,
 )
 from app.api.v1.platform_endpoints.access_grants import check_second_factor
 from app.api.v1.platform_endpoints.operator import ConfigManageDep, GuildsManageDep
@@ -135,10 +133,6 @@ _GUILD_ADMINISTRATION_FIELDS: tuple[str, ...] = (
 SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 router = APIRouter()
-
-GuildAdminContext = Annotated[
-    GuildContext, Depends(require_guild_roles(GuildRole.admin))
-]
 
 
 def _backend_redirect_uri() -> str:

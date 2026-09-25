@@ -22,7 +22,6 @@ from app.services.marketplace.definitions import MOUNTABLE_TOOLS
 from app.services.tenant.guild_apps import (
     ARTIFACT_HANDLERS,
     app_artifacts,
-    get_app_content_id,
     legacy_artifacts,
 )
 
@@ -57,7 +56,6 @@ class TestLegacyMigration:
     def test_a_pre_artifacts_install_still_resolves(self):
         app = _App(CALENDAR_APP, {"calendar_id": 7})
         assert app_artifacts(app) == [{"type": "calendar", "id": 7}]
-        assert get_app_content_id(app) == 7
 
     def test_the_reading_is_guarded_on_the_tool(self):
         """A ``calendar_id`` that belongs to some other app's configuration is
@@ -73,7 +71,6 @@ class TestLegacyMigration:
     def test_an_install_that_created_nothing_has_no_artifacts(self):
         assert legacy_artifacts(CALENDAR_APP, {}) == []
         assert app_artifacts(_App({"app_kind": "embed"}, {})) == []
-        assert get_app_content_id(_App({"app_kind": "embed"}, {})) is None
 
     def test_the_new_shape_wins_over_the_old_key(self):
         """A migrated row keeps its own answer even if a stale config key

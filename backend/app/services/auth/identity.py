@@ -434,46 +434,6 @@ async def ways_in(session: AsyncSession, *, user_id: int) -> frozenset[LoginMeth
     )
 
 
-async def password_only_user_count(
-    session: AsyncSession, *, permitted: frozenset[LoginMethod]
-) -> int:
-    """How many accounts can begin a session only with a password.
-
-    What withdrawing the password would leave stranded on a deployment
-    offering ``permitted`` today. Nobody, where the password is not among them.
-    """
-    return await stranded_between(
-        session, current=permitted, requested=permitted - {LoginMethod.password}
-    )
-
-
-async def federated_only_user_count(
-    session: AsyncSession, *, permitted: frozenset[LoginMethod]
-) -> int:
-    """How many accounts can begin a session only through an identity provider.
-
-    Every provider counts. Withdrawing the method closes all of them at once,
-    so an account whose only way in is any one of them is one this has to
-    report.
-    """
-    return await stranded_between(
-        session, current=permitted, requested=permitted - {LoginMethod.sso}
-    )
-
-
-async def passkey_only_user_count(
-    session: AsyncSession, *, permitted: frozenset[LoginMethod]
-) -> int:
-    """How many accounts can begin a session only with a passkey.
-
-    Nobody, on a deployment that does not offer them — the method is not a way
-    in there, so withdrawing it takes nothing away.
-    """
-    return await stranded_between(
-        session, current=permitted, requested=permitted - {LoginMethod.passkey}
-    )
-
-
 async def delete_user_identities(session: AsyncSession, *, user_id: int) -> None:
     """Remove every identity link (and, via cascade, its stored refresh token)
     for a user — the anonymize/delete-account cleanup. Stages only."""

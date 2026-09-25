@@ -69,13 +69,13 @@ async def test_the_same_document_id_in_two_guilds_is_two_rooms() -> None:
     manager._rooms[(1, DOC, 5)] = loaded_room(1, 5)
     manager._rooms[(2, DOC, 5)] = loaded_room(2, 5)
 
-    first = manager.get_room(1, DOC, 5)
-    second = manager.get_room(2, DOC, 5)
+    first = manager._rooms.get((1, DOC, 5))
+    second = manager._rooms.get((2, DOC, 5))
 
     assert first is not None
     assert second is not None
     assert first is not second
-    assert manager.get_active_rooms() == {(1, DOC, 5), (2, DOC, 5)}
+    assert set(manager._rooms) == {(1, DOC, 5), (2, DOC, 5)}
 
 
 @pytest.mark.unit
@@ -87,8 +87,8 @@ async def test_the_same_id_in_two_kinds_is_two_rooms() -> None:
     manager._rooms[(1, DOC, 5)] = loaded_room(1, 5, DOC)
     manager._rooms[(1, PAGE, 5)] = loaded_room(1, 5, PAGE)
 
-    document_room = manager.get_room(1, DOC, 5)
-    page_room = manager.get_room(1, PAGE, 5)
+    document_room = manager._rooms.get((1, DOC, 5))
+    page_room = manager._rooms.get((1, PAGE, 5))
 
     assert document_room is not None
     assert page_room is not None
@@ -102,8 +102,8 @@ async def test_a_room_is_reached_only_from_its_own_guild() -> None:
     manager = CollaborationManager()
     manager._rooms[(1, DOC, 5)] = loaded_room(1, 5)
 
-    assert manager.get_room(1, DOC, 5) is not None
-    assert manager.get_room(2, DOC, 5) is None
+    assert manager._rooms.get((1, DOC, 5)) is not None
+    assert manager._rooms.get((2, DOC, 5)) is None
     assert manager.has_active_collaborators(2, DOC, 5) is False
 
 
@@ -117,8 +117,8 @@ async def test_removing_a_room_leaves_the_other_guild_alone() -> None:
     # named should go.
     await manager.remove_room(1, DOC, 5)
 
-    assert manager.get_room(1, DOC, 5) is None
-    assert manager.get_room(2, DOC, 5) is not None
+    assert manager._rooms.get((1, DOC, 5)) is None
+    assert manager._rooms.get((2, DOC, 5)) is not None
 
 
 @pytest.mark.unit
@@ -129,8 +129,8 @@ async def test_invalidating_a_room_leaves_the_other_guild_alone() -> None:
 
     assert await manager.invalidate_room_if_empty(1, DOC, 5) is True
 
-    assert manager.get_room(1, DOC, 5) is None
-    assert manager.get_room(2, DOC, 5) is not None
+    assert manager._rooms.get((1, DOC, 5)) is None
+    assert manager._rooms.get((2, DOC, 5)) is not None
 
 
 @pytest.mark.unit
@@ -154,7 +154,7 @@ async def test_loading_one_room_does_not_stall_another() -> None:
     await asyncio.wait_for(manager.get_or_create_room(2, DOC, 9, quick), timeout=0.1)
 
     await slow_task
-    assert manager.get_active_rooms() == {(1, DOC, 5), (2, DOC, 9)}
+    assert set(manager._rooms) == {(1, DOC, 5), (2, DOC, 9)}
 
 
 @pytest.mark.unit
@@ -186,14 +186,14 @@ async def test_a_room_being_read_in_is_not_collected_as_idle() -> None:
 
     await manager.remove_room(1, DOC, 5)
     assert await manager.invalidate_room_if_empty(1, DOC, 5) is False
-    assert manager.get_room(1, DOC, 5) is not None
+    assert manager._rooms.get((1, DOC, 5)) is not None
 
     room = await opening
-    assert room is manager.get_room(1, DOC, 5)
+    assert room is manager._rooms.get((1, DOC, 5))
 
     # Once it has been read in, an empty room is collectable as before.
     assert await manager.invalidate_room_if_empty(1, DOC, 5) is True
-    assert manager.get_room(1, DOC, 5) is None
+    assert manager._rooms.get((1, DOC, 5)) is None
 
 
 # ── the connection register is the only register ─────────────────────────────
@@ -258,10 +258,10 @@ async def test_a_room_is_kept_while_any_connection_is_in_it(authority) -> None:
     authority.add(1, 5, member(7))
 
     await manager.remove_room(1, DOC, 5)
-    assert manager.get_room(1, DOC, 5) is not None
+    assert manager._rooms.get((1, DOC, 5)) is not None
 
     assert await manager.invalidate_room_if_empty(1, DOC, 5) is False
-    assert manager.get_room(1, DOC, 5) is not None
+    assert manager._rooms.get((1, DOC, 5)) is not None
 
 
 @pytest.mark.unit
@@ -274,7 +274,7 @@ async def test_a_room_with_unsaved_work_is_not_retired(authority) -> None:
 
     await manager.remove_room(1, DOC, 5)
 
-    assert manager.get_room(1, DOC, 5) is room
+    assert manager._rooms.get((1, DOC, 5)) is room
     assert room.detached is False
 
 
@@ -415,12 +415,12 @@ async def test_a_room_being_joined_is_not_retired(authority) -> None:
     room.hold()
 
     await manager.remove_room(1, DOC, 5)
-    assert manager.get_room(1, DOC, 5) is room
+    assert manager._rooms.get((1, DOC, 5)) is room
     assert await manager.invalidate_room_if_empty(1, DOC, 5) is False
 
     room.release()
     await manager.remove_room(1, DOC, 5)
-    assert manager.get_room(1, DOC, 5) is None
+    assert manager._rooms.get((1, DOC, 5)) is None
 
 
 @pytest.mark.unit
@@ -432,7 +432,7 @@ async def test_an_empty_room_with_unsaved_work_is_not_invalidated(authority) -> 
     room.apply_update(_an_update())
 
     assert await manager.invalidate_room_if_empty(1, DOC, 5) is False
-    assert manager.get_room(1, DOC, 5) is room
+    assert manager._rooms.get((1, DOC, 5)) is room
 
 
 @pytest.mark.unit

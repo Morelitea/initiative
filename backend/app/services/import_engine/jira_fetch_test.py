@@ -17,6 +17,7 @@ import pytest
 
 from app.core.messages import ImportEngineMessages
 from app.services.import_engine import atlassian, jira_fetch
+from app.services.import_engine.atlassian_bundle import BundleWriter
 from app.services.import_engine.contract import ImportEngineError
 from app.services.import_engine import limits as import_limits
 
@@ -112,15 +113,29 @@ def _site(monkeypatch, *, issues=None, pages=None, project_status=200, boards=Tr
 
 
 async def _bundle(monkeypatch, **kw):
-    return await jira_fetch.fetch_projects_bundle(
-        CREDENTIAL,
-        project_keys=kw.pop("project_keys", ["ACME"]),
-        guild_id=1,
-        guild_name="Acme",
-        target_initiative_id=42,
-        app_version="0.0.0-test",
-        **kw,
-    )
+    """Fetch the projects and write them into a bundle, read back whole."""
+    with BundleWriter() as writer:
+        fetched = await jira_fetch.fetch_projects(
+            CREDENTIAL,
+            project_keys=kw.pop("project_keys", ["ACME"]),
+            guild_id=1,
+            app_version="0.0.0-test",
+            store=writer.put_asset,
+            **kw,
+        )
+        bundle = writer.finish(
+            projects=fetched.envelopes,
+            task_files=fetched.files,
+            calendars=fetched.calendars,
+            images=fetched.images,
+            people=fetched.people,
+            guild_id=1,
+            guild_name="Acme",
+            target_initiative_id=42,
+            app_version="0.0.0-test",
+            site_url=CREDENTIAL.site_url,
+        ).read_bytes()
+    return bundle, fetched.report
 
 
 # --- the bundle ------------------------------------------------------------

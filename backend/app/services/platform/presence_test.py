@@ -54,7 +54,6 @@ def test_appearing_offline_holds_with_a_tab_open() -> None:
 
     assert roll.presence_of(7) is Presence.offline
     assert roll.is_online(7) is False
-    assert roll.online_users([7]) == set()
 
 
 @pytest.mark.unit
@@ -138,16 +137,6 @@ def test_the_socket_that_read_most_recently_wins() -> None:
     roll.arrived(7, Presence.busy)
 
     assert roll.presence_of(7) is Presence.busy
-
-
-@pytest.mark.unit
-def test_online_users_narrows_a_page_of_accounts() -> None:
-    roll = OnlineRoll()
-    roll.arrived(7)
-    roll.arrived(8, Presence.busy)
-    roll.arrived(9, Presence.offline)
-
-    assert roll.online_users([7, 8, 9, 10]) == {7, 8}
 
 
 @pytest.mark.unit

@@ -33,48 +33,6 @@ async def _setup(session: AsyncSession):
 
 
 @pytest.mark.integration
-async def test_initiative_member_user_ids_batch(session: AsyncSession):
-    admin, member, outsider, _guild, initiative = await _setup(session)
-
-    found = await membership_service.initiative_member_user_ids(
-        session, initiative.id, (admin.id, member.id, outsider.id)
-    )
-    assert found == {admin.id, member.id}
-
-    # Unrestricted: every member, still one query.
-    assert await membership_service.initiative_member_user_ids(
-        session, initiative.id
-    ) == {admin.id, member.id}
-
-    # Empty batch short-circuits without a query.
-    assert (
-        await membership_service.initiative_member_user_ids(session, initiative.id, ())
-        == set()
-    )
-
-
-@pytest.mark.integration
-async def test_user_member_initiative_ids(session: AsyncSession):
-    admin, member, outsider, _guild, initiative = await _setup(session)
-
-    assert await membership_service.user_member_initiative_ids(
-        session, member.id, (initiative.id,)
-    ) == {initiative.id}
-    assert (
-        await membership_service.user_member_initiative_ids(
-            session, outsider.id, (initiative.id,)
-        )
-        == set()
-    )
-    assert await membership_service.is_initiative_member(
-        session, initiative.id, member.id
-    )
-    assert not await membership_service.is_initiative_member(
-        session, initiative.id, outsider.id
-    )
-
-
-@pytest.mark.integration
 async def test_guild_role_map_batch(session: AsyncSession):
     admin, member, outsider, guild, _initiative = await _setup(session)
 
@@ -82,27 +40,6 @@ async def test_guild_role_map_batch(session: AsyncSession):
         session, guild.id, (admin.id, member.id, outsider.id)
     )
     assert roles == {admin.id: GuildRole.admin, member.id: GuildRole.member}
-
-    assert await membership_service.is_guild_admin(session, guild.id, admin.id)
-    assert not await membership_service.is_guild_admin(session, guild.id, member.id)
-    assert not await membership_service.is_guild_admin(session, guild.id, outsider.id)
-
-    found = await membership_service.guild_member_user_ids(
-        session, guild.id, (admin.id, outsider.id)
-    )
-    assert found == {admin.id}
-
-
-@pytest.mark.integration
-async def test_initiative_member_clause_filters_rows(session: AsyncSession):
-    """The clause builders compose into real statements."""
-    admin, member, outsider, _guild, initiative = await _setup(session)
-
-    for user, expected in ((member, [initiative.id]), (outsider, [])):
-        stmt = select(Initiative.id).where(
-            membership_service.initiative_member_clause(user.id, Initiative.id)
-        )
-        assert list((await session.exec(stmt)).all()) == expected
 
 
 @pytest.mark.integration

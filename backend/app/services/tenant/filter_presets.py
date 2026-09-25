@@ -91,16 +91,6 @@ async def ensure_default_presets(
     return _sorted(created)
 
 
-async def get_default_preset(
-    session: AsyncSession, project_id: int
-) -> ProjectFilterPreset | None:
-    presets = _sorted(await list_presets(session, project_id))
-    for preset in presets:
-        if preset.is_default:
-            return preset
-    return presets[0] if presets else None
-
-
 def slugify(name: str) -> str:
     """Kebab-case a preset name down to the slug alphabet."""
     slug = re.sub(r"[^a-z0-9]+", "-", name.strip().lower()).strip("-")

@@ -14,7 +14,6 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.profile_decorations import SHIPPED_DECORATIONS
-from app.core.usernames import url_handle
 from app.db.query import MAX_ID_FILTER_VALUES
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import Presence, User, UserStatus
@@ -50,7 +49,7 @@ PROFILE_URL = "/api/v1/users/{handle}/profile"
 
 
 def _profile_url(user: User) -> str:
-    return PROFILE_URL.format(handle=url_handle(user.username, user.discriminator))
+    return PROFILE_URL.format(handle=f"{user.username}{user.discriminator:04d}")
 
 
 async def test_get_current_user(client, acting_user):

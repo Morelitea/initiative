@@ -20,7 +20,7 @@ import json
 import logging
 from contextlib import suppress
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Set, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from pycrdt import Doc
 from sqlalchemy import update as sa_update
@@ -138,15 +138,10 @@ class CollaborationRoom:
             statement = select(spec.model).where(spec.model.id == self.resource_id)
             row = (await session.exec(statement)).one_or_none()
             if row:
-                await self.initialize_from_db(
-                    yjs_state=getattr(row, YJS_STATE_COLUMN),
-                    lexical_content=getattr(row, spec.content_column),
-                )
+                await self.initialize_from_db(yjs_state=getattr(row, YJS_STATE_COLUMN))
             self._loaded = True
 
-    async def initialize_from_db(
-        self, yjs_state: Optional[bytes], lexical_content: Optional[dict]
-    ) -> None:
+    async def initialize_from_db(self, yjs_state: Optional[bytes]) -> None:
         """Initialize the Y.Doc from database state.
 
         Note: We don't try to convert Lexical content to Yjs here because Lexical's
@@ -532,16 +527,6 @@ class CollaborationManager:
                 await self.persist_dirty_rooms()
             except Exception:
                 logger.exception("collaboration persistence sweep failed")
-
-    def get_active_rooms(self) -> Set[RoomKey]:
-        """Get the set of (guild, document) pairs with active rooms."""
-        return set(self._rooms.keys())
-
-    def get_room(
-        self, guild_id: int, resource_type: str, resource_id: int
-    ) -> Optional[CollaborationRoom]:
-        """Get a room without creating it."""
-        return self._rooms.get((guild_id, resource_type, resource_id))
 
     def has_active_collaborators(
         self, guild_id: int, resource_type: str, resource_id: int
