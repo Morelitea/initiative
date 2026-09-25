@@ -41,6 +41,7 @@ import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiative } from "@/hooks/useInitiatives";
+import { useReadOnOpen } from "@/hooks/useNotifications";
 import {
   useDeletePostPoll,
   usePost,
@@ -86,6 +87,7 @@ export function PostDetailPage() {
 
   const recordViewMutation = useRecordRecentView("post", Number(guildId));
   const viewedPostId = post?.id;
+  useReadOnOpen(Tool.post, viewedPostId);
   useEffect(() => {
     if (!viewedPostId) return;
     recordViewMutation.mutate(viewedPostId);

@@ -17,6 +17,7 @@ import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Button } from "@/components/ui/button";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
+import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useProject, useProjectTaskStatuses } from "@/hooks/useProjects";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { getHttpStatus } from "@/lib/errorMessage";
@@ -67,6 +68,7 @@ export const ProjectDetailPage = () => {
 
   const recordViewMutation = useRecordRecentView("project", Number(guildId));
   const viewedProjectId = projectQuery.data?.id;
+  useReadOnOpen(Tool.project, viewedProjectId);
   useEffect(() => {
     if (!viewedProjectId) {
       return;

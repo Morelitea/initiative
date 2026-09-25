@@ -25,28 +25,45 @@ async def _only(session: AsyncSession, user_id: int) -> Notification:
 
 
 @pytest.mark.unit
-def test_an_explicit_tool_wins_over_the_entity_type():
-    """They differ for a task comment: the entity is the task, the tool is the
-    project list it lives in — and the link resolver reads ``entity_type``."""
-    place = user_notifications._place(
-        {"guild_id": 3, "initiative_id": 9, "tool": "project", "entity_type": "task"}
+def test_the_place_is_read_off_the_payload():
+    """An explicit tool wins over the entity type — they differ for a task
+    comment, whose entity is the task and whose tool is the project list it
+    lives in; the entity type stands in when no tool is stated; and a payload
+    naming nowhere carries no place."""
+    nowhere = dict.fromkeys(
+        (
+            "guild_id",
+            "initiative_id",
+            "tool",
+            "resource_id",
+            "subject_type",
+            "subject_id",
+        )
     )
-    assert place == {"guild_id": 3, "initiative_id": 9, "tool": "project"}
-
-
-@pytest.mark.unit
-def test_the_entity_type_is_used_when_no_tool_is_stated():
-    place = user_notifications._place({"guild_id": 3, "entity_type": "queue"})
-    assert place == {"guild_id": 3, "initiative_id": None, "tool": "queue"}
-
-
-@pytest.mark.unit
-def test_a_payload_naming_nowhere_carries_no_place():
-    assert user_notifications._place({}) == {
-        "guild_id": None,
-        "initiative_id": None,
-        "tool": None,
+    assert user_notifications._place(
+        {
+            "guild_id": 3,
+            "initiative_id": 9,
+            "tool": "project",
+            "entity_type": "task",
+            "resource_id": 4,
+            "subject_type": "task",
+            "subject_id": 7,
+        }
+    ) == {
+        "guild_id": 3,
+        "initiative_id": 9,
+        "tool": "project",
+        "resource_id": 4,
+        "subject_type": "task",
+        "subject_id": 7,
     }
+    assert user_notifications._place({"guild_id": 3, "entity_type": "queue"}) == {
+        **nowhere,
+        "guild_id": 3,
+        "tool": "queue",
+    }
+    assert user_notifications._place({}) == nowhere
 
 
 @pytest.mark.integration
@@ -73,7 +90,8 @@ async def test_a_notification_with_no_initiative_still_names_its_community(
 
 
 async def _thing(session: AsyncSession, kind: str, initiative, creator):
-    """One row of ``kind`` in ``initiative``, and the tool that governs it."""
+    """One row of ``kind`` in ``initiative``, the tool that governs it and that
+    tool's row."""
     from app.testing import (
         create_calendar,
         create_calendar_event,
@@ -86,29 +104,32 @@ async def _thing(session: AsyncSession, kind: str, initiative, creator):
 
     if kind == "task":
         project = await create_project(session, initiative, creator)
-        return await create_task(session, project), Tool.project
+        return await create_task(session, project), Tool.project, project.id
     if kind == "document":
-        return await create_document(session, initiative, creator), Tool.document
+        document = await create_document(session, initiative, creator)
+        return document, Tool.document, document.id
     if kind == "calendar_event":
         calendar = await create_calendar(session, initiative, creator)
-        return await create_calendar_event(session, calendar, creator), Tool.calendar
+        event = await create_calendar_event(session, calendar, creator)
+        return event, Tool.calendar, calendar.id
     wiki = await create_wiki(session, initiative, creator)
-    return await create_wiki_page(session, wiki, creator), Tool.wiki
+    return await create_wiki_page(session, wiki, creator), Tool.wiki, wiki.id
 
 
 @pytest.mark.integration
 @pytest.mark.parametrize("kind", ["task", "document", "calendar_event", "wiki_page"])
 async def test_a_notice_is_placed_by_what_it_is_about(session: AsyncSession, kind: str):
-    """Every notice lights the initiative and tool that govern the thing it
-    names — a task the Projects row, an event its calendar, a page its wiki —
-    because ``notify`` reads them off that thing rather than being told."""
+    """Every notice records where it sits all the way down — the initiative, the
+    tool and the tool's row that govern the thing it names (a task's project,
+    an event's calendar, a page's wiki) and the thing itself — because
+    ``notify`` reads them off that thing rather than being told."""
     from app.db.session import set_rls_context
     from app.testing import create_initiative
 
     owner = await create_user(session, email=f"place-{kind}@example.com")
     guild = await create_guild(session, creator=owner)
     initiative = await create_initiative(session, guild, owner)
-    row, tool = await _thing(session, kind, initiative, owner)
+    row, tool, resource_id = await _thing(session, kind, initiative, owner)
     actor = await create_user(session, email=f"place-actor-{kind}@example.com")
     await session.commit()
 
@@ -129,3 +150,8 @@ async def test_a_notice_is_placed_by_what_it_is_about(session: AsyncSession, kin
     assert line.guild_id == guild.id
     assert line.initiative_id == initiative.id
     assert line.tool == tool.value
+    assert (line.resource_id, line.subject_type, line.subject_id) == (
+        resource_id,
+        kind,
+        row.id,
+    )

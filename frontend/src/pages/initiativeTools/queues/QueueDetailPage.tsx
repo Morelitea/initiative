@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
+import { useReadOnOpen } from "@/hooks/useNotifications";
 import {
   useAdvanceTurn,
   useHoldCurrent,
@@ -67,6 +68,7 @@ export function QueueDetailPage() {
   // Track recently viewed queues for the layout header tabs bar.
   const recordViewMutation = useRecordRecentView("queue", Number(guildId));
   const viewedQueueId = queue?.id;
+  useReadOnOpen(Tool.queue, viewedQueueId);
   useEffect(() => {
     if (!viewedQueueId) return;
     recordViewMutation.mutate(viewedQueueId);

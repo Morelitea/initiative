@@ -51,6 +51,12 @@ async def test_list_notifications(client: AsyncClient, session: AsyncSession):
     assert body["notifications"][0]["type"] == "task_assignment"
 
 
+#: A place naming nothing at any level.
+_NOWHERE = dict.fromkeys(
+    ("guild_id", "initiative_id", "tool", "resource_id", "subject_type", "subject_id")
+)
+
+
 @pytest.mark.integration
 async def test_unread_places(client: AsyncClient, session: AsyncSession):
     """Where the dots go. A notification with no community is still a place —
@@ -62,9 +68,7 @@ async def test_unread_places(client: AsyncClient, session: AsyncSession):
         "/api/v1/notifications/unread", headers=get_auth_headers(user)
     )
     assert response.status_code == 200
-    assert response.json() == {
-        "places": [{"guild_id": None, "initiative_id": None, "tool": None}]
-    }
+    assert response.json() == {"places": [_NOWHERE]}
 
 
 @pytest.mark.integration
@@ -77,7 +81,14 @@ async def test_unread_places_carries_the_whole_tree(
         session,
         user_id=user.id,
         notification_type=NotificationType.comment_on_task,
-        data={"guild_id": guild.id, "initiative_id": 9, "entity_type": "project"},
+        data={
+            "guild_id": guild.id,
+            "initiative_id": 9,
+            "entity_type": "project",
+            "resource_id": 4,
+            "subject_type": "task",
+            "subject_id": 7,
+        },
     )
     await session.commit()
 
@@ -85,7 +96,14 @@ async def test_unread_places_carries_the_whole_tree(
         "/api/v1/notifications/unread", headers=get_auth_headers(user)
     )
     assert response.json()["places"] == [
-        {"guild_id": guild.id, "initiative_id": 9, "tool": "project"}
+        {
+            "guild_id": guild.id,
+            "initiative_id": 9,
+            "tool": "project",
+            "resource_id": 4,
+            "subject_type": "task",
+            "subject_id": 7,
+        }
     ]
 
 
@@ -192,7 +210,7 @@ async def test_read_all_can_clear_one_community(
     places = (await client.get("/api/v1/notifications/unread", headers=headers)).json()[
         "places"
     ]
-    assert places == [{"guild_id": kept.id, "initiative_id": None, "tool": None}]
+    assert places == [{**_NOWHERE, "guild_id": kept.id}]
 
 
 @pytest.mark.integration

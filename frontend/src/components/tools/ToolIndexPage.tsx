@@ -48,6 +48,7 @@ import { CreateWikiDialog } from "@/components/initiativeTools/wikis/CreateWikiD
 import { WikiCard } from "@/components/initiativeTools/wikis/WikiCard";
 import { BrowseMarketplaceButton } from "@/components/marketplace/BrowseMarketplaceButton";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
+import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { PaginationBar } from "@/components/PaginationBar";
 import { CardGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { TagPicker } from "@/components/tags/TagPicker";
@@ -62,6 +63,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useCounterGroupsList } from "@/hooks/useCounters";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import { useDashboardsList } from "@/hooks/useDashboards";
@@ -70,6 +72,7 @@ import { useGalleriesList } from "@/hooks/useGalleries";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useQueuesList } from "@/hooks/useQueues";
+import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useWikisList } from "@/hooks/useWikis";
 import { useGuildPath } from "@/lib/guildUrl";
 import { toolDetailRoute, toolKebabSingular } from "@/lib/tools";
@@ -502,6 +505,8 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
   const t = translate as TranslateFn;
   const router = useRouter();
   const gp = useGuildPath();
+  const guildId = useActiveGuildId();
+  const unread = useUnreadTree();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [tagFilters, setTagFilters] = useState<TagSummary[]>([]);
@@ -659,7 +664,12 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
                 onToggle={(options) => selection.toggle(row, options)}
                 label={row.name}
               >
-                {row.card}
+                <div className="relative">
+                  {row.card}
+                  {unread.hasResource(guildId, tool, row.id) ? (
+                    <UnreadDot className="absolute top-3 right-3" />
+                  ) : null}
+                </div>
               </SelectableGridItem>
             ))}
           </div>

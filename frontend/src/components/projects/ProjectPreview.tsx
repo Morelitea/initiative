@@ -8,6 +8,7 @@ import {
   type ProjectRead,
   Tool,
 } from "@/api/generated/initiativeAPI.schemas";
+import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { FavoriteProjectButton } from "@/components/projects/FavoriteProjectButton";
 import { PinProjectButton } from "@/components/projects/PinProjectButton";
 import { TagBadge } from "@/components/tags/TagBadge";
@@ -15,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ProgressCircle } from "@/components/ui/progress-circle";
+import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot, resolveInitiativeColor } from "@/lib/initiativeColors";
 import { initiativeRoute, toolDetailRoute } from "@/lib/tools";
@@ -60,6 +62,7 @@ export const ProjectCardLink = ({
 }: ProjectLinkProps) => {
   const { t } = useTranslation("projects");
   const gp = useGuildPath();
+  const unread = useUnreadTree();
   const initiative = project.initiative;
   const initiativeColor = initiative ? resolveInitiativeColor(initiative.color) : null;
   const isPinned = Boolean(project.pinned_at);
@@ -107,6 +110,9 @@ export const ProjectCardLink = ({
             <CardTitle className="flex flex-wrap items-center gap-2 text-xl">
               {project.icon ? <span className="text-2xl leading-none">{project.icon}</span> : null}
               <span>{project.name}</span>
+              {unread.hasResource(project.guild_id, Tool.project, project.id) ? (
+                <UnreadDot />
+              ) : null}
               <ProjectStateBadge project={project} />
             </CardTitle>
           </CardHeader>
@@ -157,6 +163,7 @@ export const ProjectRowLink = ({
 }: ProjectLinkProps) => {
   const { t } = useTranslation("projects");
   const gp = useGuildPath();
+  const unread = useUnreadTree();
   const initiativeColor = project.initiative
     ? resolveInitiativeColor(project.initiative.color)
     : null;
@@ -205,6 +212,9 @@ export const ProjectRowLink = ({
             <div className="min-w-[200px] flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="font-semibold">{project.name}</p>
+                {unread.hasResource(project.guild_id, Tool.project, project.id) ? (
+                  <UnreadDot />
+                ) : null}
                 <ProjectStateBadge project={project} />
               </div>
               <div className="flex flex-wrap gap-6">

@@ -37,6 +37,7 @@ from app.models.platform.auth_session import AuthSession
 from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.user_email import UserEmail
 from app.services.auth import addresses
+from app.services.platform import email_outbox
 from app.services.platform import app_settings as app_settings_service
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.user import User, UserStatus
@@ -2409,7 +2410,6 @@ async def test_password_reset_tells_the_account(
 ):
     """A changed password is announced, as a changed passkey or factor is."""
     from app.models.platform.user_token import UserTokenPurpose
-    from app.services import email as email_service
     from app.services.platform import user_tokens
 
     user = await create_user(session, email="reset-told@example.com")
@@ -2422,10 +2422,10 @@ async def test_password_reset_tells_the_account(
 
     told: list[int] = []
 
-    async def _capture(session_, user_):
+    async def _capture(user_, pieces):
         told.append(user_.id)
 
-    monkeypatch.setattr(email_service, "send_password_changed_email", _capture)
+    monkeypatch.setattr(email_outbox, "enqueue_account_letter", _capture)
 
     response = await client.post(
         "/api/v1/auth/password/reset",

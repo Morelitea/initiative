@@ -42,6 +42,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { PropertySummary, TagSummary } from "@/api/generated/initiativeAPI.schemas";
+import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { PropertyValueCell } from "@/components/properties/PropertyValueCell";
 import { nonEmptyPropertySummaries } from "@/components/properties/propertyHelpers";
 import { TagBadge } from "@/components/tags/TagBadge";
@@ -98,6 +99,8 @@ export type CalendarEntry = {
   kind?: CalendarEntryKind;
   /** When false, the entry cannot be dragged to reschedule (default true). */
   draggable?: boolean;
+  /** Something about the entry is unread; the entry carries the unread mark. */
+  unread?: boolean;
   /** Any extra data the consumer wants to pass through */
   meta?: Record<string, unknown>;
 };
@@ -284,6 +287,7 @@ function DraggableEntryButton({
       }}
     >
       {children}
+      {entry.unread ? <UnreadDot className="ml-auto self-center ring-1 ring-background" /> : null}
     </button>
   );
 }
@@ -1174,6 +1178,7 @@ function DayView({
                 </span>
               )}
               <span className="truncate">{entry.title}</span>
+              {entry.unread ? <UnreadDot className="ml-auto ring-1 ring-background" /> : null}
             </button>
           ))}
         </div>
@@ -1524,6 +1529,7 @@ function ListView({
                   </span>
                 )}
                 <span className="font-medium">{entry.title}</span>
+                {entry.unread ? <UnreadDot className="ml-2 inline-block align-middle" /> : null}
                 {entry.description && (
                   <p className="mt-0.5 line-clamp-2 text-muted-foreground text-xs">
                     {entry.description}

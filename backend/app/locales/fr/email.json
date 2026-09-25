@@ -244,51 +244,41 @@
     }
   },
   "secondFactor": {
-    "greeting": "Bonjour <strong>{{name}}</strong>,",
     "fallbackText": "Si ce n'était pas vous, changez votre mot de passe immédiatement et prévenez les responsables du site.",
     "enabled": {
       "subject": "La double authentification est activée",
       "title": "La double authentification est activée",
-      "body": "Désormais, la connexion avec votre mot de passe demandera aussi un code de votre application d'authentification. Conservez vos codes de secours en lieu sûr : ce sont eux qui vous permettront d'entrer si vous perdez l'application.",
-      "textBody": "La double authentification est désormais activée sur votre compte. La connexion demandera un code de votre application d'authentification."
+      "body": "Désormais, la connexion avec votre mot de passe demandera aussi un code de votre application d'authentification. Conservez vos codes de secours en lieu sûr : ce sont eux qui vous permettront d'entrer si vous perdez l'application."
     },
     "disabled": {
       "subject": "La double authentification est désactivée",
       "title": "La double authentification est désactivée",
-      "body": "Votre compte ne demande plus de code à la connexion, et les codes de secours que vous aviez ont été supprimés. Vous avez été déconnecté partout ailleurs.",
-      "textBody": "La double authentification est désormais désactivée sur votre compte et vos codes de secours ont été supprimés."
+      "body": "Votre compte ne demande plus de code à la connexion, et les codes de secours que vous aviez ont été supprimés. Vous avez été déconnecté partout ailleurs."
     }
   },
   "passwordRemoved": {
     "subject": "Votre mot de passe a été supprimé",
     "title": "Votre mot de passe a été supprimé",
-    "greeting": "Bonjour <strong>{{name}}</strong>,",
     "body": "Votre compte n'a plus de mot de passe. Vous vous connectez désormais avec votre clé d'accès ou votre fournisseur d'identité. Conservez vos codes de secours en lieu sûr : ils permettent de définir à nouveau un mot de passe si vous en avez besoin.",
-    "fallbackText": "Si ce n'était pas vous, utilisez un code de secours pour redéfinir immédiatement un mot de passe et prévenez les responsables du site.",
-    "textBody": "Votre compte n'a plus de mot de passe. Vous vous connectez désormais avec votre clé d'accès ou votre fournisseur d'identité."
+    "fallbackText": "Si ce n'était pas vous, utilisez un code de secours pour redéfinir immédiatement un mot de passe et prévenez les responsables du site."
   },
   "passwordChanged": {
     "subject": "Votre mot de passe a été modifié",
     "title": "Votre mot de passe a été modifié",
-    "greeting": "Bonjour <strong>{{name}}</strong>,",
     "body": "Le mot de passe de votre compte vient d'être modifié. Tous les autres appareils connectés à votre compte ont été déconnectés.",
-    "fallbackText": "Si ce n'était pas vous, réinitialisez votre mot de passe immédiatement et prévenez les responsables du site.",
-    "textBody": "Le mot de passe de votre compte vient d'être modifié. Tous les autres appareils connectés à votre compte ont été déconnectés. Si ce n'était pas vous, réinitialisez votre mot de passe immédiatement."
+    "fallbackText": "Si ce n'était pas vous, réinitialisez votre mot de passe immédiatement et prévenez les responsables du site."
   },
   "passkey": {
-    "greeting": "Bonjour <strong>{{name}}</strong>,",
     "fallbackText": "Si ce n'était pas vous, changez votre mot de passe immédiatement et prévenez les responsables du site.",
     "added": {
       "subject": "Une clé d'accès a été ajoutée à votre compte",
       "title": "Une clé d'accès a été ajoutée à votre compte",
-      "body": "La clé d'accès <strong>{{passkey}}</strong> permet désormais de vous connecter à votre compte. Les clés d'accès restent sur l'appareil ou dans le gestionnaire de mots de passe qui les a créées : gardez celui-ci à portée de main.",
-      "textBody": "La clé d'accès {{passkey}} a été ajoutée à votre compte et permet désormais de vous connecter."
+      "body": "La clé d'accès <strong>{{passkey}}</strong> permet désormais de vous connecter à votre compte. Les clés d'accès restent sur l'appareil ou dans le gestionnaire de mots de passe qui les a créées : gardez celui-ci à portée de main."
     },
     "removed": {
       "subject": "Une clé d'accès a été retirée de votre compte",
       "title": "Une clé d'accès a été retirée de votre compte",
-      "body": "La clé d'accès <strong>{{passkey}}</strong> ne permet plus de vous connecter. Vos autres moyens de connexion sont inchangés et vous restez connecté partout où vous l'étiez.",
-      "textBody": "La clé d'accès {{passkey}} a été retirée de votre compte et ne permet plus de vous connecter."
+      "body": "La clé d'accès <strong>{{passkey}}</strong> ne permet plus de vous connecter. Vos autres moyens de connexion sont inchangés et vous restez connecté partout où vous l'étiez."
     }
   },
   "digest": {
@@ -391,19 +381,16 @@
     "textContactNobody": "Contactez la personne qui gère ce serveur pour régler la situation."
   },
   "signInLocked": {
-    "greeting": "Bonjour <strong>{{name}}</strong>,",
     "fallbackText": "Si c'était vous, il n'y a rien d'autre à faire. Sinon, quelqu'un connaît peut-être votre adresse e-mail. Votre mot de passe reste protégé, mais pensez à vous connecter avec une clé d'accès.",
     "locked": {
       "subject": "Connexion par mot de passe suspendue sur votre compte",
       "title": "Connexion par mot de passe suspendue",
-      "body": "Quelqu'un a saisi 5 fois un mauvais mot de passe ou code pour votre compte : la connexion par mot de passe ou code est donc désactivée pendant 15 minutes. Les clés d'accès fonctionnent toujours et vous restez connecté là où vous l'êtes déjà.",
-      "textBody": "Quelqu'un a saisi 5 fois un mauvais mot de passe ou code pour votre compte : la connexion par mot de passe ou code est donc désactivée pendant 15 minutes. Les clés d'accès fonctionnent toujours."
+      "body": "Quelqu'un a saisi 5 fois un mauvais mot de passe ou code pour votre compte : la connexion par mot de passe ou code est donc désactivée pendant 15 minutes. Les clés d'accès fonctionnent toujours et vous restez connecté là où vous l'êtes déjà."
     },
     "held": {
       "subject": "Connexion par mot de passe désactivée sur votre compte",
       "title": "Connexion par mot de passe désactivée",
-      "body": "De mauvais mots de passe ou codes ont continué d'arriver pour votre compte : la connexion par mot de passe ou code est donc désactivée jusqu'à ce qu'un modérateur la réactive. Les clés d'accès fonctionnent toujours et vous restez connecté là où vous l'êtes déjà. Contactez la personne qui gère ce site pour la faire réactiver.",
-      "textBody": "De mauvais mots de passe ou codes ont continué d'arriver pour votre compte : la connexion par mot de passe ou code est désactivée jusqu'à ce qu'un modérateur la réactive. Les clés d'accès fonctionnent toujours."
+      "body": "De mauvais mots de passe ou codes ont continué d'arriver pour votre compte : la connexion par mot de passe ou code est donc désactivée jusqu'à ce qu'un modérateur la réactive. Les clés d'accès fonctionnent toujours et vous restez connecté là où vous l'êtes déjà. Contactez la personne qui gère ce site pour la faire réactiver."
     }
   }
 }

@@ -17,13 +17,16 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
+  Tool,
   type WikiPageHeading,
   WikiPageKind,
   type WikiPageSummary,
 } from "@/api/generated/initiativeAPI.schemas";
+import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
+import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { documentIcon } from "@/lib/documentIcon";
 import { cn } from "@/lib/utils";
 
@@ -193,6 +196,7 @@ const WikiPageRow = ({
   children: ReactNode[];
 }) => {
   const { t } = useTranslation("wikis");
+  const unread = useUnreadTree();
   const showing = landing?.key === rowKey(page) ? landing.intent : null;
   // Every page's headings come with the page, so a row is collapsible from the
   // moment it is drawn — nobody has to open a page to find out that it has
@@ -289,6 +293,14 @@ const WikiPageRow = ({
                 >
                   {page.title || t("pages.untitled")}
                 </span>
+                {/* A borrowed document is read as the document it is. */}
+                {unread.hasSubject(
+                  page.guild_id,
+                  isDocument ? Tool.document : "wiki_page",
+                  page.id
+                ) ? (
+                  <UnreadDot />
+                ) : null}
                 {page.is_draft ? (
                   <span className="shrink-0 rounded border px-1 text-[10px] text-muted-foreground uppercase">
                     {t("pages.draft")}

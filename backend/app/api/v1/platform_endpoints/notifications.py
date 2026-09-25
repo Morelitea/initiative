@@ -26,6 +26,8 @@ from app.schemas.platform.notification import (
     NotificationListResponse,
     NotificationPlace,
     NotificationRead,
+    SubjectReadRequest,
+    SubjectReadResponse,
     UnreadPlacesResponse,
 )
 from app.core.messages import NotificationMessages
@@ -132,12 +134,25 @@ async def unread_notification_places(
     "look here" and the popover says what.
     """
     places = await notifications_service.unread_places(session, user_id=current_user.id)
-    return UnreadPlacesResponse(
-        places=[
-            NotificationPlace(guild_id=guild_id, initiative_id=initiative_id, tool=tool)
-            for guild_id, initiative_id, tool in places
-        ]
+    return UnreadPlacesResponse(places=[NotificationPlace(**place) for place in places])
+
+
+@router.post("/read-subject", response_model=SubjectReadResponse)
+async def read_notification_subject(
+    payload: SubjectReadRequest,
+    session: UserSessionDep,
+    current_user: User = Depends(get_current_active_user),
+) -> SubjectReadResponse:
+    """Mark every unread notification about one item read — its page calls
+    this when it opens — and say what was unread on it."""
+    comment_ids, since = await notifications_service.read_subject(
+        session,
+        user_id=current_user.id,
+        guild_id=payload.guild_id,
+        subject_type=payload.subject_type,
+        subject_id=payload.subject_id,
     )
+    return SubjectReadResponse(comment_ids=comment_ids, since=since)
 
 
 @router.post("/{notification_id}/read", response_model=NotificationRead)

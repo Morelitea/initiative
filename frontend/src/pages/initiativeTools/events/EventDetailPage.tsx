@@ -28,6 +28,7 @@ import {
   useUpdateEventRSVP,
 } from "@/hooks/useCalendarEvents";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
+import { useReadOnOpen } from "@/hooks/useNotifications";
 import { toast } from "@/lib/chesterToast";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -147,6 +148,7 @@ export function EventDetailPage() {
 
   const eventQuery = useCalendarEvent(Number.isFinite(parsedId) ? parsedId : null);
   const event = eventQuery.data;
+  useReadOnOpen("calendar_event", event?.id);
   // The path supplies the initiative while this loads; the entity is the
   // authority once it arrives, and a URL naming a different one is corrected.
   const initiativeId = useCanonicalInitiativeId(event?.initiative_id);

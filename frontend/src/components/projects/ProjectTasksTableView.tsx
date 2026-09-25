@@ -16,6 +16,7 @@ import { createContext, memo, useCallback, useContext, useMemo } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
 import type { TaskListRead, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
+import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
 import { TaskBlockersHoverCard } from "@/components/projects/TaskBlockersHoverCard";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
@@ -42,6 +43,7 @@ import { TableRow } from "@/components/ui/table";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { usePersistedTableState } from "@/hooks/usePersistedTableState";
 import { useProperties } from "@/hooks/useProperties";
+import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useGuildPath } from "@/lib/guildUrl";
 import { summarizeRecurrence } from "@/lib/recurrence";
 import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
@@ -694,6 +696,9 @@ type TaskCellProps = {
 
 const TaskCell = ({ task, canOpenTask, taskHref }: TaskCellProps) => {
   const { t } = useTranslation(["projects", "dates", "comments"]);
+  const unreadDot = useUnreadTree().hasSubject(task.guild_id, "task", task.id) ? (
+    <UnreadDot />
+  ) : null;
   // Memoize expensive recurrence computation
   const recurrenceText = useMemo(() => {
     if (!task.recurrence) return null;
@@ -718,9 +723,13 @@ const TaskCell = ({ task, canOpenTask, taskHref }: TaskCellProps) => {
             className="flex items-center gap-2 rounded-sm font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-1 focus-visible:ring-ring"
           >
             {task.title}
+            {unreadDot}
           </Link>
         ) : (
-          <p className="flex items-center gap-2 font-medium opacity-70">{task.title}</p>
+          <p className="flex items-center gap-2 font-medium opacity-70">
+            {task.title}
+            {unreadDot}
+          </p>
         )}
         <div className="space-y-1 text-muted-foreground text-xs">
           {task.assignees.length > 0 ? (

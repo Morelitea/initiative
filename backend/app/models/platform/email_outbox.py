@@ -26,6 +26,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import (
+    Boolean,
     BigInteger,
     Column,
     DateTime,
@@ -95,6 +96,12 @@ class EmailOutboxItem(SQLModel, table=True):
     #: The call-to-action's wording, where the single-row layout draws a button.
     link_label: Optional[str] = Field(
         default=None, sa_column=Column(Text, nullable=True)
+    )
+    #: An account-security letter: sent at once, on its own, to every address
+    #: the account has proved, whatever its notification settings.
+    security: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default=text("false")),
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

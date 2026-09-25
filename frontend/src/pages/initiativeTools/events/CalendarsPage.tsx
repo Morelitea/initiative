@@ -58,9 +58,11 @@ import { useRescheduleCalendarEvent } from "@/hooks/useCalendarEvents";
 import { useCalendar, useCalendarsList } from "@/hooks/useCalendars";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
+import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useProjects } from "@/hooks/useProjects";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { useUpdateTask } from "@/hooks/useTasks";
+import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasWriteAccess } from "@/lib/permissions";
@@ -405,6 +407,7 @@ export const CalendarsView = ({
   const canCreateEvents = writableCalendars.length > 0;
 
   // --- Merge events + tasks into calendar entries (visibility-filtered) ---
+  const unread = useUnreadTree();
   const calendarEntries = useMemo<CalendarEntry[]>(() => {
     const entries: CalendarEntry[] = [];
 
@@ -428,6 +431,7 @@ export const CalendarsView = ({
         properties: event.property_values,
         tags: event.tags,
         draggable: event.my_permission_level === "write" || event.my_permission_level === "owner",
+        unread: unread.hasSubject(event.guild_id, "calendar_event", event.id),
         meta: { type: "event", eventId: event.id, calendarId: event.calendar_id },
       });
     }
@@ -440,7 +444,7 @@ export const CalendarsView = ({
     }
 
     return entries;
-  }, [entriesQuery.data, hiddenCalendarIds, hiddenProjectIds, calendarsById]);
+  }, [entriesQuery.data, hiddenCalendarIds, hiddenProjectIds, calendarsById, unread]);
 
   // Create dialog state
   const {
@@ -787,6 +791,7 @@ export function CalendarFocusPage() {
   // once the read succeeds (access checks passed).
   const recordViewMutation = useRecordRecentView("calendar", Number(guildId));
   const viewedCalendarId = calendar?.id;
+  useReadOnOpen(Tool.calendar, viewedCalendarId);
   useEffect(() => {
     if (!viewedCalendarId) return;
     recordViewMutation.mutate(viewedCalendarId);

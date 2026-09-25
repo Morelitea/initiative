@@ -667,25 +667,6 @@ async def get_comment(
     return comment
 
 
-def comment_target_path(comment: Comment, ctx: _ParentContext) -> str:
-    """Where a notification about ``comment`` should land.
-
-    The comment has no page of its own — it lives on its parent's — so the
-    address is the parent's, built with the same helpers the comment
-    notifications use so both point at the same place.
-    """
-    from app.services import notifications
-
-    if comment.task_id is not None:
-        return notifications.reference_path("task", comment.task_id)
-    if comment.document_id is not None:
-        return notifications.reference_path(Tool.document, comment.document_id)
-    address = ctx.address
-    if address is None:  # pragma: no cover - every parent resolves to one
-        return "/"
-    return notifications.reference_path(*address)
-
-
 async def create_comment(
     session: AsyncSession,
     *,

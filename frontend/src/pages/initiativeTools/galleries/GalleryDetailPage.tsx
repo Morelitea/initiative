@@ -60,6 +60,7 @@ import {
 } from "@/hooks/useGalleries";
 import { type GridToggleOptions, useGridSelection } from "@/hooks/useGridSelection";
 import { useImageUploader } from "@/hooks/useImageUploader";
+import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { toast } from "@/lib/chesterToast";
@@ -107,6 +108,7 @@ export function GalleryDetailPage() {
 
   const recordViewMutation = useRecordRecentView("gallery", Number(guildId));
   const viewedId = gallery?.id;
+  useReadOnOpen(Tool.gallery, viewedId);
   useEffect(() => {
     if (!viewedId) return;
     recordViewMutation.mutate(viewedId);

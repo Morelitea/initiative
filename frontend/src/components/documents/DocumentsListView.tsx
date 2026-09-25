@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 
 import { type DocumentSummary, type TagSummary, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { DocumentsBulkBar } from "@/components/documents/DocumentsBulkBar";
+import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { buildPropertyColumns, propertyColumnIds } from "@/components/properties/propertyColumns";
 import { SortIcon } from "@/components/SortIcon";
 import { TagBadge } from "@/components/tags/TagBadge";
@@ -15,6 +16,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { useProperties } from "@/hooks/useProperties";
+import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { getFileTypeLabel } from "@/lib/fileUtils";
 import { useGuildPath } from "@/lib/guildUrl";
 import { dateSortingFn } from "@/lib/sorting";
@@ -25,14 +27,16 @@ import { getUserDisplayName } from "@/lib/userDisplay";
 // Cell component that uses guild-scoped URLs
 const DocumentNameCell = ({ document }: { document: DocumentSummary }) => {
   const gp = useGuildPath();
+  const unread = useUnreadTree();
   return (
-    <div className="min-w-[220px] sm:min-w-0">
+    <div className="flex min-w-[220px] items-center gap-2 sm:min-w-0">
       <Link
         to={gp(toolDetailRoute(Tool.document, document.initiative_id, document.id))}
         className="font-medium text-primary hover:underline"
       >
         {document.name}
       </Link>
+      {unread.hasResource(document.guild_id, Tool.document, document.id) ? <UnreadDot /> : null}
     </div>
   );
 };

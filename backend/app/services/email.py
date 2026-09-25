@@ -11,7 +11,7 @@ from datetime import datetime
 from email.message import EmailMessage
 from functools import lru_cache
 from pathlib import Path
-from typing import Awaitable, Mapping, Sequence
+from typing import Mapping, Sequence
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -571,10 +571,22 @@ async def deliver(
     subject: str,
     html_body: str,
     text_body: str,
+    every_address: bool = False,
 ) -> None:
     """Put a composed message on the wire, to the address this account
-    nominated. The one exit from the outbox."""
+    nominated — or, for a letter about the account itself, to every address it
+    has proved. The one exit from the outbox."""
     settings_obj = await app_settings_service.get_app_settings(session)
+    if every_address:
+        await send_email(
+            session,
+            recipients=await _account_recipients(user),
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+            settings_obj=settings_obj,
+        )
+        return
     await _send_to_primary(
         session,
         user,
@@ -961,87 +973,53 @@ async def send_community_on_hold_email(
     )
 
 
-async def _send_account_notice(
-    session: AsyncSession,
-    user: User,
-    *,
-    section: str,
-    key: str,
-    **values: str,
+async def _queue_account_notice(
+    user: User, *, section: str, key: str, **values: str
 ) -> None:
-    """One letter about a way into the account changing.
+    """Queue one letter about a way into the account changing.
 
-    Account mail, so it reaches every address its holder has proved rather than
-    only the nominated one: a change nobody made is still seen by somebody who
-    no longer reads one of them. ``section`` holds the greeting and the "if
-    this wasn't you" line every letter of its kind shares; ``key`` holds what
-    this one says. ``values`` fill both the HTML and the plain-text body.
+    Account mail: it goes out at once, on its own, to every address its holder
+    has proved, whatever their notification settings — a change nobody made is
+    still seen by somebody who no longer reads one of them. ``section`` holds
+    the greeting and the "if this wasn't you" line every letter of its kind
+    shares; ``key`` holds what this one says.
+
+    Called once the change is committed, and never allowed to fail it: the
+    change was made whether or not the letter can go.
     """
-    settings_obj, accent = await _email_context(session)
+    from app.services.platform import email_outbox
+
     locale = _user_locale(user)
-    body = f"""
-    <p>{email_t(f"{section}.greeting", locale=locale, name=_display_name(user))}</p>
-    <p>{email_t(f"{key}.body", locale=locale, **values)}</p>
-    <p>{email_t(f"{section}.fallbackText", locale=locale)}</p>
-    """
-    html_body = _build_html_layout(
-        email_t(f"{key}.title", locale=locale), body, accent, locale=locale
-    )
-    await send_email(
-        session,
-        recipients=await _account_recipients(user),
+    pieces = EmailPieces(
         subject=email_t(f"{key}.subject", locale=locale, escape=False),
-        html_body=html_body,
-        text_body=email_t(f"{key}.textBody", locale=locale, escape=False, **values),
-        settings_obj=settings_obj,
+        headline=email_t(f"{key}.title", locale=locale),
+        body=(
+            f"{email_t(f'{key}.body', locale=locale, **values)}</p>\n\n"
+            f"<p>{email_t(f'{section}.fallbackText', locale=locale)}"
+        ),
     )
-
-
-async def _announce(what: str, user: User, letter: Awaitable[None]) -> None:
-    """Send an account letter, and never fail the change because it could not go.
-
-    By the time one of these runs the change has been made and committed. A
-    deployment with no mail configured still made it, and answering the request
-    with a failure would say otherwise.
-    """
     try:
-        await letter
-    except EmailNotConfiguredError:
-        logger.info(
-            "no mail configured; %s for account %s not announced", what, user.id
-        )
-    except Exception:  # pragma: no cover - delivery is best effort
-        logger.exception("could not announce %s for account %s", what, user.id)
+        await email_outbox.enqueue_account_letter(user, pieces)
+    except Exception:  # pragma: no cover - the letter is best effort
+        logger.exception("could not queue %s for account %s", key, user.id)
 
 
-async def send_second_factor_changed_email(
+async def announce_second_factor_change(
     session: AsyncSession, user: User, *, enabled: bool
 ) -> None:
     """Tell the account its second factor was turned on or off."""
-    await _send_account_notice(
-        session,
+    await _queue_account_notice(
         user,
         section="secondFactor",
         key="secondFactor.enabled" if enabled else "secondFactor.disabled",
     )
 
 
-async def announce_second_factor_change(
-    session: AsyncSession, user: User, *, enabled: bool
-) -> None:
-    await _announce(
-        "second-factor change",
-        user,
-        send_second_factor_changed_email(session, user, enabled=enabled),
-    )
-
-
-async def send_passkey_changed_email(
+async def announce_passkey_change(
     session: AsyncSession, user: User, *, added: bool, name: str
 ) -> None:
     """Tell the account a passkey was added or removed."""
-    await _send_account_notice(
-        session,
+    await _queue_account_notice(
         user,
         section="passkey",
         key="passkey.added" if added else "passkey.removed",
@@ -1049,91 +1027,25 @@ async def send_passkey_changed_email(
     )
 
 
-async def announce_passkey_change(
-    session: AsyncSession, user: User, *, added: bool, name: str
-) -> None:
-    await _announce(
-        "passkey change",
-        user,
-        send_passkey_changed_email(session, user, added=added, name=name),
-    )
-
-
-async def send_sign_in_locked_email(
+async def announce_sign_in_locked(
     session: AsyncSession, user: User, *, held: bool
 ) -> None:
     """Tell the account its password and codes have been turned off for now."""
-    await _send_account_notice(
-        session,
+    await _queue_account_notice(
         user,
         section="signInLocked",
         key="signInLocked.held" if held else "signInLocked.locked",
     )
 
 
-async def announce_sign_in_locked(
-    session: AsyncSession, user: User, *, held: bool
-) -> None:
-    await _announce(
-        "sign-in lock", user, send_sign_in_locked_email(session, user, held=held)
-    )
-
-
-async def send_password_removed_email(session: AsyncSession, user: User) -> None:
-    """Tell the account its password is gone and what signs it in now."""
-    await _send_account_notice(
-        session, user, section="passwordRemoved", key="passwordRemoved"
-    )
-
-
 async def announce_password_removed(session: AsyncSession, user: User) -> None:
-    await _announce(
-        "password removal", user, send_password_removed_email(session, user)
-    )
-
-
-async def send_password_changed_email(session: AsyncSession, user: User) -> None:
-    """Tell the account its password was changed.
-
-    Account mail, like the password-removed letter: a way in changed, so it
-    goes to every address its holder has proved rather than only the nominated
-    one.
-    """
-    settings_obj, accent = await _email_context(session)
-    locale = _user_locale(user)
-    name = _display_name(user)
-    body = f"""
-    <p>{email_t("passwordChanged.greeting", locale=locale, name=name)}</p>
-    <p>{email_t("passwordChanged.body", locale=locale)}</p>
-    <p>{email_t("passwordChanged.fallbackText", locale=locale)}</p>
-    """
-    html_body = _build_html_layout(
-        email_t("passwordChanged.title", locale=locale), body, accent, locale=locale
-    )
-    await send_email(
-        session,
-        recipients=await _account_recipients(user),
-        subject=email_t("passwordChanged.subject", locale=locale, escape=False),
-        html_body=html_body,
-        text_body=email_t("passwordChanged.textBody", locale=locale, escape=False),
-        settings_obj=settings_obj,
-    )
+    """Tell the account its password is gone and what signs it in now."""
+    await _queue_account_notice(user, section="passwordRemoved", key="passwordRemoved")
 
 
 async def announce_password_changed(session: AsyncSession, user: User) -> None:
-    """Tell the account, and never fail the change because the letter could not go.
-
-    By the time this runs the new password is committed.
-    """
-    try:
-        await send_password_changed_email(session, user)
-    except EmailNotConfiguredError:
-        logger.info(
-            "no mail configured; password change for account %s not announced",
-            user.id,
-        )
-    except Exception:  # pragma: no cover - delivery is best effort
-        logger.exception("could not announce password change for account %s", user.id)
+    """Tell the account its password was changed."""
+    await _queue_account_notice(user, section="passwordChanged", key="passwordChanged")
 
 
 def initiative_added_pieces(user: User, initiative_name: str) -> EmailPieces:

@@ -29,6 +29,8 @@ import type {
   NotificationPreferencesRead,
   NotificationPreferencesUpdate,
   NotificationRead,
+  SubjectReadRequest,
+  SubjectReadResponse,
   UnreadPlacesResponse,
 } from "../initiativeAPI.schemas";
 
@@ -361,6 +363,106 @@ export function useUnreadNotificationPlacesApiV1NotificationsUnreadGet<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+/**
+ * Mark every unread notification about one item read — its page calls
+ * this when it opens — and say what was unread on it.
+ * @summary Read Notification Subject
+ */
+export const readNotificationSubjectApiV1NotificationsReadSubjectPost = (
+  subjectReadRequest: BodyType<SubjectReadRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<SubjectReadResponse>(
+    {
+      url: `/api/v1/notifications/read-subject`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: subjectReadRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getReadNotificationSubjectApiV1NotificationsReadSubjectPostMutationKey = () =>
+  ["readNotificationSubjectApiV1NotificationsReadSubjectPost"] as const;
+
+export const getReadNotificationSubjectApiV1NotificationsReadSubjectPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof readNotificationSubjectApiV1NotificationsReadSubjectPost>>,
+    TError,
+    ReadNotificationSubjectApiV1NotificationsReadSubjectPostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof readNotificationSubjectApiV1NotificationsReadSubjectPost>>,
+  TError,
+  ReadNotificationSubjectApiV1NotificationsReadSubjectPostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getReadNotificationSubjectApiV1NotificationsReadSubjectPostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof readNotificationSubjectApiV1NotificationsReadSubjectPost>>,
+    ReadNotificationSubjectApiV1NotificationsReadSubjectPostMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return readNotificationSubjectApiV1NotificationsReadSubjectPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReadNotificationSubjectApiV1NotificationsReadSubjectPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof readNotificationSubjectApiV1NotificationsReadSubjectPost>>
+>;
+export type ReadNotificationSubjectApiV1NotificationsReadSubjectPostMutationBody =
+  BodyType<SubjectReadRequest>;
+export type ReadNotificationSubjectApiV1NotificationsReadSubjectPostMutationError =
+  ErrorType<HTTPValidationError>;
+export type ReadNotificationSubjectApiV1NotificationsReadSubjectPostMutationVariables = {
+  data: BodyType<SubjectReadRequest>;
+};
+
+/**
+ * @summary Read Notification Subject
+ */
+export const useReadNotificationSubjectApiV1NotificationsReadSubjectPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof readNotificationSubjectApiV1NotificationsReadSubjectPost>>,
+      TError,
+      ReadNotificationSubjectApiV1NotificationsReadSubjectPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof readNotificationSubjectApiV1NotificationsReadSubjectPost>>,
+  TError,
+  ReadNotificationSubjectApiV1NotificationsReadSubjectPostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getReadNotificationSubjectApiV1NotificationsReadSubjectPostMutationOptions(options),
+    queryClient
+  );
+};
 /**
  * @summary Mark Notification Read
  */

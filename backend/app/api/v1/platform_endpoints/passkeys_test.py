@@ -29,7 +29,8 @@ from app.models.platform.auth_challenge import AuthChallenge
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.user import User, UserStatus
 from app.models.platform.user_passkey import UserPasskey
-from app.services import email as email_service
+from app.core.email_i18n import email_t
+from app.services.platform import email_outbox
 from app.services.auth import passkeys as passkey_service
 from app.testing import (
     assertion_for,
@@ -630,14 +631,19 @@ async def test_the_account_is_told_about_both_changes(
 ):
     sent: list[dict] = []
 
-    async def record(_session, user, *, added: bool, name: str) -> None:
-        sent.append({"user_id": user.id, "added": added, "name": name})
+    async def record(user, pieces) -> None:
+        sent.append(
+            {"user_id": user.id, "subject": pieces.subject, "body": pieces.body}
+        )
 
-    monkeypatch.setattr(email_service, "send_passkey_changed_email", record)
+    monkeypatch.setattr(email_outbox, "enqueue_account_letter", record)
 
     user = await _account(session, "pk-letter@example.com")
     body = await _register(client, user, name="Phone")
-    assert sent == [{"user_id": user.id, "added": True, "name": "Phone"}]
+    [added] = sent
+    assert added["user_id"] == user.id
+    assert added["subject"] == email_t("passkey.added.subject", "en", escape=False)
+    assert "Phone" in added["body"]
 
     response = await client.post(
         f"/api/v1/auth/passkeys/{body['id']}/remove",
@@ -645,7 +651,8 @@ async def test_the_account_is_told_about_both_changes(
         headers=get_auth_headers(user),
     )
     assert response.status_code == 204, response.text
-    assert sent[-1] == {"user_id": user.id, "added": False, "name": "Phone"}
+    assert sent[-1]["subject"] == email_t("passkey.removed.subject", "en", escape=False)
+    assert "Phone" in sent[-1]["body"]
 
 
 async def test_a_letter_that_cannot_go_does_not_undo_the_change(
@@ -656,7 +663,7 @@ async def test_a_letter_that_cannot_go_does_not_undo_the_change(
     async def fail(*args, **kwargs) -> None:
         raise RuntimeError("no mail")
 
-    monkeypatch.setattr(email_service, "send_passkey_changed_email", fail)
+    monkeypatch.setattr(email_outbox, "enqueue_account_letter", fail)
 
     user = await _account(session, "pk-nomail@example.com")
     user_id = user.id
