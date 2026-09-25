@@ -41,14 +41,12 @@ INSTALLS = "app_installs"
 EVENTS = "app_event_outbox"
 DELIVERIES = "app_hook_deliveries"
 
-#: One community's installs, with the value its app's webhooks route by: the
-#: stored field of the static connection the pinned definition names.
+#: One community's installs. None routes webhooks yet: a pinned definition
+#: from before this revision carries no ``webhooks`` block, since the
+#: normalizer dropped the term.
 _CARRY = """
-INSERT INTO public.app_installs
-    (guild_id, install_id, listing_uid, enabled, hook_route)
-SELECT {guild_id}, a.id, a.listing_uid, a.enabled,
-       a.config -> (a.definition #>> '{{webhooks,route,connection}}')
-                ->> (a.definition #>> '{{webhooks,route,field}}')
+INSERT INTO public.app_installs (guild_id, install_id, listing_uid, enabled)
+SELECT {guild_id}, a.id, a.listing_uid, a.enabled
 FROM "{schema}".guild_apps a
 WHERE a.listing_uid IS NOT NULL
   AND EXISTS (SELECT 1 FROM public.guilds g WHERE g.id = {guild_id})

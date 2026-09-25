@@ -29,6 +29,7 @@ from app.db import session as db_session
 from app.models.platform.app_install import HOOK_ROUTE_MAX_LENGTH, AppInstall
 from app.models.platform.guild import LIVE_STATUS_VALUES, Guild, GuildStatus
 from app.models.tenant.guild_app import GuildApp
+from app.services.tenant.app_config import connection_by_id
 
 __all__ = [
     "PAGE_LIMIT",
@@ -54,9 +55,21 @@ class IndexedInstall:
 
 def hook_route(app: GuildApp) -> Optional[str]:
     """The value this install's vendor webhooks are routed by: the stored
-    field of the static connection its pinned ``webhooks.route`` names."""
+    field of the static connection its pinned ``webhooks.route`` names.
+
+    Only a managed field routes: its value comes from the app's
+    ``after_connect`` hook, which checked it at the vendor, and never from a
+    form."""
     route = ((app.definition or {}).get("webhooks") or {}).get("route")
     if not isinstance(route, dict):
+        return None
+    connection = connection_by_id(app.definition, route.get("connection"))
+    managed = {
+        field.get("key")
+        for field in (connection or {}).get("fields") or []
+        if isinstance(field, dict) and field.get("managed") is True
+    }
+    if route.get("field") not in managed:
         return None
     stored = (app.config or {}).get(route.get("connection")) or {}
     value = stored.get(route.get("field")) if isinstance(stored, dict) else None
