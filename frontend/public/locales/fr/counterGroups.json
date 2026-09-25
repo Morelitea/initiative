@@ -3,7 +3,6 @@
   "group": "Groupe de compteurs",
   "groups": "Groupes de compteurs",
   "counter": "Compteur",
-  "counters": "Compteurs",
   "noGroups": "Pas encore de groupes de compteurs",
   "noGroupsDescription": "Les groupes de compteurs regroupent des valeurs numériques liées — comme les PV, les munitions ou les scores — que vous pouvez incrémenter, décrémenter ou définir directement.",
   "createGroup": "Créer un groupe de compteurs",

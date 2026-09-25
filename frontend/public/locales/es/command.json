@@ -34,10 +34,5 @@
     "operatorDashboard": "Panel de operador"
   },
   "shortcutTooltip": "Búsqueda rápida ({{shortcut}})",
-  "types": {
-    "project": "Proyecto",
-    "task": "Tarea",
-    "document": "Documento"
-  },
   "seeAllResults": "Ver todos los resultados de «{{query}}»"
 }

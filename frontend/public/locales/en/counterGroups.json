@@ -3,7 +3,6 @@
   "group": "Counter Group",
   "groups": "Counter Groups",
   "counter": "Counter",
-  "counters": "Counters",
   "noGroups": "No counter groups yet",
   "noGroupsDescription": "Counter groups bundle related numeric values — like HP, ammo, or scores — that you can increment, decrement, or set directly.",
   "createGroup": "Create Counter Group",

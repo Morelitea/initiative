@@ -50,7 +50,6 @@
     "adminOnly": "Ask your community's superadmin to add this app.",
     "unknownState": "Could not check whether this app is already added.",
     "reachTitle": "What it can reach",
-    "reachNone": "This app asks for no access to your community's content.",
     "whereTitle": "Where it works",
     "whereDescription": "It shows its page, and reads and changes things, only in the initiatives you choose.",
     "whereDescriptionNoPage": "It reads and changes things only in the initiatives you choose.",

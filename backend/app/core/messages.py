@@ -301,7 +301,6 @@ class FilterPresetMessages:
     NOT_FOUND = "FILTER_PRESET_NOT_FOUND"
     DUPLICATE_ID = "FILTER_PRESET_DUPLICATE_ID"
     SLUG_TAKEN = "FILTER_PRESET_SLUG_TAKEN"
-    INVALID_FILTERS = "FILTER_PRESET_INVALID_FILTERS"
     LIMIT_REACHED = "FILTER_PRESET_LIMIT_REACHED"
 
 
@@ -314,9 +313,6 @@ class ProjectMessages:
     # presets) — a project manager, the project owner, or a guild admin.
     CONFIGURE_REQUIRED = "PROJECT_CONFIGURE_REQUIRED"
     DOCUMENT_WRONG_INITIATIVE = "PROJECT_DOCUMENT_WRONG_INITIATIVE"
-    OWNER_HAS_FULL_ACCESS = "PROJECT_OWNER_HAS_FULL_ACCESS"
-    CANNOT_REMOVE_OWNER = "PROJECT_CANNOT_REMOVE_OWNER"
-    ROLE_WRONG_INITIATIVE = "PROJECT_ROLE_WRONG_INITIATIVE"
     # A PAM grant confers content read/write only, never access-control
     # management (adding/removing members or changing permission levels).
 
@@ -430,7 +426,6 @@ class TagMessages:
 class PropertyMessages:
     DEFINITION_NOT_FOUND = "PROPERTY_DEFINITION_NOT_FOUND"
     NAME_ALREADY_EXISTS = "PROPERTY_NAME_ALREADY_EXISTS"
-    TYPE_CHANGE_BLOCKED = "PROPERTY_TYPE_CHANGE_BLOCKED"
     INVALID_VALUE_FOR_TYPE = "PROPERTY_INVALID_VALUE_FOR_TYPE"
     OPTION_NOT_IN_DEFINITION = "PROPERTY_OPTION_NOT_IN_DEFINITION"
     USER_NOT_IN_INITIATIVE = "PROPERTY_USER_NOT_IN_INITIATIVE"
@@ -453,9 +448,6 @@ class DocumentMessages:
     TOO_MANY_IDS = "DOCUMENT_TOO_MANY_IDS"
     NAME_REQUIRED = "DOCUMENT_NAME_REQUIRED"
     LIVE_SESSION_OWNS_CONTENT = "DOCUMENT_LIVE_SESSION_OWNS_CONTENT"
-    USER_MUST_BE_MEMBER = "DOCUMENT_USER_MUST_BE_MEMBER"
-    CANNOT_REMOVE_OWNER = "DOCUMENT_CANNOT_REMOVE_OWNER"
-    ROLE_WRONG_INITIATIVE = "DOCUMENT_ROLE_WRONG_INITIATIVE"
     AI_NATIVE_ONLY = "DOCUMENT_AI_NATIVE_ONLY"
     SMART_LINK_URL_REQUIRED = "DOCUMENT_SMART_LINK_URL_REQUIRED"
     SPREADSHEET_INVALID_PAYLOAD = "DOCUMENT_SPREADSHEET_INVALID_PAYLOAD"
@@ -474,7 +466,6 @@ class DocumentMessages:
 class CommentMessages:
     NOT_FOUND = "COMMENT_NOT_FOUND"
     PERMISSION_DENIED = "COMMENT_PERMISSION_DENIED"
-    VALIDATION_ERROR = "COMMENT_VALIDATION_ERROR"
     PARENT_NOT_FOUND = "COMMENT_PARENT_NOT_FOUND"
     TARGET_NOT_FOUND = "COMMENT_TARGET_NOT_FOUND"
     PARENT_MISMATCH = "COMMENT_PARENT_MISMATCH"
@@ -492,15 +483,6 @@ class SharingMessages:
     tool has one the day it exists. ``tools_test`` fails if a locale has not
     been given the wording for it.
     """
-
-    #: The grant flow's own refusals. Not per-tool: a grant is the same object
-    #: whatever it names, and these say what was wrong with the grant rather
-    #: than which tool it was pointed at.
-    CANNOT_ASSIGN_OWNER = "CANNOT_ASSIGN_OWNER"
-    CANNOT_MODIFY_OWNER = "CANNOT_MODIFY_OWNER"
-    CANNOT_ASSIGN_OWNER_TO_ROLE = "CANNOT_ASSIGN_OWNER_TO_ROLE"
-    PERMISSION_NOT_FOUND = "PERMISSION_NOT_FOUND"
-    ROLE_PERMISSION_NOT_FOUND = "ROLE_PERMISSION_NOT_FOUND"
 
     #: A grant naming a dashboard, sent to a resource's own sharing. That kind
     #: is made and taken back against the dashboard that publishes it, so this
@@ -521,7 +503,6 @@ class ReactionMessages:
     TARGET_NOT_FOUND = "REACTION_TARGET_NOT_FOUND"
     PERMISSION_DENIED = "REACTION_PERMISSION_DENIED"
     NOT_FOUND = "REACTION_NOT_FOUND"
-    INVALID_EMOJI = "REACTION_INVALID_EMOJI"
     TOO_MANY = "REACTION_TOO_MANY"
     DISABLED = "REACTION_DISABLED"
 
@@ -598,7 +579,6 @@ class ModerationMessages:
     REPORT_NOT_FOUND = "MODERATION_REPORT_NOT_FOUND"
     REPORT_ALREADY_SETTLED = "MODERATION_REPORT_ALREADY_SETTLED"
     UNKNOWN_TARGET_TYPE = "MODERATION_UNKNOWN_TARGET_TYPE"
-    CANNOT_REPORT_YOURSELF = "MODERATION_CANNOT_REPORT_YOURSELF"
     NOWHERE_TO_SEND = "MODERATION_NOWHERE_TO_SEND"
     TARGET_NOT_FOUND = "MODERATION_TARGET_NOT_FOUND"
     NOT_A_MODERATOR = "MODERATION_NOT_A_MODERATOR"
@@ -727,7 +707,6 @@ class UserMessages:
 class ProjectExportMessages:
     SCHEMA_VERSION_UNSUPPORTED = "PROJECT_EXPORT_SCHEMA_VERSION_UNSUPPORTED"
     INVALID_PAYLOAD = "PROJECT_EXPORT_INVALID_PAYLOAD"
-    INITIATIVE_NOT_FOUND = "PROJECT_EXPORT_INITIATIVE_NOT_FOUND"
     NO_TASK_STATUSES = "PROJECT_EXPORT_NO_TASK_STATUSES"
 
 
@@ -953,9 +932,6 @@ class PostMessages:
     ALREADY_PUBLISHED = "POST_ALREADY_PUBLISHED"
     #: A poll was asked for on a notice that does not have one.
     POLL_NOT_FOUND = "POST_POLL_NOT_FOUND"
-    #: A notice already has its question; a second one would have to be a
-    #: second notice.
-    POLL_EXISTS = "POST_POLL_EXISTS"
     #: The choices were rewritten after somebody had already answered. A ballot
     #: cast for one option must not become a ballot for whatever replaced it.
     POLL_HAS_VOTES = "POST_POLL_HAS_VOTES"
@@ -1104,7 +1080,6 @@ class MarketplaceRegistryMessages:
 class QueueMessages:
     ITEM_NOT_FOUND = "QUEUE_ITEM_NOT_FOUND"
     NOT_ACTIVE = "QUEUE_NOT_ACTIVE"
-    ALREADY_ACTIVE = "QUEUE_ALREADY_ACTIVE"
     NO_ITEMS = "QUEUE_NO_ITEMS"
     NO_CURRENT_ITEM = "QUEUE_NO_CURRENT_ITEM"
     ITEM_NOT_HELD = "QUEUE_ITEM_NOT_HELD"
@@ -1112,17 +1087,13 @@ class QueueMessages:
 
 class CounterMessages:
     NOT_FOUND = "COUNTER_NOT_FOUND"
-    INITIATIVE_NOT_FOUND = "COUNTER_INITIATIVE_NOT_FOUND"
     VIEW_MODE_REQUIRES_BOUNDS = "COUNTER_VIEW_MODE_REQUIRES_BOUNDS"
     MIN_GREATER_THAN_MAX = "COUNTER_MIN_GREATER_THAN_MAX"
     STEP_MUST_BE_POSITIVE = "COUNTER_STEP_MUST_BE_POSITIVE"
-    OUT_OF_RANGE = "COUNTER_OUT_OF_RANGE"
 
 
 class TrashMessages:
     NOT_FOUND = "TRASH_ITEM_NOT_FOUND"
-    NEEDS_REASSIGNMENT = "TRASH_NEEDS_REASSIGNMENT"
-    INVALID_OWNER = "TRASH_INVALID_OWNER"
     PURGE_REQUIRES_ADMIN = "TRASH_PURGE_REQUIRES_ADMIN"
     UNKNOWN_ENTITY_TYPE = "TRASH_UNKNOWN_ENTITY_TYPE"
 
@@ -1374,9 +1345,6 @@ class AppDataMessages:
     #: This worker already has as many calls in flight to this app as it will
     #: hold open, so one slow app cannot consume the pool.
     BUSY = "APP_DATA_BUSY"
-    #: Reserved for the platform-wide limiter, which spans containers and
-    #: arrives with the rate-limiting workstream.
-    RATE_LIMITED = "APP_DATA_RATE_LIMITED"
 
 
 class AppChannelMessages:
@@ -1429,7 +1397,6 @@ class WebhookSubscriptionMessages:
 
 class AIMessages:
     INVALID_BASE_URL = "AI_INVALID_BASE_URL"
-    PROVIDER_NOT_ALLOWED = "AI_PROVIDER_NOT_ALLOWED"
     CONNECTION_NOT_FOUND = "AI_CONNECTION_NOT_FOUND"
     MEMBER_KEYS_DISABLED = "AI_MEMBER_KEYS_DISABLED"
     INVALID_API_KEY = "AI_INVALID_API_KEY"

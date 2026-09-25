@@ -34,10 +34,5 @@
     "operatorDashboard": "Operator Dashboard"
   },
   "shortcutTooltip": "Quick search ({{shortcut}})",
-  "types": {
-    "project": "Project",
-    "task": "Task",
-    "document": "Document"
-  },
   "seeAllResults": "See all results for “{{query}}”"
 }

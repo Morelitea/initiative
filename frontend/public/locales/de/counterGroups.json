@@ -3,7 +3,6 @@
   "group": "Zählergruppe",
   "groups": "Zählergruppen",
   "counter": "Zähler",
-  "counters": "Zähler",
   "noGroups": "Noch keine Zählergruppen",
   "noGroupsDescription": "Zählergruppen bündeln zusammengehörige Zahlenwerte (wie HP, Munition oder Scores), die du erhöhen, verringern oder direkt setzen kannst.",
   "createGroup": "Zählergruppe erstellen",
