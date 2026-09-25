@@ -23,7 +23,9 @@ from dataclasses import dataclass
 from enum import Enum
 
 from app.core.app_scopes import AppScopeResource, READ_ONLY_RESOURCES, tool_resource
+from app.core.search import SearchEntityType
 from app.db.initiative_rls import INITIATIVE_PATHS, governing_path
+from app.db.search_index import SEARCH_SOURCES
 
 
 class AppTableKind(str, Enum):
@@ -113,6 +115,32 @@ def _derive() -> dict[str, AppTableAccess]:
 
 
 APP_TABLE_ACCESS: dict[str, AppTableAccess] = _derive()
+
+
+def _search_entry_read_scopes() -> dict[SearchEntityType, AppScopeResource]:
+    """Each kind the search index holds, and the read scope of the table it is
+    indexed from. A kind whose table no app reaches has no entry, and its
+    entries are out of every app's reach."""
+    scopes: dict[SearchEntityType, AppScopeResource] = {}
+    for table, source in SEARCH_SOURCES.items():
+        access = APP_TABLE_ACCESS.get(table)
+        if (
+            access is not None
+            and access.kind is AppTableKind.scoped
+            and access.resource is not None
+        ):
+            scopes[source.entity_type] = access.resource
+    return scopes
+
+
+#: The read scope an installed app holds to find a search entry of each kind:
+#: the scope of the table the kind is indexed from, so ``task`` answers to
+#: ``projects`` and ``tag`` to ``tags``. An entry that names a governing tool
+#: also needs that tool's read scope (a comment on a task needs ``projects``
+#: beside ``comments``), which the index's policy reads off the row.
+SEARCH_ENTRY_READ_SCOPE: dict[SearchEntityType, AppScopeResource] = (
+    _search_entry_read_scopes()
+)
 
 #: Tables no app reaches, whose policies refuse an installed app outright
 #: beside the grant it does not hold: a reaction and the line queued about it

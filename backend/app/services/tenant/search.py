@@ -12,7 +12,7 @@ from ``Tool``.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Optional, Sequence
 
 from sqlalchemy import Select, false, func, select, text
@@ -22,8 +22,12 @@ from sqlalchemy.orm import aliased
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.db.schema_provisioning import search_operator_available
+from app.core.app_scopes import tool_resource
+from app.core.messages import AppMessages
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
+from app.db.app_rls import SEARCH_ENTRY_READ_SCOPE
+from app.db.guild_standing import InstallContext
 from app.db.search_index import entity_types
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.search_entry import SearchEntry
@@ -32,7 +36,7 @@ from app.db.authorization import standing_arg
 
 
 def search_scope_clause(
-    user_id: int,
+    user_id: int | None,
     *,
     guild_id: int,
     access: str = "read",
@@ -55,7 +59,7 @@ def search_scope_clause(
     )
 
 
-def writable_column(user_id: int):
+def writable_column(user_id: int | None, *, install: InstallContext | None = None):
     """Whether this request may CHANGE the row, not just see it.
 
     The same ``resource_access`` call the gate makes, asked at write
@@ -64,13 +68,16 @@ def writable_column(user_id: int):
     the source's to assert, so offering "this blocks that" for a thing somebody
     can only read is offering something the server must refuse.
 
+    An installed app also needs the write scope of the row's kind and of the
+    tool governing it, as the tool's own routes ask.
+
     One more call per row, on rows the gate has already narrowed to a page.
     """
     # Coalesced to false: a row with no sharing gate of its own — the guild's
     # tags — answers NULL, and "it did not say" is not a reason to offer
     # somebody an action. Nothing here asks a tag to be the source of a link
     # anyway; that is what the tag picker is for.
-    return func.coalesce(
+    writable = func.coalesce(
         func.resource_access(
             SearchEntry.dac_tool,
             SearchEntry.dac_id,
@@ -80,7 +87,59 @@ def writable_column(user_id: int):
             standing_arg(),
         ),
         False,
-    ).label("can_write")
+    )
+    if install is not None:
+        writable = (
+            writable
+            & SearchEntry.entity_type.in_(
+                [
+                    kind.value
+                    for kind, resource in SEARCH_ENTRY_READ_SCOPE.items()
+                    if resource.value in install.install_write
+                ]
+            )
+            & SearchEntry.dac_tool.in_(
+                [
+                    tool.value
+                    for tool in Tool
+                    if tool_resource(tool).value in install.install_write
+                ]
+            )
+        )
+    return writable.label("can_write")
+
+
+class SearchScopeError(Exception):
+    """An installed app asked for kinds its scopes do not let it read.
+
+    Carries the message code the endpoint answers with.
+    """
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+def install_entity_types(
+    install: InstallContext, types: Optional[Sequence[SearchEntityType]]
+) -> tuple[SearchEntityType, ...]:
+    """The kinds an installed app's search reaches: those asked for (the
+    default scope when none are) whose read scope it holds, per
+    ``SEARCH_ENTRY_READ_SCOPE``. Writing implies reading.
+
+    Raises :class:`SearchScopeError` when that leaves none, so an app asking
+    only for kinds it cannot read is told so rather than answered with nothing.
+    """
+    asked = tuple(types) if types else entity_types(default_scope_only=True)
+    readable = tuple(
+        kind
+        for kind in asked
+        if (resource := SEARCH_ENTRY_READ_SCOPE.get(kind)) is not None
+        and install.holds(f"{resource.value}:read")
+    )
+    if not readable:
+        raise SearchScopeError(AppMessages.SCOPE_REQUIRED)
+    return readable
 
 
 def search_match_clause(tsquery: ColumnElement) -> ColumnElement[bool]:
@@ -376,7 +435,9 @@ async def search(
 
 
 #: The columns a picker row is built from, before it is told where it lives.
-def _suggestion_columns(user_id: int) -> tuple:
+def _suggestion_columns(
+    user_id: int | None, *, install: InstallContext | None = None
+) -> tuple:
     return (
         SearchEntry.entity_type,
         SearchEntry.entity_id,
@@ -384,7 +445,7 @@ def _suggestion_columns(user_id: int) -> tuple:
         SearchEntry.dac_tool.label("tool"),
         SearchEntry.dac_id.label("tool_id"),
         SearchEntry.title,
-        writable_column(user_id),
+        writable_column(user_id, install=install),
     )
 
 
@@ -434,14 +495,25 @@ async def suggest(
     session: AsyncSession,
     *,
     query: str,
-    user_id: int,
+    user_id: int | None,
     guild_id: int,
     filters: Filters = Filters(),
     limit: int = SUGGEST_LIMIT,
+    install: InstallContext | None = None,
 ) -> list[SearchSuggestion]:
     """Titles to jump to. No snippets and no body ranking — this answers "take
-    me to the thing I am naming", which is a different question from search."""
+    me to the thing I am naming", which is a different question from search.
+
+    An installed app (``install``, with ``user_id`` None) is answered only the
+    kinds its scopes let it read (:func:`install_entity_types`), and the
+    index's policies hold each entry to what the app could read through the
+    tool the entry describes. A member token's sharing is asked for the member
+    it acts for, as its policies ask it.
+    """
     limit = max(1, min(limit, SUGGEST_LIMIT))
+    if install is not None:
+        filters = replace(filters, types=install_entity_types(install, filters.types))
+        user_id = install.member_user_id
     if not query.strip():
         return []
     parsed = prefix_tsquery(query)
@@ -463,7 +535,7 @@ async def suggest(
     rank = func.ts_rank_cd(SearchEntry.tsv, parsed)
     ranked = (
         select(
-            *_suggestion_columns(user_id),
+            *_suggestion_columns(user_id, install=install),
             rank.label("rank"),
             SearchEntry.updated_at,
         )

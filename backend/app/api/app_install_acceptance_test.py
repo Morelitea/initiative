@@ -34,8 +34,11 @@ from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.marketplace import app_refs
 from app.testing import (
+    create_comment,
     create_document,
     create_guild_calendar,
+    create_project,
+    create_task,
     route_as,
     route_as_install,
     route_session_to_guild,
@@ -654,3 +657,177 @@ async def test_a_write_naming_three_people_costs_the_same_two(
     assert created.status_code == 201, created.text
     assert seen == [2], statements[:4]
     assert sorted(a["id"] for a in created.json()["assignees"]) == sorted(others)
+
+
+# ---------------------------------------------------------------------------
+# Search suggestions
+# ---------------------------------------------------------------------------
+
+
+async def _open_project(session: Any, installed: Any, initiative: Any, name: str):
+    """A project in ``initiative`` shared with every member of it, which an
+    install placed there counts as."""
+    project = await create_project(session, initiative, installed.seat.user, name=name)
+    session.add(
+        ResourceGrant(
+            resource_type="project",
+            resource_id=project.id,
+            all_initiative_members=True,
+            level=ResourceAccessLevel.read,
+            initiative_id=initiative.id,
+        )
+    )
+    await session.commit()
+    return project
+
+
+async def _suggest(client: Any, installed: Any, headers: dict[str, str], **params):
+    return await client.get(
+        _g(installed.guild.id, "/search/suggest"), headers=headers, params=params
+    )
+
+
+async def test_suggests_only_the_tasks_it_could_read(
+    client, session, acting_user, role_session
+):
+    installed = await install_app(
+        session, acting_user, role_session, granted=["projects:read"]
+    )
+    open_a = await _open_project(session, installed, installed.placed, "Open A")
+    private_a = await create_project(
+        session, installed.placed, installed.seat.user, name="Private A"
+    )
+    open_b = await _open_project(session, installed, installed.unplaced, "Open B")
+    readable = await create_task(session, open_a, title="harbor open")
+    await create_task(session, private_a, title="harbor private")
+    await create_task(session, open_b, title="harbor elsewhere")
+    headers = install_headers(installed, ["projects:read"])
+
+    response = await _suggest(client, installed, headers, q="harbor", types=["task"])
+    assert response.status_code == 200, response.text
+    rows = response.json()
+    assert [r["entity_id"] for r in rows] == [readable.id]
+    assert rows[0]["tool_id"] == open_a.id
+    assert rows[0]["initiative_id"] == installed.placed.id
+    assert rows[0]["can_write"] is False
+
+    # No types: the default scope, narrowed to what it may read.
+    unnamed = await _suggest(client, installed, headers, q="harbor")
+    assert unnamed.status_code == 200, unnamed.text
+    assert [r["entity_id"] for r in unnamed.json()] == [readable.id]
+
+
+async def test_suggest_leaves_out_the_kinds_it_holds_no_scope_for(
+    client, session, acting_user, role_session
+):
+    installed = await install_app(
+        session, acting_user, role_session, granted=["projects:read"]
+    )
+    project = await _open_project(session, installed, installed.placed, "Open A")
+    task = await create_task(session, project, title="lantern task")
+    document = await create_document(
+        session, installed.placed, installed.seat.user, name="lantern doc"
+    )
+    await share_with_members(session, document, installed.placed.id)
+    headers = install_headers(installed, ["projects:read"])
+
+    both = await _suggest(
+        client, installed, headers, q="lantern", types=["task", "document"]
+    )
+    assert both.status_code == 200, both.text
+    assert [r["entity_id"] for r in both.json()] == [task.id]
+
+    refused = await _suggest(
+        client, installed, headers, q="lantern", types=["document"]
+    )
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == AppMessages.SCOPE_REQUIRED
+
+
+async def test_suggest_asks_the_scope_of_the_tool_a_comment_is_on(
+    client, session, acting_user, role_session
+):
+    """A comment on a task is read through the task's project, so finding one
+    needs ``projects:read`` beside ``comments:read``."""
+    installed = await install_app(
+        session,
+        acting_user,
+        role_session,
+        granted=["projects:read", "comments:read"],
+    )
+    project = await _open_project(session, installed, installed.placed, "Open A")
+    task = await create_task(session, project, title="stage build")
+    comment = await create_comment(
+        session, installed.seat.user, task=task, content="beacon confirmed"
+    )
+
+    comments_only = await _suggest(
+        client,
+        installed,
+        install_headers(installed, ["comments:read"]),
+        q="beacon",
+        types=["comment"],
+    )
+    assert comments_only.status_code == 200, comments_only.text
+    assert comments_only.json() == []
+
+    with_projects = await _suggest(
+        client,
+        installed,
+        install_headers(installed, ["comments:read", "projects:read"]),
+        q="beacon",
+        types=["comment"],
+    )
+    assert with_projects.status_code == 200, with_projects.text
+    assert [r["entity_id"] for r in with_projects.json()] == [comment.id]
+
+
+async def test_a_narrowed_token_suggests_only_its_initiative(
+    client, session, acting_user, role_session
+):
+    installed = await install_app(
+        session, acting_user, role_session, granted=["projects:read"]
+    )
+    # Placed in B too, so only the narrowing keeps B out.
+    await route_session_to_guild(session, installed.guild.id)
+    session.add(
+        AppPlacement(install_id=installed.app.id, initiative_id=installed.unplaced.id)
+    )
+    await session.commit()
+    in_a = await create_task(
+        session,
+        await _open_project(session, installed, installed.placed, "Open A"),
+        title="orchard in a",
+    )
+    in_b = await create_task(
+        session,
+        await _open_project(session, installed, installed.unplaced, "Open B"),
+        title="orchard in b",
+    )
+    scopes = ["projects:read"]
+
+    wide = await _suggest(
+        client, installed, install_headers(installed, scopes), q="orchard"
+    )
+    assert wide.status_code == 200, wide.text
+    assert sorted(r["entity_id"] for r in wide.json()) == sorted([in_a.id, in_b.id])
+
+    narrow = await _suggest(
+        client,
+        installed,
+        install_headers(installed, scopes, initiative_id=installed.placed.id),
+        q="orchard",
+    )
+    assert narrow.status_code == 200, narrow.text
+    assert [r["entity_id"] for r in narrow.json()] == [in_a.id]
+
+    # Asking for the other initiative by name finds nothing either.
+    asked_b = await _suggest(
+        client,
+        installed,
+        install_headers(installed, scopes, initiative_id=installed.placed.id),
+        q="orchard",
+        initiative_id=installed.unplaced.id,
+    )
+    assert asked_b.status_code == 200, asked_b.text
+    assert asked_b.json() == []
