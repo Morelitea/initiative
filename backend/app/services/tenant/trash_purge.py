@@ -8,15 +8,10 @@ initiative-member policies), since SET ROLE into ``guild_<id>`` drops the
 ``app_admin`` (BYPASSRLS drops on SET ROLE) and routes into each guild as a
 guild admin. See ``_purge_all_guilds``.
 
-Documents need per-row treatment because their hard-purge has to clean up
-``Upload`` rows + filesystem blobs (both for ``file``-type docs whose Upload
-is a 1:1 sibling, and for ``native`` docs whose embedded URLs may have
-become orphans). Every other entity table can be bulk-deleted; FK CASCADE
-on its descendants takes them too.
-
-Initiative is also handled per-row because cascade-purging an Initiative
-takes its Documents with it via FK; the upload cleanup needs to run before
-those Documents are deleted.
+Each table's due rows are purged together, parents first, through the same
+``hard_purge_entities`` the trash can's purge button uses: documents and
+pictures take their stored files with them, and descendants go before the rows
+they hang off.
 """
 
 from __future__ import annotations
@@ -24,31 +19,17 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import inspect as sa_inspect
 from sqlmodel import select
 
 from app.core.audit_events import AuditEventType
 from app.db.session import SystemSessionLocal, set_rls_context
-from app.db.soft_delete_filter import select_including_deleted
-from app.models.tenant.calendar import Calendar
-from app.models.tenant.calendar_event import CalendarEvent
-from app.models.tenant.comment import Comment
-from app.models.tenant.counter import Counter, CounterGroup
-from app.models.tenant.dashboard import Dashboard
-from app.models.tenant.post import Post
-from app.models.tenant.gallery import Gallery, GalleryImage
-from app.models.tenant.document import Document
+from app.db.soft_delete_filter import SOFT_DELETE_MODELS, select_including_deleted
 from app.models.platform.guild import Guild, GuildStatus
-from app.models.tenant.initiative import Initiative
-from app.models.tenant.project import Project
-from app.models.tenant.queue import Queue, QueueItem
-from app.models.tenant.tag import Tag
-from app.models.tenant.task import Task
-from app.models.tenant.wiki import Wiki, WikiPage
 from app.services import audit as audit_service
 from app.services.storage import get_guild_storage
 from app.services.tenant.attachments import release_unclaimed_pasted_images
-from app.services.tenant.soft_delete import hard_purge_entity
+from app.services.tenant.lifecycle_tree import parents_first
+from app.services.tenant.soft_delete import hard_purge_entities
 
 
 logger = logging.getLogger(__name__)
@@ -57,32 +38,10 @@ logger = logging.getLogger(__name__)
 PURGE_POLL_SECONDS = 3600
 
 
-# Top-of-cascade models, in dependency order. We iterate top-down so an
-# Initiative whose retention has elapsed takes its Project / Document /
-# Queue / CalendarEvent / CounterGroup descendants with it via hard_purge_entity,
-# leaving the per-entity passes empty for those rows. It covers every
-# soft-deletable model; ``core/registry_coverage_test.py`` holds it and
-# ``SOFT_DELETE_MODELS`` in step.
-_PURGE_TOP_DOWN = (
-    Initiative,
-    Project,
-    Document,
-    Task,
-    Queue,
-    QueueItem,
-    Comment,
-    Tag,
-    Calendar,
-    CalendarEvent,
-    Dashboard,
-    Post,
-    Gallery,
-    GalleryImage,
-    CounterGroup,
-    Counter,
-    Wiki,
-    WikiPage,
-)
+#: Every soft-deletable model, parents before children, so a row whose
+#: retention has elapsed takes its descendants with it and the later passes find
+#: them gone.
+_PURGE_TOP_DOWN = parents_first(SOFT_DELETE_MODELS)
 
 
 def _entity_type(model: type) -> str:
@@ -108,25 +67,17 @@ async def _run_purge_pass(
     account behind it, so the record carries no actor."""
     purged: dict[str, int] = {}
     for model in _PURGE_TOP_DOWN:
+        # A row an earlier pass took with its parent is already gone from the
+        # database, so it is not found here.
         stmt = (
             select_including_deleted(model)
             .where(model.purge_at.is_not(None))
             .where(model.purge_at < now)
         )
-        result = await session.exec(stmt)
-        rows = list(result.all())
-        for row in rows:
-            # Skip if a parent purge in an earlier iteration of this
-            # loop has already queued this row for deletion. Membership
-            # in `session` would still be True here — the identity map
-            # holds deleted-but-unflushed objects until commit. The
-            # "deleted" persistence state via sa_inspect is the right
-            # check.
-            if sa_inspect(row).deleted:
-                continue
-            await hard_purge_entity(session, row)
-            entity_type = _entity_type(model)
-            purged[entity_type] = purged.get(entity_type, 0) + 1
+        rows = list((await session.exec(stmt)).all())
+        if rows:
+            await hard_purge_entities(session, rows)
+            purged[_entity_type(model)] = len(rows)
 
     if guild_id is not None and purged:
         await audit_service.record(
@@ -181,13 +132,12 @@ async def process_trash_purges() -> None:
     """One pass of the auto-purge loop across every guild schema. Idempotent and
     safe to run on a schedule even when nothing is due.
 
-    Uses ``hard_purge_entity`` per row so that:
+    Goes through ``hard_purge_entities`` rather than a bare
+    ``DELETE … WHERE purge_at < now()``, so that:
     1. ``Document`` upload cleanup (blobs + Upload rows) runs before each
        Document is deleted.
-    2. ORM-level cascades fire correctly — most FKs in this codebase are
-       not declared with DB-level ``ON DELETE CASCADE``, so a bulk
-       ``DELETE FROM <table> WHERE purge_at < now()`` would fail on FK
-       constraints. ``hard_purge_entity`` walks descendants explicitly.
+    2. Descendants go first — most keys between these tables do not cascade
+       in the database, so a bare delete of a parent would fail on them.
     """
     now = datetime.now(timezone.utc)
     async with SystemSessionLocal() as session:

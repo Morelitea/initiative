@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A community's shorter session limit applies to every sign-in** — the app's sign-in, single sign-on, and the extra check a community asks for all gave out access that outlasted the limit. Only the browser's password sign-in kept to it before.
 - **API keys limited to one community stay in it** — such a key could still reach other communities through views that span communities, such as **My Tasks**, and through community sign-in settings and file links. It now reaches only its own community.
 - **Back to the page you were on after signing in** — signing in from a link to a community page now takes you there, provided you're a member of that community; before, it always went to the home page. Single sign-on now checks membership the same way.
+- **Comments go to the trash with what they're on** — deleting a project, queue, counter group, calendar or dashboard now moves its comments to the trash with it, and restoring it brings them back. Before, they stayed behind.
+- **A deleted wiki shows once in the trash** — the trash lists a deleted wiki as one item. Before, it also listed each of its pages and comments, and restoring one of those on its own failed.
+- **Faster delete, restore and purge** — deleting, restoring, purging and archiving something large, like an initiative with thousands of tasks, now takes a few database queries instead of one per item inside it.
 - **A search error at startup** — every start logged `search reindex failed for guild_template`. It was harmless, since search in your communities was already up to date, and it no longer appears.
 
 ## [0.72.0] - 2026-09-24

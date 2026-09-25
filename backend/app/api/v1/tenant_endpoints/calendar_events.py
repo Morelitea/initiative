@@ -893,14 +893,10 @@ async def delete_calendar_event(
     guild_context: GuildContextDep,
 ) -> None:
     """Soft-delete a calendar event. Requires write access on the calendar."""
-    from app.services.platform import guilds as guilds_service
-    from app.services.tenant.soft_delete import soft_delete_entity
+    from app.services.tenant.soft_delete import trash
 
     event = await _get_event_or_404(
         session, event_id, current_user, guild_context, access="write"
-    )
-    retention_days = await guilds_service.get_guild_retention_days(
-        session, guild_context.guild_id
     )
     # A declined attendee already isn't attending, so skip the cancellation
     # notice for them (consistent with update/reminder notifications).
@@ -919,11 +915,10 @@ async def delete_calendar_event(
             event=event,
             guild_id=guild_context.guild_id,
         )
-    await soft_delete_entity(
+    await trash(
         session,
         event,
         deleted_by_user_id=current_user.id,
-        retention_days=retention_days,
     )
     await session.commit()
 

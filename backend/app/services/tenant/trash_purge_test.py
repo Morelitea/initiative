@@ -31,14 +31,9 @@ pytestmark = pytest.mark.integration
 async def test_auto_purge_does_not_double_purge_cascaded_descendants(
     session: AsyncSession,
 ):
-    """When an Initiative purge cascades through its Projects, the next
-    iteration of the per-model loop must skip those Projects (they're
-    already queued for deletion) instead of feeding them to
-    ``hard_purge_entity`` a second time.
-
-    Regression: the previous ``row not in session`` guard didn't fire
-    because SQLAlchemy keeps deleted-but-unflushed objects in the
-    identity map. The replacement uses ``sa_inspect(row).deleted``."""
+    """When an Initiative purge cascades through its Projects, the later
+    pass over projects must not find them again and purge them a second
+    time."""
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
     initiative = await create_initiative(session, guild, user)
@@ -71,9 +66,7 @@ async def test_auto_purge_does_not_double_purge_cascaded_descendants(
     initiative_id = initiative.id
     project_id = project.id
 
-    # One pass — should sweep both rows without raising. If the skip guard
-    # is broken we'd hit "Instance is not persisted" on the second
-    # hard_purge_entity call against the cascaded project. Drive the inner
+    # One pass — should sweep both rows without raising. Drive the inner
     # loop with the test session so the DELETEs land on the test DB
     # (process_trash_purges() opens its own SystemSessionLocal pointed at
     # the dev DB).
@@ -292,3 +285,55 @@ async def test_a_task_with_assignees_can_be_purged(session: AsyncSession):
         )
     )
     assert left.one()[0] == 0
+
+
+async def test_purging_an_initiative_takes_everything_under_it(session: AsyncSession):
+    """One purge clears the whole subtree: tools, their children, every thread
+    and reply, and the rows that hang off them without being in the trash
+    themselves (members, a project's columns)."""
+    from app.models.tenant.comment import Comment
+    from app.services.tenant.soft_delete import hard_purge_entity
+    from app.testing.factories import create_comment
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    initiative = await create_initiative(session, guild, user)
+    project = await create_project(session, initiative, user)
+    task = await create_task(session, project)
+    on_project = await create_comment(session, user, project=project)
+    on_task = await create_comment(session, user, task=task)
+    await create_comment(session, user, task=task, parent_comment_id=on_task.id)
+
+    await soft_delete_entity(
+        session, initiative, deleted_by_user_id=user.id, retention_days=1
+    )
+    await session.commit()
+    trashed = (
+        await session.exec(
+            select_including_deleted(Initiative).where(Initiative.id == initiative.id)
+        )
+    ).one()
+
+    await hard_purge_entity(session, trashed)
+    await session.commit()
+
+    async def count(table: str, column: str, value: int) -> int:
+        result = await session.exec(
+            text(f"SELECT count(*) FROM {table} WHERE {column} = :v").bindparams(
+                v=value
+            )
+        )
+        return result.one()[0]
+
+    assert await count("initiatives", "id", initiative.id) == 0
+    assert await count("initiative_members", "initiative_id", initiative.id) == 0
+    assert await count("projects", "id", project.id) == 0
+    assert await count("task_statuses", "project_id", project.id) == 0
+    assert await count("tasks", "id", task.id) == 0
+    assert await count("comments", "project_id", project.id) == 0
+    assert await count("comments", "task_id", task.id) == 0
+    assert (
+        await session.exec(
+            select_including_deleted(Comment).where(Comment.id == on_project.id)
+        )
+    ).one_or_none() is None

@@ -20,7 +20,7 @@ from app.models.platform.guild import GuildRole
 from app.models.tenant.relationship import EntityRelationship
 from app.db.session import set_rls_context
 from app.services.tenant import tags as tags_service
-from app.services.tenant.trash_purge import hard_purge_entity
+from app.services.tenant.soft_delete import hard_purge_entity
 from app.testing.factories import (
     assign_tag,
     create_document,
