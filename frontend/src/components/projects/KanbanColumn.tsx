@@ -21,6 +21,7 @@ import type {
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Markdown } from "@/components/Markdown";
+import { UnreadDot } from "@/components/notifications/UnreadDot";
 import type { KanbanCardFields } from "@/components/projects/kanbanFields";
 import type { PriorityBadgeVariant } from "@/components/projects/projectTasksConfig";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
@@ -31,6 +32,7 @@ import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress"
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon-picker";
+import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { formatDateTime } from "@/lib/formatDate";
 import { useGuildPath } from "@/lib/guildUrl";
 import { summarizeRecurrence } from "@/lib/recurrence";
@@ -308,6 +310,9 @@ const KanbanCardContent = memo(
     const { t } = useTranslation(["projects", "dates"]);
     const { t: tRelations } = useTranslation("relations");
     const gp = useGuildPath();
+    const unreadDot = useUnreadTree().hasSubject(task.guild_id, "task", task.id) ? (
+      <UnreadDot className="ml-2 inline-block align-middle" />
+    ) : null;
 
     const { shows, showsProperty } = visibleFields;
 
@@ -346,9 +351,13 @@ const KanbanCardContent = memo(
               className="wrap-break-word w-full min-w-0 rounded-sm font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-1 focus-visible:ring-ring"
             >
               {task.title}
+              {unreadDot}
             </Link>
           ) : (
-            <p className="wrap-break-word w-full min-w-0 font-medium opacity-70">{task.title}</p>
+            <p className="wrap-break-word w-full min-w-0 font-medium opacity-70">
+              {task.title}
+              {unreadDot}
+            </p>
           )}
           {shows("description") && task.description ? (
             <Markdown

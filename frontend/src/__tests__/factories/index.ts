@@ -38,6 +38,7 @@ export {
 } from "./marketplace.factory";
 export {
   buildNotification,
+  buildNotificationPlace,
   resetCounter as resetNotificationCounter,
 } from "./notification.factory";
 export { buildLexicalBody, buildPoll, buildPollOption, buildPost } from "./post.factory";

@@ -25,7 +25,7 @@ from app.models.platform.mfa_recovery_code import MfaRecoveryCode
 from app.models.platform.user import User, UserStatus
 from app.models.platform.user_passkey import UserPasskey
 from app.models.platform.user_token import UserToken, UserTokenPurpose
-from app.services import email as email_service
+from app.services.platform import email_outbox
 from app.services.auth import sessions as session_service
 from app.services.auth import totp as totp_service
 from app.services.platform import app_settings as app_settings_service
@@ -321,10 +321,10 @@ async def test_the_letter_says_the_password_is_gone(
 ):
     sent: list[int] = []
 
-    async def record(_session, user, *args, **kwargs) -> None:
+    async def record(user, pieces) -> None:
         sent.append(user.id)
 
-    monkeypatch.setattr(email_service, "send_password_removed_email", record)
+    monkeypatch.setattr(email_outbox, "enqueue_account_letter", record)
 
     user = await _account(session, "pl-letter@example.com")
     await _seed_passkey(session, user)
@@ -334,31 +334,6 @@ async def test_the_letter_says_the_password_is_gone(
     )
     assert response.status_code == 200, response.text
     assert sent == [user.id]
-
-
-async def test_a_letter_that_cannot_go_does_not_undo_the_removal(
-    client: AsyncClient, session: AsyncSession, monkeypatch
-):
-    """A deployment with no mail configured still made the change."""
-
-    async def fail(*args, **kwargs) -> None:
-        raise RuntimeError("no mail")
-
-    monkeypatch.setattr(email_service, "send_password_removed_email", fail)
-
-    user = await _account(session, "pl-nomail@example.com")
-    user_id = user.id
-    await _seed_passkey(session, user)
-
-    response = await client.post(
-        REMOVE, json={"current_password": PASSWORD}, headers=get_auth_headers(user)
-    )
-    assert response.status_code == 200, response.text
-
-    session.expire_all()
-    account = await session.get(User, user_id)
-    assert account is not None
-    assert account.hashed_password is None
 
 
 async def test_the_app_is_sent_to_a_browser_for_this(

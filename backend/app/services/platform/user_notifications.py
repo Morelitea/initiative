@@ -20,9 +20,10 @@ def _int_or_none(value: object) -> Optional[int]:
 def _place(data: Mapping[str, object]) -> dict[str, object]:
     """Where this happened, read off the payload that already carries it.
 
-    Three independently-optional levels: a direct message has none of them, a
-    membership notice has only a guild, a comment on a task has all three. Kept
-    as columns so "where is there unread activity" is an index lookup.
+    Independently-optional levels: a direct message has none of them, a
+    membership notice has only a guild, a comment on a task has all of them —
+    community, initiative, tool, the tool's row and the task itself. Kept as
+    columns so "where is there unread activity" is an index lookup.
     """
     # ``tool`` where the notifier states it outright, otherwise the entity type
     # it already carries. They differ for a task comment, whose entity is the
@@ -33,6 +34,11 @@ def _place(data: Mapping[str, object]) -> dict[str, object]:
         "guild_id": _int_or_none(data.get("guild_id")),
         "initiative_id": _int_or_none(data.get("initiative_id")),
         "tool": tool if isinstance(tool, str) and tool else None,
+        "resource_id": _int_or_none(data.get("resource_id")),
+        "subject_type": subject
+        if isinstance(subject := data.get("subject_type"), str)
+        else None,
+        "subject_id": _int_or_none(data.get("subject_id")),
     }
 
 
@@ -90,9 +96,7 @@ async def create_notification(
         user_id=user_id,
         type=notification_type,
         data=dict(data),
-        guild_id=place["guild_id"],
-        initiative_id=place["initiative_id"],
-        tool=place["tool"],
+        **place,
     )
     session.add(notification)
     await session.flush()
@@ -261,24 +265,80 @@ async def list_notifications(
     return notifications, unread_count, next_cursor
 
 
-async def unread_places(
-    session: AsyncSession, *, user_id: int
-) -> list[tuple[int | None, int | None, str | None]]:
+async def unread_places(session: AsyncSession, *, user_id: int) -> list[dict[str, Any]]:
     """The distinct places this account has unread activity.
 
-    One index-only scan over the partial index, returning a handful of triples
-    — a node in the navigation lights when any of them names it as an ancestor.
-    There is nothing to count: a dot says "look here", and the popover says how
-    much. A row with no guild at all is still a member of this set, so "is
-    anything unread" is the set being non-empty and needs no second question.
+    One index-only scan over the partial index, returning a handful of rows —
+    a node in the navigation lights when any of them names it or something
+    beneath it, all the way down to the item. There is nothing to count: a dot
+    says "look here", and the popover says how much. A row with no guild at all
+    is still a member of this set, so "is anything unread" is the set being
+    non-empty and needs no second question.
     """
     stmt = (
-        select(Notification.guild_id, Notification.initiative_id, Notification.tool)
+        select(
+            Notification.guild_id,
+            Notification.initiative_id,
+            Notification.tool,
+            Notification.resource_id,
+            Notification.subject_type,
+            Notification.subject_id,
+        )
         .where(Notification.user_id == user_id, Notification.read_at.is_(None))
         .distinct()
     )
     result = await session.exec(stmt)
-    return [tuple(row) for row in result.all()]
+    return [dict(row._mapping) for row in result.all()]
+
+
+async def read_subject(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    guild_id: int,
+    subject_type: str,
+    subject_id: int,
+) -> tuple[list[int], datetime | None]:
+    """Mark every unread line about one item read, because its reader opened it.
+
+    Returns what was unread there, for the page to show: the comments those
+    lines named (a mention, a reply, the comment reacted to), and ``since`` —
+    the earliest a rolled-up comment line began collecting, every comment after
+    which is one it stood for.
+    """
+    rows = (
+        (
+            await session.exec(
+                update(Notification)
+                .where(
+                    Notification.user_id == user_id,
+                    Notification.guild_id == guild_id,
+                    Notification.subject_type == subject_type,
+                    Notification.subject_id == subject_id,
+                    Notification.read_at.is_(None),
+                )
+                .values(read_at=datetime.now(timezone.utc))
+                .returning(Notification.data)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not rows:
+        return [], None
+    comment_ids: set[int] = set()
+    opened: list[datetime] = []
+    for data in rows:
+        named = data.get("comment_id")
+        if data.get("target_type") == "comment":
+            named = data.get("target_id")
+        if isinstance(named, int):
+            comment_ids.add(named)
+        if isinstance(stamp := data.get("opened_at"), str):
+            opened.append(datetime.fromisoformat(stamp))
+    notification_stream.queue_signal(session, user_id, "read")
+    await session.commit()
+    return sorted(comment_ids), min(opened, default=None)
 
 
 async def mark_notification_read(

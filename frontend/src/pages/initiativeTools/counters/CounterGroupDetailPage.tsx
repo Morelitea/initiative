@@ -49,6 +49,7 @@ import {
   useSteppedCount,
   useUpdateCounter,
 } from "@/hooks/useCounters";
+import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { useCounterGroupRealtime } from "@/hooks/useResourceRealtime";
 import { useViewPreference } from "@/hooks/useViewPreference";
@@ -126,6 +127,7 @@ export function CounterGroupDetailPage() {
   // Track recently viewed counter groups for the layout header tabs bar.
   const recordViewMutation = useRecordRecentView("counter_group", Number(guildId));
   const viewedGroupId = group?.id;
+  useReadOnOpen(Tool.counter_group, viewedGroupId);
   useEffect(() => {
     if (!viewedGroupId) return;
     recordViewMutation.mutate(viewedGroupId);

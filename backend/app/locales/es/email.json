@@ -244,51 +244,41 @@
     }
   },
   "secondFactor": {
-    "greeting": "Hola <strong>{{name}}</strong>:",
     "fallbackText": "Si no has sido tú, cambia la contraseña de inmediato y avisa a quien gestiona este sitio.",
     "enabled": {
       "subject": "La verificación en dos pasos está activada",
       "title": "La verificación en dos pasos está activada",
-      "body": "A partir de ahora, al iniciar sesión con tu contraseña también se te pedirá un código de tu aplicación de autenticación. Guarda tus códigos de recuperación en un lugar seguro: son la forma de entrar si pierdes la aplicación.",
-      "textBody": "La verificación en dos pasos ya está activada en tu cuenta. Al iniciar sesión se te pedirá un código de tu aplicación de autenticación."
+      "body": "A partir de ahora, al iniciar sesión con tu contraseña también se te pedirá un código de tu aplicación de autenticación. Guarda tus códigos de recuperación en un lugar seguro: son la forma de entrar si pierdes la aplicación."
     },
     "disabled": {
       "subject": "La verificación en dos pasos está desactivada",
       "title": "La verificación en dos pasos está desactivada",
-      "body": "Tu cuenta ya no pide un código al iniciar sesión y se han descartado los códigos de recuperación que tenías. Se ha cerrado tu sesión en todos los demás dispositivos.",
-      "textBody": "La verificación en dos pasos ya está desactivada en tu cuenta y tus códigos de recuperación se han descartado."
+      "body": "Tu cuenta ya no pide un código al iniciar sesión y se han descartado los códigos de recuperación que tenías. Se ha cerrado tu sesión en todos los demás dispositivos."
     }
   },
   "passwordRemoved": {
     "subject": "Se ha eliminado tu contraseña",
     "title": "Se ha eliminado tu contraseña",
-    "greeting": "Hola <strong>{{name}}</strong>:",
     "body": "Tu cuenta ya no tiene contraseña. A partir de ahora inicias sesión con tu clave de acceso o con tu proveedor de identidad. Guarda bien tus códigos de recuperación: son la forma de volver a establecer una contraseña si la necesitas.",
-    "fallbackText": "Si no has sido tú, usa uno de tus códigos de recuperación para establecer una contraseña de inmediato y avisa a quien gestiona este sitio.",
-    "textBody": "Tu cuenta ya no tiene contraseña. Ahora inicias sesión con tu clave de acceso o con tu proveedor de identidad."
+    "fallbackText": "Si no has sido tú, usa uno de tus códigos de recuperación para establecer una contraseña de inmediato y avisa a quien gestiona este sitio."
   },
   "passwordChanged": {
     "subject": "Se ha cambiado tu contraseña",
     "title": "Se ha cambiado tu contraseña",
-    "greeting": "Hola <strong>{{name}}</strong>:",
     "body": "Se acaba de cambiar la contraseña de tu cuenta. Se ha cerrado la sesión en todos los demás dispositivos conectados a tu cuenta.",
-    "fallbackText": "Si no has sido tú, restablece tu contraseña de inmediato y avisa a quien gestiona este sitio.",
-    "textBody": "Se acaba de cambiar la contraseña de tu cuenta. Se ha cerrado la sesión en todos los demás dispositivos conectados a tu cuenta. Si no has sido tú, restablece tu contraseña de inmediato."
+    "fallbackText": "Si no has sido tú, restablece tu contraseña de inmediato y avisa a quien gestiona este sitio."
   },
   "passkey": {
-    "greeting": "Hola <strong>{{name}}</strong>:",
     "fallbackText": "Si no has sido tú, cambia la contraseña de inmediato y avisa a quien gestiona este sitio.",
     "added": {
       "subject": "Se ha añadido una clave de acceso a tu cuenta",
       "title": "Se ha añadido una clave de acceso a tu cuenta",
-      "body": "Ya puedes iniciar sesión en tu cuenta con la clave de acceso <strong>{{passkey}}</strong>. Las claves de acceso viven en el dispositivo o el gestor de contraseñas donde se crearon, así que ten a mano el que usaste.",
-      "textBody": "Se ha añadido a tu cuenta la clave de acceso {{passkey}} y ya puede usarse para iniciar sesión."
+      "body": "Ya puedes iniciar sesión en tu cuenta con la clave de acceso <strong>{{passkey}}</strong>. Las claves de acceso viven en el dispositivo o el gestor de contraseñas donde se crearon, así que ten a mano el que usaste."
     },
     "removed": {
       "subject": "Se ha eliminado una clave de acceso de tu cuenta",
       "title": "Se ha eliminado una clave de acceso de tu cuenta",
-      "body": "La clave de acceso <strong>{{passkey}}</strong> ya no sirve para iniciar sesión. Las demás formas de entrar siguen igual y tu sesión continúa abierta allí donde lo estaba.",
-      "textBody": "La clave de acceso {{passkey}} se ha eliminado de tu cuenta y ya no sirve para iniciar sesión."
+      "body": "La clave de acceso <strong>{{passkey}}</strong> ya no sirve para iniciar sesión. Las demás formas de entrar siguen igual y tu sesión continúa abierta allí donde lo estaba."
     }
   },
   "digest": {
@@ -391,19 +381,16 @@
     "textContactNobody": "Ponte en contacto con quien gestiona este servidor para resolverlo."
   },
   "signInLocked": {
-    "greeting": "Hola <strong>{{name}}</strong>,",
     "fallbackText": "Si fuiste tú, no tienes que hacer nada más. Si no, puede que alguien conozca tu dirección de correo. Tu contraseña sigue a salvo, pero plantéate iniciar sesión con una llave de acceso.",
     "locked": {
       "subject": "Inicio de sesión con contraseña en pausa en tu cuenta",
       "title": "Inicio de sesión con contraseña en pausa",
-      "body": "Alguien introdujo una contraseña o un código incorrecto para tu cuenta 5 veces, así que el inicio de sesión con contraseña o código está desactivado durante 15 minutos. Las llaves de acceso siguen funcionando y sigues con la sesión iniciada donde ya la tenías.",
-      "textBody": "Alguien introdujo una contraseña o un código incorrecto para tu cuenta 5 veces, así que el inicio de sesión con contraseña o código está desactivado durante 15 minutos. Las llaves de acceso siguen funcionando."
+      "body": "Alguien introdujo una contraseña o un código incorrecto para tu cuenta 5 veces, así que el inicio de sesión con contraseña o código está desactivado durante 15 minutos. Las llaves de acceso siguen funcionando y sigues con la sesión iniciada donde ya la tenías."
     },
     "held": {
       "subject": "Inicio de sesión con contraseña desactivado en tu cuenta",
       "title": "Inicio de sesión con contraseña desactivado",
-      "body": "Siguieron llegando contraseñas o códigos incorrectos para tu cuenta, así que el inicio de sesión con contraseña o código está desactivado hasta que un moderador lo vuelva a activar. Las llaves de acceso siguen funcionando y sigues con la sesión iniciada donde ya la tenías. Ponte en contacto con quien administra este sitio para que lo reactive.",
-      "textBody": "Siguieron llegando contraseñas o códigos incorrectos para tu cuenta, así que el inicio de sesión con contraseña o código está desactivado hasta que un moderador lo vuelva a activar. Las llaves de acceso siguen funcionando."
+      "body": "Siguieron llegando contraseñas o códigos incorrectos para tu cuenta, así que el inicio de sesión con contraseña o código está desactivado hasta que un moderador lo vuelva a activar. Las llaves de acceso siguen funcionando y sigues con la sesión iniciada donde ya la tenías. Ponte en contacto con quien administra este sitio para que lo reactive."
     }
   }
 }

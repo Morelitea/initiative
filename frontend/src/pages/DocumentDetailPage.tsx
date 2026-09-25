@@ -39,6 +39,7 @@ import { CreateReferencedThingDialog } from "@/components/references/CreateRefer
 import { StatusMessage } from "@/components/StatusMessage";
 import { TagPicker } from "@/components/tags/TagPicker";
 import { useDocument, useSetDocumentCache, useUpdateDocument } from "@/hooks/useDocuments";
+import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useSetDocumentProperties } from "@/hooks/useProperties";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { useServerForm } from "@/hooks/useServerForm";
@@ -272,6 +273,7 @@ export const DocumentDetailPage = () => {
   // them. Mirrors the pattern in ProjectDetailPage.
   const recordViewMutation = useRecordRecentView("document", guildId);
   const viewedDocumentId = documentQuery.data?.id;
+  useReadOnOpen(Tool.document, viewedDocumentId);
   useEffect(() => {
     if (!viewedDocumentId) return;
     recordViewMutation.mutate(viewedDocumentId);

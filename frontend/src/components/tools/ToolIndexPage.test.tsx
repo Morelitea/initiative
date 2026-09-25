@@ -10,9 +10,10 @@
  */
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse } from "msw";
+import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 
+import { buildNotificationPlace } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import i18n from "@/__tests__/helpers/i18n-test";
 import { server } from "@/__tests__/helpers/msw-server";
@@ -173,5 +174,24 @@ describe("the tool index page", () => {
 
     const link = (await screen.findByText("Openable")).closest("a");
     expect(link).toHaveAttribute("href", `/c/1/i/${INITIATIVE_ID}/${toolRouteSegment(tool)}/7`);
+  });
+
+  it.each(CASES)("$tool marks the row with something unread", async ({ tool }) => {
+    stubList(tool, [
+      row(tool, { id: 7, name: "Talked about" }),
+      row(tool, { id: 8, name: "Quiet" }),
+    ]);
+    server.use(
+      http.get("/api/v1/notifications/unread", () =>
+        HttpResponse.json({ places: [buildNotificationPlace({ tool, resource_id: 7 })] })
+      )
+    );
+
+    renderIndex(tool);
+
+    await screen.findByText("Quiet");
+    const dot = await screen.findByRole("img", { name: translate("guilds:unreadHere") });
+    expect(screen.getAllByRole("img", { name: translate("guilds:unreadHere") })).toHaveLength(1);
+    expect(dot.parentElement).toHaveTextContent("Talked about");
   });
 });

@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useDashboardEditor } from "@/hooks/useDashboardEditor";
 import { useDashboard, useWidgetCatalog } from "@/hooks/useDashboards";
+import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -44,6 +45,7 @@ export function DashboardDetailPage() {
   // once the read succeeds (access checks passed).
   const recordViewMutation = useRecordRecentView("dashboard", Number(guildId));
   const viewedDashboardId = dashboard?.id;
+  useReadOnOpen(Tool.dashboard, viewedDashboardId);
   useEffect(() => {
     if (!viewedDashboardId) return;
     recordViewMutation.mutate(viewedDashboardId);

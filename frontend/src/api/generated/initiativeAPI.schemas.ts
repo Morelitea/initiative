@@ -6186,12 +6186,16 @@ export interface NotificationListResponse {
 
 /**
  * One place with unread activity. Every level is optional: a direct
- * message names none of them, a membership notice only a community.
+ * message names none of them, a membership notice only a community, a
+ * comment on a task all of them down to the task.
  */
 export interface NotificationPlace {
   guild_id: number | null;
   initiative_id: number | null;
   tool: string | null;
+  resource_id: number | null;
+  subject_type: string | null;
+  subject_id: number | null;
 }
 
 export type NotificationPreferencesReadSettings = { [key: string]: { [key: string]: boolean } };
@@ -8390,6 +8394,24 @@ export interface StorageSettingsUpdate {
 export interface StorageTestResponse {
   success: boolean;
   message: string;
+}
+
+/**
+ * The item its reader just opened.
+ */
+export interface SubjectReadRequest {
+  guild_id: number;
+  /** @maxLength 32 */
+  subject_type: string;
+  subject_id: number;
+}
+
+/**
+ * What was unread on the item, for its page to show for this visit.
+ */
+export interface SubjectReadResponse {
+  comment_ids: number[];
+  since: string | null;
 }
 
 /**

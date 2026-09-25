@@ -75,6 +75,9 @@ class Notification(SQLModel, table=True):
             "guild_id",
             "initiative_id",
             "tool",
+            "resource_id",
+            "subject_type",
+            "subject_id",
             postgresql_where=text("read_at IS NULL"),
         ),
         # What the retention sweep asks for: read rows by when they were read.
@@ -122,6 +125,22 @@ class Notification(SQLModel, table=True):
     tool: Optional[str] = Field(
         default=None,
         sa_column=Column(String(32), nullable=True),
+    )
+    #: The row of that tool: the project a task is in, the calendar of an
+    #: event, the wiki of a page. Weak, like ``initiative_id``.
+    resource_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, nullable=True),
+    )
+    #: What the notification is about, as an ``entity_tables`` kind and its id
+    #: — the task, the event, the page. Opening it marks the line read.
+    subject_type: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(32), nullable=True),
+    )
+    subject_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, nullable=True),
     )
     read_at: Optional[datetime] = Field(
         default=None,

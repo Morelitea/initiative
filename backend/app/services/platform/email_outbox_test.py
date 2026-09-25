@@ -54,13 +54,16 @@ def sent(monkeypatch):
     """Capture what actually goes on the wire."""
     calls: list[dict] = []
 
-    async def _deliver(session, user, *, subject, html_body, text_body):
+    async def _deliver(
+        session, user, *, subject, html_body, text_body, every_address=False
+    ):
         calls.append(
             {
                 "user_id": user.id,
                 "subject": subject,
                 "html": html_body,
                 "text": text_body,
+                "every_address": every_address,
             }
         )
 
@@ -196,18 +199,27 @@ async def test_a_row_with_no_bell_line_is_never_superseded(
 async def test_a_channel_switched_off_after_writing_is_not_delivered(
     session: AsyncSession, configured, sent
 ):
+    """…while a security letter goes regardless, on its own, to every address
+    the account has proved."""
     user = await create_user(session, email="switched-off@example.com")
     await email_outbox.enqueue(
         session, user, category=NotificationCategory.mentions, pieces=_pieces()
     )
     await set_notification_prefs(
-        session, user, {"categories": {"mentions": {"email": False}}}
+        session,
+        user,
+        {"categories": {"mentions": {"email": False}, "account": {"email": False}}},
     )
     await session.commit()
+    await email_outbox.enqueue_account_letter(
+        user, _pieces(body="Your password was changed")
+    )
 
     await email_outbox._run_pass(session, now=datetime.now(timezone.utc))
-    assert sent == []
-    assert await _rows(session, user.id) == []
+    [letter] = sent
+    assert letter["every_address"] is True
+    assert "Your password was changed" in letter["html"]
+    assert [row.sent_at is not None for row in await _rows(session, user.id)] == [True]
 
 
 async def test_a_failed_send_backs_off_rather_than_vanishing(

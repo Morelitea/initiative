@@ -10,6 +10,7 @@ import type {
   NotificationCountResponse,
   NotificationListResponse,
   NotificationRead,
+  SubjectReadResponse,
   UnreadPlacesResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
@@ -20,9 +21,11 @@ import {
   markAllNotificationsReadApiV1NotificationsReadAllPost,
   markNotificationReadApiV1NotificationsNotificationIdReadPost,
   markNotificationUnreadApiV1NotificationsNotificationIdUnreadPost,
+  readNotificationSubjectApiV1NotificationsReadSubjectPost,
   unreadNotificationPlacesApiV1NotificationsUnreadGet,
 } from "@/api/generated/notifications/notifications";
 import { invalidate, q } from "@/api/query-keys";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 
@@ -150,6 +153,43 @@ export const useUnreadPlaces = (options?: {
     enabled: options?.enabled,
     refetchInterval: options?.refetchInterval,
   });
+};
+
+/**
+ * Opening an item reads every unread notification about it, and says what was
+ * unread there so the page can show it for this visit.
+ *
+ * A query rather than a mutation so the page and its comment thread share one
+ * read. It never refetches while mounted — a second read would find nothing
+ * unread and clear what the visit is showing — and it is dropped on leaving,
+ * so the next visit reads again.
+ */
+export const useReadOnOpen = (kind: string, id: number | undefined) => {
+  const guildId = useActiveGuildId();
+  const { data } = useQuery<SubjectReadResponse>({
+    queryKey: ["notifications", "opened", guildId, kind, id],
+    queryFn: async () => {
+      const read = await readNotificationSubjectApiV1NotificationsReadSubjectPost({
+        guild_id: guildId,
+        subject_type: kind,
+        subject_id: id as number,
+      });
+      void invalidate(q.notifications());
+      return read;
+    },
+    enabled: guildId > 0 && Number.isFinite(id),
+    staleTime: Number.POSITIVE_INFINITY,
+    gcTime: 0,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
+  return useMemo(
+    () => ({
+      commentIds: new Set(data?.comment_ids),
+      since: data?.since ? new Date(data.since) : null,
+    }),
+    [data]
+  );
 };
 
 // ── Reading, applied before the server has said so ──────────────────────────

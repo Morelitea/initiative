@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCollaboration } from "@/hooks/useCollaboration";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useCreateWikiPage, useUpdateWikiPage, useWiki, useWikiPage } from "@/hooks/useWikis";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -98,6 +99,7 @@ export const WikiPageView = () => {
   // do not both send the same rename. Cleared when the page changes.
   const sentTitle = useRef<string | null>(null);
   const loadedPageId = pageQuery.data?.id;
+  useReadOnOpen("wiki_page", loadedPageId);
   const loadedTitle = pageQuery.data?.title;
   useEffect(() => {
     sentTitle.current = null;

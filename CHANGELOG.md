@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Apps can use other apps** — an app may now ask to use another app installed in your community, such as opening an issue through it. The install dialog lists this as **Use {app} in this community**, and it is granted or taken back like any other access, there or in the app's settings.
 - **An email when your password changes** — changing, resetting or recovering your password now emails every address on your account, as adding a passkey or turning off two-factor already did.
 - **Database pool settings** — `DB_POOL_SIZE` and `DB_MAX_OVERFLOW` set how many database connections each pool keeps, instead of a fixed 5 plus 10. On servers with many communities, `DB_COHORTS` splits communities into groups, each with its own request pool, so each database connection uses less memory. Behind a connection pooler, set `DB_COHORT_DATABASE` to give each group its own pooler database.
+- **Follow unread activity to the comment** — the unread dots now go past the sidebar: onto the project, document, calendar or other item in its list, onto the task, event or page inside it, and on the item itself the unread comments are highlighted.
 
 ### Changed
 
@@ -29,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **An expired export can't be downloaded** — once an export's download window has passed, it shows as expired and `GET /exports/{id}/download` answers `410 EXPORT_EXPIRED` (it used to answer `409 EXPORT_NOT_READY` after cleanup, and serve the file until then).
 - **Notifications go to people who can open what they name** — a mention, reply, comment, reaction, event update or task assignment now reaches someone only if they can open the task, document or calendar it is about. To bring someone into a thread, share the item with them first.
 - **Read notifications are cleared after 30 days** — once read, a notification stays in your list for 30 days. Unread ones stay until you read them.
+- **Opening something reads its notifications** — opening a task, document, event or anything else marks every unread notification about it as read, so the bell and the dots clear as you catch up.
 - **Repeated mentions in a document are one notification** — mentions of you in the same document join one unread notification until you read it, instead of a new email and push each time.
 
 ### Fixed

@@ -220,12 +220,26 @@ class Subject:
 
     tool: Tool
     initiative_id: int | None
+    #: The row of ``tool`` that governs it: the project a task is in.
+    resource_id: int
     #: Who the thing is shared with, against the roster as it stands.
     shared_with: frozenset[int]
     #: Everybody who can open it now: ``shared_with`` and the community's
     #: admins, who reach everything in it.
     readers: frozenset[int]
     target_path: str
+
+
+def _place_of(about: Ref, subject: Subject) -> dict[str, Any]:
+    """Where a line about ``about`` sits, all the way down: its initiative, its
+    tool and that tool's row, and the thing itself."""
+    return {
+        "initiative_id": subject.initiative_id,
+        "tool": subject.tool.value,
+        "resource_id": subject.resource_id,
+        "subject_type": about[0],
+        "subject_id": about[1],
+    }
 
 
 async def resolve_subject(session: AsyncSession, ref: Ref) -> Subject | None:
@@ -290,6 +304,7 @@ async def resolve_subject(session: AsyncSession, ref: Ref) -> Subject | None:
     return Subject(
         tool=tool,
         initiative_id=row.initiative_id,
+        resource_id=row.id,
         shared_with=frozenset(shared),
         readers=frozenset(shared | admins),
         target_path=(
@@ -344,8 +359,7 @@ async def notify(
         allowed = subject.readers
         if recipients == SHARED_WITH:
             recipients = sorted(subject.shared_with)
-        payload.setdefault("initiative_id", subject.initiative_id)
-        payload.setdefault("tool", subject.tool.value)
+        payload.update(_place_of(about, subject))
         payload.setdefault("target_path", subject.target_path)
     elif recipients == SHARED_WITH:
         raise ValueError("SHARED_WITH needs something to be shared")
@@ -594,7 +608,8 @@ def _rolled_up_comment(
 
     The roster of distinct commenters is what the sentence names, and the count
     is every comment the line stands for. An installed app is on it by name,
-    with no id.
+    with no id. ``opened_at`` is when the line's first comment arrived and does
+    not move as it rolls: every comment since then is one it stands for.
     """
     previous = previous or {}
     # One roster of pairs rather than parallel id and name lists: those have to
@@ -630,6 +645,8 @@ def _rolled_up_comment(
         if isinstance(entry, Mapping)
     )
     return {
+        "opened_at": previous.get("opened_at")
+        or datetime.now(timezone.utc).isoformat(),
         "comment_count": count,
         "commenters": roster[-MAX_ROLLED_UP_COMMENTERS:],
         "commenter_count": people if seen_before else people + 1,
@@ -761,7 +778,8 @@ async def notify_assigned(
     digest, which is queued when either channel is on for the community and
     re-reads both when it sends. The caller commits.
     """
-    subject = await resolve_subject(session, ("task", cast(int, task.id)))
+    about: Ref = ("task", cast(int, task.id))
+    subject = await resolve_subject(session, about)
     if subject is None:
         return
     guild_id = routed_guild_id(session)
@@ -788,8 +806,7 @@ async def notify_assigned(
                 "project_id": task.project_id,
                 "assigned_by_name": actor_name(assigned_by),
                 "guild_id": guild_id,
-                "initiative_id": subject.initiative_id,
-                "tool": subject.tool.value,
+                **_place_of(about, subject),
                 "target_path": subject.target_path,
                 "smart_link": smart_link,
             },
@@ -1343,18 +1360,28 @@ def _rolled_up_count(data: Mapping[str, Any]) -> int:
     return count or len(_rolled_up_reactions(data))
 
 
+#: What a reaction line carries about where it sits, kept as a line rolls and
+#: read back when a gesture is withdrawn.
+_REACTION_PLACE = (
+    "initiative_id",
+    "tool",
+    "resource_id",
+    "subject_type",
+    "subject_id",
+    "target_path",
+    "smart_link",
+)
+
+
 def _reaction_line(
     entries: Sequence[dict[str, Any]],
     *,
     count: int,
     reactor_ids: Sequence[int],
-    target_path: str,
-    smart_link: str | None,
     target_type: str,
     target_id: int,
     guild_id: int,
-    initiative_id: int | None = None,
-    tool: str | None = None,
+    place: Mapping[str, Any],
 ) -> dict[str, Any]:
     """One bell payload for every reaction rolled up so far.
 
@@ -1363,17 +1390,14 @@ def _reaction_line(
     the newer client uses them as the reactor it names first. ``reactor_ids``
     is what the sentence counts, so it outlives the detail entries — a line
     whose oldest reactions have rolled off still knows how many people are in
-    it.
+    it. ``place`` is where the line sits and opens (:data:`_REACTION_PLACE`).
     """
     latest = entries[-1] if entries else {}
     return {
         "target_type": target_type,
         "target_id": target_id,
         "guild_id": guild_id,
-        "initiative_id": initiative_id,
-        "tool": tool,
-        "target_path": target_path,
-        "smart_link": smart_link,
+        **{key: place.get(key) for key in _REACTION_PLACE},
         "emoji": latest.get("emoji"),
         "reactor_name": latest.get("reactor_name"),
         "reactor_id": latest.get("reactor_id"),
@@ -1391,12 +1415,12 @@ async def enqueue_reaction_event(
     reactor: User,
     reaction,
     context_title: str,
-    target_path: str,
+    about: Ref,
+    subject: Subject,
     guild_id: int,
-    initiative_id: int | None = None,
-    tool: str | None = None,
 ) -> None:
-    """Record that someone reacted to something ``author`` wrote.
+    """Record that someone reacted to something ``author`` wrote, on the thread
+    or post ``about`` names (resolved by the caller as ``subject``).
 
     Reactions are the lightest signal in the app and they arrive in flurries,
     so every channel digests them — including the bell, which rolls them up per
@@ -1407,7 +1431,12 @@ async def enqueue_reaction_event(
     """
     if author.id == reactor.id:
         return
-    smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
+    target_path = subject.target_path
+    place = {
+        **_place_of(about, subject),
+        "target_path": target_path,
+        "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
+    }
     reactor_name = handle_of(reactor)
     entry = {
         "id": reaction.id,
@@ -1435,13 +1464,10 @@ async def enqueue_reaction_event(
         _rolled_up_reactions(previous) + [entry],
         count=_rolled_up_count(previous) + 1,
         reactor_ids=roster,
-        target_path=target_path,
-        smart_link=smart_link,
         target_type=reaction.target_type,
         target_id=reaction.target_id,
         guild_id=guild_id,
-        initiative_id=initiative_id,
-        tool=tool,
+        place=place,
     )
     if existing is None:
         await user_notifications.create_notification(
@@ -1557,13 +1583,13 @@ async def withdraw_reaction_event(
             remaining,
             count=count,
             reactor_ids=roster,
-            target_path=previous.get("target_path") or MY_TASKS_TARGET_PATH,
-            smart_link=previous.get("smart_link"),
             target_type=target_type,
             target_id=target_id,
             guild_id=guild_id,
-            initiative_id=previous.get("initiative_id"),
-            tool=previous.get("tool"),
+            place={
+                **previous,
+                "target_path": previous.get("target_path") or MY_TASKS_TARGET_PATH,
+            },
         ),
         bump=False,
     )

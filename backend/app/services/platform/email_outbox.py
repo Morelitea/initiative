@@ -140,6 +140,38 @@ async def enqueue(
     return True
 
 
+async def enqueue_account_letter(user: User, pieces: email_service.EmailPieces) -> None:
+    """Write down a letter about the account's own security.
+
+    Due at once and marked ``security``: the worker sends it on its own, to
+    every address the account has proved, and nothing in the account's
+    notification settings holds or drops it. Written on a system session of its
+    own, because it is raised once the change it reports has been committed.
+    """
+    from app.db.session import SystemSessionLocal
+
+    now = datetime.now(timezone.utc)
+    async with SystemSessionLocal() as session:
+        if not await email_service.email_configured(session):
+            return
+        await session.exec(
+            insert(EmailOutboxItem)
+            .values(
+                user_id=user.id,
+                category=NotificationCategory.account.value,
+                security=True,
+                locale=getattr(user, "locale", None) or "en",
+                subject=pieces.subject,
+                headline=pieces.headline,
+                body=pieces.body,
+                created_at=now,
+                deliver_after=now,
+            )
+            .inline()
+        )
+        await session.commit()
+
+
 async def recompute_pending(
     session: AsyncSession,
     *,
@@ -243,7 +275,7 @@ async def _claim(
             "  AND deliver_after <= :now "
             "  AND (claimed_at IS NULL OR claimed_at < :stale) "
             "RETURNING id, notification_id, category, guild_id, locale, subject, "
-            "          headline, body, link, link_label, created_at"
+            "          headline, body, link, link_label, security, created_at"
         ).bindparams(
             now=now,
             uid=user_id,
@@ -263,6 +295,7 @@ async def _claim(
             body=row.body,
             link=row.link,
             link_label=row.link_label,
+            security=row.security,
             created_at=row.created_at,
         )
         for row in result.all()
@@ -344,69 +377,83 @@ async def _back_off(
 async def _send_one(
     session: AsyncSession, *, user: User, rows: list[EmailOutboxItem], now: datetime
 ) -> None:
-    """Compose and send one account's due mail, then settle it."""
-    prefs = await notification_prefs.load_prefs(session, user.id)
+    """Compose and send one account's due mail, then settle it.
 
-    # Anything read in the app on the way here, and anything the account has
-    # switched off since it was written, is dropped rather than sent.
-    stale = await _already_read(session, rows)
-    refused = {
-        row.id for row in rows if row.id not in stale and not _still_wanted(prefs, row)
-    }
-    await _discard(session, sorted(stale | refused))
-    rows = [row for row in rows if row.id not in stale and row.id not in refused]
-    if not rows:
-        return
+    A security letter goes on its own, to every address the account has proved,
+    and nothing drops it. The rest is notification mail: anything read in the
+    app on the way here, or switched off since it was written, is dropped, and
+    what is left goes as one message or one digest.
+    """
+    letters = [row for row in rows if row.security]
+    rows = [row for row in rows if not row.security]
+    prefs = await notification_prefs.load_prefs(session, user.id)
+    if rows:
+        stale = await _already_read(session, rows)
+        refused = {
+            row.id
+            for row in rows
+            if row.id not in stale and not _still_wanted(prefs, row)
+        }
+        await _discard(session, sorted(stale | refused))
+        rows = [row for row in rows if row.id not in stale and row.id not in refused]
 
     _settings, accent = await email_service.email_context(session)
     locale = getattr(user, "locale", None) or "en"
-    ids = [row.id for row in rows]
-    try:
-        if len(rows) == 1:
-            row = rows[0]
-            pieces = email_service.EmailPieces(
-                subject=row.subject,
-                headline=row.headline,
-                body=row.body,
-                link=row.link,
-                link_label=row.link_label,
-            )
-            html_body, text_body = email_service.render_single(
-                pieces, user=user, accent=accent, locale=row.locale or locale
-            )
-            subject = row.subject
-        else:
-            subject, html_body, text_body = email_service.render_digest(
-                [
-                    email_service.DigestLine(
-                        category=row.category,
-                        guild_id=row.guild_id,
+    for batch in [[letter] for letter in letters] + ([rows] if rows else []):
+        ids = [row.id for row in batch]
+        try:
+            if len(batch) == 1:
+                row = batch[0]
+                html_body, text_body = email_service.render_single(
+                    email_service.EmailPieces(
+                        subject=row.subject,
+                        headline=row.headline,
                         body=row.body,
                         link=row.link,
-                    )
-                    for row in rows
-                ],
-                user=user,
-                accent=accent,
-                locale=locale,
-                reason=_reason(rows, prefs=prefs, tz_name=user.timezone, now=now),
-                guild_names=await _guild_names(session, rows),
+                        link_label=row.link_label,
+                    ),
+                    user=user,
+                    accent=accent,
+                    locale=row.locale or locale,
+                )
+                subject = row.subject
+            else:
+                subject, html_body, text_body = email_service.render_digest(
+                    [
+                        email_service.DigestLine(
+                            category=row.category,
+                            guild_id=row.guild_id,
+                            body=row.body,
+                            link=row.link,
+                        )
+                        for row in batch
+                    ],
+                    user=user,
+                    accent=accent,
+                    locale=locale,
+                    reason=_reason(batch, prefs=prefs, tz_name=user.timezone, now=now),
+                    guild_names=await _guild_names(session, batch),
+                )
+            await email_service.deliver(
+                session,
+                user,
+                subject=subject,
+                html_body=html_body,
+                text_body=text_body,
+                every_address=batch[0].security,
             )
-        await email_service.deliver(
-            session, user, subject=subject, html_body=html_body, text_body=text_body
-        )
-    except email_service.EmailNotConfiguredError:
-        # Mail was configured when these were written and is not now. Holding
-        # them is right: nothing has been lost, and the next pass will find
-        # them when it is configured again.
-        await _back_off(session, ids, now=now)
-        return
-    except Exception:
-        logger.exception("email-outbox: send failed for user %s", user.id)
-        await _back_off(session, ids, now=now)
-        return
-    await _settle(session, ids, now=now)
-    logger.info("email-outbox: sent %d item(s) to user %s", len(ids), user.id)
+        except email_service.EmailNotConfiguredError:
+            # Mail was configured when these were written and is not now.
+            # Holding them is right: nothing has been lost, and the next pass
+            # will find them when it is configured again.
+            await _back_off(session, ids, now=now)
+            continue
+        except Exception:
+            logger.exception("email-outbox: send failed for user %s", user.id)
+            await _back_off(session, ids, now=now)
+            continue
+        await _settle(session, ids, now=now)
+        logger.info("email-outbox: sent %d item(s) to user %s", len(ids), user.id)
 
 
 def _still_wanted(prefs: Mapping[str, Any], row: EmailOutboxItem) -> bool:

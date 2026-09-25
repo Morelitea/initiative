@@ -2,10 +2,12 @@ import { Navigate, useParams } from "@tanstack/react-router";
 import { BookText, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { WikiPageTree } from "@/components/initiativeTools/wikis/WikiPageTree";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useCreateWikiPage, useWiki, useWikiPages } from "@/hooks/useWikis";
 import { useGuildPath } from "@/lib/guildUrl";
 import { wikiPageRoute } from "@/lib/tools";
@@ -32,6 +34,7 @@ export const WikiDetailPage = () => {
 
   const wikiQuery = useWiki(validIds ? wikiId : null);
   const pagesQuery = useWikiPages(validIds ? wikiId : null);
+  useReadOnOpen(Tool.wiki, wikiQuery.data?.id);
   const createPage = useCreateWikiPage(wikiId);
 
   const pages = pagesQuery.data?.items ?? [];

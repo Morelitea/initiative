@@ -48,19 +48,23 @@ async def _share_with_members(session, actor) -> None:
     await session.commit()
 
 
-async def _mention(client, actor, task_id: int, user) -> None:
+async def _mention(client, actor, task_id: int, user) -> int:
     posted = await client.post(
         actor.g("/comments/"),
         json={"task_id": task_id, "content": f"hi @[{user.username}]({user.id})"},
         headers=actor.headers,
     )
     assert posted.status_code in (200, 201), posted.text
+    return posted.json()["id"]
 
 
 @pytest.mark.integration
 async def test_a_mention_reaches_only_people_the_project_is_shared_with(
     client, session, acting_user
 ):
+    """…and opening the task marks what it named read, saying which comments
+    were unread: the one that mentioned them, and every comment since the
+    thread's rolled-up line opened."""
     owner = await acting_user(
         guild_role=GuildRole.member, initiative=True, project=True
     )
@@ -71,7 +75,7 @@ async def test_a_mention_reaches_only_people_the_project_is_shared_with(
         initiative_role="member",
     )
     await route_session_to_guild(session, owner.guild.id)
-    task = await create_task(session, owner.project)
+    task = await create_task(session, owner.project, assignees=[member.user])
     await session.commit()
 
     # In the initiative, but the project is the owner's alone.
@@ -80,8 +84,29 @@ async def test_a_mention_reaches_only_people_the_project_is_shared_with(
 
     # The control: once it is shared with them, the same mention arrives.
     await _share_with_members(session, owner)
-    await _mention(client, owner, task.id, member.user)
+    mentioned = await _mention(client, owner, task.id, member.user)
     assert len(await _mentions(member.user.id)) == 1
+    plain = await client.post(
+        owner.g("/comments/"),
+        json={"task_id": task.id, "content": "and another thing"},
+        headers=owner.headers,
+    )
+    assert plain.status_code in (200, 201), plain.text
+
+    opened = await client.post(
+        "/api/v1/notifications/read-subject",
+        json={
+            "guild_id": owner.guild.id,
+            "subject_type": "task",
+            "subject_id": task.id,
+        },
+        headers=member.headers,
+    )
+    assert opened.status_code == 200, opened.text
+    assert opened.json()["comment_ids"] == sorted([mentioned, plain.json()["id"]])
+    assert opened.json()["since"] is not None
+    places = await client.get("/api/v1/notifications/unread", headers=member.headers)
+    assert places.json()["places"] == []
 
 
 @pytest.mark.integration

@@ -172,7 +172,7 @@ export const InitiativeSection = memo(
                 className="flex min-w-0 items-center gap-2"
               >
                 <span className="min-w-0 flex-1 truncate text-left">{initiative.name}</span>
-                {unread.hasInitiative(initiative.id) ? <UnreadDot /> : null}
+                {unread.hasInitiative(activeGuildId, initiative.id) ? <UnreadDot /> : null}
               </Link>
             </Button>
           </div>
@@ -294,7 +294,9 @@ export const InitiativeSection = memo(
                           <span className="min-w-0 flex-1 truncate">
                             {t(toolNavLabelKey(tool))}
                           </span>
-                          {unread.hasTool(initiative.id, tool) ? <UnreadDot /> : null}
+                          {unread.hasTool(activeGuildId, initiative.id, tool) ? (
+                            <UnreadDot />
+                          ) : null}
                           <span className="text-muted-foreground text-xs">{counts[tool] ?? 0}</span>
                         </Link>
                       </SidebarMenuButton>

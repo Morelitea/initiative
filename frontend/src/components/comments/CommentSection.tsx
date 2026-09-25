@@ -1,5 +1,5 @@
 import { HelpCircle, MessageSquarePlus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { CommentCreate, CommentRead, Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -8,6 +8,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { useAuth } from "@/hooks/useAuth";
 import { useCreateComment, useDeleteComment, useUpdateComment } from "@/hooks/useComments";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useReadOnOpen } from "@/hooks/useNotifications";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { referenceTypeFor } from "@/lib/references";
 import { referenceRef } from "@/lib/smartChips";
@@ -127,6 +128,36 @@ export const CommentSection = ({
   const commentTree = useMemo(() => buildCommentTree(comments), [comments]);
   const hasComments = comments.length > 0;
 
+  // What was unread when the thread was opened: the comments its
+  // notifications named, and everyone else's since a rolled-up line began.
+  const unread = useReadOnOpen(entityType, entityId);
+  const unreadIds = useMemo(() => {
+    const since = unread.since;
+    return new Set(
+      comments
+        .filter(
+          (comment) =>
+            unread.commentIds.has(comment.id) ||
+            (since !== null &&
+              comment.created_by !== user?.id &&
+              new Date(comment.created_at) > since)
+        )
+        .map((comment) => comment.id)
+    );
+  }, [comments, unread, user?.id]);
+
+  // Brought into view once per thread, on the first unread comment.
+  const threadRef = useRef<HTMLDivElement>(null);
+  const scrolledFor = useRef<string | null>(null);
+  useEffect(() => {
+    const key = `${entityType}:${entityId}`;
+    if (unreadIds.size === 0 || scrolledFor.current === key) return;
+    const first = threadRef.current?.querySelector("[data-unread]");
+    if (!first) return;
+    scrolledFor.current = key;
+    first.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [unreadIds, entityType, entityId]);
+
   // Build display name maps from comment authors
   const userDisplayNames = useMemo(() => {
     const map = new Map<number, string>();
@@ -236,7 +267,7 @@ export const CommentSection = ({
 
           {/* One request for everything the whole thread points at: forty
             comments naming the same task ask about it once. */}
-          <div className="mt-4 space-y-3">
+          <div ref={threadRef} className="mt-4 space-y-3">
             {isLoading ? (
               <p className="text-muted-foreground text-sm">{t("loading")}</p>
             ) : hasComments ? (
@@ -258,6 +289,7 @@ export const CommentSection = ({
                   canReact={!activeGuildReadOnly}
                   deleteError={deleteComment.variables === comment.id ? deleteError : null}
                   userDisplayNames={userDisplayNames}
+                  unreadIds={unreadIds}
                 />
               ))
             ) : (

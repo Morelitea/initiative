@@ -60,6 +60,7 @@ import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useComments } from "@/hooks/useComments";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useReadOnOpen } from "@/hooks/useNotifications";
 import { usePastedImages } from "@/hooks/usePastedImages";
 import { useProject, useProjectTaskStatuses, useWritableProjects } from "@/hooks/useProjects";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
@@ -176,6 +177,7 @@ export const TaskEditPage = () => {
   const [moveContext, setMoveContext] = useState<MoveTaskVariables | null>(null);
 
   const taskQuery = useTask(parsedTaskId);
+  useReadOnOpen("task", taskQuery.data?.id);
 
   const projectId = projectIdParam ? Number(projectIdParam) : taskQuery.data?.project_id;
   const projectQuery = useProject(projectId ?? null);
