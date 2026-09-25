@@ -1,61 +1,96 @@
+"""Notifications: who hears about what, and how.
+
+:func:`notify` is the one way a notice reaches people — a bell line each, then
+email and push — and it decides who may hear it from what the notice is about.
+Below it: the reaction and assignment notices (their bell line is written at
+once, email and push wait for a digest), the digests themselves, and the
+time-driven sweeps (overdue tasks, hold summaries, event reminders), each of
+which starts from what is waiting in each community and claims its work before
+sending it.
+
+A notification is read on the cross-guild ``/me/notifications`` surface, away
+from the guild it was written in, so the people it names are named by their
+handle rather than by whatever that one guild renders.
+"""
+
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable, Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 from urllib.parse import quote
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import func, select, delete, update as sa_update
+from sqlalchemy import column as sa_column
+from sqlalchemy import delete, func, or_, select
+from sqlalchemy import table as sa_table
+from sqlalchemy import update as sa_update
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.orm import selectinload
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.email_i18n import email_t, translate
-from app.db.session import SYSTEM_SATISFIED, SystemSessionLocal, set_rls_context
-from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.core.config import settings as app_config
-from app.core.tools import Tool
+from app.core.email_i18n import email_t, translate
 from app.core.notification_categories import (
     Channel,
     NotificationCategory,
     category_of,
     sample_type,
 )
-from app.models.tenant.initiative import Initiative
-from app.models.tenant.project import Project
-from app.models.tenant.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory
-from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
-from app.models.tenant.reaction_digest import ReactionDigestItem
-from app.models.tenant.calendar import Calendar
+from app.core.tools import Tool
+from app.core.user_display import handle_of
+from app.db.guild_standing import ActorContext, InstallContext
+from app.db.initiative_rls import entity_tables, governing_path
+from app.db.session import (
+    SYSTEM_SATISFIED,
+    SystemSessionLocal,
+    routed_guild_id,
+    set_rls_context,
+)
+from app.models.platform.guild import (
+    GUILD_ADMIN_ROLES,
+    LIVE_STATUS_VALUES,
+    Guild,
+    GuildMembership,
+)
+from app.models.platform.notification import Notification, NotificationType
+from app.models.platform.user import User
+from app.models.platform.user_notification_prefs import (
+    EmailCadence,
+    UserNotificationPrefs,
+)
+from app.models.tenant._mixins import tool_models
 from app.models.tenant.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
     RSVPStatus,
 )
 from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
-from app.models.platform.guild import Guild, GuildStatus
-from app.models.platform.user import User
-from app.models.platform.user_notification_prefs import EmailCadence
-from app.services.platform import accounts as accounts_service
-from app.models.platform.notification import Notification, NotificationType
-from app.services import email as email_service
-from app.services.platform import email_outbox
-from app.services.platform import notification_policy
-from app.services.platform import notification_prefs
-from app.services.platform import user_notifications
-from app.services.platform import push_notifications
-from app.core.user_display import handle_of
-from app.db.guild_standing import ActorContext, InstallContext
 from app.models.tenant.guild_app import GuildApp
-
-# A notification is read on the cross-guild ``/me/notifications`` surface,
-# away from the guild it was written in, so the people it names are named by
-# their handle rather than by whatever that one guild renders. The handle is
-# the identifier that reads the same everywhere and needs no permission
-# resolved at the moment someone opens the list.
+from app.models.tenant.initiative import Initiative
+from app.models.tenant.project import Project
+from app.models.tenant.reaction_digest import ReactionDigestItem
+from app.models.tenant.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory
+from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
+from app.services import email as email_service
+from app.services import permissions as permissions_service
+from app.services.cross_guild import gather_across_guilds, member_guild_ids
+from app.services.platform import accounts as accounts_service
+from app.services.platform import (
+    email_outbox,
+    notification_policy,
+    notification_prefs,
+    push_notifications,
+    user_notifications,
+)
 
 logger = logging.getLogger(__name__)
+
+
+# ── who acted, what it is about, and one way to tell people ──────────────────
 
 
 @dataclass(frozen=True)
@@ -95,27 +130,6 @@ async def author_of(
     return AppAuthor(name=name)
 
 
-DIGEST_POLL_SECONDS = 60
-OVERDUE_POLL_SECONDS = 300
-# A summary goes out when a hold lifts, so the poll only has to be finer than
-# the grace period it is bounded by.
-HOLD_SUMMARY_POLL_SECONDS = 600
-# A task-assignment digest waits for the flurry to end rather than firing on
-# the first item: it ships once nothing new has arrived for QUIET_PERIOD, so a
-# lone assignment still lands promptly while a burst collapses into one
-# notification. MAX_WINDOW bounds how long a steady trickle can hold it back.
-ASSIGNMENT_QUIET_PERIOD = timedelta(minutes=5)
-ASSIGNMENT_MAX_WINDOW = timedelta(minutes=30)
-# How long a sent digest's items are kept before the GC sweep drops them. They
-# are only bookkeeping once delivered; the notification itself lives in the
-# bell. Unsent items are dropped at the same age — anything that old is either
-# orphaned or long past being worth sending.
-ASSIGNMENT_ITEM_RETENTION = timedelta(days=7)
-ASSIGNMENT_GC_POLL_SECONDS = 3600
-EVENT_REMINDER_POLL_SECONDS = 60
-# Events that started within this window are still eligible, so a 0-minute
-# ("at start") reminder fires on the next poll rather than being missed.
-EVENT_REMINDER_GRACE = timedelta(minutes=5)
 # My Tasks is the app root: the cross-guild list of everything assigned to you.
 # Cross-guild notifications point here instead of at one guild's copy.
 MY_TASKS_TARGET_PATH = "/"
@@ -138,149 +152,6 @@ class Channels:
     #: twice — once to pick channels, once to decide when the email may go —
     #: so resolving it here saves loading the same row again.
     prefs: Mapping[str, Any]
-
-
-#: How many commenters one rolled-up line remembers by name. ``comment_count``
-#: above it stays the whole truth; this only bounds how much the payload
-#: carries so a busy thread cannot grow it without limit.
-MAX_ROLLED_UP_COMMENTERS = 10
-
-
-async def _lock_rollup_line(session: AsyncSession, key: str) -> None:
-    """Serialize the read-then-write on one recipient's rolled-up line.
-
-    Every rollup in the app does the same thing — look for an unread line to
-    join, then write or extend it — so they all take this. Transaction-scoped,
-    and keyed narrowly enough that only events aimed at the same line ever wait.
-    """
-    await session.exec(
-        select(func.pg_advisory_xact_lock(func.hashtextextended(key, 0)))
-    )
-
-
-def _comment_rollup_key(entity_type: str, entity_id: int) -> str:
-    """What decides which line a comment joins: the thing being commented on.
-
-    Not the comment — the point is that twenty comments on one task are one
-    line rather than twenty.
-    """
-    return f"{entity_type}:{entity_id}"
-
-
-def _same_commenter(
-    entry: Mapping[str, Any], commenter_id: int | None, commenter_name: str
-) -> bool:
-    """Whether a roster entry is this commenter: a person by id, an installed
-    app (no id) by its name."""
-    if commenter_id is None:
-        return entry.get("id") is None and entry.get("name") == commenter_name
-    return entry.get("id") == commenter_id
-
-
-def _rolled_up_comment(
-    previous: Mapping[str, Any] | None,
-    *,
-    commenter_name: str,
-    commenter_id: int | None,
-) -> dict[str, Any]:
-    """Fold one more comment into a line's payload.
-
-    The roster of distinct commenters is what the sentence names, and the count
-    is every comment the line stands for. An installed app is on it by name,
-    with no id.
-    """
-    previous = previous or {}
-    # One roster of pairs rather than parallel id and name lists: those have to
-    # stay aligned, and nothing keeps them that way once a repeat commenter is
-    # moved to the end.
-    roster: list[dict[str, Any]] = [
-        entry
-        for entry in (previous.get("commenters") or [])
-        if isinstance(entry, Mapping)
-        and (
-            isinstance(entry.get("id"), int)
-            or (entry.get("id") is None and isinstance(entry.get("name"), str))
-        )
-    ]
-    # Same person again: they move to the end rather than being listed twice,
-    # and the comment count still moves.
-    roster = [
-        entry
-        for entry in roster
-        if not _same_commenter(entry, commenter_id, commenter_name)
-    ]
-    roster.append({"id": commenter_id, "name": commenter_name})
-    raw_count = previous.get("comment_count")
-    count = (raw_count if isinstance(raw_count, int) else 0) + 1
-    # ``commenter_count`` is the whole crowd; the roster is only as much of it
-    # as the line carries, so a busy thread does not grow the payload without
-    # limit. Counting the roster would understate it.
-    raw_people = previous.get("commenter_count")
-    people = raw_people if isinstance(raw_people, int) else 0
-    seen_before = any(
-        _same_commenter(entry, commenter_id, commenter_name)
-        for entry in (previous.get("commenters") or [])
-        if isinstance(entry, Mapping)
-    )
-    return {
-        "comment_count": count,
-        "commenters": roster[-MAX_ROLLED_UP_COMMENTERS:],
-        "commenter_count": people if seen_before else people + 1,
-    }
-
-
-async def _roll_up_comment(
-    session: AsyncSession,
-    *,
-    recipient: User,
-    notification_type: NotificationType,
-    rollup_key: str,
-    data: dict[str, Any],
-    commenter_name: str,
-    commenter_id: int | None,
-) -> tuple[bool, Notification | None]:
-    """Write or extend the one unread line for this thread.
-
-    Returns whether this comment opened a new window — which is when the
-    reaching channels fire — and the line it wrote, so the email can ride on it
-    and be withdrawn if the thread is read before the mail goes out. A second comment updates the line instead and sends
-    nothing: the flurry is one interruption, not twenty. Once the line has been
-    read, the next comment starts a fresh one and they fire again.
-
-    The unread line IS the window, so an account that has switched the bell off
-    for this category has no window to roll into and hears about each comment
-    on whichever reaching channel it left on. That is the honest reading of
-    "no bell, but do email me": there is nothing to collect them into.
-    """
-    match = {"rollup_key": rollup_key}
-    # Two comments landing on the same thread at once would otherwise both find
-    # no line to join and write one each, or both read the same count and lose
-    # one. Transaction-scoped and keyed per (recipient, thread), so only
-    # comments aimed at the same line ever wait — the same lock the reaction
-    # and direct-message rollups take.
-    await _lock_rollup_line(session, f"comment-line:{rollup_key}:{recipient.id}")
-    existing = await user_notifications.find_unread_by_data(
-        session,
-        user_id=recipient.id,
-        notification_type=notification_type,
-        match=match,
-    )
-    rolled = _rolled_up_comment(
-        existing.data if existing else None,
-        commenter_name=commenter_name,
-        commenter_id=commenter_id,
-    )
-    line = {**data, "rollup_key": rollup_key, **rolled}
-    if existing is None:
-        written = await user_notifications.create_notification(
-            session,
-            user_id=recipient.id,
-            notification_type=notification_type,
-            data=line,
-        )
-        return True, written
-    await user_notifications.refresh_notification(session, existing, data=line)
-    return False, None
 
 
 async def _channels(
@@ -328,37 +199,278 @@ async def _channels(
     )
 
 
-async def _queue_email(
-    session: AsyncSession,
-    recipient: User,
-    *,
-    notification_type: NotificationType,
-    guild_id: int | None,
-    notification: Notification | None,
-    prefs: Mapping[str, Any],
-    subject: str,
-    headline: str,
-    body: str,
-    link: str | None = None,
-) -> None:
-    """Write one notification email down for the outbox to send.
+#: A thing a notice names: a kind from ``initiative_rls.entity_tables`` and its
+#: id — ``("task", 7)``, ``("calendar_event", 3)``, ``("wiki_page", 12)``.
+Ref = tuple[str, int]
 
-    Every notifier in this module goes through here, which is what keeps three
-    things attached to the row that a digest cannot be composed without: the
-    category it groups under, the community it belongs to, and the bell line it
-    is the email of — so reading the thing in the app withdraws the mail.
+#: The kinds the client opens by their own address (``/go/{kind}/{id}``). Any
+#: other kind opens the tool that governs it: a wiki page opens its wiki.
+_ADDRESSABLE = frozenset({tool.value for tool in Tool} | {"task", "calendar_event"})
+
+#: ``recipients`` for news about a thing nobody asked for — it was shared with
+#: you: everybody its sharing reaches, taken from the thing itself.
+SHARED_WITH = "shared_with"
+
+
+@dataclass(frozen=True)
+class Subject:
+    """What a notice is about, resolved through the registries the policies
+    are rendered from: the tool row whose sharing governs it, who that sharing
+    reaches, and where the notice opens."""
+
+    tool: Tool
+    initiative_id: int | None
+    #: Who the thing is shared with, against the roster as it stands.
+    shared_with: frozenset[int]
+    #: Everybody who can open it now: ``shared_with`` and the community's
+    #: admins, who reach everything in it.
+    readers: frozenset[int]
+    target_path: str
+
+
+async def resolve_subject(session: AsyncSession, ref: Ref) -> Subject | None:
+    """Resolve ``ref`` on the caller's routed session, or ``None`` when the
+    session cannot reach it.
+
+    The governing tool and the hops to it come from ``governing_path`` — a task
+    reaches its project by ``project_id``, an event its calendar by
+    ``calendar_id`` — so no notifier names its tool. Sharing is read with
+    ``permissions.audience_user_ids``, the rule the post audience uses; a
+    community calendar has no roster, so its grants are read against the
+    community's members.
     """
-    await email_outbox.enqueue(
-        session,
-        recipient,
-        category=category_of(notification_type),
-        guild_id=guild_id,
-        notification_id=notification.id if notification is not None else None,
-        prefs=prefs,
-        pieces=email_service.EmailPieces(
-            subject=subject, headline=headline, body=body, link=link
+    kind, entity_id = ref
+    table = entity_tables()[kind]
+    walk = governing_path(table)
+    if walk is None:
+        raise ValueError(f"no tool governs {kind!r}")
+    tool, hops = walk
+    row_id: int | None = entity_id
+    for column, parent in hops:
+        step = sa_table(table, sa_column("id"), sa_column(column))
+        row_id = (
+            await session.exec(select(step.c[column]).where(step.c.id == row_id))
+        ).scalar_one_or_none()
+        if row_id is None:
+            return None
+        table = parent
+    model = tool_models()[tool.plural]
+    row = (
+        await session.exec(
+            select(model)
+            .where(model.id == row_id)
+            .options(
+                selectinload(model.grants),
+                selectinload(model.initiative).selectinload(Initiative.memberships),
+            )
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        return None
+    members = (
+        await session.exec(
+            select(GuildMembership.user_id, GuildMembership.role).where(
+                GuildMembership.guild_id == routed_guild_id(session)
+            )
+        )
+    ).all()
+    admins = {user_id for user_id, role in members if role in GUILD_ADMIN_ROLES}
+    if row.initiative_id is not None:
+        shared = permissions_service.audience_user_ids(row)
+    else:
+        everyone = {user_id for user_id, _role in members}
+        shared = {
+            user_id
+            for grant in row.grants or []
+            for user_id in (
+                everyone if grant.all_initiative_members else {grant.user_id}
+            )
+            if user_id in everyone
+        }
+    return Subject(
+        tool=tool,
+        initiative_id=row.initiative_id,
+        shared_with=frozenset(shared),
+        readers=frozenset(shared | admins),
+        target_path=(
+            reference_path(kind, entity_id)
+            if kind in _ADDRESSABLE
+            else reference_path(tool, row.id)
         ),
     )
+
+
+async def notify(
+    session: AsyncSession,
+    notification_type: NotificationType,
+    recipients: Iterable[int | None] | str,
+    *,
+    about: Ref | None,
+    key: str,
+    values: Mapping[str, str | Callable[[User], str]] | None = None,
+    data: Mapping[str, Any] | None = None,
+    actor: "User | AppAuthor | None" = None,
+    rollup_key: str | None = None,
+    email: Callable[[User], email_service.EmailPieces] | None = None,
+    email_names_line: bool = True,
+) -> None:
+    """Tell ``recipients`` one thing: a bell line each, then email and push.
+
+    Every notice in the app goes through here, and it never commits — the
+    caller's transaction is what it rides on.
+
+    ``about`` is what the notice names. It decides who may hear it (only people
+    who can open it), where it opens and where it sits in the navigation;
+    ``None`` is news about the community itself, which every recipient already
+    belongs to. The community is the session's routing.
+
+    ``key`` is the prefix the email (``email`` namespace: ``subject``, ``title``,
+    ``body``) and the push (``notifications``: ``title``, ``body``) share, filled
+    from ``values``; a callable value is asked per recipient. ``email`` builds
+    the letter instead, for the notices whose mail is written elsewhere.
+
+    With a ``rollup_key`` the notice joins the recipient's unread line for that
+    thread, naming ``actor``, and email and push go only when it opened a new
+    one. ``email_names_line=False`` leaves the mail standing when the line is
+    read — for a notice waiting on somebody's decision.
+    """
+    guild_id = routed_guild_id(session)
+    payload: dict[str, Any] = {**(data or {}), "guild_id": guild_id}
+    allowed: frozenset[int] = frozenset()
+    if about is not None:
+        subject = await resolve_subject(session, about)
+        if subject is None:
+            return
+        allowed = subject.readers
+        if recipients == SHARED_WITH:
+            recipients = sorted(subject.shared_with)
+        payload.setdefault("initiative_id", subject.initiative_id)
+        payload.setdefault("tool", subject.tool.value)
+        payload.setdefault("target_path", subject.target_path)
+    elif recipients == SHARED_WITH:
+        raise ValueError("SHARED_WITH needs something to be shared")
+    payload.setdefault("target_path", "/")
+    payload["smart_link"] = _build_smart_link(
+        target_path=payload["target_path"], guild_id=guild_id
+    )
+    wanted: list[int] = []
+    for user_id in cast(Iterable[int | None], recipients):
+        if (
+            user_id is not None
+            and user_id != actor_id(actor)
+            and (about is None or user_id in allowed)
+            and user_id not in wanted
+        ):
+            wanted.append(user_id)
+    if not wanted:
+        return
+    # On the system engine: an account's settings and address are not a
+    # guild's to read. Anybody who ignores the actor drops out here.
+    accounts = await accounts_service.load(
+        wanted, excluding_ignorers_of=actor_id(actor)
+    )
+    all_prefs = await notification_prefs.load_prefs_for_delivery_many(list(accounts))
+    push_ids = {
+        name: str(value)
+        for name, value in payload.items()
+        if name.endswith("_id") and name != "guild_id" and value is not None
+    }
+    for user_id in wanted:
+        recipient = accounts.get(user_id)
+        if recipient is None:
+            continue
+        channels = await _channels(
+            session,
+            recipient,
+            notification_type=notification_type,
+            guild_id=guild_id,
+            prefs=all_prefs.get(user_id, {}),
+        )
+        if rollup_key is None:
+            opened = True
+            line = await user_notifications.create_notification(
+                session,
+                user_id=user_id,
+                notification_type=notification_type,
+                data=payload,
+                prefs=channels.prefs,
+            )
+        else:
+            if actor is None:
+                raise ValueError("a rolled-up notice names who acted")
+            opened, line = await _roll_up_comment(
+                session,
+                recipient=recipient,
+                notification_type=notification_type,
+                rollup_key=rollup_key,
+                data=payload,
+                commenter_name=actor_name(actor),
+                commenter_id=actor.id,
+                prefs=channels.prefs,
+            )
+        if not opened:
+            continue
+        locale = _recipient_locale(recipient)
+        filled = {
+            name: value if isinstance(value, str) else value(recipient)
+            for name, value in (values or {}).items()
+        }
+        if channels.email:
+            pieces = (
+                email(recipient)
+                if email is not None
+                else email_service.EmailPieces(
+                    subject=email_t(f"{key}.subject", locale, escape=False, **filled),
+                    headline=email_t(f"{key}.title", locale, **filled),
+                    body=email_t(f"{key}.body", locale, **filled),
+                )
+            )
+            if pieces.link is None:
+                pieces = replace(pieces, link=payload["smart_link"])
+            await email_outbox.enqueue(
+                session,
+                recipient,
+                category=category_of(notification_type),
+                guild_id=guild_id,
+                notification_id=(
+                    line.id if line is not None and email_names_line else None
+                ),
+                prefs=channels.prefs,
+                pieces=pieces,
+            )
+        if channels.push:
+            try:
+                await push_notifications.send_push_to_user(
+                    session=session,
+                    user_id=user_id,
+                    notification_type=notification_type,
+                    guild_id=guild_id,
+                    locale=locale,
+                    title=_nt(f"{key}.title", locale, **filled),
+                    body=_nt(f"{key}.body", locale, **filled),
+                    data={
+                        "type": notification_type.value,
+                        **push_ids,
+                        "guild_id": str(guild_id),
+                        "target_path": payload["target_path"],
+                    },
+                )
+            except Exception as exc:
+                logger.error("Failed to send push notification: %s", exc, exc_info=True)
+
+
+def actor_id(actor: "User | AppAuthor | None") -> int | None:
+    """The account behind whoever acted, or ``None`` for an installed app."""
+    return actor.id if actor is not None else None
+
+
+def event_when(event: CalendarEvent, recipient: User) -> str:
+    """An event's start as its reader reads it: the date for an all-day event,
+    otherwise the time in their own zone (``Wed, Jul 1, 2026 at 2:30 PM PDT``)."""
+    if event.all_day:
+        return event.start_at.strftime("%a, %b %-d, %Y")
+    local = event.start_at.astimezone(_resolve_timezone(recipient.timezone))
+    return local.strftime("%a, %b %-d, %Y at %-I:%M %p %Z")
 
 
 def _normalize_target_path(target_path: str) -> str:
@@ -434,54 +546,267 @@ def _nt(key: str, locale: str, **kwargs: str | int) -> str:
     return translate(key, locale, namespace="notifications", **kwargs)
 
 
-async def enqueue_task_assignment_event(
+def _resolve_timezone(value: str | None) -> ZoneInfo:
+    zone_id = value or "UTC"
+    try:
+        return ZoneInfo(zone_id)
+    except ZoneInfoNotFoundError:
+        return ZoneInfo("UTC")
+
+
+# ── a flurry of comments is one line ─────────────────────────────────────────
+
+#: How many commenters one rolled-up line remembers by name. ``comment_count``
+#: above it stays the whole truth; this only bounds how much the payload
+#: carries so a busy thread cannot grow it without limit.
+MAX_ROLLED_UP_COMMENTERS = 10
+
+
+async def _lock_rollup_line(session: AsyncSession, key: str) -> None:
+    """Serialize the read-then-write on one recipient's rolled-up line.
+
+    Every rollup in the app does the same thing — look for an unread line to
+    join, then write or extend it — so they all take this. Transaction-scoped,
+    and keyed narrowly enough that only events aimed at the same line ever wait.
+    """
+    await session.exec(
+        select(func.pg_advisory_xact_lock(func.hashtextextended(key, 0)))
+    )
+
+
+def _same_commenter(
+    entry: Mapping[str, Any], commenter_id: int | None, commenter_name: str
+) -> bool:
+    """Whether a roster entry is this commenter: a person by id, an installed
+    app (no id) by its name."""
+    if commenter_id is None:
+        return entry.get("id") is None and entry.get("name") == commenter_name
+    return entry.get("id") == commenter_id
+
+
+def _rolled_up_comment(
+    previous: Mapping[str, Any] | None,
+    *,
+    commenter_name: str,
+    commenter_id: int | None,
+) -> dict[str, Any]:
+    """Fold one more comment into a line's payload.
+
+    The roster of distinct commenters is what the sentence names, and the count
+    is every comment the line stands for. An installed app is on it by name,
+    with no id.
+    """
+    previous = previous or {}
+    # One roster of pairs rather than parallel id and name lists: those have to
+    # stay aligned, and nothing keeps them that way once a repeat commenter is
+    # moved to the end.
+    roster: list[dict[str, Any]] = [
+        entry
+        for entry in (previous.get("commenters") or [])
+        if isinstance(entry, Mapping)
+        and (
+            isinstance(entry.get("id"), int)
+            or (entry.get("id") is None and isinstance(entry.get("name"), str))
+        )
+    ]
+    # Same person again: they move to the end rather than being listed twice,
+    # and the comment count still moves.
+    roster = [
+        entry
+        for entry in roster
+        if not _same_commenter(entry, commenter_id, commenter_name)
+    ]
+    roster.append({"id": commenter_id, "name": commenter_name})
+    raw_count = previous.get("comment_count")
+    count = (raw_count if isinstance(raw_count, int) else 0) + 1
+    # ``commenter_count`` is the whole crowd; the roster is only as much of it
+    # as the line carries, so a busy thread does not grow the payload without
+    # limit. Counting the roster would understate it.
+    raw_people = previous.get("commenter_count")
+    people = raw_people if isinstance(raw_people, int) else 0
+    seen_before = any(
+        _same_commenter(entry, commenter_id, commenter_name)
+        for entry in (previous.get("commenters") or [])
+        if isinstance(entry, Mapping)
+    )
+    return {
+        "comment_count": count,
+        "commenters": roster[-MAX_ROLLED_UP_COMMENTERS:],
+        "commenter_count": people if seen_before else people + 1,
+    }
+
+
+async def _roll_up_comment(
     session: AsyncSession,
     *,
+    recipient: User,
+    notification_type: NotificationType,
+    rollup_key: str,
+    data: dict[str, Any],
+    commenter_name: str,
+    commenter_id: int | None,
+    prefs: Mapping[str, Any] | None = None,
+) -> tuple[bool, Notification | None]:
+    """Write or extend the one unread line for this thread.
+
+    Returns whether this comment opened a new window — which is when the
+    reaching channels fire — and the line it wrote, so the email can ride on it
+    and be withdrawn if the thread is read before the mail goes out. A second comment updates the line instead and sends
+    nothing: the flurry is one interruption, not twenty. Once the line has been
+    read, the next comment starts a fresh one and they fire again.
+
+    The unread line IS the window, so an account that has switched the bell off
+    for this category has no window to roll into and hears about each comment
+    on whichever reaching channel it left on. That is the honest reading of
+    "no bell, but do email me": there is nothing to collect them into.
+    """
+    match = {"rollup_key": rollup_key}
+    # Two comments landing on the same thread at once would otherwise both find
+    # no line to join and write one each, or both read the same count and lose
+    # one. Transaction-scoped and keyed per (recipient, thread), so only
+    # comments aimed at the same line ever wait — the same lock the reaction
+    # and direct-message rollups take.
+    await _lock_rollup_line(session, f"comment-line:{rollup_key}:{recipient.id}")
+    existing = await user_notifications.find_unread_by_data(
+        session,
+        user_id=recipient.id,
+        notification_type=notification_type,
+        match=match,
+    )
+    rolled = _rolled_up_comment(
+        existing.data if existing else None,
+        commenter_name=commenter_name,
+        commenter_id=commenter_id,
+    )
+    line = {**data, "rollup_key": rollup_key, **rolled}
+    if existing is None:
+        written = await user_notifications.create_notification(
+            session,
+            user_id=recipient.id,
+            notification_type=notification_type,
+            data=line,
+            prefs=prefs,
+        )
+        return True, written
+    await user_notifications.refresh_notification(session, existing, data=line)
+    return False, None
+
+
+# ── visiting every live community ────────────────────────────────────────────
+
+
+async def _each_live_guild(
+    session: AsyncSession,
+    visit: Callable[[AsyncSession, int], Awaitable[None]],
+) -> None:
+    """Run ``visit`` once in each live community, routed as the sweep.
+
+    One statement per community rather than one per member of it: a sweep asks
+    each community what is waiting, and only then goes near the people it is
+    waiting for.
+    """
+    await set_rls_context(session)
+    live = (
+        await session.exec(
+            select(Guild.id)
+            .where(Guild.status.in_(LIVE_STATUS_VALUES))
+            .order_by(Guild.id.asc())
+        )
+    ).scalars()
+    for guild_id in list(live):
+        session.expunge_all()
+        await set_rls_context(session, guild_id=guild_id)
+        await visit(session, guild_id)
+        await session.commit()
+    session.expunge_all()
+    await set_rls_context(session)
+
+
+# ── digests: the task-assignment digest and the machinery ────────────────────
+
+DIGEST_POLL_SECONDS = 60
+
+
+# A task-assignment digest waits for the flurry to end rather than firing on
+# the first item: it ships once nothing new has arrived for QUIET_PERIOD, so a
+# lone assignment still lands promptly while a burst collapses into one
+# notification. MAX_WINDOW bounds how long a steady trickle can hold it back.
+ASSIGNMENT_QUIET_PERIOD = timedelta(minutes=5)
+
+
+ASSIGNMENT_MAX_WINDOW = timedelta(minutes=30)
+
+
+# How long a sent digest's items are kept before the GC sweep drops them. They
+# are only bookkeeping once delivered; the notification itself lives in the
+# bell. Unsent items are dropped at the same age — anything that old is either
+# orphaned or long past being worth sending.
+ASSIGNMENT_ITEM_RETENTION = timedelta(days=7)
+
+
+ASSIGNMENT_GC_POLL_SECONDS = 3600
+
+
+async def notify_assigned(
+    session: AsyncSession,
     task: Task,
-    assignee: User,
+    assignee_ids: Iterable[int | None],
+    *,
     assigned_by: "User | AppAuthor",
     project_name: str,
-    guild_id: int,
-    initiative_id: int | None = None,
 ) -> None:
-    if assignee.id == assigned_by.id:
+    """Tell the people just assigned to ``task``, among those who can open it.
+
+    The bell line is written at once; email and push wait for the assignment
+    digest, which is queued when either channel is on for the community and
+    re-reads both when it sends. The caller commits.
+    """
+    subject = await resolve_subject(session, ("task", cast(int, task.id)))
+    if subject is None:
         return
-    target_path = _task_target_path(task.id, task.project_id)
-    smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
-    # Always create in-app notification
-    await user_notifications.create_notification(
-        session,
-        user_id=assignee.id,
-        notification_type=NotificationType.task_assignment,
-        data={
-            "task_id": task.id,
-            "project_id": task.project_id,
-            "assigned_by_name": actor_name(assigned_by),
-            "guild_id": guild_id,
-            "initiative_id": initiative_id,
-            "tool": Tool.project.value,
-            "target_path": target_path,
-            "smart_link": smart_link,
-        },
-    )
-    # Email and push both ship from the digest worker on one schedule, so the
-    # item is queued when EITHER channel is on; the worker re-reads both
-    # preferences when it sends. Only the in-app notification above is
-    # immediate — the bell is a list, not an interruption.
-    if wants_assignment_digest(
-        await notification_prefs.load_prefs_for_delivery(assignee.id),
-        guild_id=guild_id,
-    ):
-        event = TaskAssignmentDigestItem(
-            user_id=assignee.id,
-            task_id=task.id,
-            project_id=task.project_id,
-            task_title=task.title,
-            project_name=project_name,
-            assigned_by_name=actor_name(assigned_by),
-            assigned_by_id=assigned_by.id,
+    guild_id = routed_guild_id(session)
+    wanted = [
+        user_id
+        for user_id in dict.fromkeys(assignee_ids)
+        if user_id is not None
+        and user_id != assigned_by.id
+        and user_id in subject.readers
+    ]
+    if not wanted:
+        return
+    accounts = await accounts_service.load(wanted, excluding_ignorers_of=assigned_by.id)
+    all_prefs = await notification_prefs.load_prefs_for_delivery_many(list(accounts))
+    smart_link = _build_smart_link(target_path=subject.target_path, guild_id=guild_id)
+    for user_id in accounts:
+        prefs = all_prefs.get(user_id, {})
+        await user_notifications.create_notification(
+            session,
+            user_id=user_id,
+            notification_type=NotificationType.task_assignment,
+            data={
+                "task_id": task.id,
+                "project_id": task.project_id,
+                "assigned_by_name": actor_name(assigned_by),
+                "guild_id": guild_id,
+                "initiative_id": subject.initiative_id,
+                "tool": subject.tool.value,
+                "target_path": subject.target_path,
+                "smart_link": smart_link,
+            },
+            prefs=prefs,
         )
-        session.add(event)
+        if wants_assignment_digest(prefs, guild_id=guild_id):
+            session.add(
+                TaskAssignmentDigestItem(
+                    user_id=user_id,
+                    task_id=task.id,
+                    project_id=task.project_id,
+                    task_title=task.title,
+                    project_name=project_name,
+                    assigned_by_name=actor_name(assigned_by),
+                    assigned_by_id=assigned_by.id,
+                )
+            )
 
 
 def wants_assignment_digest(
@@ -552,1292 +877,6 @@ async def clear_digest_queue_across_guilds(
         _clear,
         satisfied_providers=SYSTEM_SATISFIED,
         writes=True,
-    )
-
-
-async def notify_initiative_membership(
-    session: AsyncSession,
-    user: User,
-    initiative_id: int,
-    initiative_name: str,
-    guild_id: int,
-) -> None:
-    target_path = _initiative_target_path(initiative_id)
-    channels = await _channels(
-        session,
-        user,
-        notification_type=NotificationType.initiative_added,
-        guild_id=guild_id,
-    )
-    notification = await user_notifications.create_notification(
-        session,
-        user_id=user.id,
-        notification_type=NotificationType.initiative_added,
-        data={
-            "initiative_id": initiative_id,
-            "guild_id": guild_id,
-            "target_path": target_path,
-            "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
-        },
-    )
-    # Email
-    if channels.email:
-        await email_outbox.enqueue(
-            session,
-            user,
-            category=category_of(NotificationType.initiative_added),
-            guild_id=guild_id,
-            notification_id=notification.id if notification is not None else None,
-            prefs=channels.prefs,
-            pieces=email_service.initiative_added_pieces(user, initiative_name),
-        )
-    # Push notification
-    if channels.push:
-        locale = _recipient_locale(user)
-        try:
-            await push_notifications.send_push_to_user(
-                session=session,
-                user_id=user.id,
-                notification_type=NotificationType.initiative_added,
-                guild_id=guild_id,
-                locale=locale,
-                title=_nt("initiative.added.title", locale),
-                body=_nt("initiative.added.body", locale, initiative=initiative_name),
-                data={
-                    "type": "initiative_added",
-                    "initiative_id": str(initiative_id),
-                    "guild_id": str(guild_id),
-                    "target_path": target_path,
-                },
-            )
-        except Exception as exc:
-            logger.error(f"Failed to send push notification: {exc}", exc_info=True)
-    await session.commit()
-
-
-async def _send_join_request_push(
-    session: AsyncSession,
-    recipient: User,
-    *,
-    notification_type: NotificationType,
-    title_key: str,
-    body_key: str,
-    target_path: str,
-    guild_id: int,
-    initiative_id: int,
-    **body_vars: str,
-) -> None:
-    """Push half of the join-request notifications, best effort.
-
-    Each of the three events resolves under its own category: being asked to
-    decide is an approval, being told the answer is membership news.
-    """
-    channels = await _channels(
-        session,
-        recipient,
-        notification_type=notification_type,
-        guild_id=guild_id,
-    )
-    if not channels.push:
-        return
-    locale = _recipient_locale(recipient)
-    try:
-        await push_notifications.send_push_to_user(
-            session=session,
-            user_id=recipient.id,
-            notification_type=notification_type,
-            guild_id=guild_id,
-            locale=locale,
-            title=_nt(title_key, locale),
-            body=_nt(body_key, locale, **body_vars),
-            data={
-                "type": notification_type.value,
-                "initiative_id": str(initiative_id),
-                "guild_id": str(guild_id),
-                "target_path": target_path,
-            },
-        )
-    except Exception as exc:
-        logger.error("Failed to send push notification: %s", exc, exc_info=True)
-
-
-async def _send_join_request_email(
-    session: AsyncSession,
-    recipient: User,
-    *,
-    event: str,
-    notification_type: NotificationType,
-    initiative_name: str,
-    target_path: str,
-    guild_id: int,
-    requester: str | None = None,
-    message: str | None = None,
-) -> None:
-    """Email half of the join-request notifications, best effort.
-
-    Resolved under the notification's own category, as the push half is.
-
-    The link is the guild-aware smart link — these events mean nothing outside
-    the guild they happened in.
-    """
-    channels = await _channels(
-        session,
-        recipient,
-        notification_type=notification_type,
-        guild_id=guild_id,
-    )
-    if not channels.email:
-        return
-    link = (
-        _build_smart_link(target_path=target_path, guild_id=guild_id)
-        or app_config.APP_URL
-    )
-    # No bell line is named here: this helper is the email half of three
-    # different notifiers, and which line it belongs to is not in hand. The
-    # cost is only that reading the request in the app does not withdraw the
-    # mail, which for something waiting on a decision is the safer way round.
-    await email_outbox.enqueue(
-        session,
-        recipient,
-        category=category_of(notification_type),
-        guild_id=guild_id,
-        prefs=channels.prefs,
-        pieces=email_service.initiative_join_request_pieces(
-            recipient,
-            event=event,
-            initiative_name=initiative_name,
-            link=link,
-            requester=requester,
-            message=message,
-        ),
-    )
-
-
-async def notify_initiative_join_requested(
-    session: AsyncSession,
-    managers: list[User],
-    *,
-    request_id: int,
-    initiative_id: int,
-    initiative_name: str,
-    guild_id: int,
-    requester: User,
-    message: str | None = None,
-) -> None:
-    """Tell an initiative's managers that someone knocked.
-
-    Addressed to the people who can answer it — the manager-role members — and
-    it carries no initiative *content*, only who asked, what they said, and
-    where to answer.
-    """
-    # Straight to the queue rather than the initiative: the recipient was told
-    # about this to act on it, and only a manager is ever sent one.
-    target_path = f"{_initiative_target_path(initiative_id)}/settings/members"
-    requester_name = handle_of(requester)
-    for manager in managers:
-        await user_notifications.create_notification(
-            session,
-            user_id=manager.id,
-            notification_type=NotificationType.initiative_join_requested,
-            data={
-                "request_id": request_id,
-                "initiative_id": initiative_id,
-                "guild_id": guild_id,
-                "requester_id": requester.id,
-                "requester_name": requester_name,
-                "target_path": target_path,
-                "smart_link": _build_smart_link(
-                    target_path=target_path, guild_id=guild_id
-                ),
-            },
-        )
-        await _send_join_request_push(
-            session,
-            manager,
-            notification_type=NotificationType.initiative_join_requested,
-            title_key="initiative.joinRequested.title",
-            body_key="initiative.joinRequested.body",
-            target_path=target_path,
-            guild_id=guild_id,
-            initiative_id=initiative_id,
-            requester=requester_name,
-            initiative=initiative_name,
-        )
-        await _send_join_request_email(
-            session,
-            manager,
-            event="requested",
-            notification_type=NotificationType.initiative_join_requested,
-            initiative_name=initiative_name,
-            target_path=target_path,
-            guild_id=guild_id,
-            requester=requester_name,
-            message=message,
-        )
-    await session.commit()
-
-
-async def notify_initiative_join_resolved(
-    session: AsyncSession,
-    requester: User,
-    *,
-    request_id: int,
-    initiative_id: int,
-    initiative_name: str,
-    guild_id: int,
-    approved: bool,
-) -> None:
-    """Tell the requester how their knock was answered.
-
-    An approval points at the initiative — the membership row now exists, so the
-    link resolves. A denial points at the directory instead, which is as far as
-    they can go.
-    """
-    notification_type = (
-        NotificationType.initiative_join_approved
-        if approved
-        else NotificationType.initiative_join_denied
-    )
-    target_path = (
-        _initiative_target_path(initiative_id)
-        if approved
-        else _initiative_target_path(None)
-    )
-    await user_notifications.create_notification(
-        session,
-        user_id=requester.id,
-        notification_type=notification_type,
-        data={
-            "request_id": request_id,
-            "initiative_id": initiative_id,
-            "guild_id": guild_id,
-            "target_path": target_path,
-            "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
-        },
-    )
-    await _send_join_request_push(
-        session,
-        requester,
-        notification_type=notification_type,
-        title_key=(
-            "initiative.joinApproved.title"
-            if approved
-            else "initiative.joinDenied.title"
-        ),
-        body_key=(
-            "initiative.joinApproved.body" if approved else "initiative.joinDenied.body"
-        ),
-        target_path=target_path,
-        guild_id=guild_id,
-        initiative_id=initiative_id,
-        initiative=initiative_name,
-    )
-    await _send_join_request_email(
-        session,
-        requester,
-        event="approved" if approved else "denied",
-        notification_type=(
-            NotificationType.initiative_join_approved
-            if approved
-            else NotificationType.initiative_join_denied
-        ),
-        initiative_name=initiative_name,
-        target_path=target_path,
-        guild_id=guild_id,
-    )
-    await session.commit()
-
-
-async def notify_project_added(
-    session: AsyncSession,
-    user: User,
-    *,
-    initiative_name: str,
-    project_name: str,
-    project_id: int,
-    initiative_id: int,
-    guild_id: int,
-) -> None:
-    target_path = reference_path(Tool.project, project_id)
-    channels = await _channels(
-        session,
-        user,
-        notification_type=NotificationType.project_added,
-        guild_id=guild_id,
-    )
-    notification = await user_notifications.create_notification(
-        session,
-        user_id=user.id,
-        notification_type=NotificationType.project_added,
-        data={
-            "initiative_id": initiative_id,
-            "project_id": project_id,
-            "guild_id": guild_id,
-            "target_path": target_path,
-            "smart_link": _build_smart_link(
-                target_path=target_path,
-                guild_id=guild_id,
-            ),
-        },
-    )
-    # Email
-    if channels.email:
-        await email_outbox.enqueue(
-            session,
-            user,
-            category=category_of(NotificationType.project_added),
-            guild_id=guild_id,
-            notification_id=notification.id if notification is not None else None,
-            prefs=channels.prefs,
-            pieces=email_service.project_added_pieces(
-                user,
-                initiative_name=initiative_name,
-                project_name=project_name,
-                project_id=project_id,
-            ),
-        )
-    # Push notification
-    if channels.push:
-        locale = _recipient_locale(user)
-        try:
-            await push_notifications.send_push_to_user(
-                session=session,
-                user_id=user.id,
-                notification_type=NotificationType.project_added,
-                guild_id=guild_id,
-                locale=locale,
-                title=_nt("project.added.title", locale),
-                body=_nt(
-                    "project.added.body",
-                    locale,
-                    project=project_name,
-                    initiative=initiative_name,
-                ),
-                data={
-                    "type": "project_added",
-                    "project_id": str(project_id),
-                    "guild_id": str(guild_id),
-                    "target_path": target_path,
-                },
-            )
-        except Exception as exc:
-            logger.error(f"Failed to send push notification: {exc}", exc_info=True)
-    await session.commit()
-
-
-async def _deliver_rolled_up_comment(
-    session: AsyncSession,
-    *,
-    recipient: User,
-    actor: "User | AppAuthor",
-    notification_type: NotificationType,
-    data: dict[str, Any],
-    email_subject: str,
-    email_headline: str,
-    email_body: str,
-    push_title: str,
-    push_body: str,
-    push_data: Mapping[str, str | None],
-    rollup_key: str | None = None,
-) -> None:
-    """Shared delivery for mentions and comments: one bell line, then email and
-    push.
-
-    The bell line is the window the reaching channels fire on. With a
-    ``rollup_key`` the notice joins this recipient's unread line for that thread
-    and the mail and the push go only when it opened one; without a key each
-    notice is its own line and its own interruption.
-
-    ``push_data`` names the ids this one notification is about; its type, its
-    community and where it opens are the three every push carries.
-    """
-    guild_id = data.get("guild_id")
-    guild_id = guild_id if isinstance(guild_id, int) else None
-    channels = await _channels(
-        session,
-        recipient,
-        notification_type=notification_type,
-        guild_id=guild_id,
-    )
-    if rollup_key is None:
-        opened = True
-        notification = await user_notifications.create_notification(
-            session,
-            user_id=recipient.id,
-            notification_type=notification_type,
-            data=data,
-        )
-    else:
-        opened, notification = await _roll_up_comment(
-            session,
-            recipient=recipient,
-            notification_type=notification_type,
-            rollup_key=rollup_key,
-            data=data,
-            commenter_name=actor_name(actor),
-            commenter_id=actor.id,
-        )
-    if channels.email and opened:
-        await _queue_email(
-            session,
-            recipient,
-            notification_type=notification_type,
-            guild_id=guild_id,
-            notification=notification,
-            prefs=channels.prefs,
-            subject=email_subject,
-            headline=email_headline,
-            body=email_body,
-            link=data.get("smart_link"),
-        )
-    if channels.push and opened:
-        try:
-            await push_notifications.send_push_to_user(
-                session=session,
-                user_id=recipient.id,
-                notification_type=notification_type,
-                guild_id=guild_id,
-                locale=_recipient_locale(recipient),
-                title=push_title,
-                body=push_body,
-                data={
-                    "type": notification_type.value,
-                    **push_data,
-                    "guild_id": str(guild_id),
-                    "target_path": data.get("target_path", "/"),
-                },
-            )
-        except Exception as exc:
-            logger.error(f"Failed to send push notification: {exc}", exc_info=True)
-
-
-async def notify_document_mention(
-    session: AsyncSession,
-    *,
-    mentioned_user: User,
-    mentioned_by: "User | AppAuthor",
-    document_id: int,
-    document_name: str,
-    guild_id: int,
-    initiative_id: int | None = None,
-) -> None:
-    """Notify a user they were mentioned in a document."""
-    if mentioned_user.id == mentioned_by.id:
-        return
-    target_path = reference_path(Tool.document, document_id)
-    mentioned_by_name = actor_name(mentioned_by)
-    locale = _recipient_locale(mentioned_user)
-    await _deliver_rolled_up_comment(
-        session,
-        recipient=mentioned_user,
-        actor=mentioned_by,
-        notification_type=NotificationType.mention,
-        data={
-            "document_id": document_id,
-            "mentioned_by_name": mentioned_by_name,
-            "mentioned_by_id": mentioned_by.id,
-            "guild_id": guild_id,
-            "initiative_id": initiative_id,
-            "tool": Tool.document.value,
-            "target_path": target_path,
-            "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
-        },
-        email_subject=email_t(
-            "mention.document.subject", locale, document=document_name, escape=False
-        ),
-        email_headline=email_t("mention.document.title", locale),
-        email_body=email_t(
-            "mention.document.body",
-            locale,
-            actor=mentioned_by_name,
-            document=document_name,
-        ),
-        push_title=_nt("mention.document.title", locale),
-        push_body=_nt(
-            "mention.document.body",
-            locale,
-            actor=mentioned_by_name,
-            document=document_name,
-        ),
-        push_data={"document_id": str(document_id)},
-    )
-
-
-async def notify_task_description_mention(
-    session: AsyncSession,
-    *,
-    mentioned_user: User,
-    mentioned_by: "User | AppAuthor",
-    task_id: int,
-    task_title: str,
-    guild_id: int,
-    initiative_id: int | None = None,
-) -> None:
-    """Notify a user they were mentioned in a task's description."""
-    if mentioned_user.id == mentioned_by.id:
-        return
-    target_path = _task_target_path(task_id, None)
-    mentioned_by_name = actor_name(mentioned_by)
-    locale = _recipient_locale(mentioned_user)
-    await _deliver_rolled_up_comment(
-        session,
-        recipient=mentioned_user,
-        actor=mentioned_by,
-        notification_type=NotificationType.mention,
-        data={
-            "task_id": task_id,
-            "task_title": task_title,
-            "mentioned_by_name": mentioned_by_name,
-            "mentioned_by_id": mentioned_by.id,
-            "guild_id": guild_id,
-            "initiative_id": initiative_id,
-            "tool": Tool.project.value,
-            "target_path": target_path,
-            "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
-        },
-        email_subject=email_t(
-            "mention.taskDescription.subject", locale, task=task_title, escape=False
-        ),
-        email_headline=email_t("mention.taskDescription.title", locale),
-        email_body=email_t(
-            "mention.taskDescription.body",
-            locale,
-            actor=mentioned_by_name,
-            task=task_title,
-        ),
-        push_title=_nt("mention.taskDescription.title", locale),
-        push_body=_nt(
-            "mention.taskDescription.body",
-            locale,
-            actor=mentioned_by_name,
-            task=task_title,
-        ),
-        push_data={"task_id": str(task_id)},
-    )
-
-
-def _comment_context_path(
-    *,
-    task_id: int | None,
-    document_id: int | None,
-    entity_type: str | None,
-    entity_id: int | None,
-) -> str | None:
-    """Where a notice about a comment opens: the thread's parent.
-
-    A task and a document are named by their own fields; any other tool parent
-    arrives as an entity reference. ``None`` means the caller named no parent,
-    and there is nowhere for the notice to point.
-    """
-    if task_id:
-        return _task_target_path(task_id, None)
-    if document_id:
-        return reference_path(Tool.document, document_id)
-    if entity_type and entity_id:
-        return reference_path(entity_type, entity_id)
-    return None
-
-
-async def notify_comment_mention(
-    session: AsyncSession,
-    *,
-    mentioned_user: User,
-    mentioned_by: "User | AppAuthor",
-    comment_id: int,
-    task_id: int | None,
-    document_id: int | None,
-    context_title: str,
-    guild_id: int,
-    initiative_id: int | None = None,
-    tool: str | None = None,
-    entity_type: str | None = None,
-    entity_id: int | None = None,
-) -> None:
-    """Notify a user they were mentioned in a comment. ``entity_type``/
-    ``entity_id`` name the parent when it is a tool entity other than a
-    document (a project, queue, counter group, calendar, or dashboard)."""
-    if mentioned_user.id == mentioned_by.id:
-        return
-    target_path = _comment_context_path(
-        task_id=task_id,
-        document_id=document_id,
-        entity_type=entity_type,
-        entity_id=entity_id,
-    )
-    if target_path is None:
-        return
-    mentioned_by_name = actor_name(mentioned_by)
-    locale = _recipient_locale(mentioned_user)
-    await _deliver_rolled_up_comment(
-        session,
-        recipient=mentioned_user,
-        actor=mentioned_by,
-        notification_type=NotificationType.mention,
-        data={
-            "comment_id": comment_id,
-            "task_id": task_id,
-            "document_id": document_id,
-            "entity_type": entity_type,
-            "entity_id": entity_id,
-            "mentioned_by_name": mentioned_by_name,
-            "mentioned_by_id": mentioned_by.id,
-            "guild_id": guild_id,
-            "initiative_id": initiative_id,
-            "tool": tool,
-            "target_path": target_path,
-            "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
-        },
-        email_subject=email_t("mention.comment.subject", locale, escape=False),
-        email_headline=email_t("mention.comment.title", locale),
-        email_body=email_t(
-            "mention.comment.body",
-            locale,
-            actor=mentioned_by_name,
-            context=context_title,
-        ),
-        push_title=_nt("mention.comment.title", locale),
-        push_body=_nt(
-            "mention.comment.body",
-            locale,
-            actor=mentioned_by_name,
-            context=context_title,
-        ),
-        push_data={
-            "comment_id": str(comment_id),
-            "task_id": str(task_id) if task_id else None,
-            "document_id": str(document_id) if document_id else None,
-        },
-    )
-
-
-async def notify_task_mentioned_in_comment(
-    session: AsyncSession,
-    *,
-    assignee: User,
-    mentioned_by: "User | AppAuthor",
-    comment_id: int,
-    mentioned_task_id: int,
-    mentioned_task_title: str,
-    context_task_id: int | None,
-    context_document_id: int | None,
-    context_title: str,
-    guild_id: int,
-    initiative_id: int | None = None,
-    tool: str | None = None,
-    context_entity_type: str | None = None,
-    context_entity_id: int | None = None,
-) -> None:
-    """Notify task assignee that their task was mentioned in a comment."""
-    if assignee.id == mentioned_by.id:
-        return
-    target_path = _comment_context_path(
-        task_id=context_task_id,
-        document_id=context_document_id,
-        entity_type=context_entity_type,
-        entity_id=context_entity_id,
-    )
-    if target_path is None:
-        return
-    mentioned_by_name = actor_name(mentioned_by)
-    locale = _recipient_locale(assignee)
-    await _deliver_rolled_up_comment(
-        session,
-        recipient=assignee,
-        actor=mentioned_by,
-        notification_type=NotificationType.mention,
-        data={
-            "comment_id": comment_id,
-            "mentioned_task_id": mentioned_task_id,
-            "context_task_id": context_task_id,
-            "context_document_id": context_document_id,
-            "context_entity_type": context_entity_type,
-            "context_entity_id": context_entity_id,
-            "mentioned_by_name": mentioned_by_name,
-            "mentioned_by_id": mentioned_by.id,
-            "guild_id": guild_id,
-            "initiative_id": initiative_id,
-            "tool": tool,
-            "target_path": target_path,
-            "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
-        },
-        email_subject=email_t("mention.task.subject", locale, escape=False),
-        email_headline=email_t("mention.task.title", locale),
-        email_body=email_t(
-            "mention.task.body",
-            locale,
-            actor=mentioned_by_name,
-            task=mentioned_task_title,
-            context=context_title,
-        ),
-        push_title=_nt("mention.task.title", locale),
-        push_body=_nt(
-            "mention.task.body",
-            locale,
-            actor=mentioned_by_name,
-            task=mentioned_task_title,
-            context=context_title,
-        ),
-        push_data={
-            "comment_id": str(comment_id),
-            "mentioned_task_id": str(mentioned_task_id),
-        },
-    )
-
-
-async def notify_comment_on_task(
-    session: AsyncSession,
-    *,
-    assignee: User,
-    commenter: "User | AppAuthor",
-    comment_id: int,
-    task_id: int,
-    task_title: str,
-    project_name: str,
-    guild_id: int,
-    initiative_id: int | None = None,
-    tool: str | None = None,
-    project_id: int | None = None,
-) -> None:
-    """Notify task assignee that someone commented on their task.
-
-    ``project_name`` is what the mail and the push say; ``project_id`` is what
-    the bell reads the name back from when the line is opened.
-    """
-    if assignee.id == commenter.id:
-        return
-    target_path = _task_target_path(task_id, None)
-    commenter_name = actor_name(commenter)
-    locale = _recipient_locale(assignee)
-    await _deliver_rolled_up_comment(
-        session,
-        recipient=assignee,
-        actor=commenter,
-        notification_type=NotificationType.comment_on_task,
-        rollup_key=_comment_rollup_key("task", task_id),
-        data={
-            "comment_id": comment_id,
-            "task_id": task_id,
-            "project_id": project_id,
-            "commenter_name": commenter_name,
-            "commenter_id": commenter.id,
-            "guild_id": guild_id,
-            "initiative_id": initiative_id,
-            "tool": tool,
-            "target_path": target_path,
-            "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
-        },
-        email_subject=email_t(
-            "comment.onTask.subject", locale, task=task_title, escape=False
-        ),
-        email_headline=email_t("comment.onTask.title", locale),
-        email_body=email_t(
-            "comment.onTask.body", locale, actor=commenter_name, task=task_title
-        ),
-        push_title=_nt("comment.onTask.title", locale),
-        push_body=_nt(
-            "comment.onTask.body", locale, actor=commenter_name, task=task_title
-        ),
-        push_data={"comment_id": str(comment_id), "task_id": str(task_id)},
-    )
-
-
-async def notify_comment_on_resource(
-    session: AsyncSession,
-    *,
-    owner: User,
-    commenter: "User | AppAuthor",
-    comment_id: int,
-    entity_type: str,
-    entity_id: int,
-    entity_name: str,
-    guild_id: int,
-    initiative_id: int | None = None,
-    tool: str | None = None,
-    target: tuple[str, int] | None = None,
-) -> None:
-    """Notify a tool entity's creator that someone commented on it.
-
-    One notification for every tool parent — project, document, queue,
-    counter group, calendar, dashboard. ``entity_type`` is the Tool value.
-
-    ``target`` says where the notice should OPEN where that is not the thing it
-    is about: a wiki page has no address taking only its own id, so a notice
-    about one opens its wiki. It defaults to the entity itself.
-    """
-    if owner.id == commenter.id:
-        return
-    target_path = reference_path(*(target or (entity_type, entity_id)))
-    commenter_name = actor_name(commenter)
-    locale = _recipient_locale(owner)
-    await _deliver_rolled_up_comment(
-        session,
-        recipient=owner,
-        actor=commenter,
-        notification_type=NotificationType.comment_on_resource,
-        rollup_key=_comment_rollup_key(entity_type, entity_id),
-        data={
-            "comment_id": comment_id,
-            "entity_type": entity_type,
-            "entity_id": entity_id,
-            "commenter_name": commenter_name,
-            "commenter_id": commenter.id,
-            "guild_id": guild_id,
-            "initiative_id": initiative_id,
-            "tool": tool,
-            "target_path": target_path,
-            "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
-        },
-        email_subject=email_t(
-            "comment.onResource.subject", locale, context=entity_name, escape=False
-        ),
-        email_headline=email_t("comment.onResource.title", locale),
-        email_body=email_t(
-            "comment.onResource.body", locale, actor=commenter_name, context=entity_name
-        ),
-        push_title=_nt("comment.onResource.title", locale),
-        push_body=_nt(
-            "comment.onResource.body", locale, actor=commenter_name, context=entity_name
-        ),
-        push_data={
-            "comment_id": str(comment_id),
-            "entity_type": entity_type,
-            "entity_id": str(entity_id),
-        },
-    )
-
-
-async def notify_comment_reply(
-    session: AsyncSession,
-    *,
-    parent_author: User,
-    replier: "User | AppAuthor",
-    comment_id: int,
-    task_id: int | None,
-    document_id: int | None,
-    context_title: str,
-    guild_id: int,
-    initiative_id: int | None = None,
-    tool: str | None = None,
-    entity_type: str | None = None,
-    entity_id: int | None = None,
-) -> None:
-    """Notify parent comment author that someone replied to their comment."""
-    if parent_author.id == replier.id:
-        return
-    target_path = _comment_context_path(
-        task_id=task_id,
-        document_id=document_id,
-        entity_type=entity_type,
-        entity_id=entity_id,
-    )
-    if target_path is None:
-        return
-    replier_name = actor_name(replier)
-    locale = _recipient_locale(parent_author)
-    await _deliver_rolled_up_comment(
-        session,
-        recipient=parent_author,
-        actor=replier,
-        notification_type=NotificationType.comment_reply,
-        data={
-            "comment_id": comment_id,
-            "task_id": task_id,
-            "document_id": document_id,
-            "entity_type": entity_type,
-            "entity_id": entity_id,
-            "replier_name": replier_name,
-            "replier_id": replier.id,
-            "guild_id": guild_id,
-            "initiative_id": initiative_id,
-            "tool": tool,
-            "target_path": target_path,
-            "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
-        },
-        email_subject=email_t("comment.reply.subject", locale, escape=False),
-        email_headline=email_t("comment.reply.title", locale),
-        email_body=email_t(
-            "comment.reply.body", locale, actor=replier_name, context=context_title
-        ),
-        push_title=_nt("comment.reply.title", locale),
-        push_body=_nt(
-            "comment.reply.body", locale, actor=replier_name, context=context_title
-        ),
-        push_data={
-            "comment_id": str(comment_id),
-            "task_id": str(task_id) if task_id else None,
-            "document_id": str(document_id) if document_id else None,
-        },
-    )
-
-
-# ---------------------------------------------------------------------------
-# Calendar event notifications
-# ---------------------------------------------------------------------------
-
-
-def _format_event_when(event: CalendarEvent, recipient: User) -> str:
-    """Human-readable event start, localized to the recipient's timezone.
-
-    All-day events show just the date; timed events convert the stored UTC
-    instant into the recipient's IANA timezone and append the zone abbrev
-    (e.g. ``Wed, Jul 1, 2026 at 2:30 PM PDT``).
-    """
-    if event.all_day:
-        return event.start_at.strftime("%a, %b %-d, %Y")
-    tz = _resolve_timezone(recipient.timezone)
-    local = event.start_at.astimezone(tz)
-    return local.strftime("%a, %b %-d, %Y at %-I:%M %p %Z")
-
-
-async def _deliver_notification(
-    session: AsyncSession,
-    *,
-    recipient: User,
-    notification_type: NotificationType,
-    data: dict,
-    email_subject: str,
-    email_headline: str,
-    email_body: str,
-    push_title: str,
-    push_body: str,
-) -> None:
-    """Shared 3-tier delivery: in-app, then email and push.
-
-    Every channel is resolved here rather than by the caller — the recipient,
-    the type and the guild are all in hand, and there is nothing a caller could
-    add to the decision.
-    """
-    target_path = data.get("target_path", "/")
-    guild_id = data.get("guild_id")
-    channels = await _channels(
-        session,
-        recipient,
-        notification_type=notification_type,
-        guild_id=guild_id if isinstance(guild_id, int) else None,
-    )
-    notification = await user_notifications.create_notification(
-        session,
-        user_id=recipient.id,
-        notification_type=notification_type,
-        data=data,
-    )
-    if channels.email:
-        await _queue_email(
-            session,
-            recipient,
-            notification_type=notification_type,
-            guild_id=guild_id if isinstance(guild_id, int) else None,
-            notification=notification,
-            prefs=channels.prefs,
-            subject=email_subject,
-            headline=email_headline,
-            body=email_body,
-            link=data.get("smart_link"),
-        )
-    if channels.push:
-        try:
-            await push_notifications.send_push_to_user(
-                session=session,
-                user_id=recipient.id,
-                notification_type=notification_type,
-                guild_id=guild_id if isinstance(guild_id, int) else None,
-                locale=_recipient_locale(recipient),
-                title=push_title,
-                body=push_body,
-                data={
-                    "type": notification_type.value,
-                    "event_id": str(data.get("event_id")),
-                    "guild_id": str(guild_id),
-                    "target_path": target_path,
-                },
-            )
-        except Exception as exc:
-            logger.error(f"Failed to send push notification: {exc}", exc_info=True)
-
-
-#: Calendar -> its initiative, for the life of one session. Keyed by guild as
-#: well: per-guild schemas mean two calendars can hold the same id.
-_CALENDAR_INITIATIVES = "_calendar_initiatives"
-
-
-async def _calendar_initiative(
-    session: AsyncSession, *, calendar_id: int, guild_id: int
-) -> int | None:
-    """Which initiative a calendar belongs to.
-
-    Memoised, because an event notification is written once per recipient:
-    cancelling an event with fifty attendees asked this fifty times for the one
-    calendar. A calendar does not change initiative, so a session-lifetime
-    answer is the same answer.
-    """
-    memo: dict[tuple[int, int], int | None] = session.info.setdefault(
-        _CALENDAR_INITIATIVES, {}
-    )
-    key = (guild_id, calendar_id)
-    if key not in memo:
-        memo[key] = (
-            await session.exec(
-                select(Calendar.initiative_id).where(Calendar.id == calendar_id)
-            )
-        ).scalar_one_or_none()
-    return memo[key]
-
-
-async def _event_data(
-    session: AsyncSession, event: CalendarEvent, guild_id: int, **extra
-) -> dict:
-    """One event notification's payload, including where it happened.
-
-    The initiative is read from the event's calendar here rather than passed in
-    by each caller: every event notification is built through this one function,
-    so this is the place none of them can forget it. A guild-level calendar has
-    no initiative, and the notification then lights its community and nothing
-    inside it.
-    """
-    target_path = reference_path("event", event.id)
-    initiative_id = await _calendar_initiative(
-        session, calendar_id=event.calendar_id, guild_id=guild_id
-    )
-    data = {
-        "event_id": event.id,
-        "start_at": event.start_at.isoformat(),
-        "guild_id": guild_id,
-        "initiative_id": initiative_id,
-        "tool": Tool.calendar.value,
-        "target_path": target_path,
-        "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
-    }
-    data.update(extra)
-    return data
-
-
-async def notify_event_invitation(
-    session: AsyncSession,
-    *,
-    attendee: User,
-    organizer: "User | AppAuthor",
-    event: CalendarEvent,
-    guild_id: int,
-) -> None:
-    """Notify a user they were added as an attendee on a calendar event."""
-    if attendee.id == organizer.id:
-        return
-    organizer_name = actor_name(organizer)
-    when = _format_event_when(event, attendee)
-    locale = _recipient_locale(attendee)
-    await _deliver_notification(
-        session,
-        recipient=attendee,
-        notification_type=NotificationType.event_invitation,
-        data=await _event_data(session, event, guild_id, organizer_name=organizer_name),
-        email_subject=email_t(
-            "event.invitation.subject", locale, event=event.title, escape=False
-        ),
-        email_headline=email_t("event.invitation.title", locale),
-        email_body=email_t(
-            "event.invitation.body",
-            locale,
-            organizer=organizer_name,
-            event=event.title,
-            when=when,
-        ),
-        push_title=_nt("event.invitation.title", locale),
-        push_body=_nt("event.invitation.body", locale, event=event.title, when=when),
-    )
-
-
-async def notify_event_updated(
-    session: AsyncSession,
-    *,
-    attendee: User,
-    editor: "User | AppAuthor",
-    event: CalendarEvent,
-    guild_id: int,
-    time_changed: bool,
-) -> None:
-    """Notify an attendee that an event's details changed (or was rescheduled)."""
-    if attendee.id == editor.id:
-        return
-    editor_name = actor_name(editor)
-    when = _format_event_when(event, attendee)
-    locale = _recipient_locale(attendee)
-    key = "event.rescheduled" if time_changed else "event.updated"
-    await _deliver_notification(
-        session,
-        recipient=attendee,
-        notification_type=NotificationType.event_updated,
-        data=await _event_data(
-            session, event, guild_id, editor_name=editor_name, time_changed=time_changed
-        ),
-        email_subject=email_t(
-            f"{key}.subject", locale, event=event.title, escape=False
-        ),
-        email_headline=email_t(f"{key}.title", locale),
-        email_body=email_t(
-            f"{key}.body", locale, editor=editor_name, event=event.title, when=when
-        ),
-        push_title=_nt(f"{key}.title", locale),
-        push_body=_nt(f"{key}.body", locale, event=event.title, when=when),
-    )
-
-
-async def notify_event_cancelled(
-    session: AsyncSession,
-    *,
-    attendee: User,
-    canceller: "User | AppAuthor",
-    event: CalendarEvent,
-    guild_id: int,
-) -> None:
-    """Notify an attendee that an event was cancelled (deleted)."""
-    if attendee.id == canceller.id:
-        return
-    canceller_name = actor_name(canceller)
-    when = _format_event_when(event, attendee)
-    locale = _recipient_locale(attendee)
-    await _deliver_notification(
-        session,
-        recipient=attendee,
-        notification_type=NotificationType.event_cancelled,
-        data=await _event_data(session, event, guild_id, canceller_name=canceller_name),
-        email_subject=email_t(
-            "event.cancelled.subject", locale, event=event.title, escape=False
-        ),
-        email_headline=email_t("event.cancelled.title", locale),
-        email_body=email_t(
-            "event.cancelled.body",
-            locale,
-            canceller=canceller_name,
-            event=event.title,
-            when=when,
-        ),
-        push_title=_nt("event.cancelled.title", locale),
-        push_body=_nt("event.cancelled.body", locale, event=event.title, when=when),
-    )
-
-
-async def notify_event_rsvp(
-    session: AsyncSession,
-    *,
-    organizer: User,
-    responder: User,
-    event: CalendarEvent,
-    rsvp_status: RSVPStatus,
-    guild_id: int,
-) -> None:
-    """Notify the organizer that an attendee responded to their event."""
-    if organizer.id == responder.id:
-        return
-    responder_name = handle_of(responder)
-    status_value = (
-        rsvp_status.value if isinstance(rsvp_status, RSVPStatus) else str(rsvp_status)
-    )
-    locale = _recipient_locale(organizer)
-    await _deliver_notification(
-        session,
-        recipient=organizer,
-        notification_type=NotificationType.event_rsvp,
-        data=await _event_data(
-            session,
-            event,
-            guild_id,
-            responder_name=responder_name,
-            rsvp_status=status_value,
-        ),
-        email_subject=email_t(
-            "event.rsvp.subject", locale, event=event.title, escape=False
-        ),
-        email_headline=email_t("event.rsvp.title", locale),
-        email_body=email_t(
-            "event.rsvp.body",
-            locale,
-            responder=responder_name,
-            status=status_value,
-            event=event.title,
-        ),
-        push_title=_nt("event.rsvp.title", locale),
-        push_body=_nt(
-            "event.rsvp.body",
-            locale,
-            responder=responder_name,
-            status=status_value,
-            event=event.title,
-        ),
-    )
-
-
-async def notify_event_reminder(
-    session: AsyncSession,
-    *,
-    recipient: User,
-    event: CalendarEvent,
-    guild_id: int,
-) -> None:
-    """Send a scheduled lead-time reminder for an upcoming event."""
-    when = _format_event_when(event, recipient)
-    locale = _recipient_locale(recipient)
-    await _deliver_notification(
-        session,
-        recipient=recipient,
-        notification_type=NotificationType.event_reminder,
-        data=await _event_data(session, event, guild_id),
-        email_subject=email_t(
-            "event.reminder.subject", locale, event=event.title, escape=False
-        ),
-        email_headline=email_t("event.reminder.title", locale),
-        email_body=email_t("event.reminder.body", locale, event=event.title, when=when),
-        push_title=_nt("event.reminder.title", locale),
-        push_body=_nt("event.reminder.body", locale, event=event.title, when=when),
-    )
-
-
-async def notify_post_published(
-    session: AsyncSession,
-    *,
-    recipient: User,
-    post_id: int,
-    post_name: str,
-    excerpt: str,
-    author_name: str,
-    author_id: int | None,
-    guild_id: int,
-    initiative_id: int | None = None,
-) -> None:
-    """Tell one person a notice has gone up on a board they can see.
-
-    ``author_id`` is ``None`` when an installed app posted it.
-
-    Takes the post's fields rather than the row: the scheduled path calls this
-    from a sweep that commits between recipients, and a detached row would have
-    to be re-fetched for each one.
-    """
-    if recipient.id == author_id:
-        return
-    target_path = reference_path(Tool.post, post_id)
-    locale = _recipient_locale(recipient)
-    await _deliver_notification(
-        session,
-        recipient=recipient,
-        notification_type=NotificationType.post_published,
-        data={
-            "post_id": post_id,
-            "author_name": author_name,
-            "author_id": author_id,
-            "guild_id": guild_id,
-            "initiative_id": initiative_id,
-            "tool": Tool.post.value,
-            "target_path": target_path,
-            "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
-        },
-        email_subject=email_t(
-            "post.published.subject", locale, post=post_name, escape=False
-        ),
-        email_headline=email_t("post.published.title", locale),
-        email_body=email_t(
-            "post.published.body", locale, actor=author_name, post=post_name
-        ),
-        push_title=_nt("post.published.title", locale),
-        push_body=_nt("post.published.body", locale, actor=author_name, post=post_name),
     )
 
 
@@ -1999,79 +1038,84 @@ async def _run_digest_pass(
 ) -> None:
     """Send ``spec``'s digest to opted-in users as of ``now``.
 
-    Each user's pending items live in their own guild schemas, so they are
-    gathered with the user's membership context (not the guild's role) and
-    marked processed back in each schema. Email and push ship together, on the
-    same trigger, so the two channels tell the same story — see
-    :func:`_digest_is_due` for the timing.
+    Starts from what is waiting: each community is asked once which accounts
+    have unsent items and when they came, and only accounts whose items have
+    settled go further (see :func:`_digest_is_due`). Their items are then
+    taken in each community under their own membership context — marked
+    processed by the statement that reads them, so a digest goes out once
+    however many processes sweep at the same moment — and email and push ship
+    together, so the two channels tell the same story.
     """
     model = spec.model
-    result = await session.exec(select(User))
-    users = result.scalars().all()
+    pending: dict[int, dict[int, list[datetime]]] = {}
+
+    async def _waiting(routed: AsyncSession, guild_id: int) -> None:
+        rows = await routed.exec(
+            select(
+                model.user_id, func.min(model.created_at), func.max(model.created_at)
+            )
+            .where(model.processed_at.is_(None))
+            .group_by(model.user_id)
+        )
+        for user_id, first, last in rows.all():
+            pending.setdefault(user_id, {})[guild_id] = [first, last]
+
+    await _each_live_guild(session, _waiting)
+    if not pending:
+        return
     # Settings are sparse and default to on, so the opted-in set is "everyone
     # who has not said otherwise". Filtered here rather than in the SELECT: the
     # resolution order lives in one function, and re-expressing it as a JSON
-    # predicate would be a second copy of it that could drift.
-    all_prefs = await notification_prefs.load_prefs_for(session, [u.id for u in users])
-    users = [u for u in users if wants_digest(all_prefs.get(u.id), spec.category)]
-    if not users:
-        logger.debug("%s: no opted-in users", spec.name)
-        return
-    # Capture before routing — the gather expunges the identity map. The
-    # channel preferences are deliberately NOT snapshotted here; they are read
-    # again at delivery time.
-    candidates = [u.id for u in users]
-    for user_id in candidates:
-        per_guild_items: dict[int, list[int]] = {}
-        queued_at: list[datetime] = []
+    # predicate would be a second copy of it that could drift. The channel
+    # preferences are read again at delivery time.
+    all_prefs = await notification_prefs.load_prefs_for(session, list(pending))
+    for user_id, held in pending.items():
+        if not wants_digest(all_prefs.get(user_id), spec.category):
+            continue
+        if not _digest_is_due(
+            [stamp for pair in held.values() for stamp in pair],
+            now=now,
+            quiet_period=spec.quiet_period,
+            max_window=spec.max_window,
+        ):
+            continue
+        taken: dict[int, list[int]] = {}
 
-        # Capture user_id / per_guild_items as defaults so this closure doesn't
-        # bind the loop variables by reference (B023) — safe even if the call
-        # site is ever refactored to defer the closures.
-        async def _fetch(
-            routed: AsyncSession,
-            gid: int,
-            *,
-            _uid=user_id,
-            _items=per_guild_items,
-            _queued=queued_at,
+        # Defaults bind the loop variables now rather than by reference (B023).
+        async def _take(
+            routed: AsyncSession, gid: int, *, _uid=user_id, _taken=taken
         ) -> list[dict]:
             # A community set to say less is filtered here, where the guild is
             # known — a digest spans guilds, so this cannot be decided once for
             # the whole batch.
             if not wants_digest(all_prefs.get(_uid), spec.category, guild_id=gid):
-                _items[gid] = []
                 return []
-            items = (
+            items = sorted(
                 (
                     await routed.exec(
-                        select(model)
-                        .where(
-                            model.user_id == _uid,
-                            model.processed_at.is_(None),
-                        )
-                        .order_by(model.created_at.asc())
+                        sa_update(model)
+                        .where(model.user_id == _uid, model.processed_at.is_(None))
+                        .values(processed_at=now)
+                        .returning(model)
                     )
-                )
-                .scalars()
-                .all()
+                ).scalars(),
+                key=lambda item: item.created_at,
             )
-            _items[gid] = [item.id for item in items]
-            _queued.extend(item.created_at for item in items)
+            _taken[gid] = [item.id for item in items]
             return [spec.row(item, gid) for item in items]
 
-        guild_ids = await member_guild_ids(session, user_id)
-        # Digests act on membership (no live session exists here) — the
-        # system sentinel clears the guild auth-policy gate.
+        # Only the communities holding something for them, and only while they
+        # still belong to it. Digests act on membership (no live session exists
+        # here) — the system sentinel clears the guild auth-policy gate.
         batch = await gather_across_guilds(
-            session, user_id, guild_ids, _fetch, satisfied_providers=SYSTEM_SATISFIED
+            session,
+            user_id,
+            await member_guild_ids(session, user_id, restrict_to=list(held)),
+            _take,
+            satisfied_providers=SYSTEM_SATISFIED,
+            writes=True,
         )
-        if not batch or not _digest_is_due(
-            queued_at,
-            now=now,
-            quiet_period=spec.quiet_period,
-            max_window=spec.max_window,
-        ):
+        if not batch:
             continue
         # Send: re-load the user (gather expunged it) in a shared-table context.
         session.expunge_all()
@@ -2079,9 +1123,7 @@ async def _run_digest_pass(
         user = (
             await session.exec(select(User).where(User.id == user_id))
         ).scalar_one_or_none()
-        if (
-            user is None
-        ):  # deleted between the snapshot and now — skip, don't abort the pass
+        if user is None:  # deleted since the scan — skip, don't abort the pass
             continue
         delivered = False
         # A channel that is merely unconfigured will never deliver these items,
@@ -2106,14 +1148,7 @@ async def _run_digest_pass(
                 prefs=channels.prefs,
                 pieces=spec.pieces(user, email_batch),
             )
-            if delivered:
-                logger.info(
-                    "%s: queued %d item(s) for user %s",
-                    spec.name,
-                    len(email_batch),
-                    user_id,
-                )
-            else:
+            if not delivered:
                 logger.warning(
                     "SMTP not configured; holding %s for %s", spec.name, user_id
                 )
@@ -2122,6 +1157,17 @@ async def _run_digest_pass(
             delivered = delivered or pushed
             retry = retry or push_retry
         if retry and not delivered:
+            # Nothing went out and a later pass could still deliver them: the
+            # items go back to waiting, in each community they were taken from.
+            for gid, item_ids in taken.items():
+                session.expunge_all()
+                await set_rls_context(session, guild_id=gid)
+                await session.exec(
+                    sa_update(model)
+                    .where(model.id.in_(item_ids), model.processed_at == now)
+                    .values(processed_at=None)
+                )
+                await session.commit()
             continue
         if retry:  # pragma: no cover — one channel got through, the other did not
             # The two channels share one queue with a single processed marker,
@@ -2136,29 +1182,9 @@ async def _run_digest_pass(
                 len(batch),
                 user_id,
             )
-        # Mark the gathered items processed, back in each guild's schema.
-        for gid, item_ids in per_guild_items.items():
-            if not item_ids:
-                continue
-            session.expunge_all()
-            # Nobody is asking: the rows were gathered under this account's own
-            # standing above, and marking them consumed is the sweep's write.
-            await set_rls_context(session, guild_id=gid)
-            await session.exec(
-                sa_update(model).where(model.id.in_(item_ids)).values(processed_at=now)
-            )
-            await session.commit()
-        if spec.stamp is None:
-            continue
-        session.expunge_all()
-        await set_rls_context(session, user_id=user_id)
-        user = (
-            await session.exec(select(User).where(User.id == user_id))
-        ).scalar_one_or_none()
-        if user is None:
-            continue
-        setattr(user, spec.stamp, now)
-        session.add(user)
+        if spec.stamp is not None:
+            setattr(user, spec.stamp, now)
+            session.add(user)
         await session.commit()
 
 
@@ -2173,26 +1199,12 @@ async def _run_gc_pass(
     would be noise.
     """
     cutoff = now - ASSIGNMENT_ITEM_RETENTION
-    guild_ids = (
-        (
-            await session.exec(
-                select(Guild.id)
-                .where(Guild.status == GuildStatus.active.value)
-                .order_by(Guild.id.asc())
-            )
-        )
-        .scalars()
-        .all()
-    )
-    for guild_id in guild_ids:
-        session.expunge_all()
-        await set_rls_context(session, guild_id=guild_id)
+
+    async def _visit(routed: AsyncSession, _guild_id: int) -> None:
         for model in models:
-            await session.exec(delete(model).where(model.created_at < cutoff))
-        await session.commit()
+            await routed.exec(delete(model).where(model.created_at < cutoff))
 
-
-# --- Task assignment -------------------------------------------------------
+    await _each_live_guild(session, _visit)
 
 
 def _assignment_row(item, guild_id: int) -> dict:
@@ -2246,6 +1258,10 @@ async def _run_assignment_gc_pass(session: AsyncSession, *, now: datetime) -> No
     if dropped:
         logger.info("digest-gc: dropped %d settled email row(s)", dropped)
     await session.commit()
+    # Read notifications past their retention go on the same hourly sweep.
+    pruned = await user_notifications.prune_read(session, now=now)
+    if pruned:
+        logger.info("digest-gc: deleted %d read notification(s)", pruned)
 
 
 async def process_assignment_digest_gc() -> None:
@@ -2254,13 +1270,13 @@ async def process_assignment_digest_gc() -> None:
         await _run_assignment_gc_pass(session, now=datetime.now(timezone.utc))
 
 
-# --- Reactions -------------------------------------------------------------
-
+# ── reactions ────────────────────────────────────────────────────────────────
 
 #: How many individual reactions one rolled-up bell line remembers in detail.
 #: ``count`` above it stays the whole truth; this only bounds how much of the
 #: payload the line carries so a popular comment cannot grow it without limit.
 MAX_ROLLED_UP_REACTIONS = 20
+
 
 # The roster of distinct reactors is deliberately NOT capped. It is what the
 # sentence counts ("and 12 others"), so a bound on it is a bound on the truth:
@@ -2332,7 +1348,6 @@ def _reaction_line(
     *,
     count: int,
     reactor_ids: Sequence[int],
-    context_title: str,
     target_path: str,
     smart_link: str | None,
     target_type: str,
@@ -2411,6 +1426,7 @@ async def enqueue_reaction_event(
         notification_type=NotificationType.comment_reaction,
         match=_reaction_rollup_match(reaction, guild_id),
     )
+    prefs = await notification_prefs.load_prefs_for_delivery(author.id)
     previous: Mapping[str, Any] = (existing.data if existing else None) or {}
     roster = _rolled_up_reactor_ids(previous)
     if reactor.id not in roster:
@@ -2419,7 +1435,6 @@ async def enqueue_reaction_event(
         _rolled_up_reactions(previous) + [entry],
         count=_rolled_up_count(previous) + 1,
         reactor_ids=roster,
-        context_title=context_title,
         target_path=target_path,
         smart_link=smart_link,
         target_type=reaction.target_type,
@@ -2434,14 +1449,11 @@ async def enqueue_reaction_event(
             user_id=author.id,
             notification_type=NotificationType.comment_reaction,
             data=line,
+            prefs=prefs,
         )
     else:
         await user_notifications.refresh_notification(session, existing, data=line)
-    if wants_digest(
-        await notification_prefs.load_prefs_for_delivery(author.id),
-        NotificationCategory.reactions,
-        guild_id=guild_id,
-    ):
+    if wants_digest(prefs, NotificationCategory.reactions, guild_id=guild_id):
         session.add(
             ReactionDigestItem(
                 user_id=author.id,
@@ -2545,7 +1557,6 @@ async def withdraw_reaction_event(
             remaining,
             count=count,
             reactor_ids=roster,
-            context_title=previous.get("context_title") or "",
             target_path=previous.get("target_path") or MY_TASKS_TARGET_PATH,
             smart_link=previous.get("smart_link"),
             target_type=target_type,
@@ -2639,12 +1650,50 @@ async def process_reaction_digests() -> None:
         await _run_reaction_digest_pass(session, now=datetime.now(timezone.utc))
 
 
-def _resolve_timezone(value: str | None) -> ZoneInfo:
-    zone_id = value or "UTC"
-    try:
-        return ZoneInfo(zone_id)
-    except ZoneInfoNotFoundError:
-        return ZoneInfo("UTC")
+# ── time-driven notices: overdue tasks, hold summaries, reminders ────────────
+
+OVERDUE_POLL_SECONDS = 300
+
+
+# A summary goes out when a hold lifts, so the poll only has to be finer than
+# the grace period it is bounded by.
+HOLD_SUMMARY_POLL_SECONDS = 600
+
+
+EVENT_REMINDER_POLL_SECONDS = 60
+
+
+# Events that started within this window are still eligible, so a 0-minute
+# ("at start") reminder fires on the next poll rather than being missed.
+EVENT_REMINDER_GRACE = timedelta(minutes=5)
+
+
+def _overdue_assignments(*columns: Any) -> Any:
+    """Assigned, unfinished, past-due tasks in the routed guild schema.
+
+    Template projects are excluded: their tasks are blueprints, not work, so a
+    due date on one is never actually overdue. Archived projects and archived
+    tasks are excluded for the same reason — archiving is how a user says the
+    work is off their plate, so a past due date on one is not a deadline the
+    digest should still be chasing. This matches the filters the cross-guild My
+    Tasks list already applies.
+    """
+    return (
+        select(*columns)
+        .select_from(Task)
+        .join(Project, Task.project_id == Project.id)
+        .join(Initiative, Project.initiative_id == Initiative.id)
+        .join(TaskAssignee, TaskAssignee.task_id == Task.id)
+        .join(TaskStatus, Task.task_status_id == TaskStatus.id)
+        .where(
+            Project.is_template.is_(False),
+            Project.archived_at.is_(None),
+            Task.archived_at.is_(None),
+            Task.due_date.is_not(None),
+            Task.due_date < datetime.now(timezone.utc),
+            TaskStatus.category != TaskStatusCategory.done,
+        )
+    )
 
 
 async def _overdue_tasks_for_user(
@@ -2654,28 +1703,10 @@ async def _overdue_tasks_for_user(
 
     Run once per guild via ``gather_across_guilds`` (the session is routed into
     each of the user's guilds in turn), so it only ever sees one guild's rows.
-    Template projects are excluded: their tasks are blueprints, not work, so a
-    due date on one is never actually overdue. Archived projects and archived
-    tasks are excluded for the same reason — archiving is how a user says the
-    work is off their plate, so a past due date on one is not a deadline the
-    digest should still be chasing. This matches the filters the cross-guild My
-    Tasks list already applies.
     """
     stmt = (
-        select(Task, Project.name, Project.id)
-        .join(Project, Task.project_id == Project.id)
-        .join(Initiative, Project.initiative_id == Initiative.id)
-        .join(TaskAssignee, TaskAssignee.task_id == Task.id)
-        .join(TaskStatus, Task.task_status_id == TaskStatus.id)
-        .where(
-            TaskAssignee.user_id == user_id,
-            Project.is_template.is_(False),
-            Project.archived_at.is_(None),
-            Task.archived_at.is_(None),
-            Task.due_date.is_not(None),
-            Task.due_date < datetime.now(timezone.utc),
-            TaskStatus.category != TaskStatusCategory.done,
-        )
+        _overdue_assignments(Task, Project.name, Project.id)
+        .where(TaskAssignee.user_id == user_id)
         .order_by(Task.due_date.asc())
     )
     result = await session.exec(stmt)
@@ -2743,16 +1774,33 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
     """Send overdue-task digests to opted-in users as of ``now``.
 
     Split out from ``process_overdue_notifications`` so tests can drive it with
-    the test session (the worker opens its own ``SystemSessionLocal``). Each
-    user's overdue tasks are gathered from their own guild schemas with their
-    membership context — no all-guild access.
+    the test session (the worker opens its own ``SystemSessionLocal``). Starts
+    from the work: each community is asked once who has an overdue task, and
+    only those accounts are read. Each one's tasks are then gathered from their
+    own guild schemas with their membership context — no all-guild access.
 
     Both channels ship from this one pass: the digest email and a push. A user
     opted into either channel is a candidate, so turning email off doesn't
     silence push.
     """
-    result = await session.exec(select(User))
-    users = result.scalars().all()
+    # Who has an overdue task anywhere, and in which communities.
+    overdue: dict[int, list[int]] = {}
+
+    async def _overdue_here(routed: AsyncSession, guild_id: int) -> None:
+        for user_id in (
+            await routed.exec(_overdue_assignments(TaskAssignee.user_id).distinct())
+        ).scalars():
+            overdue.setdefault(user_id, []).append(guild_id)
+
+    await _each_live_guild(session, _overdue_here)
+    if not overdue:
+        logger.debug("overdue-digest: nothing overdue")
+        return
+    users = (
+        (await session.exec(select(User).where(User.id.in_(list(overdue)))))
+        .scalars()
+        .all()
+    )
     # Settings are sparse and default to on, so filtering happens here through
     # the same resolution the live path uses rather than as a second copy of it
     # expressed in SQL.
@@ -2802,7 +1850,9 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
             continue
         # User-scoped: visit each of the user's guild schemas with their own
         # membership context (no all-guild access) and collect their overdue tasks.
-        guild_ids = await member_guild_ids(session, user_id)
+        guild_ids = await member_guild_ids(
+            session, user_id, restrict_to=overdue[user_id]
+        )
         tasks = await gather_across_guilds(
             session,
             user_id,
@@ -2827,11 +1877,29 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
             user is None
         ):  # deleted between the snapshot and now — skip, don't abort the pass
             continue
-        # Only stamp once something actually went out, so a channel that is
-        # merely unconfigured (no SMTP, no FCM) re-tries on the next poll
-        # instead of burning the user's one digest for the day. Preferences are
-        # re-read off the row just reloaded, not the snapshot taken before the
-        # cross-guild gather, so a channel switched off meanwhile stays quiet.
+        # Today's digest is claimed by stamping it before anything is sent, so
+        # it goes out once however many processes sweep at the same moment.
+        previous = user.last_overdue_notification_at
+        claimed = await session.exec(
+            sa_update(User)
+            .where(
+                User.id == user_id,
+                or_(
+                    User.last_overdue_notification_at.is_(None),
+                    User.last_overdue_notification_at
+                    < target_local.replace(hour=0, minute=0),
+                ),
+            )
+            .values(last_overdue_notification_at=now)
+        )
+        await session.commit()
+        if not claimed.rowcount:
+            continue
+        # A channel that is merely unconfigured (no SMTP, no FCM) hands the day
+        # back below, so the next poll tries again instead of the user's one
+        # digest being burnt. Preferences are re-read off the row just
+        # reloaded, not the snapshot taken before the cross-guild gather, so a
+        # channel switched off meanwhile stays quiet.
         delivered = False
         channels = await _channels(
             session, user, notification_type=NotificationType.overdue_tasks
@@ -2858,9 +1926,14 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
         if channels.push and push_tasks:
             delivered = await _send_overdue_push(session, user, push_tasks) or delivered
         if not delivered:
-            continue
-        user.last_overdue_notification_at = now
-        session.add(user)
+            await session.exec(
+                sa_update(User)
+                .where(
+                    User.id == user_id,
+                    User.last_overdue_notification_at == now,
+                )
+                .values(last_overdue_notification_at=previous)
+            )
         await session.commit()
 
 
@@ -2869,7 +1942,6 @@ async def process_overdue_notifications() -> None:
         await _run_overdue_pass(session, now=datetime.now(timezone.utc))
 
 
-# ---------------------------------------------------------------------------
 # Holds: one summary when a hold lifts
 #
 # Two of the three holds end with somebody coming back to news they have not
@@ -2884,7 +1956,6 @@ async def process_overdue_notifications() -> None:
 #
 # The third hold, being at the keyboard, has nothing to summarise. They were
 # here; the bell told them.
-# ---------------------------------------------------------------------------
 
 
 async def _hold_summary_rows(
@@ -3007,8 +2078,25 @@ async def _record_lift(
 
 
 async def _run_hold_summary_pass(session: AsyncSession, *, now: datetime) -> None:
-    """Tell each account what it missed, once, when a hold lifts."""
-    users = (await session.exec(select(User))).scalars().all()
+    """Tell each account what it missed, once, when a hold lifts.
+
+    Only accounts that have set a hold can have one lift, so only they are
+    read: a pause or a quiet-hours window is a key in the settings document,
+    and an account without either has nothing to summarise.
+    """
+    holders = select(UserNotificationPrefs.user_id).where(
+        UserNotificationPrefs.prefs.has_any(  # type: ignore[union-attr]
+            postgresql.array(
+                [
+                    notification_prefs.HoldKind.pause.value,
+                    notification_prefs.HoldKind.quiet_hours.value,
+                ]
+            )
+        )
+    )
+    users = (
+        (await session.exec(select(User).where(User.id.in_(holders)))).scalars().all()
+    )
     all_prefs = await notification_prefs.load_prefs_for(
         session, [user.id for user in users]
     )
@@ -3021,6 +2109,31 @@ async def _run_hold_summary_pass(session: AsyncSession, *, now: datetime) -> Non
             continue
         if _covered(_lift_stamps(prefs), lift.kind, lift.closed):
             continue
+        # The account's settings row is held until its summary is recorded, and
+        # the question asked again of what it holds now: a summary goes out
+        # once however many processes sweep at the same moment.
+        held = (
+            await session.exec(
+                select(UserNotificationPrefs)
+                .where(UserNotificationPrefs.user_id == user.id)
+                .with_for_update(skip_locked=True)
+                .execution_options(populate_existing=True)
+            )
+        ).scalar_one_or_none()
+        locked = dict(held.prefs or {}) if held is not None else None
+        lift = (
+            notification_prefs.last_lift(locked, tz_name=user.timezone, now=now)
+            if locked is not None
+            else None
+        )
+        if (
+            locked is None
+            or lift is None
+            or _covered(_lift_stamps(locked), lift.kind, lift.closed)
+        ):
+            await session.commit()
+            continue
+        prefs = locked
 
         rows = _rows_for_push(
             await _hold_summary_rows(
@@ -3064,6 +2177,7 @@ async def _run_hold_summary_pass(session: AsyncSession, *, now: datetime) -> Non
             logger.error("Failed to push hold summary: %s", exc, exc_info=True)
 
         await _record_lift(session, user_id=user.id, lift=lift, summarised=summarised)
+        await session.commit()
 
 
 async def process_hold_summaries() -> None:
@@ -3074,9 +2188,10 @@ async def process_hold_summaries() -> None:
 async def _run_event_reminder_pass(session: AsyncSession, *, now: datetime) -> None:
     """Dispatch any reminders due as of ``now``.
 
-    User-scoped: for each user who enabled reminders, visit their own guild
-    schemas with their membership context (no superadmin) and dispatch reminders
-    for the events they attend there. Split out from ``process_event_reminders``
+    Starts from what is due: each community is asked once which opted-in
+    attendees have a reminder due and unsent. Only those accounts are then
+    routed into only those communities, with their own membership context (no
+    superadmin), to dispatch reminders for the events they attend there. Split out from ``process_event_reminders``
     so tests can drive it with the test session.
     """
     from app.api.deps import GuildAccessError, establish_guild_access
@@ -3089,12 +2204,55 @@ async def _run_event_reminder_pass(session: AsyncSession, *, now: datetime) -> N
     # each guild's schema in turn, and a routed session cannot read an
     # account's preferences.
     users = await accounts_service.load_event_reminder_optins()
+    lead = {
+        account.id: timedelta(minutes=account.event_reminder_minutes_before)
+        for account in users
+        if account.id is not None and account.event_reminder_minutes_before is not None
+    }
+    if not lead:
+        return
+    # Each community is asked once which of those accounts have a reminder due
+    # and not yet sent; only they are routed into it below.
+    due_in: dict[int, set[int]] = {}
+
+    async def _visit(routed: AsyncSession, guild_id: int) -> None:
+        rows = (
+            await routed.exec(
+                select(
+                    CalendarEventAttendee.user_id,
+                    CalendarEvent.start_at,
+                )
+                .join(
+                    CalendarEvent,
+                    CalendarEventAttendee.calendar_event_id == CalendarEvent.id,
+                )
+                .where(
+                    CalendarEventAttendee.rsvp_status != RSVPStatus.declined,
+                    CalendarEvent.deleted_at.is_(None),
+                    CalendarEvent.start_at > lower,
+                    CalendarEvent.start_at <= horizon,
+                    ~select(EventReminderDispatch.id)
+                    .where(
+                        EventReminderDispatch.event_id == CalendarEvent.id,
+                        EventReminderDispatch.user_id == CalendarEventAttendee.user_id,
+                        EventReminderDispatch.event_start_at == CalendarEvent.start_at,
+                    )
+                    .exists(),
+                )
+            )
+        ).all()
+        for user_id, start_at in rows:
+            if user_id in lead and start_at - lead[user_id] <= now:
+                due_in.setdefault(user_id, set()).add(guild_id)
+
+    await _each_live_guild(session, _visit)
     for account in users:
-        minutes = account.event_reminder_minutes_before
         user_id = account.id
-        if minutes is None:
+        if user_id not in due_in:
             continue
-        for guild_id in await member_guild_ids(session, user_id):
+        for guild_id in await member_guild_ids(
+            session, user_id, restrict_to=sorted(due_in[user_id])
+        ):
             session.expunge_all()
             # Through the seam, as the account whose reminders these are: what
             # the sweep may see of a community is what that account may see.
@@ -3129,38 +2287,44 @@ async def _run_event_reminder_pass(session: AsyncSession, *, now: datetime) -> N
             )
             # Capture before the per-reminder commits expire/detach the rows.
             due = [
-                (e.id, e.start_at, guild_id)
-                for e in events
-                if e.start_at - timedelta(minutes=minutes) <= now
+                (e.id, e.start_at) for e in events if e.start_at - lead[user_id] <= now
             ]
-            for event_id, start_at, ev_guild_id in due:
-                existing = await session.exec(
-                    select(EventReminderDispatch.id).where(
-                        EventReminderDispatch.event_id == event_id,
-                        EventReminderDispatch.user_id == user_id,
-                        EventReminderDispatch.event_start_at == start_at,
+            for event_id, start_at in due:
+                # Reserve the dedup row before dispatching (reserve-then-send).
+                # The reservation is the claim: a row already there — this pass's
+                # earlier run, or another process sweeping now — means it is
+                # somebody else's to send.
+                reserved = await session.exec(
+                    pg_insert(EventReminderDispatch)
+                    .values(
+                        event_id=event_id,
+                        user_id=user_id,
+                        event_start_at=start_at,
+                        sent_at=datetime.now(timezone.utc),
                     )
-                )
-                if existing.first() is not None:
-                    continue
-                # Reserve the dedup row before dispatching (reserve-then-send), so
-                # a send that outlives a failed ledger commit can't double-fire.
-                session.add(
-                    EventReminderDispatch(
-                        event_id=event_id, user_id=user_id, event_start_at=start_at
-                    )
+                    .on_conflict_do_nothing()
                 )
                 await session.commit()
-                recipient = await accounts_service.load_one(user_id)
+                if not reserved.rowcount:
+                    continue
                 event = (
                     await session.exec(
                         select(CalendarEvent).where(CalendarEvent.id == event_id)
                     )
                 ).scalar_one_or_none()
-                if recipient is None or event is None:
+                if event is None:
                     continue  # deleted mid-run; dedup row stays so we don't retry
-                await notify_event_reminder(
-                    session, recipient=recipient, event=event, guild_id=ev_guild_id
+                await notify(
+                    session,
+                    NotificationType.event_reminder,
+                    [user_id],
+                    about=("calendar_event", event_id),
+                    key="event.reminder",
+                    values={
+                        "event": event.title,
+                        "when": lambda reader, _event=event: event_when(_event, reader),
+                    },
+                    data={"event_id": event_id, "start_at": start_at.isoformat()},
                 )
                 await session.commit()
 
@@ -3176,6 +2340,9 @@ async def process_event_reminders() -> None:
     """
     async with SystemSessionLocal() as session:
         await _run_event_reminder_pass(session, now=datetime.now(timezone.utc))
+
+
+# ── notices about your own account ───────────────────────────────────────────
 
 
 async def queue_avatar_removed(session: AsyncSession, *, user: User) -> None:

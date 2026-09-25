@@ -1,5 +1,7 @@
 """Tests for transactional email rendering (SEC-5: HTML escaping)."""
 
+from dataclasses import replace
+
 import pytest
 
 from app.core.email_i18n import email_t
@@ -31,7 +33,7 @@ async def test_mention_email_escapes_malicious_display_name(session, monkeypatch
 
     monkeypatch.setattr(email_service, "send_email", fake_send_email)
 
-    # Mirrors notify_document_mention: the actor name is interpolated via
+    # Mirrors a document-mention notice: the actor name is interpolated via
     # email_t, which now escapes values for the email (HTML) namespace.
     body_text = email_t(
         "mention.document.body", "en", actor=EVIL_NAME, document="Plans"
@@ -104,9 +106,12 @@ async def test_join_request_email_renders_and_escapes_the_note(session, monkeypa
         manager,
         event="requested",
         initiative_name="Parser Guild",
-        link="https://app.example/navigate?guild_id=1&target=%2Fi%2F2",
         requester="Ada Lovelace",
         message=EVIL_NAME,
+    )
+    # The notice it rides on fills in the link, as ``notifications.notify`` does.
+    pieces = replace(
+        pieces, link="https://app.example/navigate?guild_id=1&target=%2Fi%2F2"
     )
     html_body, text_body = email_service.render_single(
         pieces, user=manager, accent="#000000", locale="en"
@@ -162,8 +167,8 @@ async def test_join_request_outcome_emails_render(
         requester,
         event=event,
         initiative_name="Parser Guild",
-        link="https://app.example/navigate?guild_id=1&target=%2Fi",
     )
+    pieces = replace(pieces, link="https://app.example/navigate?guild_id=1&target=%2Fi")
     html_body, text_body = email_service.render_single(
         pieces, user=requester, accent="#000000", locale="en"
     )

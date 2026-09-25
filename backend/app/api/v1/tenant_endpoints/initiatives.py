@@ -42,6 +42,7 @@ from app.models.tenant.initiative import (
 )
 from app.models.platform.guild import GuildRole
 from app.models.tenant.task import Task, TaskAssignee
+from app.models.platform.notification import NotificationType
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
 from app.schemas.tenant.initiative import (
@@ -67,6 +68,7 @@ from app.schemas.platform.user import (
 )
 from app.db.query import MAX_ID_FILTER_VALUES, page_has_next, paginated_query
 from app.services import audit as audit_service
+from app.services import email as email_service
 from app.services import notifications as notifications_service
 from app.services.platform import accounts as accounts_service
 from app.services.tenant import initiatives as initiatives_service
@@ -520,15 +522,29 @@ async def _resolve_join_request(
         )
     await session.commit()
 
-    await notifications_service.notify_initiative_join_resolved(
+    outcome = "approved" if approved else "denied"
+    await notifications_service.notify(
         session,
-        requester,
-        request_id=request.id,
-        initiative_id=initiative.id,
-        initiative_name=initiative.name,
-        guild_id=routed_guild_id(session),
-        approved=approved,
+        NotificationType.initiative_join_approved
+        if approved
+        else NotificationType.initiative_join_denied,
+        [requester.id],
+        about=None,
+        key=f"initiative.join{outcome.capitalize()}",
+        values={"initiative": initiative.name},
+        data={
+            "request_id": request.id,
+            "initiative_id": initiative.id,
+            # An approval opens the initiative, whose membership now exists; a
+            # denial the community's front page, which is as far as they go.
+            "target_path": f"/i/{initiative.id}" if approved else "/",
+        },
+        email=lambda reader: email_service.initiative_join_request_pieces(
+            reader, event=outcome, initiative_name=initiative.name
+        ),
+        email_names_line=False,
     )
+    await session.commit()
 
     rows = await initiatives_service.list_join_requests(
         session,
@@ -602,17 +618,35 @@ async def create_join_request(
         session, initiative_id=initiative_id
     )
     if manager_ids:
-        managers = await accounts_service.load_all(list(manager_ids))
-        await notifications_service.notify_initiative_join_requested(
+        requester = notifications_service.actor_name(current_user)
+        # Addressed to the people who can answer it, and straight to the queue
+        # they answer it in. It carries no initiative content: who asked, what
+        # they said, and where to answer.
+        await notifications_service.notify(
             session,
-            managers,
-            request_id=request_id,
-            initiative_id=initiative.id,
-            initiative_name=initiative.name,
-            guild_id=routed_guild_id(session),
-            requester=current_user,
-            message=payload.message,
+            NotificationType.initiative_join_requested,
+            list(manager_ids),
+            about=None,
+            key="initiative.joinRequested",
+            values={"requester": requester, "initiative": initiative.name},
+            data={
+                "request_id": request_id,
+                "initiative_id": initiative.id,
+                "requester_id": current_user.id,
+                "requester_name": requester,
+                "target_path": f"/i/{initiative.id}/settings/members",
+            },
+            actor=current_user,
+            email=lambda reader: email_service.initiative_join_request_pieces(
+                reader,
+                event="requested",
+                initiative_name=initiative.name,
+                requester=requester,
+                message=payload.message,
+            ),
+            email_names_line=False,
         )
+        await session.commit()
 
     rows = await initiatives_service.list_join_requests(
         session, initiative_id=initiative_id, status=None, user_id=current_user.id
@@ -1588,14 +1622,23 @@ async def add_initiative_member(
     initiative = await _get_initiative_or_404(
         initiative_id, session, guild_context.guild_id
     )
-    if created and (recipient := await accounts_service.load_one(user.id)):
-        await notifications_service.notify_initiative_membership(
+    if created:
+        await notifications_service.notify(
             session,
-            recipient,
-            initiative_id=initiative.id,
-            initiative_name=initiative.name,
-            guild_id=routed_guild_id(session),
+            NotificationType.initiative_added,
+            [user.id],
+            about=None,
+            key="initiative.added",
+            values={"initiative": initiative.name},
+            data={
+                "initiative_id": initiative.id,
+                "target_path": f"/i/{initiative.id}",
+            },
+            email=lambda reader: email_service.initiative_added_pieces(
+                reader, initiative.name
+            ),
         )
+        await session.commit()
     return serialize_initiative(initiative, context=guild_context)
 
 

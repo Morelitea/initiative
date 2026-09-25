@@ -8,7 +8,7 @@ calendar (``PUT /calendars/{id}/grants``), never per event.
 
 import logging
 from datetime import datetime, timezone
-from typing import Annotated, List, Optional
+from typing import Annotated, Any, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import ColumnElement, func
@@ -43,6 +43,7 @@ from app.models.tenant.calendar_event import (
 )
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.property import CalendarEventPropertyValue
+from app.models.platform.notification import NotificationType
 from app.models.platform.user import User
 from app.core.messages import AppMessages, CalendarEventMessages
 from app.schemas.tenant.calendar_event import (
@@ -74,7 +75,6 @@ from app.services.tenant import content_references
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.services.tenant import ical_service
 from app.services import notifications as notifications_service
-from app.services.platform import accounts as accounts_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 
@@ -153,13 +153,42 @@ async def _refetch_event(session: ActorSessionDep, event_id: int) -> CalendarEve
     return event
 
 
-async def _notify_targets(user_ids: list[int]) -> list[User]:
-    """Who to tell, with the preferences and address a notice needs.
-
-    On the system engine: an account's notification settings and address are
-    not a guild's to read.
-    """
-    return await accounts_service.load_all(user_ids)
+async def _notify_about_event(
+    session: AsyncSession,
+    notification_type: NotificationType,
+    user_ids: list[int | None],
+    event: CalendarEvent,
+    *,
+    key: str,
+    actor: "User | notifications_service.AppAuthor",
+    role: str,
+    data: dict[str, Any] | None = None,
+    values: dict[str, str] | None = None,
+) -> None:
+    """Tell ``user_ids`` something about ``event``, naming whoever did it in
+    ``role`` (organizer, editor, …): the person, or an installed app by its
+    name. The time is each reader's own."""
+    name = notifications_service.actor_name(actor)
+    await notifications_service.notify(
+        session,
+        notification_type,
+        user_ids,
+        about=("calendar_event", cast(int, event.id)),
+        key=key,
+        values={
+            "event": event.title,
+            role: name,
+            "when": lambda reader: notifications_service.event_when(event, reader),
+            **(values or {}),
+        },
+        data={
+            "event_id": event.id,
+            "start_at": event.start_at.isoformat(),
+            f"{role}_name": name,
+            **(data or {}),
+        },
+        actor=actor,
+    )
 
 
 async def _notify_invited(
@@ -169,22 +198,18 @@ async def _notify_invited(
     current_user: User | None,
     guild_context: ActorContext,
 ) -> None:
-    """Tell each of ``user_ids`` they were invited to ``event``, by whoever
-    invited them: the person, or an installed app by its name."""
-    attendees = await _notify_targets(user_ids)
-    if not attendees:
-        return
-    organizer = await notifications_service.author_of(
-        session, guild_context, current_user
+    """Tell each of ``user_ids`` they were invited to ``event``."""
+    await _notify_about_event(
+        session,
+        NotificationType.event_invitation,
+        list(user_ids),
+        event,
+        key="event.invitation",
+        actor=await notifications_service.author_of(
+            session, guild_context, current_user
+        ),
+        role="organizer",
     )
-    for attendee in attendees:
-        await notifications_service.notify_event_invitation(
-            session,
-            attendee=attendee,
-            organizer=organizer,
-            event=event,
-            guild_id=guild_context.guild_id,
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -861,21 +886,18 @@ async def update_calendar_event(
                 and attendee.user_id != guild_context.user_id
                 and attendee.rsvp_status != RSVPStatus.declined
             ]
-            notify_targets = await _notify_targets(notify_ids)
-            if notify_targets:
-                # The person who edited it, or an installed app by its name.
-                editor = await notifications_service.author_of(
+            await _notify_about_event(
+                session,
+                NotificationType.event_updated,
+                notify_ids,
+                event,
+                key="event.rescheduled" if time_changed else "event.updated",
+                actor=await notifications_service.author_of(
                     session, guild_context, current_user
-                )
-                for attendee_user in notify_targets:
-                    await notifications_service.notify_event_updated(
-                        session,
-                        attendee=attendee_user,
-                        editor=editor,
-                        event=event,
-                        guild_id=guild_context.guild_id,
-                        time_changed=time_changed,
-                    )
+                ),
+                role="editor",
+                data={"time_changed": time_changed},
+            )
 
         await session.commit()
 
@@ -907,14 +929,15 @@ async def delete_calendar_event(
         and attendee.user_id != current_user.id
         and attendee.rsvp_status != RSVPStatus.declined
     ]
-    for attendee_user in await _notify_targets(cancel_ids):
-        await notifications_service.notify_event_cancelled(
-            session,
-            attendee=attendee_user,
-            canceller=current_user,
-            event=event,
-            guild_id=guild_context.guild_id,
-        )
+    await _notify_about_event(
+        session,
+        NotificationType.event_cancelled,
+        cancel_ids,
+        event,
+        key="event.cancelled",
+        actor=current_user,
+        role="canceller",
+    )
     await trash(
         session,
         event,
@@ -989,17 +1012,17 @@ async def update_rsvp(
     attendee.rsvp_status = rsvp_in.rsvp_status
     session.add(attendee)
 
-    if event.created_by != current_user.id:
-        organizers = await _notify_targets([event.created_by])
-        if organizers:
-            await notifications_service.notify_event_rsvp(
-                session,
-                organizer=organizers[0],
-                responder=current_user,
-                event=event,
-                rsvp_status=rsvp_in.rsvp_status,
-                guild_id=guild_context.guild_id,
-            )
+    await _notify_about_event(
+        session,
+        NotificationType.event_rsvp,
+        [event.created_by],
+        event,
+        key="event.rsvp",
+        actor=current_user,
+        role="responder",
+        data={"rsvp_status": RSVPStatus(rsvp_in.rsvp_status).value},
+        values={"status": RSVPStatus(rsvp_in.rsvp_status).value},
+    )
 
     await session.commit()
     hydrated = await _refetch_event(session, event.id)

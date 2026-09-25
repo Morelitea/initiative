@@ -11,8 +11,8 @@ thing. Saving one does two things with those:
   mention that was already there when the description was last saved is not
   news, so editing a sentence around it does not notify again.
 
-Only members of the task's initiative are told — the mention picker offers
-nobody else, and a notice names the task to whoever gets it.
+Only people who can open the task are told — a notice names the task to
+whoever gets it.
 """
 
 from __future__ import annotations
@@ -22,12 +22,11 @@ from typing import cast
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.search import SearchEntityType
+from app.models.platform.notification import NotificationType
 from app.models.platform.user import User
 from app.models.tenant.task import Task
 from app.services import notifications as notifications_service
-from app.services.platform import accounts as accounts_service
 from app.services.tenant import content_references
-from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant.mention_parser import extract_mentioned_user_ids
 from app.services.tenant.relationships import Endpoint
 
@@ -61,8 +60,6 @@ async def description_saved(
     *,
     previous: str | None,
     author: User | None,
-    guild_id: int,
-    initiative_id: int,
 ) -> None:
     """Record what the description now points at, and tell whoever it newly
     names.
@@ -79,26 +76,18 @@ async def description_saved(
     if author is None:
         return
 
-    added = newly_mentioned(task.description, previous)
-    added.discard(author.id)
-    if not added:
-        return
-
-    roster = await initiatives_service.initiative_roster(session, initiative_id)
-    member_ids = {membership.user_id for membership in roster if membership.user_id}
-    # Who to tell is a question about their account, so it is asked where an
-    # account may be read.
-    recipients = await accounts_service.load(
-        (user_id for user_id in added if user_id in member_ids),
-        excluding_ignorers_of=author.id,
+    name = notifications_service.actor_name(author)
+    await notifications_service.notify(
+        session,
+        NotificationType.mention,
+        sorted(newly_mentioned(task.description, previous)),
+        about=("task", cast(int, task.id)),
+        key="mention.taskDescription",
+        values={"actor": name, "task": task.title},
+        data={
+            "task_id": task.id,
+            "mentioned_by_name": name,
+            "mentioned_by_id": author.id,
+        },
+        actor=author,
     )
-    for user_id in sorted(recipients):
-        await notifications_service.notify_task_description_mention(
-            session,
-            mentioned_user=recipients[user_id],
-            mentioned_by=author,
-            task_id=cast(int, task.id),
-            task_title=task.title,
-            guild_id=guild_id,
-            initiative_id=initiative_id,
-        )

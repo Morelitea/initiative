@@ -173,8 +173,21 @@ async def test_a_mention_from_an_ignored_account_writes_no_notification(
 
 
 async def _a_task(session, actor):
-    from app.testing import create_task
+    """A task in a project every member of the initiative can read, so the
+    people mentioned on it are people who may be told."""
+    from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+    from app.testing import create_task, route_session_to_guild
 
+    await route_session_to_guild(session, actor.guild.id)
+    session.add(
+        ResourceGrant(
+            resource_type="project",
+            resource_id=actor.project.id,
+            all_initiative_members=True,
+            level=ResourceAccessLevel.read,
+            initiative_id=actor.project.initiative_id,
+        )
+    )
     task = await create_task(session, actor.project)
     await session.commit()
     return task

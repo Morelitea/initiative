@@ -1,7 +1,7 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping, Optional
 
-from sqlalchemy import func, text, tuple_, update
+from sqlalchemy import delete, func, text, tuple_, update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -386,3 +386,36 @@ async def unread_count(session: AsyncSession, *, user_id: int) -> int:
     result = await session.exec(stmt)
     row = result.one()
     return row[0] if isinstance(row, tuple) else row
+
+
+#: How long a notification is kept once it has been read. Unread ones are never
+#: swept: a notice nobody has seen yet is still doing its job.
+READ_RETENTION = timedelta(days=30)
+#: Rows deleted per statement, so one sweep never holds a long lock or a large
+#: transaction however far behind it starts.
+PRUNE_BATCH = 5000
+
+
+async def prune_read(session: AsyncSession, *, now: datetime) -> int:
+    """Delete notifications read more than :data:`READ_RETENTION` ago.
+
+    Runs on the system engine. Batched and committed per batch until nothing
+    is left, and returns how many went.
+    """
+    cutoff = now - READ_RETENTION
+    total = 0
+    while True:
+        batch = (
+            select(Notification.id)
+            .where(Notification.read_at.is_not(None), Notification.read_at < cutoff)
+            .limit(PRUNE_BATCH)
+            .scalar_subquery()
+        )
+        result = await session.exec(
+            delete(Notification).where(Notification.id.in_(batch))
+        )
+        await session.commit()
+        deleted = result.rowcount or 0
+        total += deleted
+        if deleted < PRUNE_BATCH:
+            return total

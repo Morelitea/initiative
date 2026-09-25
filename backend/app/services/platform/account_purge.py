@@ -75,6 +75,24 @@ async def _due_user_ids(
     return list(rows.all())
 
 
+async def _claim(session: AsyncSession, user_id: int) -> bool:
+    """Take one account for this sweep, or learn it is not ours to erase.
+
+    A row lock on the account, held by the erasure's own transaction until it
+    commits, and re-asking that it is still waiting: another process sweeping
+    at the same moment skips it, and one that arrives after the commit finds it
+    already erased. Each account is erased — and its receipt sent — once.
+    """
+    claimed = (
+        await session.exec(
+            select(User.id)
+            .where(User.id == user_id, User.status == UserStatus.deleted)
+            .with_for_update(skip_locked=True)
+        )
+    ).first()
+    return claimed is not None
+
+
 async def purge_due_accounts(session: AsyncSession, *, now: datetime) -> int:
     """One pass. Returns how many accounts were erased.
 
@@ -101,6 +119,8 @@ async def purge_due_accounts(session: AsyncSession, *, now: datetime) -> int:
             # into this package, and the two would import each other.
             from app.services.platform import users as users_service
 
+            if not await _claim(session, user_id):
+                continue
             await users_service.soft_delete_user(session, user_id, actor_user_id=None)
         except Exception:
             await session.rollback()

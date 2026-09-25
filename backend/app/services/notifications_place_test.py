@@ -10,7 +10,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
-from app.models.platform.notification import Notification
+from app.models.platform.notification import Notification, NotificationType
 from app.services import notifications as notifications_service
 from app.services.platform import user_notifications
 from app.testing import create_guild, create_user
@@ -50,81 +50,6 @@ def test_a_payload_naming_nowhere_carries_no_place():
 
 
 @pytest.mark.integration
-async def test_a_comment_on_a_task_names_its_initiative_and_tool(
-    session: AsyncSession,
-):
-    owner = await create_user(session, email="place-owner@example.com")
-    guild = await create_guild(session, creator=owner)
-    talker = await create_user(session, email="place-talker@example.com")
-
-    await notifications_service.notify_comment_on_task(
-        session,
-        assignee=owner,
-        commenter=talker,
-        comment_id=1,
-        task_id=42,
-        task_title="Fix the login redirect",
-        project_name="Web",
-        guild_id=guild.id,
-        initiative_id=9,
-        tool=Tool.project.value,
-    )
-    await session.commit()
-
-    line = await _only(session, owner.id)
-    assert line.guild_id == guild.id
-    assert line.initiative_id == 9
-    assert line.tool == Tool.project.value
-
-
-@pytest.mark.integration
-async def test_a_document_mention_names_the_documents_tool(session: AsyncSession):
-    reader = await create_user(session, email="place-doc@example.com")
-    guild = await create_guild(session, creator=reader)
-    writer = await create_user(session, email="place-writer@example.com")
-
-    await notifications_service.notify_document_mention(
-        session,
-        mentioned_user=reader,
-        mentioned_by=writer,
-        document_id=5,
-        document_name="Runbook",
-        guild_id=guild.id,
-        initiative_id=11,
-    )
-    await session.commit()
-
-    line = await _only(session, reader.id)
-    assert line.initiative_id == 11
-    assert line.tool == Tool.document.value
-
-
-@pytest.mark.integration
-async def test_a_task_description_mention_names_the_projects_tool(
-    session: AsyncSession,
-):
-    """A task lives in the Projects list, so that is the row it lights."""
-    reader = await create_user(session, email="place-taskdesc@example.com")
-    guild = await create_guild(session, creator=reader)
-    writer = await create_user(session, email="place-taskdesc-writer@example.com")
-
-    await notifications_service.notify_task_description_mention(
-        session,
-        mentioned_user=reader,
-        mentioned_by=writer,
-        task_id=5,
-        task_title="Ship it",
-        guild_id=guild.id,
-        initiative_id=11,
-    )
-    await session.commit()
-
-    line = await _only(session, reader.id)
-    assert line.initiative_id == 11
-    assert line.tool == Tool.project.value
-
-
-@pytest.mark.integration
 async def test_a_notification_with_no_initiative_still_names_its_community(
     session: AsyncSession,
 ):
@@ -136,7 +61,7 @@ async def test_a_notification_with_no_initiative_still_names_its_community(
     await user_notifications.create_notification(
         session,
         user_id=member.id,
-        notification_type=notifications_service.NotificationType.initiative_added,
+        notification_type=NotificationType.initiative_added,
         data={"guild_id": guild.id},
     )
     await session.commit()
@@ -147,149 +72,60 @@ async def test_a_notification_with_no_initiative_still_names_its_community(
     assert line.tool is None
 
 
-@pytest.mark.integration
-@pytest.mark.parametrize(
-    "notifier,kwargs,tool",
-    [
-        (
-            "notify_comment_mention",
-            {
-                "comment_id": 1,
-                "task_id": 4,
-                "document_id": None,
-                "context_title": "Fix it",
-            },
-            Tool.project.value,
-        ),
-        (
-            "notify_comment_reply",
-            {
-                "comment_id": 1,
-                "task_id": 4,
-                "document_id": None,
-                "context_title": "Fix it",
-            },
-            Tool.project.value,
-        ),
-        (
-            "notify_comment_mention",
-            {
-                "comment_id": 1,
-                "task_id": None,
-                "document_id": 7,
-                "context_title": "Runbook",
-            },
-            Tool.document.value,
-        ),
-    ],
-)
-async def test_every_comment_notifier_records_its_tool(
-    session: AsyncSession, notifier: str, kwargs: dict, tool: str
-):
-    """A mention or reply lights the same row a comment does.
-
-    Setting the tool on some of them and not others is what left Projects and
-    Documents dark for the notifications people actually get.
-    """
-    recipient = await create_user(session, email=f"place-{notifier}-{tool}@example.com")
-    guild = await create_guild(session, creator=recipient)
-    actor = await create_user(
-        session, email=f"place-actor-{notifier}-{tool}@example.com"
+async def _thing(session: AsyncSession, kind: str, initiative, creator):
+    """One row of ``kind`` in ``initiative``, and the tool that governs it."""
+    from app.testing import (
+        create_calendar,
+        create_calendar_event,
+        create_document,
+        create_project,
+        create_task,
+        create_wiki,
+        create_wiki_page,
     )
 
-    recipient_kwarg = {
-        "notify_comment_mention": "mentioned_user",
-        "notify_comment_reply": "parent_author",
-    }[notifier]
-    actor_kwarg = {
-        "notify_comment_mention": "mentioned_by",
-        "notify_comment_reply": "replier",
-    }[notifier]
+    if kind == "task":
+        project = await create_project(session, initiative, creator)
+        return await create_task(session, project), Tool.project
+    if kind == "document":
+        return await create_document(session, initiative, creator), Tool.document
+    if kind == "calendar_event":
+        calendar = await create_calendar(session, initiative, creator)
+        return await create_calendar_event(session, calendar, creator), Tool.calendar
+    wiki = await create_wiki(session, initiative, creator)
+    return await create_wiki_page(session, wiki, creator), Tool.wiki
 
-    await getattr(notifications_service, notifier)(
+
+@pytest.mark.integration
+@pytest.mark.parametrize("kind", ["task", "document", "calendar_event", "wiki_page"])
+async def test_a_notice_is_placed_by_what_it_is_about(session: AsyncSession, kind: str):
+    """Every notice lights the initiative and tool that govern the thing it
+    names — a task the Projects row, an event its calendar, a page its wiki —
+    because ``notify`` reads them off that thing rather than being told."""
+    from app.db.session import set_rls_context
+    from app.testing import create_initiative
+
+    owner = await create_user(session, email=f"place-{kind}@example.com")
+    guild = await create_guild(session, creator=owner)
+    initiative = await create_initiative(session, guild, owner)
+    row, tool = await _thing(session, kind, initiative, owner)
+    actor = await create_user(session, email=f"place-actor-{kind}@example.com")
+    await session.commit()
+
+    await set_rls_context(session, guild_id=guild.id)
+    await notifications_service.notify(
         session,
-        **{recipient_kwarg: recipient, actor_kwarg: actor},
-        guild_id=guild.id,
-        initiative_id=3,
-        tool=tool,
-        **kwargs,
+        NotificationType.mention,
+        [owner.id],
+        about=(kind, row.id),
+        key="mention.comment",
+        values={"actor": "someone", "context": "it"},
+        actor=actor,
     )
     await session.commit()
+    await set_rls_context(session)
 
-    line = await _only(session, recipient.id)
-    assert line.initiative_id == 3
-    assert line.tool == tool
-
-
-@pytest.mark.integration
-async def test_an_event_notification_names_its_calendar_initiative(
-    session: AsyncSession,
-):
-    """The one that was actually missing: an inbox full of event reminders lit
-    its community and nothing under it."""
-    from app.testing import create_calendar, create_calendar_event, create_initiative
-
-    organizer = await create_user(session, email="place-event@example.com")
-    guild = await create_guild(session, creator=organizer)
-    initiative = await create_initiative(session, guild, organizer)
-    calendar = await create_calendar(session, initiative, organizer)
-    event = await create_calendar_event(session, calendar, organizer)
-    attendee = await create_user(session, email="place-attendee@example.com")
-
-    await notifications_service.notify_event_reminder(
-        session, recipient=attendee, event=event, guild_id=guild.id
-    )
-    await session.commit()
-
-    line = await _only(session, attendee.id)
+    line = await _only(session, owner.id)
     assert line.guild_id == guild.id
     assert line.initiative_id == initiative.id
-    assert line.tool == Tool.calendar.value
-
-
-@pytest.mark.integration
-async def test_a_fan_out_asks_for_the_calendar_once(session: AsyncSession):
-    """Every recipient gets their own notification, and they all share one
-    lookup — an event with fifty attendees must not ask fifty times."""
-    from app.services.notifications import _CALENDAR_INITIATIVES
-    from app.testing import create_calendar, create_calendar_event, create_initiative
-
-    organizer = await create_user(session, email="fanout-organizer@example.com")
-    guild = await create_guild(session, creator=organizer)
-    initiative = await create_initiative(session, guild, organizer)
-    calendar = await create_calendar(session, initiative, organizer)
-    event = await create_calendar_event(session, calendar, organizer)
-
-    attendees = [
-        await create_user(session, email=f"fanout-{i}@example.com") for i in range(3)
-    ]
-
-    session.info.pop(_CALENDAR_INITIATIVES, None)
-    for attendee in attendees:
-        await notifications_service.notify_event_reminder(
-            session, recipient=attendee, event=event, guild_id=guild.id
-        )
-    await session.commit()
-
-    # One entry, three recipients: the answer was reached for once and reused.
-    assert list(session.info[_CALENDAR_INITIATIVES]) == [(guild.id, calendar.id)]
-    for attendee in attendees:
-        line = await _only(session, attendee.id)
-        assert line.initiative_id == initiative.id
-
-
-@pytest.mark.integration
-async def test_two_communities_do_not_share_one_calendar_answer(
-    session: AsyncSession,
-):
-    """Per-guild schemas mean two calendars can hold the same id, so the memo
-    is keyed by guild as well — answering one community from another's entry
-    would put a notification under the wrong initiative."""
-    from app.services.notifications import _CALENDAR_INITIATIVES, _calendar_initiative
-
-    memo = session.info.setdefault(_CALENDAR_INITIATIVES, {})
-    memo[(1, 7)] = 100
-    memo[(2, 7)] = 200
-
-    assert await _calendar_initiative(session, calendar_id=7, guild_id=1) == 100
-    assert await _calendar_initiative(session, calendar_id=7, guild_id=2) == 200
+    assert line.tool == tool.value

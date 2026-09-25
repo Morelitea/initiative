@@ -11,13 +11,26 @@ import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.notification import Notification
+from app.models.platform.notification import Notification, NotificationType
 from app.services import notifications as notifications_service
-from app.services.notifications import (
-    MAX_ROLLED_UP_COMMENTERS,
-    _rolled_up_comment,
-)
-from app.testing import create_guild, create_user
+from app.services.notifications import MAX_ROLLED_UP_COMMENTERS
+from app.services.notifications import _rolled_up_comment
+from app.testing import create_user
+
+
+async def _comment_on_task(session: AsyncSession, owner, talker, task_id: int) -> None:
+    """A comment on a task, told to its assignee: the rolled-up kind."""
+    await notifications_service.notify(
+        session,
+        NotificationType.comment_on_task,
+        [owner.id],
+        about=None,
+        key="comment.onTask",
+        values={"actor": talker.username, "task": f"Task {task_id}"},
+        data={"task_id": task_id},
+        actor=talker,
+        rollup_key=f"task:{task_id}",
+    )
 
 
 async def _lines(session: AsyncSession, user_id: int) -> list[Notification]:
@@ -64,7 +77,6 @@ def test_the_roster_is_bounded_but_the_count_is_not():
 @pytest.mark.integration
 async def test_many_comments_on_one_task_are_one_line(session: AsyncSession):
     owner = await create_user(session, email="rollup-owner@example.com")
-    guild = await create_guild(session, creator=owner)
     talkers = [
         await create_user(session, email=f"rollup-talker-{i}@example.com")
         for i in range(3)
@@ -74,16 +86,7 @@ async def test_many_comments_on_one_task_are_one_line(session: AsyncSession):
         "app.services.platform.email_outbox.enqueue", new_callable=AsyncMock
     ) as email:
         for index, talker in enumerate(talkers):
-            await notifications_service.notify_comment_on_task(
-                session,
-                assignee=owner,
-                commenter=talker,
-                comment_id=100 + index,
-                task_id=42,
-                task_title="Fix the login redirect",
-                project_name="Web",
-                guild_id=guild.id,
-            )
+            await _comment_on_task(session, owner, talker, 42)
     await session.commit()
 
     lines = await _lines(session, owner.id)
@@ -97,21 +100,11 @@ async def test_many_comments_on_one_task_are_one_line(session: AsyncSession):
 @pytest.mark.integration
 async def test_a_different_task_gets_its_own_line(session: AsyncSession):
     owner = await create_user(session, email="rollup-two-tasks@example.com")
-    guild = await create_guild(session, creator=owner)
     talker = await create_user(session, email="rollup-two-talker@example.com")
 
     with patch("app.services.platform.email_outbox.enqueue", new_callable=AsyncMock):
         for task_id in (1, 2):
-            await notifications_service.notify_comment_on_task(
-                session,
-                assignee=owner,
-                commenter=talker,
-                comment_id=task_id,
-                task_id=task_id,
-                task_title=f"Task {task_id}",
-                project_name="Web",
-                guild_id=guild.id,
-            )
+            await _comment_on_task(session, owner, talker, task_id)
     await session.commit()
 
     assert len(await _lines(session, owner.id)) == 2
@@ -122,20 +115,10 @@ async def test_reading_the_line_starts_a_fresh_one(session: AsyncSession):
     """Unread is the window, as it is everywhere else — once somebody has
     looked, the next comment is news again."""
     owner = await create_user(session, email="rollup-read@example.com")
-    guild = await create_guild(session, creator=owner)
     talker = await create_user(session, email="rollup-read-talker@example.com")
 
     async def _comment(comment_id: int) -> None:
-        await notifications_service.notify_comment_on_task(
-            session,
-            assignee=owner,
-            commenter=talker,
-            comment_id=comment_id,
-            task_id=7,
-            task_title="Ship it",
-            project_name="Web",
-            guild_id=guild.id,
-        )
+        await _comment_on_task(session, owner, talker, 7)
 
     with patch(
         "app.services.platform.email_outbox.enqueue", new_callable=AsyncMock

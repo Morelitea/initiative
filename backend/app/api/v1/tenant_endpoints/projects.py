@@ -55,6 +55,7 @@ from app.models.tenant.initiative import (
     InitiativeRoleModel,
 )
 from app.core import usernames
+from app.models.platform.notification import NotificationType
 from app.models.platform.user import User, UserStatus
 from app.models.tenant.document import Document
 from app.api import resource_access
@@ -63,8 +64,8 @@ from app.core.audit_events import AuditEventType
 from app.core.tools import Tool
 from app.db.session import require_actor_context, require_guild_context
 from app.services import audit as audit_service
+from app.services import email as email_service
 from app.services import notifications as notifications_service
-from app.services.platform import accounts as accounts_service
 from app.services.platform import users as users_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import ownership as ownership_service
@@ -1084,34 +1085,23 @@ async def create_project(
         project.id, session, guild_context.guild_id, user_id=guild_context.user_id
     )
     if project.initiative_id and current_user is not None:
-        # Notify every member the project is shared with, derived from the grants:
-        # all members, members of a granted role, or a directly granted user.
-        share_all = any(g.all_initiative_members for g in project_in.grants)
-        granted_roles = {g.role_id for g in project_in.grants if g.role_id is not None}
-        granted_users = {g.user_id for g in project_in.grants if g.user_id is not None}
-        shared_with = [
-            membership.user_id
-            for membership in await initiatives_service.initiative_roster(
-                session, project.initiative_id
-            )
-            if membership.user_id
-            and membership.user_id != current_user.id
-            and (
-                share_all
-                or membership.role_id in granted_roles
-                or membership.user_id in granted_users
-            )
-        ]
-        for member in await accounts_service.load_all(shared_with):
-            await notifications_service.notify_project_added(
-                session,
-                member,
+        await notifications_service.notify(
+            session,
+            NotificationType.project_added,
+            notifications_service.SHARED_WITH,
+            about=(Tool.project.value, project.id),
+            key="project.added",
+            values={"project": project.name, "initiative": project.initiative.name},
+            data={"project_id": project.id},
+            actor=current_user,
+            email=lambda reader: email_service.project_added_pieces(
+                reader,
                 initiative_name=project.initiative.name,
                 project_name=project.name,
                 project_id=project.id,
-                initiative_id=project.initiative.id,
-                guild_id=guild_context.guild_id,
-            )
+            ),
+        )
+        await session.commit()
     await _attach_task_summaries(session, [project])
     return await _project_read_for_user(
         session,
@@ -1243,23 +1233,26 @@ async def duplicate_project(
         new_project.id, session, guild_context.guild_id, user_id=current_user.id
     )
     if new_project.initiative_id:
-        notify_ids = [
-            membership.user_id
-            for membership in await initiatives_service.initiative_roster(
-                session, new_project.initiative_id
-            )
-            if membership.user_id and membership.user_id != current_user.id
-        ]
-        for member in await accounts_service.load_all(notify_ids):
-            await notifications_service.notify_project_added(
-                session,
-                member,
+        await notifications_service.notify(
+            session,
+            NotificationType.project_added,
+            notifications_service.SHARED_WITH,
+            about=(Tool.project.value, new_project.id),
+            key="project.added",
+            values={
+                "project": new_project.name,
+                "initiative": new_project.initiative.name,
+            },
+            data={"project_id": new_project.id},
+            actor=current_user,
+            email=lambda reader: email_service.project_added_pieces(
+                reader,
                 initiative_name=new_project.initiative.name,
                 project_name=new_project.name,
                 project_id=new_project.id,
-                initiative_id=new_project.initiative.id,
-                guild_id=guild_context.guild_id,
-            )
+            ),
+        )
+        await session.commit()
     await _attach_task_summaries(session, [new_project])
     return await _project_read_for_user(
         session,

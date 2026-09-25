@@ -83,7 +83,6 @@ from app.schemas.ai_generation import (
 from app.schemas.tenant.tag import TagSetRequest
 from app.schemas.tenant.property import PropertyValuesSetRequest
 from app.services import notifications as notifications_service
-from app.services.platform import accounts as accounts_service
 from app.api import resource_access
 from app.services import permissions as permissions_service
 from app.services.tenant.recurrence import get_next_due_date
@@ -1912,19 +1911,13 @@ async def create_task(
         assigned_by = await notifications_service.author_of(
             session, guild_context, current_user
         )
-        assignees = await accounts_service.load_all(
-            [assignee.id for assignee in task.assignees]
+        await notifications_service.notify_assigned(
+            session,
+            task,
+            [assignee.id for assignee in task.assignees],
+            assigned_by=assigned_by,
+            project_name=project.name,
         )
-        for assignee in assignees:
-            await notifications_service.enqueue_task_assignment_event(
-                session,
-                task=task,
-                assignee=assignee,
-                assigned_by=assigned_by,
-                project_name=project.name,
-                guild_id=guild_context.guild_id,
-                initiative_id=project.initiative_id,
-            )
 
     # Attach tags and custom properties in the same transaction. Both services
     # mutate the session without committing; a raised HTTPException (invalid
@@ -1963,8 +1956,6 @@ async def create_task(
             task,
             previous=None,
             author=current_user,
-            guild_id=guild_context.guild_id,
-            initiative_id=project.initiative_id,
         )
 
     await _touch_project(session, task_in.project_id)
@@ -2097,19 +2088,13 @@ async def update_task(
         assigned_by = await notifications_service.author_of(
             session, guild_context, current_user
         )
-        newly_assigned = await accounts_service.load_all(
-            [assignee.id for assignee in new_assignees]
+        await notifications_service.notify_assigned(
+            session,
+            task,
+            [assignee.id for assignee in new_assignees],
+            assigned_by=assigned_by,
+            project_name=project.name,
         )
-        for assignee in newly_assigned:
-            await notifications_service.enqueue_task_assignment_event(
-                session,
-                task=task,
-                assignee=assignee,
-                assigned_by=assigned_by,
-                project_name=project.name,
-                guild_id=guild_context.guild_id,
-                initiative_id=project.initiative_id,
-            )
 
     # Replace tags/properties when the client sent them (PATCH semantics:
     # absent/None = leave unchanged; a list = replace-all). Both services
@@ -2156,8 +2141,6 @@ async def update_task(
             task,
             previous=previous_description,
             author=current_user,
-            guild_id=guild_context.guild_id,
-            initiative_id=project.initiative_id,
         )
         # An installed app does not manage the community's uploads; a picture
         # its edit took out of the description stays for a person to clear.

@@ -573,6 +573,17 @@ async def load_prefs_for_delivery(user_id: int) -> dict[str, Any]:
         return await load_prefs(system_session, user_id)
 
 
+async def load_prefs_for_delivery_many(
+    user_ids: list[int],
+) -> dict[int, dict[str, Any]]:
+    """The settings of everybody one notice goes to, in one system-engine read
+    (see :func:`load_prefs_for_delivery`). Absent accounts read as defaults."""
+    from app.db.session import SystemSessionLocal
+
+    async with SystemSessionLocal() as system_session:
+        return await load_prefs_for(system_session, user_ids)
+
+
 async def load_prefs(session: AsyncSession, user_id: int) -> dict[str, Any]:
     """One account's settings document, or ``{}`` where it has none."""
     row = (

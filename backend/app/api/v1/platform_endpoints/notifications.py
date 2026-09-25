@@ -33,6 +33,14 @@ from app.services.platform import notification_subjects, presence, user_stream
 from app.services.platform import user_notifications as notifications_service
 from app.services.platform.ws_auth import authenticate_ws_token
 from app.api.content_socket import read_auth_frame
+from app.services.content_sockets import (
+    Credential,
+    Subscriber,
+    Wire,
+    account_authorizer,
+    account_room,
+    sockets,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -210,12 +218,14 @@ async def websocket_notifications(websocket: WebSocket):
     which is what keeps them from reading as idle. It names nobody: the socket
     already knows whose it is.
 
-    Authorization is connect-time only. The stream says "your inbox changed"
-    and never what changed, so the decision that matters is made by the refetch
-    it provokes: the REST endpoints above resolve the inbox from
-    ``current_user`` on a freshly validated credential. Content-bearing
-    channels (collaboration, counters, queues, the guild events bus) are
-    re-authorized continuously by ``app.services.content_sockets`` instead.
+    The stream says "your inbox changed" and never what changed, so the
+    decision about content is made by the refetch it provokes: the REST
+    endpoints above resolve the inbox from ``current_user`` on a freshly
+    validated credential. The socket itself is held to the credential it was
+    opened with: it is registered in ``app.services.content_sockets`` as its
+    account's socket, re-checked with every other socket, and closed with
+    ``WS_CREDENTIAL_ENDED`` once that sign-in ends or the account is no longer
+    active.
 
     A socket that never sends its first frame is closed at
     ``content_socket.AUTH_TIMEOUT_SECONDS`` rather than held open indefinitely.
@@ -241,7 +251,17 @@ async def websocket_notifications(websocket: WebSocket):
             return
         user_id = user.id
         chosen_presence = user.presence
+        watched = Subscriber(
+            websocket=websocket,
+            user=user,
+            guild_id=None,
+            wire=Wire.json,
+            authorize=account_authorizer,
+            credential=Credential.captured(),
+            rooms=frozenset({account_room(user_id)}),
+        )
 
+    sockets.join(watched)
     await user_stream.stream.connect(
         user_id,
         websocket,
@@ -278,4 +298,5 @@ async def websocket_notifications(websocket: WebSocket):
         # Unconditional, including cancellation (a BaseException, so past both
         # excepts above) — a registry entry left behind would keep sending to a
         # dead socket until the first write failed.
+        sockets.leave(websocket)
         await user_stream.stream.disconnect(websocket)

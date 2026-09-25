@@ -72,9 +72,10 @@ DOC = resource_room(1, "document", 3)
 
 
 @pytest.fixture
-def register():
-    # A socket's credential is read off the auth context at join; start each
-    # test with none recorded.
+async def register():
+    # Async so its teardown runs on the loop that owns the sockets' writer
+    # tasks. A socket's credential is read off the auth context at join; start
+    # each test with none recorded.
     auth_context.set_session_credential(None)
     auth_context.set_device_token_id(None)
     auth_context.set_session_amr(None)
@@ -245,7 +246,9 @@ async def test_a_reader_that_falls_behind_is_closed(register, monkeypatch) -> No
 
     for n in range(5):
         register.emit_json(DOC, {"n": n})
-    await settle()
+        # Each writer gets its turn, as it would between real frames: the
+        # quick reader keeps up and the stalled one falls behind.
+        await settle()
 
     assert slow.closed == status.WS_1013_TRY_AGAIN_LATER
     assert register.room_size(DOC) == 1

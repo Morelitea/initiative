@@ -25,12 +25,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The update check asks Docker Hub less often** — the server asks at most every six hours, and every visitor shares the answer, instead of asking on every page load. A server without internet access logs that once and stops trying for 15 minutes at a time.
 - **Password sign-in switches off after wrong answers** — five wrong passwords or codes within 15 minutes turn off password and code sign-in for that account for 15 minutes, and its email addresses are told. Three of those in a day and it stays off until a moderator turns it back on from **Operator dashboard → Users**. Passkeys, and anywhere already signed in, keep working throughout.
 - **Live updates follow access as it changes** — changing who a queue, counter group, document or other tool is shared with now updates everyone who has it open straight away, and anyone it no longer reaches stops receiving updates for it. Someone added to or removed from an initiative starts or stops getting its live updates without reloading, and turning a tool off for an initiative also stops its open pages from updating.
-
 - **Password reset and sign-up say the same thing for every address** — asking for a reset link gets the same answer whether or not the address has an account, and the link is sent after the answer. A server with no mail set up says so for every address. Where signing up needs an invite, sign-up asks for the invite before checking whether the address is already taken.
 - **An expired export can't be downloaded** — once an export's download window has passed, it shows as expired and `GET /exports/{id}/download` answers `410 EXPORT_EXPIRED` (it used to answer `409 EXPORT_NOT_READY` after cleanup, and serve the file until then).
+- **Notifications go to people who can open what they name** — a mention, reply, comment, reaction, event update or task assignment now reaches someone only if they can open the task, document or calendar it is about. To bring someone into a thread, share the item with them first.
+- **Read notifications are cleared after 30 days** — once read, a notification stays in your list for 30 days. Unread ones stay until you read them.
+- **Repeated mentions in a document are one notification** — mentions of you in the same document join one unread notification until you read it, instead of a new email and push each time.
 
 ### Fixed
 
+- **Account erasure emails arrive once** — the email confirming an account was erased could arrive twice. It now goes out once.
 - **Turning off password sign-in covers the app** — the app's email-and-password sign-in kept working after an operator turned password sign-in off. It is now refused like the browser's.
 - **A community's shorter session limit applies to every sign-in** — the app's sign-in, single sign-on, and the extra check a community asks for all gave out access that outlasted the limit. Only the browser's password sign-in kept to it before.
 - **API keys limited to one community stay in it** — such a key could still reach other communities through views that span communities, such as **My Tasks**, and through community sign-in settings and file links. It now reaches only its own community.

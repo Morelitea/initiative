@@ -88,6 +88,9 @@ class TargetContext:
     #: Where a notification about this belongs in the navigation.
     initiative_id: Optional[int] = None
     tool: Optional[str] = None
+    #: What a notice about it names: the reacted-to thing's own ``(kind, id)``
+    #: — a comment's thread, or the post.
+    about: Optional[tuple[str, int]] = None
 
 
 #: Resolver signature: load + authorize one target, or raise.
@@ -126,6 +129,7 @@ async def _resolve_comment(
         target_path=comments_service.comment_target_path(comment, ctx),
         author_id=comment.created_by,
         initiative_id=ctx.initiative_id,
+        about=(cast(str, ctx.ref_type), ctx.entity_id),
         # A tool comment names its own tool; a task comment belongs to the
         # Projects list the task lives in.
         tool=(
@@ -188,6 +192,7 @@ async def _resolve_post(
         author_id=post.created_by,
         initiative_id=post.initiative_id,
         tool=Tool.post.value,
+        about=(Tool.post.value, cast(int, post.id)),
     )
 
 
@@ -430,6 +435,15 @@ async def _queue_reaction_notification(
     from app.services import notifications
 
     if ctx.author_id is None or ctx.author_id == reactor.id:
+        return
+    # The line names what was reacted to, so it goes only to an author who can
+    # still open it.
+    subject = (
+        await notifications.resolve_subject(session, ctx.about)
+        if ctx.about is not None
+        else None
+    )
+    if subject is None or ctx.author_id not in subject.readers:
         return
     # On the system engine: whether they want to hear about this, and where to
     # write to, are facts about their account rather than about this guild.
