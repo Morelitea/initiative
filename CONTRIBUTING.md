@@ -23,7 +23,7 @@ When you're done, run **`dev:cleanup`** from the task palette to remove all seed
 
 **What gets seeded:**
 
-A realistic, TTRPG-themed dataset that exercises the whole app. See `scripts/seed_dev_data.py` for the exact contents.
+A realistic, TTRPG-themed dataset that exercises the whole app. See `scripts/seed/` (one module per area, run in order by `scripts/seed_dev_data.py`) for the exact contents.
 
 **Seeded logins** — every account below uses the password **`changeme`**:
 
@@ -33,9 +33,9 @@ A realistic, TTRPG-themed dataset that exercises the whole app. See `scripts/see
 | `user1@example.com` … `user8@example.com` | Regular **guild members** (never guild admins) |
 | `owner@` · `operator@` · `moderator@` · `support@` · `member@example.com` | One user per **platform-role** tier, for exercising the privilege ladder |
 
-The bootstrap superuser from your `.env` (`FIRST_OWNER_EMAIL`) is also available with its configured password.
+The bootstrap owner from your `.env` (`FIRST_OWNER_EMAIL`) is also available with its configured password.
 
-The seeder saves created IDs to `.vscode/.dev_seed_ids.json` (gitignored) and uses them for clean teardown.
+The seeder records the accounts it created in `.vscode/.dev_seed_ids.json` (gitignored). Cleanup does not need it: it drops every community schema and wipes the shared rows.
 
 ### Manual Setup
 
