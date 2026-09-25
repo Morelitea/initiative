@@ -775,7 +775,6 @@ async def test_trash_listing_shows_a_trashed_wiki_alone(session: AsyncSession, c
     )
     assert response.status_code == 200, response.text
 
-    session.expire_all()
     pages = await session.exec(
         select_including_deleted(WikiPage.slug, WikiPage.deleted_at).where(
             WikiPage.wiki_id == wiki.id
@@ -841,5 +840,4 @@ async def test_every_tool_takes_its_thread_to_the_trash_and_back(
         )
         assert response.status_code == 200, (tool, response.text)
 
-    session.expire_all()
     assert await live_comments() == {comment_id for _, comment_id in threads.values()}
