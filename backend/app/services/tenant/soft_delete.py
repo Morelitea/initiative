@@ -290,30 +290,31 @@ _PURGE_LOADS = (Comment, GalleryImage, Task, Document)
 async def hard_purge_entity(
     session: AsyncSession,
     entity: SoftDeleteMixin,
-) -> None:
+) -> set[str]:
     """Hard-delete the entity and every descendant. See ``hard_purge_entities``."""
-    await hard_purge_entities(session, [entity])
+    return await hard_purge_entities(session, [entity])
 
 
 async def hard_purge_entities(
     session: AsyncSession,
     entities: Iterable[SoftDeleteMixin],
-) -> None:
-    """Hard-delete these entities and every descendant.
+) -> set[str]:
+    """Hard-delete these entities and every descendant, and return the stored
+    names of the uploads that went with them.
 
     The caller's ``session`` must be able to clear the RESTRICTIVE FOR DELETE
     policies on these tables — either a routed **guild-admin** RLS session (the
     interactive purge endpoint) or a guild-admin-routed ``app_admin`` session (the
     background auto-purge worker, which has no guild context). The caller is also
     responsible for locking the targets against a concurrent restore and for
-    committing.
+    committing, and for deleting the returned blobs after its commit
+    (``attachments.delete_blobs``), so a rolled-back purge leaves the files.
 
     Descendants are walked through the same tree the soft-delete path uses,
     in the bin or not, then deleted a level at a time from the bottom up, one
     statement per table, so no foreign key is left pointing at a row that went
     first. For Documents anywhere in the set, upload cleanup runs before the
-    DELETEs so blobs on disk and ``Upload`` rows pinned only by the doomed
-    documents are also removed.
+    DELETEs so ``Upload`` rows pinned only by the doomed documents go too.
     """
     from app.services.tenant.documents import unresolve_wikilinks_to_document
     from app.services.tenant.attachments import (
@@ -325,7 +326,7 @@ async def hard_purge_entities(
 
     roots = list(entities)
     if not roots:
-        return
+        return set()
     await session.flush()
 
     # Purge is the one lifecycle step that writes frozen content instead of only
@@ -361,17 +362,18 @@ async def hard_purge_entities(
 
     # A picture's blobs — every version and its thumbnail — go with it, the
     # way a file document's do.
+    released: set[str] = set()
     if loaded.get(GalleryImage):
-        await purge_gallery_image_uploads(session, loaded[GalleryImage])
+        released |= await purge_gallery_image_uploads(session, loaded[GalleryImage])
 
     # Pictures pasted into a task's description or a comment go with it,
     # unless something that stays still shows them.
-    await purge_pasted_images(
+    released |= await purge_pasted_images(
         session, [*loaded.get(Task, ()), *loaded.get(Comment, ())]
     )
 
     if loaded.get(Document):
-        await purge_document_uploads(session, loaded[Document])
+        released |= await purge_document_uploads(session, loaded[Document])
         # Links in surviving documents that point at a doomed one are blanked
         # before the row disappears, so they render as unresolved rather than
         # pointing at nothing. Runs before the DELETEs, while the edges naming
@@ -392,3 +394,4 @@ async def hard_purge_entities(
     for level in reversed(levels):
         for model, ids in level.items():
             await delete_rows(session, model, ids)
+    return released

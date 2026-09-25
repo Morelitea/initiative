@@ -33,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Pictures stay while something still shows them** — taking a picture out of a document deleted it, even when another document, task or comment still showed it. It now stays until nothing shows it. Changing the cover of a picture file document no longer deletes the file itself.
+- **Duplicated documents count toward storage** — the pictures in a duplicated document are real copies, and they now count toward the community's storage limit like any other upload.
 - **Account erasure emails arrive once** — the email confirming an account was erased could arrive twice. It now goes out once.
 - **Turning off password sign-in covers the app** — the app's email-and-password sign-in kept working after an operator turned password sign-in off. It is now refused like the browser's.
 - **A community's shorter session limit applies to every sign-in** — the app's sign-in, single sign-on, and the extra check a community asks for all gave out access that outlasted the limit. Only the browser's password sign-in kept to it before.

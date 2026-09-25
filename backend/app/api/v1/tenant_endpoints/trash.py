@@ -46,6 +46,7 @@ from app.services import audit as audit_service
 from app.services.platform import guilds as guilds_service
 from app.services.tenant import ownership as ownership_service
 from app.core.user_display import display_name
+from app.services.tenant import attachments as attachments_service
 from app.services.tenant import content_references
 from app.services.tenant.lifecycle_tree import CASCADE_PARENTS
 from app.services.tenant.soft_delete import (
@@ -319,7 +320,7 @@ async def purge_trash_entity(
         entity_id=entity_id,
         for_update=True,
     )
-    await hard_purge_entity(session, entity)
+    released = await hard_purge_entity(session, entity)
     await audit_service.record(
         session,
         event_type=AuditEventType.TRASH_PURGED,
@@ -330,4 +331,5 @@ async def purge_trash_entity(
         detail={"via": "admin"},
     )
     await session.commit()
+    attachments_service.delete_blobs(guild_context.guild_id, released)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

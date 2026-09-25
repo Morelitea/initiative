@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from pathlib import Path
 from typing import Any, Sequence
 
 from sqlalchemy import func
@@ -16,10 +15,8 @@ from app.models.tenant.document import (
     Document,
     DocumentType,
 )
-from app.models.tenant.upload import Upload
 from app.models.tenant.property import DocumentPropertyValue
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
-from app.core.config import settings
 from app.core.references import unresolve_wikilinks_to
 from app.core.tools import Tool
 from app.core.messages import DocumentMessages
@@ -285,75 +282,28 @@ async def duplicate_document(
     target_initiative_id: int,
     name: str,
     user_id: int,
-    guild_id: int | None = None,
+    guild_id: int,
 ) -> Document:
     content_copy = normalize_document_content(
         deepcopy(source.content),
         document_type=source.document_type,
     )
-    content_uploads = attachments_service.extract_upload_urls(content_copy)
-    # Enforce the guild's storage quota BEFORE copying any bytes — a rejected
-    # clone must not leave orphaned blobs on storage. Size it from the source
-    # blobs it will duplicate (a copy is the same size as its source).
-    effective_guild_id = guild_id or routed_guild_id(session)
-    if effective_guild_id is not None:
-        clone_source_urls = list(content_uploads)
-        if source.featured_image_url:
-            clone_source_urls.append(source.featured_image_url)
-        incoming = await attachments_service.get_upload_bytes_for_urls(
-            session, clone_source_urls
-        )
-        if incoming:
-            await attachments_service.enforce_storage_quota(
-                session,
-                guild_id=effective_guild_id,
-                incoming_bytes=incoming,
-            )
-    replacements = attachments_service.duplicate_uploads(content_uploads)
-    if replacements:
-        content_copy = attachments_service.replace_upload_urls(
-            content_copy, replacements
-        )
-
-    featured_image_url = attachments_service.duplicate_upload(source.featured_image_url)
-
-    # Track any newly created files in the uploads table for guild-scoped access control
-    if effective_guild_id is not None:
-        upload_dir = Path(settings.UPLOADS_DIR)
-        new_upload_records: list[Upload] = []
-        new_urls = list(replacements.values())
-        # Map each new blob back to its source so we can carry the source's
-        # content_type/content_hash onto the copy (it is byte-identical).
-        new_to_source = {new: old for old, new in replacements.items()}
-        if featured_image_url and featured_image_url != source.featured_image_url:
-            new_urls.append(featured_image_url)
-            if source.featured_image_url:
-                new_to_source[featured_image_url] = source.featured_image_url
-        source_meta = await attachments_service.get_upload_metadata_for_urls(
-            session, list(new_to_source.values())
-        )
-        for new_url in new_urls:
-            fname = new_url.split("/")[-1]
-            if fname:
-                source_url = new_to_source.get(new_url)
-                source_fname = source_url.split("/")[-1] if source_url else None
-                content_type, content_hash = (
-                    source_meta.get(source_fname, (None, None))
-                    if source_fname
-                    else (None, None)
-                )
-                fpath = upload_dir / fname
-                new_upload_records.append(
-                    Upload(
-                        filename=fname,
-                        created_by=user_id,
-                        size_bytes=fpath.stat().st_size if fpath.exists() else 0,
-                        content_type=content_type,
-                        content_hash=content_hash,
-                    )
-                )
-        if new_upload_records:
-            session.add_all(new_upload_records)
+    # Pictures are copied rather than shared, so each document's can be
+    # released on its own.
+    copies = await attachments_service.copy_uploads(
+        session,
+        [
+            *attachments_service.extract_upload_urls(content_copy),
+            source.featured_image_url,
+        ],
+        guild_id=guild_id,
+        created_by=user_id,
+    )
+    content_copy = attachments_service.replace_upload_urls(content_copy, copies)
+    featured_image_url = source.featured_image_url
+    if featured_image_url:
+        normalized = attachments_service.normalize_upload_url(featured_image_url)
+        featured_image_url = copies.get(normalized or "", featured_image_url)
 
     duplicated = Document(
         name=name,

@@ -15,7 +15,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import Response
-from sqlalchemy import delete as sa_delete, func, text
+from sqlalchemy import func, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
@@ -57,7 +57,6 @@ from app.models.tenant.document import (
     DocumentFileVersion,
     DocumentType,
 )
-from app.models.tenant.upload import Upload
 from app.models.tenant.initiative import (
     Initiative,
     PermissionKey,
@@ -884,7 +883,9 @@ async def upload_document_version(
         # MAX() read and this commit. Roll back, drop the orphaned blob, and ask
         # the caller to retry rather than surfacing a 500.
         await session.rollback()
-        attachments_service.delete_upload_by_url(file_url)
+        attachments_service.delete_blobs(
+            guild_context.guild_id, attachments_service.upload_names([file_url])
+        )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=DocumentMessages.VERSION_CONFLICT,
@@ -987,11 +988,6 @@ async def delete_document_version(
     deleted_url = target.file_url
 
     await session.delete(target)
-    await session.flush()
-
-    # Remove the upload-tracking row + filesystem blob for this version.
-    filename = deleted_url.split("/")[-1]
-    await session.exec(sa_delete(Upload).where(Upload.filename == filename))
 
     if is_current:
         # Promote the next-highest version to current by mirroring its file
@@ -1009,11 +1005,13 @@ async def delete_document_version(
                     document.featured_image_url = promoted.file_url
                 else:
                     document.featured_image_url = None
+    await session.flush()
 
+    released = await attachments_service.release_uploads(session, [deleted_url])
     await session.commit()
 
     # Delete the blob after the row is gone so a failed commit doesn't orphan files.
-    attachments_service.delete_upload_by_url(deleted_url)
+    attachments_service.delete_blobs(guild_context.guild_id, released)
 
 
 @router.get("/{document_id}", response_model=DocumentRead)
@@ -1072,6 +1070,7 @@ async def update_document(
     updated = False
     update_data = document_in.model_dump(exclude_unset=True)
     removed_upload_urls: set[str] = set()
+    released: set[str] = set()
     previous_content_urls = attachments_service.extract_upload_urls(document.content)
     previous_featured_url = document.featured_image_url
 
@@ -1155,13 +1154,14 @@ async def update_document(
                 body=document.content,
                 author_id=guild_context.user_id,
             )
-        if current_user is None:
-            # An installed app does not manage the community's uploads; what
-            # this edit let go of stays for the owner to clear.
-            removed_upload_urls.clear()
-        if removed_upload_urls:
-            filenames = [url.split("/")[-1] for url in removed_upload_urls]
-            await session.exec(sa_delete(Upload).where(Upload.filename.in_(filenames)))
+        # What the edit took out goes once nothing else shows it. An installed
+        # app does not manage the community's uploads; what its edit let go of
+        # stays for a person to clear.
+        if current_user is not None and removed_upload_urls:
+            await session.flush()
+            released = await attachments_service.release_uploads(
+                session, removed_upload_urls
+            )
         await session.commit()
         # Invalidate any in-memory collaboration room so the next session
         # loads fresh state from the database. If a room has active
@@ -1176,7 +1176,7 @@ async def update_document(
         guild_id=guild_context.guild_id,
         user_id=guild_context.user_id,
     )
-    attachments_service.delete_uploads_by_urls(removed_upload_urls)
+    attachments_service.delete_blobs(guild_context.guild_id, released)
     return serialize_document(
         hydrated,
         user_id=guild_context.user_id,
