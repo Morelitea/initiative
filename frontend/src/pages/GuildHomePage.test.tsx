@@ -14,6 +14,7 @@ import {
   buildProject,
   buildRecentActivityEntry,
   buildUser,
+  initiativeCan,
 } from "@/__tests__/factories";
 import { buildQueueSummary } from "@/__tests__/factories/queue.factory";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
@@ -21,6 +22,7 @@ import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { BannerTextAlign } from "@/api/generated/initiativeAPI.schemas";
 import { queryClient } from "@/lib/queryClient";
+import { isToolEnabled, TOOLS } from "@/lib/tools";
 
 import { GuildHomePage } from "./GuildHomePage";
 
@@ -63,21 +65,16 @@ function stubTools({
 }
 
 /** The listing is the reader's own memberships, guild admin or not, so the
- *  stub carries their row. For an admin the rail still reflects the
- *  initiative's own tool switches rather than that row's flags. */
+ *  stub carries their row, and may view every tool the initiative has on. */
 function stubInitiatives(overrides: Record<string, boolean> = {}) {
-  server.use(
-    guildHttp.get("/initiatives/", () =>
-      HttpResponse.json([
-        buildInitiative({
-          id: INITIATIVE_ID,
-          name: "Apollo",
-          members: [buildInitiativeMember({ user: { ...READER } })],
-          ...overrides,
-        }),
-      ])
-    )
-  );
+  const initiative = buildInitiative({
+    id: INITIATIVE_ID,
+    name: "Apollo",
+    members: [buildInitiativeMember({ user: { ...READER } })],
+    ...overrides,
+  });
+  initiative.can = initiativeCan({ view: TOOLS.filter((tool) => isToolEnabled(tool, initiative)) });
+  server.use(guildHttp.get("/initiatives/", () => HttpResponse.json([initiative])));
 }
 
 /** What the community offers to join. Empty by default, as in the shared handlers. */

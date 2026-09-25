@@ -13,10 +13,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   buildInitiative,
-  buildInitiativeMember,
   buildSearchSuggestion,
   buildUser,
-  buildUserPublic,
+  initiativeCan,
 } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
@@ -162,13 +161,10 @@ const mountUploader = ({ canCreateDocuments = true, canViewDocuments = true } = 
       HttpResponse.json([
         buildInitiative({
           id: 3,
-          members: [
-            buildInitiativeMember({
-              user: buildUserPublic({ id: user.id }),
-              can_create_documents: canCreateDocuments,
-              can_view_documents: canViewDocuments,
-            }),
-          ],
+          can: initiativeCan({
+            view: canViewDocuments ? [Tool.document] : [],
+            create: canCreateDocuments ? [Tool.document] : [],
+          }),
         }),
       ])
     ),

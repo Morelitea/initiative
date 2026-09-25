@@ -189,7 +189,11 @@ export const RelationsSection = ({
   const { maxUploadBytes } = useAppConfig();
   const initiativesQuery = useInitiatives({ enabled: canAdd && initiativeId != null });
   const initiative = initiativesQuery.data?.find((item) => item.id === initiativeId);
-  const canUpload = canAdd && Boolean(initiative?.can.create.includes(Tool.document));
+  const canUpload =
+    canAdd &&
+    Boolean(
+      initiative?.can.view.includes(Tool.document) && initiative.can.create.includes(Tool.document)
+    );
 
   const { data: rows = [], isLoading, isError } = useRelationshipsFor(entity);
   // Only walked while the picture is the thing on screen: a second hop is a

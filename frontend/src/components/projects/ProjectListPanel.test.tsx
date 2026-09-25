@@ -8,7 +8,7 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
-import { buildProject, ownerCan } from "@/__tests__/factories";
+import { buildProject, ownerCan, readerCan } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import { ProjectListPanel } from "@/components/projects/ProjectListPanel";
 
@@ -48,7 +48,9 @@ describe("ProjectListPanel bulk sharing", () => {
     panel([
       buildProject({
         name: "Planescape Detour",
-        can: ownerCan(),
+        // What an archived project arrives as: nothing on it may be changed
+        // but taking it back out.
+        can: readerCan({ unarchive: true }),
         archived_at: "2026-06-01T00:00:00.000Z",
       }),
     ]);
