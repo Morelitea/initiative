@@ -99,6 +99,7 @@ class TestInstalling:
             "listing_uid": CALENDAR_APP_UID,
             "version": "1.0.0",
             "via": "install",
+            "granted_scopes": [],
         }
 
     async def test_a_refused_install_records_nothing(

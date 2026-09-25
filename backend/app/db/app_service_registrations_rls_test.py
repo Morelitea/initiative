@@ -52,11 +52,19 @@ async def _reset(session) -> None:
 async def _make_row(session, public_id: str = "acme.widgets") -> None:
     await session.exec(
         text(
+            "INSERT INTO public.publishers (prefix, display_name, verified, enabled, "
+            "created_at) VALUES ('acme', 'Acme', false, true, now()) "
+            "ON CONFLICT (prefix) DO NOTHING"
+        )
+    )
+    await session.exec(
+        text(
             f"INSERT INTO {TABLE} "
-            "(public_id, base_url, allowed_origins, secret_encrypted, grants, "
-            " mandatory, enabled, status, created_at, updated_at) "
-            "VALUES (:pid, 'http://127.0.0.1:9100', '[]'::jsonb, 'ciphertext', "
-            " '[]'::jsonb, false, true, 'unverified', now(), now())"
+            "(public_id, publisher_id, base_url, allowed_origins, grants, jwks, "
+            " mandatory, enabled, created_at, updated_at) "
+            "SELECT :pid, p.id, 'http://127.0.0.1:9100', '[]'::jsonb, '[]'::jsonb, "
+            " '{\"keys\": []}'::jsonb, false, true, now(), now() "
+            "FROM public.publishers p WHERE p.prefix = 'acme'"
         ),
         params={"pid": public_id},
     )
@@ -85,7 +93,7 @@ async def test_no_platform_tier_reads_or_writes_registrations(session):
 
     for tier in UserRole:
         for statement in (
-            f"SELECT secret_encrypted FROM {TABLE}",
+            f"SELECT jwks FROM {TABLE}",
             f"UPDATE {TABLE} SET enabled = false",
             f"DELETE FROM {TABLE}",
         ):

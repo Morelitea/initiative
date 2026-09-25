@@ -82,6 +82,7 @@ async def test_a_new_guild_records_its_provided_app_against_the_owner(
         "listing_uid": PROVIDED_UID,
         "version": "1.0.0",
         "via": "mandatory",
+        "granted_scopes": [],
     }
 
 
@@ -108,4 +109,5 @@ async def test_the_boot_sweep_records_an_install_nobody_made(
         "listing_uid": PROVIDED_UID,
         "version": "1.0.0",
         "via": "mandatory",
+        "granted_scopes": [],
     }

@@ -212,6 +212,21 @@ async def verify_member_assertion(
     )
 
 
+#: Records the assertion's jti against its registration, in the one statement
+#: that also reads the registration fresh; only a live registration matches.
+_BURN_JTI_SQL = (
+    "INSERT INTO public.app_assertion_jtis "
+    "(registration_id, jti, expires_at) "
+    "SELECT r.id, :jti, :expires_at "
+    "FROM public.app_service_registrations r "
+    "JOIN public.publishers p ON p.id = r.publisher_id "
+    "WHERE r.public_id = :public_id "
+    f"AND {registration_live_sql('r', 'p')} "
+    "ON CONFLICT DO NOTHING "
+    "RETURNING registration_id"
+)
+
+
 async def _verify_signed_assertion(
     session: AsyncSession,
     *,
@@ -299,17 +314,7 @@ async def _verify_signed_assertion(
     # registration is no longer live, or the jti has been spent.
     spent = (
         await session.exec(
-            text(
-                "INSERT INTO public.app_assertion_jtis "
-                "(registration_id, jti, expires_at) "
-                "SELECT r.id, :jti, :expires_at "
-                "FROM public.app_service_registrations r "
-                "JOIN public.publishers p ON p.id = r.publisher_id "
-                "WHERE r.public_id = :public_id "
-                f"AND {registration_live_sql('r', 'p')} "
-                "ON CONFLICT DO NOTHING "
-                "RETURNING registration_id"
-            ),
+            text(_BURN_JTI_SQL),
             params={
                 "jti": jti,
                 "expires_at": datetime.fromtimestamp(expires_at, tz=timezone.utc),
@@ -392,13 +397,14 @@ def _issuable(row: Any) -> frozenset[str]:
     )
 
 
-_INSTALL_SQL = text(
+_INSTALL_SQL_TEXT = (
     "SELECT a.listing_uid, a.enabled, a.granted_scopes, "
     f"{_REQUESTED_SQL}, "
     "ARRAY(SELECT p.initiative_id FROM app_placements p "
     "WHERE p.install_id = a.id ORDER BY p.initiative_id) AS placed "
     "FROM guild_apps a WHERE a.id = :install_id"
 )
+_INSTALL_SQL = text(_INSTALL_SQL_TEXT)
 
 
 async def _installation_token(
@@ -466,7 +472,7 @@ async def _installation_token(
 #: The install, where it is placed, and, for one member and purpose, the
 #: initiatives the member is in and their live consent. Read on the system
 #: engine routed into the community.
-_MEMBER_INSTALL_SQL = text(
+_MEMBER_INSTALL_SQL_TEXT = (
     "SELECT a.listing_uid, a.enabled, a.granted_scopes, "
     f"{_REQUESTED_SQL}, "
     "ARRAY(SELECT p.initiative_id FROM app_placements p "
@@ -481,6 +487,7 @@ _MEMBER_INSTALL_SQL = text(
     "AND c.granted_access IS NOT NULL AND c.revoked_at IS NULL "
     "WHERE a.id = :install_id"
 )
+_MEMBER_INSTALL_SQL = text(_MEMBER_INSTALL_SQL_TEXT)
 
 
 def _read_only_scopes(scopes: frozenset[str]) -> frozenset[str]:
@@ -684,7 +691,7 @@ class InstallationListing:
     initiatives: list[int]
 
 
-_INSTALLS_SQL = text(
+_INSTALLS_SQL_TEXT = (
     "SELECT a.id, a.granted_scopes, "
     f"{_REQUESTED_SQL}, "
     "ARRAY(SELECT p.initiative_id FROM app_placements p "
@@ -692,6 +699,7 @@ _INSTALLS_SQL = text(
     "FROM guild_apps a WHERE a.listing_uid = :listing_uid AND a.enabled "
     "ORDER BY a.id"
 )
+_INSTALLS_SQL = text(_INSTALLS_SQL_TEXT)
 
 
 async def list_installations(
