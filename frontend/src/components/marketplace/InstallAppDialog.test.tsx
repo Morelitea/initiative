@@ -3,8 +3,8 @@
  *
  * What matters is what reaches the server: every scope the server allows is
  * granted unless the seat unticks it, a scope it does not allow can never be
- * sent, placement is asked only of an app that has somewhere to be placed,
- * and moderators open it unless the seat says otherwise.
+ * sent, placement is asked of an app with a page inside initiatives or access
+ * to reach there, and moderators open a page unless the seat says otherwise.
  */
 
 import { screen, waitFor } from "@testing-library/react";
@@ -113,11 +113,25 @@ describe("InstallAppDialog", () => {
     expect(body.role_kinds).toEqual(["moderator", "project_manager"]);
   });
 
-  it("asks nothing about placement for an app with no page inside initiatives", async () => {
+  it("places an app with access but no page, and asks nothing about roles", async () => {
     open({ has_initiative_surfaces: false });
 
-    await screen.findByLabelText("Read projects");
-    expect(screen.queryByText("Where it appears")).not.toBeInTheDocument();
+    expect(await screen.findByText("Where it works")).toBeInTheDocument();
+    expect(
+      screen.getByText("It reads and changes things only in the initiatives you choose.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Who can open it there")).not.toBeInTheDocument();
+
+    const body = await install();
+    expect(body.placements).toEqual("all");
+    expect(body.role_kinds).toEqual([]);
+  });
+
+  it("asks nothing about placement for an app with no page and no access", async () => {
+    open({ has_initiative_surfaces: false, requested_scopes: [], grantable_scopes: [] });
+
+    await screen.findByRole("button", { name: "Add to community" });
+    expect(screen.queryByText("Where it works")).not.toBeInTheDocument();
     expect(screen.queryByText("Who can open it there")).not.toBeInTheDocument();
     expect((await install()).placements).toEqual([]);
   });

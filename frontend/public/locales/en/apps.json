@@ -51,8 +51,9 @@
     "unknownState": "Could not check whether this app is already added.",
     "reachTitle": "What it can reach",
     "reachNone": "This app asks for no access to your community's content.",
-    "whereTitle": "Where it appears",
-    "whereDescription": "This app offers a page inside initiatives.",
+    "whereTitle": "Where it works",
+    "whereDescription": "It shows its page, and reads and changes things, only in the initiatives you choose.",
+    "whereDescriptionNoPage": "It reads and changes things only in the initiatives you choose.",
     "whoTitle": "Who can open it there",
     "roles": {
       "moderator": "Moderators",
@@ -169,11 +170,12 @@
   },
   "browse": "Browse the app store",
   "placement": {
-    "title": "Where this app appears",
-    "description": "This app offers a page inside initiatives. Choose which ones it appears in.",
+    "title": "Where this app works",
+    "description": "This app shows its page, and reads and changes things, only in the initiatives you choose.",
+    "descriptionNoPage": "This app reads and changes things only in the initiatives you choose.",
     "all": "Every current initiative",
     "some": "Only the initiatives I choose",
-    "none": "No initiatives chosen, so this app appears only community-wide.",
+    "none": "No initiatives chosen, so this app reaches nothing inside initiatives.",
     "roles": {
       "open": "Who can open it in {{name}}",
       "title": "Who can open it here",

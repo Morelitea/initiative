@@ -76,11 +76,19 @@ vi.mock("@/hooks/useInitiatives", () => ({
   useInitiatives: () => ({ data: roster, isLoading: false }),
 }));
 
-/** An install placed in these initiatives, each allowing ``roleIds``. */
-const app = (placed: number[], roleIds: number[] = []) =>
+/** A page the app shows inside initiatives. */
+const initiativePage = { id: "board", path: "/board", scopes: ["initiative"] };
+
+/**
+ * An install placed in these initiatives, each allowing ``roleIds``. It shows
+ * a page inside initiatives unless ``page`` is false.
+ */
+const app = (placed: number[], roleIds: number[] = [], page = true) =>
   ({
     id: 7,
     name: "Automations",
+    definition: { embeds: page ? [initiativePage] : [] },
+    requested_scopes: ["projects:read"],
     placements: placed.map((initiative_id) => ({ initiative_id, role_ids: roleIds })),
   }) as unknown as GuildAppDetail;
 
@@ -229,6 +237,17 @@ describe("AppPlacementPanel", () => {
         "2 roles"
       );
       expect(screen.getByLabelText("Who can open it in Marketing")).toBeTruthy();
+    });
+
+    it("offers no roles for an app with no page inside initiatives", async () => {
+      renderPage(() => <AppPlacementPanel app={app([1, 2], [11], false)} />);
+
+      expect(
+        await screen.findByText(
+          "This app reads and changes things only in the initiatives you choose."
+        )
+      ).toBeTruthy();
+      expect(screen.queryByLabelText("Who can open it in Platform")).toBeNull();
     });
   });
 });

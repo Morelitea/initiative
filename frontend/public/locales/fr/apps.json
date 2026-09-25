@@ -51,8 +51,9 @@
     "unknownState": "Impossible de vérifier si cette application est déjà ajoutée.",
     "reachTitle": "Ce à quoi elle a accès",
     "reachNone": "Cette application ne demande aucun accès au contenu de votre communauté.",
-    "whereTitle": "Où elle apparaît",
-    "whereDescription": "Cette application propose une page à l'intérieur des initiatives.",
+    "whereTitle": "Où elle travaille",
+    "whereDescription": "Elle affiche sa page, et lit et modifie le contenu, uniquement dans les initiatives que vous choisissez.",
+    "whereDescriptionNoPage": "Elle lit et modifie le contenu uniquement dans les initiatives que vous choisissez.",
     "whoTitle": "Qui peut l'y ouvrir",
     "roles": {
       "moderator": "Modérateurs",
@@ -169,11 +170,12 @@
   },
   "browse": "Parcourir la boutique d'applications",
   "placement": {
-    "title": "Où cette application apparaît",
-    "description": "Cette application propose une page à l'intérieur des initiatives. Choisissez dans lesquelles elle apparaît.",
+    "title": "Où cette application travaille",
+    "description": "Cette application affiche sa page, et lit et modifie le contenu, uniquement dans les initiatives que vous choisissez.",
+    "descriptionNoPage": "Cette application lit et modifie le contenu uniquement dans les initiatives que vous choisissez.",
     "all": "Toutes les initiatives actuelles",
     "some": "Uniquement les initiatives que je choisis",
-    "none": "Aucune initiative choisie : cette application n'apparaît qu'à l'échelle de la communauté.",
+    "none": "Aucune initiative choisie : cette application n'atteint rien à l'intérieur des initiatives.",
     "roles": {
       "open": "Qui peut l'ouvrir dans {{name}}",
       "title": "Qui peut l'ouvrir ici",
