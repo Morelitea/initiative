@@ -24,8 +24,6 @@ from copy import deepcopy
 from typing import Annotated, Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import selectinload
-from sqlmodel import select
 
 from app.db.session import routed_guild_id
 from app.api import resource_access
@@ -40,13 +38,12 @@ from app.api.deps import (
     get_current_active_user,
     get_guild_membership,
 )
-from app.core.messages import InitiativeMessages, WikiMessages
+from app.core.messages import WikiMessages
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
 from app.db import reference_targets
 from app.models.platform.user import User
-from app.models.tenant.initiative import Initiative
 from app.models.tenant.wiki import Wiki, WikiPage
 from app.schemas.tenant.wiki import (
     WikiCreate,
@@ -67,7 +64,6 @@ from app.schemas.tenant.wiki import (
 from app.services import permissions as permissions_service
 from app.services.tenant import comments as comments_service
 from app.services.tenant import content_references
-from app.services.tenant import ownership as ownership_service
 from app.services.tenant import relationships as relationships_service
 from app.services.tenant import soft_delete as soft_delete_service
 from app.services.tenant import tags as tags_service
@@ -85,26 +81,6 @@ WikisWrite = Annotated[ActorContext, Depends(app_scope("wikis:write"))]
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-async def _get_initiative_for_wiki(
-    session: RLSSessionDep, initiative_id: int
-) -> Initiative:
-    stmt = (
-        select(Initiative)
-        .where(Initiative.id == initiative_id)
-        .options(
-            selectinload(Initiative.memberships),
-            selectinload(Initiative.roles),
-        )
-    )
-    initiative = (await session.exec(stmt)).one_or_none()
-    if not initiative:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=InitiativeMessages.NOT_FOUND,
-        )
-    return initiative
 
 
 async def annotate_wiki_rows(session: RLSSessionDep, wikis: list) -> None:
@@ -198,14 +174,8 @@ async def create_wiki(
     """Create a wiki. Requires create_wikis permission on the initiative (or
     guild admin); the creator gets the owner grant."""
     resource_access.refuse_app_sharing(guild_context, wiki_in, "grants")
-    initiative = await _get_initiative_for_wiki(session, wiki_in.initiative_id)
-    if not initiative.wikis_enabled:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=Tool.wiki.feature_disabled_code,
-        )
-    await resource_access.require_create(
-        session, Tool.wiki, initiative, current_user, guild_context
+    initiative = await resource_access.prepare_create(
+        session, Tool.wiki, wiki_in.initiative_id, current_user, guild_context
     )
 
     wiki = Wiki(
@@ -217,37 +187,16 @@ async def create_wiki(
     session.add(wiki)
     await session.flush()
 
-    # The creator's owner grant, then the initial sharing. An installed app's
-    # owner row is written by the table's own trigger as the row goes in, and
-    # its initial sharing is applied below, when it asked for one.
-    owner_grant = ownership_service.creator_owner_grant(
+    await resource_access.grant_initial_sharing(
+        session,
         guild_context,
-        tool=Tool.wiki,
+        Tool.wiki,
+        user=current_user,
         resource_id=wiki.id,
         initiative_id=initiative.id,
+        payload=wiki_in,
+        grants=wiki_in.grants,
     )
-    if owner_grant is not None and current_user is not None:
-        session.add(owner_grant)
-        await permissions_service.replace_resource_grants(
-            session,
-            resource_type="wiki",
-            resource_id=wiki.id,
-            guild_id=guild_context.guild_id,
-            initiative_id=initiative.id,
-            owner_id=current_user.id,
-            grants=wiki_in.grants,
-            actor_user_id=current_user.id,
-        )
-    else:
-        await resource_access.apply_app_initial_sharing(
-            session,
-            guild_context,
-            Tool.wiki,
-            resource_id=wiki.id,
-            initiative_id=initiative.id,
-            payload=wiki_in,
-            grants=wiki_in.grants,
-        )
     if wiki_in.tag_ids:
         await tags_service.set_entity_tags(
             session,

@@ -417,7 +417,7 @@ class GuildAccessError(Exception):
     raises this instead of an ``HTTPException`` so the access decision stays
     independent of how the caller speaks to the client: the REST dependency maps
     it to ``HTTPException(403)``, a WebSocket handler maps it to a ``1008`` close,
-    the keepalive ``sync-content`` POST maps it to its soft-error body. It carries
+    and the collaboration handover POST maps it the way REST does. It carries
     the machine-readable ``detail`` code so the REST mapping is byte-identical to
     the prior inline ``raise HTTPException``.
     """

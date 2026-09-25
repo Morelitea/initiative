@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { registerPushTokenApiV1PushRegisterPost } from "@/api/generated/push/push";
 import { useAuth } from "@/hooks/useAuth";
 import { useServer } from "@/hooks/useServer";
+import { returnPath } from "@/lib/returnPath";
 import FirebaseRuntime from "@/plugins/firebaseRuntime";
 
 export type PermissionState = PermissionStatus["receive"];
@@ -107,8 +108,9 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
             // Handle notification tap (navigate to target)
             console.log("Push notification action performed:", notification);
             const data = notification.notification.data;
-            if (data.target_path) {
-              const targetPath = data.target_path as string;
+            // A path in this app, or nowhere.
+            const targetPath = returnPath(data.target_path as string | undefined);
+            if (targetPath) {
               const guildId = data.guild_id as string | undefined;
               if (guildId) {
                 router.navigate({

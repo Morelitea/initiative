@@ -1,4 +1,3 @@
-import { Browser } from "@capacitor/browser";
 import { useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -6,19 +5,15 @@ import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import { useResumeAfterSignIn } from "@/hooks/useResumeAfterSignIn";
-import { useServer } from "@/hooks/useServer";
 
 export const OidcCallbackPage = () => {
   const { t } = useTranslation(["auth", "errors"]);
   const searchParams = useSearch({ strict: false }) as {
-    token?: string;
-    token_type?: string;
     error?: string;
     next?: string;
   };
   const { completeOidcLogin } = useAuth();
   const resumeAfterSignIn = useResumeAfterSignIn();
-  const { isNativePlatform } = useServer();
   const [status, setStatus] = useState(t("oidcCallback.finishing"));
   // The exchange is a one-shot side effect that also changes auth state, which
   // re-renders this page. Guard it so the callback is only ever consumed once,
@@ -40,16 +35,10 @@ export const OidcCallbackPage = () => {
     startedRef.current = true;
     const run = async () => {
       try {
-        // token is present for native (device_token); undefined for web (cookie was set by backend)
-        await completeOidcLogin(searchParams.token, searchParams.token_type === "device_token");
-        // Close the browser on mobile before navigating
-        if (isNativePlatform) {
-          try {
-            await Browser.close();
-          } catch {
-            // Browser may already be closed, ignore
-          }
-        }
+        // The server's redirect set this browser's session cookie. The app's
+        // sign-ins are finished by useDeepLinks and only land here to explain
+        // a failure.
+        await completeOidcLogin();
         // A step-up sign-in returns to the page it interrupted.
         await resumeAfterSignIn(searchParams.next);
       } catch (err) {
@@ -58,7 +47,7 @@ export const OidcCallbackPage = () => {
       }
     };
     void run();
-  }, [completeOidcLogin, isNativePlatform, resumeAfterSignIn, searchParams, t]);
+  }, [completeOidcLogin, resumeAfterSignIn, searchParams, t]);
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center">

@@ -22,7 +22,7 @@ from contextlib import suppress
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
 
-from pycrdt import Doc
+from pycrdt import Decoder, Doc
 from sqlalchemy import update as sa_update
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
@@ -36,6 +36,16 @@ from app.services.tenant.collaborative_resources import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _clocks(state_vector: bytes) -> dict[int, int]:
+    """A Yjs state vector as ``{client: clock}``: a count, then that many
+    ``(client, clock)`` pairs, all variable-length unsigned integers."""
+    decoder = Decoder(state_vector)
+    return {
+        decoder.read_var_uint(): decoder.read_var_uint()
+        for _ in range(decoder.read_var_uint())
+    }
 
 
 class CollaborationRoom:
@@ -199,6 +209,18 @@ class CollaborationRoom:
         is the asking.
         """
         return bytes(self.doc.get_state())
+
+    def known_to(self, state_vector: bytes) -> bool:
+        """Whether a client at ``state_vector`` has everything this room has.
+
+        Only then is that client's rendering a rendering of this room: one that
+        is missing somebody else's edits describes an older document.
+        """
+        theirs = _clocks(state_vector)
+        return all(
+            clock <= theirs.get(client, 0)
+            for client, clock in _clocks(self.state_vector()).items()
+        )
 
     def apply_update(self, update: bytes, connection: Any = None) -> None:
         """Apply a Yjs update from a client."""
@@ -382,23 +404,33 @@ class CollaborationManager:
                 )
                 return False
 
-    async def persist_room(
-        self,
-        guild_id: int,
-        resource_type: str,
-        resource_id: int,
-        session: AsyncSession,
-    ) -> None:
-        """Persist the current room state to the database.
+    async def save(self, room: CollaborationRoom) -> None:
+        """Write one room, through the system engine routed to its community.
 
-        ``session`` must be routed to ``guild_id``, whose schema holds the row
-        being written.
+        The one way a room reaches the database: the sweep, the last
+        connection leaving and a handed-over edit all come here, so none of
+        them depends on whose request happened to be last in the room.
+        """
+        async with SystemSessionLocal() as session:
+            await set_rls_context(session, guild_id=room.guild_id)
+            await self._write_room(room, session)
+
+    async def leave(self, guild_id: int, resource_type: str, resource_id: int) -> None:
+        """Save a room nothing is connected to any more, and retire it.
+
+        A room somebody is still in, or on their way into, is left alone. A
+        save that fails leaves the room dirty, and the sweep tries again.
         """
         async with self._lock:
             room = self._rooms.get((guild_id, resource_type, resource_id))
-        if room is None:
+        if room is None or not room.is_empty():
             return
-        await self._write_room(room, session)
+        if room.is_dirty:
+            try:
+                await self.save(room)
+            except Exception:
+                logger.exception(f"Failed to save {resource_type} {resource_id}")
+        await self.remove_room(guild_id, resource_type, resource_id)
 
     async def _write_room(self, room: CollaborationRoom, session: AsyncSession) -> None:
         """Write both views of one room in a single statement.
@@ -468,28 +500,27 @@ class CollaborationManager:
             await session.rollback()
 
     async def persist_dirty_rooms(self) -> int:
-        """Write every room that has changed since it was last written.
+        """Write every room that has changed since it was last written, then
+        retire the ones nobody is in.
 
-        Returns how many were written. A room nobody has touched costs nothing:
-        serializing an unchanged document and rewriting its column every sweep
-        is the kind of idle work that scales with how many documents are open
-        rather than with how much is happening in them.
+        Returns how many were written. A room nobody has touched costs nothing
+        to keep open, and one nobody is in any more — its last save failed, or
+        the connection that left could not finish — is retired here once it is
+        saved, rather than held for the life of the process.
         """
         async with self._lock:
             targets = [room for room in self._rooms.values() if room.is_dirty]
         for room in targets:
             try:
-                # Nobody is doing this: a sweep writing back what an open
-                # room already holds. It runs on the system engine and routes
-                # into the community for its schema, which the policies admit
-                # by the connection's own login.
-                async with SystemSessionLocal() as session:
-                    await set_rls_context(session, guild_id=room.guild_id)
-                    await self._write_room(room, session)
+                await self.save(room)
             except Exception:
                 logger.exception(
                     f"Sweep failed to persist {room.resource_type} {room.resource_id}"
                 )
+        async with self._lock:
+            idle = [key for key, room in self._rooms.items() if room.is_empty()]
+        for key in idle:
+            await self.remove_room(*key)
         return len(targets)
 
     def ensure_persistence_loop(self) -> None:

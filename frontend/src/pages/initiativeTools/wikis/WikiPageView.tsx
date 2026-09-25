@@ -60,6 +60,17 @@ export const WikiPageView = () => {
   const initiativeId = Number(initiativeIdParam);
   const validIds = Number.isFinite(wikiId) && Number.isFinite(pageId);
 
+  // The newest body regardless of whether it has been sent, which is what the
+  // reading view is shown the moment somebody stops writing. The server hears
+  // about a body on a pause and, in a live room, writes it on a sweep of its
+  // own — both of which finish long after the eye does.
+  const latestBody = useRef<{ pageId: number; state: SerializedEditorState } | null>(null);
+  // What this tab last rendered, for the room to save as the page leaves.
+  const finalContent = useCallback(() => {
+    const latest = latestBody.current;
+    return latest && latest.pageId === pageId ? latest.state : undefined;
+  }, [pageId]);
+
   // Live co-editing, over the same room documents use — a page is just
   // another body the server keeps a Yjs document for. The path names the page
   // through its wiki, the way every other address for it does.
@@ -68,6 +79,7 @@ export const WikiPageView = () => {
     // Only while somebody is writing. A wiki is read far more than it is
     // written, so a reader opens no room and costs the server nothing.
     enabled: validIds && editWanted,
+    finalContent,
     onError: (error) => {
       toast.error(t("error"), { description: error.message });
     },
@@ -149,11 +161,6 @@ export const WikiPageView = () => {
   // only ever meant for the page they were typed into.
   const pendingBody = useRef<{ pageId: number; state: SerializedEditorState } | null>(null);
   const [bodyRevision, setBodyRevision] = useState(0);
-  // The newest body regardless of whether it has been sent, which is what the
-  // reading view is shown the moment somebody stops writing. The server hears
-  // about a body on a pause and, in a live room, writes it on a sweep of its
-  // own — both of which finish long after the eye does.
-  const latestBody = useRef<{ pageId: number; state: SerializedEditorState } | null>(null);
   const [writtenBody, setWrittenBody] = useState<{
     pageId: number;
     state: SerializedEditorState;

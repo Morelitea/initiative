@@ -3,7 +3,7 @@ from typing import Annotated, List, Optional, Sequence
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
 from sqlalchemy.orm import selectinload
-from sqlmodel import select, delete
+from sqlmodel import select
 
 from app.db.session import routed_guild_id
 from app.api.actor_route import ActorRoute
@@ -28,9 +28,6 @@ from app.core.messages import (
     UserMessages,
 )
 from app.core.tools import TOGGLEABLE_TOOLS, Tool
-from app.models.tenant.document import Document
-from app.models.tenant.project import Project
-from app.models.tenant.resource_grant import ResourceGrant, ResourceAccessLevel
 from app.models.tenant.initiative import (
     Initiative,
     InitiativeJoinRequest,
@@ -41,7 +38,6 @@ from app.models.tenant.initiative import (
     PermissionKey,
 )
 from app.models.platform.guild import GuildRole
-from app.models.tenant.task import Task, TaskAssignee
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
@@ -1690,51 +1686,14 @@ async def remove_initiative_member(
             detail={"role": role_name, "via": "manager"},
         )
 
-        project_ids_result = await session.exec(
-            select(Project.id).where(Project.initiative_id == initiative_id)
+        # A guild admin re-homes the owner grants that stay through the
+        # transfer-ownership action.
+        await initiatives_service.drop_member_grants(
+            session, user_id=user_id, initiative_ids=[initiative_id]
         )
-        project_ids = [project_id for project_id in project_ids_result.all()]
-
-        if project_ids:
-            # Drop this user's read/write project grants in the initiative —
-            # access that came with the membership goes with it. Owner grants
-            # are excluded: they record who the project belongs to, and grant
-            # nothing on their own once the membership row is gone. A guild
-            # admin re-homes them through the transfer-ownership action.
-            delete_permissions_stmt = (
-                delete(ResourceGrant)
-                .where(ResourceGrant.resource_type == "project")
-                .where(ResourceGrant.user_id == user_id)
-                .where(ResourceGrant.level != ResourceAccessLevel.owner)
-                .where(ResourceGrant.resource_id.in_(tuple(project_ids)))
-            )
-            await session.exec(delete_permissions_stmt)
-
-            # Remove task assignments for this user in all initiative projects
-            task_ids_result = await session.exec(
-                select(Task.id).where(Task.project_id.in_(tuple(project_ids)))
-            )
-            task_ids = [task_id for task_id in task_ids_result.all()]
-            if task_ids:
-                delete_stmt = (
-                    delete(TaskAssignee)
-                    .where(TaskAssignee.user_id == user_id)
-                    .where(TaskAssignee.task_id.in_(tuple(task_ids)))
-                )
-                await session.exec(delete_stmt)
-
-        # Same for documents: read/write grants go, the owner grant stays.
-        await session.exec(
-            delete(ResourceGrant).where(
-                ResourceGrant.resource_type == "document",
-                ResourceGrant.user_id == user_id,
-                ResourceGrant.level != ResourceAccessLevel.owner,
-                ResourceGrant.resource_id.in_(
-                    select(Document.id).where(Document.initiative_id == initiative_id)
-                ),
-            )
+        await initiatives_service.clear_user_task_assignments_for_initiative(
+            session, initiative_id=initiative_id, user_id=user_id
         )
-
         await session.commit()
         # Removed from the initiative — drop this user's live content streams in
         # the guild immediately (initiative-level access change).

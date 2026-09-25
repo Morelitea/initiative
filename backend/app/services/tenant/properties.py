@@ -31,7 +31,6 @@ from app.models.platform.identity_ref import IdentityEntity
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.document import Document
-from app.models.tenant.initiative import InitiativeMember
 from app.models.tenant.property import (
     CalendarEventPropertyValue,
     DocumentPropertyValue,
@@ -45,6 +44,7 @@ from app.schemas.tenant.property import (
     PropertySummary,
     PropertyValueInput,
 )
+from app.services.tenant import initiatives as initiatives_service
 
 # Cap on the number of property predicates accepted by list endpoints.
 # Bounds the per-request subquery count against each entity's value table.
@@ -216,21 +216,6 @@ def _parsed_options(defn: PropertyDefinition) -> List[PropertyOption]:
     return parsed
 
 
-async def _ensure_user_in_initiative(
-    session: AsyncSession, user_id: int, initiative_id: int
-) -> None:
-    stmt = select(InitiativeMember).where(
-        InitiativeMember.initiative_id == initiative_id,
-        InitiativeMember.user_id == user_id,
-    )
-    result = await session.exec(stmt)
-    if result.one_or_none() is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=PropertyMessages.USER_NOT_IN_INITIATIVE,
-        )
-
-
 def _is_empty_value(raw_value: Any) -> bool:
     """Return True when ``raw_value`` represents "attached but no value".
 
@@ -311,7 +296,13 @@ async def _validate_value_for_type(
     elif ptype is PropertyType.user_reference:
         if not isinstance(raw_value, int) or isinstance(raw_value, bool):
             raise _bad_value()
-        await _ensure_user_in_initiative(session, raw_value, initiative_id)
+        if not await initiatives_service.get_initiative_membership(
+            session, initiative_id=initiative_id, user_id=raw_value
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=PropertyMessages.USER_NOT_IN_INITIATIVE,
+            )
         cols["value_user_id"] = raw_value
     else:  # pragma: no cover - defensive; PropertyType is closed
         raise _bad_value()

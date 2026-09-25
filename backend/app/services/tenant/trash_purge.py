@@ -26,8 +26,10 @@ from app.db.session import SystemSessionLocal, set_rls_context
 from app.db.soft_delete_filter import SOFT_DELETE_MODELS, select_including_deleted
 from app.models.platform.guild import Guild, GuildStatus
 from app.services import audit as audit_service
-from app.services.storage import get_guild_storage
-from app.services.tenant.attachments import release_unclaimed_pasted_images
+from app.services.tenant.attachments import (
+    delete_blobs,
+    release_unclaimed_pasted_images,
+)
 from app.services.tenant.lifecycle_tree import parents_first
 from app.services.tenant.soft_delete import hard_purge_entities
 
@@ -57,15 +59,17 @@ def _entity_type(model: type) -> str:
 
 async def _run_purge_pass(
     session, *, now: datetime, guild_id: int | None = None
-) -> None:
-    """Inner loop: walks _PURGE_TOP_DOWN once on the supplied session.
-    Caller commits. Factored out so tests can drive it with their own
+) -> set[str]:
+    """Inner loop: walks _PURGE_TOP_DOWN once on the supplied session, and
+    returns the stored names of the uploads that went. Caller commits, then
+    deletes their blobs. Factored out so tests can drive it with their own
     session against the test DB.
 
     With ``guild_id``, a pass that purged anything records it once, with the
     count per entity type. The session is routed into the guild with no
     account behind it, so the record carries no actor."""
     purged: dict[str, int] = {}
+    released: set[str] = set()
     for model in _PURGE_TOP_DOWN:
         # A row an earlier pass took with its parent is already gone from the
         # database, so it is not found here.
@@ -76,7 +80,7 @@ async def _run_purge_pass(
         )
         rows = list((await session.exec(stmt)).all())
         if rows:
-            await hard_purge_entities(session, rows)
+            released |= await hard_purge_entities(session, rows)
             purged[_entity_type(model)] = len(rows)
 
     if guild_id is not None and purged:
@@ -87,6 +91,7 @@ async def _run_purge_pass(
             guild_id=guild_id,
             detail={"via": "sweep", "counts": purged},
         )
+    return released
 
 
 async def _purge_all_guilds(session, *, now: datetime) -> None:
@@ -118,14 +123,12 @@ async def _purge_all_guilds(session, *, now: datetime) -> None:
         # ids collide across schemas, so clear the identity map between guilds.
         session.expunge_all()
         await set_rls_context(session, guild_id=guild_id)
-        await _run_purge_pass(session, now=now, guild_id=guild_id)
+        released = await _run_purge_pass(session, now=now, guild_id=guild_id)
         # Pictures pasted and never saved — the tab was closed rather than
         # left — go once their grace period is over.
-        unclaimed = await release_unclaimed_pasted_images(session, now=now)
+        released |= await release_unclaimed_pasted_images(session, now=now)
         await session.commit()
-        storage = get_guild_storage(guild_id)
-        for name in unclaimed:
-            storage.delete(name)
+        delete_blobs(guild_id, released)
 
 
 async def process_trash_purges() -> None:

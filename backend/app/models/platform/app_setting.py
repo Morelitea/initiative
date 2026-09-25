@@ -101,6 +101,12 @@ class AppSetting(SQLModel, table=True):
     previous_version: Optional[str] = Field(
         default=None, sa_column=Column(String(32), nullable=True)
     )
+    # When this deployment first booted with each change in
+    # ``app.core.transitions``, by name, as an ISO timestamp.
+    transitions: dict[str, str] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default=text("'{}'::jsonb")),
+    )
 
     # Which ways in this deployment permits. A Postgres enum array: adding a
     # method later is a value on the type, not a column per method, and the

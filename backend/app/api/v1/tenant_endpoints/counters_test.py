@@ -6,10 +6,12 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
+from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.testing import (
     Actor,
     create_counter_group,
     create_initiative,
+    create_resource_grant,
     grant_role_permission,
 )
 
@@ -689,6 +691,10 @@ async def test_duplicate_counter_group(client: AsyncClient, acting_user):
     assert copy["id"] != sid
     assert copy["name"] == "Original (Copy)"
     assert copy["my_permission_level"] == "owner"
+    # The source's sharing comes along: it was readable by the whole initiative.
+    assert any(
+        g["all_initiative_members"] and g["level"] == "read" for g in copy["grants"]
+    )
 
     # Counters are copied with their values, bounds and order preserved.
     by_name = {
@@ -724,12 +730,13 @@ async def test_duplicate_counter_group_custom_name(client: AsyncClient, acting_u
 
 
 @pytest.mark.integration
-async def test_duplicate_counter_group_read_user_becomes_owner(
-    client: AsyncClient, session: AsyncSession, acting_user
+@pytest.mark.parametrize(("level", "expected"), [("read", 403), ("write", 201)])
+async def test_duplicate_counter_group_needs_write_on_source(
+    client: AsyncClient, session: AsyncSession, acting_user, level: str, expected: int
 ):
-    """A read-only user owns the copy they make: read on the source is what
-    lets them copy FROM it, and the right to create one is what lets them make
-    it — the same gate the New button answers to."""
+    """Copying a group takes write on it, and the right to create one in its
+    initiative — the same gate the New button answers to. Whoever makes the
+    copy owns it."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     member = await acting_user(
         guild_role=GuildRole.member,
@@ -738,24 +745,21 @@ async def test_duplicate_counter_group_read_user_becomes_owner(
         initiative_role="member",
     )
     await grant_role_permission(session, admin.initiative, "create_counter_groups")
-    source = await _create_group(client, admin, name="Shared")
-    sid = source["id"]
-    await _add_counter(client, admin, sid, name="A", position="0")
-
-    grant = await client.put(
-        admin.g(f"/counter-groups/{sid}/grants"),
-        headers=admin.headers,
-        json=[{"user_id": member.user.id, "level": "read"}],
+    source = await create_counter_group(session, admin.initiative, admin.user)
+    await create_resource_grant(
+        session, source, level=ResourceAccessLevel(level), user=member.user
     )
-    assert grant.status_code == 200, grant.text
 
     response = await client.post(
-        member.g(f"/counter-groups/{sid}/duplicate"),
+        member.g(f"/counter-groups/{source.id}/duplicate"),
         headers=member.headers,
         json={},
     )
-    assert response.status_code == 201, response.text
-    assert response.json()["my_permission_level"] == "owner"
+    assert response.status_code == expected, response.text
+    if expected == 403:
+        assert response.json()["detail"] == "COUNTER_GROUP_WRITE_ACCESS_REQUIRED"
+    else:
+        assert response.json()["my_permission_level"] == "owner"
 
 
 @pytest.mark.integration

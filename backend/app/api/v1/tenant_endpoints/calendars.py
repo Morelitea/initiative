@@ -15,8 +15,6 @@ from datetime import datetime, timezone
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import selectinload
-from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api import resource_access
@@ -32,11 +30,10 @@ from app.api.deps import (
     app_scope,
     get_guild_membership,
 )
-from app.core.messages import CalendarMessages, InitiativeMessages
+from app.core.messages import CalendarMessages
 from app.core.tools import Tool
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.guild_app import GuildApp
-from app.models.tenant.initiative import Initiative
 from app.models.platform.user import User
 from app.schemas.tenant.calendar import (
     CalendarCreate,
@@ -44,10 +41,8 @@ from app.schemas.tenant.calendar import (
     CalendarUpdate,
     serialize_calendar,
 )
-from app.services import permissions as permissions_service
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import guild_apps as guild_apps_service
-from app.services.tenant import ownership as ownership_service
 from app.services.tenant import tags as tags_service
 
 router = APIRouter(route_class=ActorRoute)
@@ -61,28 +56,6 @@ CalendarsWrite = Annotated[ActorContext, Depends(app_scope("calendars:write"))]
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-async def _get_initiative_for_calendar(
-    session: AsyncSession,
-    initiative_id: int,
-) -> Initiative:
-    stmt = (
-        select(Initiative)
-        .where(Initiative.id == initiative_id)
-        .options(
-            selectinload(Initiative.memberships),
-            selectinload(Initiative.roles),
-        )
-    )
-    result = await session.exec(stmt)
-    initiative = result.one_or_none()
-    if not initiative:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=InitiativeMessages.NOT_FOUND,
-        )
-    return initiative
 
 
 async def _refetch_calendar(session: AsyncSession, calendar_id: int) -> Calendar:
@@ -142,14 +115,14 @@ async def create_calendar(
     """
     resource_access.refuse_app_sharing(guild_context, calendar_in, "grants")
     app: Optional[GuildApp] = None
-    initiative: Optional[Initiative] = None
+    initiative_id = calendar_in.initiative_id
 
-    if calendar_in.initiative_id is None and current_user is None:
+    if initiative_id is None and current_user is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=CalendarMessages.APP_INITIATIVE_REQUIRED,
         )
-    if calendar_in.initiative_id is None:
+    if initiative_id is None:
         # Held until this request commits, so the calendar and the app it
         # belongs to cannot part company midway: an uninstall arriving now waits
         # and takes this calendar with it.
@@ -165,19 +138,9 @@ async def create_calendar(
                 detail=CalendarMessages.GUILD_APP_REQUIRED,
             )
     else:
-        initiative = await _get_initiative_for_calendar(
-            session, calendar_in.initiative_id
+        await resource_access.prepare_create(
+            session, Tool.calendar, initiative_id, current_user, guild_context
         )
-        if not initiative.calendars_enabled:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=Tool.calendar.feature_disabled_code,
-            )
-        await resource_access.require_create(
-            session, Tool.calendar, initiative, current_user, guild_context
-        )
-
-    initiative_id = initiative.id if initiative is not None else None
 
     calendar = Calendar(
         initiative_id=initiative_id,
@@ -189,41 +152,17 @@ async def create_calendar(
     session.add(calendar)
     await session.flush()
 
-    # The creator's owner grant. An installed app's is written by the table's
-    # own trigger as the row goes in.
-    owner_permission = ownership_service.creator_owner_grant(
+    # The default sharing, at guild scope, reads as every member of the guild.
+    await resource_access.grant_initial_sharing(
+        session,
         guild_context,
-        tool=Tool.calendar,
+        Tool.calendar,
+        user=current_user,
         resource_id=calendar.id,
         initiative_id=initiative_id,
+        payload=calendar_in,
+        grants=calendar_in.grants,
     )
-    if owner_permission is not None and current_user is not None:
-        session.add(owner_permission)
-
-        # Apply the initial sharing exactly the way edits do — one grant list,
-        # one code path (defaults to Viewer for all initiative members, which
-        # at guild scope reads as every member of the guild). An installed
-        # app's is applied below, when it asked for one.
-        await permissions_service.replace_resource_grants(
-            session,
-            resource_type="calendar",
-            resource_id=calendar.id,
-            guild_id=guild_context.guild_id,
-            initiative_id=initiative_id,
-            owner_id=current_user.id,
-            grants=calendar_in.grants,
-            actor_user_id=current_user.id,
-        )
-    else:
-        await resource_access.apply_app_initial_sharing(
-            session,
-            guild_context,
-            Tool.calendar,
-            resource_id=calendar.id,
-            initiative_id=initiative_id,
-            payload=calendar_in,
-            grants=calendar_in.grants,
-        )
 
     # The app is the container, so it is answerable for this too: uninstalling
     # walks its artifacts and trashes each one.

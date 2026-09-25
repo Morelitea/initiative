@@ -34,8 +34,6 @@
     "counters_one": "{{count}} compteur",
     "counters_other": "{{count}} compteurs"
   },
-  "generatedBy": "généré le {{date}} par {{author}}",
-  "exported": "exporté le {{date}}",
   "round": "tour {{round}}",
   "pageOf": "sur",
   "status": {
@@ -62,7 +60,6 @@
     "start": "Début"
   },
   "fallback": {
-    "unknownAuthor": "inconnu",
     "untitled": "(sans titre)"
   }
 }

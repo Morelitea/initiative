@@ -32,9 +32,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Read notifications are cleared after 30 days** — once read, a notification stays in your list for 30 days. Unread ones stay until you read them.
 - **Opening something reads its notifications** — opening a task, document, event or anything else marks every unread notification about it as read, so the bell and the dots clear as you catch up.
 - **Repeated mentions in a document are one notification** — mentions of you in the same document join one unread notification until you read it, instead of a new email and push each time.
+- **Duplicates keep their sharing and need the create permission** — duplicating a project, document or counter group now shares the copy exactly as the original is shared, as long as it stays in the same initiative, and needs the permission to create one there. A project's copy used to be readable by everyone in the initiative, a document's copy by nobody but you, and a counter group's copy dropped its "all members" sharing.
+- **A project is owned by whoever makes it** — `POST /projects/` no longer takes an `owner_id`. To give a project to someone else, transfer its ownership after creating it.
+- **Export date and author move into the file's properties** — PDF and Markdown exports of documents, wikis, projects, queues, counter groups and task lists no longer print "exported …" or "generated … by …" under the title. Who exported the file and when is kept in the PDF, Word or Excel document properties, and as a hidden comment at the top of a Markdown file. Reports keep their counts, and the download's file name still has the date.
 
 ### Fixed
 
+- **Leaving an initiative ends access to everything in it** — removing someone from an initiative, or someone leaving the community, now removes the access they were given to its queues, counters, calendars, dashboards, notices, pictures and wikis too. Before, only projects and documents were covered, and the rest came back if they rejoined.
+- **Duplicating a file document copies the file** — the copy used to have no file to download.
+- **Document exports follow the documents switch** — documents can no longer be exported from an initiative with documents turned off.
+- **Pictures stay while something still shows them** — taking a picture out of a document deleted it, even when another document, task or comment still showed it. It now stays until nothing shows it. Changing the cover of a picture file document no longer deletes the file itself.
+- **Duplicated documents count toward storage** — the pictures in a duplicated document are real copies, and they now count toward the community's storage limit like any other upload.
 - **Account erasure emails arrive once** — the email confirming an account was erased could arrive twice. It now goes out once.
 - **Turning off password sign-in covers the app** — the app's email-and-password sign-in kept working after an operator turned password sign-in off. It is now refused like the browser's.
 - **A community's shorter session limit applies to every sign-in** — the app's sign-in, single sign-on, and the extra check a community asks for all gave out access that outlasted the limit. Only the browser's password sign-in kept to it before.
@@ -43,12 +51,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Comments go to the trash with what they're on** — deleting a project, queue, counter group, calendar or dashboard now moves its comments to the trash with it, and restoring it brings them back. Before, they stayed behind.
 - **A deleted wiki shows once in the trash** — the trash lists a deleted wiki as one item. Before, it also listed each of its pages and comments, and restoring one of those on its own failed.
 - **Faster delete, restore and purge** — deleting, restoring, purging and archiving something large, like an initiative with thousands of tasks, now takes a few database queries instead of one per item inside it.
+- **Signing in to the app through a browser** — single sign-on and passkey sign-in in the app now count toward a community that asks for that sign-in, and they finish even when the phone closed the app while the browser was open. Signing in to the app with an emailed code now lasts past the next launch instead of asking again. Older versions of the app keep signing in as before for 60 days after your server updates, then ask to be updated.
+- **A single sign-on finishes only in the browser that started it** — following a sign-in link that began in another browser now stops with an error instead of signing that browser in.
 - **A search error at startup** — every start logged `search reindex failed for guild_template`. It was harmless, since search in your communities was already up to date, and it no longer appears.
 - **Queues and counter groups stay live after a dropped connection** — their pages reconnect on their own after a network drop or a server restart, and catch up on anything that changed meanwhile. Before, they stopped updating until the page was reloaded.
 - **Exports on servers with more than one process** — an export could be made twice and announce itself twice, and one that ran past 15 minutes started over. Each export is now made once.
 - **Old export and import files are cleaned up everywhere** — expired exports and unconfirmed imports in read-only, suspended or on-hold communities were kept forever. They now expire like everyone else's.
 - **Importing a tool's export shows it straight away** — the list you imported into now refreshes without reloading the page.
 - **Files in a backup are checked when it is restored** — each file is stored as what it actually is. One that isn't a picture or a file type a document can hold is left out and listed in the import's report.
+- **CSV attachments from Jira and Confluence become spreadsheets** — a `.csv` or `.tsv` attached to an issue or page arrives as a spreadsheet document. Attachments no document can hold, such as zips or videos, are left out when the site is read and counted in the import plan, so the plan matches what arrives.
 
 ## [0.72.0] - 2026-09-24
 

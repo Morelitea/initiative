@@ -84,7 +84,8 @@ def test_the_default_leaves_room_for_a_calendar_import():
         "/api/v1/c/1/documents/42",
         "/api/v1/c/1/wikis/3/pages",
         "/api/v1/c/1/wikis/3/pages/9",
-        "/api/v1/c/1/collaboration/documents/42/sync-content",
+        "/api/v1/c/1/collaboration/documents/42/collaborate",
+        "/api/v1/c/1/collaboration/wikis/3/pages/9/collaborate",
     ],
 )
 def test_the_routes_that_write_a_document_take_a_whiteboard(path):

@@ -146,162 +146,63 @@ def normalize_upload_url(url: str | None) -> str | None:
     return path
 
 
-def guild_id_from_upload_url(url: str | None) -> int | None:
-    """Extract the guild id from a ``/uploads/{guild_id}/{filename}`` URL.
+def delete_blobs(guild_id: int, filenames: Iterable[str]) -> None:
+    """Remove these stored files from the guild's storage.
 
-    The guild rides in the URL path (it's part of the canonical upload URL), so
-    storage ops can route to the right guild namespace via the resolver.
+    Call it with the names a release or purge returned, after the commit that
+    removed their ``uploads`` rows, so a rolled-back write leaves the file.
     """
-    normalized = normalize_upload_url(url)
-    if not normalized:
-        return None
-    # normalized is ``/uploads/{guild_id}/{filename}`` -> ['', 'uploads', gid, ...]
-    parts = normalized.split("/")
-    if len(parts) < 4:
-        return None
-    try:
-        return int(parts[2])
-    except ValueError:
-        return None
+    storage = get_guild_storage(guild_id)
+    for name in set(filenames):
+        storage.delete(name)
 
 
-def delete_upload_by_url(url: str | None) -> None:
-    normalized = normalize_upload_url(url)
-    if not normalized:
-        return
-    guild_id = guild_id_from_upload_url(normalized)
-    if guild_id is None:
-        return
-    get_guild_storage(guild_id).delete(Path(normalized).name)
+def upload_names(urls: Iterable[str | None]) -> Set[str]:
+    """The stored names these URLs address."""
+    return {Path(n).name for n in (normalize_upload_url(u) for u in urls) if n}
 
 
-def delete_uploads_by_urls(urls: Iterable[str]) -> None:
-    seen: Set[str] = set()
-    for url in urls:
-        normalized = normalize_upload_url(url)
-        if not normalized or normalized in seen:
-            continue
-        seen.add(normalized)
-        delete_upload_by_url(normalized)
+async def purge_document_uploads(session, documents: Iterable[Any]) -> Set[str]:
+    """Delete the uploads of documents about to be hard-purged.
 
+    A file document's file, and every version of it, backs that document alone,
+    so they go with it. What a document shows — pictures in its body, its
+    featured image — goes only when nothing that stays shows it too; a trashed
+    document still counts, since it may be restored.
 
-async def purge_document_uploads(session, documents: Iterable[Any]) -> None:
-    """Delete Upload rows + filesystem blobs for documents about to be hard-purged.
-
-    Handles both shapes:
-    - ``document_type == "file"`` — Document and its sibling Upload row are
-      a 1:1 binding (the Upload was created at the same moment the Document
-      was created via POST /documents/upload). Always cleans up.
-    - ``document_type == "native"`` — embedded URLs in ``content`` JSONB and
-      ``featured_image_url`` may be shared across multiple documents. Runs
-      an orphan check; only removes Upload + blob when no OTHER non-purged
-      document still references the URL. Soft-deleted-but-not-purged
-      documents still pin uploads (the user might restore them).
-
-    Caller must use a session that can DELETE from ``uploads`` — typically
-    ``SystemSessionDep`` for the auto-purge worker, or an admin-role
-    ``RLSSessionDep`` for the manual "Delete Now" action. Caller commits.
+    Caller must use a session that can DELETE from ``uploads``; caller commits,
+    then deletes the blobs of the stored names returned.
     """
-    from sqlalchemy import delete as sa_delete, or_, text
     from sqlmodel import select
 
-    from app.db.soft_delete_filter import select_including_deleted
     from app.models.tenant.document import Document, DocumentFileVersion, DocumentType
-    from app.models.tenant.upload import Upload
 
-    docs_list = list(documents)
-    if not docs_list:
-        return
+    doomed = list(documents)
+    if not doomed:
+        return set()
+    doomed_ids = {d.id for d in doomed}
 
-    doomed_ids = {d.id for d in docs_list}
-
-    # 1. File-type docs: 1:1 cleanup (no orphan check needed — the file
-    #    backs exactly one document by construction).
-    file_url_filenames: Set[str] = set()
-    file_urls_to_unlink: Set[str] = set()
-    for d in docs_list:
-        if d.document_type == DocumentType.file and d.file_url:
-            file_urls_to_unlink.add(d.file_url)
-            normalized = normalize_upload_url(d.file_url)
-            if normalized:
-                file_url_filenames.add(Path(normalized).name)
-
-    # Historical version blobs for the doomed file docs (the documents row
-    # only mirrors the current version; older versions live in
-    # document_file_versions). The version rows themselves cascade-delete with
-    # the document; here we clean up their Upload rows + blobs.
-    version_rows = await session.exec(
+    versions = await session.exec(
         select(DocumentFileVersion.file_url).where(
             DocumentFileVersion.document_id.in_(doomed_ids)
         )
     )
-    for version_url in version_rows.all():
-        if not version_url:
-            continue
-        file_urls_to_unlink.add(version_url)
-        normalized = normalize_upload_url(version_url)
-        if normalized:
-            file_url_filenames.add(Path(normalized).name)
+    stored = upload_names(
+        [d.file_url for d in doomed if d.document_type == DocumentType.file]
+    ) | upload_names(versions.all())
+    removed = await _drop_upload_rows(session, stored)
 
-    if file_url_filenames:
-        await session.exec(
-            sa_delete(Upload).where(Upload.filename.in_(file_url_filenames))
-        )
-
-    # 2. Native-doc embedded URLs: orphan-check before deletion.
-    embedded_urls: Set[str] = set()
-    for d in docs_list:
-        if d.document_type == DocumentType.native:
-            embedded_urls.update(extract_upload_urls(d.content))
-            if d.featured_image_url:
-                normalized = normalize_upload_url(d.featured_image_url)
-                if normalized:
-                    embedded_urls.add(normalized)
-
-    orphan_urls: Set[str] = set()
-    if embedded_urls:
-        for url in embedded_urls:
-            normalized = normalize_upload_url(url)
-            if not normalized:
-                continue
-            # Escape LIKE wildcards in the URL before interpolating —
-            # filenames legitimately contain ``_`` (treated as "any single
-            # char" by LIKE) and could in theory contain ``%`` too. Without
-            # this, the orphan check matches unintended URLs and leaves
-            # blobs behind. ESCAPE '\\' opts in to backslash escaping.
-            safe = (
-                normalized.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-            )
-            stmt = (
-                select_including_deleted(Document.id)
-                .where(
-                    or_(
-                        text(
-                            "documents.content::text LIKE :pattern ESCAPE '\\'"
-                        ).bindparams(pattern=f"%{safe}%"),
-                        Document.featured_image_url == normalized,
-                    )
-                )
-                .where(~Document.id.in_(doomed_ids))
-                .limit(1)
-            )
-            result = await session.exec(stmt)
-            if result.one_or_none() is None:
-                orphan_urls.add(normalized)
-
-        if orphan_urls:
-            orphan_filenames = {Path(u).name for u in orphan_urls}
-            await session.exec(
-                sa_delete(Upload).where(Upload.filename.in_(orphan_filenames))
-            )
-
-    # 3. Filesystem blobs — best-effort, after the rows are deleted so the
-    #    invariant "Upload row exists ⇒ blob exists" holds in any
-    #    intermediate state.
-    delete_uploads_by_urls(file_urls_to_unlink | orphan_urls)
+    shown: Set[str] = set()
+    for d in doomed:
+        shown |= extract_upload_urls(d.content)
+        if d.featured_image_url:
+            shown.add(d.featured_image_url)
+    return removed | await release_uploads(
+        session, shown, leaving={Document: doomed_ids}
+    )
 
 
-async def purge_gallery_image_uploads(session, images: Iterable[Any]) -> None:
+async def purge_gallery_image_uploads(session, images: Iterable[Any]) -> Set[str]:
     """Delete Upload rows + blobs for pictures about to be hard-purged.
 
     A picture's blobs back exactly one picture by construction — the file and
@@ -309,43 +210,24 @@ async def purge_gallery_image_uploads(session, images: Iterable[Any]) -> None:
     version rows go with the picture (FK cascade), and this takes their
     ``Upload`` rows and the bytes behind them.
 
-    Caller must use a session that can DELETE from ``uploads``; caller commits.
+    Caller must use a session that can DELETE from ``uploads``; caller commits,
+    then deletes the blobs of the stored names returned.
     """
-    from sqlalchemy import delete as sa_delete
     from sqlmodel import select
 
     from app.models.tenant.gallery import GalleryImageVersion
-    from app.models.tenant.upload import Upload
 
     doomed = list(images)
     if not doomed:
-        return
-
-    urls: Set[str] = set()
-    for image in doomed:
-        for url in (image.file_url, image.thumbnail_url):
-            normalized = normalize_upload_url(url)
-            if normalized:
-                urls.add(normalized)
-
-    version_rows = await session.exec(
+        return set()
+    versions = await session.exec(
         select(GalleryImageVersion.file_url, GalleryImageVersion.thumbnail_url).where(
             GalleryImageVersion.gallery_image_id.in_({i.id for i in doomed})
         )
     )
-    for file_url, thumbnail_url in version_rows.all():
-        for url in (file_url, thumbnail_url):
-            normalized = normalize_upload_url(url)
-            if normalized:
-                urls.add(normalized)
-
-    if urls:
-        await session.exec(
-            sa_delete(Upload).where(Upload.filename.in_({Path(u).name for u in urls}))
-        )
-    # Blobs after the rows, so "Upload row exists ⇒ blob exists" holds in any
-    # intermediate state.
-    delete_uploads_by_urls(urls)
+    urls = [u for image in doomed for u in (image.file_url, image.thumbnail_url)]
+    urls += [u for row in versions.all() for u in row]
+    return await _drop_upload_rows(session, upload_names(urls))
 
 
 def upload_urls_in_markdown(text: str | None) -> Set[str]:
@@ -369,12 +251,25 @@ def _is_pasted(url: str) -> bool:
 UNCLAIMED_PASTED_IMAGE_GRACE = timedelta(hours=24)
 
 
-def _pasted_bodies() -> tuple[tuple[type, str], ...]:
-    """The markdown columns a pasted picture can be written into."""
+def _upload_columns() -> tuple[tuple[type, str], ...]:
+    """Every column a stored upload can be shown from: the bodies people write,
+    comments, and the file columns of documents and pictures."""
     from app.models.tenant.comment import Comment
-    from app.models.tenant.task import Task
+    from app.models.tenant.document import Document, DocumentFileVersion
+    from app.models.tenant.gallery import GalleryImage, GalleryImageVersion
+    from app.services.tenant.content_references import BODY_COLUMNS
 
-    return ((Task, "description"), (Comment, "content"))
+    return (
+        *BODY_COLUMNS.values(),
+        (Comment, "content"),
+        (Document, "featured_image_url"),
+        (Document, "file_url"),
+        (DocumentFileVersion, "file_url"),
+        (GalleryImage, "file_url"),
+        (GalleryImage, "thumbnail_url"),
+        (GalleryImageVersion, "file_url"),
+        (GalleryImageVersion, "thumbnail_url"),
+    )
 
 
 #: The rows a caller is taking the pictures OUT of — they no longer count as
@@ -383,17 +278,19 @@ Leaving = Mapping[type, Iterable[int]]
 
 
 async def _still_shown(session, filename: str, *, leaving: Leaving) -> bool:
-    """Whether any task description or comment — archived or in the trash
-    included — other than those ``leaving`` shows this stored file."""
+    """Whether anything stored — archived or in the trash included — other than
+    the rows ``leaving`` shows this stored file."""
+    from sqlalchemy import Text, cast
+
     from app.db.soft_delete_filter import select_including_deleted
 
     # LIKE wildcards in the name are escaped: a filename carries ``_``. The
     # name alone is matched — every stored name is unique — so an address
     # written with or without an origin is found either way.
     safe = filename.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    for model, column in _pasted_bodies():
+    for model, column in _upload_columns():
         stmt = select_including_deleted(model.id).where(  # type: ignore[attr-defined]
-            getattr(model, column).like(f"%{safe}%", escape="\\")
+            cast(getattr(model, column), Text).like(f"%{safe}%", escape="\\")
         )
         ids = set(leaving.get(model, ()))
         if ids:
@@ -403,38 +300,55 @@ async def _still_shown(session, filename: str, *, leaving: Leaving) -> bool:
     return False
 
 
-async def _drop_upload_rows(session, filenames: Set[str]) -> None:
+async def _drop_upload_rows(session, filenames: Set[str]) -> Set[str]:
+    """Delete these ``uploads`` rows of the routed guild; returns the names
+    that had one."""
     from sqlalchemy import delete as sa_delete
 
     from app.models.tenant.upload import Upload
 
-    if filenames:
-        await session.exec(
-            sa_delete(Upload).where(Upload.filename.in_(filenames))  # type: ignore[attr-defined]
-        )
+    if not filenames:
+        return set()
+    result = await session.exec(
+        sa_delete(Upload)
+        .where(Upload.filename.in_(filenames))  # type: ignore[attr-defined]
+        .returning(Upload.filename)
+    )
+    return set(result.scalars().all())
+
+
+async def release_uploads(
+    session, urls: Iterable[str | None], *, leaving: Leaving = {}
+) -> Set[str]:
+    """Delete the ``uploads`` rows of the files these URLs name that nothing
+    stored shows any more.
+
+    ``urls`` are what an edit took out, or what rows about to be purged (the
+    ones in ``leaving``) show. A file goes only when no other row, archived or
+    in the trash included, still shows it: a duplicated task shares its
+    original's pictures, and a picture can be pasted from one body into another.
+
+    Returns the stored names released, whose blobs the caller deletes with
+    :func:`delete_blobs` once the rows are gone — after its commit, so a
+    rolled-back write leaves the file.
+    """
+    names = {
+        name
+        for name in upload_names(urls)
+        if not await _still_shown(session, name, leaving=leaving)
+    }
+    return await _drop_upload_rows(session, names)
 
 
 async def release_pasted_images(
     session, urls: Iterable[str], *, leaving: Leaving
 ) -> Set[str]:
-    """Delete the ``Upload`` rows of pasted pictures nothing shows any more.
-
-    ``urls`` are what the rows in ``leaving`` stopped showing — an edit took
-    them out, or the rows are being purged. Each is released only if it was
-    pasted (see :data:`PASTED_IMAGE_PREFIX`) and no other task description or
-    comment, archived or in the trash included, still shows it: a duplicated
-    or recurring task shares its original's pictures.
-
-    Returns the URLs released, whose blobs the caller deletes once the rows
-    are gone — after its commit, so a rolled-back write leaves the file.
-    """
-    released = {
-        url
-        for url in {u for u in urls if _is_pasted(u)}
-        if not await _still_shown(session, Path(url).name, leaving=leaving)
-    }
-    await _drop_upload_rows(session, {Path(u).name for u in released})
-    return released
+    """:func:`release_uploads`, for the pictures pasted into a task description
+    or a comment (see :data:`PASTED_IMAGE_PREFIX`) — the only uploads a markdown
+    body owns."""
+    return await release_uploads(
+        session, [u for u in urls if _is_pasted(u)], leaving=leaving
+    )
 
 
 async def discard_pasted_image(session, filename: str, *, user_id: int) -> str | None:
@@ -481,18 +395,22 @@ async def release_unclaimed_pasted_images(session, *, now: datetime) -> Set[str]
         .where(Upload.filename.startswith(PASTED_IMAGE_PREFIX))  # type: ignore[attr-defined]
         .where(Upload.created_at < now - UNCLAIMED_PASTED_IMAGE_GRACE)
     )
-    released = {
-        name for name in rows.all() if not await _still_shown(session, name, leaving={})
-    }
-    await _drop_upload_rows(session, released)
-    return released
+    return await _drop_upload_rows(
+        session,
+        {
+            name
+            for name in rows.all()
+            if not await _still_shown(session, name, leaving={})
+        },
+    )
 
 
-async def purge_pasted_images(session, doomed: Iterable[Any]) -> None:
+async def purge_pasted_images(session, doomed: Iterable[Any]) -> Set[str]:
     """Delete the pictures pasted into tasks and comments about to be
     hard-purged, unless something that stays still shows them.
 
-    Caller must use a session that can DELETE from ``uploads``; caller commits.
+    Caller must use a session that can DELETE from ``uploads``; caller commits,
+    then deletes the blobs of the stored names returned.
     """
     from app.models.tenant.comment import Comment
     from app.models.tenant.task import Task
@@ -506,10 +424,7 @@ async def purge_pasted_images(session, doomed: Iterable[Any]) -> None:
         elif isinstance(row, Comment):
             urls |= upload_urls_in_markdown(row.content)
             leaving[Comment].add(row.id)
-    released = await release_pasted_images(session, urls, leaving=leaving)
-    # Blobs after the rows, so "Upload row exists ⇒ blob exists" holds in any
-    # intermediate state.
-    delete_uploads_by_urls(released)
+    return await release_pasted_images(session, urls, leaving=leaving)
 
 
 def extract_upload_urls(payload: Any) -> Set[str]:
@@ -531,56 +446,54 @@ def extract_upload_urls(payload: Any) -> Set[str]:
     return urls
 
 
-def duplicate_upload(url: str | None) -> str | None:
-    normalized = normalize_upload_url(url)
-    if not normalized:
-        return None
+async def copy_uploads(
+    session, urls: Iterable[str | None], *, guild_id: int, created_by: int
+) -> Dict[str, str]:
+    """Copy the guild's stored files these URLs name into new files, recorded
+    like any other upload, and return each source URL's copy.
 
-    guild_id = guild_id_from_upload_url(normalized)
-    if guild_id is None:
-        # Can't route to a storage namespace without the guild segment. Fall back
-        # to the source URL (the "couldn't duplicate" signal duplicate_uploads
-        # already handles by not remapping); warn so it's diagnosable rather than
-        # a silent alias.
-        logger.warning(
-            "Cannot resolve guild for upload %s; not duplicating", normalized
-        )
-        return normalized
+    Only files this guild stores are copied — anything else stays as it was
+    written. The copies count against the storage quota, checked for all of
+    them before a byte is written. Caller commits.
+    """
+    from sqlmodel import select
 
-    # A duplicate stays in the same guild, so source and dest share one namespace.
-    storage = get_guild_storage(guild_id)
-    source_name = Path(normalized).name
-    if not storage.exists(source_name):
-        logger.warning("Attempted to duplicate missing upload %s", source_name)
-        return normalized
+    from app.models.tenant.upload import Upload
 
-    extension = Path(source_name).suffix
-    for _ in range(10):
-        new_name = f"{uuid4().hex}{extension}"
-        if storage.exists(new_name):
-            continue
-        if storage.copy(source_name, new_name):
-            # Keep the source URL's ``/uploads/{guild_id}`` prefix — a duplicate
-            # stays in the same guild — and swap only the filename segment.
-            return f"{normalized.rsplit('/', 1)[0]}/{new_name}"
-        logger.error("Failed to duplicate upload %s -> %s", source_name, new_name)
-        return normalized
-    logger.error(
-        "Unable to allocate new filename for duplicated upload %s", source_name
+    by_name = {Path(u).name: u for u in (normalize_upload_url(u) for u in urls) if u}
+    if not by_name:
+        return {}
+    sources = (
+        await session.exec(select(Upload).where(Upload.filename.in_(by_name)))  # type: ignore[attr-defined]
+    ).all()
+    if not sources:
+        return {}
+    await enforce_storage_quota(
+        session,
+        guild_id=guild_id,
+        incoming_bytes=sum(source.size_bytes or 0 for source in sources),
     )
-    return normalized
-
-
-def duplicate_uploads(urls: Iterable[str]) -> Dict[str, str]:
-    mapping: Dict[str, str] = {}
-    for url in urls:
-        normalized = normalize_upload_url(url)
-        if not normalized or normalized in mapping:
+    storage = get_guild_storage(guild_id)
+    copies: Dict[str, str] = {}
+    for source in sources:
+        name = new_upload_filename(
+            Path(source.filename).suffix,
+            prefix=PASTED_IMAGE_PREFIX if _is_pasted(source.filename) else "",
+        )
+        if not await asyncio.to_thread(storage.copy, source.filename, name):
+            logger.error("Failed to copy upload %s -> %s", source.filename, name)
             continue
-        duplicated = duplicate_upload(normalized)
-        if duplicated and duplicated != normalized:
-            mapping[normalized] = duplicated
-    return mapping
+        session.add(
+            Upload(
+                filename=name,
+                created_by=created_by,
+                size_bytes=source.size_bytes,
+                content_type=source.content_type,
+                content_hash=source.content_hash,
+            )
+        )
+        copies[by_name[source.filename]] = f"{UPLOADS_URL_PREFIX}{guild_id}/{name}"
+    return copies
 
 
 def replace_upload_urls(payload: Any, replacements: Mapping[str, str]) -> Any:
@@ -750,65 +663,6 @@ async def get_guild_storage_usage(session) -> int:
     return (
         await session.exec(select(func.coalesce(func.sum(Upload.size_bytes), 0)))
     ).one()
-
-
-async def get_upload_bytes_for_urls(session, urls: Iterable[str]) -> int:
-    """Total stored size of the uploads referenced by ``urls`` (matched by
-    filename) — ``SUM(uploads.size_bytes)`` over those rows.
-
-    Used to size a clone's incoming bytes before any blob is copied: a copy is the
-    same size as its source, so this is the storage a duplicate will add. Runs
-    under the guild-routed RLS session. Legacy blobs without an ``uploads`` row
-    contribute 0.
-    """
-    from sqlalchemy import func
-    from sqlmodel import select
-
-    from app.models.tenant.upload import Upload
-
-    filenames = {
-        Path(normalized).name
-        for url in urls
-        if (normalized := normalize_upload_url(url))
-    }
-    if not filenames:
-        return 0
-    return (
-        await session.exec(
-            select(func.coalesce(func.sum(Upload.size_bytes), 0)).where(
-                Upload.filename.in_(filenames)
-            )
-        )
-    ).one()
-
-
-async def get_upload_metadata_for_urls(
-    session, urls: Iterable[str]
-) -> Dict[str, Tuple[str | None, str | None]]:
-    """Map ``{filename: (content_type, content_hash)}`` for the uploads referenced
-    by ``urls`` (matched by filename).
-
-    Used to carry metadata onto byte-identical copies (clones) without re-reading
-    the blobs — a copy shares its source's content type and hash. Runs under the
-    guild-routed RLS session.
-    """
-    from sqlmodel import select
-
-    from app.models.tenant.upload import Upload
-
-    filenames = {
-        Path(normalized).name
-        for url in urls
-        if (normalized := normalize_upload_url(url))
-    }
-    if not filenames:
-        return {}
-    rows = await session.exec(
-        select(Upload.filename, Upload.content_type, Upload.content_hash).where(
-            Upload.filename.in_(filenames)
-        )
-    )
-    return {fn: (ct, ch) for fn, ct, ch in rows.all()}
 
 
 # Advisory-lock namespace for per-guild storage-quota admission. A large fixed

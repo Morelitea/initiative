@@ -2168,6 +2168,22 @@ export const ClientKind = {
   unknown: "unknown",
 } as const;
 
+export type CollaborationHandoverContent = { [key: string]: unknown } | null;
+
+/**
+ * Edits a tab made while its room's socket was closed, handed over as the
+ * tab leaves.
+ *
+ * ``update`` is the Yjs update the room has not seen and ``state_vector`` is
+ * the tab's own, so the room can tell whether ``content`` — the editor's
+ * rendering of the tab's document — also describes the merged one.
+ */
+export interface CollaborationHandover {
+  update: Blob;
+  state_vector: Blob;
+  content?: CollaborationHandoverContent;
+}
+
 /**
  * How a profile is dressed: a banner, a frame, trophies under it.
  *
@@ -3386,7 +3402,6 @@ export type DocumentCreateDocumentType =
 
 export const DocumentCreateDocumentType = {
   native: "native",
-  file: "file",
   whiteboard: "whiteboard",
   smart_link: "smart_link",
   spreadsheet: "spreadsheet",
@@ -3452,10 +3467,12 @@ export interface DocumentProjectLink {
   attached_at: string;
 }
 
-export type DocumentSummaryDocumentType =
-  (typeof DocumentSummaryDocumentType)[keyof typeof DocumentSummaryDocumentType];
+/**
+ * Discriminator for document type.
+ */
+export type DocumentType = (typeof DocumentType)[keyof typeof DocumentType];
 
-export const DocumentSummaryDocumentType = {
+export const DocumentType = {
   native: "native",
   file: "file",
   whiteboard: "whiteboard",
@@ -3484,7 +3501,7 @@ export interface DocumentSummary {
   grants: ResourceGrantSchema[];
   tags: TagSummary[];
   properties: PropertySummary[];
-  document_type: DocumentSummaryDocumentType;
+  document_type: DocumentType;
   file_url: string | null;
   file_content_type: string | null;
   file_size: number | null;
@@ -3503,17 +3520,6 @@ export interface DocumentListResponse {
   sort_by: string | null;
   sort_dir: string | null;
 }
-
-export type DocumentReadDocumentType =
-  (typeof DocumentReadDocumentType)[keyof typeof DocumentReadDocumentType];
-
-export const DocumentReadDocumentType = {
-  native: "native",
-  file: "file",
-  whiteboard: "whiteboard",
-  smart_link: "smart_link",
-  spreadsheet: "spreadsheet",
-} as const;
 
 export type DocumentReadContent = { [key: string]: unknown };
 
@@ -3538,7 +3544,7 @@ export interface DocumentRead {
   grants: ResourceGrantSchema[];
   tags: TagSummary[];
   properties: PropertySummary[];
-  document_type: DocumentReadDocumentType;
+  document_type: DocumentType;
   file_url: string | null;
   file_content_type: string | null;
   file_size: number | null;
@@ -3548,19 +3554,6 @@ export interface DocumentRead {
   yjs_updated_at: string | null;
   content: DocumentReadContent;
 }
-
-/**
- * Discriminator for document type.
- */
-export type DocumentType = (typeof DocumentType)[keyof typeof DocumentType];
-
-export const DocumentType = {
-  native: "native",
-  file: "file",
-  whiteboard: "whiteboard",
-  smart_link: "smart_link",
-  spreadsheet: "spreadsheet",
-} as const;
 
 export type DocumentUpdateContent = { [key: string]: unknown } | null;
 
@@ -6070,6 +6063,20 @@ export interface MyToolCountsResponse {
   counts: MyToolCountsResponseCounts;
 }
 
+/**
+ * The code a sign-in in the phone's browser came back with, and the PKCE
+ * verifier the app began it with.
+ */
+export interface NativeSignInRedeem {
+  /** @maxLength 4096 */
+  code: string;
+  /**
+   * @minLength 43
+   * @maxLength 128
+   */
+  code_verifier: string;
+}
+
 export type NotificationCategory = (typeof NotificationCategory)[keyof typeof NotificationCategory];
 
 export const NotificationCategory = {
@@ -6569,6 +6576,7 @@ export interface PasskeySignInFinish {
   mobile?: boolean;
   /** @maxLength 255 */
   device_name?: string;
+  code_challenge?: string;
 }
 
 /**
@@ -7141,7 +7149,6 @@ export interface ProjectCreate {
   icon?: string | null;
   start_date?: string | null;
   end_date?: string | null;
-  owner_id?: number | null;
   initiative_id?: number | null;
   is_template?: boolean;
   template_id?: number | null;
@@ -9676,6 +9683,7 @@ export type ProviderLoginApiV1AuthProviderSlugLoginGetParams = {
   mobile?: boolean;
   device_name?: string;
   next?: string;
+  code_challenge?: string;
 };
 
 export type ProviderCallbackApiV1AuthProviderSlugCallbackGetParams = {
@@ -10967,10 +10975,12 @@ export type ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams = {
   user_id?: number[] | null;
 };
 
-export type GetDocumentCollaboratorsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet200Item =
-  { [key: string]: unknown };
+export type HandOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePostParams =
+  {
+    token?: string | null;
+  };
 
-export type SyncDocumentContentApiV1CGuildIdCollaborationDocumentsDocumentIdSyncContentPostParams =
+export type HandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostParams =
   {
     token?: string | null;
   };

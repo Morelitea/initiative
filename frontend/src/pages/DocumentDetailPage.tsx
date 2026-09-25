@@ -118,7 +118,7 @@ import { referenceRef } from "@/lib/smartChips";
 import type { SpreadsheetSheetContent } from "@/lib/spreadsheet/content";
 import { getItem, setItem } from "@/lib/storage";
 import { initiativeRoute, toolDetailRoute, toolListRoute, toolSettingsRoute } from "@/lib/tools";
-import { resolveHeaderlessApiUrl, resolveUploadUrl } from "@/lib/uploadUrl";
+import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 import { CollaborationError } from "@/lib/yjs/CollaborationProvider";
@@ -188,21 +188,19 @@ export const DocumentDetailPage = () => {
   const [collaborationEnabled, setCollaborationEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const isAutosaveRef = useRef(false);
-  // Refs for sendBeacon - need latest values in event handlers
+  // What this tab last rendered, and for which document — read by handlers
+  // that run outside a render (the room's handover as the page leaves).
   const contentStateRef = useRef<{ documentId: number; content: SerializedEditorState } | null>(
     null
   );
   const collaboratingRef = useRef(false);
-  const sendContentRef = useRef<((content: unknown) => void) | null>(null);
-  const syncContentBeaconRef = useRef<(() => void) | null>(null);
   const parsedIdRef = useRef(parsedId);
   parsedIdRef.current = parsedId;
-  // What this tab last rendered, for the room to save as the page leaves.
+  // What this tab last rendered, for the room to save as the page leaves —
+  // with the socket, or with the edits handed over when it is gone.
   const finalCollabContent = useCallback(() => {
     const stored = contentStateRef.current;
-    return collaboratingRef.current && stored?.documentId === parsedIdRef.current
-      ? stored.content
-      : undefined;
+    return stored?.documentId === parsedIdRef.current ? stored.content : undefined;
   }, []);
 
   // Wikilink dialog state
@@ -510,7 +508,6 @@ export const DocumentDetailPage = () => {
   useEffect(() => {
     const resumed = collaboration.isCollaborating && !collaboratingRef.current;
     collaboratingRef.current = collaboration.isCollaborating;
-    sendContentRef.current = collaboration.sendContent;
     // The handshake brings this tab's Yjs work back into the room, but the
     // content column moves only when an editor reports a rendering — and after
     // an outage there may be nothing further to type. Report one on arrival.
@@ -528,59 +525,26 @@ export const DocumentDetailPage = () => {
     parsedId,
   ]);
 
-  // Extract the Yjs doc from the collaboration provider for whiteboards.
-  // Mirrors what Lexical's CollaborationPlugin does internally — we call the
-  // factory to either reuse the cached provider or bootstrap a new one, then
-  // read provider.doc (which is a public field on CollaborationProvider).
+  // Whiteboards and spreadsheets bind their own editors to the room's Yjs doc,
+  // so they ask the factory for the provider the way Lexical's
+  // CollaborationPlugin does for rich text — reusing the cached one, or
+  // opening it — and read its doc and awareness. useCollaboration owns the
+  // provider's lifecycle, so there is nothing to clean up here.
+  const liveBodyType =
+    document?.document_type === "whiteboard" || document?.document_type === "spreadsheet"
+      ? document.document_type
+      : null;
   useEffect(() => {
-    if (document?.document_type !== "whiteboard") {
-      setWhiteboardYDoc(null);
-      setWhiteboardAwareness(null);
-      return;
-    }
-    if (!collaborationEnabled || !collaboration.providerFactory || !collaboration.isReady) {
-      setWhiteboardYDoc(null);
-      setWhiteboardAwareness(null);
-      return;
-    }
-    const yjsDocMap = new Map<string, import("yjs").Doc>();
-    const provider = collaboration.providerFactory("main", yjsDocMap);
-    setWhiteboardYDoc(provider.doc);
-    setWhiteboardAwareness(provider.awareness);
-    // No cleanup — useCollaboration owns the provider lifecycle.
-  }, [
-    document?.document_type,
-    collaborationEnabled,
-    collaboration.providerFactory,
-    collaboration.isReady,
-  ]);
-
-  // Same pattern for spreadsheets — separate state so we don't conflate
-  // doc-type-specific bookkeeping. The provider is cached by document
-  // ID, so calling providerFactory here returns the same instance the
-  // whiteboard branch would (when it applied). Doc-types are mutually
-  // exclusive at any given time anyway.
-  useEffect(() => {
-    if (document?.document_type !== "spreadsheet") {
-      setSpreadsheetYDoc(null);
-      setSpreadsheetAwareness(null);
-      return;
-    }
-    if (!collaborationEnabled || !collaboration.providerFactory || !collaboration.isReady) {
-      setSpreadsheetYDoc(null);
-      setSpreadsheetAwareness(null);
-      return;
-    }
-    const yjsDocMap = new Map<string, import("yjs").Doc>();
-    const provider = collaboration.providerFactory("main", yjsDocMap);
-    setSpreadsheetYDoc(provider.doc);
-    setSpreadsheetAwareness(provider.awareness);
-  }, [
-    document?.document_type,
-    collaborationEnabled,
-    collaboration.providerFactory,
-    collaboration.isReady,
-  ]);
+    const live =
+      liveBodyType && collaborationEnabled && collaboration.providerFactory && collaboration.isReady
+        ? collaboration.providerFactory("main", new Map<string, import("yjs").Doc>())
+        : null;
+    const isWhiteboard = liveBodyType === "whiteboard";
+    setWhiteboardYDoc(isWhiteboard && live ? live.doc : null);
+    setWhiteboardAwareness(isWhiteboard && live ? live.awareness : null);
+    setSpreadsheetYDoc(!isWhiteboard && live ? live.doc : null);
+    setSpreadsheetAwareness(!isWhiteboard && live ? live.awareness : null);
+  }, [liveBodyType, collaborationEnabled, collaboration.providerFactory, collaboration.isReady]);
 
   // Whiteboard scene change handler — mirrors handleContentChange for Lexical.
   // Also writes a write-ahead cache to localStorage so the scene survives
@@ -852,75 +816,6 @@ export const DocumentDetailPage = () => {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [canEditDocument, saveDocument.isPending, saveNow]);
-
-  // Sync content via sendBeacon on page unload to ensure content column stays updated
-  // This is critical when users navigate away or close the tab during collaboration
-  useEffect(() => {
-    if (!canEditDocument || !token || !activeGuildId) {
-      syncContentBeaconRef.current = null;
-      return;
-    }
-
-    const syncContentBeacon = () => {
-      // Only sync if we were collaborating (content might have changed via Yjs)
-      if (!collaboratingRef.current) {
-        return;
-      }
-
-      // Only sync if we have content for THIS document (prevents syncing stale content)
-      const stored = contentStateRef.current;
-      if (!stored || stored.documentId !== parsedId) {
-        return;
-      }
-
-      // Build the sync URL. Header-less auth (cookie on web, scoped upload
-      // token on native) — the long-lived session JWT must never ride in a URL.
-      // The guild rides in the path (`/c/{guildId}/`).
-      const syncUrl = resolveHeaderlessApiUrl(
-        `/api/v1/c/${activeGuildId}/collaboration/documents/${parsedId}/sync-content`
-      );
-
-      // Push it to the room first, over the socket that is still open. The
-      // REST call below stays as the fallback for a socket that has already
-      // gone: the server applies it only when no room is live, so whichever
-      // of the two is the redundant one is the one it drops.
-      sendContentRef.current?.(stored.content);
-
-      // Send content via fetch with keepalive (more reliable than sendBeacon, less likely to be blocked)
-      fetch(syncUrl, {
-        method: "POST",
-        body: JSON.stringify(stored.content),
-        headers: { "Content-Type": "application/json" },
-        keepalive: true, // Ensures request completes even if page unloads
-        credentials: "include", // Web auth is the HttpOnly session cookie
-      }).catch(() => {}); // Silently ignore errors on page unload
-    };
-
-    // Store ref so it can be called from other handlers
-    syncContentBeaconRef.current = syncContentBeacon;
-
-    // Handle tab close / navigation
-    const handleBeforeUnload = () => {
-      syncContentBeacon();
-    };
-
-    // Handle tab visibility change (switching tabs)
-    const handleVisibilityChange = () => {
-      if (globalThis.document.visibilityState === "hidden") {
-        syncContentBeacon();
-      }
-    };
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    globalThis.document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      // Sync content when navigating away (component unmount or document change)
-      syncContentBeacon();
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      globalThis.document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, [parsedId, token, activeGuildId, canEditDocument]);
 
   // Reading a file is the host's job — it knows which document and guild the
   // editor is showing. What comes back is sheets; the editor adds them to its

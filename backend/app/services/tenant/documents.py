@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from pathlib import Path
-from typing import Any, Sequence
+from typing import TYPE_CHECKING, Any, Sequence
 
 from sqlalchemy import func
 from sqlalchemy.orm import selectinload, undefer
@@ -14,12 +13,12 @@ from app.core.search import SearchEntityType
 from app.models.tenant.comment import Comment
 from app.models.tenant.document import (
     Document,
+    DocumentFileVersion,
     DocumentType,
 )
-from app.models.tenant.upload import Upload
+from app.models.tenant.initiative import Initiative
 from app.models.tenant.property import DocumentPropertyValue
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
-from app.core.config import settings
+from app.models.tenant.resource_grant import ResourceGrant
 from app.core.references import unresolve_wikilinks_to
 from app.core.tools import Tool
 from app.core.messages import DocumentMessages
@@ -28,6 +27,10 @@ from app.services.tenant import ownership as ownership_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant.collaboration import collaboration_manager
 from app.db.session import guild_context, routed_guild_id
+
+if TYPE_CHECKING:  # pragma: no cover
+    from app.db.guild_standing import ActorContext
+    from app.models.platform.user import User
 
 
 def _empty_paragraph() -> dict[str, Any]:
@@ -145,46 +148,14 @@ def list_loader_options() -> list:
     ]
 
 
-async def get_document(
-    session: AsyncSession,
-    *,
-    document_id: int,
-    guild_id: int,
-    populate_existing: bool = False,
-) -> Document | None:
-    statement = (
-        select(Document)
-        .join(Document.initiative)
-        .where(
-            Document.id == document_id,
-        )
-        .options(*list_loader_options())
-    )
-    if populate_existing:
-        # Force SA to refresh attributes on any Document already in the
-        # session's identity map. Needed after commits that mutate
-        # collections (e.g. property_values replace-all) since
-        # expire_on_commit=False otherwise keeps stale relationships.
-        statement = statement.execution_options(populate_existing=True)
-    result = await session.exec(statement)
-    document = result.one_or_none()
-    if document:
-        await tags_service.annotate_tags(session, [document])
-        await annotate_comment_counts(session, [document])
-        await ownership_service.annotate_owner_apps(session, [document])
-    return document
-
-
 async def get_document_hydrated(
     session: AsyncSession, document_id: int, *, populate_existing: bool = False
 ) -> Document | None:
-    """Load a document with everything a serialized ``DocumentRead`` reads.
-
-    The grant loader above carries what the access decision needs; this is
-    :func:`get_document` without the redundant guild filter — RLS has already
-    scoped the row to the request's guild — in the uniform ``(session, id)``
-    shape ``resource_access`` registers a loader by. Annotates the tags and
-    comment count a response carries, like the list loader does.
+    """Load a document with everything a serialized ``DocumentRead`` or an
+    export reads: the list loader's eager loads, plus the tags, comment count
+    and owning app a response carries. :func:`get_document_for_grants` carries
+    only what the access decision needs. Uniform ``(session, id)`` shape, the
+    one ``resource_access`` registers a loader by.
     """
     statement = (
         select(Document)
@@ -204,28 +175,26 @@ async def get_document_hydrated(
 
 
 async def get_document_for_export(
-    session: AsyncSession,
-    current_user,
-    guild_id: int,
-    *,
-    document_id: int,
-    access: str = "owner",
+    session: AsyncSession, *, document_id: int, access: str = "owner"
 ) -> Document:
     """The document-export adapter's seam: fetch + authorize in one place so
-    the rule holds on the worker's render-time replay too. It takes the owner
-    rung, or ``access="read"`` from an initiative or community backup
-    (``permissions.require_export_access``). The guild role is resolved here
-    rather than taken from a request context, so the seam works transport-free."""
+    the rule holds on the worker's render-time replay too. The initiative must
+    have documents switched on, and the reader must hold the owner rung, or
+    ``access="read"`` from an initiative or community backup
+    (``permissions.require_export_access``). The standing is the session's own,
+    so the seam works transport-free."""
     from fastapi import HTTPException, status as http_status
 
+    from app.api.resource_access import require_tool_enabled
     from app.services import permissions as permissions_service
 
-    document = await get_document(session, document_id=document_id, guild_id=guild_id)
+    document = await get_document_hydrated(session, document_id)
     if document is None:
         raise HTTPException(
             status_code=http_status.HTTP_404_NOT_FOUND,
             detail=Tool.document.not_found_code,
         )
+    require_tool_enabled(Tool.document, document.initiative)
     permissions_service.require_export_access(
         permissions_service.DAC_RESOURCES[Tool.document],
         document,
@@ -236,23 +205,22 @@ async def get_document_for_export(
 
 
 async def list_document_ids_for_export(
-    session: AsyncSession,
-    current_user,
-    guild_id: int,
-    *,
-    initiative_ids: list[int],
+    session: AsyncSession, *, initiative_ids: list[int]
 ) -> list[int]:
-    """Ids of every document the user may export in the given initiatives —
-    DAC-visible to the user (a request that reaches the whole guild sees all).
-    Deterministic order for stable backup output."""
-    from sqlmodel import select
-
+    """Ids of the documents the session reaches in the given initiatives,
+    where documents are switched on. Deterministic order for stable backup
+    output."""
     if not initiative_ids:
         return []
-    conditions = [
-        Document.initiative_id.in_(initiative_ids),
-    ]
-    statement = select(Document.id).where(*conditions).order_by(Document.id.asc())
+    statement = (
+        select(Document.id)
+        .join(Initiative, Initiative.id == Document.initiative_id)
+        .where(
+            Document.initiative_id.in_(initiative_ids),
+            Initiative.documents_enabled == True,  # noqa: E712
+        )
+        .order_by(Document.id.asc())
+    )
     return list(await session.exec(statement))
 
 
@@ -282,101 +250,75 @@ async def duplicate_document(
     session: AsyncSession,
     *,
     source: Document,
-    target_initiative_id: int,
+    initiative_id: int,
     name: str,
-    user_id: int,
-    guild_id: int | None = None,
+    user: User,
+    actor: ActorContext,
 ) -> Document:
+    """A copy of ``source`` in ``initiative_id``, owned by ``user`` and shared
+    as ``resource_access.duplicate_sharing`` says. Its pictures and stored file
+    are copied rather than shared, so each document's can be released on its
+    own; a file document's copy starts again at version 1. ``source.grants``
+    is loaded. The caller commits."""
+    from app.api import resource_access
+
     content_copy = normalize_document_content(
         deepcopy(source.content),
         document_type=source.document_type,
     )
-    content_uploads = attachments_service.extract_upload_urls(content_copy)
-    # Enforce the guild's storage quota BEFORE copying any bytes — a rejected
-    # clone must not leave orphaned blobs on storage. Size it from the source
-    # blobs it will duplicate (a copy is the same size as its source).
-    effective_guild_id = guild_id or routed_guild_id(session)
-    if effective_guild_id is not None:
-        clone_source_urls = list(content_uploads)
-        if source.featured_image_url:
-            clone_source_urls.append(source.featured_image_url)
-        incoming = await attachments_service.get_upload_bytes_for_urls(
-            session, clone_source_urls
-        )
-        if incoming:
-            await attachments_service.enforce_storage_quota(
-                session,
-                guild_id=effective_guild_id,
-                incoming_bytes=incoming,
-            )
-    replacements = attachments_service.duplicate_uploads(content_uploads)
-    if replacements:
-        content_copy = attachments_service.replace_upload_urls(
-            content_copy, replacements
-        )
+    copies = await attachments_service.copy_uploads(
+        session,
+        [
+            *attachments_service.extract_upload_urls(content_copy),
+            source.featured_image_url,
+            source.file_url,
+        ],
+        guild_id=actor.guild_id,
+        created_by=user.id,
+    )
 
-    featured_image_url = attachments_service.duplicate_upload(source.featured_image_url)
-
-    # Track any newly created files in the uploads table for guild-scoped access control
-    if effective_guild_id is not None:
-        upload_dir = Path(settings.UPLOADS_DIR)
-        new_upload_records: list[Upload] = []
-        new_urls = list(replacements.values())
-        # Map each new blob back to its source so we can carry the source's
-        # content_type/content_hash onto the copy (it is byte-identical).
-        new_to_source = {new: old for old, new in replacements.items()}
-        if featured_image_url and featured_image_url != source.featured_image_url:
-            new_urls.append(featured_image_url)
-            if source.featured_image_url:
-                new_to_source[featured_image_url] = source.featured_image_url
-        source_meta = await attachments_service.get_upload_metadata_for_urls(
-            session, list(new_to_source.values())
-        )
-        for new_url in new_urls:
-            fname = new_url.split("/")[-1]
-            if fname:
-                source_url = new_to_source.get(new_url)
-                source_fname = source_url.split("/")[-1] if source_url else None
-                content_type, content_hash = (
-                    source_meta.get(source_fname, (None, None))
-                    if source_fname
-                    else (None, None)
-                )
-                fpath = upload_dir / fname
-                new_upload_records.append(
-                    Upload(
-                        filename=fname,
-                        created_by=user_id,
-                        size_bytes=fpath.stat().st_size if fpath.exists() else 0,
-                        content_type=content_type,
-                        content_hash=content_hash,
-                    )
-                )
-        if new_upload_records:
-            session.add_all(new_upload_records)
+    def copied(url: str | None) -> str | None:
+        return copies.get(attachments_service.normalize_upload_url(url) or "", url)
 
     duplicated = Document(
         name=name,
-        initiative_id=target_initiative_id,
+        initiative_id=initiative_id,
         document_type=source.document_type,
-        content=content_copy,
-        created_by=user_id,
-        featured_image_url=featured_image_url,
-        is_template=False,
+        content=attachments_service.replace_upload_urls(content_copy, copies),
+        created_by=user.id,
+        featured_image_url=copied(source.featured_image_url),
+        file_url=copied(source.file_url),
+        file_content_type=source.file_content_type,
+        file_size=source.file_size,
+        original_filename=source.original_filename,
     )
     session.add(duplicated)
     await session.flush()
 
-    # Add owner permission for the user creating the duplicate
-    owner_permission = ResourceGrant(
-        resource_type="document",
+    await resource_access.grant_initial_sharing(
+        session,
+        actor,
+        Tool.document,
+        user=user,
         resource_id=duplicated.id,
-        user_id=user_id,
-        role_id=None,
-        level=ResourceAccessLevel.owner,
-        initiative_id=duplicated.initiative_id,
+        initiative_id=initiative_id,
+        payload=None,
+        grants=resource_access.duplicate_sharing(source, initiative_id=initiative_id),
     )
-    session.add(owner_permission)
+    # The rows below are written as the copy's owner, so the sharing lands first.
+    await session.flush()
+    if duplicated.file_url is not None:
+        session.add(
+            DocumentFileVersion(
+                document_id=duplicated.id,
+                version_number=1,
+                file_url=duplicated.file_url,
+                file_content_type=duplicated.file_content_type,
+                file_size=duplicated.file_size,
+                original_filename=duplicated.original_filename,
+                created_by=user.id,
+            )
+        )
 
     # Copy tags from source document (active only)
     await tags_service.copy_entity_tags(
@@ -389,7 +331,7 @@ async def duplicate_document(
     # Copy property values ONLY when the target initiative matches the
     # source's — definitions are initiative-scoped, so cross-initiative
     # copies would produce orphaned values the target can't resolve.
-    if target_initiative_id == source.initiative_id:
+    if initiative_id == source.initiative_id:
         source_value_stmt = select(DocumentPropertyValue).where(
             DocumentPropertyValue.document_id == source.id
         )
@@ -414,8 +356,6 @@ async def duplicate_document(
                     for row in source_values
                 ]
             )
-
-    await session.commit()
     return duplicated
 
 
@@ -459,7 +399,7 @@ async def unresolve_wikilinks_to_document(
     )
 
     # Documents whose in-memory collaboration room has to be retired, so
-    # persist_room cannot write the pre-repair content back over this.
+    # a room's save cannot write the pre-repair content back over this.
     affected_doc_ids: list[int] = []
 
     for doc in linking_documents:
@@ -477,7 +417,7 @@ async def unresolve_wikilinks_to_document(
     await session.flush()
 
     # Invalidate any in-memory collaboration rooms for affected documents
-    # This prevents persist_room from overwriting our changes when users disconnect
+    # This prevents a room's save from overwriting our changes when users disconnect
     # Note: If a room has active collaborators, they'll have stale wikilinks until reload
     # Rooms are keyed by (guild, document), and the documents above were read
     # through this session, so the guild it is routed to is theirs. An unrouted

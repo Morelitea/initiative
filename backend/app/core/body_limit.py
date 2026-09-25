@@ -96,12 +96,12 @@ _RULES: tuple[tuple[re.Pattern[str], Callable[[], int], str], ...] = (
     ),
     (
         # The routes that write a document's content: create, update, a wiki
-        # page, and the save a closing tab sends.
+        # page, and the edits a closing tab hands over to a room.
         re.compile(
             r"^/api/v1/c/\d+/("
             r"documents(/\d+)?"
             r"|wikis/\d+/pages(/\d+)?"
-            r"|collaboration/documents/\d+/sync-content"
+            r"|collaboration/(documents/\d+|wikis/\d+/pages/\d+)/collaborate"
             r")/?$"
         ),
         lambda: DOCUMENT_MAX_REQUEST_BYTES,

@@ -317,6 +317,66 @@ async def test_purging_a_task_deletes_its_pictures(
     assert not await _stored(session, a.guild.id, url)
 
 
+def _lexical(*urls: str) -> dict:
+    """A document body showing these pictures."""
+    return {"root": {"children": [{"type": "image", "src": url} for url in urls]}}
+
+
+@pytest.mark.integration
+async def test_a_picture_taken_out_of_a_document_goes_when_nothing_shows_it(
+    client: AsyncClient, session, acting_user
+):
+    """Editing a document lets go of a picture it stopped showing, but only
+    once nothing else shows it, and only a file this community stores — a
+    body naming another community's file leaves that file alone. A duplicate
+    shows its own copy, stored at the same size, so it is not what keeps the
+    original."""
+    from pathlib import Path
+
+    from sqlmodel import select
+
+    from app.models.tenant.upload import Upload
+    from app.testing import create_document
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    b = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    url = await _paste(client, a)
+    elsewhere = await _paste(client, b)
+    first = await create_document(session, a.initiative, a.user, content=_lexical(url))
+    second = await create_document(
+        session, a.initiative, a.user, content=_lexical(url, elsewhere)
+    )
+    await session.commit()
+
+    duplicate = await client.post(
+        a.g(f"/documents/{first.id}/duplicate"), headers=a.headers, json={"name": "C"}
+    )
+    assert duplicate.status_code == 201, duplicate.text
+    copy = duplicate.json()["content"]["root"]["children"][0]["src"]
+    assert copy != url and await _stored(session, a.guild.id, copy)
+    sizes = await session.exec(
+        select(Upload.size_bytes).where(
+            Upload.filename.in_([Path(url).name, Path(copy).name])
+        )
+    )
+    assert set(sizes.all()) == {len(TINY_PNG)}
+
+    async def clear(document_id: int) -> None:
+        response = await client.patch(
+            a.g(f"/documents/{document_id}"),
+            headers=a.headers,
+            json={"content": _lexical()},
+        )
+        assert response.status_code == 200, response.text
+
+    await clear(first.id)
+    assert await _stored(session, a.guild.id, url), "the second one still shows it"
+
+    await clear(second.id)
+    assert not await _stored(session, a.guild.id, url)
+    assert await _stored(session, b.guild.id, elsewhere)
+
+
 async def _discard(client: AsyncClient, a, url: str) -> None:
     from pathlib import Path
 

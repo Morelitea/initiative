@@ -2027,8 +2027,8 @@ export const useNotifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPost = <
 /**
  * Generate an AI summary of a document.
  *
- * Requires read access to the document. Only works for native documents
- * (not file uploads like PDFs).
+ * Requires read access to the document. Only works for native (editor)
+ * documents.
  * @summary Generate Summary
  */
 export const generateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPost = (

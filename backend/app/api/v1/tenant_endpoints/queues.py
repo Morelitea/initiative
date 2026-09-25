@@ -16,9 +16,6 @@ from fastapi import (
     WebSocket,
     status,
 )
-from sqlalchemy.orm import selectinload
-from sqlmodel import select
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import routed_guild_id
@@ -43,11 +40,8 @@ from app.models.tenant.queue import (
     Queue,
     QueueItem,
 )
-from app.models.tenant.initiative import (
-    Initiative,
-)
 from app.models.platform.user import User
-from app.core.messages import QueueMessages, InitiativeMessages
+from app.core.messages import QueueMessages
 from app.schemas.tenant.queue import (
     QueueCreate,
     QueueUpdate,
@@ -64,7 +58,6 @@ from app.api import resource_access
 from app.core.tools import Tool
 from app.db.session import require_actor_context
 from app.services import permissions as permissions_service
-from app.services.tenant import ownership as ownership_service
 from app.services.tenant import queues as queues_service
 from app.services.tenant import tags as tags_service
 from app.schemas.tenant.tag import TagSetRequest
@@ -184,29 +177,6 @@ QueuesWrite = Annotated[ActorContext, Depends(app_scope("queues:write"))]
 # ---------------------------------------------------------------------------
 
 
-async def _get_initiative_for_queue(
-    session: RLSSessionDep,
-    initiative_id: int,
-) -> Initiative:
-    """Fetch initiative or 404."""
-    stmt = (
-        select(Initiative)
-        .where(Initiative.id == initiative_id)
-        .options(
-            selectinload(Initiative.memberships),
-            selectinload(Initiative.roles),
-        )
-    )
-    result = await session.exec(stmt)
-    initiative = result.one_or_none()
-    if not initiative:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=InitiativeMessages.NOT_FOUND,
-        )
-    return initiative
-
-
 async def _get_item_for_queue(
     session: RLSSessionDep,
     queue_id: int,
@@ -297,14 +267,8 @@ async def create_queue(
     The creator automatically gets owner-level permission.
     """
     resource_access.refuse_app_sharing(guild_context, queue_in, "grants")
-    initiative = await _get_initiative_for_queue(session, queue_in.initiative_id)
-    if not initiative.queues_enabled:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=Tool.queue.feature_disabled_code,
-        )
-    await resource_access.require_create(
-        session, Tool.queue, initiative, current_user, guild_context
+    initiative = await resource_access.prepare_create(
+        session, Tool.queue, queue_in.initiative_id, current_user, guild_context
     )
 
     queue = Queue(
@@ -316,41 +280,16 @@ async def create_queue(
     session.add(queue)
     await session.flush()
 
-    # The creator's owner grant. An installed app's is written by the table's
-    # own trigger as the row goes in.
-    owner_perm = ownership_service.creator_owner_grant(
+    await resource_access.grant_initial_sharing(
+        session,
         guild_context,
-        tool=Tool.queue,
+        Tool.queue,
+        user=current_user,
         resource_id=queue.id,
         initiative_id=queue.initiative_id,
+        payload=queue_in,
+        grants=queue_in.grants,
     )
-    if owner_perm is not None and current_user is not None:
-        session.add(owner_perm)
-
-        # Apply the initial sharing exactly the way edits do — one grant list,
-        # one code path (empty default = owner-only until shared). An installed
-        # app's is applied below, when it asked for one.
-        await permissions_service.replace_resource_grants(
-            session,
-            resource_type="queue",
-            resource_id=queue.id,
-            guild_id=guild_context.guild_id,
-            initiative_id=queue.initiative_id,
-            owner_id=current_user.id,
-            grants=queue_in.grants,
-            actor_user_id=current_user.id,
-        )
-    else:
-        await resource_access.apply_app_initial_sharing(
-            session,
-            guild_context,
-            Tool.queue,
-            resource_id=queue.id,
-            initiative_id=queue.initiative_id,
-            payload=queue_in,
-            grants=queue_in.grants,
-        )
-
     await session.commit()
 
     hydrated = await _refetch_queue(session, queue.id)

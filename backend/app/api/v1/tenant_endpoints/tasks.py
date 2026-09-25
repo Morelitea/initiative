@@ -2156,7 +2156,7 @@ async def update_task(
     session.add(task)
     await session.commit()
     # A picture taken out of the description goes once the edit has landed.
-    attachments_service.delete_uploads_by_urls(released_images)
+    attachments_service.delete_blobs(guild_context.guild_id, released_images)
     task = await _fetch_task(
         session, task.id, guild_context.guild_id, populate_existing=True
     )

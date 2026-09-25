@@ -154,11 +154,13 @@ async def start_export(
     always_job = getattr(adapter, "always_job", False)
     if not always_job and row_count <= export_limits.EXPORT_INLINE_MAX_ROWS:
         from app.services.export.branding import apply_brand
+        from app.services.export.stamp import stamp_export
 
         request = await adapter.build(
             session, user=user, guild_id=guild_id, params=params, format=format
         )
         request = await apply_brand(request, session)
+        request = stamp_export(request, user)
         artifacts = await get_backend().render(request)
         artifact = await asyncio.to_thread(
             _bundle,

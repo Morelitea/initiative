@@ -18,10 +18,16 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
 from app.models.tenant.gallery import GalleryImage, GalleryImageVersion
-from app.models.tenant.resource_grant import ResourceGrant
+from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.tenant.upload import Upload
 from app.services.tenant import galleries as galleries_service
-from app.testing import create_gallery, create_gallery_image, create_tag, png_bytes
+from app.testing import (
+    create_gallery,
+    create_gallery_image,
+    create_resource_grant,
+    create_tag,
+    png_bytes,
+)
 
 
 async def _galleries_enabled(session: AsyncSession, initiative) -> None:
@@ -231,16 +237,9 @@ async def test_update_and_delete_follow_the_dac_levels(
         initiative=a.initiative,
         initiative_role="member",
     )
-    session.add(
-        ResourceGrant(
-            resource_type="gallery",
-            resource_id=gallery.id,
-            user_id=b.user.id,
-            level="write",
-            initiative_id=gallery.initiative_id,
-        )
+    await create_resource_grant(
+        session, gallery, level=ResourceAccessLevel.write, user=b.user
     )
-    await session.commit()
 
     renamed = await client.patch(
         b.g(f"/galleries/{gallery.id}"), headers=b.headers, json={"name": "After"}
@@ -412,19 +411,19 @@ def test_orphaned_blobs_are_discarded_only_when_that_is_certain(monkeypatch):
 
     from app.api.v1.tenant_endpoints import galleries as endpoint
 
-    deleted: list[list[str]] = []
+    deleted: list[tuple[int, set[str]]] = []
     monkeypatch.setattr(
         endpoint.attachments_service,
-        "delete_uploads_by_urls",
-        lambda urls: deleted.append(list(urls)),
+        "delete_blobs",
+        lambda guild_id, names: deleted.append((guild_id, set(names))),
     )
 
     urls = ["/uploads/1/a.png", "/uploads/1/a-thumb.webp"]
-    endpoint._discard_orphans(urls, IntegrityError("stmt", {}, Exception()))
-    assert deleted == [urls]
+    endpoint._discard_orphans(7, urls, IntegrityError("stmt", {}, Exception()))
+    assert deleted == [(7, {"a.png", "a-thumb.webp"})]
 
     deleted.clear()
-    endpoint._discard_orphans(urls, OperationalError("stmt", {}, Exception()))
+    endpoint._discard_orphans(7, urls, OperationalError("stmt", {}, Exception()))
     assert deleted == [], "an inconclusive failure must leave the bytes alone"
 
 
@@ -944,16 +943,9 @@ async def test_deleting_a_version_is_the_owners_call(
         initiative=a.initiative,
         initiative_role="member",
     )
-    session.add(
-        ResourceGrant(
-            resource_type="gallery",
-            resource_id=gallery.id,
-            user_id=b.user.id,
-            level="write",
-            initiative_id=gallery.initiative_id,
-        )
+    await create_resource_grant(
+        session, gallery, level=ResourceAccessLevel.write, user=b.user
     )
-    await session.commit()
 
     uploaded = await client.post(
         b.g(f"/galleries/{gallery.id}/images/{image.id}/versions"),

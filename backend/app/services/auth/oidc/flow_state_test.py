@@ -36,11 +36,14 @@ pytestmark = pytest.mark.unit
 
 
 def test_round_trip():
-    state, payload = create_flow_state(mobile=True, device_name="Léa's Pixel 9")
+    state, payload = create_flow_state(
+        mobile=True, device_name="Léa's Pixel 9", app_challenge="c" * 43
+    )
     decoded = decode_flow_state(state)
     assert decoded == payload
     assert decoded.mobile is True
     assert decoded.device_name == "Léa's Pixel 9"
+    assert decoded.app_challenge == "c" * 43
 
 
 def test_defaults_round_trip():
@@ -48,6 +51,7 @@ def test_defaults_round_trip():
     decoded = decode_flow_state(state)
     assert decoded.mobile is False
     assert decoded.device_name == ""
+    assert decoded.app_challenge == ""
     assert decoded.code_verifier == payload.code_verifier
     assert decoded.nonce == payload.nonce
 

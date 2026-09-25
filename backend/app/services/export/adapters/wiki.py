@@ -94,7 +94,7 @@ class WikiAdapter(ToolExportAdapter):
             try:
                 documents.append(
                     await get_document_for_export(
-                        session, user, guild_id, document_id=linked.id, access=access
+                        session, document_id=linked.id, access=access
                     )
                 )
             except HTTPException:
@@ -246,7 +246,6 @@ def build_wiki_document_item(
         data={
             # Title and footer are the wiki's own name (user data).
             "title": wiki.name,
-            "subtitle": et("exported", loc, date=ctx.date),
             "footer": wiki.name,
             "page_of": et("pageOf", loc),
             "stem": stem,

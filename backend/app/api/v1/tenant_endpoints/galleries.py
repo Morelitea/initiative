@@ -36,9 +36,8 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import delete as sa_delete, func
+from sqlalchemy import func
 from sqlalchemy.exc import DataError, IntegrityError
-from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.api import resource_access
@@ -58,13 +57,10 @@ from app.core.messages import (
     AttachmentMessages,
     CommonMessages,
     GalleryMessages,
-    InitiativeMessages,
 )
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
-from app.models.tenant.initiative import Initiative
-from app.models.tenant.upload import Upload
 from app.schemas.tenant.gallery import (
     GalleryCreate,
     GalleryImageBulkDelete,
@@ -81,12 +77,10 @@ from app.schemas.tenant.gallery import (
     serialize_gallery_image_versions,
 )
 from app.schemas.tenant.timeline import TimelineResponse
-from app.services import permissions as permissions_service
 from app.services import storage_config
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import comments as comments_service
 from app.services.tenant import galleries as galleries_service
-from app.services.tenant import ownership as ownership_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import timeline as timeline_service
 
@@ -104,7 +98,7 @@ logger = logging.getLogger(__name__)
 _DEFINITIVELY_NOT_COMMITTED = (IntegrityError, DataError)
 
 
-def _discard_orphans(urls: list[str], failure: BaseException) -> None:
+def _discard_orphans(guild_id: int, urls: list[str], failure: BaseException) -> None:
     """Take back blobs a failed commit left behind — but only where the
     failure proves they are orphans. Anything ambiguous keeps its bytes and
     says so, so the waste is findable rather than the picture missing."""
@@ -112,7 +106,9 @@ def _discard_orphans(urls: list[str], failure: BaseException) -> None:
     if not urls:
         return
     if isinstance(failure, _DEFINITIVELY_NOT_COMMITTED):
-        attachments_service.delete_uploads_by_urls(urls)
+        attachments_service.delete_blobs(
+            guild_id, attachments_service.upload_names(urls)
+        )
         return
     logger.warning(
         "Left %d uploaded blob(s) in place after an inconclusive commit "
@@ -142,27 +138,6 @@ GalleriesWrite = Annotated[ActorContext, Depends(app_scope("galleries:write"))]
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-async def _get_initiative_for_gallery(
-    session: RLSSessionDep,
-    initiative_id: int,
-) -> Initiative:
-    stmt = (
-        select(Initiative)
-        .where(Initiative.id == initiative_id)
-        .options(
-            selectinload(Initiative.memberships),
-            selectinload(Initiative.roles),
-        )
-    )
-    initiative = (await session.exec(stmt)).one_or_none()
-    if not initiative:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=InitiativeMessages.NOT_FOUND,
-        )
-    return initiative
 
 
 async def _refetch_gallery(
@@ -402,14 +377,8 @@ async def create_gallery(
     """Create a gallery. Requires create_galleries permission on the
     initiative (or guild admin); the creator gets the owner grant."""
     resource_access.refuse_app_sharing(guild_context, gallery_in, "grants")
-    initiative = await _get_initiative_for_gallery(session, gallery_in.initiative_id)
-    if not initiative.galleries_enabled:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=Tool.gallery.feature_disabled_code,
-        )
-    await resource_access.require_create(
-        session, Tool.gallery, initiative, current_user, guild_context
+    initiative = await resource_access.prepare_create(
+        session, Tool.gallery, gallery_in.initiative_id, current_user, guild_context
     )
 
     gallery = Gallery(
@@ -421,37 +390,16 @@ async def create_gallery(
     session.add(gallery)
     await session.flush()
 
-    # The creator's owner grant, then the initial sharing. An installed app's
-    # owner row is written by the table's own trigger as the row goes in, and
-    # its initial sharing is applied below, when it asked for one.
-    owner_grant = ownership_service.creator_owner_grant(
+    await resource_access.grant_initial_sharing(
+        session,
         guild_context,
-        tool=Tool.gallery,
+        Tool.gallery,
+        user=current_user,
         resource_id=gallery.id,
         initiative_id=initiative.id,
+        payload=gallery_in,
+        grants=gallery_in.grants,
     )
-    if owner_grant is not None and current_user is not None:
-        session.add(owner_grant)
-        await permissions_service.replace_resource_grants(
-            session,
-            resource_type="gallery",
-            resource_id=gallery.id,
-            guild_id=guild_context.guild_id,
-            initiative_id=initiative.id,
-            owner_id=current_user.id,
-            grants=gallery_in.grants,
-            actor_user_id=current_user.id,
-        )
-    else:
-        await resource_access.apply_app_initial_sharing(
-            session,
-            guild_context,
-            Tool.gallery,
-            resource_id=gallery.id,
-            initiative_id=initiative.id,
-            payload=gallery_in,
-            grants=gallery_in.grants,
-        )
     if gallery_in.tag_ids:
         await tags_service.set_entity_tags(
             session,
@@ -749,7 +697,7 @@ async def upload_gallery_image(
         await session.commit()
     except Exception as failed:
         await session.rollback()
-        _discard_orphans([file_url, thumbnail_url], failed)
+        _discard_orphans(guild_context.guild_id, [file_url, thumbnail_url], failed)
         raise
 
     hydrated = await _refetch_image(session, gallery.id, image.id)
@@ -937,7 +885,7 @@ async def upload_gallery_image_version(
         await session.commit()
     except Exception as failed:
         await session.rollback()
-        _discard_orphans([file_url, thumbnail_url], failed)
+        _discard_orphans(guild_context.guild_id, [file_url, thumbnail_url], failed)
         if isinstance(failed, IntegrityError):
             # A concurrent upload claimed the same version number between the
             # MAX() read and this commit. Ask the caller to retry rather than
@@ -1021,18 +969,14 @@ async def delete_gallery_image_version(
     doomed_urls = galleries_service.image_blob_urls(target)
 
     await session.delete(target)
-    await session.flush()
-    await session.exec(
-        sa_delete(Upload).where(
-            Upload.filename.in_([u.split("/")[-1] for u in doomed_urls])
-        )
-    )
     if is_current:
         promoted = next((v for v in versions if v.id != version_id), None)
         if promoted is not None:
             galleries_service.mirror_version(image, promoted)
             image.updated_at = datetime.now(timezone.utc)
             session.add(image)
+    await session.flush()
+    released = await attachments_service.release_uploads(session, doomed_urls)
     await session.commit()
     # Blobs after the rows, so a failed commit does not orphan files.
-    attachments_service.delete_uploads_by_urls(doomed_urls)
+    attachments_service.delete_blobs(guild_context.guild_id, released)

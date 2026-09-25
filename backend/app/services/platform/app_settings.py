@@ -8,9 +8,12 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from collections.abc import Sequence
+from datetime import datetime, timezone
 from typing import Any
 
 from app.core.audit_events import AuditEventType
+from app.core.transitions import Transition
 from app.services import audit as audit_service
 from app.core.config import settings as app_config
 from app.core.encryption import (
@@ -356,7 +359,9 @@ async def seed_app_settings(session: AsyncSession) -> AppSetting:
     return settings_row
 
 
-async def record_running_version(session: AsyncSession, *, version: str) -> str | None:
+async def record_running_version(
+    session: AsyncSession, *, version: str, transitions: Sequence[str] = ()
+) -> str | None:
     """Roll the deployment's version pair forward, and say what it was before.
 
     Called once at boot. When the running version differs from what was last
@@ -366,17 +371,33 @@ async def record_running_version(session: AsyncSession, *, version: str) -> str 
     honest answer: it never upgraded from anything.
 
     Idempotent across restarts on the same version: the pair only moves when
-    the running version actually changed.
+    the running version actually changed. Each of ``transitions`` not yet
+    dated is dated now (see ``app.core.transitions``).
     """
     if not await _session_can_write_app_settings(session):
         return (await get_app_settings(session)).previous_version
     settings_row = await ensure_settings_row(session)
-    if settings_row.last_seen_version == version:
+    now = datetime.now(timezone.utc).isoformat()
+    started = {
+        name: now for name in transitions if name not in settings_row.transitions
+    }
+    if settings_row.last_seen_version == version and not started:
         return settings_row.previous_version
-    settings_row.previous_version = settings_row.last_seen_version
-    settings_row.last_seen_version = version
+    if started:
+        settings_row.transitions = {**settings_row.transitions, **started}
+    if settings_row.last_seen_version != version:
+        settings_row.previous_version = settings_row.last_seen_version
+        settings_row.last_seen_version = version
     await _write_app_settings(session, settings_row)
     return settings_row.previous_version
+
+
+async def transition_over(session: AsyncSession, transition: Transition) -> bool:
+    """Whether ``transition``'s grace period has run out on this deployment."""
+    started = (await get_app_settings(session)).transitions.get(transition.name)
+    return started is not None and (
+        datetime.fromisoformat(started) + transition.grace < datetime.now(timezone.utc)
+    )
 
 
 async def previous_running_version(session: AsyncSession) -> str | None:

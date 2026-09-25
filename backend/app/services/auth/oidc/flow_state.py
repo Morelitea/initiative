@@ -38,6 +38,12 @@ _NONCE_BYTES: int = 32
 DEVICE_NAME_MAX_CHARS: int = 64
 
 
+def s256(verifier: str) -> str:
+    """The S256 ``code_challenge`` for a PKCE ``code_verifier`` (RFC 7636 §4.2)."""
+    digest = hashlib.sha256(verifier.encode("ascii")).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+
+
 class FlowStateError(Exception):
     """The flow state is missing, expired, or invalid; the login attempt must
     be rejected (fail-closed)."""
@@ -55,16 +61,22 @@ class OidcFlowState:
     # complete so the state can't be replayed against another provider.
     # Empty only in states minted before the field existed.
     provider_slug: str = ""
+    # The app's own S256 challenge for a native sign-in: the code this login
+    # ends in is bound to it (see ``app.services.auth.native_handoff``).
+    app_challenge: str = ""
 
     @property
     def code_challenge(self) -> str:
-        """S256 challenge for ``code_verifier`` (RFC 7636 §4.2)."""
-        digest = hashlib.sha256(self.code_verifier.encode("ascii")).digest()
-        return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+        """S256 challenge for ``code_verifier``, sent to the IdP."""
+        return s256(self.code_verifier)
 
 
 def create_flow_state(
-    *, mobile: bool = False, device_name: str = "", provider_slug: str = ""
+    *,
+    mobile: bool = False,
+    device_name: str = "",
+    provider_slug: str = "",
+    app_challenge: str = "",
 ) -> tuple[str, OidcFlowState]:
     """Generate a fresh verifier + nonce and return ``(state, payload)`` —
     ``state`` is the encrypted token to send to the IdP, ``payload`` supplies
@@ -77,6 +89,7 @@ def create_flow_state(
         mobile=mobile,
         device_name=device_name[:DEVICE_NAME_MAX_CHARS],
         provider_slug=provider_slug,
+        app_challenge=app_challenge,
     )
     plaintext = json.dumps(
         {
@@ -85,6 +98,7 @@ def create_flow_state(
             "mobile": payload.mobile,
             "device_name": payload.device_name,
             "provider_slug": payload.provider_slug,
+            "app_challenge": payload.app_challenge,
         },
         separators=(",", ":"),
     )
@@ -114,6 +128,7 @@ def decode_flow_state(
             mobile=bool(data.get("mobile", False)),
             device_name=str(data.get("device_name", ""))[:DEVICE_NAME_MAX_CHARS],
             provider_slug=str(data.get("provider_slug", "")),
+            app_challenge=str(data.get("app_challenge", "")),
         )
     except (ValueError, KeyError, TypeError) as exc:
         raise FlowStateError("malformed flow state payload") from exc

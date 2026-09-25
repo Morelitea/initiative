@@ -73,7 +73,9 @@ describe("EmailOtpCard", () => {
     await user.click(screen.getByRole("button", { name: /^sign in$/i }));
 
     await waitFor(() => expect(onSignedIn).toHaveBeenCalled());
-    expect(applyEmailOtpSignIn).toHaveBeenCalledWith("a-token");
+    expect(applyEmailOtpSignIn).toHaveBeenCalledWith(
+      expect.objectContaining({ access_token: "a-token" })
+    );
     expect(sent).toEqual([{ challenge: "handle-1", code: "123456" }]);
   });
 
@@ -100,7 +102,9 @@ describe("EmailOtpCard", () => {
     await user.click(screen.getByRole("button", { name: /create account/i }));
 
     await waitFor(() => expect(onSignedIn).toHaveBeenCalled());
-    expect(applyEmailOtpSignIn).toHaveBeenCalledWith("new-token");
+    expect(applyEmailOtpSignIn).toHaveBeenCalledWith(
+      expect.objectContaining({ access_token: "new-token" })
+    );
   });
 
   it("keeps the code step when the code is refused", async () => {
@@ -124,10 +128,10 @@ describe("EmailOtpCard", () => {
   });
 
   it("asks for a code without a captcha where the deployment runs none", async () => {
-    const asked: Record<string, string>[] = [];
+    const asked: Record<string, unknown>[] = [];
     server.use(
       http.post("/api/v1/auth/email-otp/send", async ({ request }) => {
-        asked.push((await request.json()) as Record<string, string>);
+        asked.push((await request.json()) as Record<string, unknown>);
         return HttpResponse.json({ status: "sent", challenge: "handle-5" });
       })
     );
@@ -135,15 +139,16 @@ describe("EmailOtpCard", () => {
 
     await askAt("plain@example.com");
 
-    expect(asked).toEqual([{ email: "plain@example.com" }]);
+    // A browser asks for itself; only the app says it is native.
+    expect(asked).toEqual([{ email: "plain@example.com", native: false }]);
   });
 
   it("sends the captcha the deployment asks for", async () => {
     mocks.captcha = { provider: "hcaptcha", site_key: "site" };
-    const asked: Record<string, string>[] = [];
+    const asked: Record<string, unknown>[] = [];
     server.use(
       http.post("/api/v1/auth/email-otp/send", async ({ request }) => {
-        asked.push((await request.json()) as Record<string, string>);
+        asked.push((await request.json()) as Record<string, unknown>);
         return HttpResponse.json({ status: "sent", challenge: "handle-6" });
       })
     );
@@ -159,7 +164,9 @@ describe("EmailOtpCard", () => {
     await user.click(screen.getByRole("button", { name: /email me a code/i }));
     await screen.findByLabelText(/^code$/i);
 
-    expect(asked).toEqual([{ email: "guarded@example.com", captcha_token: "solved" }]);
+    expect(asked).toEqual([
+      { email: "guarded@example.com", native: false, captcha_token: "solved" },
+    ]);
   });
 
   it("asks for a fresh solve after a refused send", async () => {

@@ -20,9 +20,15 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.post import Post
-from app.models.tenant.resource_grant import ResourceGrant
+from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.post import MAX_POST_TEXT_CHARS
-from app.testing import Actor, create_comment, create_post, lexical_body
+from app.testing import (
+    Actor,
+    create_comment,
+    create_post,
+    create_resource_grant,
+    lexical_body,
+)
 from app.testing import route_as
 
 
@@ -766,17 +772,10 @@ async def test_a_draft_is_out_of_the_sidebar_counts(
 async def test_an_editor_can_see_a_draft(
     client: AsyncClient, draft_scene: _DraftScene, session
 ):
-    author, editor, draft = draft_scene.author, draft_scene.reader, draft_scene.draft
-    session.add(
-        ResourceGrant(
-            resource_type="post",
-            resource_id=draft.id,
-            user_id=editor.user.id,
-            level="write",
-            initiative_id=author.initiative.id,
-        )
+    editor, draft = draft_scene.reader, draft_scene.draft
+    await create_resource_grant(
+        session, draft, level=ResourceAccessLevel.write, user=editor.user
     )
-    await session.commit()
 
     listing = await client.get(editor.g("/posts/"), headers=editor.headers)
     assert [p["id"] for p in listing.json()["items"]] == [draft.id]

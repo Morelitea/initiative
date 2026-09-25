@@ -27,6 +27,7 @@ from app.models.tenant.initiative import (
     JoinRequestStatus,
     PermissionKey,
 )
+from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
@@ -377,6 +378,22 @@ async def clear_user_task_assignments_for_initiative(
     )
 
 
+async def drop_member_grants(
+    session: AsyncSession, *, user_id: int, initiative_ids: Sequence[int]
+) -> None:
+    """Delete ``user_id``'s read and write grants on every tool in
+    ``initiative_ids``: access that came with the membership goes with it.
+    Owner grants stay; they record who a resource belongs to, and grant nothing
+    once the membership row is gone."""
+    await session.exec(
+        delete(ResourceGrant).where(
+            ResourceGrant.user_id == user_id,
+            ResourceGrant.level != ResourceAccessLevel.owner,
+            ResourceGrant.initiative_id.in_(initiative_ids),
+        )
+    )
+
+
 async def remove_user_from_guild_initiatives(
     session: AsyncSession,
     *,
@@ -420,24 +437,7 @@ async def remove_user_from_guild_initiatives(
             user_id=user_id,
         )
 
-    # Drop their remaining document grants in those initiatives (one statement
-    # for the whole batch) — access that came with the membership goes with it.
-    # The owner grants are already gone, released above.
-    if initiative_ids:
-        from app.models.tenant.document import Document
-        from app.models.tenant.resource_grant import ResourceGrant
-
-        await session.exec(
-            delete(ResourceGrant).where(
-                ResourceGrant.resource_type == "document",
-                ResourceGrant.user_id == user_id,
-                ResourceGrant.resource_id.in_(
-                    select(Document.id).where(
-                        Document.initiative_id.in_(tuple(initiative_ids))
-                    )
-                ),
-            )
-        )
+    await drop_member_grants(session, user_id=user_id, initiative_ids=initiative_ids)
 
     # Remove initiative memberships
     stmt = delete(InitiativeMember).where(

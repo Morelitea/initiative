@@ -202,7 +202,7 @@ async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> Non
     await session.flush()
     await _set_purging(session, False)
 
-    # Drop idle collaboration rooms so persist_room can't overwrite the
+    # Drop idle collaboration rooms so a room's save can't overwrite the
     # scrubbed content with a stale in-memory copy on next disconnect. Rooms are
     # keyed by (guild, document) and this runs once per guild, routed to it.
     guild_id = routed_guild_id(session)
