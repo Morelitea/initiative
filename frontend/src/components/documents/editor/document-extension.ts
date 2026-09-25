@@ -35,6 +35,7 @@ import { YouTubeNode } from "@/components/ui/editor/nodes/embeds/youtube-node";
 import { EntityMentionNode } from "@/components/ui/editor/nodes/entity-mention-node";
 import { LEGACY_NODES } from "@/components/ui/editor/nodes/legacy-nodes";
 import { MentionNode } from "@/components/ui/editor/nodes/mention-node";
+import { ReferenceEmbedNode } from "@/components/ui/editor/nodes/reference-embed-node";
 import { SmartChipNode } from "@/components/ui/editor/nodes/smart-chip-node";
 import { editorTheme } from "@/components/ui/editor/themes/editor-theme";
 import { validateUrl } from "@/components/ui/editor/utils/url";
@@ -85,6 +86,7 @@ export function documentExtension({
       YouTubeNode,
       EntityMentionNode,
       SmartChipNode,
+      ReferenceEmbedNode,
       ...LEGACY_NODES,
     ],
     theme: editorTheme,

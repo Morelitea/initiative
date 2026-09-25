@@ -1,4 +1,4 @@
-import { CalendarClock, CircleDot, Flag, Gauge, ListChecks, User } from "lucide-react";
+import { CalendarClock, CircleDot, Flag, Gauge, ListChecks, SquareCheck, User } from "lucide-react";
 import type { JSX } from "react";
 
 import { SmartChipKind } from "@/api/generated/initiativeAPI.schemas";
@@ -37,6 +37,11 @@ export const SMART_CHIP_MENU: Record<
     labelKey: "smartChips.taskPriority",
     icon: <Flag className="size-4" />,
     keywords: ["priority", "task", "urgent", "chip"],
+  },
+  [SmartChipKind["task:checklist"]]: {
+    labelKey: "smartChips.taskChecklist",
+    icon: <SquareCheck className="size-4" />,
+    keywords: ["checklist", "checkbox", "tick", "todo", "done", "attendance", "task", "chip"],
   },
   [SmartChipKind["counter:value"]]: {
     labelKey: "smartChips.counterValue",

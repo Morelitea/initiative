@@ -468,6 +468,24 @@ def test_a_callout_exports_as_obsidian_markdown():
     assert lines[:4] == ["> [!warning]", "> Careful", ">", "> - one"]
 
 
+def test_an_embed_exports_as_a_callout_holding_its_name():
+    state = _state(
+        [
+            {
+                "type": "reference-embed",
+                "entityType": "task",
+                "entityId": 12,
+                "text": "Roll call",
+            }
+        ]
+    )
+    blocks, _assets = blocks_from_editor_state(state, guild_id=GUILD)
+    content, _ctype, _name = render_markdown(
+        {"title": "", "blocks": blocks}, lambda key: b""
+    )
+    assert content.decode().strip().splitlines() == ["> [!note]", "> Roll call"]
+
+
 def test_a_callout_in_word_is_its_label_then_its_blocks():
     import docx
 

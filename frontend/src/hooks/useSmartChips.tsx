@@ -1,14 +1,17 @@
-import { keepPreviousData, useQueries } from "@tanstack/react-query";
+import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 
 import type {
+  ReferenceEmbed,
   SearchEntityType,
   SmartChipState,
   SmartChipStateList,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
+  getReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGetQueryKey,
   getReadSmartChipsApiV1CGuildIdSmartChipsGetQueryKey,
+  readReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet,
   readSmartChipsApiV1CGuildIdSmartChipsGet,
 } from "@/api/generated/smart-chips/smart-chips";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -157,3 +160,24 @@ export const useReferenceTitle = (
   entityType: SearchEntityType,
   entityId: number
 ): string | undefined => useChipState(referenceRef(entityType, entityId))?.text || undefined;
+
+/**
+ * What an embedded reference shows — the thing's name and its description —
+ * or `undefined` while loading and wherever it cannot be read.
+ *
+ * Asked once per embed rather than on the chips' timer: a description is text
+ * somebody writes, not a reading that moves on its own, so it is read again
+ * when the reader comes back to the page rather than every minute.
+ */
+export const useReferenceEmbed = (entityType: SearchEntityType, entityId: number) => {
+  const guildId = useActiveGuildId();
+  const ref = referenceRef(entityType, entityId);
+  const params = { ref: [ref] };
+  return useQuery({
+    queryKey: getReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGetQueryKey(guildId, params),
+    queryFn: () => readReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet(guildId, params),
+    enabled: guildId != null,
+    staleTime: STALE_MS,
+    select: (data): ReferenceEmbed | null => data.items.find((item) => item.ref === ref) ?? null,
+  });
+};

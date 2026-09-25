@@ -11,6 +11,7 @@ import { defineExtension } from "lexical";
 
 import { createCalloutTransformer } from "@/components/ui/editor/transformers/markdown-callout-transformer";
 import { createColumnsTransformer } from "@/components/ui/editor/transformers/markdown-columns-transformer";
+import { EMBED } from "@/components/ui/editor/transformers/markdown-embed-transformer";
 import { EMOJI } from "@/components/ui/editor/transformers/markdown-emoji-transformer";
 import {
   EXCALIDRAW_EXPORT,
@@ -31,6 +32,8 @@ export const MARKDOWN_TRANSFORMERS: Transformer[] = [
   EXCALIDRAW_EXPORT,
   TABLE,
   HR,
+  // Ahead of the image `![` would otherwise begin.
+  EMBED,
   IMAGE,
   EMOJI,
   TWEET,

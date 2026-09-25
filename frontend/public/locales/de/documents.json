@@ -282,6 +282,11 @@
     "unmergeCells": "Zellen trennen",
     "youtubeVideo": "YouTube-Video"
   },
+  "embeds": {
+    "insert": "Einbetten",
+    "showAsEmbed": "Vollständig anzeigen",
+    "showAsLink": "Als Link anzeigen"
+  },
   "outline": {
     "title": "Inhalt",
     "show": "Inhalt anzeigen",
@@ -377,6 +382,7 @@
   "smartChips": {
     "aspects": {
       "assignee": "Zuständige Person",
+      "checklist": "Erledigt",
       "due": "Fälligkeitsdatum",
       "priority": "Priorität",
       "progress": "Fortschritt",
@@ -398,6 +404,7 @@
     "searchPlaceholder": "Suche etwas zum Anzeigen",
     "searching": "Suche läuft …",
     "taskAssignee": "Zuständige Person",
+    "taskChecklist": "Aufgaben-Kontrollkästchen",
     "taskDue": "Fälligkeitsdatum",
     "taskPriority": "Priorität",
     "taskStatus": "Aufgabenstatus",

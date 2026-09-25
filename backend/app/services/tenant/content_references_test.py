@@ -68,10 +68,16 @@ def test_a_reference_to_something_that_is_not_a_document_counts_too():
     }
 
 
-def test_a_chip_is_a_reading_not_a_reference():
-    """A chip shows what something is doing; it does not point at a page."""
+def test_a_chip_refers_to_the_thing_it_reads():
+    """A page showing a task's status is about that task, so "what links here"
+    finds it."""
     content = _doc({"type": "smart-chip", "chipKind": "task:status", "entityId": 9})
-    assert references_in_body(content) == set()
+    assert references_in_body(content) == {(TASK, 9)}
+
+
+def test_an_embed_refers_to_the_thing_it_shows():
+    content = _doc({"type": "reference-embed", "entityType": "queue", "entityId": 4})
+    assert references_in_body(content) == {(SearchEntityType.queue, 4)}
 
 
 def test_references_are_found_however_deep_they_sit():
@@ -162,6 +168,29 @@ async def test_a_document_does_not_reference_itself(session, acting_user):
     )
 
     assert await _references(session, anchor) == {("document", other.id)}
+
+
+@pytest.mark.integration
+async def test_a_task_showing_its_own_status_does_not_reference_itself(
+    session, acting_user
+):
+    """A chip or an embed of the task a description is on is the same loop a
+    self-link is, whatever shape it is written in."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    task = await create_task(session, a.project)
+    anchor = Endpoint(TASK, task.id)
+
+    await content_references.sync_for_entity(
+        session,
+        anchor,
+        body=_doc(
+            {"type": "smart-chip", "chipKind": "task:status", "entityId": task.id},
+            {"type": "reference-embed", "entityType": "task", "entityId": task.id},
+        ),
+        author_id=a.user.id,
+    )
+
+    assert await _references(session, anchor) == set()
 
 
 @pytest.mark.integration

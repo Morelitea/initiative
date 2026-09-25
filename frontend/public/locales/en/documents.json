@@ -282,6 +282,11 @@
     "unmergeCells": "Unmerge cells",
     "youtubeVideo": "YouTube Video"
   },
+  "embeds": {
+    "insert": "Embed",
+    "showAsEmbed": "Show in full",
+    "showAsLink": "Show as a link"
+  },
   "outline": {
     "title": "Contents",
     "show": "Show contents",
@@ -377,6 +382,7 @@
   "smartChips": {
     "aspects": {
       "assignee": "Assignee",
+      "checklist": "Done",
       "due": "Due date",
       "priority": "Priority",
       "progress": "Progress",
@@ -398,6 +404,7 @@
     "searchPlaceholder": "Search for something to show",
     "searching": "Searching…",
     "taskAssignee": "Task assignee",
+    "taskChecklist": "Task checkbox",
     "taskDue": "Task due date",
     "taskPriority": "Task priority",
     "taskStatus": "Task status",

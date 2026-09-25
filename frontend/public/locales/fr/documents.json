@@ -282,6 +282,11 @@
     "unmergeCells": "Scinder les cellules",
     "youtubeVideo": "Vidéo YouTube"
   },
+  "embeds": {
+    "insert": "Intégrer",
+    "showAsEmbed": "Afficher en entier",
+    "showAsLink": "Afficher comme lien"
+  },
   "outline": {
     "title": "Sommaire",
     "show": "Afficher le sommaire",
@@ -377,6 +382,7 @@
   "smartChips": {
     "aspects": {
       "assignee": "Personne assignée",
+      "checklist": "Terminée",
       "due": "Date d'échéance",
       "priority": "Priorité",
       "progress": "Avancement",
@@ -398,6 +404,7 @@
     "searchPlaceholder": "Cherchez quelque chose à afficher",
     "searching": "Recherche…",
     "taskAssignee": "Personne assignée",
+    "taskChecklist": "Case à cocher de la tâche",
     "taskDue": "Date d'échéance",
     "taskPriority": "Priorité",
     "taskStatus": "Statut de la tâche",

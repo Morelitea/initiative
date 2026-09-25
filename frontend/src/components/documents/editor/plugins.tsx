@@ -49,7 +49,10 @@ import { ImagePickerPlugin } from "@/components/ui/editor/plugins/picker/image-p
 import { NumberedListPickerPlugin } from "@/components/ui/editor/plugins/picker/numbered-list-picker-plugin";
 import { ParagraphPickerPlugin } from "@/components/ui/editor/plugins/picker/paragraph-picker-plugin";
 import { QuotePickerPlugin } from "@/components/ui/editor/plugins/picker/quote-picker-plugin";
-import { SmartChipPickerPlugins } from "@/components/ui/editor/plugins/picker/smart-chip-picker-plugin";
+import {
+  EmbedPickerPlugin,
+  SmartChipPickerPlugins,
+} from "@/components/ui/editor/plugins/picker/smart-chip-picker-plugin";
 import { StatusPickerPlugin } from "@/components/ui/editor/plugins/picker/status-picker-plugin";
 import {
   DynamicTablePickerPlugin,
@@ -419,7 +422,9 @@ export function Plugins({
               DiagramPickerPlugin(t),
               StatusPickerPlugin(t),
               // Live chips, offered where `#` is: prose only.
-              ...(supportsEntityMentions ? SmartChipPickerPlugins(t, initiativeId) : []),
+              ...(supportsEntityMentions
+                ? [...SmartChipPickerPlugins(t, initiativeId), EmbedPickerPlugin(t, initiativeId)]
+                : []),
               ColumnsLayoutPickerPlugin(),
               AlignmentPickerPlugin({ alignment: "left" }),
               AlignmentPickerPlugin({ alignment: "center" }),

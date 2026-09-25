@@ -1,4 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { archiveEntityApiV1CGuildIdArchiveEntityTypeEntityIdPost } from "@/api/generated/archive/archive";
 import type {
@@ -14,7 +16,11 @@ import type {
   TaskReorderRequest,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import { getListTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGetQueryKey } from "@/api/generated/task-statuses/task-statuses";
+import { getReadSmartChipsApiV1CGuildIdSmartChipsGetQueryKey } from "@/api/generated/smart-chips/smart-chips";
+import {
+  getListTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGetQueryKey,
+  listTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGet,
+} from "@/api/generated/task-statuses/task-statuses";
 import {
   archiveDoneTasksApiV1CGuildIdTasksArchiveDonePost,
   createTaskApiV1CGuildIdTasksPost,
@@ -39,6 +45,7 @@ import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { fetchAllPages } from "@/lib/fetchAllPages";
 import { fireTaskCompletionFeedback } from "@/lib/taskCompletionFeedback";
+import { statusForCategory } from "@/lib/taskStatusDefaults";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -192,6 +199,57 @@ export const useUpdateTask = (
     },
     onSettled,
   });
+};
+
+/**
+ * Tick or untick a task from somewhere that is not its project — a document's
+ * checkbox. Done is the project's done column; unticked is in progress, the
+ * same move the My Tasks box makes. Which column that is belongs to the
+ * project, so its columns are read at the moment of ticking.
+ */
+export const useSetTaskDone = () => {
+  const { t } = useTranslation("tasks");
+  const guildId = useActiveGuildId();
+  const queryClient = useQueryClient();
+  const [resolving, setResolving] = useState(false);
+  const { mutateAsync, isPending } = useUpdateTask({
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: getReadSmartChipsApiV1CGuildIdSmartChipsGetQueryKey(guildId),
+      }),
+  });
+
+  const setDone = useCallback(
+    async (taskId: number, done: boolean) => {
+      setResolving(true);
+      let targetId: number | null = null;
+      try {
+        const task = await queryClient.fetchQuery({
+          queryKey: getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey(guildId, taskId),
+          queryFn: () => readTaskApiV1CGuildIdTasksTaskIdGet(guildId, taskId),
+        });
+        const statuses = await listTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGet(
+          guildId,
+          task.project_id
+        );
+        targetId = statusForCategory(statuses, done ? "done" : "in_progress")?.id ?? null;
+      } catch (error) {
+        toast.error(getErrorMessage(error, "tasks:errors.statusUpdate"));
+        return;
+      } finally {
+        setResolving(false);
+      }
+      if (targetId === null) {
+        toast.error(t("errors.statusNoMatch"));
+        return;
+      }
+      // A failed update is reported by the update itself.
+      await mutateAsync({ taskId, data: { task_status_id: targetId } }).catch(() => undefined);
+    },
+    [guildId, mutateAsync, queryClient, t]
+  );
+
+  return { setDone, pending: resolving || isPending };
 };
 
 /**

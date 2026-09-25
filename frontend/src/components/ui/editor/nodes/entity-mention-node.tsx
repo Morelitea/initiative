@@ -25,7 +25,7 @@ import {
 import type { JSX } from "react";
 
 import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
-import { EntityReference } from "@/components/ui/editor/nodes/entity-reference";
+import { EditorEntityReference } from "@/components/ui/editor/nodes/entity-reference";
 
 export type SerializedEntityMentionNode = Spread<
   {
@@ -141,10 +141,11 @@ export class EntityMentionNode extends DecoratorNode<JSX.Element> {
 
   decorate(): JSX.Element {
     return (
-      <EntityReference
+      <EditorEntityReference
         entityType={this.__entityType}
         entityId={this.__entityId}
         fallback={this.__text}
+        nodeKey={this.getKey()}
       />
     );
   }

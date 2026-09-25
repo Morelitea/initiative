@@ -53,7 +53,9 @@ That's why it reaches tools and `#` reaches everything. A tool needs only a name
 
 A tool your initiative has switched off isn't offered, and can't be created this way either.
 
-Every document also shows its **backlinks** — the other documents pointing at it — so you can see what refers to a page without keeping a list yourself. A `#` link counts, not just a `[[ ]]` one.
+Every document also shows its **backlinks** — the other documents pointing at it — so you can see what refers to a page without keeping a list yourself. A `#` link counts, not just a `[[ ]]` one, and so does a [smart chip](documents.md#smart-chips) or an [embed](documents.md#embeds). A page pointing at itself doesn't.
+
+In a text document, a `!` in front — `![[` — shows the thing in full instead of linking to it. See [Embeds](documents.md#embeds).
 
 ## Names look after themselves
 

@@ -42,6 +42,35 @@ class SmartChipState(BaseModel):
     color: Optional[str] = None
     date: Optional[datetime] = None
     number: Optional[Decimal] = None
+    #: Whether this reader may change the fact from the chip itself. Only a chip
+    #: that can be acted on — a task's box — is ever ``True``.
+    writable: bool = False
+
+
+class ReferenceEmbed(BaseModel):
+    """A reference shown in full — ``![[ ]]`` rather than ``#``.
+
+    The same reference and the same gate as a link; what it adds is what the
+    thing says about itself, for the kinds that carry a description.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    #: The bare ``kind:id`` this answers.
+    ref: str
+    entity_type: SearchEntityType
+    #: What the thing is called right now.
+    title: str
+    #: Its description, where the kind has one and it is filled in.
+    description: Optional[str] = None
+
+
+class ReferenceEmbedList(BaseModel):
+    """The embeds that could be read; anything gone or out of reach is absent."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    items: List[ReferenceEmbed]
 
 
 class SmartChipStateList(BaseModel):

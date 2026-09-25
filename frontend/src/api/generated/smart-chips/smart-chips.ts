@@ -19,7 +19,9 @@ import type {
 
 import type {
   HTTPValidationError,
+  ReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGetParams,
   ReadSmartChipsApiV1CGuildIdSmartChipsGetParams,
+  ReferenceEmbedList,
   SmartChipKind,
   SmartChipStateList,
 } from "../initiativeAPI.schemas";
@@ -378,6 +380,182 @@ export function useReadSmartChipsApiV1CGuildIdSmartChipsGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getReadSmartChipsApiV1CGuildIdSmartChipsGetQueryOptions(
+    guildId,
+    params,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * What an embedded reference shows: the thing's name and description.
+ *
+ * Absent for anything gone or out of this caller's reach, as a chip is.
+ * @summary Read Reference Embeds
+ */
+export const readReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet = (
+  guildId: number,
+  params?: ReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ReferenceEmbedList>(
+    { url: `/api/v1/c/${guildId}/smart-chips/embeds`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGetQueryKey = (
+  guildId: number,
+  params?: ReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGetParams
+) => {
+  return [`/api/v1/c/${guildId}/smart-chips/embeds`, ...(params ? [params] : [])] as const;
+};
+
+export const getReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGetQueryKey(guildId, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet>>
+  > = ({ signal }) =>
+    readReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet(guildId, params, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof readReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet>>
+>;
+export type ReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet<
+  TData = Awaited<ReturnType<typeof readReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: undefined | ReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet>>,
+          TError,
+          Awaited<ReturnType<typeof readReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet<
+  TData = Awaited<ReturnType<typeof readReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet>>,
+          TError,
+          Awaited<ReturnType<typeof readReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet<
+  TData = Awaited<ReturnType<typeof readReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Reference Embeds
+ */
+
+export function useReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet<
+  TData = Awaited<ReturnType<typeof readReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadReferenceEmbedsApiV1CGuildIdSmartChipsEmbedsGetQueryOptions(
     guildId,
     params,
     options

@@ -10,7 +10,8 @@ emitter (python-docx, images embedded), and the ``document`` Typst template
 Degradation contract: any unknown node with ``text`` renders as text (this
 covers mentions, wikilinks, hashtags, emojis, keywords — all TextNode
 subclasses); unknown containers recurse into their children; embeds
-(YouTube/Tweet) degrade to a link; anything else is dropped silently. A new
+(YouTube/Tweet) degrade to a link; a reference embed (``![[ ]]``) to a note
+callout holding its name; anything else is dropped silently. A new
 editor node can never break an export, it just exports as its text.
 
 Images: only same-guild uploads (``/uploads/{guild_id}/…``) are collected as
@@ -181,6 +182,19 @@ class _Parser:
                     "blocks": self.nested(children),
                 }
             )
+        elif ntype == "reference-embed":
+            # A thing shown in full. The export cannot read it live, so it keeps
+            # the panel and the name the page had for it.
+            self.flush_paragraph()
+            name = str(node.get("text") or "")
+            if name:
+                self.blocks.append(
+                    {
+                        "type": "callout",
+                        "variant": "note",
+                        "blocks": [{"type": "paragraph", "runs": [{"text": name}]}],
+                    }
+                )
         elif ntype == "layout-container":
             self.flush_paragraph()
             items = [c for c in children if c.get("type") == "layout-item"]
