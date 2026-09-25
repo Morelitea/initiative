@@ -219,6 +219,82 @@ class TestTheListingSaysWhatTheDialogAsks:
         assert body["has_initiative_surfaces"] is True
 
 
+class TestAnAppAskingToUseAnother:
+    """``apps:<public_id>`` is asked for, named and granted like any scope."""
+
+    async def test_the_dialog_names_the_app_and_the_seat_grants_it(
+        self, client: AsyncClient, session: AsyncSession, acting_user
+    ):
+        target_uid = marketplace_uid("gitco")
+        caller_uid = marketplace_uid("callerco")
+        await create_app_service_registration(
+            session,
+            public_id="tests.gitco",
+            base_url="https://gitco.example.test",
+            listing_uid=target_uid,
+        )
+        await create_marketplace_listing(
+            session,
+            uid=target_uid,
+            public_id="tests.gitco",
+            kind="app",
+            name="GitCo",
+            definition={
+                "app_kind": "service",
+                "service": {"public_id": "tests.gitco", "protocol": 1},
+                "features": [],
+            },
+        )
+        await create_app_service_registration(
+            session,
+            public_id="tests.callerco",
+            base_url="https://callerco.example.test",
+            listing_uid=caller_uid,
+            scope_ceiling=["apps:tests.gitco"],
+        )
+        await create_marketplace_listing(
+            session,
+            uid=caller_uid,
+            public_id="tests.callerco",
+            kind="app",
+            name="CallerCo",
+            definition={
+                "app_kind": "service",
+                "service": {
+                    "public_id": "tests.callerco",
+                    "protocol": 1,
+                    "scopes": ["apps:tests.gitco", "apps:tests.nameless"],
+                },
+                "features": [],
+            },
+        )
+        a = await acting_user(guild_role=GuildRole.superadmin)
+
+        detail = await client.get(
+            a.g(f"/marketplace/listings/by-uid/{caller_uid}"), headers=a.headers
+        )
+        assert detail.status_code == 200, detail.text
+        body = detail.json()
+        assert body["requested_scopes"] == ["apps:tests.gitco", "apps:tests.nameless"]
+        assert body["grantable_scopes"] == ["apps:tests.gitco"]
+        assert body["app_names"] == {
+            "tests.gitco": "GitCo",
+            "tests.nameless": "tests.nameless",
+        }
+
+        installed = await client.post(
+            a.g("/apps/"),
+            headers=a.headers,
+            json={"listing_uid": caller_uid, "granted_scopes": ["apps:tests.gitco"]},
+        )
+        assert installed.status_code in (200, 201), installed.text
+        app_id = installed.json()["id"]
+        read = await client.get(a.g(f"/apps/{app_id}"), headers=a.headers)
+        assert read.status_code == 200, read.text
+        assert read.json()["granted_scopes"] == ["apps:tests.gitco"]
+        assert read.json()["app_names"]["tests.gitco"] == "GitCo"
+
+
 def _wider(*, surfaces: bool = False) -> dict:
     """Version 1.1.0: asks for ``tags:read`` too, and a second surface inside
     initiatives when ``surfaces``."""

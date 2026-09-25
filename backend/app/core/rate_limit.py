@@ -213,6 +213,13 @@ CONSENT_REQUESTS_PER_INSTALL = parse("30/minute")
 NEW_CONSENT_REQUESTS_PER_MEMBER = parse("5/hour")
 
 
+#: Calls one install may make to other apps through Initiative in one window,
+#: to every app together.
+APP_HUB_CALLS_PER_INSTALL = parse("120/minute")
+#: Calls one install may make to one other app in one window.
+APP_HUB_CALLS_PER_TARGET = parse("60/minute")
+
+
 async def take_allowance(item: RateLimitItem, namespace: str, key: str) -> bool:
     """Count one against ``key`` under ``item``; whether it was within the
     allowance. Always ``True`` with the limiter switched off."""

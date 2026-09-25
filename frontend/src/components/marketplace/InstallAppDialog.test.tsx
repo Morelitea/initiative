@@ -127,6 +127,24 @@ describe("InstallAppDialog", () => {
     expect(body.role_kinds).toEqual([]);
   });
 
+  it("asks to use another app by that app's name, and grants it", async () => {
+    open({
+      requested_scopes: ["projects:read", "apps:acme.github"],
+      grantable_scopes: ["projects:read", "apps:acme.github"],
+      app_names: { "acme.github": "GitHub" },
+    });
+
+    expect(await screen.findByLabelText("Use GitHub in this community")).toBeChecked();
+    expect((await install()).granted_scopes).toEqual(["projects:read", "apps:acme.github"]);
+  });
+
+  it("says an app with no name by its public id", async () => {
+    open({ requested_scopes: ["apps:acme.github"], grantable_scopes: [] });
+
+    const use = await screen.findByLabelText("Use acme.github in this community");
+    expect(use).toBeDisabled();
+  });
+
   it("asks nothing about placement for an app with no page and no access", async () => {
     open({ has_initiative_surfaces: false, requested_scopes: [], grantable_scopes: [] });
 

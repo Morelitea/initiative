@@ -206,6 +206,17 @@ async def _set_placement(
         ) from exc
 
 
+async def _app_names(
+    session: RLSSessionDep, app: GuildApp, offer: Any
+) -> dict[str, str]:
+    """The names of the apps the install's ``apps:`` scopes name, and those a
+    pending version's new ones name."""
+    scopes = list(guild_apps_service.requested_scopes(app.definition))
+    if offer is not None:
+        scopes.extend(offer.asks.added_scopes)
+    return await guild_apps_service.app_scope_names(session, scopes)
+
+
 async def _require_grantable(granted: set[str], definition: dict) -> None:
     """Refuse a grant the manifest does not request, or the ceiling does not allow.
 
@@ -395,12 +406,14 @@ async def get_guild_app(
     values, so there is nothing here that belongs to somebody else.
     """
     app = await _load(session, app_id)
+    offer = await app_updates_service.update_offer(session, app)
     return serialize_guild_app_detail(
         app,
         avatar_url=await _app_avatar(session, app),
         member_rows=await _member_rows(session, app_id=app.id, user_id=current_user.id),
         install_state=await registration_lookup.install_state(app.definition),
-        update_offer=await app_updates_service.update_offer(session, app),
+        update_offer=offer,
+        app_names=await _app_names(session, app, offer),
         context=guild_context,
         placements=await _placements(session, app),
         consent_rows=await consents_service.list_member_consents(
@@ -622,12 +635,14 @@ async def upgrade_guild_app(
     await session.commit()
     await _flush_revocations(session)
     await session.refresh(app)
+    offer = await app_updates_service.update_offer(session, app)
     return serialize_guild_app_detail(
         app,
         avatar_url=await _app_avatar(session, app),
         member_rows=await _member_rows(session, app_id=app.id, user_id=current_user.id),
         install_state=await registration_lookup.install_state(app.definition),
-        update_offer=await app_updates_service.update_offer(session, app),
+        update_offer=offer,
+        app_names=await _app_names(session, app, offer),
         context=guild_context,
         placements=await _placements(session, app),
     )
@@ -680,6 +695,7 @@ async def decline_guild_app_upgrade(
         member_rows=await _member_rows(session, app_id=app.id, user_id=current_user.id),
         install_state=await registration_lookup.install_state(app.definition),
         update_offer=offer,
+        app_names=await _app_names(session, app, offer),
         context=guild_context,
         placements=await _placements(session, app),
     )
@@ -955,12 +971,14 @@ async def update_guild_app_config(
         )
     await session.commit()
     await session.refresh(app)
+    offer = await app_updates_service.update_offer(session, app)
     return serialize_guild_app_detail(
         app,
         avatar_url=await _app_avatar(session, app),
         member_rows=await _member_rows(session, app_id=app.id, user_id=current_user.id),
         install_state=await registration_lookup.install_state(app.definition),
-        update_offer=await app_updates_service.update_offer(session, app),
+        update_offer=offer,
+        app_names=await _app_names(session, app, offer),
         context=guild_context,
         placements=await _placements(session, app),
     )

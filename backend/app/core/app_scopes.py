@@ -13,6 +13,12 @@ name, so a new tool is a new scope the moment it joins ``Tool``:
 Writing implies reading. :func:`expand` applies that once, so no later check
 has to ask twice.
 
+Beside that fixed vocabulary sits one open family: ``apps:<public_id>``, which
+lets an app call another app's public endpoints through Initiative. It names
+no resource of the community's, so :func:`expand` gives it nothing; it is
+parsed by its prefix and the public-id characters (:func:`app_scope_target`)
+rather than listed, and a grant holds it by exact name.
+
 Dependency-free apart from ``Tool``, so ``app.db``'s registry layer can import
 it.
 """
@@ -75,6 +81,51 @@ ALL_SCOPES: tuple[str, ...] = tuple(
 _ALL_SCOPES = frozenset(ALL_SCOPES)
 
 
+#: The prefix of the scope family that lets an app call another app.
+APP_SCOPE_PREFIX = "apps:"
+
+#: What a public id is drawn from, and how long one may be: the contract's
+#: ``publicId`` character set and ``publicIdLength`` cap, restated here so this
+#: module stays free of the marketplace package (``app_scopes_test`` holds the
+#: two equal).
+PUBLIC_ID_CHARS: frozenset[str] = frozenset("-.0123456789_abcdefghijklmnopqrstuvwxyz")
+MAX_PUBLIC_ID_LENGTH = 120
+
+
+def app_scope(public_id: str) -> str:
+    """The scope that lets an app call the app ``public_id``."""
+    return f"{APP_SCOPE_PREFIX}{public_id}"
+
+
+def app_scope_target(scope: str) -> str | None:
+    """The public id an ``apps:`` scope names, or ``None`` when ``scope`` is
+    not one: the prefix, then a ``<publisher>.<slug>`` id of the public-id
+    characters."""
+    if not isinstance(scope, str) or not scope.startswith(APP_SCOPE_PREFIX):
+        return None
+    public_id = scope[len(APP_SCOPE_PREFIX) :]
+    if not public_id or len(public_id) > MAX_PUBLIC_ID_LENGTH or "." not in public_id:
+        return None
+    for character in public_id:
+        if character not in PUBLIC_ID_CHARS:
+            return None
+    return public_id
+
+
+def is_known_scope(scope: str) -> bool:
+    """Whether ``scope`` is in the vocabulary or the ``apps:`` family."""
+    return scope in _ALL_SCOPES or app_scope_target(scope) is not None
+
+
+def ordered_scopes(scopes: Iterable[str]) -> list[str]:
+    """The known scopes among ``scopes``, each once: the vocabulary's in its
+    order, then the ``apps:`` family sorted."""
+    asked = {scope for scope in scopes if isinstance(scope, str)}
+    return [scope for scope in ALL_SCOPES if scope in asked] + sorted(
+        scope for scope in asked if app_scope_target(scope) is not None
+    )
+
+
 class UnknownAppScope(ValueError):
     """A string that is not a scope in this vocabulary."""
 
@@ -94,10 +145,11 @@ def parse_scope(scope: str) -> tuple[AppScopeResource, AppScopeAccess]:
 
 def validate_scopes(scopes: Iterable[str]) -> frozenset[str]:
     """``scopes`` as a set, raising :class:`UnknownAppScope` on the first one
-    that is not in the vocabulary."""
+    that is neither in the vocabulary nor in the ``apps:`` family."""
     checked = frozenset(scopes)
     for scope in sorted(checked):
-        parse_scope(scope)
+        if not is_known_scope(scope):
+            raise UnknownAppScope(scope)
     return checked
 
 
@@ -107,10 +159,13 @@ def expand(
     """The resources ``scopes`` let an app read and write.
 
     Writing implies reading, so every written resource is in the read set too.
+    An ``apps:`` scope names no resource and adds nothing.
     """
     read: set[AppScopeResource] = set()
     write: set[AppScopeResource] = set()
     for scope in scopes:
+        if app_scope_target(scope) is not None:
+            continue
         resource, access = parse_scope(scope)
         read.add(resource)
         if access is AppScopeAccess.write:

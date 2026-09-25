@@ -4331,6 +4331,8 @@ export interface GuildAppDecline {
 
 export type GuildAppDetailDefinition = { [key: string]: unknown };
 
+export type GuildAppDetailAppNames = { [key: string]: string };
+
 /**
  * A version that asks for more than the install holds.
  *
@@ -4383,6 +4385,7 @@ export interface GuildAppDetail {
   requested_scopes: string[];
   grantable_scopes: string[];
   pending_update: GuildAppUpgradeAsks | null;
+  app_names: GuildAppDetailAppNames;
 }
 
 /**
@@ -5765,6 +5768,8 @@ export type MarketplaceListingDetailDefinition = { [key: string]: unknown } | nu
 
 export type MarketplaceListingDetailExample = { [key: string]: unknown } | null;
 
+export type MarketplaceListingDetailAppNames = { [key: string]: string };
+
 /**
  * One published version of a listing.
  */
@@ -5799,6 +5804,7 @@ export interface MarketplaceListingDetail {
   example: MarketplaceListingDetailExample;
   requested_scopes: string[];
   grantable_scopes: string[];
+  app_names: MarketplaceListingDetailAppNames;
   has_initiative_surfaces: boolean;
 }
 

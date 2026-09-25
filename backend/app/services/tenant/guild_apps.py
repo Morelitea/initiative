@@ -45,11 +45,12 @@ from typing import Any, Awaitable, Callable, Iterable, Optional
 
 from sqlalchemy import cast, delete, update
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.app_scopes import ALL_SCOPES
+from app.core.app_scopes import app_scope_target, ordered_scopes
 from app.core.audit_events import AuditEventType
+from app.models.platform.marketplace import MarketplaceListing
 from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.guild_app import GuildApp
@@ -60,6 +61,7 @@ from app.models.tenant.initiative import (
 )
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services import audit as audit_service
+from app.services.marketplace import registration_lookup
 from app.services.marketplace.service_apps import is_admin_only
 from app.services.tenant.soft_delete import soft_delete_entity
 
@@ -778,22 +780,53 @@ class SurfaceAccess(str, Enum):
 
 
 def requested_scopes(definition: Any) -> list[str]:
-    """The scopes a pinned definition's service asks for, in vocabulary order.
+    """The scopes a pinned definition's service asks for, in vocabulary order,
+    then the ``apps:`` scopes sorted.
 
-    Only scopes in the vocabulary are returned, each once.
+    Only known scopes are returned, each once.
     """
     service = definition.get("service") if isinstance(definition, dict) else None
     scopes = service.get("scopes") if isinstance(service, dict) else None
     if not isinstance(scopes, list):
         return []
-    asked = {scope for scope in scopes if isinstance(scope, str)}
-    return [scope for scope in ALL_SCOPES if scope in asked]
+    return ordered_scopes(scopes)
 
 
 def grantable_scopes(definition: Any, ceiling: Iterable[str]) -> list[str]:
-    """The requested scopes the deployment's ceiling allows, in vocabulary order."""
+    """The requested scopes the deployment's ceiling allows, in the order
+    :func:`requested_scopes` gives them."""
     allowed = set(ceiling)
     return [scope for scope in requested_scopes(definition) if scope in allowed]
+
+
+async def app_scope_names(
+    session: AsyncSession, scopes: Iterable[str]
+) -> dict[str, str]:
+    """For each ``apps:`` scope among ``scopes``, the name the app it names
+    goes by in the catalog, keyed by its public id: its registration's
+    listing's name, or the public id itself when there is none to read."""
+    targets = sorted(
+        {target for scope in scopes if (target := app_scope_target(scope))}
+    )
+    if not targets:
+        return {}
+    registrations = await registration_lookup.load_registrations()
+    by_uid = {
+        registrations[target].listing_uid: target
+        for target in targets
+        if target in registrations and registrations[target].listing_uid
+    }
+    names: dict[str, str] = {}
+    if by_uid:
+        rows = (
+            await session.exec(
+                select(MarketplaceListing.uid, MarketplaceListing.name).where(
+                    col(MarketplaceListing.uid).in_(list(by_uid))
+                )
+            )
+        ).all()
+        names = {by_uid[uid]: name for uid, name in rows}
+    return {target: names.get(target, target) for target in targets}
 
 
 def declared_surfaces(definition: Any) -> list[dict[str, Any]]:

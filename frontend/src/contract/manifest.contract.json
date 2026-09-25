@@ -173,7 +173,8 @@
     "widgetDescriptionLength": 400,
     "widgetOptions": 12,
     "valuesPerOption": 24,
-    "identityKeyParts": 4
+    "identityKeyParts": 4,
+    "appScopes": 24
   },
   "defs": {
     "identifier": {
@@ -634,6 +635,13 @@
       "patternForm": "plus",
       "description": "Namespaced under the app's own service id \u2014 'app.<public_id>.<name>'. The prefix is checked against the declaring registration at ingress."
     },
+    "appScope": {
+      "type": "string",
+      "patternFrom": "publicId",
+      "patternForm": "dotted",
+      "patternPrefix": "apps:",
+      "description": "'apps:<public_id>': permission to call another app's public endpoints through the deployment, as this community or as one of its members. Not one of the fixed scopes: the family is open, one per app, and the public id after the prefix is the app being called. The deployment never lets an app address another directly; the call goes through it, and the app called is handed its own references for whoever the call is for."
+    },
     "endpoint": {
       "type": "object",
       "required": [
@@ -695,6 +703,11 @@
           "type": "boolean",
           "default": false,
           "description": "Only the community's admins read or call this endpoint \u2014 a figure for the community's settings page, say. Anyone who can see where it is used may otherwise."
+        },
+        "public": {
+          "type": "boolean",
+          "default": false,
+          "description": "Read and write only. Other apps may call this endpoint through the deployment, when the community has let them use this app ('apps:<your public id>'). A caller acts as the community or as one of its members, and `actors` says which of the two this endpoint takes: one that names neither is not callable this way. A write endpoint is reachable only like this; a widget binds reads alone. Absent means only the deployment's own surfaces reach it."
         },
         "requires": {
           "ref": "requires"
@@ -972,13 +985,21 @@
           "scopes": {
             "type": "array",
             "maxItems": {
-              "wholeOf": "scope"
+              "wholeOf": "scope",
+              "plus": "appScopes"
             },
             "uniqueItems": true,
             "items": {
-              "enum": "scope"
+              "anyOf": [
+                {
+                  "enum": "scope"
+                },
+                {
+                  "ref": "appScope"
+                }
+              ]
             },
-            "description": "The scopes this app asks a community to grant: what its installation and member tokens act with. The community grants some or all of them when it installs the app, and a token never carries more than was granted. Writing implies reading. Absent means none."
+            "description": "The scopes this app asks a community to grant: what its installation and member tokens act with. The fixed scopes, and 'apps:<public_id>' for each app this one calls (at most {appScopes} of those). The community grants some or all of them when it installs the app, and a token never carries more than was granted. Writing implies reading. Absent means none."
           }
         }
       },

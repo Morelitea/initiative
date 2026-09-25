@@ -151,6 +151,11 @@ class AuditEventType(str, Enum):
     #: that back (or the community's seat ended it for them).
     APP_CONSENT_GRANTED = "app_consent.granted"
     APP_CONSENT_REVOKED = "app_consent.revoked"
+    #: One installed app called another through Initiative: which app called,
+    #: which it called, the endpoint, whose behalf it was on, and how it ended.
+    #: It records the reach, as ``pam.request`` does; what the app called then
+    #: changed is its own.
+    APP_HUB_CALL = "app_hub.call"
 
     # Configuration. The record says which fields moved; a value is copied in
     # only where its type rules out a secret (see ``audit.changed_fields``).
@@ -446,6 +451,9 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
     ),
     AuditEventType.APP_CONSENT_REVOKED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHORIZATION, is_write=True
+    ),
+    AuditEventType.APP_HUB_CALL: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHORIZATION, is_write=False
     ),
     # Configuration, at either level.
     AuditEventType.PLATFORM_SETTINGS_CHANGED: AuditEventMeta(
