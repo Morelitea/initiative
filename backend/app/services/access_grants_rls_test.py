@@ -141,7 +141,11 @@ async def test_grantee_guild_settings_lazy_create_does_not_fault(
     support = await create_user(
         session, email="support-gs@example.com", role=UserRole.support
     )
-    guild = await create_guild(session, creator=owner)  # no guild_settings row seeded
+    guild = await create_guild(session, creator=owner)
+    # Start without the row the factory seeds, so the read takes the lazy create.
+    await route_session_to_guild(session, guild.id)
+    await session.exec(text("DELETE FROM guild_settings"))
+    await session.commit()
 
     # Live READ grant scoped to the guild, entered through the seam.
     await create_access_grant(session, user=support, guild=guild)

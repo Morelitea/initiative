@@ -89,8 +89,10 @@ async def test_guild_settings_gap_fill_joins_the_transaction(session: AsyncSessi
     path. Stated as the transaction id, the same way the platform singleton's
     is: whoever asked still has the transaction they asked from.
     """
-    guild = await create_guild(session)  # the factory seeds no settings row
+    guild = await create_guild(session)
     await route_session_to_guild(session, guild.id)
+    await session.exec(text("DELETE FROM guild_settings"))
+    await session.commit()
 
     started = (await session.exec(text("SELECT txid_current()"))).one()
     row = await get_or_create_guild_settings(session, guild.id)
