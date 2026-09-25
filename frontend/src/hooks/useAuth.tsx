@@ -48,7 +48,7 @@ import {
 } from "@/lib/offlineSession";
 import { stepUpWithPasskey as presentPasskeyForStepUp } from "@/lib/passkeys";
 import { queryClient } from "@/lib/queryClient";
-import { getItem, removeItem, setItem } from "@/lib/storage";
+import { CREDENTIAL_KEYS, getItem, removeItem, setItem } from "@/lib/storage";
 import { clearUploadToken } from "@/lib/uploadToken";
 import { prefetchViewPreferences } from "@/lib/viewPreferences";
 
@@ -146,10 +146,13 @@ const secondFactorChallenge = (error: unknown): string | null => {
   return typeof response.data.challenge === "string" ? response.data.challenge : null;
 };
 
-const TOKEN_STORAGE_KEY = "initiative-token";
-const DEVICE_TOKEN_KEY = "initiative-is-device-token";
-
 const isNative = Capacitor.isNativePlatform();
+
+/** Stop keeping the long-lived device token this device may hold. */
+const forgetDeviceToken = () => {
+  removeItem(CREDENTIAL_KEYS.token);
+  removeItem(CREDENTIAL_KEYS.isDeviceToken);
+};
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { t } = useTranslation("auth");
@@ -275,8 +278,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     let cancelled = false;
 
     const restore = async () => {
-      const deviceToken = getItem(TOKEN_STORAGE_KEY);
-      const hasDeviceToken = getItem(DEVICE_TOKEN_KEY) === "true" && !!deviceToken;
+      const deviceToken = getItem(CREDENTIAL_KEYS.token);
+      const hasDeviceToken = getItem(CREDENTIAL_KEYS.isDeviceToken) === "true" && !!deviceToken;
 
       const carryOnWithDeviceToken = () => {
         if (cancelled || !deviceToken) return;
@@ -399,8 +402,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           // Clear stale native token
           setTokenState(null);
           setIsDeviceToken(false);
-          removeItem(TOKEN_STORAGE_KEY);
-          removeItem(DEVICE_TOKEN_KEY);
+          forgetDeviceToken();
           clearRefreshToken();
           setAuthToken(null);
         }
@@ -439,8 +441,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Kept whichever credential is used: it is what the app falls back to
         // if a renewal cannot be had, and what a deployment that is not yet
         // updated answers with on its own.
-        setItem(TOKEN_STORAGE_KEY, newToken);
-        setItem(DEVICE_TOKEN_KEY, "true");
+        setItem(CREDENTIAL_KEYS.token, newToken);
+        setItem(CREDENTIAL_KEYS.isDeviceToken, "true");
         const session = sessionFromResponse(response.data);
         if (session) {
           storeRefreshToken(session.refreshToken);
@@ -468,8 +470,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const newToken = response.data.access_token;
         // Keep token in memory for this session only — backend also set an HttpOnly cookie
         setAuthToken(newToken, false);
-        removeItem(TOKEN_STORAGE_KEY);
-        removeItem(DEVICE_TOKEN_KEY);
+        forgetDeviceToken();
         clearRefreshToken();
         setTokenState(newToken);
         setIsDeviceToken(false);
@@ -507,14 +508,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (isNative) {
         // No device token is minted for an account holding a factor — the
         // rotating credential is what it gets.
-        removeItem(TOKEN_STORAGE_KEY);
-        removeItem(DEVICE_TOKEN_KEY);
+        forgetDeviceToken();
         if (response.data.refresh_token) {
           storeRefreshToken(response.data.refresh_token);
         }
       } else {
-        removeItem(TOKEN_STORAGE_KEY);
-        removeItem(DEVICE_TOKEN_KEY);
+        forgetDeviceToken();
         clearRefreshToken();
       }
       setAuthToken(accessToken, false);
@@ -536,8 +535,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    */
   const adoptBrowserSession = useCallback(
     async (accessToken: string, refreshToken?: string | null) => {
-      removeItem(TOKEN_STORAGE_KEY);
-      removeItem(DEVICE_TOKEN_KEY);
+      forgetDeviceToken();
       if (refreshToken) storeRefreshToken(refreshToken);
       else clearRefreshToken();
       setAuthToken(accessToken, false);
@@ -581,8 +579,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    * token minted before the account had the factor would not carry it.
    */
   const adoptSteppedUpSession = async (token: Token) => {
-    removeItem(TOKEN_STORAGE_KEY);
-    removeItem(DEVICE_TOKEN_KEY);
+    forgetDeviceToken();
     if (isNative && token.refresh_token) {
       storeRefreshToken(token.refresh_token);
     } else if (!isNative) {
@@ -648,13 +645,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (credential && "deviceToken" in credential) {
         // A deployment from before the code flow hands the app a device token.
         setAuthToken(credential.deviceToken, true);
-        setItem(TOKEN_STORAGE_KEY, credential.deviceToken);
-        setItem(DEVICE_TOKEN_KEY, "true");
+        setItem(CREDENTIAL_KEYS.token, credential.deviceToken);
+        setItem(CREDENTIAL_KEYS.isDeviceToken, "true");
         setTokenState(credential.deviceToken);
         setIsDeviceToken(true);
       } else if (credential) {
-        removeItem(TOKEN_STORAGE_KEY);
-        removeItem(DEVICE_TOKEN_KEY);
+        forgetDeviceToken();
         storeRefreshToken(credential.refreshToken);
         setAuthToken(credential.accessToken, false);
         setTokenState(credential.accessToken);
@@ -675,8 +671,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsDeviceToken(false);
     setAuthToken(null);
     clearUploadToken();
-    removeItem(TOKEN_STORAGE_KEY);
-    removeItem(DEVICE_TOKEN_KEY);
+    forgetDeviceToken();
     clearRefreshToken();
     queryClient.clear();
     // replaceIdentity already dropped the session snapshot; the cache that went

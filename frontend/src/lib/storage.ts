@@ -5,6 +5,48 @@ const isNative = () => Capacitor.isNativePlatform();
 const hasLocalStorage = typeof localStorage !== "undefined";
 
 /**
+ * Keys whose values let this device act as its account. On native they are kept
+ * in their own Preferences group, which the app's Android backup rules leave out
+ * (`android/app/src/main/res/xml/`), so a phone restored from a backup keeps its
+ * settings and server address and signs in again.
+ */
+export const CREDENTIAL_KEYS = {
+  token: "initiative-token",
+  isDeviceToken: "initiative-is-device-token",
+  refreshToken: "initiative-refresh-token",
+  offlineSession: "initiative-offline-session",
+  pendingSignIn: "initiative-pending-sign-in",
+} as const;
+
+const DEFAULT_GROUP = "CapacitorStorage";
+const CREDENTIALS_GROUP = "InitiativeCredentials";
+const credentialKeys = new Set<string>(Object.values(CREDENTIAL_KEYS));
+const groupOf = (key: string) => (credentialKeys.has(key) ? CREDENTIALS_GROUP : DEFAULT_GROUP);
+
+// The Preferences group is set for every call that follows, so calls run one
+// at a time, each in the group its key belongs to.
+let queue: Promise<unknown> = Promise.resolve();
+const inGroup = <T>(group: string, operation: () => Promise<T>): Promise<T> => {
+  const run = queue.then(async () => {
+    await Preferences.configure({ group });
+    return operation();
+  });
+  queue = run.catch(() => undefined);
+  return run;
+};
+
+const readGroup = (group: string) =>
+  inGroup(group, async () => {
+    const { keys } = await Preferences.keys();
+    return Promise.all(
+      (Array.isArray(keys) ? keys : []).map(async (key) => {
+        const { value } = await Preferences.get({ key });
+        return [key, value] as const;
+      })
+    );
+  });
+
+/**
  * In-memory cache used on native platforms. Hydrated once at startup from
  * Capacitor Preferences so that all subsequent reads are synchronous.
  */
@@ -19,20 +61,18 @@ export async function initStorage(): Promise<void> {
   if (!isNative()) {
     return;
   }
-  const { keys } = await Preferences.keys();
-  if (!Array.isArray(keys)) {
-    return;
+  const defaults = await readGroup(DEFAULT_GROUP);
+  const credentials = await readGroup(CREDENTIALS_GROUP);
+  for (const [key, value] of [...defaults, ...credentials]) {
+    if (value !== null) cache.set(key, value);
   }
-  const entries = await Promise.all(
-    keys.map(async (key) => {
-      const { value } = await Preferences.get({ key });
-      return [key, value] as const;
-    })
-  );
-  for (const [key, value] of entries) {
-    if (value !== null) {
-      cache.set(key, value);
+  // A credential kept before it had a group of its own moves there once.
+  for (const [key, value] of defaults) {
+    if (!credentialKeys.has(key)) continue;
+    if (value !== null && !credentials.some(([held]) => held === key)) {
+      await inGroup(CREDENTIALS_GROUP, () => Preferences.set({ key, value }));
     }
+    await inGroup(DEFAULT_GROUP, () => Preferences.remove({ key }));
   }
 }
 
@@ -53,7 +93,7 @@ export function setItem(key: string, value: string): Promise<void> {
     return Promise.resolve();
   }
   cache.set(key, value);
-  return Preferences.set({ key, value });
+  return inGroup(groupOf(key), () => Preferences.set({ key, value }));
 }
 
 /**
@@ -78,7 +118,7 @@ export function removeItem(key: string): Promise<void> {
     return Promise.resolve();
   }
   cache.delete(key);
-  return Preferences.remove({ key });
+  return inGroup(groupOf(key), () => Preferences.remove({ key }));
 }
 
 /** Enumerate every stored key. */

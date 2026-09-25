@@ -2,8 +2,8 @@ import { HttpResponse, http } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { server } from "@/__tests__/helpers/msw-server";
-import { clearRefreshToken, REFRESH_TOKEN_KEY, storeRefreshToken } from "@/lib/nativeSession";
-import { removeItem } from "@/lib/storage";
+import { clearRefreshToken, storeRefreshToken } from "@/lib/nativeSession";
+import { CREDENTIAL_KEYS, removeItem } from "@/lib/storage";
 
 import {
   AUTH_FACTOR_REQUIRED_EVENT,
@@ -90,7 +90,7 @@ afterEach(() => {
 describe("renewal for a client that holds its own refresh token", () => {
   afterEach(() => {
     clearRefreshToken();
-    removeItem(REFRESH_TOKEN_KEY);
+    removeItem(CREDENTIAL_KEYS.refreshToken);
   });
 
   it("sends the stored token and keeps the one that comes back", async () => {

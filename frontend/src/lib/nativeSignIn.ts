@@ -10,9 +10,8 @@
  */
 import { redeemNativeSignInApiV1AuthNativeTokenPost } from "@/api/generated/auth/auth";
 import type { NativeSession } from "@/lib/nativeSession";
-import { getItem, removeItem, setItem } from "@/lib/storage";
+import { CREDENTIAL_KEYS, getItem, removeItem, setItem } from "@/lib/storage";
 
-const PENDING_KEY = "initiative-pending-sign-in";
 /** As long as the server's own sign-in flow lives. */
 const PENDING_TTL_MS = 10 * 60 * 1000;
 
@@ -38,14 +37,14 @@ export const beginNativeSignIn = async (origin: string): Promise<string> => {
   const verifier = base64url(crypto.getRandomValues(new Uint8Array(32)));
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
   const pending: PendingSignIn = { verifier, origin, startedAt: Date.now() };
-  await setItem(PENDING_KEY, JSON.stringify(pending));
+  await setItem(CREDENTIAL_KEYS.pendingSignIn, JSON.stringify(pending));
   return base64url(new Uint8Array(digest));
 };
 
 /** The sign-in this app began against `origin`, taken so it is answered once. */
 export const takePendingSignIn = (origin: string | null): PendingSignIn | null => {
-  const raw = getItem(PENDING_KEY);
-  void removeItem(PENDING_KEY);
+  const raw = getItem(CREDENTIAL_KEYS.pendingSignIn);
+  void removeItem(CREDENTIAL_KEYS.pendingSignIn);
   if (!raw || !origin) return null;
   try {
     const pending = JSON.parse(raw) as PendingSignIn;

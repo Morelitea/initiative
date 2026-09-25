@@ -27,6 +27,8 @@ const config: CapacitorConfig = {
       resetWhenUpdate: true,
       appReadyTimeout: 10000,
       responseTimeout: 20,
+      // Report nothing to capgo: updates come from the user's own server.
+      statsUrl: "",
     },
     // Native splash overlay. We drive it manually (launchAutoHide off) so it can cover the
     // OTA bundle swap: useNativeUpdate shows it before CapacitorUpdater.set() reloads the

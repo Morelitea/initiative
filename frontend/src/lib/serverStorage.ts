@@ -1,7 +1,6 @@
-import { getItem, removeItem, setItem } from "@/lib/storage";
+import { CREDENTIAL_KEYS, getItem, removeItem, setItem } from "@/lib/storage";
 
 const SERVER_URL_KEY = "initiative-server-url";
-const TOKEN_KEY = "initiative-token";
 
 // Server URL storage
 export function getStoredServerUrl(): string | null {
@@ -17,7 +16,7 @@ export function clearStoredServerUrl(): void {
 }
 
 export function clearStoredToken(): void {
-  removeItem(TOKEN_KEY);
+  removeItem(CREDENTIAL_KEYS.token);
 }
 
 // Clear all app data (for disconnect/logout)
