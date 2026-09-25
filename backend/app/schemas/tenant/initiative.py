@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, TYPE_CHECKING
 from pydantic import ConfigDict, Field, create_model
 
 from app.core.identity_boundary import GuildId
-from app.core.tools import DEFAULT_ENABLED_TOOLS, TOGGLEABLE_TOOLS, Tool
+from app.core.tools import DEFAULT_ENABLED_TOOLS, Tool
 from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
 
 from app.models.tenant.initiative import (
@@ -57,12 +57,12 @@ class InitiativeListScope(str, Enum):
 _InitiativeToolSwitches = create_model(
     "_InitiativeToolSwitches",
     __base__=SanitizedBaseModel,
-    **{t.view_permission: (bool, t in DEFAULT_ENABLED_TOOLS) for t in TOGGLEABLE_TOOLS},
+    **{t.view_permission: (bool, t in DEFAULT_ENABLED_TOOLS) for t in Tool},
 )
 _InitiativeToolSwitchesPatch = create_model(
     "_InitiativeToolSwitchesPatch",
     __base__=SanitizedBaseModel,
-    **{t.view_permission: (Optional[bool], None) for t in TOGGLEABLE_TOOLS},
+    **{t.view_permission: (Optional[bool], None) for t in Tool},
 )
 
 
@@ -350,7 +350,7 @@ def member_tool_flags(
                 flags[t.member_view_field] = view
             if enabled_by_key.get(PermissionKey(t.create_permission)):
                 flags[t.member_create_field] = True
-    for t in TOGGLEABLE_TOOLS:
+    for t in Tool:
         if not getattr(initiative, t.view_permission, False):
             flags[t.member_view_field] = False
             flags[t.member_create_field] = False
@@ -416,6 +416,6 @@ def serialize_initiative(
         members=members,
         **{
             t.view_permission: getattr(initiative, t.view_permission, False)
-            for t in TOGGLEABLE_TOOLS
+            for t in Tool
         },
     )

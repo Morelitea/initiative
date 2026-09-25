@@ -27,7 +27,7 @@ from app.core.messages import (
     InitiativeMessages,
     UserMessages,
 )
-from app.core.tools import TOGGLEABLE_TOOLS, Tool
+from app.core.tools import Tool
 from app.models.tenant.initiative import (
     Initiative,
     InitiativeJoinRequest,
@@ -830,10 +830,7 @@ async def create_initiative(
         join_policy=initiative_in.join_policy.value,
         # One master switch per toggleable tool, derived — a new Tool member
         # flows through without touching this endpoint.
-        **{
-            t.view_permission: getattr(initiative_in, t.view_permission)
-            for t in TOGGLEABLE_TOOLS
-        },
+        **{t.view_permission: getattr(initiative_in, t.view_permission) for t in Tool},
     )
     if initiative_in.color:
         initiative.color = initiative_in.color
@@ -1321,7 +1318,7 @@ async def get_my_initiative_permissions(
     # Initiative-level master switches override role-level permissions, so
     # members of an initiative whose toggle is off never see the tool
     # regardless of what their role permits.
-    for t in TOGGLEABLE_TOOLS:
+    for t in Tool:
         if not tool_available(t):
             permissions[PermissionKey(t.view_permission)] = False
             permissions[PermissionKey(t.create_permission)] = False

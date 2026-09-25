@@ -45,11 +45,6 @@ CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 _TAGS: dict[Tool, str] = {Tool.counter_group: "counters"}
 
 
-def _segment(tool: Tool) -> str:
-    """The URL segment a tool is addressed by — its plural in kebab case."""
-    return tool.plural.replace("_", "-")
-
-
 def _title(path_param: str) -> str:
     """The schema title a parameter of this name would be given."""
     return path_param.replace("_", " ").title()
@@ -109,7 +104,7 @@ def _mount(tool: Tool, cfg: resource_access.ResourceAccessConfig) -> None:
             entity_id=row.id,
         )
 
-    path = f"/{_segment(tool)}/{{{cfg.path_param}}}/view"
+    path = f"/{tool.route_segment}/{{{cfg.path_param}}}/view"
     tags: list[str | Enum] = [_TAGS.get(tool, tool.plural)]
     router.add_api_route(
         path,

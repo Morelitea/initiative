@@ -8,14 +8,14 @@ from typing import Optional
 
 from pydantic import ConfigDict
 
-from app.core.tools import RECENTABLE_TOOLS
+from app.core.tools import Tool
 from app.schemas.base import SanitizedBaseModel
 
 
-# Derived from the canonical Tool enum — the recentable tools' string values,
-# as a str enum so FastAPI validates path params and OpenAPI lists the values.
+# Derived from the canonical Tool enum — every tool's string value, as a str
+# enum so FastAPI validates path params and OpenAPI lists the values.
 RecentEntityType = Enum(
-    "RecentEntityType", [(t.value, t.value) for t in RECENTABLE_TOOLS], type=str
+    "RecentEntityType", [(t.value, t.value) for t in Tool], type=str
 )
 
 

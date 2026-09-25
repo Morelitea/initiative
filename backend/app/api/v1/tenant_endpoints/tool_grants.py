@@ -64,11 +64,6 @@ SharingWrite = Annotated[
 ]
 
 
-def _segment(tool: Tool) -> str:
-    """The URL segment a tool is addressed by — its plural in kebab case."""
-    return tool.plural.replace("_", "-")
-
-
 def _title(path_param: str) -> str:
     """The schema title a parameter of this name would be given."""
     return path_param.replace("_", " ").title()
@@ -129,7 +124,7 @@ def _mount(
 
     tags: list[str | Enum] = [spec.tag or tool.plural]
     router.add_api_route(
-        f"/{_segment(tool)}/{{{cfg.path_param}}}/grants",
+        f"/{tool.route_segment}/{{{cfg.path_param}}}/grants",
         set_grants,
         methods=["PUT"],
         response_model=spec.read_model,

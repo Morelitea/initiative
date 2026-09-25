@@ -83,15 +83,10 @@ const DEFAULT_SORTING: SortingState = [{ id: "last updated", desc: true }];
 
 type DocumentsViewProps = {
   fixedInitiativeId?: number;
-  fixedTagIds?: number[];
   canCreate?: boolean;
 };
 
-export const DocumentsView = ({
-  fixedInitiativeId,
-  fixedTagIds,
-  canCreate,
-}: DocumentsViewProps) => {
+export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewProps) => {
   const { t } = useTranslation(["documents", "common", "access"]);
   const router = useRouter();
   const prefetchDocuments = usePrefetchDocumentsList();
@@ -116,46 +111,37 @@ export const DocumentsView = ({
   // longer take the top of the page before the list itself.
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  // View mode and tag filters are server-persisted in the normal case.
-  // When fixedTagIds is provided (tag detail page), the view is forced
-  // to "list" and tagFilters mirrors the prop — writes are discarded so
-  // we don't pollute the persisted "regular" preferences with the
-  // ephemeral fixed-page values.
+  // View mode and tag filters are server-persisted.
   const [persistedViewMode, setPersistedViewMode] = useViewPreference<string>(
     DOCUMENT_VIEW_KEY,
     "tags"
   );
-  const viewMode: "grid" | "list" | "tags" = fixedTagIds
-    ? "list"
-    : persistedViewMode === "list" || persistedViewMode === "grid" || persistedViewMode === "tags"
+  const viewMode: "grid" | "list" | "tags" =
+    persistedViewMode === "list" || persistedViewMode === "grid" || persistedViewMode === "tags"
       ? persistedViewMode
       : "tags";
   const setViewMode = useCallback(
     (next: "grid" | "list" | "tags") => {
-      if (fixedTagIds) return;
       setPersistedViewMode(next);
     },
-    [fixedTagIds, setPersistedViewMode]
+    [setPersistedViewMode]
   );
 
   const [persistedTagFilters, setPersistedTagFilters] = useViewPreference<number[]>(
     DOCUMENT_TAG_FILTERS_KEY,
     []
   );
-  const tagFilters = fixedTagIds
-    ? fixedTagIds
-    : Array.isArray(persistedTagFilters)
-      ? persistedTagFilters.filter((n): n is number => typeof n === "number" && Number.isFinite(n))
-      : [];
+  const tagFilters = Array.isArray(persistedTagFilters)
+    ? persistedTagFilters.filter((n): n is number => typeof n === "number" && Number.isFinite(n))
+    : [];
   const setTagFilters = useCallback(
     (next: number[] | ((prev: number[]) => number[])) => {
-      if (fixedTagIds) return;
       setPersistedTagFilters((prev) => {
         const safe = Array.isArray(prev) ? prev : [];
         return typeof next === "function" ? next(safe) : next;
       });
     },
-    [fixedTagIds, setPersistedTagFilters]
+    [setPersistedTagFilters]
   );
 
   const [treeSelectedPaths, setTreeSelectedPaths] = useState<Set<string>>(new Set());
@@ -171,10 +157,10 @@ export const DocumentsView = ({
 
   // Documents and templates are two states of one list, the way the projects
   // list splits its own templates out. It lives in the URL so a templates view
-  // is linkable and answers the back button; the cross-initiative tag browse
-  // only ever reads documents, so it pins the value and hides the control.
-  const status: DocumentStatus =
-    !fixedTagIds && isDocumentStatus(searchParams.status) ? searchParams.status : "documents";
+  // is linkable and answers the back button.
+  const status: DocumentStatus = isDocumentStatus(searchParams.status)
+    ? searchParams.status
+    : "documents";
   const isTemplateView = status === "templates";
   // An archived document is off the live list, so the archived state is the one
   // place it can be found — and the only place it can be taken back out. It
@@ -304,8 +290,7 @@ export const DocumentsView = ({
   }, [viewMode]);
 
   // In tags view, the tree does its own client-side filtering, so skip backend tag filters
-  // When fixedTagIds is provided, always use them regardless of view mode
-  const effectiveTagFilters = fixedTagIds ? fixedTagIds : viewMode === "tags" ? [] : tagFilters;
+  const effectiveTagFilters = viewMode === "tags" ? [] : tagFilters;
 
   // For tags view, derive tag_ids from tree selection for server-side filtering
   const treeTagIds = useMemo(() => {
@@ -383,20 +368,11 @@ export const DocumentsView = ({
   // Totals behind each state, so the toggle says how much sits in the other one
   // before it is opened. Scoped to the initiative only — like the projects
   // list's status counts, these answer "how many exist", not "how many survive
-  // the current filters". The tag browse hides the toggle, so it skips them.
+  // the current filters".
   const statusCountsBase = lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {};
-  const documentsCountQuery = useDocumentCounts(
-    { ...statusCountsBase, is_template: false },
-    { enabled: !fixedTagIds }
-  );
-  const templatesCountQuery = useDocumentCounts(
-    { ...statusCountsBase, is_template: true },
-    { enabled: !fixedTagIds }
-  );
-  const archivedCountQuery = useDocumentCounts(
-    { ...statusCountsBase, archived: true },
-    { enabled: !fixedTagIds }
-  );
+  const documentsCountQuery = useDocumentCounts({ ...statusCountsBase, is_template: false });
+  const templatesCountQuery = useDocumentCounts({ ...statusCountsBase, is_template: true });
+  const archivedCountQuery = useDocumentCounts({ ...statusCountsBase, archived: true });
   const statusCounts = {
     documents: documentsCountQuery.data?.total_count,
     templates: templatesCountQuery.data?.total_count,
@@ -572,7 +548,7 @@ export const DocumentsView = ({
   // by tag through its own tree, so its tag selection isn't counted here.
   const activeFilterCount =
     (searchQuery.trim() ? 1 : 0) +
-    (fixedTagIds || viewMode === "tags" ? 0 : tagFilters.length) +
+    (viewMode === "tags" ? 0 : tagFilters.length) +
     (queryDocumentType ? 1 : 0) +
     propertyFilters.length;
 
@@ -664,7 +640,7 @@ export const DocumentsView = ({
   return (
     <div className="relative space-y-6" {...drop.handlers}>
       {drop.dragging ? <DropOverlay label={t("page.dropToUpload")} tall /> : null}
-      {!lockedInitiativeId && !fixedTagIds && (
+      {!lockedInitiativeId && (
         <div>
           <div className="flex items-baseline gap-4">
             <h1 className="font-semibold text-3xl tracking-tight">{t("page.title")}</h1>
@@ -682,28 +658,19 @@ export const DocumentsView = ({
 
       <ToolListToolbar
         leading={
-          // The tag browse reads documents across initiatives and has no
-          // templates state to offer.
-          fixedTagIds ? undefined : (
-            <DocumentsStatusFilter value={status} onChange={setStatus} counts={statusCounts} />
-          )
+          <DocumentsStatusFilter value={status} onChange={setStatus} counts={statusCounts} />
         }
         filters={{
           open: filtersOpen,
           onOpenChange: setFiltersOpen,
           activeCount: activeFilterCount,
         }}
-        view={
-          // The tag-detail browse pins the list view, so it has nothing to pick.
-          fixedTagIds
-            ? undefined
-            : {
-                value: viewMode,
-                onChange: setViewMode,
-                options: viewOptions,
-                label: t("common:toolbar.view"),
-              }
-        }
+        view={{
+          value: viewMode,
+          onChange: setViewMode,
+          options: viewOptions,
+          label: t("common:toolbar.view"),
+        }}
         actions={
           canCreateDocuments && lockedInitiativeId ? (
             <Button
@@ -735,7 +702,6 @@ export const DocumentsView = ({
         viewMode={viewMode}
         tagFilters={selectedTagsForFilter}
         onTagFiltersChange={handleTagFiltersChange}
-        fixedTagIds={fixedTagIds}
         documentTypeFilter={documentTypeFilter}
         onDocumentTypeFilterChange={setDocumentTypeFilter}
         propertyFilters={propertyFilters}

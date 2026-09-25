@@ -31,7 +31,7 @@ from app.core.relationships import Provenance, RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.relationship import EntityRelationship
 from app.services.tenant import relationships as relationships_service
-from app.core.tools import TOGGLEABLE_TOOLS, Tool
+from app.core.tools import Tool
 from app.core.security import (
     get_password_hash,
     mint_access_token,
@@ -2456,12 +2456,12 @@ async def create_tool_entity(
 
 
 async def enable_all_tools(session: AsyncSession, initiative: Initiative) -> Initiative:
-    """Flip on every toggleable tool's master switch, derived from the enum so a
-    new tool is enabled here without an edit."""
+    """Flip on every tool's master switch, derived from the enum so a new tool
+    is enabled here without an edit."""
     await route_session_to_guild(session, guild_of(initiative))
     fresh = await session.get(Initiative, initiative.id)
     assert fresh is not None
-    for tool in TOGGLEABLE_TOOLS:
+    for tool in Tool:
         setattr(fresh, tool.view_permission, True)
     session.add(fresh)
     await session.commit()

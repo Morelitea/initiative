@@ -12,9 +12,8 @@
     "deleted": "Tag deleted",
     "saving": "Saving…",
     "save": "Save",
-    "tasksTab": "Tasks ({{count}})",
-    "projectsTab": "Projects ({{count}})",
-    "documentsTab": "Documents ({{count}})"
+    "toolTab": "{{tool}} ({{count}})",
+    "empty": "Nothing carries this tag yet."
   },
   "manage": {
     "edit": "Edit tags",

@@ -37,7 +37,7 @@ from app.core.relationships import (
     Provenance,
     RelationshipType,
 )
-from app.core.tools import DEFAULT_ENABLED_TOOLS, RECENTABLE_TOOLS, Tool
+from app.core.tools import DEFAULT_ENABLED_TOOLS, Tool
 from app.db.authorization import IN_POLICY, STANDING, app_narrowed, app_scope, in_body
 
 #: The legs a policy reads, off this statement's standing.
@@ -1071,7 +1071,7 @@ def relationships_path() -> InitiativePath:
 # point at is an initiative-scoped table with a direct initiative_id, so the path
 # is a per-type EXISTS join. Derived from the canonical Tool enum: entity_type is
 # the tool's string value, its table is the pluralized stem.
-RECENT_ENTITY_TABLES: dict[str, str] = {t.value: t.plural for t in RECENTABLE_TOOLS}
+RECENT_ENTITY_TABLES: dict[str, str] = {t.value: t.plural for t in Tool}
 
 
 def webhook_subscription_path() -> InitiativePath:

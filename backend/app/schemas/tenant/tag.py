@@ -7,6 +7,7 @@ from pydantic import ConfigDict, Field, field_validator, model_validator
 from app.core.identity_boundary import GuildId
 from app.core.tools import TAG_TARGETS
 from app.schemas.base import SanitizedBaseModel, TitleStr
+from app.schemas.tenant.search import SearchHit
 
 
 class TagBase(SanitizedBaseModel):
@@ -125,13 +126,13 @@ class TagBulkEditResponse(SanitizedBaseModel):
 
 
 class TaggedEntitiesResponse(SanitizedBaseModel):
-    """Response for GET /tags/{id}/entities - all entities with a given tag."""
+    """Response for GET /tags/{id}/entities — everything carrying a tag, of
+    every taggable kind. Each item names itself and the tool it lives in, the
+    shape a search hit already has."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    tasks: List["TaggedTaskSummary"] = Field(default_factory=list)
-    projects: List["TaggedProjectSummary"] = Field(default_factory=list)
-    documents: List["TaggedDocumentSummary"] = Field(default_factory=list)
+    items: List[SearchHit] = Field(default_factory=list)
 
 
 class TaggedTaskSummary(SanitizedBaseModel):
@@ -143,17 +144,6 @@ class TaggedTaskSummary(SanitizedBaseModel):
     title: str
     project_id: int
     project_name: Optional[str] = None
-
-
-class TaggedProjectSummary(SanitizedBaseModel):
-    model_config = ConfigDict(
-        from_attributes=True, json_schema_serialization_defaults_required=True
-    )
-
-    id: int
-    name: str
-    initiative_id: int
-    initiative_name: Optional[str] = None
 
 
 class TaggedDocumentSummary(SanitizedBaseModel):
@@ -176,7 +166,3 @@ class TaggedEventSummary(SanitizedBaseModel):
     title: str
     initiative_id: int
     initiative_name: Optional[str] = None
-
-
-# Update forward references
-TaggedEntitiesResponse.model_rebuild()

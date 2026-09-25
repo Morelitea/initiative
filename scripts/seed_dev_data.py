@@ -154,7 +154,7 @@ from app.core.relationships import (  # noqa: E402
     node_id,
 )
 from app.core.search import SearchEntityType  # noqa: E402
-from app.core.tools import TOGGLEABLE_TOOLS  # noqa: E402
+from app.core.tools import Tool  # noqa: E402
 from app.models.tenant.relationship import EntityRelationship  # noqa: E402
 from app.services.tenant import relationships as relationships_service  # noqa: E402
 from app.models.tenant.tag import Tag  # noqa: E402
@@ -1153,7 +1153,7 @@ async def _create_initiative(
     queue, ``open`` is one click. ``auto_join`` enrols every new arrival to the
     community and the check constraint only allows it on an ``open`` one.
     """
-    unknown = sorted(set(tools_enabled) - {t.view_permission for t in TOGGLEABLE_TOOLS})
+    unknown = sorted(set(tools_enabled) - {t.view_permission for t in Tool})
     if unknown:
         raise TypeError(
             f"_create_initiative() got unexpected keyword argument(s): {', '.join(unknown)}"

@@ -264,28 +264,11 @@ class _ParentContext:
     @property
     def ref_type(self) -> Optional[str]:
         """What a notification about this thread is ABOUT — the extra's own
-        kind where there is one, else the tool. This names the thread, which is
-        not always the same as where a link to it goes."""
+        kind where there is one, else the tool. Every one of them opens by its
+        own id, so this is also where a link to the thread goes."""
         if self.extra is not None:
             return self.extra.kind
         return self.tool.value if self.tool is not None else None
-
-    @property
-    def address(self) -> Optional[tuple[str, int]]:
-        """Where a link about this thread should land, as (ref type, id).
-
-        Not every thread's parent has a page of its own: a wiki page is read
-        inside its wiki and has no address taking only its own id, so a link
-        about one opens the wiki. The tool it anchors to is always addressable,
-        which is why that is the fallback rather than nothing.
-        """
-        if self.extra is not None:
-            if self.tool is None or self.resource is None:
-                return None
-            return self.tool.value, cast(int, self.resource.id)
-        if self.tool is None:
-            return None
-        return self.tool.value, self.entity_id
 
 
 def _single_target(ids: dict[str, Optional[int]]) -> tuple[str, int]:

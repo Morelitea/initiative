@@ -26,7 +26,6 @@ type ProjectsFilterBarProps = {
   onFavoritesOnlyChange: (value: boolean) => void;
   tagFilters: TagSummary[];
   onTagFiltersChange: (tags: TagSummary[]) => void;
-  fixedTagIds?: number[];
   /** Manual ordering is only offered where the list can actually be dragged. */
   allowCustomSort?: boolean;
   /** How many filters are currently set — tells "Clear all" whether it has
@@ -47,7 +46,6 @@ export const ProjectsFilterBar = ({
   onFavoritesOnlyChange,
   tagFilters,
   onTagFiltersChange,
-  fixedTagIds,
   allowCustomSort = true,
   onClear,
   activeCount,
@@ -78,19 +76,17 @@ export const ProjectsFilterBar = ({
             className="min-w-60"
           />
         </div>
-        {!fixedTagIds && (
-          <div className="w-full space-y-2 sm:w-48">
-            <Label htmlFor="tag-filter" className="block font-medium text-muted-foreground text-xs">
-              {t("filters.filterByTag")}
-            </Label>
-            <TagPicker
-              selectedTags={tagFilters}
-              onChange={onTagFiltersChange}
-              placeholder={t("filters.allTags")}
-              variant="filter"
-            />
-          </div>
-        )}
+        <div className="w-full space-y-2 sm:w-48">
+          <Label htmlFor="tag-filter" className="block font-medium text-muted-foreground text-xs">
+            {t("filters.filterByTag")}
+          </Label>
+          <TagPicker
+            selectedTags={tagFilters}
+            onChange={onTagFiltersChange}
+            placeholder={t("filters.allTags")}
+            variant="filter"
+          />
+        </div>
         <div className="w-full space-y-2 sm:w-60">
           <Label htmlFor="project-sort" className="block font-medium text-muted-foreground text-xs">
             {t("filters.sortProjects")}

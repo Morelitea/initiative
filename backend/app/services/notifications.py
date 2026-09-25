@@ -40,7 +40,7 @@ from app.core.notification_categories import (
     category_of,
     sample_type,
 )
-from app.core.tools import Tool
+from app.core.tools import COMMENT_TARGETS, Tool
 from app.core.user_display import handle_of
 from app.db.guild_standing import ActorContext, InstallContext
 from app.db.initiative_rls import entity_tables, governing_path
@@ -203,9 +203,10 @@ async def _channels(
 #: id — ``("task", 7)``, ``("calendar_event", 3)``, ``("wiki_page", 12)``.
 Ref = tuple[str, int]
 
-#: The kinds the client opens by their own address (``/go/{kind}/{id}``). Any
-#: other kind opens the tool that governs it: a wiki page opens its wiki.
-_ADDRESSABLE = frozenset({tool.value for tool in Tool} | {"task", "calendar_event"})
+#: The kinds the client opens by their own address (``/go/{kind}/{id}``) —
+#: every commentable kind, and a calendar event. Mirrors the client resolver in
+#: ``lib/entityResolver.ts``. Any other kind opens the tool that governs it.
+_ADDRESSABLE = frozenset((*COMMENT_TARGETS, "calendar_event"))
 
 #: ``recipients`` for news about a thing nobody asked for — it was shared with
 #: you: everybody its sharing reaches, taken from the thing itself.

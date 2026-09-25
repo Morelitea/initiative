@@ -26,8 +26,6 @@ type UseProjectListViewOptions = {
   allowCustomSort?: boolean;
   /** Pull pinned projects into their own section above the list. */
   separatePinned?: boolean;
-  /** Locks the tag filter (the cross-initiative tag browse). */
-  fixedTagIds?: number[];
   /** Initiatives whose projects the viewer may see; others are dropped. */
   viewableInitiativeIds?: Set<number> | null;
 };
@@ -42,7 +40,6 @@ export const useProjectListView = ({
   storagePrefix,
   allowCustomSort = false,
   separatePinned = false,
-  fixedTagIds,
   viewableInitiativeIds,
 }: UseProjectListViewOptions) => {
   const defaultSortMode: ProjectSortMode = allowCustomSort ? "custom" : "updated";
@@ -85,17 +82,14 @@ export const useProjectListView = ({
     [setPersistedViewMode]
   );
 
-  const tagFilters = fixedTagIds
-    ? fixedTagIds
-    : Array.isArray(persistedTagFilters)
-      ? persistedTagFilters.filter((n): n is number => typeof n === "number" && Number.isFinite(n))
-      : [];
+  const tagFilters = Array.isArray(persistedTagFilters)
+    ? persistedTagFilters.filter((n): n is number => typeof n === "number" && Number.isFinite(n))
+    : [];
   const setTagFilters = useCallback(
     (next: number[]) => {
-      if (fixedTagIds) return;
       setPersistedTagFilters(next);
     },
-    [fixedTagIds, setPersistedTagFilters]
+    [setPersistedTagFilters]
   );
 
   const { data: allTags = [] } = useTags();
@@ -115,7 +109,7 @@ export const useProjectListView = ({
   // deliberately excluded — it reorders the list, it doesn't narrow it, so
   // counting it would badge a list that is showing everything.
   const activeFilterCount =
-    (searchQuery.trim() ? 1 : 0) + (fixedTagIds ? 0 : tagFilters.length) + (favoritesOnly ? 1 : 0);
+    (searchQuery.trim() ? 1 : 0) + tagFilters.length + (favoritesOnly ? 1 : 0);
 
   const clearFilters = useCallback(() => {
     setSearchQuery("");
@@ -239,7 +233,6 @@ export const useProjectListView = ({
       onFavoritesOnlyChange: setFavoritesOnly,
       tagFilters: selectedTagsForFilter,
       onTagFiltersChange: handleTagFiltersChange,
-      fixedTagIds,
       allowCustomSort,
       onClear: clearFilters,
       activeCount: activeFilterCount,

@@ -58,62 +58,154 @@ import {
 } from "@/api/generated/tasks/tasks";
 import {
   getReadWikiApiV1CGuildIdWikisWikiIdGetQueryKey,
+  getReadWikiPageByIdApiV1CGuildIdWikiPagesPageIdGetQueryKey,
   readWikiApiV1CGuildIdWikisWikiIdGet,
+  readWikiPageByIdApiV1CGuildIdWikiPagesPageIdGet,
 } from "@/api/generated/wikis/wikis";
-import { eventRoute, initiativeRoute, taskRoute, toolDetailRoute } from "@/lib/tools";
+import {
+  eventRoute,
+  initiativeRoute,
+  type PARENT_TOOL,
+  TOOLS,
+  taskRoute,
+  toolDetailRoute,
+  toolKebabSingular,
+  wikiPageRoute,
+} from "@/lib/tools";
+
+const STALE_TIME = 30_000;
+
+/** Reads one row through the query cache, so the page the resolver lands on
+ *  finds it already there. */
+type Read = <T>(queryKey: readonly unknown[], queryFn: () => Promise<T>) => Promise<T>;
+
+/** How each tool's row is read by its id. Keyed by the whole `Tool` enum, so a
+ *  tool without a reader does not compile. */
+const TOOL_READS: Record<
+  Tool,
+  {
+    key: (guildId: number, id: number) => readonly unknown[];
+    read: (guildId: number, id: number) => Promise<{ initiative_id?: number | null }>;
+  }
+> = {
+  [Tool.project]: {
+    key: getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey,
+    read: readProjectApiV1CGuildIdProjectsProjectIdGet,
+  },
+  [Tool.document]: {
+    key: getReadDocumentApiV1CGuildIdDocumentsDocumentIdGetQueryKey,
+    read: readDocumentApiV1CGuildIdDocumentsDocumentIdGet,
+  },
+  [Tool.queue]: {
+    key: getReadQueueApiV1CGuildIdQueuesQueueIdGetQueryKey,
+    read: readQueueApiV1CGuildIdQueuesQueueIdGet,
+  },
+  [Tool.counter_group]: {
+    key: getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey,
+    read: readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet,
+  },
+  [Tool.calendar]: {
+    key: getReadCalendarApiV1CGuildIdCalendarsCalendarIdGetQueryKey,
+    read: readCalendarApiV1CGuildIdCalendarsCalendarIdGet,
+  },
+  [Tool.dashboard]: {
+    key: getReadDashboardApiV1CGuildIdDashboardsDashboardIdGetQueryKey,
+    read: readDashboardApiV1CGuildIdDashboardsDashboardIdGet,
+  },
+  [Tool.post]: {
+    key: getReadPostApiV1CGuildIdPostsPostIdGetQueryKey,
+    read: readPostApiV1CGuildIdPostsPostIdGet,
+  },
+  [Tool.gallery]: {
+    key: getReadGalleryApiV1CGuildIdGalleriesGalleryIdGetQueryKey,
+    read: readGalleryApiV1CGuildIdGalleriesGalleryIdGet,
+  },
+  [Tool.wiki]: {
+    key: getReadWikiApiV1CGuildIdWikisWikiIdGetQueryKey,
+    read: readWikiApiV1CGuildIdWikisWikiIdGet,
+  },
+};
+
+/** The initiative a tool row lives in. `null` is a guild-level row (an
+ *  app-installed calendar), which keeps a guild address — not a failure. */
+const toolInitiative = async (
+  read: Read,
+  guildId: number,
+  tool: Tool,
+  id: number
+): Promise<number | null> => {
+  const { key, read: readRow } = TOOL_READS[tool];
+  return (await read(key(guildId, id), () => readRow(guildId, id))).initiative_id ?? null;
+};
+
+type Resolve = (read: Read, guildId: number, id: number) => Promise<string>;
 
 /**
- * The kinds of thing `/go/{refType}/{id}` can resolve. Every tool is named by
- * its kebab singular (what `toolKebabSingular` produces), plus the two child
- * entities that carry their own ids in links.
+ * The kinds that live inside a tool and can be read by their own id, keyed by
+ * the child-kind registry ({@link PARENT_TOOL}). A counter, a queue item and a
+ * picture have no read by id alone, so a link never names one.
  */
-export type EntityRefType =
-  | "project"
-  | "document"
-  | "queue"
-  | "counter-group"
-  | "calendar"
-  | "dashboard"
-  | "post"
-  | "gallery"
-  | "wiki"
-  | "task"
-  | "event";
+const CHILD_RESOLVERS: Partial<Record<keyof typeof PARENT_TOOL, Resolve>> = {
+  task: async (read, guildId, id) => {
+    const task = await read(getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey(guildId, id), () =>
+      readTaskApiV1CGuildIdTasksTaskIdGet(guildId, id)
+    );
+    // The embedded project summary usually names the initiative; when the
+    // task read omits it, the project itself is the authority.
+    const initiativeId =
+      task.project?.initiative_id ??
+      (await toolInitiative(read, guildId, Tool.project, task.project_id));
+    return taskRoute(initiativeId, task.project_id, id);
+  },
+  calendar_event: async (read, guildId, id) => {
+    const event = await read(
+      getReadCalendarEventApiV1CGuildIdCalendarEventsEventIdGetQueryKey(guildId, id),
+      () => readCalendarEventApiV1CGuildIdCalendarEventsEventIdGet(guildId, id)
+    );
+    return eventRoute(event.initiative_id, event.calendar_id, id);
+  },
+  wiki_page: async (read, guildId, id) => {
+    const page = await read(
+      getReadWikiPageByIdApiV1CGuildIdWikiPagesPageIdGetQueryKey(guildId, id),
+      () => readWikiPageByIdApiV1CGuildIdWikiPagesPageIdGet(guildId, id)
+    );
+    const initiativeId = await toolInitiative(read, guildId, Tool.wiki, page.wiki_id);
+    return wikiPageRoute(initiativeId, page.wiki_id, id);
+  },
+};
 
-const REF_TYPES = new Set<string>([
-  "project",
-  "document",
-  "queue",
-  "counter-group",
-  "calendar",
-  "dashboard",
-  "post",
-  "gallery",
-  "wiki",
-  "task",
-  "event",
+/**
+ * What `/go/{refType}/{id}` can resolve, by ref type: every tool and every
+ * child kind above, each named by its kebab singular (`counter-group`,
+ * `calendar-event`). Derived from the tool registry and the child kinds, so a
+ * new tool is addressable here the day it exists.
+ */
+const RESOLVERS = new Map<string, Resolve>([
+  ...TOOLS.map((tool): [string, Resolve] => [
+    toolKebabSingular(tool),
+    async (read, guildId, id) =>
+      toolDetailRoute(tool, await toolInitiative(read, guildId, tool, id), id),
+  ]),
+  ...Object.entries(CHILD_RESOLVERS).map(([kind, resolve]): [string, Resolve] => [
+    kind.replaceAll("_", "-"),
+    resolve as Resolve,
+  ]),
 ]);
 
-export const isEntityRefType = (value: string): value is EntityRefType => REF_TYPES.has(value);
+export const isEntityRefType = (value: string): boolean => RESOLVERS.has(value);
 
-/**
- * The ref type addressing an entity of a given kind, or `null` for a kind that
- * has no page of its own (a counter, a queue item, a tag).
- *
- * Derived from the kind's own name — the ref types ARE the kebab singulars —
- * so a new tool is addressable here the day it is indexed. A calendar event is
- * the one that answers to a shorter name.
- */
 export const isSearchEntityType = (value: string): value is SearchEntityType =>
   Object.hasOwn(SearchEntityType, value);
 
-export const entityRefTypeFor = (type: SearchEntityType): EntityRefType | null => {
-  if (type === SearchEntityType.calendar_event) return "event";
+/**
+ * The ref type addressing an entity of a given kind — its kebab singular — or
+ * `null` for a kind that has no address of its own (a counter, a queue item, a
+ * tag).
+ */
+export const entityRefTypeFor = (type: SearchEntityType): string | null => {
   const kebab = type.replaceAll("_", "-");
   return isEntityRefType(kebab) ? kebab : null;
 };
-
-const STALE_TIME = 30_000;
 
 /**
  * The guild-relative path an entity lives at, or `null` when it can't be
@@ -126,103 +218,14 @@ export async function resolveEntityPath(
   refType: string,
   entityId: number
 ): Promise<string | null> {
-  if (!Number.isFinite(entityId) || !isEntityRefType(refType)) return null;
+  const resolve = RESOLVERS.get(refType);
+  if (!Number.isFinite(entityId) || !resolve) return null;
 
-  const fetch = <T>(queryKey: readonly unknown[], queryFn: () => Promise<T>) =>
+  const read = <T>(queryKey: readonly unknown[], queryFn: () => Promise<T>) =>
     queryClient.ensureQueryData({ queryKey, queryFn, staleTime: STALE_TIME });
 
   try {
-    switch (refType) {
-      case "project": {
-        const project = await fetch(
-          getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey(guildId, entityId),
-          () => readProjectApiV1CGuildIdProjectsProjectIdGet(guildId, entityId)
-        );
-        return toolDetailRoute(Tool.project, project.initiative_id, entityId);
-      }
-      case "document": {
-        const document = await fetch(
-          getReadDocumentApiV1CGuildIdDocumentsDocumentIdGetQueryKey(guildId, entityId),
-          () => readDocumentApiV1CGuildIdDocumentsDocumentIdGet(guildId, entityId)
-        );
-        return toolDetailRoute(Tool.document, document.initiative_id, entityId);
-      }
-      case "queue": {
-        const queue = await fetch(
-          getReadQueueApiV1CGuildIdQueuesQueueIdGetQueryKey(guildId, entityId),
-          () => readQueueApiV1CGuildIdQueuesQueueIdGet(guildId, entityId)
-        );
-        return toolDetailRoute(Tool.queue, queue.initiative_id, entityId);
-      }
-      case "counter-group": {
-        const group = await fetch(
-          getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey(guildId, entityId),
-          () => readCounterGroupApiV1CGuildIdCounterGroupsGroupIdGet(guildId, entityId)
-        );
-        return toolDetailRoute(Tool.counter_group, group.initiative_id, entityId);
-      }
-      case "dashboard": {
-        const dashboard = await fetch(
-          getReadDashboardApiV1CGuildIdDashboardsDashboardIdGetQueryKey(guildId, entityId),
-          () => readDashboardApiV1CGuildIdDashboardsDashboardIdGet(guildId, entityId)
-        );
-        return toolDetailRoute(Tool.dashboard, dashboard.initiative_id, entityId);
-      }
-      case "calendar": {
-        const calendar = await fetch(
-          getReadCalendarApiV1CGuildIdCalendarsCalendarIdGetQueryKey(guildId, entityId),
-          () => readCalendarApiV1CGuildIdCalendarsCalendarIdGet(guildId, entityId)
-        );
-        // A null initiative is an app-installed calendar, which keeps a guild
-        // address — not a failure to resolve.
-        return toolDetailRoute(Tool.calendar, calendar.initiative_id, entityId);
-      }
-      case "post": {
-        const post = await fetch(
-          getReadPostApiV1CGuildIdPostsPostIdGetQueryKey(guildId, entityId),
-          () => readPostApiV1CGuildIdPostsPostIdGet(guildId, entityId)
-        );
-        return toolDetailRoute(Tool.post, post.initiative_id, entityId);
-      }
-      case "gallery": {
-        const gallery = await fetch(
-          getReadGalleryApiV1CGuildIdGalleriesGalleryIdGetQueryKey(guildId, entityId),
-          () => readGalleryApiV1CGuildIdGalleriesGalleryIdGet(guildId, entityId)
-        );
-        return toolDetailRoute(Tool.gallery, gallery.initiative_id, entityId);
-      }
-      case "wiki": {
-        const wiki = await fetch(
-          getReadWikiApiV1CGuildIdWikisWikiIdGetQueryKey(guildId, entityId),
-          () => readWikiApiV1CGuildIdWikisWikiIdGet(guildId, entityId)
-        );
-        return toolDetailRoute(Tool.wiki, wiki.initiative_id, entityId);
-      }
-      case "task": {
-        const task = await fetch(
-          getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey(guildId, entityId),
-          () => readTaskApiV1CGuildIdTasksTaskIdGet(guildId, entityId)
-        );
-        // The embedded project summary usually names the initiative; when the
-        // task read omits it, the project itself is the authority.
-        const initiativeId =
-          task.project?.initiative_id ??
-          (
-            await fetch(
-              getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey(guildId, task.project_id),
-              () => readProjectApiV1CGuildIdProjectsProjectIdGet(guildId, task.project_id)
-            )
-          ).initiative_id;
-        return taskRoute(initiativeId, task.project_id, entityId);
-      }
-      case "event": {
-        const event = await fetch(
-          getReadCalendarEventApiV1CGuildIdCalendarEventsEventIdGetQueryKey(guildId, entityId),
-          () => readCalendarEventApiV1CGuildIdCalendarEventsEventIdGet(guildId, entityId)
-        );
-        return eventRoute(event.initiative_id, event.calendar_id, entityId);
-      }
-    }
+    return await resolve(read, guildId, entityId);
   } catch {
     // Deleted, or the reader can't see it. The caller lands on the guild home.
     return null;
@@ -241,7 +244,10 @@ const LEGACY_TARGETS: Array<[RegExp, (id: string) => string]> = [
   [/^\/tasks\/(\d+)(\/.*)?$/, (id) => `/go/task/${id}`],
   [/^\/projects\/(\d+)(\/.*)?$/, (id) => `/go/project/${id}`],
   [/^\/documents\/(\d+)(\/.*)?$/, (id) => `/go/document/${id}`],
-  [/^\/calendar-events\/(\d+)(\/.*)?$/, (id) => `/go/event/${id}`],
+  [/^\/calendar-events\/(\d+)(\/.*)?$/, (id) => `/go/calendar-event/${id}`],
+  // A calendar event's ref type was `event` before every ref type became its
+  // kind's kebab singular.
+  [/^\/go\/event\/(\d+)$/, (id) => `/go/calendar-event/${id}`],
   [/^\/initiatives\/(\d+)(\/.*)?$/, (id) => initiativeRoute(Number(id))],
 ];
 

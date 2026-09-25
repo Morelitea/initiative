@@ -31,17 +31,10 @@ import {
 } from "@/hooks/useProjects";
 import { hasWriteAccess } from "@/lib/permissions";
 
-/**
- * Scoped one of two ways, never both and never neither: to an initiative (the
- * initiative page's Projects tab) or to a tag (the cross-initiative tag
- * browse). Stating it as a union keeps "unscoped is only legal for the tag
- * browse" a fact the compiler checks rather than a comment that rots.
- */
-type ProjectsViewProps =
-  | { fixedInitiativeId: number; fixedTagIds?: never; canCreate?: boolean }
-  | { fixedInitiativeId?: never; fixedTagIds: number[]; canCreate?: boolean };
+/** Scoped to an initiative: the initiative page's Projects tab. */
+type ProjectsViewProps = { fixedInitiativeId: number; canCreate?: boolean };
 
-export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: ProjectsViewProps) => {
+export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps) => {
   const { t } = useTranslation(["projects", "common", "access"]);
   const { user } = useAuth();
   // Single source of truth for "what can I do in each initiative" — honors
@@ -63,12 +56,10 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   const unarchiveProject = useUnarchiveProject();
 
   // Which state of the list is shown. It lives in the URL so an archive view is
-  // linkable and answers the back button; the cross-initiative tag browse only
-  // ever reads active projects, so it pins the value and hides the control.
+  // linkable and answers the back button.
   const router = useRouter();
   const search = useSearch({ strict: false }) as { status?: string };
-  const status: ProjectStatus =
-    !fixedTagIds && isProjectStatus(search.status) ? search.status : "active";
+  const status: ProjectStatus = isProjectStatus(search.status) ? search.status : "active";
   const setStatus = useCallback(
     (next: ProjectStatus) => {
       void router.navigate({
@@ -80,7 +71,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   );
 
   // Scoped in SQL rather than filtered here: the list only ever shows one
-  // initiative's projects, the tag browse spans them all, and the status picks
+  // initiative's projects, and the status picks
   // which of the three states the server returns.
   const projectsParams = {
     ...(lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {}),
@@ -262,7 +253,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   return (
     <PullToRefresh onRefresh={handleRefresh}>
       <div className="space-y-6">
-        {!lockedInitiativeId && !fixedTagIds && (
+        {!lockedInitiativeId && (
           <div>
             <div className="flex items-baseline gap-4">
               <h1 className="font-semibold text-3xl tracking-tight">{t("title")}</h1>
@@ -296,7 +287,6 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
             // Inside an initiative every card would carry the same name.
             showInitiativeLabel={!lockedInitiativeId}
             sortable={status === "active"}
-            fixedTagIds={fixedTagIds}
             viewableInitiativeIds={viewableInitiativeIds}
             userId={user?.id}
             renderItemActions={renderItemActions}
@@ -316,9 +306,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
             toolbarMenuItems={projectImport.menuItem}
             toolbarMenuDialogs={projectImport.dialog}
             leadingToolbar={
-              fixedTagIds ? null : (
-                <ProjectStatusFilter value={status} onChange={setStatus} counts={statusCounts} />
-              )
+              <ProjectStatusFilter value={status} onChange={setStatus} counts={statusCounts} />
             }
           />
         )}

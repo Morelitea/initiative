@@ -54,7 +54,6 @@ type ProjectListPanelProps = {
   storagePrefix: string;
   /** Drag-and-drop ordering plus a pinned section — the active list only. */
   sortable?: boolean;
-  fixedTagIds?: number[];
   viewableInitiativeIds?: Set<number> | null;
   userId?: number;
   /** Buttons shown left of the grid/list toggle, from `sm` up only — create
@@ -91,7 +90,6 @@ export const ProjectListPanel = ({
   noMatchesLabel,
   storagePrefix,
   sortable = false,
-  fixedTagIds,
   viewableInitiativeIds,
   userId,
   toolbarActions,
@@ -107,7 +105,6 @@ export const ProjectListPanel = ({
     storagePrefix,
     allowCustomSort: sortable,
     separatePinned: sortable,
-    fixedTagIds,
     viewableInitiativeIds,
   });
   const { filteredProjects, pinnedProjects, sortedProjects, viewMode } = view;

@@ -20,8 +20,9 @@ from typing import Any, Mapping, Sequence
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.tools import Tool
+from app.core.tools import COMMENT_TARGETS, plural_of
 from app.models.platform.notification import Notification
+from app.models.tenant._mixins import tool_models
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.document import Document
 from app.models.tenant.initiative import Initiative
@@ -59,15 +60,6 @@ SUBJECTS: tuple[Subject, ...] = (
     Subject("post_name", "post_id", Post, "name"),
     Subject("event_title", "event_id", CalendarEvent, "title"),
 )
-
-#: The polymorphic ones: a comment names whatever it is on, as a ``Tool`` value
-#: in ``entity_type`` with the id beside it. Both keys the bell reads resolve
-#: the same way, so they share one table.
-_ENTITY_MODELS: dict[Tool, tuple[type[Any], str]] = {
-    Tool.project: (Project, "name"),
-    Tool.document: (Document, "name"),
-    Tool.post: (Post, "name"),
-}
 
 _ENTITY_KEYS: tuple[tuple[str, str, str], ...] = (
     # (key to fill, id key, type key). Three spellings of the same pair, from
@@ -108,12 +100,15 @@ def _needs(line: Notification) -> list[_Need]:
 
 
 def _entity_spec(entity_type: object) -> tuple[type[Any], str] | None:
-    if not isinstance(entity_type, str):
+    """The polymorphic ones: a comment names whatever it is on — any tool, or
+    one of the extras that carries a thread of its own — in ``entity_type``,
+    with the id beside it. Its model is the table that kind's plural names,
+    labelled by the model's own display column, so every kind a comment can
+    hang off is named without a list of them here."""
+    if not isinstance(entity_type, str) or entity_type not in COMMENT_TARGETS:
         return None
-    try:
-        return _ENTITY_MODELS.get(Tool(entity_type))
-    except ValueError:
-        return None
+    model = tool_models()[plural_of(entity_type)]
+    return model, model.display_field()
 
 
 async def resolve_subjects(

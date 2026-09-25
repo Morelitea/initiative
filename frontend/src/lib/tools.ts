@@ -320,10 +320,6 @@ export const wikiDocumentRoute = (
  */
 export const entityRefRoute = (refType: string, id: number): string => `/go/${refType}/${id}`;
 
-/** {@link entityRefRoute} for a tool, keyed by its kebab singular. */
-export const toolRefRoute = (tool: Tool, id: number): string =>
-  entityRefRoute(toolKebabSingular(tool), id);
-
 /** The router path param carrying a tool entity's id, e.g. "counterGroupId".
  *  Every tool's detail/settings route names its param this way, so the shared
  *  settings page reads the id without a per-tool lookup. */

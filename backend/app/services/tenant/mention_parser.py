@@ -18,7 +18,7 @@ import re
 from copy import deepcopy
 from typing import Any, Set
 
-from sqlalchemy import cast, func, text, Text
+from sqlalchemy import JSON, cast, func, text, Text
 from sqlalchemy.orm.attributes import flag_modified
 from sqlmodel import update
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -27,8 +27,6 @@ from app.core.references import references_in_text
 from app.core.search import SearchEntityType
 from app.db.frozen import PURGE_GUC
 from app.models.tenant.comment import Comment
-from app.models.tenant.document import Document
-from app.models.tenant.post import Post
 from app.models.tenant.task import Task
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.db.session import routed_guild_id
@@ -111,11 +109,11 @@ async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> Non
 
     - comment text: ``@[Display Name](id)`` → ``@[Deleted user](id)``
     - task descriptions: the same markdown syntax, rewritten the same way
-    - native-document Lexical ``mention`` nodes: ``mentionName``/``text``
-      → the placeholder (``yjs_state`` cleared so collaboration bootstraps
-      from the rewritten content, mirroring the wikilink-unresolve path)
-    - post bodies: the same Lexical nodes, in ``posts.body``. A post has no
-      collaborative state to invalidate, so the rewrite is the whole job.
+    - Lexical ``mention`` nodes in every editor-state body the body registry
+      names (documents, posts, wiki pages): ``mentionName``/``text`` → the
+      placeholder (``yjs_state`` cleared where the table has one, so
+      collaboration bootstraps from the rewritten content, mirroring the
+      wikilink-unresolve path)
     - pending task-assignment digest rows: the ``assigned_by_name`` snapshot
 
     Caller owns routing (guild-admin context), flushing order, and the commit —
@@ -125,6 +123,8 @@ async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> Non
     """
     from app.db.soft_delete_filter import select_including_deleted
     from app.services.tenant.collaboration import collaboration_manager
+    from app.services.tenant.collaborative_resources import YJS_STATE_COLUMN
+    from app.services.tenant.content_references import BODY_COLUMNS
 
     # Comment text and task descriptions — the same markdown syntax, so one
     # UPDATE each, filtered and rewritten by the same pattern. (POSIX regex,
@@ -153,43 +153,35 @@ async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> Non
         .execution_options(include_deleted=True, synchronize_session=False)
     )
 
-    # Document mention nodes. The text-cast regex is only a prefilter — the
-    # Python walk makes the actual decision, so a false positive costs one
-    # no-op load. ``select_including_deleted`` covers trashed documents.
+    # Lexical mention nodes, in every body stored as an editor state (the JSON
+    # columns of the body registry; a markdown body was rewritten above). The
+    # text-cast regex is only a prefilter — the Python walk makes the actual
+    # decision, so a false positive costs one no-op load.
+    # ``select_including_deleted`` covers trashed rows.
     prefilter = rf'"mentionUserId":\s*{user_id}[^0-9]'
-    stmt = select_including_deleted(Document).where(
-        cast(Document.content, Text).op("~")(prefilter)
-    )
-    documents = (await session.exec(stmt)).all()
-
-    affected_doc_ids: list[int] = []
-    for doc in documents:
-        if not isinstance(doc.content, dict):
+    rooms: list[tuple[SearchEntityType, int]] = []
+    for kind, (model, column) in BODY_COLUMNS.items():
+        body_column = getattr(model, column)
+        if not isinstance(body_column.type, JSON):
             continue
-        updated_content = deepcopy(doc.content)
-        if _scrub_mention_nodes(updated_content, user_id):
-            doc.content = updated_content
-            # Yjs state takes precedence over content on load; clear it so
-            # collaboration bootstraps from the scrubbed content.
-            doc.yjs_state = None
-            flag_modified(doc, "content")
-            session.add(doc)
-            affected_doc_ids.append(doc.id)
-
-    # Post bodies carry the same Lexical mention nodes as a native document.
-    # Same prefilter, same walk; no yjs state and no room to invalidate,
-    # because a post is written by one person and then read.
-    post_stmt = select_including_deleted(Post).where(
-        cast(Post.body, Text).op("~")(prefilter)
-    )
-    for post in (await session.exec(post_stmt)).all():
-        if not isinstance(post.body, dict):
-            continue
-        updated_body = deepcopy(post.body)
-        if _scrub_mention_nodes(updated_body, user_id):
-            post.body = updated_body
-            flag_modified(post, "body")
-            session.add(post)
+        stmt = select_including_deleted(model).where(
+            cast(body_column, Text).op("~")(prefilter)
+        )
+        for row in (await session.exec(stmt)).all():
+            body = getattr(row, column)
+            if not isinstance(body, dict):
+                continue
+            updated_body = deepcopy(body)
+            if not _scrub_mention_nodes(updated_body, user_id):
+                continue
+            setattr(row, column, updated_body)
+            flag_modified(row, column)
+            if hasattr(model, YJS_STATE_COLUMN):
+                # Yjs state takes precedence over content on load; clear it so
+                # collaboration bootstraps from the scrubbed content.
+                setattr(row, YJS_STATE_COLUMN, None)
+                rooms.append((kind, row.id))
+            session.add(row)
 
     # Digest rows snapshot the assigner's name for the email body.
     await session.exec(
@@ -204,10 +196,10 @@ async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> Non
 
     # Drop idle collaboration rooms so a room's save can't overwrite the
     # scrubbed content with a stale in-memory copy on next disconnect. Rooms are
-    # keyed by (guild, document) and this runs once per guild, routed to it.
+    # keyed by (guild, kind, id) and this runs once per guild, routed to it.
     guild_id = routed_guild_id(session)
     if guild_id is not None:
-        for doc_id in affected_doc_ids:
+        for kind, row_id in rooms:
             await collaboration_manager.invalidate_room_if_empty(
-                guild_id, SearchEntityType.document.value, doc_id
+                guild_id, kind.value, row_id
             )
