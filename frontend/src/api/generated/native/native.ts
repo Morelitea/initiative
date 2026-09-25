@@ -47,6 +47,12 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * and ``minNativeVersion`` — the minimum native app (APK/IPA) version the bundle requires.
  * The client refuses the update (and prompts to update from the store) when its installed
  * native app version is older.
+ *
+ * A release image also carries ``statement`` — the same facts as JSON — and its
+ * ``signature``, made with the project's release key when the image was built. The app
+ * installs only a bundle whose statement verifies against a key it was built with, and
+ * reads the version, digest and native floor from the statement. The loose fields stay
+ * for app bundles from before the statement existed.
  * @summary Get Bundle Manifest
  */
 export const getBundleManifestApiV1NativeBundleManifestGet = (
