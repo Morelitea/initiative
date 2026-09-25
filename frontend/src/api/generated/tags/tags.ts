@@ -285,11 +285,12 @@ export const useCreateTagApiV1CGuildIdTagsPost = <
 /**
  * Add and/or remove tags across many entities of one type, atomically.
  *
- * Every target is authorized with the same write gate its own set-tags
- * endpoint uses (tasks/queue items via their parent project/queue, tools via
- * the unified resource-access registry). Nothing is applied unless every
- * target passes — one transaction, and for tasks one realtime signal per
- * affected project instead of one per task.
+ * Every target is authorized with write on the tool that governs it, read
+ * from the registry its RLS policy is rendered from: a tool row asks itself,
+ * a sub-resource (a task, a queue item, a wiki page, …) asks its parent tool.
+ * Nothing is applied unless every target passes — one transaction, and a
+ * parent tool's ``updated_at`` moves once for all of its sub-resources rather
+ * than once per row.
  * @summary Bulk Edit Tags
  */
 export const bulkEditTagsApiV1CGuildIdTagsBulkPost = (
@@ -734,13 +735,16 @@ export const useDeleteTagApiV1CGuildIdTagsTagIdDelete = <
   return useMutation(getDeleteTagApiV1CGuildIdTagsTagIdDeleteMutationOptions(options), queryClient);
 };
 /**
- * Get all entities (tasks, projects, documents) with this tag.
+ * Everything carrying this tag, of every taggable kind.
  *
  * A tag reaches across every initiative in the community, so this listing
  * answers what has been shared with the reader — the same rule the community
  * front page's table and the ``/me/*`` views follow. A guild admin's authority
  * over any one initiative is unchanged; it is asked about by opening that
  * initiative, not by opening a tag.
+ *
+ * Each row names itself and the tool it lives in, the way a search hit does,
+ * which is everything a client needs to address it.
  * @summary Get Tag Entities
  */
 export const getTagEntitiesApiV1CGuildIdTagsTagIdEntitiesGet = (

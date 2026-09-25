@@ -18,7 +18,7 @@ from sqlalchemy import (
 )
 from sqlmodel import Field, Relationship, SQLModel
 
-from app.core.tools import DEFAULT_ENABLED_TOOLS, TOGGLEABLE_TOOLS, Tool
+from app.core.tools import DEFAULT_ENABLED_TOOLS, Tool
 from app.models.tenant._mixins import ArchiveMixin, CreatedByMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -334,7 +334,7 @@ _InitiativeToolSwitchColumns = type(
     (SQLModel,),
     {
         "__module__": __name__,
-        "__annotations__": {t.view_permission: bool for t in TOGGLEABLE_TOOLS},
+        "__annotations__": {t.view_permission: bool for t in Tool},
         **{
             t.view_permission: Field(
                 default=t in DEFAULT_ENABLED_TOOLS,
@@ -343,7 +343,7 @@ _InitiativeToolSwitchColumns = type(
                     "server_default": str(t in DEFAULT_ENABLED_TOOLS).lower()
                 },
             )
-            for t in TOGGLEABLE_TOOLS
+            for t in Tool
         },
     },
 )

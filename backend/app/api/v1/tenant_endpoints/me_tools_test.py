@@ -2,10 +2,8 @@
 
 ``GET /api/v1/me/{tool}`` is one route mounted per tool out of
 ``MY_TOOL_LISTS``, so the proofs that hold for every tool are parametrised
-rather than written per tool: they run over the incumbent (queues) and the
-three lists that were hand-written copies of the same merge until the registry
-took them over (projects, documents, calendars). What belongs to one tool — a
-project template, a guild calendar — keeps its own case below.
+over the ``Tool`` enum rather than written per tool. What belongs to one tool
+— a guild calendar, a project's archive — keeps its own case below.
 
 ``GET /api/v1/me/tools/counts``, which is what decides the page's tabs, is at
 the end.
@@ -30,21 +28,18 @@ from app.testing import (
     create_initiative,
     create_initiative_member,
     create_project,
+    create_tool_entity,
     create_user,
     get_auth_headers,
 )
+from app.services.tenant.my_tools import tool_model
 
-#: The tools the shared proofs run over: the one that has always answered here,
-#: and the three that used to answer from a copy of this merge in their own
-#: module.
-SHARED_TOOLS = (Tool.queue, Tool.project, Tool.document, Tool.calendar)
-
-per_tool = pytest.mark.parametrize("tool", SHARED_TOOLS, ids=lambda t: t.value)
+per_tool = pytest.mark.parametrize("tool", list(Tool), ids=lambda t: t.value)
 
 
 def _path(tool: Tool) -> str:
-    """The cross-guild list route for a tool — the plural in kebab case."""
-    return f"/api/v1/me/{tool.plural.replace('_', '-')}"
+    """The cross-guild list route for a tool."""
+    return f"/api/v1/me/{tool.route_segment}"
 
 
 def _keyed(response) -> set[tuple[int, int]]:
@@ -54,16 +49,11 @@ def _keyed(response) -> set[tuple[int, int]]:
 
 
 async def _enable_tools(client, actor):
-    """Turn on the toggleable tools for the actor's initiative."""
+    """Turn on every tool for the actor's initiative."""
     response = await client.patch(
         actor.g(f"/initiatives/{actor.initiative.id}"),
         headers=actor.headers,
-        json={
-            "queues_enabled": True,
-            "counter_groups_enabled": True,
-            "dashboards_enabled": True,
-            "calendars_enabled": True,
-        },
+        json={tool.view_permission: True for tool in Tool},
     )
     assert response.status_code == 200, response.text
 
@@ -74,9 +64,8 @@ async def _create(client, actor, tool: Tool, name: str) -> dict:
     Every tool is created the same way — a name and the initiative that holds
     it — so the route is derived from the enum rather than listed per tool.
     """
-    segment = tool.plural.replace("_", "-")
     response = await client.post(
-        actor.g(f"/{segment}/"),
+        actor.g(f"/{tool.route_segment}/"),
         headers=actor.headers,
         json={"name": name, "initiative_id": actor.initiative.id},
     )
@@ -263,23 +252,6 @@ async def test_the_initiatives_switch_takes_a_row_off_the_list(
 
 
 @pytest.mark.integration
-async def test_list_my_counter_groups_and_dashboards(client: AsyncClient, acting_user):
-    """The two tools outside the parametrised set answer on their own paths."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _enable_tools(client, a)
-    group = await _create(client, a, Tool.counter_group, "Scores")
-    dashboard = await _create(client, a, Tool.dashboard, "Overview")
-
-    groups = await client.get("/api/v1/me/counter-groups", headers=a.headers)
-    assert groups.status_code == 200
-    assert group["id"] in {g["id"] for g in groups.json()["items"]}
-
-    dashboards = await client.get("/api/v1/me/dashboards", headers=a.headers)
-    assert dashboards.status_code == 200
-    assert dashboard["id"] in {d["id"] for d in dashboards.json()["items"]}
-
-
-@pytest.mark.integration
 async def test_a_co_member_reads_what_was_shared_with_the_initiative(
     client: AsyncClient, acting_user
 ):
@@ -326,23 +298,28 @@ async def test_my_projects_excludes_archived(
 
 
 @pytest.mark.integration
-async def test_my_projects_excludes_templates(
-    client: AsyncClient, session: AsyncSession, acting_user
+@pytest.mark.parametrize(
+    "tool",
+    [t for t in Tool if "is_template" in tool_model(t).model_fields],
+    ids=lambda t: t.value,
+)
+async def test_my_tools_exclude_templates(
+    client: AsyncClient, session: AsyncSession, acting_user, tool: Tool
 ):
-    """A blueprint is the projects list's own second state, and not work."""
+    """A blueprint is a tool's own second state, and not work — for every tool
+    whose model carries one."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    live = await create_project(session, a.initiative, a.user, name="Project")
-    template = await create_project(session, a.initiative, a.user, name="Template")
-    template.is_template = True
-    session.add(template)
-    await session.commit()
+    live = await create_tool_entity(session, tool, a.initiative, a.user, name="Live")
+    template = await create_tool_entity(
+        session, tool, a.initiative, a.user, name="Template", is_template=True
+    )
 
-    response = await client.get("/api/v1/me/projects", headers=a.headers)
+    response = await client.get(_path(tool), headers=a.headers)
 
     assert response.status_code == 200
-    project_ids = {p["id"] for p in response.json()["items"]}
-    assert live.id in project_ids
-    assert template.id not in project_ids
+    ids = {row["id"] for row in response.json()["items"]}
+    assert live.id in ids
+    assert template.id not in ids
 
 
 @pytest.mark.integration

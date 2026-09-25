@@ -341,7 +341,7 @@ export const MyCalendarPage = () => {
     if (meta.type === "task" && meta.taskId) {
       void navigate({ to: scopedPath(entityRefRoute("task", meta.taskId)) });
     } else if (meta.type === "event" && meta.eventId) {
-      void navigate({ to: scopedPath(entityRefRoute("event", meta.eventId)) });
+      void navigate({ to: scopedPath(entityRefRoute("calendar-event", meta.eventId)) });
     }
   };
 

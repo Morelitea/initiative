@@ -30,7 +30,6 @@ from app.db.guild_standing import GuildContext
 from app.db.session import require_guild_context
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative
-from app.models.tenant.project import Project
 from app.services import permissions as permissions_service
 from app.services.tenant import archive as archive_service
 from app.services.tenant import posts as posts_service
@@ -98,9 +97,9 @@ def scope_conditions(
     # the model rather than named per kind.
     conditions.append(archive_service.archive_filter_clause(model, archived=None))
 
-    if tool is Tool.project:
-        # A template is the project list's own second state, and not work.
-        conditions.append(Project.is_template.is_(False))
+    if "is_template" in model.model_fields:
+        # A template is a blueprint for new work, and not work itself.
+        conditions.append(model.is_template.is_(False))
 
     if tool is Tool.post:
         # A scheduled notice has not gone up: it reaches only the people who

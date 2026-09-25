@@ -12,9 +12,8 @@
     "deleted": "Tag gelöscht",
     "saving": "Wird gespeichert…",
     "save": "Speichern",
-    "tasksTab": "Aufgaben ({{count}})",
-    "projectsTab": "Projekte ({{count}})",
-    "documentsTab": "Dokumente ({{count}})"
+    "toolTab": "{{tool}} ({{count}})",
+    "empty": "Noch trägt nichts diesen Tag."
   },
   "manage": {
     "edit": "Tags bearbeiten",

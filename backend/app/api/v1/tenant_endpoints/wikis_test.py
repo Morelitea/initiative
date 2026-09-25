@@ -947,6 +947,14 @@ async def test_a_draft_page_reads_as_missing_to_a_reader(
 
     assert response.status_code == 404
 
+    # The page's own address answers the same way: its writer reads it, and a
+    # reader is told nothing.
+    by_id = a.g(f"/wiki-pages/{page.id}")
+    written = await client.get(by_id, headers=a.headers)
+    assert written.status_code == 200, written.text
+    assert written.json()["wiki_id"] == wiki.id
+    assert (await client.get(by_id, headers=b.headers)).status_code == 404
+
 
 # ---------------------------------------------------------------------------
 # The home page

@@ -39,11 +39,6 @@ from app.testing import create_tool_entity, enable_all_tools
 TOOLS = pytest.mark.parametrize("tool", list(Tool), ids=[t.value for t in Tool])
 
 
-def _segment(tool: Tool) -> str:
-    """The URL segment the tool is addressed by — its plural in kebab case."""
-    return tool.plural.replace("_", "-")
-
-
 async def _entity(session: AsyncSession, actor, tool: Tool):
     """One instance of ``tool``, owned by ``actor``, in an all-tools initiative."""
     await enable_all_tools(session, actor.initiative)
@@ -65,7 +60,7 @@ async def test_the_owner_shares_it_with_somebody(
     )
 
     response = await client.put(
-        a.g(f"/{_segment(tool)}/{entity.id}/grants"),
+        a.g(f"/{tool.route_segment}/{entity.id}/grants"),
         headers=a.headers,
         json=[{"user_id": b.user.id, "level": "write"}],
     )
@@ -97,7 +92,7 @@ async def test_a_role_can_be_named_instead_of_a_person(
     ).one()
 
     response = await client.put(
-        a.g(f"/{_segment(tool)}/{entity.id}/grants"),
+        a.g(f"/{tool.route_segment}/{entity.id}/grants"),
         headers=a.headers,
         json=[{"role_id": member_role.id, "level": "read"}],
     )
@@ -124,7 +119,7 @@ async def test_a_reader_cannot_reshare_it(
     )
 
     response = await client.put(
-        b.g(f"/{_segment(tool)}/{entity.id}/grants"),
+        b.g(f"/{tool.route_segment}/{entity.id}/grants"),
         headers=b.headers,
         json=[{"user_id": b.user.id, "level": "write"}],
     )
@@ -143,7 +138,7 @@ async def test_someone_outside_the_initiative_gets_the_tools_not_found(
     outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
 
     response = await client.put(
-        outsider.g(f"/{_segment(tool)}/{entity.id}/grants"),
+        outsider.g(f"/{tool.route_segment}/{entity.id}/grants"),
         headers=outsider.headers,
         json=[],
     )
@@ -183,7 +178,7 @@ async def test_the_room_is_told_that_sharing_moved(
     monkeypatch.setattr(sockets, "recheck_room", _recheck)
 
     response = await client.put(
-        a.g(f"/{_segment(tool)}/{entity.id}/grants"),
+        a.g(f"/{tool.route_segment}/{entity.id}/grants"),
         headers=a.headers,
         json=[{"user_id": b.user.id, "level": "write"}],
     )

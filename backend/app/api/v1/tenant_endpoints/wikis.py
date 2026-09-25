@@ -24,6 +24,7 @@ from copy import deepcopy
 from typing import Annotated, Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlmodel import select
 
 from app.db.session import routed_guild_id
 from app.api import resource_access
@@ -70,6 +71,9 @@ from app.services.tenant import tags as tags_service
 from app.services.tenant import wikis as wikis_service
 
 router = APIRouter(route_class=ActorRoute)
+#: A page addressed by its own id, mounted at the guild root the way a queue
+#: item is — for a caller holding nothing but that id.
+pages_router = APIRouter(route_class=ActorRoute)
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
@@ -555,6 +559,27 @@ async def read_wiki_page(
     )
     await tags_service.annotate_tags(session, [page])
     return serialize_wiki_page(page, context=guild_context)
+
+
+@pages_router.get("/wiki-pages/{page_id}", response_model=WikiPageRead)
+async def read_wiki_page_by_id(
+    page_id: int,
+    session: RLSSessionDep,
+    current_user: CurrentUserDep,
+    guild_context: GuildContextDep,
+) -> WikiPageRead:
+    """One page by its own id — the read-back for a link that names only the
+    page, such as a mention in a document or a stored notification. Answered
+    exactly as the page's address inside its wiki is."""
+    wiki_id = (
+        await session.exec(select(WikiPage.wiki_id).where(WikiPage.id == page_id))
+    ).first()
+    if wiki_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=WikiMessages.PAGE_NOT_FOUND,
+        )
+    return await read_wiki_page(wiki_id, page_id, session, current_user, guild_context)
 
 
 @router.patch("/{wiki_id}/pages/{page_id}", response_model=WikiPageRead)

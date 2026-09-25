@@ -42,7 +42,15 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import UserSessionDep, get_current_active_user
 from app.api.v1.tenant_endpoints import documents as documents_endpoints
 from app.api.v1.tenant_endpoints import projects as projects_endpoints
-from app.api.v1.tenant_endpoints.tool_lists import TOOL_LISTS, ListParam
+from app.api.v1.tenant_endpoints.tool_lists import (
+    TOOL_LISTS,
+    ListParam,
+    page_param,
+    page_size_param,
+    search_param,
+    sort_by_param,
+    sort_dir_param,
+)
 from app.core.tools import Tool
 from app.db.session import require_guild_context
 from app.db.query import page_has_next, paginate_sequence
@@ -82,47 +90,16 @@ _SORT_BY_DESCRIPTION = (
     "default order. There is no `initiative` here — a merged cross-guild list "
     "is ordered over the summaries themselves, which carry no initiative name."
 )
-_SORT_DIR_DESCRIPTION = "asc (default) or desc."
 
 
 def _guild_ids() -> ListParam:
     return ListParam("guild_ids", Optional[List[int]], Query(default=None))
 
 
-def _search() -> ListParam:
-    return ListParam("search", Optional[str], Query(default=None))
-
-
 def _created_by_me(description: Optional[str] = None) -> ListParam:
     return ListParam(
         "created_by_me", bool, Query(default=False, description=description)
     )
-
-
-def _sort_by(description: Optional[str] = _SORT_BY_DESCRIPTION) -> ListParam:
-    return ListParam(
-        "sort_by", Optional[str], Query(default=None, description=description)
-    )
-
-
-def _sort_dir(description: Optional[str] = _SORT_DIR_DESCRIPTION) -> ListParam:
-    return ListParam(
-        "sort_dir", Optional[str], Query(default=None, description=description)
-    )
-
-
-def _page() -> ListParam:
-    return ListParam("page", int, Query(default=1, ge=1))
-
-
-def _page_size(default: int, *, ge: int, le: int) -> ListParam:
-    """A tool's page defaults, declared where they can be compared.
-
-    They differ on purpose — a board of posts carries whole bodies, a calendar
-    list fills a grouping panel in one go — and the clients depend on them, so
-    they are stated per tool rather than averaged.
-    """
-    return ListParam("page_size", int, Query(default=default, ge=ge, le=le))
 
 
 def _shared_params(page_size: ListParam) -> tuple[ListParam, ...]:
@@ -135,11 +112,11 @@ def _shared_params(page_size: ListParam) -> tuple[ListParam, ...]:
     """
     return (
         _guild_ids(),
-        _search(),
+        search_param(None),
         _created_by_me(),
-        _sort_by(),
-        _sort_dir(),
-        _page(),
+        sort_by_param(_SORT_BY_DESCRIPTION),
+        sort_dir_param(),
+        page_param(),
         page_size,
     )
 
@@ -207,11 +184,11 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
         # generated client is unchanged.
         params=(
             _guild_ids(),
-            _search(),
-            _page(),
-            _page_size(20, ge=1, le=100),
-            _sort_by(description=None),
-            _sort_dir(description=None),
+            search_param(None),
+            page_param(),
+            page_size_param(20, ge=1, le=100),
+            sort_by_param(None),
+            sort_dir_param(None),
             _created_by_me("Narrow to projects the caller created."),
         ),
         list_doc=(
@@ -235,11 +212,11 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
         },
         params=(
             _guild_ids(),
-            _search(),
-            _page(),
-            _page_size(20, ge=0, le=100),
-            _sort_by(description=None),
-            _sort_dir(description=None),
+            search_param(None),
+            page_param(),
+            page_size_param(20, ge=0, le=100),
+            sort_by_param(None),
+            sort_dir_param(None),
             _created_by_me("Narrow to documents the caller wrote."),
         ),
         list_doc=(
@@ -255,14 +232,14 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
         loader_options=queues_service.list_loader_options,
         serialize=_summaries(serialize_queue_summary),
         default_key=lambda row: row.updated_at,
-        params=_shared_params(_page_size(20, ge=0, le=100)),
+        params=_shared_params(page_size_param(20, ge=0, le=100)),
         list_doc="Queues that reach the caller across every guild they belong to.",
     ),
     Tool.counter_group: MyToolList(
         loader_options=counters_service.list_loader_options,
         serialize=_summaries(serialize_counter_group_summary),
         default_key=lambda row: row.updated_at,
-        params=_shared_params(_page_size(20, ge=0, le=100)),
+        params=_shared_params(page_size_param(20, ge=0, le=100)),
         list_doc=(
             "Counter groups that reach the caller across every guild they belong to."
         ),
@@ -276,15 +253,15 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
         default_desc=False,
         params=(
             _guild_ids(),
-            _search(),
+            search_param(None),
             _created_by_me("Narrow to calendars the caller created."),
-            _sort_by(
+            sort_by_param(
                 "Order by one of: name, updated_at, created_at. Omit for this "
                 "view's own order, which is by name."
             ),
-            _sort_dir(),
-            _page(),
-            _page_size(200, ge=1, le=200),
+            sort_dir_param(),
+            page_param(),
+            page_size_param(200, ge=1, le=200),
         ),
         list_doc=(
             "List the calendars visible to the user across all their guilds — "
@@ -310,7 +287,7 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
         serialize=_summaries(serialize_dashboard_summary),
         default_key=lambda row: (row.name or "").lower(),
         default_desc=False,
-        params=_shared_params(_page_size(20, ge=0, le=100)),
+        params=_shared_params(page_size_param(20, ge=0, le=100)),
         list_doc="Dashboards that reach the caller across every guild they belong to.",
     ),
     Tool.post: MyToolList(
@@ -320,7 +297,7 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
         # scheduled draft — which only its writers see here — sorts by the day
         # it will land, not by the day somebody started it.
         default_key=lambda row: row.published_at or row.scheduled_for or row.created_at,
-        params=_shared_params(_page_size(20, ge=0, le=50)),
+        params=_shared_params(page_size_param(20, ge=0, le=50)),
         list_doc=(
             "Posts that reach the caller across every guild they belong to.\n"
             "\n"
@@ -333,7 +310,7 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
         loader_options=galleries_service.list_loader_options,
         serialize=_summaries(serialize_gallery_summary),
         default_key=lambda row: row.updated_at,
-        params=_shared_params(_page_size(20, ge=0, le=100)),
+        params=_shared_params(page_size_param(20, ge=0, le=100)),
         list_doc=(
             "Galleries that reach the caller across every guild they belong "
             "to.\n"
@@ -352,7 +329,7 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
         loader_options=wikis_service.list_loader_options,
         serialize=_summaries(serialize_wiki_summary),
         default_key=lambda row: row.updated_at,
-        params=_shared_params(_page_size(20, ge=0, le=100)),
+        params=_shared_params(page_size_param(20, ge=0, le=100)),
         list_doc=(
             "Wikis that reach the caller across every guild they belong to.\n"
             "\n"
@@ -433,11 +410,6 @@ async def list_across_guilds(
 # ---------------------------------------------------------------------------
 
 
-def _segment(tool: Tool) -> str:
-    """The URL segment a tool is addressed by — its plural in kebab case."""
-    return tool.plural.replace("_", "-")
-
-
 _CONTEXT_PARAMS: tuple[tuple[str, Any], ...] = (
     ("session", UserSessionDep),
     ("current_user", CurrentUserDep),
@@ -496,7 +468,7 @@ def _mount(tool: Tool, spec: MyToolList) -> None:
 
     list_rows.__signature__ = _signature(spec.params)
     me_router.add_api_route(
-        f"/{_segment(tool)}",
+        f"/{tool.route_segment}",
         list_rows,
         methods=["GET"],
         response_model=response_model,

@@ -6,9 +6,14 @@
  * and a second copy is how the two drift apart.
  */
 import type { NotificationRead } from "@/api/generated/initiativeAPI.schemas";
-import { normalizeAppTarget, normalizeLegacyTarget } from "@/lib/entityResolver";
+import {
+  entityRefTypeFor,
+  isSearchEntityType,
+  normalizeAppTarget,
+  normalizeLegacyTarget,
+} from "@/lib/entityResolver";
 import { guildPath } from "@/lib/guildUrl";
-import { entityRefRoute, TOOLS, toolRefRoute } from "@/lib/tools";
+import { entityRefRoute } from "@/lib/tools";
 
 // Build guild-scoped URL directly. Notification rows persist their
 // target_path, so one written before tools moved inside their initiative is
@@ -61,14 +66,11 @@ export const resolveSmartLink = (notification: NotificationRead): string | null 
 const entityRefFromData = (data: Record<string, unknown>): string | null => {
   const entityType = typeof data.entity_type === "string" ? data.entity_type : null;
   const entityId = Number(data.entity_id);
-  if (!entityType || !Number.isFinite(entityId)) {
+  if (!entityType || !Number.isFinite(entityId) || !isSearchEntityType(entityType)) {
     return null;
   }
-  if (entityType === "task") {
-    return entityRefRoute("task", entityId);
-  }
-  const tool = TOOLS.find((candidate) => candidate === entityType);
-  return tool ? toolRefRoute(tool, entityId) : null;
+  const refType = entityRefTypeFor(entityType);
+  return refType ? entityRefRoute(refType, entityId) : null;
 };
 
 export const notificationLink = (notification: NotificationRead): string | null => {
@@ -144,7 +146,7 @@ export const notificationLink = (notification: NotificationRead): string | null 
     case "event_rsvp":
     case "event_reminder": {
       const eventId = Number(data.event_id);
-      return Number.isFinite(eventId) ? entityRefRoute("event", eventId) : null;
+      return Number.isFinite(eventId) ? entityRefRoute("calendar-event", eventId) : null;
     }
     default:
       return null;

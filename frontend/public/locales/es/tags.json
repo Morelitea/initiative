@@ -12,9 +12,8 @@
     "deleted": "Etiqueta eliminada",
     "saving": "Guardando…",
     "save": "Guardar",
-    "tasksTab": "Tareas ({{count}})",
-    "projectsTab": "Proyectos ({{count}})",
-    "documentsTab": "Documentos ({{count}})"
+    "toolTab": "{{tool}} ({{count}})",
+    "empty": "Todavía nada lleva esta etiqueta."
   },
   "manage": {
     "edit": "Editar etiquetas",

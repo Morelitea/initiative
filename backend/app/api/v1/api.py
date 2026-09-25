@@ -292,6 +292,7 @@ guild_router.include_router(
 guild_router.include_router(posts.router, prefix="/posts", tags=["posts"])
 guild_router.include_router(galleries.router, prefix="/galleries", tags=["galleries"])
 guild_router.include_router(wikis.router, prefix="/wikis", tags=["wikis"])
+guild_router.include_router(wikis.pages_router, tags=["wikis"])
 # Apps installed at guild scope. Every member reads them (the sidebar needs to
 # know what is there); installing and removing are guild-admin actions.
 #

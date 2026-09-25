@@ -789,21 +789,28 @@ async def test_soft_delete_scrubs_embedded_mentions(
     session: AsyncSession, role_session
 ):
     """Anonymizing a user rewrites their display name wherever content embedded
-    it as literal text: @-mention markup in comments, Lexical mention nodes in
-    documents (with yjs_state cleared), and digest-row name snapshots
-    (issue #794)."""
+    it as literal text — on every surface somebody writes on: @-mention markup
+    in comments, descriptions and checklist items, Lexical mention nodes in
+    documents and wiki pages (with yjs_state cleared), and digest-row name
+    snapshots (issue #794)."""
     from app.models.tenant.comment import Comment
     from app.models.tenant.document import Document
     from app.models.tenant.task import Task
     from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
+    from app.models.tenant.wiki import WikiPage
     from app.services.tenant.mention_parser import ANONYMIZED_MENTION_NAME
+    from app.models.tenant.project import Project
     from app.testing.factories import (
+        checklist_items,
         create_comment,
         create_document,
         create_initiative,
         create_initiative_member,
         create_project,
         create_task,
+        create_wiki,
+        create_wiki_page,
+        enable_all_tools,
     )
     from app.testing.schema_harness import route_session_to_guild
 
@@ -813,9 +820,14 @@ async def test_soft_delete_scrubs_embedded_mentions(
     await create_guild_membership(session, user=victim, guild=guild)
     initiative = await create_initiative(session, guild, author)
     await create_initiative_member(session, initiative=initiative, user=victim)
-    project = await create_project(session, initiative, author)
+    project = await create_project(
+        session, initiative, author, description=f"lead: @[Vic Tim]({victim.id})"
+    )
     task = await create_task(
-        session, project, description=f"pair with @[Vic Tim]({victim.id})"
+        session,
+        project,
+        description=f"pair with @[Vic Tim]({victim.id})",
+        checklist=checklist_items(f"ask @[Vic Tim]({victim.id})"),
     )
     # Finished work is scrubbed too: an archived task keeps its words, so it
     # would keep the name.
@@ -842,28 +854,33 @@ async def test_soft_delete_scrubs_embedded_mentions(
         content=f"bin @[Vic Tim]({victim.id})",
         deleted_at=datetime.now(timezone.utc),
     )
+    mention_body = {
+        "root": {
+            "type": "root",
+            "children": [
+                {
+                    "type": "paragraph",
+                    "children": [
+                        {
+                            "type": "mention",
+                            "mentionName": "Vic Tim",
+                            "mentionUserId": victim.id,
+                            "text": "Vic Tim",
+                        }
+                    ],
+                }
+            ],
+        }
+    }
     document = await create_document(
+        session, initiative, author, content=mention_body, yjs_state=b"stale-state"
+    )
+    await enable_all_tools(session, initiative)
+    page = await create_wiki_page(
         session,
-        initiative,
+        await create_wiki(session, initiative, author),
         author,
-        content={
-            "root": {
-                "type": "root",
-                "children": [
-                    {
-                        "type": "paragraph",
-                        "children": [
-                            {
-                                "type": "mention",
-                                "mentionName": "Vic Tim",
-                                "mentionUserId": victim.id,
-                                "text": "Vic Tim",
-                            }
-                        ],
-                    }
-                ],
-            }
-        },
+        content=mention_body,
         yjs_state=b"stale-state",
     )
     digest = TaskAssignmentDigestItem(
@@ -941,15 +958,22 @@ async def test_soft_delete_scrubs_embedded_mentions(
         task.id: f"pair with @[{ANONYMIZED_MENTION_NAME}]({victim_id})",
         archived_task.id: f"was @[{ANONYMIZED_MENTION_NAME}]({victim_id})'s",
     }
-
-    refreshed_doc = (
-        await session.exec(select(Document).where(Document.id == document.id))
+    checklist = (
+        await session.exec(select(Task.checklist).where(Task.id == task.id))
     ).one()
-    node = refreshed_doc.content["root"]["children"][0]["children"][0]
-    assert node["mentionName"] == ANONYMIZED_MENTION_NAME
-    assert node["text"] == ANONYMIZED_MENTION_NAME
-    assert node["mentionUserId"] == victim_id
-    assert refreshed_doc.yjs_state is None
+    assert checklist[0]["text"] == f"ask @[{ANONYMIZED_MENTION_NAME}]({victim_id})"
+    project_description = (
+        await session.exec(select(Project.description).where(Project.id == project.id))
+    ).one()
+    assert project_description == f"lead: @[{ANONYMIZED_MENTION_NAME}]({victim_id})"
+
+    for model, row_id in ((Document, document.id), (WikiPage, page.id)):
+        refreshed = (await session.exec(select(model).where(model.id == row_id))).one()
+        node = refreshed.content["root"]["children"][0]["children"][0]
+        assert node["mentionName"] == ANONYMIZED_MENTION_NAME, model
+        assert node["text"] == ANONYMIZED_MENTION_NAME, model
+        assert node["mentionUserId"] == victim_id, model
+        assert refreshed.yjs_state is None, model
 
     refreshed_digest = (
         await session.exec(

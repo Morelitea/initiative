@@ -1,24 +1,24 @@
 """Mention syntax: parsing and anonymization.
 
-Mention patterns in comment text and task descriptions:
+Mention patterns in markdown — comments, task descriptions, any description:
 - Users: @[Display Name](id) - e.g., @[John Doe](42)
 - Anything else: #kind[Title](id) - e.g., #task[Fix bug](123). That half is the
   reference vocabulary, read by ``app.core.references``.
 
-Native documents and posts embed mentions differently — as Lexical
-``mention`` nodes carrying ``mentionName`` / ``mentionUserId`` / ``text`` in
-the editor state (``documents.content``, ``posts.body``).
+An editor-state body (a document, a post, a wiki page) embeds a mention as a
+Lexical ``mention`` node carrying ``mentionName`` / ``mentionUserId`` /
+``text``.
 
 Both forms bake the user's display name into stored content at insert time,
 so anonymizing the ``users`` row alone leaves the name readable forever.
-``anonymize_user_mentions`` rewrites them to a placeholder.
+``anonymize_user_mentions`` rewrites them to a placeholder, wherever somebody
+writes.
 """
 
 import re
-from copy import deepcopy
 from typing import Any, Set
 
-from sqlalchemy import cast, func, text, Text
+from sqlalchemy import JSON, cast, func, text, Text
 from sqlalchemy.orm.attributes import flag_modified
 from sqlmodel import update
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -26,10 +26,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.references import references_in_text
 from app.core.search import SearchEntityType
 from app.db.frozen import PURGE_GUC
-from app.models.tenant.comment import Comment
-from app.models.tenant.document import Document
-from app.models.tenant.post import Post
-from app.models.tenant.task import Task
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.db.session import routed_guild_id
 
@@ -60,38 +56,43 @@ def extract_mentioned_task_ids(content: str) -> Set[int]:
     }
 
 
-def _scrub_mention_nodes(content: dict[str, Any], user_id: int) -> bool:
-    """Rewrite Lexical mention nodes for ``user_id`` to the placeholder name.
+def _markdown_mention(user_id: int) -> str:
+    """A markdown mention of ``user_id``, as a regex Python and Postgres read
+    alike."""
+    return rf"@\[[^\]]+\]\({user_id}\)"
 
-    Returns True if any node changed.
-    """
+
+def _scrub_mentions(value: Any, user_id: int) -> tuple[Any, bool]:
+    """``value`` with ``user_id``'s mentions reading as the placeholder — a
+    Lexical mention node, or the markdown form inside any string — and whether
+    anything changed."""
+    pattern = re.compile(_markdown_mention(user_id))
+    replacement = f"@[{ANONYMIZED_MENTION_NAME}]({user_id})"
     changed = False
 
-    def walk(node: Any) -> None:
+    def walk(node: Any) -> Any:
         nonlocal changed
+        if isinstance(node, str):
+            scrubbed = pattern.sub(replacement, node)
+            changed = changed or scrubbed != node
+            return scrubbed
+        if isinstance(node, list):
+            return [walk(item) for item in node]
         if not isinstance(node, dict):
-            return
-        if (
-            node.get("type") in ("mention", "custom-mention")
-            and node.get("mentionUserId") == user_id
+            return node
+        if node.get("mentionUserId") == user_id and (
+            node.get("mentionName") != ANONYMIZED_MENTION_NAME
+            or node.get("text") != ANONYMIZED_MENTION_NAME
         ):
-            if (
-                node.get("mentionName") != ANONYMIZED_MENTION_NAME
-                or node.get("text") != ANONYMIZED_MENTION_NAME
-            ):
-                node["mentionName"] = ANONYMIZED_MENTION_NAME
-                node["text"] = ANONYMIZED_MENTION_NAME
-                changed = True
-        children = node.get("children")
-        if isinstance(children, list):
-            for child in children:
-                walk(child)
+            node = {
+                **node,
+                "mentionName": ANONYMIZED_MENTION_NAME,
+                "text": ANONYMIZED_MENTION_NAME,
+            }
+            changed = True
+        return {key: walk(child) for key, child in node.items()}
 
-    root = content.get("root")
-    if isinstance(root, dict):
-        walk(root)
-
-    return changed
+    return walk(value), changed
 
 
 async def _set_purging(session: AsyncSession, on: bool) -> None:
@@ -106,90 +107,66 @@ async def _set_purging(session: AsyncSession, on: bool) -> None:
 async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> None:
     """Scrub ``user_id``'s display name out of the CURRENTLY ROUTED guild schema.
 
-    Three places embed the name as literal content rather than referencing the
-    ``users`` row (which the anonymize wipe already handles):
-
-    - comment text: ``@[Display Name](id)`` → ``@[Deleted user](id)``
-    - task descriptions: the same markdown syntax, rewritten the same way
-    - native-document Lexical ``mention`` nodes: ``mentionName``/``text``
-      → the placeholder (``yjs_state`` cleared so collaboration bootstraps
-      from the rewritten content, mirroring the wikilink-unresolve path)
-    - post bodies: the same Lexical nodes, in ``posts.body``. A post has no
-      collaborative state to invalidate, so the rewrite is the whole job.
-    - pending task-assignment digest rows: the ``assigned_by_name`` snapshot
+    Every column somebody writes in (``search_index.written_columns`` — the
+    same surfaces search reads) is searched for the user's mentions: the
+    markdown form ``@[Display Name](id)`` in text, and Lexical mention nodes as
+    well in an editor state. Either becomes the placeholder. A rewritten editor
+    state has its ``yjs_state`` cleared, so collaboration bootstraps from the
+    scrubbed content. Pending task-assignment digest rows lose the
+    ``assigned_by_name`` snapshot too.
 
     Caller owns routing (guild-admin context), flushing order, and the commit —
-    everything here rides the caller's transaction. Soft-deleted rows are
-    included: a trashed comment or document restored later must not resurrect
-    the name.
+    everything here rides the caller's transaction. Soft-deleted and archived
+    rows are included: something restored later must not resurrect the name.
     """
+    from app.db.search_index import SEARCH_SOURCES, written_columns
     from app.db.soft_delete_filter import select_including_deleted
     from app.services.tenant.collaboration import collaboration_manager
+    from app.services.tenant.collaborative_resources import YJS_STATE_COLUMN
 
-    # Comment text and task descriptions — the same markdown syntax, so one
-    # UPDATE each, filtered and rewritten by the same pattern. (POSIX regex,
-    # applied in Postgres; parameterized, nothing interpolated except the
-    # numeric id.)
-    pattern = rf"@\[[^\]]+\]\({user_id}\)"
+    markdown = _markdown_mention(user_id)
     replacement = f"@[{ANONYMIZED_MENTION_NAME}]({user_id})"
+    # An editor state is prefiltered on its text, then decided in Python; a
+    # false positive costs one no-op load.
+    node = rf'"mentionUserId":\s*{user_id}[^0-9]'
+
     # Finished work is scrubbed too: an archived task, or a comment in the
     # trash, keeps its words and so would keep the name. Taking something that
     # has to go out of frozen content is the purge's kind of write, so the
     # scrub runs under the purge flag and lowers it again before the rest of
     # the erasure (see ``app.db.frozen.PURGE_GUC``).
     await _set_purging(session, True)
-    await session.exec(
-        update(Comment)
-        .where(Comment.content.op("~")(pattern))
-        .values(content=func.regexp_replace(Comment.content, pattern, replacement, "g"))
-        .execution_options(include_deleted=True, synchronize_session=False)
-    )
-    await session.exec(
-        update(Task)
-        .where(Task.description.op("~")(pattern))  # type: ignore[union-attr]
-        .values(
-            description=func.regexp_replace(Task.description, pattern, replacement, "g")
-        )
-        .execution_options(include_deleted=True, synchronize_session=False)
-    )
-
-    # Document mention nodes. The text-cast regex is only a prefilter — the
-    # Python walk makes the actual decision, so a false positive costs one
-    # no-op load. ``select_including_deleted`` covers trashed documents.
-    prefilter = rf'"mentionUserId":\s*{user_id}[^0-9]'
-    stmt = select_including_deleted(Document).where(
-        cast(Document.content, Text).op("~")(prefilter)
-    )
-    documents = (await session.exec(stmt)).all()
-
-    affected_doc_ids: list[int] = []
-    for doc in documents:
-        if not isinstance(doc.content, dict):
-            continue
-        updated_content = deepcopy(doc.content)
-        if _scrub_mention_nodes(updated_content, user_id):
-            doc.content = updated_content
-            # Yjs state takes precedence over content on load; clear it so
-            # collaboration bootstraps from the scrubbed content.
-            doc.yjs_state = None
-            flag_modified(doc, "content")
-            session.add(doc)
-            affected_doc_ids.append(doc.id)
-
-    # Post bodies carry the same Lexical mention nodes as a native document.
-    # Same prefilter, same walk; no yjs state and no room to invalidate,
-    # because a post is written by one person and then read.
-    post_stmt = select_including_deleted(Post).where(
-        cast(Post.body, Text).op("~")(prefilter)
-    )
-    for post in (await session.exec(post_stmt)).all():
-        if not isinstance(post.body, dict):
-            continue
-        updated_body = deepcopy(post.body)
-        if _scrub_mention_nodes(updated_body, user_id):
-            post.body = updated_body
-            flag_modified(post, "body")
-            session.add(post)
+    rooms: list[tuple[SearchEntityType, int]] = []
+    for model, columns in written_columns().items():
+        for column in columns:
+            field = getattr(model, column)
+            if not isinstance(field.type, JSON):
+                await session.exec(
+                    update(model)
+                    .where(field.op("~")(markdown))
+                    .values(
+                        {column: func.regexp_replace(field, markdown, replacement, "g")}
+                    )
+                    .execution_options(include_deleted=True, synchronize_session=False)
+                )
+                continue
+            stmt = select_including_deleted(model).where(
+                cast(field, Text).op("~")(f"{node}|{markdown}")
+            )
+            for row in (await session.exec(stmt)).all():
+                scrubbed, changed = _scrub_mentions(getattr(row, column), user_id)
+                if not changed:
+                    continue
+                setattr(row, column, scrubbed)
+                flag_modified(row, column)
+                if hasattr(model, YJS_STATE_COLUMN):
+                    # Yjs state takes precedence over content on load; clear it
+                    # so collaboration bootstraps from the scrubbed content.
+                    setattr(row, YJS_STATE_COLUMN, None)
+                    rooms.append(
+                        (SEARCH_SOURCES[model.__table__.name].entity_type, row.id)
+                    )
+                session.add(row)
 
     # Digest rows snapshot the assigner's name for the email body.
     await session.exec(
@@ -204,10 +181,10 @@ async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> Non
 
     # Drop idle collaboration rooms so a room's save can't overwrite the
     # scrubbed content with a stale in-memory copy on next disconnect. Rooms are
-    # keyed by (guild, document) and this runs once per guild, routed to it.
+    # keyed by (guild, kind, id) and this runs once per guild, routed to it.
     guild_id = routed_guild_id(session)
     if guild_id is not None:
-        for doc_id in affected_doc_ids:
+        for kind, row_id in rooms:
             await collaboration_manager.invalidate_room_if_empty(
-                guild_id, SearchEntityType.document.value, doc_id
+                guild_id, kind.value, row_id
             )

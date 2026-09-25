@@ -24,11 +24,6 @@ RECENTS = "/api/v1/recents/"
 TOOLS = pytest.mark.parametrize("tool", list(Tool), ids=[t.value for t in Tool])
 
 
-def _segment(tool: Tool) -> str:
-    """The URL segment the tool is addressed by — its plural in kebab case."""
-    return tool.plural.replace("_", "-")
-
-
 async def _entity(session: AsyncSession, actor, tool: Tool):
     """One instance of ``tool``, owned by ``actor``, in an all-tools initiative."""
     await enable_all_tools(session, actor.initiative)
@@ -44,7 +39,7 @@ async def test_recording_a_view_puts_the_tool_in_the_tabs_bar(
     entity = await _entity(session, a, tool)
 
     response = await client.post(
-        a.g(f"/{_segment(tool)}/{entity.id}/view"), headers=a.headers
+        a.g(f"/{tool.route_segment}/{entity.id}/view"), headers=a.headers
     )
     assert response.status_code == 200, response.text
     body = response.json()
@@ -66,7 +61,7 @@ async def test_clearing_a_view_forgets_it(
 ):
     a = await acting_user(guild_role=GuildRole.member, initiative=True)
     entity = await _entity(session, a, tool)
-    path = a.g(f"/{_segment(tool)}/{entity.id}/view")
+    path = a.g(f"/{tool.route_segment}/{entity.id}/view")
 
     assert (await client.post(path, headers=a.headers)).status_code == 200
 
@@ -91,7 +86,7 @@ async def test_someone_outside_the_initiative_gets_the_tools_not_found(
     a = await acting_user(guild_role=GuildRole.member, initiative=True)
     entity = await _entity(session, a, tool)
     outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
-    path = outsider.g(f"/{_segment(tool)}/{entity.id}/view")
+    path = outsider.g(f"/{tool.route_segment}/{entity.id}/view")
 
     recorded = await client.post(path, headers=outsider.headers)
     assert recorded.status_code == 404, recorded.text

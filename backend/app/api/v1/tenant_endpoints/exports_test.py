@@ -30,7 +30,7 @@ from sqlmodel import select
 from app.api import deps as api_deps
 from app.core.config import settings
 from app.core.search import SearchEntityType
-from app.core.tools import TOGGLEABLE_TOOLS, Tool, tool_export_source
+from app.core.tools import Tool, tool_export_source
 from app.models.platform.guild import Guild, GuildRole, GuildStatus
 from app.models.platform.guild_image import GuildImage, GuildImageVariant
 from app.models.platform.notification import Notification, NotificationType
@@ -1271,43 +1271,25 @@ async def test_counter_group_report_formats_render_every_counter(
 # ---------------------------------------------------------------------------
 
 
-async def _project_selector(session, a) -> tuple[str, dict[str, Any]]:
-    return "project", {"project_id": a.project.id}
-
-
-async def _document_selector(session, a) -> tuple[str, dict[str, Any]]:
-    doc = await create_document(session, a.initiative, a.user, name="Secret")
-    return "document", {"document_id": doc.id, "format": "json"}
-
-
-async def _queue_selector(session, a) -> tuple[str, dict[str, Any]]:
-    queue = await create_queue(session, a.initiative, a.user, name="Secret order")
-    return "queue", {"queue_id": queue.id, "format": "json"}
-
-
-async def _counter_group_selector(session, a) -> tuple[str, dict[str, Any]]:
-    group = await create_counter_group(
-        session, a.initiative, a.user, name="Secret counters"
-    )
-    return "counter-group", {"counter_group_id": group.id, "format": "json"}
-
-
-@pytest.mark.parametrize(
-    "selector",
-    [_project_selector, _document_selector, _queue_selector, _counter_group_selector],
-    ids=["project", "document", "queue", "counter-group"],
-)
+@pytest.mark.parametrize("tool", list(Tool), ids=lambda tool: tool.value)
 async def test_export_of_content_outside_the_callers_initiative_is_not_found(
-    client: AsyncClient, acting_user, session, selector
+    client: AsyncClient, acting_user, session, tool
 ):
     """The initiative gate, source by source: a member of the same guild who is
     not in the initiative gets 404 (RLS hides the row), exactly like the rest
-    of the initiative boundary."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    source, params = await selector(session, a)
+    of the initiative boundary. Every tool, from the registry."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    await enable_all_tools(session, a.initiative)
+    entity = await create_tool_entity(session, tool, a.initiative, a.user)
     outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
 
-    resp = await _export(client, a, source, headers=outsider.headers, **params)
+    resp = await _export(
+        client,
+        a,
+        tool_export_source(tool),
+        headers=outsider.headers,
+        **{f"{tool.value}_id": entity.id, "format": "json"},
+    )
     assert resp.status_code == 404
 
 
@@ -2095,10 +2077,9 @@ async def _all_tools_enabled(session, initiative):
     """Every non-core tool is off by default — flip each initiative master
     switch so the aggregate enumeration includes them.
 
-    Derived from the enum rather than listed, so a new toggleable tool is
-    switched on here the day it exists instead of quietly sitting out the
-    backup tests."""
-    for tool in TOGGLEABLE_TOOLS:
+    Derived from the enum rather than listed, so a new tool is switched on
+    here the day it exists instead of quietly sitting out the backup tests."""
+    for tool in Tool:
         setattr(initiative, tool.view_permission, True)
     session.add(initiative)
     await session.commit()

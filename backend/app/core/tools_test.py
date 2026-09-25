@@ -39,11 +39,10 @@ def test_every_tool_has_an_initiative_master_switch():
     # EVERY tool has an initiative-level `{plural}_enabled` master switch (model
     # column + read/create/update schema fields) — projects and documents
     # included, which is the whole of making them optional.
-    from app.core.tools import TOGGLEABLE_TOOLS
     from app.models.tenant.initiative import Initiative
     from app.schemas.tenant.initiative import InitiativeBase, InitiativeUpdate
 
-    switches = {t.view_permission for t in TOGGLEABLE_TOOLS}
+    switches = {t.view_permission for t in Tool}
     model_fields = set(Initiative.model_fields)
     schema_fields = set(InitiativeBase.model_fields)
     update_fields = set(InitiativeUpdate.model_fields)
@@ -69,18 +68,16 @@ def test_an_initiative_starts_with_projects_and_documents_on():
 
 def test_recent_entity_types_agree_across_surfaces():
     # The model's allowed set, the schema enum, and the RLS path registry all
-    # derive from RECENTABLE_TOOLS — assert they agree and stay within the Tool
-    # enum (this also guards someone re-declaring one of them by hand).
-    from app.core.tools import RECENTABLE_TOOLS
+    # derive from the Tool enum — assert they agree (this also guards someone
+    # re-declaring one of them by hand).
     from app.db.initiative_rls import RECENT_ENTITY_TABLES
     from app.models.tenant.recent_view import RECENT_ENTITY_TYPES
     from app.schemas.tenant.recent_view import RecentEntityType
 
-    derived = {t.value for t in RECENTABLE_TOOLS}
+    derived = {t.value for t in Tool}
     assert set(RECENT_ENTITY_TYPES) == derived
     assert set(RECENT_ENTITY_TABLES) == derived
     assert {e.value for e in RecentEntityType} == derived
-    assert derived <= {t.value for t in Tool}
 
 
 def test_every_tool_is_taggable():
@@ -226,9 +223,8 @@ def test_every_tool_read_schema_reports_the_comment_switch():
 
     schema = app.openapi()
     for tool in Tool:
-        segment = tool.plural.replace("_", "-")
         pattern = re.compile(
-            r"^/api/v1/c/\{guild_id\}/" + re.escape(segment) + r"/\{\w+\}$"
+            r"^/api/v1/c/\{guild_id\}/" + re.escape(tool.route_segment) + r"/\{\w+\}$"
         )
         detail = next(
             (
@@ -324,7 +320,7 @@ def test_every_tool_mounts_both_recent_view_routes():
     spec = app.openapi()
     mounted = {path for path in spec["paths"] if path.endswith("/view")}
     expected = {
-        f"/api/v1/c/{{guild_id}}/{tool.plural.replace('_', '-')}"
+        f"/api/v1/c/{{guild_id}}/{tool.route_segment}"
         f"/{{{RESOURCE_ACCESS[tool].path_param}}}/view"
         for tool in Tool
     }
@@ -332,7 +328,7 @@ def test_every_tool_mounts_both_recent_view_routes():
 
     for tool in Tool:
         path = (
-            f"/api/v1/c/{{guild_id}}/{tool.plural.replace('_', '-')}"
+            f"/api/v1/c/{{guild_id}}/{tool.route_segment}"
             f"/{{{RESOURCE_ACCESS[tool].path_param}}}/view"
         )
         item = spec["paths"][path]
@@ -355,7 +351,7 @@ def test_every_tool_mounts_both_list_routes():
 
     spec = app.openapi()
     for tool in Tool:
-        segment = tool.plural.replace("_", "-")
+        segment = tool.route_segment
         listing = spec["paths"][f"/api/v1/c/{{guild_id}}/{segment}/"]["get"]
         counts = spec["paths"][
             f"/api/v1/c/{{guild_id}}/{segment}/counts/by-initiative"
@@ -380,7 +376,7 @@ def test_every_tool_mounts_the_grants_route():
     spec = app.openapi()
     mounted = {path for path in spec["paths"] if path.endswith("/grants")}
     expected = {
-        f"/api/v1/c/{{guild_id}}/{tool.plural.replace('_', '-')}"
+        f"/api/v1/c/{{guild_id}}/{tool.route_segment}"
         f"/{{{RESOURCE_ACCESS[tool].path_param}}}/grants"
         for tool in Tool
     }
@@ -388,7 +384,7 @@ def test_every_tool_mounts_the_grants_route():
 
     for tool in Tool:
         path = (
-            f"/api/v1/c/{{guild_id}}/{tool.plural.replace('_', '-')}"
+            f"/api/v1/c/{{guild_id}}/{tool.route_segment}"
             f"/{{{RESOURCE_ACCESS[tool].path_param}}}/grants"
         )
         item = spec["paths"][path]
@@ -416,7 +412,7 @@ def test_every_tool_mounts_its_cross_guild_list_route():
         for operation in item.values()
     ]
     for tool in Tool:
-        path = f"/api/v1/me/{tool.plural.replace('_', '-')}"
+        path = f"/api/v1/me/{tool.route_segment}"
         listing = spec["paths"][path]["get"]
         stem = f"list_my_{tool.plural}_"
         assert listing["operationId"].startswith(stem), tool

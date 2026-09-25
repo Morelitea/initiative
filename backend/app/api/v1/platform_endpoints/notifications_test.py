@@ -12,13 +12,17 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.tools import COMMENT_TARGETS, Tool
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import NotificationType
 from app.services.platform import user_notifications
 from app.testing.factories import (
     create_guild,
     create_task,
+    create_tool_entity,
     create_user,
+    create_wiki_page,
+    enable_all_tools,
     get_auth_headers,
     set_notification_prefs,
 )
@@ -318,3 +322,42 @@ async def test_the_bell_reads_the_title_back_from_the_community(
     await session.commit()
 
     assert (await _line())["data"]["task_title"] == "Renamed after the fact"
+
+    # A comment's line names whatever the comment is on — every tool, and each
+    # extra that carries a thread of its own — by that thing's own label.
+    await enable_all_tools(session, actor.initiative)
+    subjects = {
+        tool.value: await create_tool_entity(
+            session, tool, actor.initiative, actor.user
+        )
+        for tool in Tool
+    }
+    subjects["task"] = task
+    subjects["wiki_page"] = await create_wiki_page(
+        session, subjects[Tool.wiki.value], actor.user
+    )
+    assert set(subjects) == set(COMMENT_TARGETS)
+    for kind, entity in subjects.items():
+        await user_notifications.create_notification(
+            session,
+            user_id=actor.user.id,
+            notification_type=NotificationType.comment_on_resource,
+            data={
+                "entity_type": kind,
+                "entity_id": entity.id,
+                "guild_id": actor.guild.id,
+            },
+        )
+    await session.commit()
+
+    response = await client.get("/api/v1/notifications/", headers=actor.headers)
+    assert response.status_code == 200
+    named = {
+        line["data"]["entity_type"]: line["data"].get("entity_name")
+        for line in response.json()["notifications"]
+        if "entity_type" in line["data"]
+    }
+    assert named == {
+        kind: getattr(entity, type(entity).display_field())
+        for kind, entity in subjects.items()
+    }

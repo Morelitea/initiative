@@ -199,23 +199,21 @@ def _initiative_id(description: Optional[str] = None) -> ListParam:
     )
 
 
-def _search(description: Optional[str] = _ROW_SEARCH_DESCRIPTION) -> ListParam:
+def search_param(description: Optional[str] = _ROW_SEARCH_DESCRIPTION) -> ListParam:
     return ListParam(
         "search", Optional[str], Query(default=None, description=description)
     )
 
 
-def _sort_by(description: Optional[str] = _TOOL_SORT_DESCRIPTION) -> ListParam:
+def sort_by_param(description: Optional[str] = _TOOL_SORT_DESCRIPTION) -> ListParam:
     return ListParam(
         "sort_by", Optional[str], Query(default=None, description=description)
     )
 
 
-def _sort_dir() -> ListParam:
+def sort_dir_param(description: Optional[str] = _SORT_DIR_DESCRIPTION) -> ListParam:
     return ListParam(
-        "sort_dir",
-        Optional[str],
-        Query(default=None, description=_SORT_DIR_DESCRIPTION),
+        "sort_dir", Optional[str], Query(default=None, description=description)
     )
 
 
@@ -244,11 +242,11 @@ def _archived(described: bool = True) -> ListParam:
     )
 
 
-def _page() -> ListParam:
+def page_param() -> ListParam:
     return ListParam("page", int, Query(default=1, ge=1))
 
 
-def _page_size(
+def page_size_param(
     default: int, *, ge: int, le: int, description: Optional[str] = None
 ) -> ListParam:
     """A tool's page defaults, declared where they can be compared.
@@ -633,7 +631,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         params=(
             _archived(described=False),
             ListParam("template", Optional[bool], Query(default=None)),
-            _search(),
+            search_param(),
             _initiative_id(
                 "Only projects in this initiative. Omit for every initiative "
                 "the caller can see."
@@ -651,14 +649,14 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
                     ),
                 ),
             ),
-            _sort_by(
+            sort_by_param(
                 "Order by one of: name, initiative, updated_at. Omit to keep "
                 "the reader's own manual order."
             ),
-            _sort_dir(),
+            sort_dir_param(),
             _tag_ids(Tool.project),
-            _page(),
-            _page_size(0, ge=0, le=100),
+            page_param(),
+            page_size_param(0, ge=0, le=100),
         ),
         counts_doc=(
             "Visible-project counts grouped by initiative.\n"
@@ -705,7 +703,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
                     ),
                 ),
             ),
-            _search(description=None),
+            search_param(description=None),
             _tag_ids(Tool.document, description="Filter by tag IDs"),
             ListParam(
                 "untagged",
@@ -738,10 +736,10 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
                     ),
                 ),
             ),
-            _page(),
-            _page_size(20, ge=0, le=100),
-            _sort_by("Order by one of: name, initiative, updated_at, created_at."),
-            _sort_dir(),
+            page_param(),
+            page_size_param(20, ge=0, le=100),
+            sort_by_param("Order by one of: name, initiative, updated_at, created_at."),
+            sort_dir_param(),
             _archived(),
         ),
         list_doc=(
@@ -782,13 +780,13 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         serialize=_summaries(serialize_queue_summary),
         params=(
             _initiative_id(),
-            _search(),
-            _sort_by(),
-            _sort_dir(),
+            search_param(),
+            sort_by_param(),
+            sort_dir_param(),
             _tag_ids(Tool.queue),
             _archived(),
-            _page(),
-            _page_size(20, ge=1, le=100),
+            page_param(),
+            page_size_param(20, ge=1, le=100),
         ),
         list_doc=(
             "List queues visible to the current user.\n"
@@ -824,13 +822,13 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         tag="counters",
         params=(
             _initiative_id(),
-            _search(),
-            _sort_by(),
-            _sort_dir(),
+            search_param(),
+            sort_by_param(),
+            sort_dir_param(),
             _tag_ids(Tool.counter_group),
             _archived(),
-            _page(),
-            _page_size(20, ge=1, le=100),
+            page_param(),
+            page_size_param(20, ge=1, le=100),
         ),
         counts_doc=(
             "Visible counter-group counts grouped by initiative.\n"
@@ -862,13 +860,13 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         params=(
             _initiative_id(),
             ListParam("scope", Optional[Literal["guild"]], Query(default=None)),
-            _search(),
-            _sort_by(),
-            _sort_dir(),
+            search_param(),
+            sort_by_param(),
+            sort_dir_param(),
             _tag_ids(Tool.calendar),
             _archived(),
-            _page(),
-            _page_size(100, ge=1, le=200),
+            page_param(),
+            page_size_param(100, ge=1, le=200),
         ),
         list_doc=(
             "List calendars visible to the current user (guild admins see "
@@ -915,13 +913,13 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         serialize=_summaries(serialize_dashboard_summary),
         params=(
             _initiative_id(),
-            _search(),
-            _sort_by(),
-            _sort_dir(),
+            search_param(),
+            sort_by_param(),
+            sort_dir_param(),
             _tag_ids(Tool.dashboard),
             _archived(),
-            _page(),
-            _page_size(100, ge=1, le=200),
+            page_param(),
+            page_size_param(100, ge=1, le=200),
         ),
         list_doc="List dashboards visible to the current user (guild admins see all).",
         counts_doc=(
@@ -957,16 +955,16 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         ],
         params=(
             _initiative_id(),
-            _search(
+            search_param(
                 "Full-text match over the notice — its headline and its body. "
                 "Reads the same index the search page does, so the board's "
                 "filter and a search agree about what matches."
             ),
-            _sort_by(
+            sort_by_param(
                 "Order by one of: name, initiative, updated_at. Omit for the "
                 "board order — live pins first, then newest first."
             ),
-            _sort_dir(),
+            sort_dir_param(),
             _tag_ids(Tool.post),
             _archived(),
             ListParam(
@@ -993,8 +991,8 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
                     ),
                 ),
             ),
-            _page(),
-            _page_size(
+            page_param(),
+            page_size_param(
                 posts_endpoints.BOARD_PAGE_SIZE,
                 ge=1,
                 le=posts_endpoints.MAX_BOARD_PAGE_SIZE,
@@ -1038,18 +1036,18 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         serialize=_serialize_galleries,
         params=(
             _initiative_id(),
-            _search(
+            search_param(
                 "Full-text match over the gallery's name and description, "
                 "through the same index the search page reads."
             ),
-            _sort_by(
+            sort_by_param(
                 "Order by one of: name, initiative, updated_at. Omit for newest first."
             ),
-            _sort_dir(),
+            sort_dir_param(),
             _tag_ids(Tool.gallery),
             _archived(),
-            _page(),
-            _page_size(100, ge=0, le=500),
+            page_param(),
+            page_size_param(100, ge=0, le=500),
         ),
         list_doc="List galleries visible to the current user (guild admins see all).",
         counts_doc=(
@@ -1068,18 +1066,18 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         serialize=_serialize_wikis,
         params=(
             _initiative_id(),
-            _search(
+            search_param(
                 "Full-text match over the wiki's name and description, through "
                 "the same index the search page reads."
             ),
-            _sort_by(
+            sort_by_param(
                 "Order by one of: name, initiative, updated_at. Omit for newest first."
             ),
-            _sort_dir(),
+            sort_dir_param(),
             _tag_ids(Tool.wiki),
             _archived(),
-            _page(),
-            _page_size(100, ge=0, le=500),
+            page_param(),
+            page_size_param(100, ge=0, le=500),
         ),
         list_doc="List wikis visible to the current user (guild admins see all).",
         counts_doc=(
@@ -1092,11 +1090,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
 # ---------------------------------------------------------------------------
 # Mounting
 # ---------------------------------------------------------------------------
-
-
-def _segment(tool: Tool) -> str:
-    """The URL segment a tool is addressed by — its plural in kebab case."""
-    return tool.plural.replace("_", "-")
 
 
 def _tags(spec: ToolListSpec) -> list[str | Enum]:
@@ -1187,7 +1180,7 @@ def _mount_list(spec: ToolListSpec) -> None:
         _actor_params(spec.tool) if spec.serves_apps else _CONTEXT_PARAMS,
     )
     router.add_api_route(
-        f"/{_segment(spec.tool)}/",
+        f"/{spec.tool.route_segment}/",
         list_rows,
         methods=["GET"],
         response_model=spec.response_model,
@@ -1224,7 +1217,7 @@ def _mount_counts(spec: ToolListSpec) -> None:
     router.add_api_route(
         # Declared before the tools' own ``/{id}`` routes, so the literal path
         # wins the match: this router is included first (see api.py).
-        f"/{_segment(spec.tool)}/counts/by-initiative",
+        f"/{spec.tool.route_segment}/counts/by-initiative",
         counts_by_initiative,
         methods=["GET"],
         response_model=InitiativeGroupedCountsResponse,

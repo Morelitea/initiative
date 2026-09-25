@@ -109,7 +109,7 @@ def _create_and_edit(segment: str) -> list[RouteMap]:
 
 _WRITABLE_SEGMENTS = (
     # Every tool an initiative holds, addressed by its own path segment.
-    *(tool.plural.replace("_", "-") for tool in Tool),
+    *(tool.route_segment for tool in Tool),
     # And what those tools hold in turn: a project's tasks, a calendar's
     # events, a queue's items, a counter group's counters, a wiki's pages. Not
     # derivable from the enum — each names its parent differently — so each is

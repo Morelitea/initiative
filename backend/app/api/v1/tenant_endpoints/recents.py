@@ -30,7 +30,7 @@ from app.api.deps import (
     get_current_active_user,
     get_guild_membership,
 )
-from app.core.tools import RECENTABLE_TOOLS, Tool
+from app.core.tools import Tool
 from app.services.tenant.tags import TOOL_TAG_LINKS
 from app.models.tenant.document import Document
 from app.models.platform.guild import GuildMembership
@@ -93,7 +93,7 @@ RECENT_TOOL_SPECS: dict[Tool, RecentToolSpec] = {
         name_attr=TOOL_TAG_LINKS[tool].entity.display_field(),
         extra=_RECENT_EXTRAS.get(tool),
     )
-    for tool in RECENTABLE_TOOLS
+    for tool in Tool
 }
 
 RECENT_SPECS_BY_ENTITY_TYPE: dict[str, tuple[Tool, RecentToolSpec]] = {

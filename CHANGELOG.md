@@ -42,6 +42,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Tagging calendar events and wiki pages in bulk works** — adding or removing tags on several events or wiki pages at once failed with an error.
+- **A tag's page lists everything tagged with it** — it showed only tasks, projects and documents. Every tool now has its own tab.
+- **Notifications open what they're about** — event notifications opened the community home page instead of the event, notifications about a comment on a wiki page opened the wiki rather than the page, and comment notifications on queues, counters, calendars, dashboards, pictures and wikis showed no title.
+- **Erasing an account removes its name everywhere it was mentioned** — mentions of an erased account in wiki pages, checklists and the descriptions of projects, events and other tools kept its name. They now read "Deleted user", as they already did in documents, notices, tasks and comments.
+- **My Tools leaves out document templates** — templates are for starting new documents, so they no longer appear among your documents, as project templates already didn't.
 - **Leaving an initiative ends access to everything in it** — removing someone from an initiative, or someone leaving the community, now removes the access they were given to its queues, counters, calendars, dashboards, notices, pictures and wikis too. Before, only projects and documents were covered, and the rest came back if they rejoined.
 - **Duplicating a file document copies the file** — the copy used to have no file to download.
 - **Document exports follow the documents switch** — documents can no longer be exported from an initiative with documents turned off.

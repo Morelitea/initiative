@@ -1165,7 +1165,7 @@ async def create_imported_initiative(
     on collision (always-create policy) instead of 409ing, and the tool
     master switches taken from the backup manifest. Flush-only — the backup
     orchestrator owns its per-chunk transaction."""
-    from app.core.tools import DEFAULT_ENABLED_TOOLS, TOGGLEABLE_TOOLS
+    from app.core.tools import DEFAULT_ENABLED_TOOLS, Tool
     from app.services.import_engine.common import unique_name
 
     existing = {row for row in (await session.exec(select(Initiative.name))).all()}
@@ -1181,7 +1181,7 @@ async def create_imported_initiative(
             t.view_permission: bool(
                 tool_flags.get(t.view_permission, t in DEFAULT_ENABLED_TOOLS)
             )
-            for t in TOGGLEABLE_TOOLS
+            for t in Tool
         },
     )
     session.add(initiative)

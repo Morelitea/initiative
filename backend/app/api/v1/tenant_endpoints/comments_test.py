@@ -176,9 +176,7 @@ class TestToolComments:
         )
         assert listed.status_code == 404
 
-    @pytest.mark.parametrize(
-        "tool", [t for t in Tool if t not in (Tool.project, Tool.document)]
-    )
+    @pytest.mark.parametrize("tool", list(Tool))
     async def test_a_disabled_tool_takes_no_comments(
         self, client, session, acting_user, tool
     ):
@@ -378,7 +376,7 @@ async def test_recent_drops_comments_of_a_disabled_tool(client, session, acting_
 def _detail_path(tool: Tool, entity_id: int) -> str:
     """The tool's own detail route — kebab plural, the one spelling every tool
     endpoint is registered under."""
-    return f"/{tool.plural.replace('_', '-')}/{entity_id}"
+    return f"/{tool.route_segment}/{entity_id}"
 
 
 @pytest.mark.integration
