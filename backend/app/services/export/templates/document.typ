@@ -89,8 +89,11 @@
 #let title = payload.at("title", default: "")
 #if title != "" [
   #text(size: 18pt, weight: "bold", title)
-  #v(2pt)
-  #text(size: 9pt, fill: luma(100), payload.at("subtitle", default: ""))
+  #let subtitle = payload.at("subtitle", default: "")
+  #if subtitle != "" [
+    #v(2pt)
+    #text(size: 9pt, fill: luma(100), subtitle)
+  ]
   #v(10pt)
 ]
 

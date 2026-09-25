@@ -246,7 +246,6 @@ def build_wiki_document_item(
         data={
             # Title and footer are the wiki's own name (user data).
             "title": wiki.name,
-            "subtitle": et("exported", loc, date=ctx.date),
             "footer": wiki.name,
             "page_of": et("pageOf", loc),
             "stem": stem,

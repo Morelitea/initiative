@@ -66,9 +66,7 @@ def test_plural_and_interpolation_variants_present_in_every_locale():
 def test_et_translates_and_interpolates():
     assert et("columns.task", "es") == "Tarea"
     assert et("status.held", "fr") == "En attente"
-    assert et("generatedBy", "de", date="2026-07-13", author="Ada") == (
-        "erstellt am 2026-07-13 von Ada"
-    )
+    assert et("footer.project", "de", name="Ada") == "Ada — Projektbericht"
 
 
 def test_et_selects_plural_by_count():

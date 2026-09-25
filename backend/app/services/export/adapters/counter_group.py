@@ -36,7 +36,6 @@ from app.services.export.adapters._common import (
 from app.services.export.contract import RenderItem
 from app.services.export.i18n import et, export_locale
 from app.services.permissions import EXPORT_ACCESS
-from app.core.user_display import display_name
 
 # (row key, ``exports`` label key, Typst width hint) — labels resolve to the
 # creator's locale at build time.
@@ -104,7 +103,7 @@ def build_counter_group_item(
             data=_envelope(group),
         )
     return RenderItem(
-        key=export_stem(group.name, date), data=_report_payload(group, user, now)
+        key=export_stem(group.name, date), data=_report_payload(group, user)
     )
 
 
@@ -134,22 +133,13 @@ def _envelope(group: CounterGroup) -> dict[str, Any]:
     }
 
 
-def _report_payload(group: CounterGroup, user: User, now: datetime) -> dict[str, Any]:
+def _report_payload(group: CounterGroup, user: User) -> dict[str, Any]:
     counters = group.counters
     loc = export_locale(user)
-    generated_at = now.strftime("%Y-%m-%d %H:%M %Z")
-    # Both attribution fields can be absent (some OAuth-provisioned accounts
-    # carry neither) — never render the literal "None".
-    author = display_name(user) or et("fallback.unknownAuthor", loc)
     return {
         # The group name is user data — never translated.
         "title": group.name,
-        "subtitle": " · ".join(
-            [
-                et("summary.counters", loc, count=len(counters)),
-                et("generatedBy", loc, date=generated_at, author=author),
-            ]
-        ),
+        "subtitle": et("summary.counters", loc, count=len(counters)),
         "footer": et("footer.counters", loc, name=group.name),
         "page_of": et("pageOf", loc),
         "description": group.description or "",
