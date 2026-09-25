@@ -179,8 +179,10 @@ async def call_app(
 ) -> HubAnswer:
     """Check one call against checks 2–7 and make it.
 
-    ``session`` is a system-engine session. It is routed into the caller's
-    community here, read-only, and left unrouted and rolled back afterwards.
+    ``session`` is a system-engine session from the caller's community's
+    cohort, as ``get_system_session`` hands one to an installation token's
+    request. It is routed into that community here, read-only, and left
+    unrouted and rolled back afterwards.
     Raises :class:`AppDataError` with the refusal's code and status.
     """
     scope = app_scope(target_public_id)

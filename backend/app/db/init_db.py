@@ -22,6 +22,7 @@ from app.db.schema_provisioning import (
 )
 from app.db.session import (
     SystemSessionLocal,
+    clear_rls_context,
     migration_chain,
     migration_lock,
     run_migrations,
@@ -103,11 +104,13 @@ async def init_owner() -> None:
             # Undo the whole first-boot seed so a restart re-initializes cleanly.
             # Otherwise the committed user makes init_owner short-circuit on
             # every restart, stranding the primary guild without a schema. Mirrors
-            # the API/registration cleanup. Roll back FIRST (an aborted session
-            # would fault the cleanup queries, and it reverts the seed's SET ROLE
-            # so deprovision can DROP the role); this is a system-engine
-            # session, so the bulk DELETEs aren't RLS-filtered.
+            # the API/registration cleanup. Roll back first (an aborted session
+            # would fault the cleanup queries) and drop any stored route, so the
+            # DELETEs run on public rather than in the community removed here.
+            # This is a system-engine session, so the bulk DELETEs aren't
+            # RLS-filtered.
             await session.rollback()
+            clear_rls_context(session)
             with suppress(Exception):
                 await deprovision_guild(guild_id)
             await session.exec(sql_delete(Guild).where(Guild.id == guild_id))
@@ -365,6 +368,11 @@ async def prepare_database() -> None:
     # After the schemas, never before: the sweep writes through functions and
     # into a table whose shape the pass above is what brings up to date.
     await backfill_guild_search()
+    # The back-fill opened every stale schema on the provisioning engine; close
+    # those connections rather than keep them pooled.
+    from app.db import session as db_session
+
+    await db_session.provisioning_engine.dispose()
     # Rotate SECRET_KEY-derived data (encrypted fields + email_hash) when
     # PREVIOUS_SECRET_KEY names a prior key. Runs after guild schemas exist and
     # before traffic is served, so a packaged deploy rotates itself on boot.

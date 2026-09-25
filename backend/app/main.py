@@ -194,6 +194,10 @@ async def lifespan(app: FastAPI):
         from app.services.data_jobs import cancel_running_jobs
 
         await cancel_running_jobs()
+        # Community steps a commit started finish before the pools close.
+        from app.db import cohorts
+
+        await cohorts.settle_all()
 
 
 # Gate the interactive docs + raw OpenAPI schema behind a setting (pentest

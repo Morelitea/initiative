@@ -230,7 +230,6 @@ async def test_a_second_seat_lets_the_account_go(session: AsyncSession):
     leaving_id = leaving.id
     await user_service.deactivate_user(session, leaving_id)
 
-    # Re-read rather than refresh: the drop expunges as it walks the guilds.
     reloaded = (await session.exec(select(User).where(User.id == leaving_id))).one()
     assert reloaded.status == UserStatus.deactivated
 

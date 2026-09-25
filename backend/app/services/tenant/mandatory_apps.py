@@ -44,8 +44,9 @@ from typing import Optional
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GUILD_ADMIN_ROLES, Guild, GuildMembership
+from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership
 from app.models.tenant.guild_app import GuildApp
+from app.services.guild_sweeps import Scope, each_guild
 from app.services.marketplace import app_installs, registration_lookup
 from app.services.marketplace.definitions import GUILD_INSTALLABLE_APP_KINDS
 from app.services.marketplace.installs import (
@@ -229,41 +230,27 @@ async def install_mandatory_apps(
 async def backfill_mandatory_apps() -> BackfillResult:
     """Place mandatory apps into guilds that predate the flag.
 
-    Runs at boot on the system engine, routing into each guild as a guild admin
-    — the bypass is dropped by ``SET ROLE``, so the sweep needs the guild's own
-    authority to write into its schema. A guild that fails is rolled back and
-    logged; the others still get their app, and the next boot tries again.
+    Runs at boot, visiting every guild whose schema exists on a system session
+    from its cohort. A guild that fails is rolled back and logged; the others
+    still get their app, and the next boot tries again.
 
     Returns immediately when nothing is marked mandatory, which is every
     deployment that has not asked for this.
     """
-    from app.db import session as db_session
-
     if not await registration_lookup.mandatory_registrations():
         return BackfillResult()
 
-    installed = failed = 0
-    async with db_session.SystemSessionLocal() as session:
-        guild_ids = list(
-            (await session.exec(select(Guild.id).order_by(Guild.id))).all()
-        )
-        for guild_id in guild_ids:
-            try:
-                # One session walks every guild schema, and ids restart at 1 in
-                # each of them — so a GuildApp(1) loaded from the last guild is
-                # still in the identity map when the next one queries for its
-                # own. Detach everything between guilds; nothing is carried
-                # across a boundary on purpose.
-                session.expunge_all()
-                await db_session.set_rls_context(session, guild_id=guild_id)
-                added = await install_mandatory_apps(session, guild_id=guild_id)
-                await session.commit()
-                installed += len(added)
-            except Exception:
-                await session.rollback()
-                failed += 1
-                logger.exception(
-                    "mandatory apps: guild %s could not be backfilled", guild_id
-                )
+    visited = succeeded = installed = 0
 
-    return BackfillResult(guilds=len(guild_ids), installed=installed, failed=failed)
+    async def backfill(session: AsyncSession, guild_id: int) -> None:
+        nonlocal visited, succeeded, installed
+        visited += 1
+        added = await install_mandatory_apps(session, guild_id=guild_id)
+        await session.commit()
+        succeeded += 1
+        installed += len(added)
+
+    await each_guild([(Scope.PROVISIONED, backfill)], name="mandatory-apps")
+    return BackfillResult(
+        guilds=visited, installed=installed, failed=visited - succeeded
+    )

@@ -5,11 +5,11 @@ request and a system pool on the worker's database, and with a route outside a
 connection's cohort refused rather than counted.
 """
 
+import asyncio
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
 import pytest
-from prometheus_client import REGISTRY
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.requests import HTTPConnection
@@ -123,25 +123,12 @@ async def test_a_system_session_routes_only_into_its_own_cohort(session):
             await elsewhere.exec(text("SELECT 1"))
 
 
-async def test_the_platform_system_pool_is_counted_in_a_community_not_refused(
-    session,
-):
+async def test_the_platform_system_pool_is_refused_in_a_community(session):
     guild = await create_guild(session)
-
-    def counted() -> float:
-        return (
-            REGISTRY.get_sample_value(
-                "initiative_db_cross_cohort_routes_total",
-                {"cohort": cohorts.PLATFORM_SYSTEM},
-            )
-            or 0.0
-        )
-
-    before = counted()
     async with db_session.SystemSessionLocal() as system:
-        await set_rls_context(system, guild_id=guild.id)
-        assert (await system.exec(text("SELECT 1"))).one()[0] == 1
-    assert counted() > before
+        with pytest.raises(cohorts.CrossCohortRoute):
+            await set_rls_context(system, guild_id=guild.id)
+            await system.exec(text("SELECT 1"))
 
 
 async def test_a_community_session_only_reads(session):
@@ -212,3 +199,33 @@ async def test_reads_that_may_trail_use_the_replica_when_there_is_one(monkeypatc
     finally:
         for engine in engines:
             await engine.dispose()
+
+
+async def test_a_step_runs_once_its_transaction_commits():
+    ran: list[str] = []
+
+    def step(name: str) -> cohorts.Step:
+        async def record() -> None:
+            await asyncio.sleep(0.01)
+            ran.append(name)
+
+        return record
+
+    async with cohorts.system_session(None) as session:
+        await session.exec(text("SELECT 1"))
+        cohorts.after_commit(session, step("rolled back"))
+        await session.rollback()
+
+        await session.exec(text("SELECT 1"))
+        savepoint = await session.begin_nested()
+        cohorts.after_commit(session, step("savepoint rolled back"))
+        await savepoint.rollback()
+        savepoint = await session.begin_nested()
+        cohorts.after_commit(session, step("savepoint released"))
+        await savepoint.commit()
+        await cohorts.settle(session)
+        assert ran == []
+
+        await session.commit()
+        await cohorts.settle(session)
+    assert ran == ["savepoint released"]

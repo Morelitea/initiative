@@ -33,7 +33,6 @@ from app.core.encryption import SALT_AI_API_KEY, decrypt_field, encrypt_field
 from app.core.messages import AIMessages
 from app.db import session as db_session
 from app.models.platform.ai_connection import PlatformAIConnection
-from app.models.platform.guild import Guild
 from app.models.platform.user import User
 from app.models.tenant.ai_connection import GuildAIConnection
 from app.models.tenant.ai_member_key import GuildAIMemberKey
@@ -58,6 +57,7 @@ from app.schemas.ai_settings import (
     ResolvedAISettingsResponse,
 )
 from app.services import audit as audit_service
+from app.services.guild_sweeps import Scope, each_guild
 from app.services.safe_http import request_public_target
 from app.services.webhook_target_url import (
     WebhookTargetUrlError,
@@ -197,38 +197,28 @@ async def _bump_ai_config_version(session: AsyncSession) -> None:
 
 
 async def _purge_platform_connection_member_data(connection_id: int) -> None:
-    """Delete every member key/pref that referenced a now-deleted platform
-    connection, across all guild schemas. Runs on the system engine, routing
-    into each guild's schema with the admin GUC so the own-row RLS admits the
-    sweep (mirrors ``soft_delete_user``'s cross-guild member cleanup). Best-effort
-    per guild — a failing schema is rolled back and logged; the rows are inert
-    once the connection is gone.
-    """
-    async with db_session.SystemSessionLocal() as session:
-        guild_ids = (await session.exec(select(Guild.id).order_by(Guild.id))).all()
-        for gid in guild_ids:
-            try:
-                await db_session.set_rls_context(session, guild_id=gid)
-                await session.exec(
-                    delete(GuildAIMemberKey).where(
-                        GuildAIMemberKey.connection_scope == "platform",
-                        GuildAIMemberKey.connection_id == connection_id,
-                    )
-                )
-                await session.exec(
-                    delete(GuildAIMemberPref).where(
-                        GuildAIMemberPref.connection_scope == "platform",
-                        GuildAIMemberPref.connection_id == connection_id,
-                    )
-                )
-                await session.commit()
-            except Exception:
-                await session.rollback()
-                logger.exception(
-                    "failed to purge platform connection %s member data in guild %s",
-                    connection_id,
-                    gid,
-                )
+    """Delete every member key and pref that referenced a now-deleted platform
+    connection, in every community whose schema exists. A community that fails
+    is rolled back and logged; the rows are inert once the connection is gone."""
+
+    async def purge(session: AsyncSession, _guild_id: int) -> None:
+        await session.exec(
+            delete(GuildAIMemberKey).where(
+                GuildAIMemberKey.connection_scope == "platform",
+                GuildAIMemberKey.connection_id == connection_id,
+            )
+        )
+        await session.exec(
+            delete(GuildAIMemberPref).where(
+                GuildAIMemberPref.connection_scope == "platform",
+                GuildAIMemberPref.connection_id == connection_id,
+            )
+        )
+
+    await each_guild(
+        [(Scope.PROVISIONED, purge)],
+        name="purge-platform-ai-connection",
+    )
 
 
 def _conn_from_guild(row: GuildAIConnection) -> _ConnRow:

@@ -49,6 +49,7 @@ from app.core.security import (
 )
 from app.services.platform.identity_refs import billing_refs
 from app.services.marketplace import app_refs
+from app.db import cohorts
 from app.db.schema_provisioning import deprovision_guild
 from app.db.session import get_system_session
 from app.core.audit_events import AuditEventType
@@ -459,6 +460,7 @@ async def join_community_guild(
             status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
         ) from exc
     await session.commit()
+    await cohorts.settle(session)
     membership = await guilds_service.get_membership(
         session, guild_id=guild.id, user_id=current_user.id
     )
@@ -598,14 +600,8 @@ async def create_guild(
             guild_id=guild.id,
             owner=owner,
         )
-        await session.commit()
     except Exception:
         logger.exception("Guild %s setup failed; rolling back", guild.id)
-        # Roll back first: discards the failed seed's partial writes AND reverts
-        # the SET ROLE guild_<id> (Postgres SET is transactional) so deprovision
-        # can DROP the role. The system session is then back to app_admin
-        # (BYPASSRLS), so removing the shared rows isn't filtered by RLS.
-        await session.rollback()
         with suppress(Exception):
             await deprovision_guild(guild.id)  # drops the schema + any partial content
         stale = await guilds_service.get_guild(session, guild_id=guild.id)
@@ -1812,6 +1808,7 @@ async def accept_invite(
             status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
         ) from exc
     await session.commit()
+    await cohorts.settle(session)
     membership = await guilds_service.get_membership(
         session, guild_id=guild.id, user_id=current_user.id
     )
@@ -1944,15 +1941,13 @@ async def update_guild_membership(
             target_id=guild_id,
             detail={"from": previous_role.value, "to": payload.role.value},
         )
-    # Written out here, where this request's own context still applies: the
-    # reconciliation below borrows the session for the guild's schema.
-    await session.flush()
     # A promotion changes the guild role underneath initiative rows that already
     # exist; bring them up to the manager role an admin's row carries.
-    await guilds_service.align_admin_initiative_roles(
+    guilds_service.align_admin_initiative_roles(
         session, guild_id=guild_id, user_id=user_id, role=payload.role
     )
     await session.commit()
+    await cohorts.settle(session)
     # Guild-level access change (e.g. admin → member loses the guild-admin
     # bypass): re-check this user's live content streams now so the change takes
     # effect immediately, not on the next bounded re-auth tick.

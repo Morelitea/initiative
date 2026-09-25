@@ -32,6 +32,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
 from app.core.messages import AuthProviderMessages, GuildMessages, SettingsMessages
+from app.db import cohorts
 from app.db.session import set_rls_context
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.guild import GUILD_ASSIGNABLE_ROLES, Guild, GuildStatus
@@ -182,51 +183,37 @@ async def provider_syncs_placement(session: AsyncSession, *, provider_id: int) -
 # ── What a rule may name ──────────────────────────────────────────────────
 
 
-async def _initiatives_in(
-    session: AsyncSession, guild_id: int
-) -> list[PlacementInitiativeRead]:
-    """One community's initiatives and their roles.
-
-    Reads ``initiatives`` and ``initiative_roles`` in the community's schema,
-    then returns the session to its public baseline. ``populate_existing``
-    because ids are unique only within a schema.
-    """
-    await set_rls_context(session, guild_id=guild_id)
-    try:
+async def _initiatives_in(guild_id: int) -> list[PlacementInitiativeRead]:
+    """One community's initiatives and their roles, read in its schema on a
+    system session from its own cohort."""
+    async with cohorts.system_session(guild_id) as session:
+        await set_rls_context(session, guild_id=guild_id)
         initiatives = (
-            await session.exec(
-                select(Initiative)
-                .order_by(Initiative.name)
-                .execution_options(populate_existing=True)
-            )
+            await session.exec(select(Initiative).order_by(Initiative.name))
         ).all()
         roles = (
             await session.exec(
-                select(InitiativeRoleModel)
-                .order_by(InitiativeRoleModel.position)
-                .execution_options(populate_existing=True)
+                select(InitiativeRoleModel).order_by(InitiativeRoleModel.position)
             )
         ).all()
-        by_initiative: dict[int, list[PlacementInitiativeRoleRead]] = {}
-        for role in roles:
-            if role.id is None:
-                continue
-            by_initiative.setdefault(role.initiative_id, []).append(
-                PlacementInitiativeRoleRead(
-                    id=role.id, name=role.display_name, is_manager=role.is_manager
-                )
+    by_initiative: dict[int, list[PlacementInitiativeRoleRead]] = {}
+    for role in roles:
+        if role.id is None:
+            continue
+        by_initiative.setdefault(role.initiative_id, []).append(
+            PlacementInitiativeRoleRead(
+                id=role.id, name=role.display_name, is_manager=role.is_manager
             )
-        return [
-            PlacementInitiativeRead(
-                id=initiative.id,
-                name=initiative.name,
-                roles=by_initiative.get(initiative.id, []),
-            )
-            for initiative in initiatives
-            if initiative.id is not None
-        ]
-    finally:
-        await set_rls_context(session)
+        )
+    return [
+        PlacementInitiativeRead(
+            id=initiative.id,
+            name=initiative.name,
+            roles=by_initiative.get(initiative.id, []),
+        )
+        for initiative in initiatives
+        if initiative.id is not None
+    ]
 
 
 async def _require_provider(session: AsyncSession, provider_id: int) -> AuthProvider:
@@ -300,7 +287,7 @@ async def list_targets(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=AuthProviderMessages.PLACEMENT_NOT_ACCEPTED,
         )
-    return await _initiatives_in(session, guild_id)
+    return await _initiatives_in(guild_id)
 
 
 # ── The rules ─────────────────────────────────────────────────────────────
@@ -336,7 +323,6 @@ def _require_mappable_role(guild_role: str) -> None:
 
 
 async def _resolve_destination(
-    session: AsyncSession,
     *,
     guild_id: int,
     initiative_id: int | None,
@@ -350,7 +336,7 @@ async def _resolve_destination(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=SettingsMessages.INITIATIVE_FIELDS_REQUIRED,
         )
-    initiatives = await _initiatives_in(session, guild_id)
+    initiatives = await _initiatives_in(guild_id)
     for initiative in initiatives:
         if initiative.id == initiative_id and any(
             role.id == initiative_role_id for role in initiative.roles
@@ -486,7 +472,7 @@ async def list_rules(session: AsyncSession) -> ProviderPlacementResponse:
         if gid in initiatives:
             continue
         if any(row.guild_id == gid and row.initiative_id is not None for row in rows):
-            initiatives[gid] = await _initiatives_in(session, gid)
+            initiatives[gid] = await _initiatives_in(gid)
     return ProviderPlacementResponse(
         placement_everywhere=await placement_everywhere(session),
         providers=[
@@ -520,7 +506,7 @@ async def _read_one(
         session, provider_id=row.provider_id, guild_ids={row.guild_id}
     )
     initiatives = (
-        await _initiatives_in(session, row.guild_id)
+        await _initiatives_in(row.guild_id)
         if applies and row.initiative_id is not None
         else []
     )
@@ -549,7 +535,6 @@ async def create_rule(
         session, provider_id=payload.provider_id, guild_id=payload.guild_id
     )
     target_type = await _resolve_destination(
-        session,
         guild_id=payload.guild_id,
         initiative_id=payload.initiative_id,
         initiative_role_id=payload.initiative_role_id,
@@ -616,7 +601,6 @@ async def update_rule(
     if "initiative_role_id" in data:
         row.initiative_role_id = data["initiative_role_id"]
     row.target_type = await _resolve_destination(
-        session,
         guild_id=row.guild_id,
         initiative_id=row.initiative_id,
         initiative_role_id=row.initiative_role_id,

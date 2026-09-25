@@ -53,7 +53,7 @@ from app.core.config import settings
 from app.core.encryption import SALT_APP_CONFIG, decrypt_field, encrypt_field
 from app.core.messages import AppChannelMessages, GuildAppMessages
 from app.core.security import AppPlatformSigningNotConfiguredError
-from app.db import session as db_session
+from app.db import cohorts
 from app.db.session import set_rls_context
 from app.models.platform.guild import (
     LIVE_STATUS_VALUES,
@@ -786,8 +786,9 @@ class _Loaded:
 async def _load_for_flow(
     session: AsyncSession, state: ConnectionFlowState
 ) -> Optional[_Loaded]:
-    """The install and connection a state names, with the session routed into
-    its community, or ``None`` when the flow can no longer finish."""
+    """The install and connection a state names, with the session — one from
+    its community's cohort — routed into that community, or ``None`` when the
+    flow can no longer finish."""
     await set_rls_context(session)
     guild = (
         await session.exec(select(Guild).where(Guild.id == state.guild_id))
@@ -859,7 +860,7 @@ async def _person_outcome(
     if signed_in is None or signed_in != state.started_by:
         return "sign_in_required"
     if state.user_id is None:
-        async with db_session.SystemSessionLocal() as session:
+        async with cohorts.system_session(state.guild_id) as session:
             await set_rls_context(session)
             holds = (
                 await session.exec(
@@ -900,7 +901,7 @@ async def complete_setup(
     if claimed is None:
         return landing_url(state.return_path, "not_recorded")
 
-    async with db_session.SystemSessionLocal() as session:
+    async with cohorts.system_session(state.guild_id) as session:
         loaded = await _load_for_flow(session, state)
         if loaded is None:
             return landing_url(state.return_path, "not_recorded")
@@ -939,7 +940,7 @@ async def complete_callback(
     if error or not code:
         return landing_url(state.return_path, "refused")
 
-    async with db_session.SystemSessionLocal() as session:
+    async with cohorts.system_session(state.guild_id) as session:
         loaded = await _load_for_flow(session, state)
         if loaded is None:
             return landing_url(state.return_path, "not_recorded")

@@ -160,6 +160,8 @@ async def load_install(
     for_write: bool = False,
 ) -> GuildApp:
     """The calling app's install in one guild, with the session routed to it.
+    ``session`` is a system session from that guild's cohort, as
+    ``get_system_session`` hands one to an installation token's request.
 
     ``app_install_id`` is the install the caller's reference named, and the one
     found here has to be it. A guild that removed this app and added it again

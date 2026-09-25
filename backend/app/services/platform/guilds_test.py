@@ -16,7 +16,7 @@ from sqlalchemy import text
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.session import _RLS_PARAMS_INFO_KEY
+from app.db import cohorts
 from app.models.platform.guild import GuildInvite, GuildRole
 from app.models.tenant.initiative import InitiativeMember, InitiativeRoleModel
 from app.services.platform import guilds as guild_service
@@ -879,6 +879,7 @@ async def test_new_member_is_enrolled_in_auto_join_initiatives(session: AsyncSes
     joiner = await create_user(session, email="joiner@example.com")
     await guild_service.ensure_membership(session, guild_id=guild.id, user_id=joiner.id)
     await session.commit()
+    await cohorts.settle(session)
 
     roles = await _initiative_role_names(session, guild_id=guild.id, user_id=joiner.id)
     assert roles == {welcome.id: "member", lounge.id: "member"}
@@ -929,6 +930,7 @@ async def test_archived_and_deleted_auto_join_initiatives_are_skipped(
     joiner = await create_user(session, email="joiner@example.com")
     await guild_service.ensure_membership(session, guild_id=guild.id, user_id=joiner.id)
     await session.commit()
+    await cohorts.settle(session)
 
     roles = await _initiative_role_names(session, guild_id=guild.id, user_id=joiner.id)
     assert set(roles) == {live.id}
@@ -950,6 +952,7 @@ async def test_returning_member_is_not_re_enrolled(session: AsyncSession):
 
     await guild_service.ensure_membership(session, guild_id=guild.id, user_id=member.id)
     await session.commit()
+    await cohorts.settle(session)
 
     roles = await _initiative_role_names(session, guild_id=guild.id, user_id=member.id)
     assert later.id not in roles
@@ -969,6 +972,7 @@ async def test_guild_admin_is_not_enrolled_as_a_member(session: AsyncSession):
         session, guild_id=guild.id, user_id=second_admin.id, role=GuildRole.admin
     )
     await session.commit()
+    await cohorts.settle(session)
 
     roles = await _initiative_role_names(
         session, guild_id=guild.id, user_id=second_admin.id
@@ -989,6 +993,7 @@ async def test_guild_without_auto_join_initiatives_admits_normally(
         session, guild_id=guild.id, user_id=joiner.id
     )
     await session.commit()
+    await cohorts.settle(session)
 
     assert membership.role == GuildRole.member
     assert (
@@ -1023,36 +1028,13 @@ async def test_enrolment_failure_does_not_fail_the_join(session: AsyncSession, c
         membership = await guild_service.ensure_membership(
             session, guild_id=guild.id, user_id=joiner.id
         )
-    await session.commit()
+        await session.commit()
+        await cohorts.settle(session)
 
     assert membership.role == GuildRole.member
     roles = await _initiative_role_names(session, guild_id=guild.id, user_id=joiner.id)
     assert set(roles) == {healthy.id}
     assert any("auto-join" in record.message for record in caplog.records)
-
-
-async def test_enrolment_hands_the_session_back_unrouted(session: AsyncSession):
-    """The excursion into the guild schema is invisible to the caller, which
-    keeps using the session afterwards."""
-    admin = await create_user(session)
-    guild = await create_guild(session, creator=admin)
-    await create_initiative(
-        session, guild, admin, name="Welcome", join_policy="open", auto_join=True
-    )
-    joiner = await create_user(session, email="joiner@example.com")
-
-    assert _RLS_PARAMS_INFO_KEY not in session.info
-    await guild_service.ensure_membership(session, guild_id=guild.id, user_id=joiner.id)
-
-    assert _RLS_PARAMS_INFO_KEY not in session.info
-    # ... and a shared-table read still works on the caller's own terms.
-    await session.commit()
-    assert (
-        await guild_service.get_membership(
-            session, guild_id=guild.id, user_id=joiner.id
-        )
-        is not None
-    )
 
 
 # --- The lock that orders seat and sign-in-requirement changes ---------------

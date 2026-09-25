@@ -65,7 +65,7 @@ ALLOWED_DYNAMIC_SQL: dict[str, str] = {
         "int-derived schema name + registry-rendered trigger DDL (constants)"
     ),
     "app/db/schema_provisioning.py::reindex_guild_search": (
-        "guild_<id> schema name read from pg_namespace, registry-rendered "
+        "int-derived guild_<id> schema name, registry-rendered "
         "reindex statements (constants), and a hex-digest generation marker"
     ),
     "app/db/schema_provisioning.py::drop_guild_schema": (

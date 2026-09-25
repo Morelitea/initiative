@@ -6,14 +6,16 @@ module is what the owner's settings page calls to read and change both.
 
 Every write here is the platform owner's (``config.manage``): binding a stream
 is deployment configuration of the same class as OIDC, SMTP and branding.
-Reaching the guild's own schema is the system engine routed into it by the
-guild alone, the same way every other platform surface that reads guild rows does.
+Reaching the guild's own schema is a system session from the guild's cohort
+routed into it by the guild alone, the same way every other platform surface
+that reads guild rows does.
 """
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Optional
+from typing import AsyncIterator, Optional
 
 from fastapi import HTTPException, status as http_status
 from sqlmodel import select
@@ -22,6 +24,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.intake import IntakeStream
 from app.core.tools import Tool
 from app.core.messages import GuildMessages, InitiativeMessages, IntakeMessages
+from app.db import cohorts
 from app.db.session import set_rls_context
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.guild import Guild, GuildStatus
@@ -55,20 +58,13 @@ class BindingView:
     last_case_at: Optional[str]
 
 
-async def _route(session: AsyncSession, guild_id: int) -> None:
-    """Route the system session into a guild's schema.
-
-    ``expunge_all`` first: ids are unique only within a schema, so nothing
-    cached from ``public`` (or from another guild) may be handed back here.
-    """
-    session.expunge_all()
-    await set_rls_context(session, guild_id=guild_id)
-
-
-async def _unroute(session: AsyncSession) -> None:
-    """Back to the neutral public baseline, to read or write shared config."""
-    session.expunge_all()
-    await set_rls_context(session)
+@asynccontextmanager
+async def _route(guild_id: int) -> AsyncIterator[AsyncSession]:
+    """A system session from the guild's cohort, routed into its schema. The
+    caller commits what it writes."""
+    async with cohorts.system_session(guild_id) as session:
+        await set_rls_context(session, guild_id=guild_id)
+        yield session
 
 
 async def set_operations_guild(
@@ -81,7 +77,6 @@ async def set_operations_guild(
     there. An ordinary guild is required: a suspended one could not be worked
     in, so it is refused rather than silently accepted.
     """
-    await _unroute(session)
     if guild_id is not None:
         guild = (
             await session.exec(select(Guild).where(Guild.id == guild_id))
@@ -111,7 +106,6 @@ async def _settings_row(session: AsyncSession) -> AppSetting:
 
 async def set_general_contact(session: AsyncSession, email: Optional[str]) -> None:
     """Set the deployment's catch-all contact address, or clear it."""
-    await _unroute(session)
     row = await _settings_row(session)
     row.intake_general_contact = email
     session.add(row)
@@ -122,7 +116,6 @@ async def set_stream_contact(
     session: AsyncSession, stream: IntakeStream, email: Optional[str]
 ) -> None:
     """Set one stream's contact address, or clear it back to the general one."""
-    await _unroute(session)
     row = await _settings_row(session)
     contacts = dict(row.intake_contacts or {})
     if email is None:
@@ -137,7 +130,6 @@ async def set_stream_contact(
 
 async def contacts(session: AsyncSession) -> tuple[Optional[str], dict[str, str]]:
     """The general address and every stream's own, as set."""
-    await _unroute(session)
     row = (await session.exec(select(AppSetting).where(AppSetting.id == 1))).first()
     if row is None:
         return None, {}
@@ -249,40 +241,36 @@ async def bind(
     project and leaves the old one's history where the work is.
     """
     guild_id = await _require_operations_guild(session)
-    await _route(session, guild_id)
-
-    project, initiative = await _resolve_project(session, project_id)
-    binding = await _write_binding(
-        session,
-        stream=stream,
-        project=project,
-        project_id=project_id,
-        default_status_id=default_status_id,
-        enabled=enabled,
-    )
-    await session.commit()
-    await session.refresh(binding)
-    return await _view(session, stream, binding, project, initiative)
+    async with _route(guild_id) as routed:
+        project, initiative = await _resolve_project(routed, project_id)
+        binding = await _write_binding(
+            routed,
+            stream=stream,
+            project=project,
+            project_id=project_id,
+            default_status_id=default_status_id,
+            enabled=enabled,
+        )
+        await routed.commit()
+        await routed.refresh(binding)
+        return await _view(routed, stream, binding, project, initiative)
 
 
 async def unbind(session: AsyncSession, stream: IntakeStream) -> None:
     """Stop routing ``stream`` anywhere. The project and its cases stay."""
     guild_id = await _require_operations_guild(session)
-    await _route(session, guild_id)
-    binding = (
-        await session.exec(
-            select(IntakeBinding)
-            .where(IntakeBinding.stream == stream.value)
-            .execution_options(populate_existing=True)
-        )
-    ).one_or_none()
-    if binding is not None:
-        await session.delete(binding)
-        await session.commit()
+    async with _route(guild_id) as routed:
+        binding = (
+            await routed.exec(
+                select(IntakeBinding).where(IntakeBinding.stream == stream.value)
+            )
+        ).one_or_none()
+        if binding is not None:
+            await routed.delete(binding)
+            await routed.commit()
 
 
 async def _require_operations_guild(session: AsyncSession) -> int:
-    await _unroute(session)
     guild_id = await operations_guild_id(session)
     if guild_id is None:
         raise HTTPException(
@@ -361,41 +349,36 @@ async def list_bindings(
     Returns one view per stream, bound or not, so the settings page renders the
     full set rather than only what somebody has already configured.
     """
-    await _unroute(session)
     guild_id = await operations_guild_id(session)
     if guild_id is None:
         return None, [await _view(session, s, None, None, None) for s in IntakeStream]
 
-    await _route(session, guild_id)
-    bindings = {
-        IntakeStream(row.stream): row
-        for row in await session.exec(
-            select(IntakeBinding).execution_options(populate_existing=True)
-        )
-    }
-    views: list[BindingView] = []
-    for stream in IntakeStream:
-        binding = bindings.get(stream)
-        project = initiative = None
-        if binding is not None:
-            # No live-only filter: a binding to a project that has since been
-            # archived is exactly what the page has to be able to show.
-            project = (
-                await session.exec(
-                    select(Project)
-                    .where(Project.id == binding.project_id)
-                    .execution_options(populate_existing=True)
-                )
-            ).one_or_none()
-            if project is not None:
-                initiative = (
-                    await session.exec(
-                        select(Initiative)
-                        .where(Initiative.id == project.initiative_id)
-                        .execution_options(populate_existing=True)
+    async with _route(guild_id) as routed:
+        bindings = {
+            IntakeStream(row.stream): row
+            for row in await routed.exec(select(IntakeBinding))
+        }
+        views: list[BindingView] = []
+        for stream in IntakeStream:
+            binding = bindings.get(stream)
+            project = initiative = None
+            if binding is not None:
+                # No live-only filter: a binding to a project that has since
+                # been archived is exactly what the page has to be able to show.
+                project = (
+                    await routed.exec(
+                        select(Project).where(Project.id == binding.project_id)
                     )
                 ).one_or_none()
-        views.append(await _view(session, stream, binding, project, initiative))
+                if project is not None:
+                    initiative = (
+                        await routed.exec(
+                            select(Initiative).where(
+                                Initiative.id == project.initiative_id
+                            )
+                        )
+                    ).one_or_none()
+            views.append(await _view(routed, stream, binding, project, initiative))
     return guild_id, views
 
 
@@ -419,39 +402,34 @@ async def provision_from_blueprint(
     from app.services.tenant.project_import import import_project
 
     guild_id = await _require_operations_guild(session)
-    await _route(session, guild_id)
+    async with _route(guild_id) as routed:
+        initiative = (
+            await routed.exec(select(Initiative).where(Initiative.id == initiative_id))
+        ).one_or_none()
+        if initiative is None:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail=InitiativeMessages.NOT_FOUND,
+            )
 
-    initiative = (
-        await session.exec(
-            select(Initiative)
-            .where(Initiative.id == initiative_id)
-            .execution_options(populate_existing=True)
+        result = await import_project(
+            routed,
+            envelope=blueprint_for(stream),
+            target_initiative=initiative,
+            importer=importer,
         )
-    ).one_or_none()
-    if initiative is None:
-        raise HTTPException(
-            status_code=http_status.HTTP_404_NOT_FOUND,
-            detail=InitiativeMessages.NOT_FOUND,
+        project, _ = await _resolve_project(routed, result.project_id)
+        binding = await _write_binding(
+            routed,
+            stream=stream,
+            project=project,
+            project_id=result.project_id,
+            default_status_id=None,
+            enabled=True,
         )
-
-    result = await import_project(
-        session,
-        envelope=blueprint_for(stream),
-        target_initiative=initiative,
-        importer=importer,
-    )
-    project, _ = await _resolve_project(session, result.project_id)
-    binding = await _write_binding(
-        session,
-        stream=stream,
-        project=project,
-        project_id=result.project_id,
-        default_status_id=None,
-        enabled=True,
-    )
-    await session.commit()
-    await session.refresh(binding)
-    return await _view(session, stream, binding, project, initiative)
+        await routed.commit()
+        await routed.refresh(binding)
+        return await _view(routed, stream, binding, project, initiative)
 
 
 async def list_options(session: AsyncSession) -> list[dict]:
@@ -461,34 +439,31 @@ async def list_options(session: AsyncSession) -> list[dict]:
     Names and ids only, for the one guild the deployment has named. Empty when
     it has named none, which is what the page shows before anything is set up.
     """
-    await _unroute(session)
     guild_id = await operations_guild_id(session)
     if guild_id is None:
         return []
 
-    await _route(session, guild_id)
-    initiatives = (
-        await session.exec(
-            select(Initiative)
-            .where(Initiative.deleted_at.is_(None))
-            .order_by(Initiative.name)
-            .execution_options(populate_existing=True)
-        )
-    ).all()
-    projects = (
-        await session.exec(
-            select(Project)
-            .where(Project.deleted_at.is_(None))
-            .where(Project.archived_at.is_(None))
-            .order_by(Project.name)
-            .execution_options(populate_existing=True)
-        )
-    ).all()
-    statuses = (
-        await session.exec(
-            select(TaskStatus).order_by(TaskStatus.project_id, TaskStatus.position)
-        )
-    ).all()
+    async with _route(guild_id) as routed:
+        initiatives = (
+            await routed.exec(
+                select(Initiative)
+                .where(Initiative.deleted_at.is_(None))
+                .order_by(Initiative.name)
+            )
+        ).all()
+        projects = (
+            await routed.exec(
+                select(Project)
+                .where(Project.deleted_at.is_(None))
+                .where(Project.archived_at.is_(None))
+                .order_by(Project.name)
+            )
+        ).all()
+        statuses = (
+            await routed.exec(
+                select(TaskStatus).order_by(TaskStatus.project_id, TaskStatus.position)
+            )
+        ).all()
 
     by_project: dict[int, list[dict]] = {}
     for status in statuses:

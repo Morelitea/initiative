@@ -16,7 +16,7 @@ from typing import Any, Optional
 from sqlalchemy import ColumnElement, Select, null as sa_null
 from sqlmodel import SQLModel, select
 
-from app.db import session as db_session
+from app.db import cohorts
 from app.db.session import set_rls_context
 
 
@@ -171,9 +171,7 @@ async def reader_is_in_the_initiative(
     if model is None:
         return False
 
-    # Late-bound (module attribute at call time) so the test harness's
-    # sessionmaker patch applies to the probe too.
-    async with db_session.SystemSessionLocal() as probe, probe.begin():
+    async with cohorts.system_session(guild_id) as probe, probe.begin():
         # One transaction, explicitly: the routing is transaction-local, and the
         # probe runs on a session of its own rather than the request's.
         await set_rls_context(probe, guild_id=guild_id)

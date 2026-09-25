@@ -38,6 +38,7 @@ from collections.abc import Iterable
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.db import cohorts
 from app.db import session as db_session
 from app.models.platform.identity_ref import (
     REF_MAX_LENGTH,
@@ -219,11 +220,11 @@ async def install_refs(
 async def ensure_app_ref(*, guild_id: int, app_install_id: int, user_id: int) -> str:
     """This member's reference at this install, minting one on first use.
 
-    Opens a system-engine session of its own, like
+    Opens a system-engine session of its own, from the guild's cohort, like
     ``identity_refs.billing_refs``: the table is reachable only there, and the
     caller is a request handler routed into a guild role.
     """
-    async with db_session.SystemSessionLocal() as session:
+    async with cohorts.system_session(guild_id) as session:
         ref = await identity_refs.ensure_ref(
             session,
             entity_type=IdentityEntity.user,
@@ -243,7 +244,7 @@ async def ensure_app_guild_ref(*, guild_id: int, app_install_id: int) -> str:
     installed in two guilds holds two unrelated values for them — the same
     property the member reference has, applied to the tenant.
     """
-    async with db_session.SystemSessionLocal() as session:
+    async with cohorts.system_session(guild_id) as session:
         ref = await identity_refs.ensure_ref(
             session,
             entity_type=IdentityEntity.guild,
@@ -368,7 +369,7 @@ async def guild_for_app_ref(*, ref: str, public_id: str) -> int | None:
         return None
     guild_id, app_install_id = resolved
 
-    async with db_session.SystemSessionLocal() as session:
+    async with cohorts.system_session(guild_id) as session:
         try:
             # The install lives in the guild's own schema, so the read is
             # routed there.
@@ -396,7 +397,7 @@ async def drop_install_refs(*, guild_id: int, app_install_id: int) -> int:
     foreign key (``guild_apps`` lives in a guild schema and ``identity_refs``
     does not), so this stands in for the cascade the column cannot carry.
     """
-    async with db_session.SystemSessionLocal() as session:
+    async with cohorts.system_session(guild_id) as session:
         dropped = await identity_refs.drop_sector_refs(
             session,
             sector_guild_id=guild_id,
@@ -420,7 +421,7 @@ async def drop_guild_app_refs(*, guild_id: int, keep_billing: bool = False) -> i
     reaches this from three call sites holding three different sessions, one of
     them routed into the guild role being deleted.
     """
-    async with db_session.SystemSessionLocal() as session:
+    async with cohorts.system_session(guild_id) as session:
         dropped = await identity_refs.drop_guild_refs(
             session, guild_id=guild_id, keep_billing=keep_billing
         )

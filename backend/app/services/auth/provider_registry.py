@@ -239,30 +239,25 @@ async def update_provider(
     return owner_read(row, secret_set=await secret_is_set(session, row.id))
 
 
-async def _release_initiative_memberships(
-    session: AsyncSession, *, provider_id: int
-) -> None:
-    """Clear this provider from every guild's ``initiative_members``.
+async def _release_initiative_memberships(provider_id: int) -> None:
+    """Clear a deleted provider from every guild's ``initiative_members``.
 
     Guild by guild, because the table exists once per schema. Provider
-    deletion is rare and already does a per-account credential count, so the
-    loop is not on any hot path.
+    deletion is rare, so the walk is not on any hot path.
     """
-    from app.db import session as db_session
-    from app.models.platform.guild import Guild
     from app.models.tenant.initiative import InitiativeMember
+    from app.services.guild_sweeps import Scope, each_guild
 
-    guild_ids = (await session.exec(select(Guild.id))).all()
-    for guild_id in guild_ids:
-        session.expunge_all()
-        await db_session.set_rls_context(session, guild_id=guild_id)
-        await session.exec(
+    async def release(guild_session: AsyncSession, _guild_id: int) -> None:
+        await guild_session.exec(
             update(InitiativeMember)
             .where(InitiativeMember.oidc_provider_id == provider_id)
             .values(oidc_provider_id=None)
         )
-    session.expunge_all()
-    await db_session.set_rls_context(session)
+
+    await each_guild(
+        [(Scope.PROVISIONED, release)], name="auth-provider-initiative-release"
+    )
 
 
 async def delete_provider(
@@ -302,13 +297,6 @@ async def delete_provider(
             status_code=status.HTTP_409_CONFLICT,
             detail=AuthProviderMessages.SOLE_CREDENTIAL,
         )
-    # Guild-side memberships release their manager here. The shared table's
-    # foreign key does it on its own (``ON DELETE SET NULL``);
-    # ``initiative_members`` lives in a guild schema and carries no key across
-    # that line, so the same clearing is written by hand. The row is then
-    # unmanaged, which is what it is: no provider answers for it.
-    await _release_initiative_memberships(session, provider_id=row.id)
-
     kind = row.kind
     secret = await session.get(AuthProviderSecret, row.id)
     if secret is not None:
@@ -332,4 +320,10 @@ async def delete_provider(
             status_code=status.HTTP_409_CONFLICT,
             detail=AuthProviderMessages.IN_USE,
         ) from exc
+    # Guild-side memberships release their manager once the provider is gone.
+    # The shared table's foreign key does it on its own (``ON DELETE SET
+    # NULL``); ``initiative_members`` lives in a guild schema and carries no
+    # key across that line, so the same clearing is written by hand. The row is
+    # then unmanaged, which is what it is: no provider answers for it.
+    await _release_initiative_memberships(provider_id)
     logger.info("auth provider %s (%s) deleted", row.slug, provider_id)

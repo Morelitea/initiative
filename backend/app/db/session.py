@@ -20,6 +20,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.requests import HTTPConnection
 
 from app.core import audit_context, metrics
+from app.core.app_access_token import (
+    AccessTokenError,
+    InstallAccessToken,
+    is_access_token,
+    unseal_access_token,
+)
 from app.core.config import settings
 from app.db import base  # noqa: F401  # ensure models are imported for Alembic
 from app.db import cohorts
@@ -167,6 +173,23 @@ SystemSessionLocal = async_sessionmaker(
 )
 
 
+def served_guild_id(connection: HTTPConnection) -> int | None:
+    """The community a request is served in: the one its installation token
+    names, when it carries one, and otherwise the one its path addresses.
+
+    An installed app's calls are about the community its token names, whatever
+    the path says, so that community's cohort serves them."""
+    scheme, _, credential = connection.headers.get("authorization", "").partition(" ")
+    if scheme.lower() == "bearer" and is_access_token(credential):
+        try:
+            token = unseal_access_token(credential)
+        except AccessTokenError:
+            token = None
+        if isinstance(token, InstallAccessToken):
+            return token.guild_id
+    return cohorts.addressed_guild_id(connection.path_params)
+
+
 async def get_session(
     connection: HTTPConnection,
 ) -> AsyncGenerator[AsyncSession, None]:
@@ -176,23 +199,28 @@ async def get_session(
     # The pool's rollback-on-return is the only baseline needed.
     #
     # The pool is chosen here, before the first statement, from the community
-    # the path addresses: by the time the seam routes the session, the
+    # the request is served in: by the time the seam routes the session, the
     # credential and membership lookups have already begun a transaction on it.
-    guild_id = cohorts.addressed_guild_id(connection.path_params)
-    async with cohorts.request_sessionmaker(guild_id)() as session:
+    async with cohorts.request_sessionmaker(served_guild_id(connection))() as session:
         cohorts.mark_request_session(session)
         yield session
 
 
-async def get_system_session() -> AsyncGenerator[AsyncSession, None]:
+async def get_system_session(
+    connection: HTTPConnection,
+) -> AsyncGenerator[AsyncSession, None]:
     """Get a session on the system engine (background jobs, bootstrapping,
     platform lifecycle). ``app_admin`` is the standard Postgres trusted-batch
     actor — BYPASSRLS, bounded by enumerated per-table GRANTs (0129); guild
     schemas require ``SET ROLE guild_<id>`` (dropping the bypass) via
     set_rls_context(). Context is transaction-local, so a recycled pooled
     connection starts every session at the login-role/public baseline with
-    no reset round-trip."""
-    async with SystemSessionLocal() as session:
+    no reset round-trip.
+
+    Like ``get_session``, the session is from the cohort of the community the
+    request is served in, and from the platform system pool when it names
+    none."""
+    async with cohorts.system_session(served_guild_id(connection)) as session:
         yield session
 
 
@@ -1069,38 +1097,6 @@ async def _apply_stored_context(session: AsyncSession) -> None:
     cohorts.note_route(connection.sync_connection, cohorts.routed_guild_id(params))
     bind = _render_context_bind_params(params)
     await session.exec(text(_CONTEXT_SQL), params=bind)
-
-
-@asynccontextmanager
-async def guild_schema_context(
-    session: AsyncSession,
-    *,
-    guild_id: int,
-) -> AsyncGenerator[AsyncSession, None]:
-    """Borrow an already-open session for one guild's schema, then hand it back.
-
-    A platform/bootstrapping handler runs with ``search_path = public`` and
-    cannot see guild content at all, so work that has to touch a guild schema
-    from there routes the session in first (the same move
-    ``seed_guild_content`` and the ``oidc_sync`` per-guild loop make). What this
-    adds is the return trip: several callers keep using the session after the
-    excursion, so whatever context they were carrying is put back on the way
-    out (:func:`restore_rls_context`).
-
-    The session must already be inside the caller's transaction; this neither
-    commits nor rolls back.
-    """
-    saved = save_rls_context(session)
-    routed = False
-    try:
-        await set_rls_context(session, guild_id=guild_id)
-        routed = True
-        yield session
-    finally:
-        # Routing that did not complete leaves a transaction that accepts no
-        # further statements, and its own rollback puts the settings back; more
-        # SQL there would only replace the real error with a second one.
-        await restore_rls_context(session, saved, apply=routed)
 
 
 @dataclass(frozen=True)
