@@ -5,7 +5,7 @@
   "error": "Mit dieser App ist etwas schiefgelaufen.",
   "manage": {
     "title": "Apps",
-    "description": "Apps ergänzen etwas, das die ganze Community teilt. Nur Community-Admins können sie hinzufügen oder entfernen.",
+    "description": "Apps ergänzen etwas, das die ganze Community teilt. Nur der Superadmin der Community kann sie hinzufügen oder entfernen.",
     "empty": "Noch keine Apps installiert.",
     "browse": "Apps durchsuchen",
     "installed": "Hinzugefügt am {{date}}",
@@ -47,7 +47,7 @@
     "name": "Name",
     "action": "Zur Community hinzufügen",
     "done": "{{name}} hinzugefügt.",
-    "adminOnly": "Bitte eine Community-Administratorin oder einen Community-Administrator, diese App hinzuzufügen.",
+    "adminOnly": "Bitte den Superadmin deiner Community, diese App hinzuzufügen.",
     "unknownState": "Es konnte nicht geprüft werden, ob diese App bereits hinzugefügt wurde.",
     "reachTitle": "Worauf sie zugreifen kann",
     "reachNone": "Diese App fragt nach keinem Zugriff auf die Inhalte deiner Community.",
@@ -156,7 +156,7 @@
     "description": "Lege fest, wie sich diese App verbindet.",
     "open": "Einstellungen für {{name}}",
     "adminTitle": "Community-Einstellungen",
-    "adminDescription": "Was der Community für diese App gehört. Nur Community-Admins sehen das."
+    "adminDescription": "Was der Community für diese App gehört. Nur der Superadmin sieht das."
   },
   "embed": {
     "connecting": "Verbinden…",

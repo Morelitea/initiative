@@ -52,6 +52,6 @@
     "description": "Le catalogue n'a pas pu être joint. Réessayez dans un instant."
   },
   "installedUnknown": "Impossible de vérifier lesquels vous possédez déjà : rien ci-dessous n'est donc marqué comme installé.",
-  "subtitleApps": "Les applications ajoutent quelque chose que toute la communauté partage. Seuls les administrateurs de la communauté peuvent les ajouter.",
+  "subtitleApps": "Les applications ajoutent quelque chose que toute la communauté partage. Seul le superadmin de la communauté peut les ajouter.",
   "subtitleAuto": "Les automatisations s'exécutent en arrière-plan pour toute la communauté."
 }

@@ -5,7 +5,7 @@
   "error": "Un problème est survenu avec cette application.",
   "manage": {
     "title": "Applications",
-    "description": "Les applications ajoutent quelque chose que toute la communauté partage. Seuls les administrateurs de la communauté peuvent en ajouter ou en retirer.",
+    "description": "Les applications ajoutent quelque chose que toute la communauté partage. Seul le superadmin de la communauté peut en ajouter ou en retirer.",
     "empty": "Aucune application installée pour l'instant.",
     "browse": "Parcourir les applications",
     "installed": "Ajoutée le {{date}}",
@@ -47,7 +47,7 @@
     "name": "Nom",
     "action": "Ajouter à la communauté",
     "done": "{{name}} ajoutée.",
-    "adminOnly": "Demandez à un administrateur de communauté d'ajouter cette application.",
+    "adminOnly": "Demandez au superadmin de votre communauté d'ajouter cette application.",
     "unknownState": "Impossible de vérifier si cette application est déjà ajoutée.",
     "reachTitle": "Ce à quoi elle a accès",
     "reachNone": "Cette application ne demande aucun accès au contenu de votre communauté.",
@@ -156,7 +156,7 @@
     "description": "Configurez la connexion de cette application.",
     "open": "Paramètres de {{name}}",
     "adminTitle": "Paramètres de la communauté",
-    "adminDescription": "Ce que la communauté gère pour cette application. Visible uniquement par les administrateurs de la communauté."
+    "adminDescription": "Ce que la communauté gère pour cette application. Visible uniquement par le superadmin."
   },
   "embed": {
     "connecting": "Connexion…",

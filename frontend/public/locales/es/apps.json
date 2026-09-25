@@ -5,7 +5,7 @@
   "error": "Algo ha fallado con esa aplicación.",
   "manage": {
     "title": "Aplicaciones",
-    "description": "Las aplicaciones añaden algo que comparte todo la comunidad. Solo los administradores de la comunidad pueden añadirlas o quitarlas.",
+    "description": "Las aplicaciones añaden algo que comparte toda la comunidad. Solo el superadministrador de la comunidad puede añadirlas o quitarlas.",
     "empty": "Todavía no hay aplicaciones instaladas.",
     "browse": "Explorar aplicaciones",
     "installed": "Añadida el {{date}}",
@@ -47,7 +47,7 @@
     "name": "Nombre",
     "action": "Añadir a la comunidad",
     "done": "{{name}} añadida.",
-    "adminOnly": "Pide a un administrador de la comunidad que añada esta aplicación.",
+    "adminOnly": "Pide al superadministrador de tu comunidad que añada esta aplicación.",
     "unknownState": "No se pudo comprobar si esta aplicación ya está añadida.",
     "reachTitle": "A qué puede acceder",
     "reachNone": "Esta aplicación no pide acceso al contenido de tu comunidad.",
@@ -156,7 +156,7 @@
     "description": "Configura cómo se conecta esta aplicación.",
     "open": "Ajustes de {{name}}",
     "adminTitle": "Ajustes de la comunidad",
-    "adminDescription": "Lo que la comunidad controla en esta aplicación. Solo lo ven los administradores de la comunidad."
+    "adminDescription": "Lo que la comunidad controla en esta aplicación. Solo lo ve el superadministrador."
   },
   "embed": {
     "connecting": "Conectando…",

@@ -5,7 +5,7 @@
   "error": "Something went wrong with that app.",
   "manage": {
     "title": "Apps",
-    "description": "Apps add something the whole community shares. Only community admins can add or remove them.",
+    "description": "Apps add something the whole community shares. Only the community's superadmin can add or remove them.",
     "empty": "No apps installed yet.",
     "browse": "Browse apps",
     "installed": "Added {{date}}",
@@ -47,7 +47,7 @@
     "name": "Name",
     "action": "Add to community",
     "done": "{{name}} added.",
-    "adminOnly": "Ask a community admin to add this app.",
+    "adminOnly": "Ask your community's superadmin to add this app.",
     "unknownState": "Could not check whether this app is already added.",
     "reachTitle": "What it can reach",
     "reachNone": "This app asks for no access to your community's content.",
@@ -156,7 +156,7 @@
     "description": "Set up how this app connects.",
     "open": "{{name}} settings",
     "adminTitle": "Community settings",
-    "adminDescription": "What the community owns for this app. Only community admins see this."
+    "adminDescription": "What the community owns for this app. Only the superadmin sees this."
   },
   "embed": {
     "connecting": "Connecting…",
