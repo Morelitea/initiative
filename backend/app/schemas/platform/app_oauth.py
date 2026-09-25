@@ -7,7 +7,7 @@ protocol value rather than text for a person to read.
 """
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -46,10 +46,6 @@ class AppInstallationRead(BaseModel):
     #: What the app calls the community it is installed in. Passed back as
     #: ``installation`` to ask for a token there.
     installation: str
-    #: The scopes the community has granted it.
-    scopes: List[str]
-    #: The initiatives it is placed in.
-    initiatives: List[int]
     #: Switched on, in a community in use: a token can be issued for it. An
     #: install that is off or whose community is paused is listed as inactive,
     #: and one that is gone is not listed.

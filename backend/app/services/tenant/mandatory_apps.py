@@ -46,7 +46,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GUILD_ADMIN_ROLES, Guild, GuildMembership
 from app.models.tenant.guild_app import GuildApp
-from app.services.marketplace import registration_lookup
+from app.services.marketplace import app_installs, registration_lookup
 from app.services.marketplace.definitions import GUILD_INSTALLABLE_APP_KINDS
 from app.services.marketplace.installs import (
     ListingInstallError,
@@ -218,6 +218,9 @@ async def install_mandatory_apps(
         session.add(app)
         await session.flush()
         await guild_apps_service.place_in_every_initiative(session, app)
+        # Indexed now, before the caller commits: a guild whose seed fails is
+        # removed, and its index rows with it.
+        await app_installs.record(guild_id, app)
         installed.append(listing.uid)
 
     return installed

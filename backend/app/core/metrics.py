@@ -89,6 +89,13 @@ db_cross_cohort_routes = Counter(
     "cohort, by the cohort (or platform pool) the connection belongs to.",
     ("cohort",),
 )
+app_hook_deliveries = Counter(
+    "initiative_app_hook_deliveries",
+    "Vendor webhook deliveries received for apps, by outcome: refused (the "
+    "signature did not verify), unroutable (no community connected it), "
+    "delivered, or failed (a community's app did not accept it).",
+    ("outcome",),
+)
 db_connection_communities = Histogram(
     "initiative_db_connection_communities",
     "Communities a pooled connection served before it closed, by cohort.",

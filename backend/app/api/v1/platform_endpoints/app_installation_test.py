@@ -36,6 +36,7 @@ from app.core.encryption import SALT_APP_CONFIG, encrypt_field
 from app.core.messages import AppChannelMessages
 from app.models.platform.app_service_registration import AppServiceRegistration
 from app.models.platform.publisher import Publisher
+from app.models.tenant.app_event_outbox import AppEventOutbox
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.marketplace.registration_lookup import invalidate_registrations
@@ -480,32 +481,29 @@ class TestConfigStatus:
 
 
 # ---------------------------------------------------------------------------
-# Third-party events
+# Events an app emits
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture
-def dispatched(monkeypatch):
-    """What reached the dispatcher, without delivering anything."""
-    calls: list[dict] = []
-
-    async def _capture(session, *, event_type, guild_id, payload, initiative_id=None):
-        calls.append(
-            {
-                "event_type": event_type,
-                "guild_id": guild_id,
-                "payload": payload,
-                "initiative_id": initiative_id,
-            }
-        )
-
-    monkeypatch.setattr(channels_service, "dispatch_event", _capture)
-    return calls
+async def _kept(session: AsyncSession, guild_id: int) -> list[dict]:
+    """The events kept in the community for the poller to deliver."""
+    await route_session_to_guild(session, guild_id)
+    session.expunge_all()
+    rows = (await session.exec(select(AppEventOutbox))).all()
+    return [
+        {
+            "install_id": row.install_id,
+            "event_type": row.event_type,
+            "initiative_id": row.initiative_id,
+            "payload": row.payload,
+        }
+        for row in rows
+    ]
 
 
 class TestEvents:
-    async def test_a_declared_event_reaches_the_dispatcher(
-        self, client: AsyncClient, session: AsyncSession, dispatched
+    async def test_a_declared_event_is_kept_for_delivery(
+        self, client: AsyncClient, session: AsyncSession
     ):
         await _register(session)
         guild, _, app = await _install(session)
@@ -517,12 +515,12 @@ class TestEvents:
         )
 
         assert response.status_code == 202, response.text
-        assert dispatched == [
+        assert await _kept(session, guild.id) == [
             {
+                "install_id": app.id,
                 "event_type": ORDER_CREATED,
-                "guild_id": guild.id,
-                "payload": {"order_id": "1001"},
                 "initiative_id": None,
+                "payload": {"order_id": "1001"},
             }
         ]
 
@@ -552,6 +550,12 @@ class TestEvents:
                 413,
                 AppChannelMessages.EVENT_TOO_LARGE,
             ),
+            (
+                "an initiative the app is not placed in",
+                {"event_type": ORDER_CREATED, "payload": {}, "initiative_id": 999},
+                403,
+                AppChannelMessages.INITIATIVE_NOT_PLACED,
+            ),
         ],
         ids=lambda v: v if isinstance(v, str) and " " in v else "",
     )
@@ -559,7 +563,6 @@ class TestEvents:
         self,
         client: AsyncClient,
         session: AsyncSession,
-        dispatched,
         case: str,
         event: dict,
         status: int,
@@ -574,10 +577,10 @@ class TestEvents:
 
         assert response.status_code == status, response.text
         assert response.json()["detail"] == detail
-        assert dispatched == []
+        assert await _kept(session, guild.id) == []
 
     async def test_another_apps_namespace_is_refused(
-        self, client: AsyncClient, session: AsyncSession, dispatched
+        self, client: AsyncClient, session: AsyncSession
     ):
         await _register(session)
         definition = _definition()
@@ -594,7 +597,7 @@ class TestEvents:
 
         assert response.status_code == 400
         assert response.json()["detail"] == AppChannelMessages.UNKNOWN_EVENT_TYPE
-        assert dispatched == []
+        assert await _kept(session, guild.id) == []
 
     def test_the_transport_bounds_every_installation_call(self):
         """An event is the largest body these routes take, so the transport's

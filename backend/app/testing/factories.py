@@ -60,6 +60,7 @@ from app.models.platform.access_grant import AccessGrant
 from app.models.platform.guild import Guild, GuildMembership, GuildRole
 from app.core.guild_auth_options import GuildAuthOption
 from app.models.platform.guild_administration import GuildAdministration
+from app.services.marketplace import app_installs
 from app.services.marketplace import catalog as marketplace_catalog
 from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.services.tenant.dashboard_definition import (
@@ -1216,6 +1217,7 @@ async def create_guild_app(
     session.add(app)
     await session.commit()
     await session.refresh(app)
+    await app_installs.record(guild.id, app)
     return app
 
 

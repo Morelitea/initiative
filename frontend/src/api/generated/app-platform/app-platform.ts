@@ -28,6 +28,7 @@ import type {
   AppOAuthErrorResponse,
   HTTPValidationError,
   IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBody,
+  ListAppInstallationsApiV1AppPlatformInstallationsGetParams,
   ReadAppPlatformJwksApiV1AppPlatformJwksJsonGet200,
 } from "../initiativeAPI.schemas";
 
@@ -350,45 +351,55 @@ export const useIssueAppAccessTokenApiV1AppPlatformOauthTokenPost = <
   );
 };
 /**
- * Every install of the calling app, with what it has been granted and
- * where it is placed. Takes an app token.
+ * The calling app's installs, a page at a time. Takes an app token.
+ *
+ * The next page, when there is one, is named in a ``Link`` header
+ * (RFC 8288, ``rel="next"``) carrying the ``cursor`` to ask with.
  * @summary List App Installations
  */
 export const listAppInstallationsApiV1AppPlatformInstallationsGet = (
+  params?: ListAppInstallationsApiV1AppPlatformInstallationsGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<AppInstallationRead[]>(
-    { url: `/api/v1/app-platform/installations`, method: "GET", signal },
+    { url: `/api/v1/app-platform/installations`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListAppInstallationsApiV1AppPlatformInstallationsGetQueryKey = () => {
-  return [`/api/v1/app-platform/installations`] as const;
+export const getListAppInstallationsApiV1AppPlatformInstallationsGetQueryKey = (
+  params?: ListAppInstallationsApiV1AppPlatformInstallationsGetParams
+) => {
+  return [`/api/v1/app-platform/installations`, ...(params ? [params] : [])] as const;
 };
 
 export const getListAppInstallationsApiV1AppPlatformInstallationsGetQueryOptions = <
   TData = Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
-  TError = ErrorType<unknown>,
->(options?: {
-  query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
-      TError,
-      TData
-    >
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}) => {
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ListAppInstallationsApiV1AppPlatformInstallationsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getListAppInstallationsApiV1AppPlatformInstallationsGetQueryKey();
+    queryOptions?.queryKey ??
+    getListAppInstallationsApiV1AppPlatformInstallationsGetQueryKey(params);
 
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>
-  > = ({ signal }) => listAppInstallationsApiV1AppPlatformInstallationsGet(requestOptions, signal);
+  > = ({ signal }) =>
+    listAppInstallationsApiV1AppPlatformInstallationsGet(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
@@ -400,12 +411,14 @@ export const getListAppInstallationsApiV1AppPlatformInstallationsGetQueryOptions
 export type ListAppInstallationsApiV1AppPlatformInstallationsGetQueryResult = NonNullable<
   Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>
 >;
-export type ListAppInstallationsApiV1AppPlatformInstallationsGetQueryError = ErrorType<unknown>;
+export type ListAppInstallationsApiV1AppPlatformInstallationsGetQueryError =
+  ErrorType<HTTPValidationError>;
 
 export function useListAppInstallationsApiV1AppPlatformInstallationsGet<
   TData = Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
 >(
+  params: undefined | ListAppInstallationsApiV1AppPlatformInstallationsGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -428,8 +441,9 @@ export function useListAppInstallationsApiV1AppPlatformInstallationsGet<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useListAppInstallationsApiV1AppPlatformInstallationsGet<
   TData = Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
 >(
+  params?: ListAppInstallationsApiV1AppPlatformInstallationsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -452,8 +466,9 @@ export function useListAppInstallationsApiV1AppPlatformInstallationsGet<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useListAppInstallationsApiV1AppPlatformInstallationsGet<
   TData = Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
 >(
+  params?: ListAppInstallationsApiV1AppPlatformInstallationsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -472,8 +487,9 @@ export function useListAppInstallationsApiV1AppPlatformInstallationsGet<
 
 export function useListAppInstallationsApiV1AppPlatformInstallationsGet<
   TData = Awaited<ReturnType<typeof listAppInstallationsApiV1AppPlatformInstallationsGet>>,
-  TError = ErrorType<unknown>,
+  TError = ErrorType<HTTPValidationError>,
 >(
+  params?: ListAppInstallationsApiV1AppPlatformInstallationsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -486,7 +502,10 @@ export function useListAppInstallationsApiV1AppPlatformInstallationsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListAppInstallationsApiV1AppPlatformInstallationsGetQueryOptions(options);
+  const queryOptions = getListAppInstallationsApiV1AppPlatformInstallationsGetQueryOptions(
+    params,
+    options
+  );
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

@@ -70,6 +70,7 @@ from app.api.v1.platform_endpoints import (
     app_installation,
     app_hub,
     app_connection_callbacks,
+    app_hooks,
     app_services,
     auth,
     auth_providers,
@@ -204,6 +205,9 @@ api_router.include_router(app_hub.router, prefix="/app-platform", tags=["app-pla
 api_router.include_router(
     app_connection_callbacks.router, prefix="/app-connections", tags=["app-platform"]
 )
+# Where a vendor sends an app's webhooks, one address per app. A delivery is
+# admitted by its signature and routed by the install index.
+api_router.include_router(app_hooks.router, prefix="/app-hooks", tags=["app-platform"])
 api_router.include_router(
     auth_providers.router, prefix="/settings/auth/providers", tags=["auth-providers"]
 )

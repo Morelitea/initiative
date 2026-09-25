@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from app.db.session import set_rls_context
+from app.models.tenant.app_event_outbox import AppEventOutbox
 from app.models.tenant.event_outbox import EventOutbox
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.services.tenant import outbox_poller
@@ -574,9 +575,15 @@ def test_the_reach_reads_what_the_grant_lets_it_read():
     reach = outbox_poller.InstallReach.from_row(
         live=True,
         placed=None,
-        granted_scopes=["projects:write", "tags:read", "no-longer:a-scope"],
+        granted_scopes=[
+            "projects:write",
+            "tags:read",
+            "no-longer:a-scope",
+            "apps:tests.gh",
+        ],
     )
     assert reach.readable == frozenset({"projects", "tags"})
+    assert reach.apps == frozenset({"tests.gh"})
     assert reach.placed == frozenset()
     assert outbox_poller.InstallReach.from_row(
         live=None, placed=[1], granted_scopes=None
@@ -599,3 +606,71 @@ async def test_a_hint_wakes_the_drain_only_where_something_subscribes(monkeypatc
     outbox_poller.drain.pending.clear()
     await outbox_poller.hint("guild_7:101")
     assert outbox_poller.drain.pending == {7}
+
+
+_GH_EVENT = "app.tests.gh.issue_opened"
+
+
+def _app_event(**overrides) -> AppEventOutbox:
+    defaults = dict(
+        id=1,
+        txn_id=500,
+        occurred_at=datetime(2026, 9, 25, tzinfo=timezone.utc),
+        install_id=9,
+        event_type=_GH_EVENT,
+        initiative_id=None,
+        payload={"number": 12},
+    )
+    defaults.update(overrides)
+    return AppEventOutbox(**defaults)
+
+
+def test_an_app_event_is_one_change_carrying_its_payload():
+    envelope = outbox_poller._envelope(
+        _subscription(event_types=[_GH_EVENT]),
+        500,
+        [],
+        guild_ref=_GUILD_REF,
+        actor_ref=None,
+        actor_app="tests.gh",
+        app_events=[(_app_event(), "tests.gh")],
+    )
+    assert envelope["actor_app"] == "tests.gh"
+    assert envelope["changes"] == [
+        {
+            "event_type": _GH_EVENT,
+            "initiative_id": None,
+            "app": "tests.gh",
+            "payload": {"number": 12},
+        }
+    ]
+
+
+def test_an_app_event_about_no_initiative_reaches_where_both_apps_are_placed():
+    """A vendor organization is not an initiative, so its events reach an
+    initiative's subscription where the emitting app is placed too."""
+    narrowed = _subscription(
+        app_install_id=4, initiative_id=11, event_types=[_GH_EVENT]
+    )
+    reach = _reach(apps=frozenset({"tests.gh"}))
+    event = _app_event()
+    matches = outbox_poller._matches_app_event
+
+    assert matches(event, "tests.gh", [11], narrowed, reach)
+    assert not matches(event, "tests.gh", [12], narrowed, reach)
+    assert not matches(event, "tests.gh", [11], narrowed, _reach())
+    assert not matches(event, "tests.gh", [11], narrowed, _reach(placed=frozenset()))
+    community = _subscription(app_install_id=4, event_types=[_GH_EVENT])
+    assert matches(event, "tests.gh", [], community, reach)
+
+
+def test_an_app_event_about_an_initiative_reaches_only_that_initiative():
+    event = _app_event(initiative_id=11)
+    reach = _reach(apps=frozenset({"tests.gh"}), placed=frozenset({11, 12}))
+    matches = outbox_poller._matches_app_event
+
+    for initiative_id, heard in ((11, True), (12, False), (None, True)):
+        subscription = _subscription(
+            app_install_id=4, initiative_id=initiative_id, event_types=[_GH_EVENT]
+        )
+        assert matches(event, "tests.gh", [11, 12], subscription, reach) is heard

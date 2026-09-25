@@ -52,6 +52,7 @@ __all__ = [
     "REF_MAX_LENGTH",
     "forget_guild",
     "ensure_app_guild_ref",
+    "ensure_app_guild_refs",
     "resolve_app_guild_ref",
     "drop_guild_app_refs",
     "drop_install_refs",
@@ -253,6 +254,26 @@ async def ensure_app_guild_ref(*, guild_id: int, app_install_id: int) -> str:
         )
         await session.commit()
     return ref
+
+
+async def ensure_app_guild_refs(
+    installs: Iterable[tuple[int, int]],
+) -> dict[tuple[int, int], str]:
+    """:func:`ensure_app_guild_ref` for several ``(guild_id, install_id)`` at
+    once, in one transaction."""
+    refs: dict[tuple[int, int], str] = {}
+    async with db_session.SystemSessionLocal() as session:
+        for guild_id, install_id in installs:
+            refs[(guild_id, install_id)] = await identity_refs.ensure_ref(
+                session,
+                entity_type=IdentityEntity.guild,
+                entity_id=guild_id,
+                purpose=_PURPOSE,
+                sector_guild_id=guild_id,
+                sector_id=install_id,
+            )
+        await session.commit()
+    return refs
 
 
 async def resolve_app_guild_ref(*, ref: str) -> tuple[int, int] | None:

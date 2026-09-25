@@ -312,6 +312,7 @@ EXEMPT: dict[str, str] = {
     "export_jobs": "operational",
     "import_jobs": "operational",
     "webhook_deliveries": "operational",
+    "app_hook_deliveries": "operational",
     # In-flight workflow rather than owned content: a request to join is a
     # question waiting on somebody in THIS instance.
     "initiative_join_requests": "in_flight",

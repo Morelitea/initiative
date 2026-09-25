@@ -180,6 +180,9 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # Spent client-assertion jtis from the app token endpoint. Hangs off a
         # registration, which is platform-wide.
         "app_assertion_jtis",
+        # Which community holds which install, and the value a vendor webhook
+        # routes to it by. An index over the guild schemas, holding no content.
+        "app_installs",
         # Registry client state: the TUF metadata this deployment last
         # verified, how the last refresh went, and the artwork its listings
         # named, kept locally so listing media is served from here.
@@ -227,6 +230,8 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # expose only has_key).
         "webhook_deliveries",  # per-subscription delivery ledger, no initiative of
         # its own; read through its subscription (LEDGER_TABLES below).
+        "app_hook_deliveries",  # vendor webhook deliveries an install accepted;
+        # read through the install (LEDGER_TABLES below).
         "tags",  # tags are guild-level, shared across initiatives (purge-guarded)
         "uploads",  # guild blob store: no FK to any initiative entity (documents
         # reference blobs by file_url string, and a blob can be pinned by
@@ -332,6 +337,7 @@ SEAT_TABLES: frozenset[str] = frozenset({"app_placements", "guild_ai_connections
 # ``GUILD_LEVEL_TABLES`` — enforced in ``tenancy_test.py``.
 LEDGER_TABLES: dict[str, tuple[str, str]] = {
     "webhook_deliveries": ("webhook_subscriptions", "subscription_id"),
+    "app_hook_deliveries": ("guild_apps", "install_id"),
 }
 
 # --- Row-attribution overlay on guild-schema tables ---------------------------
@@ -373,6 +379,8 @@ CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
         # by a person; each already records the actor it needs (the outbox
         # carries ``actor_user_id``) or has none to record.
         "event_outbox",
+        "app_event_outbox",
+        "app_hook_deliveries",
         "event_reminder_dispatches",
         "search_entries",
         "reaction_digest_items",

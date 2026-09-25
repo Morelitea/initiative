@@ -186,6 +186,8 @@ SYSTEM_GUILD_MAINTENANCE_GRANTS: dict[str, tuple[str, ...]] = {
         # subscription's owner, where RLS decides it.
         "SELECT (id, txn_id)",
     ),
+    # The same scan over the events apps emit.
+    "app_event_outbox": ("SELECT (id, txn_id)",),
     # The other half of that scan: what the ledger already records as settled
     # or leased for a subscription, so only the remainder is named.
     "webhook_deliveries": (

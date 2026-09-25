@@ -1394,6 +1394,9 @@ class AppChannelMessages:
     UNKNOWN_EVENT_TYPE = "APP_CHANNEL_UNKNOWN_EVENT_TYPE"
     #: The event body is larger than this build will carry.
     EVENT_TOO_LARGE = "APP_CHANNEL_EVENT_TOO_LARGE"
+    #: The event names an initiative the install is not placed in, or one
+    #: other than the initiative its token is narrowed to.
+    INITIATIVE_NOT_PLACED = "APP_CHANNEL_INITIATIVE_NOT_PLACED"
     #: A config state outside what an app may report.
     INVALID_CONFIG_STATE = "APP_CHANNEL_INVALID_CONFIG_STATE"
 

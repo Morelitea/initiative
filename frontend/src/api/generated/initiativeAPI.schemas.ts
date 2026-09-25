@@ -751,8 +751,6 @@ export interface AppEndpointRead {
  */
 export interface AppInstallationRead {
   installation: string;
-  scopes: string[];
-  initiatives: number[];
   active: boolean;
 }
 
@@ -9832,6 +9830,15 @@ export type IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBody = {
   scope?: string;
   resource?: string;
   assertion?: string;
+};
+
+export type ListAppInstallationsApiV1AppPlatformInstallationsGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  limit?: number;
+  cursor?: string | null;
 };
 
 export type ListPlacementCommunitiesApiV1SettingsPlacementCommunitiesGetParams = {

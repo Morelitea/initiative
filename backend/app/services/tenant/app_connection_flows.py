@@ -68,7 +68,7 @@ from app.services.auth.oidc._http import (
     OidcHttpStatusError,
     post_form_json_pinned,
 )
-from app.services.marketplace import registration_lookup
+from app.services.marketplace import app_installs, registration_lookup
 from app.services.marketplace.app_data import (
     MAX_RESPONSE_BYTES,
     REQUEST_TIMEOUT_SECONDS,
@@ -151,7 +151,7 @@ VENDOR_TIMEOUT_SECONDS = 10.0
 VENDOR_MAX_RESPONSE_BYTES = 512 * 1024
 #: The hooks Initiative calls.
 HOOKS_PATH = "/v1/hooks"
-HOOK_NAMES: frozenset[str] = frozenset({"after_connect", "revoke"})
+HOOK_NAMES: frozenset[str] = frozenset({"after_connect", "revoke", "webhook"})
 #: The widest account label kept, matching what the members view shows.
 MAX_ACCOUNT_LABEL_LENGTH = 200
 
@@ -1013,6 +1013,9 @@ async def complete_callback(
         if not stored:
             return landing_url(state.return_path, "not_recorded")
         await session.commit()
+        if state.user_id is None:
+            await session.refresh(app)
+            await app_installs.record(state.guild_id, app)
     return landing_url(state.return_path, "connected")
 
 

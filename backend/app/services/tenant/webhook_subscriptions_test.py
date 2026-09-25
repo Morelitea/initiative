@@ -16,7 +16,7 @@ exercised here.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlmodel import select
@@ -175,6 +175,11 @@ async def test_a_community_subscription_hears_every_initiative(
 # ---------------------------------------------------------------------------
 
 
+#: Another app's event, and the app that emits it.
+_GH_EVENT = "app.tests.gh.issue_opened"
+_EMITTERS = {_GH_EVENT: "tests.gh"}
+
+
 def _install_context(**overrides):
     from app.db.guild_standing import InstallContext
 
@@ -205,6 +210,12 @@ def _install_context(**overrides):
             None,
             id="every-tool-held",
         ),
+        pytest.param(
+            {"token_scopes": frozenset({"apps:tests.gh"})},
+            [_GH_EVENT],
+            None,
+            id="another-apps-event",
+        ),
     ],
 )
 def test_an_install_may_subscribe_within_its_standing(
@@ -216,6 +227,7 @@ def test_an_install_may_subscribe_within_its_standing(
         _install_context(**overrides),
         event_types=event_types,
         initiative_id=initiative_id,
+        emitters=_EMITTERS,
     )
 
 
@@ -240,6 +252,7 @@ def test_an_install_may_subscribe_within_its_standing(
             id="narrowed-other-initiative",
         ),
         pytest.param({}, ["documents.created"], 13, id="not-placed"),
+        pytest.param({}, [_GH_EVENT], None, id="apps-scope-missing"),
     ],
 )
 def test_an_install_may_not_subscribe_beyond_its_standing(
@@ -256,6 +269,7 @@ def test_an_install_may_not_subscribe_beyond_its_standing(
             _install_context(**overrides),
             event_types=event_types,
             initiative_id=initiative_id,
+            emitters=_EMITTERS,
         )
     assert refused.value.code == AppMessages.SCOPE_REQUIRED
 
@@ -454,3 +468,83 @@ async def test_an_install_hears_nothing_once_its_reach_is_withdrawn(
     system.expunge_all()
     await poller.drain_guild(system, install.guild.id, now=datetime.now(timezone.utc))
     assert [c["resource"]["id"] for e in sent for c in e["changes"]] == [before.id]
+
+
+async def test_an_apps_event_is_kept_until_the_subscriber_accepts_it(
+    session: AsyncSession, role_session, acting_user, client, monkeypatch
+):
+    """An install holding ``apps:<emitter>`` subscribes to another app's event,
+    and an event that app emits is delivered through the poller, retried
+    after a refusal."""
+    from app.core.app_access_token import seal_install_token
+    from app.db.install_standing_test import _install, _route
+    from app.schemas.tenant.webhook_subscription import WebhookSubscriptionCreate
+    from app.services.tenant import outbox_poller as poller
+    from app.services.tenant.webhook_subscriptions import create_install_subscription
+    from app.testing import create_app_service_registration, create_guild_app
+
+    install = await _install(
+        session, acting_user, role_session, granted=["apps:tests.gh"], placed="a"
+    )
+    emitter = await create_guild_app(
+        session,
+        install.guild,
+        install.seat.user,
+        listing_uid="GHEMTTER000001",
+        definition={
+            "app_kind": "service",
+            "service": {"public_id": "tests.gh", "protocol": 1},
+            "endpoints": [{"id": _GH_EVENT, "direction": "emit"}],
+        },
+    )
+    await create_app_service_registration(
+        session, public_id="tests.gh", listing_uid="GHEMTTER000001"
+    )
+    s, context = await _route(role_session, install, ["apps:tests.gh"])
+    await create_install_subscription(
+        s,
+        context=context,
+        payload=WebhookSubscriptionCreate(target_url=_HOOK, event_types=[_GH_EVENT]),
+    )
+
+    token, _ = seal_install_token(
+        guild_id=install.guild.id,
+        install_id=emitter.id,
+        client_id="tests.gh",
+        scopes=frozenset(),
+        initiative_id=None,
+        user_id=None,
+        purpose=None,
+    )
+    emitted = await client.post(
+        "/api/v1/app-platform/installation/events",
+        json={"event_type": _GH_EVENT, "payload": {"number": 12}},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert emitted.status_code == 202, emitted.text
+
+    attempts: list[dict] = []
+
+    async def _refuse_the_first(*, target_url, secret, envelope):
+        attempts.append(envelope)
+        return len(attempts) > 1
+
+    monkeypatch.setattr(poller, "deliver", _refuse_the_first)
+    system = await role_session("app_admin")
+    now = datetime.now(timezone.utc)
+    await poller.drain_guild(system, install.guild.id, now=now)
+    system.expunge_all()
+    await poller.drain_guild(system, install.guild.id, now=now + timedelta(hours=2))
+
+    assert [attempt["event_id"] for attempt in attempts] == [
+        attempts[0]["event_id"]
+    ] * 2
+    assert attempts[1]["actor_app"] == "tests.gh"
+    assert attempts[1]["changes"] == [
+        {
+            "event_type": _GH_EVENT,
+            "initiative_id": None,
+            "app": "tests.gh",
+            "payload": {"number": 12},
+        }
+    ]

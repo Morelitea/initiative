@@ -8,17 +8,18 @@ it signs (RFC 7523 §2.2), or, for a member token, presents one as the grant
 itself (RFC 7523 §2.1); see :mod:`app.services.marketplace.app_oauth`.
 
 ``GET /app-platform/installations`` takes an **app token** and lists the app's
-installs, each named by the reference the app asks for an installation token
-with.
+installs, a page at a time, each named by the reference the app asks for an
+installation token with.
 
 Both run on the system engine: the caller is an app rather than a person, and
-what they read is registrations, spent assertions and, for the listing, every
-community's install rows.
+what they read is registrations, spent assertions and, for the listing, the
+install index (``app_installs``).
 """
 
-from typing import Annotated, Any, List
+from typing import Annotated, Any, List, Optional
+from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -35,7 +36,7 @@ from app.schemas.platform.app_oauth import (
     AppInstallationRead,
     AppOAuthErrorResponse,
 )
-from app.services.marketplace import app_oauth, registration_lookup
+from app.services.marketplace import app_installs, app_oauth, registration_lookup
 
 SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
@@ -202,21 +203,29 @@ def _app_token(request: Request) -> AppAccessToken:
 
 @router.get("/installations", response_model=List[AppInstallationRead])
 async def list_app_installations(
-    request: Request, session: SystemSessionDep
+    request: Request,
+    response: Response,
+    limit: int = Query(
+        default=app_installs.PAGE_LIMIT, ge=1, le=app_installs.PAGE_LIMIT
+    ),
+    cursor: Optional[str] = Query(default=None, max_length=512),
 ) -> List[AppInstallationRead]:
-    """Every install of the calling app, with what it has been granted and
-    where it is placed. Takes an app token."""
+    """The calling app's installs, a page at a time. Takes an app token.
+
+    The next page, when there is one, is named in a ``Link`` header
+    (RFC 8288, ``rel="next"``) carrying the ``cursor`` to ask with.
+    """
     token = _app_token(request)
     client = (await registration_lookup.load_registrations()).get(token.client_id)
     if client is None or not client.live:
         raise _refuse()
-    listings = await app_oauth.list_installations(session, client)
+    listings, next_cursor = await app_oauth.list_installations(
+        client, cursor=cursor, limit=limit
+    )
+    if next_cursor is not None:
+        query = urlencode({"cursor": next_cursor, "limit": limit})
+        response.headers["Link"] = f'<?{query}>; rel="next"'
     return [
-        AppInstallationRead(
-            installation=listing.installation,
-            scopes=listing.scopes,
-            initiatives=listing.initiatives,
-            active=listing.active,
-        )
+        AppInstallationRead(installation=listing.installation, active=listing.active)
         for listing in listings
     ]
