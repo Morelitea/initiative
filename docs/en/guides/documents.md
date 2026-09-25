@@ -44,11 +44,12 @@ The editor has what you'd expect: **bold, italic, underline**, headings, quotes,
 
 Everything **autosaves**. There is no save button — which means there is no save button to forget to press at 11pm, and no version of this evening where you lose forty minutes of work to a browser tab.
 
-Four keys do more than they look like they do:
+A few keys do more than they look like they do:
 
 - `@` mentions a person.
 - `#` links to anything in the initiative. See [Mentions & links](mentions-and-links.md).
 - `[[` links to another document — and offers to make one if the name is new.
+- `![[` shows a thing in full, right there in the page. See [Embeds](#embeds).
 - `/` opens the insert menu: images, tables, callouts, statuses, drawings, diagrams, embeds, and [smart chips](#smart-chips).
 
 ![The document editor](../images/documents/editor.png)
@@ -80,6 +81,7 @@ Type `/` in a text document and pick one, or use **Smart chip** in the toolbar's
 | Task assignee | Who's holding it |
 | Task due date | When it's due — turning red once that's passed, unless it's finished |
 | Task priority | How urgent somebody said it was |
+| Task checkbox | A box and the task's name. Tick it and the task itself is done |
 | Counter value | The current number, against its target if it has one |
 | Event date | When it happens, dimmed once it has |
 
@@ -91,6 +93,10 @@ Hover it to see what the thing is called now and what kind of thing it is. Click
 
 Move that task to Done and the chip turns green — here, and in every other document that mentions it, with nobody editing a word. Meeting notes that are still accurate a month later, more or less for free.
 
+A task checkbox is the one chip you can *use*. The box is only offered to people who can edit the task; everybody else sees it ticked or not.
+
+An ordinary checklist ticks a line on this page and nothing else, which is what you want for a register — nobody enjoys arriving at a meeting to find they've been crossed out. When the line is real work, use a task checkbox, and ticking it in the minutes ticks it on the board.
+
 Smart chips are a text-document thing. A whiteboard holds shapes and a spreadsheet holds cells, so there's nowhere for a chip to sit.
 
 !!! note "What other people see"
@@ -98,6 +104,17 @@ Smart chips are a text-document thing. A whiteboard holds shapes and a spreadshe
 
 !!! tip "Exports show the words, not the chip"
     A chip can't keep itself up to date inside a PDF or a Word file, so an export shows the name the thing had when the chip was written.
+
+## Embeds
+
+A chip shows one fact. An **embed** shows the whole thing: its name, and underneath it whatever description somebody wrote for it — a task's notes, a project's summary, what the calendar is for — in a panel of its own.
+
+Type `![[` and pick something, or choose **Embed** from the `/` menu. Hover any `#` link while you're writing and **Show in full** turns it into an embed; the link icon in the embed's corner turns it back.
+
+Like a chip, it reads live. Rewrite the task's description and every page embedding it says the new thing.
+
+!!! tip "Embeds in markdown and exports"
+    In the **Markdown** view an embed is `![[task:12|Roll call]]`, which is how Obsidian writes one. An export can't reach back for the description, so it shows a panel with the thing's name.
 
 ## Spreadsheets
 
