@@ -14,8 +14,8 @@ dm_transport``, the device and one-time-key byte strings).
 - The request path updates only ``dm_devices``' ``last_seen_at``,
   ``device_token_id`` and ``signature``.
 
-Revision ID: 20260925_0396
-Revises: 20260925_0395
+Revision ID: 20260925_0397
+Revises: 20260925_0396
 Create Date: 2026-09-25
 """
 
@@ -24,8 +24,8 @@ from alembic import op
 
 from app.core.config import settings
 
-revision = "20260925_0396"
-down_revision = "20260925_0395"
+revision = "20260925_0397"
+down_revision = "20260925_0396"
 branch_labels = None
 depends_on = None
 
