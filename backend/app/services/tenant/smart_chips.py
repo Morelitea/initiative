@@ -25,7 +25,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, func
 from sqlmodel import select
 
-from app.core.smart_chips import SmartChipAspect, SmartChipTone
+from app.core.smart_chips import (
+    ACTIONABLE_CHIP_KINDS,
+    SmartChipAspect,
+    SmartChipTone,
+)
 from app.core.references import REF_SEPARATOR, parse_ref as parse_bare_ref
 from app.core.search import SearchEntityType
 from app.db import reference_targets
@@ -42,7 +46,7 @@ from app.models.tenant.task import (
     TaskStatus,
     TaskStatusCategory,
 )
-from app.schemas.tenant.smart_chip import SmartChipState
+from app.schemas.tenant.smart_chip import ReferenceEmbed, SmartChipState
 
 #: Ceiling on one request, so the cost of answering one is bounded.
 #:
@@ -180,6 +184,29 @@ async def _task_priority(
     }
 
 
+async def _task_checklist(
+    session: AsyncSession, ids: list[int]
+) -> dict[int, SmartChipValue]:
+    """Whether a task is finished — its column is a ``done`` one, the same
+    reading the status chip colours green. An open task answers with nothing in
+    it; a finished one says when, where that is known."""
+    rows = (
+        await session.exec(
+            select(Task.id, Task.completed_at, TaskStatus.category)
+            .join(TaskStatus, TaskStatus.id == Task.task_status_id)
+            .where(Task.id.in_(ids), Task.deleted_at.is_(None))
+        )
+    ).all()
+    return {
+        task_id: (
+            SmartChipValue(text="done", tone=SmartChipTone.good, date=completed)
+            if category == TaskStatusCategory.done
+            else SmartChipValue(text="")
+        )
+        for task_id, completed, category in rows
+    }
+
+
 async def _counter_value(
     session: AsyncSession, ids: list[int]
 ) -> dict[int, SmartChipValue]:
@@ -295,6 +322,7 @@ SMART_CHIP_SOURCES: dict[tuple[SearchEntityType, SmartChipAspect], Reader] = {
     (SearchEntityType.counter, SmartChipAspect.value): _counter_value,
     (SearchEntityType.project, SmartChipAspect.progress): _project_progress,
     (SearchEntityType.calendar_event, SmartChipAspect.when): _event_when,
+    (SearchEntityType.task, SmartChipAspect.checklist): _task_checklist,
 }
 
 
@@ -349,7 +377,11 @@ async def _titles(
 
 
 async def _visible(
-    session: AsyncSession, *, user_id: int, wanted: dict[SearchEntityType, set[int]]
+    session: AsyncSession,
+    *,
+    user_id: int,
+    wanted: dict[SearchEntityType, set[int]],
+    need_write: bool = False,
 ) -> dict[SearchEntityType, set[int]]:
     """Which of the things asked about this request may actually open.
 
@@ -363,9 +395,9 @@ async def _visible(
     """
     seen: dict[SearchEntityType, set[int]] = {}
     for entity_type, ids in wanted.items():
-        statement = reference_targets.visible_ids(entity_type, user_id).where(
-            reference_targets.id_column(entity_type).in_(ids)
-        )
+        statement = reference_targets.visible_ids(
+            entity_type, user_id, need_write=need_write
+        ).where(reference_targets.id_column(entity_type).in_(ids))
         # A Core-column select yields rows, not scalars.
         rows = (await session.exec(statement)).all()
         seen[entity_type] = {row[0] for row in rows}
@@ -397,6 +429,19 @@ async def read_smart_chips(
     for (entity_type, _aspect), ids in wanted.items():
         by_type.setdefault(entity_type, set()).update(ids)
     visible = await _visible(session, user_id=user_id, wanted=by_type)
+    # Whether each chip that can be acted on may be, asked at edit level of the
+    # same gate — so the page offers the box only where ticking it would land.
+    actionable: dict[SearchEntityType, set[int]] = {}
+    for (entity_type, aspect), ids in wanted.items():
+        if (entity_type, aspect) in ACTIONABLE_CHIP_KINDS:
+            actionable.setdefault(entity_type, set()).update(
+                i for i in ids if i in visible.get(entity_type, ())
+            )
+    writable = (
+        await _visible(session, user_id=user_id, wanted=actionable, need_write=True)
+        if actionable
+        else {}
+    )
 
     # What each thing is called, read once per kind and sent with every answer
     # about it. A chip carries the name of its own thing rather than the caller
@@ -446,6 +491,64 @@ async def read_smart_chips(
                 color=value.color,
                 date=value.date,
                 number=value.number,
+                writable=(pair in ACTIONABLE_CHIP_KINDS)
+                and entity_id in writable.get(pair[0], ()),
             )
         )
     return states
+
+
+async def _descriptions(
+    session: AsyncSession, entity_type: SearchEntityType, ids: list[int]
+) -> dict[int, str]:
+    """What these things say about themselves — read from the kind's own
+    ``description`` column, so a kind has one here exactly when its table does."""
+    table = reference_targets.id_column(entity_type).table
+    if "description" not in table.c:
+        return {}
+    rows = (
+        await session.exec(
+            select(table.c["id"], table.c["description"]).where(table.c["id"].in_(ids))
+        )
+    ).all()
+    return {entity_id: text for entity_id, text in rows if text}
+
+
+async def read_embeds(
+    session: AsyncSession, *, user_id: int, refs: list[str]
+) -> list[ReferenceEmbed]:
+    """Every embedded reference that resolves, in the order asked.
+
+    Gated exactly as a chip is — through :func:`_visible` — so an embed of
+    something gone or out of reach is left out of the answer.
+    """
+    wanted: dict[SearchEntityType, set[int]] = {}
+    parsed: list[tuple[str, SearchEntityType, int]] = []
+    for ref in dict.fromkeys(refs[:MAX_REFS]):
+        named = parse_bare_ref(ref)
+        if named is None:
+            continue
+        entity_type, entity_id = named
+        wanted.setdefault(entity_type, set()).add(entity_id)
+        parsed.append((ref, entity_type, entity_id))
+
+    visible = await _visible(session, user_id=user_id, wanted=wanted)
+    names: dict[SearchEntityType, dict[int, str]] = {}
+    described: dict[SearchEntityType, dict[int, str]] = {}
+    for entity_type, ids in visible.items():
+        if not ids:
+            continue
+        allowed = sorted(ids)
+        names[entity_type] = await _titles(session, entity_type, allowed)
+        described[entity_type] = await _descriptions(session, entity_type, allowed)
+
+    return [
+        ReferenceEmbed(
+            ref=ref,
+            entity_type=entity_type,
+            title=names[entity_type][entity_id],
+            description=described[entity_type].get(entity_id),
+        )
+        for ref, entity_type, entity_id in parsed
+        if entity_id in names.get(entity_type, {})
+    ]

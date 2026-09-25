@@ -100,11 +100,26 @@ def parse_ref(ref: str) -> tuple[SearchEntityType, int] | None:
 #:
 #: ``wikilink`` is what ``[[ ]]`` wrote before references were one thing;
 #: ``entity-mention`` is what both triggers write now. Both count, which is what
-#: stops "what links here" under-reporting the moment anyone uses ``#``.
+#: stops "what links here" under-reporting the moment anyone uses ``#``. A
+#: ``smart-chip`` and a ``reference-embed`` (``![[ ]]``) count too: a page
+#: showing a task's status, or the task itself, is about that task.
 _REFERENCE_NODES: dict[str, str] = {
     "wikilink": "documentId",
     "entity-mention": "entityId",
+    "smart-chip": "entityId",
+    "reference-embed": "entityId",
 }
+
+
+def _node_kind(node: dict[str, Any]) -> SearchEntityType | None:
+    """The kind a reference node names. A chip spells it as the first half of
+    its ``task:status``; a legacy wikilink is a document by construction and
+    carries none."""
+    chip_kind = node.get("chipKind")
+    if isinstance(chip_kind, str):
+        return _kind(chip_kind.split(REF_SEPARATOR)[0])
+    return _kind(node.get("entityType", SearchEntityType.document.value))
+
 
 #: A reference written into running text: ``#task[Fix the bug](12)``. The kind
 #: is part of the syntax, so one pattern reads every kind rather than one
@@ -140,9 +155,7 @@ def kind_for_trigger(word: str) -> SearchEntityType | None:
 def references_in_body(content: Any) -> set[tuple[SearchEntityType, int]]:
     """Every thing a Lexical body points at.
 
-    Walks the editor state for reference nodes. A smart chip is a reading of a
-    thing rather than a link to it and never counts — it is already excluded by
-    not being one of the node types above.
+    Walks the editor state for reference nodes, chips included.
     """
     if not isinstance(content, dict):
         return set()
@@ -154,9 +167,7 @@ def references_in_body(content: Any) -> set[tuple[SearchEntityType, int]]:
             return
         field = _REFERENCE_NODES.get(node.get("type"))
         if field is not None:
-            # A reference names its kind; a legacy wikilink is a document by
-            # construction and carries none.
-            kind = _kind(node.get("entityType", SearchEntityType.document.value))
+            kind = _node_kind(node)
             entity_id = node.get(field)
             if kind is not None and isinstance(entity_id, int) and entity_id > 0:
                 found.add((kind, entity_id))

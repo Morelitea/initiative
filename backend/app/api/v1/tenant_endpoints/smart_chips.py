@@ -15,7 +15,7 @@ from app.api.deps import GuildContext, RLSSessionDep, get_current_active_user
 from app.api.deps import get_guild_membership
 from app.core.smart_chips import SmartChipKind
 from app.models.platform.user import User
-from app.schemas.tenant.smart_chip import SmartChipStateList
+from app.schemas.tenant.smart_chip import ReferenceEmbedList, SmartChipStateList
 from app.services.tenant import smart_chips as smart_chips_service
 
 router = APIRouter()
@@ -68,5 +68,27 @@ async def read_smart_chips(
             session,
             user_id=current_user.id,
             refs=ref,
+        )
+    )
+
+
+@router.get("/embeds", response_model=ReferenceEmbedList)
+async def read_reference_embeds(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    _guild_context: GuildContextDep,
+    ref: List[str] = Query(
+        default=[],
+        max_length=smart_chips_service.MAX_REFS,
+        description="A reference to show in full, as `kind:id` — `task:12`.",
+    ),
+) -> ReferenceEmbedList:
+    """What an embedded reference shows: the thing's name and description.
+
+    Absent for anything gone or out of this caller's reach, as a chip is.
+    """
+    return ReferenceEmbedList(
+        items=await smart_chips_service.read_embeds(
+            session, user_id=current_user.id, refs=ref
         )
     )
