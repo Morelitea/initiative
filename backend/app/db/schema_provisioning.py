@@ -151,17 +151,15 @@ SUPPORT_WRITE_PROTECTED_TABLES: tuple[str, ...] = (
 
 # Direct grants for the guild-scoped system operations that must not go through
 # tenant visibility rules: removing an account's embedded display name, and the
-# webhook poller's scan for what each subscription is still owed. The system
+# webhook poller's scan for what each subscription is still owed. The columns
+# the name is removed from are every column somebody writes in
+# (``search_index.written_columns``); they are added by
+# :func:`system_maintenance_grants`, so this names only the rest. The system
 # login can already assume every guild role, so this adds no reachable guild;
 # it lets those narrowly bounded operations retain app_admin's BYPASSRLS
 # identity instead of putting a comments UPDATE, or a scan of the whole change
 # log every five seconds, through initiative_access() one row at a time.
 SYSTEM_GUILD_MAINTENANCE_GRANTS: dict[str, tuple[str, ...]] = {
-    "comments": ("SELECT", "UPDATE"),
-    "documents": ("SELECT", "UPDATE"),
-    "posts": ("SELECT", "UPDATE"),
-    # A task's description carries the same mention markup as a comment.
-    "tasks": ("SELECT", "UPDATE"),
     "task_assignment_digest_items": ("SELECT", "UPDATE"),
     # The frozen-ancestor guard reads each supported parent into a composite
     # record (``SELECT *``) before capture/search triggers resolve identifiers.
@@ -174,10 +172,9 @@ SYSTEM_GUILD_MAINTENANCE_GRANTS: dict[str, tuple[str, ...]] = {
     "galleries": ("SELECT",),
     # A comment can hang off a wiki, and off one of its pages — which is where
     # a wiki's conversation actually happens — so the guard reads both while
-    # the scrub rewrites that comment. A page's own body carries mention nodes
-    # the way a document's does, so the scrub rewrites pages too.
+    # the scrub rewrites that comment.
     "wikis": ("SELECT",),
-    "wiki_pages": ("SELECT", "UPDATE"),
+    "wiki_pages": ("SELECT",),
     "initiatives": ("SELECT",),
     # Content and search-index triggers must still record the scrub. Their
     # writes are column-scoped where possible; DELETE needs a table privilege.
@@ -201,6 +198,21 @@ SYSTEM_GUILD_MAINTENANCE_GRANTS: dict[str, tuple[str, ...]] = {
         "DELETE",
     ),
 }
+
+
+def system_maintenance_grants() -> dict[str, tuple[str, ...]]:
+    """:data:`SYSTEM_GUILD_MAINTENANCE_GRANTS`, plus reading and rewriting every
+    column somebody writes in — and the collaboration state beside it, which
+    has to be cleared when the text under it changes."""
+    from app.db.search_index import written_columns
+
+    grants = dict(SYSTEM_GUILD_MAINTENANCE_GRANTS)
+    for model, columns in written_columns().items():
+        if "yjs_state" in model.__table__.c:
+            columns = (*columns, "yjs_state")
+        grants[model.__table__.name] = ("SELECT", f"UPDATE ({', '.join(columns)})")
+    return grants
+
 
 SYSTEM_GUILD_MAINTENANCE_SEQUENCE_GRANTS: dict[str, tuple[str, ...]] = {
     "event_outbox_id_seq": ("USAGE",),
@@ -605,7 +617,7 @@ def _grant_statements(
         *(
             f"GRANT {', '.join(privileges)} ON TABLE "
             f'"{schema}"."{table}" TO "{SYSTEM_LOGIN_ROLE}"'
-            for table, privileges in SYSTEM_GUILD_MAINTENANCE_GRANTS.items()
+            for table, privileges in system_maintenance_grants().items()
         ),
         *(
             f"GRANT {', '.join(privileges)} ON SEQUENCE "

@@ -20,7 +20,7 @@ import hashlib
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 
-from sqlalchemy import DateTime, MetaData
+from sqlalchemy import DateTime, Enum, MetaData
 from sqlmodel import SQLModel
 
 from app.core.search import SearchEntityType
@@ -385,6 +385,27 @@ SEARCH_SOURCES: dict[str, SearchSource] = {
         depends_on=(SearchDependency("tasks", "project_id", "task_id"),),
     ),
 }
+
+
+def written_columns() -> dict[type[SQLModel], tuple[str, ...]]:
+    """Every column somebody writes in, by model: the body of every source
+    above, less a column that only names a kind (an enum). Whatever can be
+    searched for is written somewhere, and this is where."""
+    models = {
+        mapper.local_table.name: mapper.class_
+        for mapper in SQLModel._sa_registry.mappers  # type: ignore[attr-defined]
+        if mapper.local_table.name in SEARCH_SOURCES
+    }
+    written = {
+        models[table]: tuple(
+            column
+            for column in source.body
+            if not isinstance(models[table].__table__.c[column].type, Enum)
+        )
+        for table, source in SEARCH_SOURCES.items()
+    }
+    return {model: columns for model, columns in written.items() if columns}
+
 
 #: Tables that are deliberately NOT searchable, and why. Every guild content
 #: table is in exactly one of this or SEARCH_SOURCES; ``search_index_test``

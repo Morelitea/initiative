@@ -252,16 +252,18 @@ UNCLAIMED_PASTED_IMAGE_GRACE = timedelta(hours=24)
 
 
 def _upload_columns() -> tuple[tuple[type, str], ...]:
-    """Every column a stored upload can be shown from: the bodies people write,
-    comments, and the file columns of documents and pictures."""
-    from app.models.tenant.comment import Comment
+    """Every column a stored upload can be shown from: every column somebody
+    writes in, and the file columns of documents and pictures."""
+    from app.db.search_index import written_columns
     from app.models.tenant.document import Document, DocumentFileVersion
     from app.models.tenant.gallery import GalleryImage, GalleryImageVersion
-    from app.services.tenant.content_references import BODY_COLUMNS
 
     return (
-        *BODY_COLUMNS.values(),
-        (Comment, "content"),
+        *(
+            (model, column)
+            for model, columns in written_columns().items()
+            for column in columns
+        ),
         (Document, "featured_image_url"),
         (Document, "file_url"),
         (DocumentFileVersion, "file_url"),
