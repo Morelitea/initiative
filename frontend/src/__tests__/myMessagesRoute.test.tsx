@@ -219,6 +219,14 @@ const profile = (userId: number, username: string) => ({
   isLoading: false,
 });
 
+/** The pair every thread here is on, as the server lists it. */
+const conversation = {
+  id: "conv-1",
+  other_user_id: 7,
+  member_ids: [7],
+  created_at: "2026-09-01T00:00:00Z",
+};
+
 describe("My Messages", () => {
   it("is reachable at /messages", async () => {
     await renderMessages();
@@ -231,7 +239,7 @@ describe("My Messages", () => {
     // to offer the conversations itself or there is no way to pick one without
     // opening the menu again.
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -253,7 +261,7 @@ describe("My Messages", () => {
 
   it("renders a thread out of this device's own store", async () => {
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -274,7 +282,7 @@ describe("My Messages", () => {
     // apart are two occasions, and the second must not wear the first's time.
     const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -300,7 +308,7 @@ describe("My Messages", () => {
 
   it("heads each day the thread has messages on", async () => {
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -327,7 +335,7 @@ describe("My Messages", () => {
     // A tick apiece: delivered means a device of theirs holds it, read means
     // somebody looked, and nothing back yet draws neither.
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -349,7 +357,7 @@ describe("My Messages", () => {
 
   it("answers one message with another, and says which", async () => {
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -369,7 +377,7 @@ describe("My Messages", () => {
 
   it("quotes who it is answering, and goes back to them when picked", async () => {
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -405,7 +413,7 @@ describe("My Messages", () => {
     // them on a touch screen is not focusable -- so hiding them that way
     // leaves a keyboard no way to reply, edit or remove anything.
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -434,7 +442,7 @@ describe("My Messages", () => {
     // The log refuses anything else, so offering it would be a button that
     // does nothing -- and the reason is not the interface's to invent.
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -452,7 +460,7 @@ describe("My Messages", () => {
 
   it("rewrites one of your own in the composer, not in the bubble", async () => {
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -480,7 +488,7 @@ describe("My Messages", () => {
     // the edit resolves `false` rather than throwing. Losing the correction
     // either way is the same loss to whoever typed it.
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -503,7 +511,7 @@ describe("My Messages", () => {
 
   it("takes one back only once it has been confirmed", async () => {
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -526,7 +534,7 @@ describe("My Messages", () => {
 
   it("leaves a line where a removed message was, and nothing to do about it", async () => {
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -550,7 +558,7 @@ describe("My Messages", () => {
 
   it("turns a reaction off by pressing the one already there", async () => {
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -629,7 +637,7 @@ describe("My Messages", () => {
     // the draft follows the switch, and the next Send addresses somebody else.
     mocks.conversations.mockResolvedValue({
       conversations: [
-        { id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" },
+        conversation,
         { id: "conv-2", other_user_id: 8, created_at: "2026-09-01T00:00:00Z" },
       ],
     });
@@ -651,7 +659,7 @@ describe("My Messages", () => {
 
   it("says an account has no device rather than reporting a plain failure", async () => {
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -671,7 +679,7 @@ describe("My Messages", () => {
     // A contacts row links straight here. Landing on the page is not enough —
     // it has to land on that person's thread.
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -819,7 +827,7 @@ describe("My Messages", () => {
 
   it("sends through the ratchet rather than posting a body", async () => {
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
