@@ -71,6 +71,8 @@ from app.db.session import (
     apply_install_standing,
     clear_rls_context,
     get_session,
+    restore_rls_context,
+    save_rls_context,
     set_rls_context,
 )
 from app.models.platform.access_grant import (
@@ -1137,6 +1139,7 @@ async def establish_guild_access(
     guild_context = await _load_guild_context(
         session, current_user, guild_id, for_settings=for_settings
     )
+    looked_up = save_rls_context(session)
     guild_context = await apply_guild_session_context(
         session, current_user, guild_context, satisfied=satisfied, for_seat=for_seat
     )
@@ -1144,7 +1147,14 @@ async def establish_guild_access(
     # the rule: an administrator keeps that one while their session does not
     # answer it.
     if not for_settings and not guild_context.guild_auth_ok:
-        await _refuse_sign_in(session, guild_context, satisfied)
+        try:
+            await _refuse_sign_in(session, guild_context, satisfied)
+        except GuildAccessError:
+            # Refused, the session goes back to the lookup's context, as a
+            # refusal before routing leaves it: a caller that carries on with
+            # it is not left inside the community.
+            await restore_rls_context(session, looked_up)
+            raise
     return guild_context
 
 
@@ -1155,7 +1165,7 @@ async def _refuse_sign_in(
     sign-in rule, saying what it is missing.
 
     The standing statement answered the question from the rows; this reads the
-    rule to name the step-up the caller owes.
+    rule, under the routing, to name the step-up the caller owes.
     """
     guild_id = guild_context.guild_id
     await _enforce_guild_auth_policy(
