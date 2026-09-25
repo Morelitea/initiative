@@ -10,8 +10,6 @@ from app.core.app_scopes import AppScopeResource
 from app.db.app_rls import APP_TABLE_ACCESS, AppTableKind
 from app.db.tenancy import GUILD_SCOPED_TABLES
 
-pytestmark = pytest.mark.unit
-
 
 def test_every_table_named_is_a_guild_table_that_exists():
     """Every entry names a guild table the models declare."""

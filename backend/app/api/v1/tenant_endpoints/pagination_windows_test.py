@@ -17,7 +17,6 @@ import pytest
 from app.models.platform.guild import GuildRole
 from app.testing import create_document, create_project, create_task
 
-pytestmark = pytest.mark.integration
 
 WINDOW = 3
 TOTAL = 7  # 3 windows: 3 + 3 + 1

@@ -33,7 +33,6 @@ async def _scalar(session: AsyncSession, sql: str):
     return (await session.exec(text(sql))).scalar()
 
 
-@pytest.mark.database
 async def test_commit_then_query_replays_context(session, role_session):
     """The core rule-2 regression: routed session → commit → tenant query
     succeeds with NO manual reapply (the after_begin hook replays context on
@@ -53,7 +52,6 @@ async def test_commit_then_query_replays_context(session, role_session):
     )
 
 
-@pytest.mark.database
 async def test_context_dies_with_transaction(session, role_session):
     """No session-level state: with the stored params removed (no replay),
     the connection is back to the login role, public search_path, empty GUCs."""
@@ -76,7 +74,6 @@ async def test_context_dies_with_transaction(session, role_session):
     assert "guild_" not in (await _scalar(s, "SELECT current_setting('search_path')"))
 
 
-@pytest.mark.database
 async def test_stale_user_snapshot_fails_closed(session, role_session):
     """A user-derived snapshot past the freshness floor refuses to begin a
     transaction — the DB-layer floor under the realtime spine."""
@@ -92,7 +89,6 @@ async def test_stale_user_snapshot_fails_closed(session, role_session):
         await s.exec(text("SELECT 1"))
 
 
-@pytest.mark.database
 async def test_system_context_exempt_from_ttl(session, role_session):
     """A system context (no user_id — worker loops, seeding) is not a user
     authorization snapshot; the floor must not break a long maintenance pass."""
@@ -107,7 +103,6 @@ async def test_system_context_exempt_from_ttl(session, role_session):
     assert await _scalar(s, "SELECT count(*) FROM projects") is not None
 
 
-@pytest.mark.database
 async def test_mid_transaction_reroute(session, role_session):
     """cross_guild-style loops re-route guild A → guild B inside one
     transaction; the direct application must win over the replayed context."""
@@ -127,7 +122,6 @@ async def test_mid_transaction_reroute(session, role_session):
     assert (await _scalar(s, "SELECT current_user")) == guild_role_name(guild_b.id)
 
 
-@pytest.mark.database
 async def test_nested_transaction_inherits_context(session, role_session):
     """SET LOCAL scopes to the top-level transaction; a savepoint must inherit
     the routed context (the hook skips nested begins)."""
@@ -143,7 +137,6 @@ async def test_nested_transaction_inherits_context(session, role_session):
         )
 
 
-@pytest.mark.database
 async def test_harness_pin_survives_commit(session):
     """route_session_to_guild pins are transaction-local but replayed: a
     factory-routed test session still resolves the guild schema after commit."""
@@ -156,7 +149,6 @@ async def test_harness_pin_survives_commit(session):
     assert f"guild_{guild.id}" in sp
 
 
-@pytest.mark.database
 async def test_guild_schema_context_returns_an_unrouted_session_as_it_found_it(
     session, role_session
 ):
@@ -185,7 +177,6 @@ async def test_guild_schema_context_returns_an_unrouted_session_as_it_found_it(
     assert (await _scalar(s, "SELECT current_user")) == "app_admin"
 
 
-@pytest.mark.database
 async def test_guild_schema_context_restores_a_callers_own_context(
     session, role_session
 ):

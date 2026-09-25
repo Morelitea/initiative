@@ -1,11 +1,7 @@
 """Unit tests for export branding: icon staging + the render-request seam."""
 
-import pytest
-
 from app.services.export.branding import apply_brand, icon_asset
 from app.services.export.contract import RenderItem, RenderRequest
-
-pytestmark = pytest.mark.unit
 
 
 def test_icon_asset_names_the_file_by_its_type():

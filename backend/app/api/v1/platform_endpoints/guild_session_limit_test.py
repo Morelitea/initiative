@@ -21,8 +21,6 @@ from app.testing.factories import (
     get_auth_headers,
 )
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
-
 
 async def test_the_seat_switches_the_standard_and_the_guild_list_reads_it(
     client: AsyncClient, session: AsyncSession

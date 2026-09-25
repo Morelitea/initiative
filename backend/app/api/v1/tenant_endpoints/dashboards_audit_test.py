@@ -8,7 +8,6 @@ two ends of it.
 
 from __future__ import annotations
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -16,7 +15,6 @@ from app.core.audit_events import AuditEventType
 from app.models.platform.guild import GuildRole
 from app.testing import create_project, emitted
 
-pytestmark = pytest.mark.integration
 
 COUNT_TASKS = "SELECT count(*) AS n FROM tasks"
 

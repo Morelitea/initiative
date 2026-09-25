@@ -10,7 +10,6 @@ from app.api.v1.platform_endpoints import version as version_endpoint
 from app.schemas.base import MAX_PLAIN_TEXT_LENGTH
 
 
-@pytest.mark.integration
 async def test_changelog_returns_typed_entries(client: AsyncClient):
     """The changelog is served as ``{entries: [{version, date, changes}]}`` —
     the typed shape Orval generates from ChangelogResponse."""
@@ -22,7 +21,6 @@ async def test_changelog_returns_typed_entries(client: AsyncClient):
         assert set(entry.keys()) == {"version", "date", "changes"}
 
 
-@pytest.mark.integration
 async def test_changelog_returns_large_sections_verbatim(client: AsyncClient):
     """A single version's ``changes`` routinely exceeds the plain-text
     sanitizer's length cap. ``changes`` is RawTextStr, so the section is

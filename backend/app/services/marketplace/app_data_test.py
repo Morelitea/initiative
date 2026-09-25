@@ -21,7 +21,6 @@ from app.core.messages import AppDataMessages
 from app.models.platform.app_service_registration import AppServiceRegistration
 from app.services.marketplace import app_data as service
 
-pytestmark = pytest.mark.unit
 
 URL = "http://127.0.0.1:9100/v1/endpoints"
 

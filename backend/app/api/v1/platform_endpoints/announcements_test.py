@@ -54,7 +54,6 @@ async def _author(session: AsyncSession):
     return user, get_auth_headers(user)
 
 
-@pytest.mark.integration
 async def test_a_reader_sees_a_published_announcement(
     client: AsyncClient, session: AsyncSession
 ):
@@ -73,7 +72,6 @@ async def test_a_reader_sees_a_published_announcement(
     assert items[0]["sections"][0]["heading"] == "Look"
 
 
-@pytest.mark.integration
 async def test_a_draft_is_invisible_to_a_reader(
     client: AsyncClient, session: AsyncSession
 ):
@@ -90,7 +88,6 @@ async def test_a_draft_is_invisible_to_a_reader(
     assert listed.json()["items"] == []
 
 
-@pytest.mark.integration
 async def test_dismissing_removes_it_from_the_next_fetch(
     client: AsyncClient, session: AsyncSession
 ):
@@ -119,7 +116,6 @@ async def test_dismissing_removes_it_from_the_next_fetch(
     assert after.json()["items"] == []
 
 
-@pytest.mark.integration
 async def test_the_archive_returns_what_the_queue_has_finished_with(
     client: AsyncClient, session: AsyncSession
 ):
@@ -146,7 +142,6 @@ async def test_the_archive_returns_what_the_queue_has_finished_with(
     assert archive.json()["items"][0]["dismissed_at"] is not None
 
 
-@pytest.mark.integration
 async def test_a_notice_that_asks_for_two_dismissals_survives_the_first(
     client: AsyncClient, session: AsyncSession
 ):
@@ -171,7 +166,6 @@ async def test_a_notice_that_asks_for_two_dismissals_survives_the_first(
     assert after_two.json()["items"] == []
 
 
-@pytest.mark.integration
 async def test_pages_and_a_trigger_route_survive_the_round_trip(
     client: AsyncClient, session: AsyncSession
 ):
@@ -197,7 +191,6 @@ async def test_pages_and_a_trigger_route_survive_the_round_trip(
     assert [section["starts_page"] for section in item["sections"]] == [False, True]
 
 
-@pytest.mark.integration
 async def test_a_trigger_route_that_is_not_a_path_is_refused(
     client: AsyncClient, session: AsyncSession
 ):
@@ -210,7 +203,6 @@ async def test_a_trigger_route_that_is_not_a_path_is_refused(
     assert response.status_code == 422
 
 
-@pytest.mark.integration
 async def test_an_account_made_since_publication_is_not_told_about_it(
     client: AsyncClient, session: AsyncSession
 ):
@@ -236,7 +228,6 @@ async def test_an_account_made_since_publication_is_not_told_about_it(
     assert listed.json()["items"] == []
 
 
-@pytest.mark.integration
 async def test_a_receipt_for_something_that_does_not_exist_is_a_404(
     client: AsyncClient, session: AsyncSession
 ):
@@ -248,7 +239,6 @@ async def test_a_receipt_for_something_that_does_not_exist_is_a_404(
     assert response.json()["detail"] == "ANNOUNCEMENT_NOT_FOUND"
 
 
-@pytest.mark.integration
 async def test_a_malformed_key_is_rejected_before_any_lookup(
     client: AsyncClient, session: AsyncSession
 ):
@@ -259,7 +249,6 @@ async def test_a_malformed_key_is_rejected_before_any_lookup(
     assert response.status_code == 422
 
 
-@pytest.mark.integration
 async def test_writing_an_announcement_needs_the_capability(
     client: AsyncClient, session: AsyncSession
 ):
@@ -280,7 +269,6 @@ async def test_writing_an_announcement_needs_the_capability(
     assert listed.status_code == 403
 
 
-@pytest.mark.integration
 async def test_an_author_sees_drafts_in_the_operator_list(
     client: AsyncClient, session: AsyncSession
 ):
@@ -297,7 +285,6 @@ async def test_an_author_sees_drafts_in_the_operator_list(
     assert "A draft" in titles
 
 
-@pytest.mark.integration
 async def test_editing_publishes_and_unpublishes(
     client: AsyncClient, session: AsyncSession
 ):
@@ -341,7 +328,6 @@ async def test_editing_publishes_and_unpublishes(
     ] == []
 
 
-@pytest.mark.integration
 async def test_deleting_an_announcement_removes_it(
     client: AsyncClient, session: AsyncSession
 ):
@@ -363,7 +349,6 @@ async def test_deleting_an_announcement_removes_it(
     assert missing.status_code == 404
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("tier", [UserRole.operator, UserRole.owner])
 async def test_an_author_on_their_own_tier_writes_drafts_and_deletes_receipts(
     client: AsyncClient, session: AsyncSession, tier
@@ -409,7 +394,6 @@ async def test_an_author_on_their_own_tier_writes_drafts_and_deletes_receipts(
     assert await session.get(AnnouncementReadReceipt, (reader_id, key)) is None
 
 
-@pytest.mark.integration
 async def test_an_announcement_needs_a_section_with_something_in_it(
     client: AsyncClient, session: AsyncSession
 ):
@@ -422,7 +406,6 @@ async def test_an_announcement_needs_a_section_with_something_in_it(
     assert response.status_code == 422
 
 
-@pytest.mark.integration
 async def test_a_section_picture_must_be_a_path_or_an_http_url(
     client: AsyncClient, session: AsyncSession
 ):
@@ -437,7 +420,6 @@ async def test_a_section_picture_must_be_a_path_or_an_http_url(
     assert response.status_code == 422
 
 
-@pytest.mark.integration
 async def test_uploading_a_picture_returns_a_url_that_serves_it(
     client: AsyncClient, session: AsyncSession
 ):
@@ -459,7 +441,6 @@ async def test_uploading_a_picture_returns_a_url_that_serves_it(
     assert served.headers["content-type"] == "image/png"
 
 
-@pytest.mark.integration
 async def test_re_uploading_the_same_picture_still_serves_it(
     client: AsyncClient, session: AsyncSession
 ):
@@ -493,7 +474,6 @@ async def test_re_uploading_the_same_picture_still_serves_it(
     assert served.status_code == 200
 
 
-@pytest.mark.integration
 async def test_uploading_something_that_is_not_an_image_is_refused(
     client: AsyncClient, session: AsyncSession
 ):
@@ -507,7 +487,6 @@ async def test_uploading_something_that_is_not_an_image_is_refused(
     assert response.json()["detail"] == "ANNOUNCEMENT_IMAGE_UNSUPPORTED_TYPE"
 
 
-@pytest.mark.integration
 async def test_uploading_a_picture_needs_the_capability(
     client: AsyncClient, session: AsyncSession
 ):

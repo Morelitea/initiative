@@ -20,8 +20,6 @@ from app.services import email as email_service
 from app.services.platform import email_outbox, user_notifications
 from app.testing import create_guild, create_user, set_notification_prefs
 
-pytestmark = [pytest.mark.integration, pytest.mark.database]
-
 
 def _pieces(
     body: str = "<strong>Alice</strong> mentioned you",

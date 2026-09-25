@@ -19,10 +19,7 @@ migration plus an update here (the ``tenancy_test.py`` pattern).
 
 from __future__ import annotations
 
-import pytest
 from sqlalchemy import text
-
-pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 
 async def _nullability(session, table: str) -> dict[str, bool]:

@@ -6,14 +6,11 @@ dashboard shares the canvas, never the data it displays, and no endpoint
 accepts anything that would let a definition write.
 """
 
-import pytest
 from httpx import AsyncClient
-from sqlalchemy import delete as sa_delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
-from app.models.tenant.resource_grant import ResourceGrant
-from app.testing import create_dashboard
+from app.testing import create_dashboard, strip_non_owner_grants
 
 
 def _stat_definition() -> dict:
@@ -39,25 +36,11 @@ async def _dashboards_enabled(session: AsyncSession, initiative) -> None:
     await session.refresh(initiative)
 
 
-async def _strip_non_owner_grants(session, dashboard, owner_id: int) -> None:
-    """Remove every grant except the owner's own — the dashboard becomes
-    invisible to other members."""
-    await session.exec(
-        sa_delete(ResourceGrant).where(
-            ResourceGrant.resource_type == "dashboard",
-            ResourceGrant.resource_id == dashboard.id,
-            ResourceGrant.user_id.is_distinct_from(owner_id),
-        )
-    )
-    await session.commit()
-
-
 # ---------------------------------------------------------------------------
 # CRUD
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_create_dashboard(client: AsyncClient, acting_user, session):
     """Creating a dashboard stores a normalized definition and seeds the
     creator's owner grant plus the default all-members read grant."""
@@ -86,7 +69,6 @@ async def test_create_dashboard(client: AsyncClient, acting_user, session):
     assert body["listing_uid"] is None
 
 
-@pytest.mark.integration
 async def test_create_rejects_unknown_widget_type(
     client: AsyncClient, acting_user, session
 ):
@@ -118,7 +100,6 @@ async def test_create_rejects_unknown_widget_type(
     assert response.json()["detail"] == "DASHBOARD_WIDGET_TYPE_UNKNOWN"
 
 
-@pytest.mark.integration
 async def test_create_requires_feature_enabled(
     client: AsyncClient, acting_user, session
 ):
@@ -139,7 +120,6 @@ async def test_create_requires_feature_enabled(
     assert response.json()["detail"] == "DASHBOARDS_NOT_ENABLED"
 
 
-@pytest.mark.integration
 async def test_list_and_read_dashboard(client: AsyncClient, acting_user, session):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _dashboards_enabled(session, a.initiative)
@@ -156,7 +136,6 @@ async def test_list_and_read_dashboard(client: AsyncClient, acting_user, session
     assert detail.json()["definition"]["widgets"][0]["type"] == "stat"
 
 
-@pytest.mark.integration
 async def test_update_definition_revalidates(client: AsyncClient, acting_user, session):
     """Re-authoring the canvas is the one write a dashboard has, and it goes
     through the same validator as create."""
@@ -209,7 +188,6 @@ async def test_update_definition_revalidates(client: AsyncClient, acting_user, s
     assert bad.json()["detail"] == "QUERY_UNKNOWN_RELATION"
 
 
-@pytest.mark.integration
 async def test_config_for_removed_widget_is_dropped(
     client: AsyncClient, acting_user, session
 ):
@@ -244,7 +222,6 @@ async def test_config_for_removed_widget_is_dropped(
     assert response.json()["config"] == {"widgets": {"kept": {"counter_id": 7}}}
 
 
-@pytest.mark.integration
 async def test_delete_dashboard(client: AsyncClient, acting_user, session):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _dashboards_enabled(session, a.initiative)
@@ -264,7 +241,6 @@ async def test_delete_dashboard(client: AsyncClient, acting_user, session):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_member_without_create_permission_is_refused(
     client: AsyncClient, acting_user, session
 ):
@@ -286,7 +262,6 @@ async def test_member_without_create_permission_is_refused(
     assert response.status_code == 403
 
 
-@pytest.mark.integration
 async def test_unshared_dashboard_is_invisible_to_other_members(
     client: AsyncClient, acting_user, session
 ):
@@ -295,7 +270,7 @@ async def test_unshared_dashboard_is_invisible_to_other_members(
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _dashboards_enabled(session, a.initiative)
     dashboard = await create_dashboard(session, a.initiative, a.user)
-    await _strip_non_owner_grants(session, dashboard, a.user.id)
+    await strip_non_owner_grants(session, dashboard, a.user.id)
 
     b = await acting_user(
         guild_role=GuildRole.member,
@@ -312,7 +287,6 @@ async def test_unshared_dashboard_is_invisible_to_other_members(
     assert detail.status_code in (403, 404)
 
 
-@pytest.mark.integration
 async def test_read_grant_cannot_write(client: AsyncClient, acting_user, session):
     """A viewer may look at the canvas but not re-author it."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -338,7 +312,6 @@ async def test_read_grant_cannot_write(client: AsyncClient, acting_user, session
     assert response.status_code == 403
 
 
-@pytest.mark.integration
 async def test_non_member_of_initiative_cannot_see_dashboard(
     client: AsyncClient, acting_user, session
 ):

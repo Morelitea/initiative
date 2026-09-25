@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
 
 from app.db.guild_standing import GuildContext
 from app.models.platform.guild import GuildRole
-
-pytestmark = pytest.mark.unit
 
 
 def _context(**fields) -> GuildContext:

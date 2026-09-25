@@ -12,7 +12,6 @@ from app.testing.factories import create_user
 
 
 #: Every test here drives the API through the real app and a real database.
-pytestmark = pytest.mark.integration
 
 
 def _parse_csv(body: bytes) -> tuple[list[str], list[list[str]]]:

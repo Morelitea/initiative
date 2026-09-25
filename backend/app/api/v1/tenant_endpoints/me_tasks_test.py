@@ -8,7 +8,6 @@ off created_by).
 
 import json
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -79,7 +78,6 @@ async def _setup_guild_with_project(session, user, *, guild_name="Test Guild"):
     return guild, initiative, project
 
 
-@pytest.mark.integration
 async def test_list_my_tasks_returns_assigned(
     client: AsyncClient, session: AsyncSession
 ):
@@ -101,7 +99,6 @@ async def test_list_my_tasks_returns_assigned(
     assert task2.id in task_ids
 
 
-@pytest.mark.integration
 async def test_list_my_tasks_excludes_unassigned_and_others(
     client: AsyncClient, session: AsyncSession
 ):
@@ -135,7 +132,6 @@ async def test_list_my_tasks_excludes_unassigned_and_others(
     assert others.id not in task_ids
 
 
-@pytest.mark.integration
 async def test_admin_sees_assigned_task_in_non_member_initiative(
     client: AsyncClient, session: AsyncSession
 ):
@@ -176,7 +172,6 @@ async def test_admin_sees_assigned_task_in_non_member_initiative(
     )
 
 
-@pytest.mark.integration
 async def test_list_my_tasks_priority_filter(
     client: AsyncClient, session: AsyncSession
 ):
@@ -206,7 +201,6 @@ async def test_list_my_tasks_priority_filter(
     assert low.id not in task_ids
 
 
-@pytest.mark.integration
 async def test_list_my_tasks_due_date_filter_across_guilds(
     client: AsyncClient, session: AsyncSession
 ):
@@ -263,7 +257,6 @@ async def test_list_my_tasks_due_date_filter_across_guilds(
     assert task_ids == {g1_overdue.id, g2_overdue.id}
 
 
-@pytest.mark.integration
 async def test_list_my_tasks_guild_ids_filter(
     client: AsyncClient, session: AsyncSession
 ):
@@ -310,7 +303,6 @@ async def test_list_my_tasks_guild_ids_filter(
     assert (guild2.id, task2.id) not in found
 
 
-@pytest.mark.integration
 async def test_list_my_tasks_pagination(client: AsyncClient, session: AsyncSession):
     """GET /me/tasks supports pagination."""
     user = await create_user(session, email="user@example.com")
@@ -338,7 +330,6 @@ async def test_list_my_tasks_pagination(client: AsyncClient, session: AsyncSessi
     assert data["has_next"] is False
 
 
-@pytest.mark.integration
 async def test_list_my_tasks_counts_comments_per_row(
     client: AsyncClient, session: AsyncSession
 ):
@@ -368,7 +359,6 @@ async def test_list_my_tasks_counts_comments_per_row(
     assert counts == {"talked about": 3, "quiet": 0}
 
 
-@pytest.mark.integration
 async def test_list_my_tasks_paged_page_interleaves_guilds(
     client: AsyncClient, session: AsyncSession
 ):
@@ -441,7 +431,6 @@ async def test_list_my_tasks_paged_page_interleaves_guilds(
     assert row["guild_name"] == "Guild 2"
 
 
-@pytest.mark.integration
 async def test_list_my_tasks_page_from_one_guild_only(
     client: AsyncClient, session: AsyncSession
 ):
@@ -495,7 +484,6 @@ async def test_list_my_tasks_page_from_one_guild_only(
     assert data["has_next"] is True
 
 
-@pytest.mark.integration
 async def test_list_my_tasks_date_group_sorted_across_guilds(
     client: AsyncClient, session: AsyncSession
 ):
@@ -553,7 +541,6 @@ async def test_list_my_tasks_date_group_sorted_across_guilds(
     assert titles == ["g1 overdue", "g2 today", "g2 this week", "g1 later"]
 
 
-@pytest.mark.integration
 async def test_list_my_tasks_priority_sorted_desc_across_guilds(
     client: AsyncClient, session: AsyncSession
 ):
@@ -592,7 +579,6 @@ async def test_list_my_tasks_priority_sorted_desc_across_guilds(
     assert titles == ["urgent", "high", "medium", "low"]
 
 
-@pytest.mark.integration
 async def test_list_my_tasks_property_value_is_null_filter(
     client: AsyncClient, session: AsyncSession
 ):
@@ -645,7 +631,6 @@ async def test_list_my_tasks_property_value_is_null_filter(
     assert with_value.id not in task_ids
 
 
-@pytest.mark.integration
 async def test_list_my_tasks_property_filter_spans_guilds(
     client: AsyncClient, session: AsyncSession
 ):
@@ -726,7 +711,6 @@ async def test_list_my_tasks_property_filter_spans_guilds(
 # with no visible cause.
 
 
-@pytest.mark.integration
 async def test_my_tasks_accepts_nested_or_conditions(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -825,7 +809,6 @@ async def test_my_tasks_accepts_nested_or_conditions(
     assert {due_soon.id, urgent_undated.id, finished_today.id}
 
 
-@pytest.mark.integration
 async def test_my_tasks_exposes_completed_at(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

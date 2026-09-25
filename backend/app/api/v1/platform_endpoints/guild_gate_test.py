@@ -10,7 +10,6 @@ Runs against the same fake IdP harness as the operator flow tests.
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
-import pytest
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -32,8 +31,6 @@ from app.testing.factories import (
 )
 from app.testing.factories import NARROWED_CLAIM, NARROWED_VALUE
 from app.testing.oidc import ISSUER as OIDC_ISSUER, FakeIdp, mint_id_token
-
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 
 # ── Arriving ───────────────────────────────────────────────────────────────

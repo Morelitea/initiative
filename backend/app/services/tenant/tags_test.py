@@ -9,7 +9,6 @@ and disappear the moment the tag is trashed.
 
 from datetime import datetime, timezone
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -30,10 +29,7 @@ from app.testing.factories import (
 from app.testing.schema_harness import route_session_to_guild
 from app.testing import create_guild_membership, route_as
 
-pytestmark = pytest.mark.integration
 
-
-@pytest.mark.unit
 def test_every_taggable_kind_can_sit_on_an_edge():
     """The registry is one list now: a spec names a model and the kind an edge
     addresses it by, and a kind no edge may name would be a tag surface with

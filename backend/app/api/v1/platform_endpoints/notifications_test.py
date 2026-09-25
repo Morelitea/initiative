@@ -8,7 +8,6 @@ with ``permission denied for table notifications``.
 
 from __future__ import annotations
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -40,7 +39,6 @@ async def _seed_notification(session: AsyncSession, user_id: int) -> int:
     return notification.id
 
 
-@pytest.mark.integration
 async def test_list_notifications(client: AsyncClient, session: AsyncSession):
     user = await create_user(session)
     await _seed_notification(session, user.id)
@@ -61,7 +59,6 @@ _NOWHERE = dict.fromkeys(
 )
 
 
-@pytest.mark.integration
 async def test_unread_places(client: AsyncClient, session: AsyncSession):
     """Where the dots go. A notification with no community is still a place —
     that is what makes "anything unread at all" the same question."""
@@ -75,7 +72,6 @@ async def test_unread_places(client: AsyncClient, session: AsyncSession):
     assert response.json() == {"places": [_NOWHERE]}
 
 
-@pytest.mark.integration
 async def test_unread_places_carries_the_whole_tree(
     client: AsyncClient, session: AsyncSession
 ):
@@ -111,7 +107,6 @@ async def test_unread_places_carries_the_whole_tree(
     ]
 
 
-@pytest.mark.integration
 async def test_reading_everything_empties_the_places(
     client: AsyncClient, session: AsyncSession
 ):
@@ -125,7 +120,6 @@ async def test_reading_everything_empties_the_places(
     assert response.json() == {"places": []}
 
 
-@pytest.mark.integration
 async def test_the_popover_can_take_every_unread_page(
     client: AsyncClient, session: AsyncSession
 ):
@@ -155,7 +149,6 @@ async def test_the_popover_can_take_every_unread_page(
     assert len(set(seen)) == 5
 
 
-@pytest.mark.integration
 async def test_marking_unread_puts_a_line_back(
     client: AsyncClient, session: AsyncSession
 ):
@@ -172,7 +165,6 @@ async def test_marking_unread_puts_a_line_back(
     assert response.json()["read_at"] is None
 
 
-@pytest.mark.integration
 async def test_dismissing_removes_the_line(client: AsyncClient, session: AsyncSession):
     user = await create_user(session)
     notification_id = await _seed_notification(session, user.id)
@@ -188,7 +180,6 @@ async def test_dismissing_removes_the_line(client: AsyncClient, session: AsyncSe
     assert body["unread_count"] == 0
 
 
-@pytest.mark.integration
 async def test_read_all_can_clear_one_community(
     client: AsyncClient, session: AsyncSession
 ):
@@ -217,7 +208,6 @@ async def test_read_all_can_clear_one_community(
     assert places == [{**_NOWHERE, "guild_id": kept.id}]
 
 
-@pytest.mark.integration
 async def test_the_bell_can_be_switched_off_for_a_category(
     client: AsyncClient, session: AsyncSession
 ):
@@ -241,7 +231,6 @@ async def test_the_bell_can_be_switched_off_for_a_category(
     assert body["notifications"] == []
 
 
-@pytest.mark.integration
 async def test_mark_notification_read(client: AsyncClient, session: AsyncSession):
     user = await create_user(session)
     notification_id = await _seed_notification(session, user.id)
@@ -257,7 +246,6 @@ async def test_mark_notification_read(client: AsyncClient, session: AsyncSession
     assert listed.json()["unread_count"] == 0
 
 
-@pytest.mark.integration
 async def test_mark_all_notifications_read(client: AsyncClient, session: AsyncSession):
     user = await create_user(session)
     await _seed_notification(session, user.id)
@@ -270,7 +258,6 @@ async def test_mark_all_notifications_read(client: AsyncClient, session: AsyncSe
     assert response.json() == {"unread_count": 0}
 
 
-@pytest.mark.integration
 async def test_cannot_read_other_users_notification(
     client: AsyncClient, session: AsyncSession
 ):
@@ -285,7 +272,6 @@ async def test_cannot_read_other_users_notification(
     assert response.status_code == 404
 
 
-@pytest.mark.integration
 async def test_the_bell_reads_the_title_back_from_the_community(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

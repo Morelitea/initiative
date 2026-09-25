@@ -10,8 +10,6 @@ from app.services.import_engine import limits as import_limits
 from app.services.import_engine import zip_bounds
 from app.services.import_engine.contract import ImportEngineError
 
-pytestmark = pytest.mark.unit
-
 
 def _zip(**members: bytes) -> bytes:
     buffer = io.BytesIO()

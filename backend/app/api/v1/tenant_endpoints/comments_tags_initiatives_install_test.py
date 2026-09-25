@@ -20,8 +20,8 @@ from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification
 from app.models.tenant.comment import Comment
 from app.models.tenant.relationship import EntityRelationship
-from app.services.marketplace import app_refs
 from app.testing import (
+    guild_url,
     create_comment,
     create_document,
     create_property_definition,
@@ -35,19 +35,6 @@ from app.testing.app_clients import (
     lift_person_and_guild_ids,
     share_with_members,
 )
-
-pytestmark = pytest.mark.integration
-
-
-@pytest.fixture(autouse=True)
-def _cold_reference_cache():
-    app_refs.forget_cached_install_refs()
-    yield
-    app_refs.forget_cached_install_refs()
-
-
-def _g(guild_id: int, path: str) -> str:
-    return f"/api/v1/c/{guild_id}{path}"
 
 
 async def _open_documents(session: Any, installed: Any) -> tuple[Any, Any]:
@@ -85,7 +72,7 @@ async def test_reads_the_comments_on_what_it_can_read(
     guild_id = installed.guild.id
 
     listed = await client.get(
-        _g(guild_id, f"/comments/?document_id={in_a.id}"), headers=headers
+        guild_url(guild_id, f"/comments/?document_id={in_a.id}"), headers=headers
     )
     assert listed.status_code == 200, listed.text
     [comment] = listed.json()
@@ -96,16 +83,20 @@ async def test_reads_the_comments_on_what_it_can_read(
     assert comment["author"]["id"] == comment["created_by"]
     assert_names_nobody(listed.text, [installed.seat.user.id, guild_id])
 
-    read = await client.get(_g(guild_id, f"/comments/{on_a.id}"), headers=headers)
+    read = await client.get(
+        guild_url(guild_id, f"/comments/{on_a.id}"), headers=headers
+    )
     assert read.status_code == 200, read.text
     assert read.json()["created_by"] == comment["created_by"]
     assert_names_nobody(read.text, [installed.seat.user.id, guild_id])
 
     other = await client.get(
-        _g(guild_id, f"/comments/?document_id={in_b.id}"), headers=headers
+        guild_url(guild_id, f"/comments/?document_id={in_b.id}"), headers=headers
     )
     assert other.status_code == 404, other.text
-    other_one = await client.get(_g(guild_id, f"/comments/{on_b.id}"), headers=headers)
+    other_one = await client.get(
+        guild_url(guild_id, f"/comments/{on_b.id}"), headers=headers
+    )
     assert other_one.status_code == 404, other_one.text
 
 
@@ -119,7 +110,7 @@ async def test_without_the_parents_scope_the_thread_is_not_there(
     await create_comment(session, installed.seat.user, document=in_a)
 
     listed = await client.get(
-        _g(installed.guild.id, f"/comments/?document_id={in_a.id}"),
+        guild_url(installed.guild.id, f"/comments/?document_id={in_a.id}"),
         headers=install_headers(installed, ["comments:read"]),
     )
     assert listed.status_code == 404, listed.text
@@ -133,7 +124,7 @@ async def test_posting_a_comment_needs_the_write_scope(
     in_a, _in_b = await _open_documents(session, installed)
 
     posted = await client.post(
-        _g(installed.guild.id, "/comments/"),
+        guild_url(installed.guild.id, "/comments/"),
         headers=install_headers(installed, scopes),
         json={"content": "Hello", "document_id": in_a.id},
     )
@@ -161,7 +152,7 @@ async def test_posts_as_itself_and_the_notices_name_the_app(
     guild_id = installed.guild.id
 
     posted = await client.post(
-        _g(guild_id, "/comments/"),
+        guild_url(guild_id, "/comments/"),
         headers=headers,
         json={
             "content": "An answer",
@@ -197,7 +188,7 @@ async def test_posts_as_itself_and_the_notices_name_the_app(
     assert owner_notice.data["commenter_id"] is None
 
     elsewhere = await client.post(
-        _g(guild_id, "/comments/"),
+        guild_url(guild_id, "/comments/"),
         headers=headers,
         json={"content": "Not here", "document_id": in_b.id},
     )
@@ -220,7 +211,7 @@ async def test_lists_the_tags_naming_the_community_by_reference(
     await create_tag(session, installed.guild, name="beta")
 
     listed = await client.get(
-        _g(installed.guild.id, "/tags/"),
+        guild_url(installed.guild.id, "/tags/"),
         headers=install_headers(installed, ["tags:read"]),
     )
     assert listed.status_code == 200, listed.text
@@ -239,7 +230,7 @@ async def test_tags_what_it_may_write_in_bulk(
     guild_id = installed.guild.id
 
     created = await client.post(
-        _g(guild_id, "/documents/"),
+        guild_url(guild_id, "/documents/"),
         headers=headers,
         json={"name": "Its own", "initiative_id": installed.placed.id},
     )
@@ -247,7 +238,7 @@ async def test_tags_what_it_may_write_in_bulk(
     document_id = created.json()["id"]
 
     tagged = await client.post(
-        _g(guild_id, "/tags/bulk"),
+        guild_url(guild_id, "/tags/bulk"),
         headers=headers,
         json={
             "target_type": "document",
@@ -288,7 +279,7 @@ async def test_bulk_tagging_needs_every_scope_it_writes_under(
     in_a, _in_b = await _open_documents(session, installed)
 
     tagged = await client.post(
-        _g(installed.guild.id, "/tags/bulk"),
+        guild_url(installed.guild.id, "/tags/bulk"),
         headers=install_headers(installed, scopes),
         json={
             "target_type": "document",
@@ -309,7 +300,7 @@ async def test_bulk_tagging_with_a_read_token_is_refused(
     tag = await create_tag(session, installed.guild, name="triaged")
 
     tagged = await client.post(
-        _g(installed.guild.id, "/tags/bulk"),
+        guild_url(installed.guild.id, "/tags/bulk"),
         headers=install_headers(installed, ["tags:read"]),
         json={"target_type": "document", "target_ids": [1], "add_tag_ids": [tag.id]},
     )
@@ -328,7 +319,7 @@ async def test_bulk_tagging_what_it_cannot_write_is_refused(
 
     # Open to A's members to read, which is not to write.
     readable = await client.post(
-        _g(installed.guild.id, "/tags/bulk"),
+        guild_url(installed.guild.id, "/tags/bulk"),
         headers=headers,
         json={
             "target_type": "document",
@@ -339,7 +330,7 @@ async def test_bulk_tagging_what_it_cannot_write_is_refused(
     assert readable.status_code == 403, readable.text
 
     elsewhere = await client.post(
-        _g(installed.guild.id, "/tags/bulk"),
+        guild_url(installed.guild.id, "/tags/bulk"),
         headers=headers,
         json={
             "target_type": "document",
@@ -365,7 +356,7 @@ async def test_reads_the_initiatives_it_is_placed_in(
     headers = install_headers(installed, ["initiatives:read"])
     guild_id = installed.guild.id
 
-    listed = await client.get(_g(guild_id, "/initiatives/"), headers=headers)
+    listed = await client.get(guild_url(guild_id, "/initiatives/"), headers=headers)
     assert listed.status_code == 200, listed.text
     [only] = listed.json()
     assert only["id"] == installed.placed.id
@@ -375,7 +366,7 @@ async def test_reads_the_initiatives_it_is_placed_in(
     assert_names_nobody(listed.text, [installed.seat.user.id, guild_id])
 
     read = await client.get(
-        _g(guild_id, f"/initiatives/{installed.placed.id}"), headers=headers
+        guild_url(guild_id, f"/initiatives/{installed.placed.id}"), headers=headers
     )
     assert read.status_code == 200, read.text
     assert read.json()["name"] == installed.placed.name
@@ -383,12 +374,12 @@ async def test_reads_the_initiatives_it_is_placed_in(
     assert_names_nobody(read.text, [installed.seat.user.id, guild_id])
 
     other = await client.get(
-        _g(guild_id, f"/initiatives/{installed.unplaced.id}"), headers=headers
+        guild_url(guild_id, f"/initiatives/{installed.unplaced.id}"), headers=headers
     )
     assert other.status_code == 404, other.text
 
     whole_guild = await client.get(
-        _g(guild_id, "/initiatives/?scope=guild"), headers=headers
+        guild_url(guild_id, "/initiatives/?scope=guild"), headers=headers
     )
     assert whole_guild.status_code == 403, whole_guild.text
 
@@ -401,7 +392,7 @@ async def test_with_the_members_scope_the_roster_names_people_by_reference(
     installed = await install_app(session, acting_user, role_session, granted=scopes)
 
     read = await client.get(
-        _g(installed.guild.id, f"/initiatives/{installed.placed.id}"),
+        guild_url(installed.guild.id, f"/initiatives/{installed.placed.id}"),
         headers=install_headers(installed, scopes),
     )
     assert read.status_code == 200, read.text
@@ -418,7 +409,7 @@ async def test_initiatives_need_the_initiatives_scope(
         session, acting_user, role_session, granted=["comments:read"]
     )
     listed = await client.get(
-        _g(installed.guild.id, "/initiatives/"),
+        guild_url(installed.guild.id, "/initiatives/"),
         headers=install_headers(installed, ["comments:read"]),
     )
     assert listed.status_code == 403, listed.text
@@ -441,12 +432,16 @@ async def test_lists_the_property_definitions_of_its_initiatives(
     headers = install_headers(installed, ["initiatives:read"])
     guild_id = installed.guild.id
 
-    listed = await client.get(_g(guild_id, "/property-definitions/"), headers=headers)
+    listed = await client.get(
+        guild_url(guild_id, "/property-definitions/"), headers=headers
+    )
     assert listed.status_code == 200, listed.text
     assert [d["name"] for d in listed.json()] == ["Estimate"]
 
     narrowed = await client.get(
-        _g(guild_id, f"/property-definitions/?initiative_id={installed.unplaced.id}"),
+        guild_url(
+            guild_id, f"/property-definitions/?initiative_id={installed.unplaced.id}"
+        ),
         headers=headers,
     )
     assert narrowed.status_code == 200, narrowed.text

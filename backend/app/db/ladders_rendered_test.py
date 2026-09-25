@@ -19,18 +19,16 @@ from app.models.tenant.resource_grant import (
     RESOURCE_LEVEL_LADDER,
     WRITE_LEVELS,
     ResourceAccessLevel,
-    ResourceGrant,
 )
 from app.testing import (
+    create_resource_grant,
     create_access_grant,
     create_project,
     create_user,
     route_as,
 )
-from app.testing.schema_harness import route_session_to_guild
 
 
-@pytest.mark.unit
 def test_a_value_list_is_spelled_from_the_enum():
     assert sql_values(r.value for r in (GuildRole.admin, GuildRole.superadmin)) == (
         "'admin', 'superadmin'"
@@ -38,7 +36,6 @@ def test_a_value_list_is_spelled_from_the_enum():
     assert sql_values(level.value for level in WRITE_LEVELS) == "'write', 'owner'"
 
 
-@pytest.mark.unit
 def test_the_sharing_ladder_reaches_downward():
     assert RESOURCE_LEVEL_LADDER == (
         ResourceAccessLevel.read,
@@ -52,7 +49,6 @@ def test_the_sharing_ladder_reaches_downward():
     assert WRITE_LEVELS == (ResourceAccessLevel.write, ResourceAccessLevel.owner)
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("rung", sorted(GUILD_STORED_ROLES, key=lambda r: r.value))
 async def test_the_standing_reads_the_admin_fact_off_the_ladder(
     acting_user, role_session, rung
@@ -64,7 +60,6 @@ async def test_the_standing_reads_the_admin_fact_off_the_ladder(
     assert context.seat is rung.reaches(GuildRole.superadmin)
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("level", list(SettingsLevel))
 async def test_the_settings_rung_reads_the_grant_off_the_ladder(
     session, acting_user, role_session, level
@@ -84,7 +79,6 @@ async def test_the_settings_rung_reads_the_grant_off_the_ladder(
     assert context.seat is (level is SettingsLevel.superadmin)
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("level", list(RESOURCE_LEVEL_LADDER))
 async def test_the_write_leg_reads_the_sharing_ladder(
     session, acting_user, role_session, level
@@ -101,17 +95,7 @@ async def test_the_write_leg_reads_the_sharing_ladder(
         project = await create_project(session, a.initiative, member.user)
     else:
         project = await create_project(session, a.initiative, a.user)
-        await route_session_to_guild(session, a.guild.id)
-        session.add(
-            ResourceGrant(
-                resource_type="project",
-                resource_id=project.id,
-                user_id=member.user.id,
-                level=level,
-                initiative_id=a.initiative.id,
-            )
-        )
-        await session.commit()
+        await create_resource_grant(session, project, user=member.user, level=level)
 
     s = await role_session("app_user")
     await route_as(s, user_id=member.user.id, guild_id=a.guild.id)

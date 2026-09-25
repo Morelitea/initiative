@@ -31,7 +31,6 @@ from app.db.schema_provisioning import (
 )
 from app.db.tenancy import GUILD_SCOPED_TABLES
 
-pytestmark = pytest.mark.database
 
 # Synthetic ids well above any real guild; each test uses its own.
 _GID_COMPLETE = 990_101
@@ -1510,7 +1509,6 @@ async def test_privileged_derived_provisioner_names_the_role_to_fix(monkeypatch)
     assert "DATABASE_URL_APP" not in message
 
 
-@pytest.mark.database
 async def test_a_provisioned_schema_names_no_community(engine):
     """A guild schema is what says which community it is, so no table in one
     carries a ``guild_id`` column.

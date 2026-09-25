@@ -42,7 +42,6 @@ from app.testing import (
     stub_assertion,
 )
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 PASSWORD = "correct-horse-battery-staple"
 

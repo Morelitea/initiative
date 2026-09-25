@@ -42,7 +42,6 @@ from app.testing.factories import (
 from app.testing import route_as
 
 #: Every test here drives the API through the real app and a real database.
-pytestmark = pytest.mark.integration
 
 
 PROFILE_URL = "/api/v1/users/{handle}/profile"

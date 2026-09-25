@@ -37,7 +37,6 @@ def workbook(**sheet) -> dict:
 # ── CSV ──────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.unit
 def test_a_csv_becomes_one_sheet_named_after_its_file() -> None:
     sheets = parse_spreadsheet_file("Q1 sales.csv", b"a,b\n1,2\n")
 
@@ -45,7 +44,6 @@ def test_a_csv_becomes_one_sheet_named_after_its_file() -> None:
     assert sheets[0]["name"] == "Q1 sales"
 
 
-@pytest.mark.unit
 def test_numbers_arrive_as_numbers_and_text_as_text() -> None:
     sheets = parse_spreadsheet_file("x.csv", b"Widget,3,4.5,-2\n")
 
@@ -57,7 +55,6 @@ def test_numbers_arrive_as_numbers_and_text_as_text() -> None:
     }
 
 
-@pytest.mark.unit
 def test_a_formula_stays_a_formula() -> None:
     """``=`` text is how this app stores a formula; the grid evaluates it."""
     sheets = parse_spreadsheet_file("x.csv", b"=1+1\n")
@@ -65,21 +62,18 @@ def test_a_formula_stays_a_formula() -> None:
     assert sheets[0]["cells"]["0:0"] == "=1+1"
 
 
-@pytest.mark.unit
 def test_empty_fields_leave_no_cell() -> None:
     sheets = parse_spreadsheet_file("x.csv", b"a,,c\n")
 
     assert sheets[0]["cells"] == {"0:0": "a", "0:2": "c"}
 
 
-@pytest.mark.unit
 def test_a_tsv_is_split_on_tabs() -> None:
     sheets = parse_spreadsheet_file("x.tsv", b"a\tb\n")
 
     assert sheets[0]["cells"] == {"0:0": "a", "0:1": "b"}
 
 
-@pytest.mark.unit
 def test_a_file_that_is_not_a_spreadsheet_is_refused() -> None:
     with pytest.raises(DocumentContentError) as excinfo:
         parse_spreadsheet_file("notes.pdf", b"%PDF-1.4")
@@ -87,13 +81,11 @@ def test_a_file_that_is_not_a_spreadsheet_is_refused() -> None:
     assert excinfo.value.code == DocumentMessages.SPREADSHEET_UNREADABLE_FILE
 
 
-@pytest.mark.unit
 def test_an_xlsx_that_is_not_one_is_refused() -> None:
     with pytest.raises(DocumentContentError):
         parse_spreadsheet_file("broken.xlsx", b"not a zip at all")
 
 
-@pytest.mark.unit
 def test_text_that_is_not_utf8_still_imports() -> None:
     """A file from an older tool is worth a mangled accent, not a refusal."""
     sheets = parse_spreadsheet_file("x.csv", "café".encode("cp1252"))
@@ -104,7 +96,6 @@ def test_text_that_is_not_utf8_still_imports() -> None:
 # ── XLSX, through the renderer and back ──────────────────────────────────────
 
 
-@pytest.mark.unit
 def test_values_survive_the_round_trip() -> None:
     content = workbook(
         cells={"0:0": "Item", "1:0": "Widget", "1:1": 12.5, "2:1": "=B2*2"}
@@ -115,7 +106,6 @@ def test_values_survive_the_round_trip() -> None:
     assert back[0]["cells"] == content["sheets"][0]["cells"]
 
 
-@pytest.mark.unit
 def test_a_cells_look_survives_the_round_trip() -> None:
     content = workbook(
         cells={"0:0": "Item"},
@@ -145,7 +135,6 @@ def test_a_cells_look_survives_the_round_trip() -> None:
     }
 
 
-@pytest.mark.unit
 def test_a_number_format_survives_the_round_trip() -> None:
     content = workbook(
         cells={"0:0": 12.5},
@@ -162,7 +151,6 @@ def test_a_number_format_survives_the_round_trip() -> None:
     assert fmt["decimals"] == 2
 
 
-@pytest.mark.unit
 def test_a_percent_keeps_its_decimals() -> None:
     content = workbook(
         cells={"0:0": 0.25},
@@ -177,7 +165,6 @@ def test_a_percent_keeps_its_decimals() -> None:
     }
 
 
-@pytest.mark.unit
 def test_frozen_panes_and_column_widths_survive() -> None:
     content = workbook(
         cells={"0:0": "Item"},
@@ -191,7 +178,6 @@ def test_frozen_panes_and_column_widths_survive() -> None:
     assert back[0]["columns"]["0"]["width"] == 140
 
 
-@pytest.mark.unit
 def test_an_imported_sheet_has_room_to_work_in() -> None:
     """A three-row CSV should not open as a three-row grid."""
     sheets = parse_spreadsheet_file("x.csv", b"a\nb\nc\n")
@@ -200,7 +186,6 @@ def test_an_imported_sheet_has_room_to_work_in() -> None:
     assert sheets[0]["dimensions"]["cols"] >= 26
 
 
-@pytest.mark.unit
 def test_a_cell_nobody_styled_carries_no_style() -> None:
     """Excel writes a font on every cell; carrying that over would pin a whole
     imported sheet to one size and colour."""
@@ -211,7 +196,6 @@ def test_a_cell_nobody_styled_carries_no_style() -> None:
     assert back[0]["cellStyles"] == {}
 
 
-@pytest.mark.unit
 def test_every_tab_of_a_workbook_arrives() -> None:
     content = normalize_spreadsheet_content(
         {
@@ -233,7 +217,6 @@ def test_every_tab_of_a_workbook_arrives() -> None:
 # ── what a field means ───────────────────────────────────────────────────────
 
 
-@pytest.mark.unit
 def test_a_leading_zero_keeps_its_field_as_text() -> None:
     """``00123`` is a part number or a postcode far more often than it is the
     number 123, and making it one cannot be undone."""
@@ -247,14 +230,12 @@ def test_a_leading_zero_keeps_its_field_as_text() -> None:
     }
 
 
-@pytest.mark.unit
 def test_true_and_false_arrive_as_booleans() -> None:
     sheets = parse_spreadsheet_file("x.csv", b"TRUE,false,Maybe\n")
 
     assert sheets[0]["cells"] == {"0:0": True, "0:1": False, "0:2": "Maybe"}
 
 
-@pytest.mark.unit
 def test_a_field_reads_the_same_from_a_file_as_from_the_clipboard() -> None:
     """The rule lives twice — here and in ``coerceScalar`` on the client — so
     this is the check that the two still say the same thing."""
@@ -266,7 +247,6 @@ def test_a_field_reads_the_same_from_a_file_as_from_the_clipboard() -> None:
 # ── refusing what cannot be carried whole ────────────────────────────────────
 
 
-@pytest.mark.unit
 def test_a_csv_with_too_many_cells_is_refused_rather_than_trimmed(monkeypatch) -> None:
     """A workbook that came back missing everything past some line, reported
     as imported, is worse than one that did not come back."""
@@ -282,7 +262,6 @@ def test_a_csv_with_too_many_cells_is_refused_rather_than_trimmed(monkeypatch) -
     assert excinfo.value.code == DocumentMessages.SPREADSHEET_FILE_TOO_LARGE
 
 
-@pytest.mark.unit
 def test_a_workbook_with_too_many_tabs_is_refused() -> None:
     from openpyxl import Workbook
 
@@ -300,7 +279,6 @@ def test_a_workbook_with_too_many_tabs_is_refused() -> None:
     assert excinfo.value.code == DocumentMessages.SPREADSHEET_FILE_TOO_LARGE
 
 
-@pytest.mark.unit
 def test_a_sheet_claiming_more_rows_than_the_grid_is_refused() -> None:
     """The shape is judged from what the sheet declares, before anything in it
     is read — a file that would take too long never starts."""
@@ -319,7 +297,6 @@ def test_a_sheet_claiming_more_rows_than_the_grid_is_refused() -> None:
     assert excinfo.value.code == DocumentMessages.SPREADSHEET_FILE_TOO_LARGE
 
 
-@pytest.mark.unit
 def test_a_sparse_sheet_with_a_distant_corner_is_refused() -> None:
     """Two cells can declare a rectangle of millions of coordinates. The cost
     is in the rectangle, not in what is stored."""

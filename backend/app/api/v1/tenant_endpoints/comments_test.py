@@ -8,6 +8,7 @@ from app.core.tools import Tool
 from app.models.platform.guild import GuildRole
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.testing import (
+    create_resource_grant,
     guild_of,
     create_task,
     create_wiki_page,
@@ -43,25 +44,10 @@ async def _tool_entity(session, tool: Tool, initiative, creator):
     return entity
 
 
-async def _grant(session, tool: Tool, entity, user, level: ResourceAccessLevel):
-    await route_session_to_guild(session, guild_of(entity))
-    session.add(
-        ResourceGrant(
-            resource_type=tool.value,
-            resource_id=entity.id,
-            user_id=user.id,
-            level=level,
-            initiative_id=entity.initiative_id,
-        )
-    )
-    await session.commit()
-
-
 def _param(tool: Tool) -> str:
     return f"{tool.value}_id"
 
 
-@pytest.mark.integration
 class TestToolComments:
     """The comment surface every tool carries: posting takes write access on
     the entity, reading its thread takes read access — the same DAC decision
@@ -129,7 +115,9 @@ class TestToolComments:
             initiative=a.initiative,
             initiative_role="member",
         )
-        await _grant(session, tool, entity, b.user, ResourceAccessLevel.read)
+        await create_resource_grant(
+            session, entity, user=b.user, level=ResourceAccessLevel.read
+        )
 
         listed = await client.get(
             a.g("/comments/"), headers=b.headers, params={_param(tool): entity.id}
@@ -321,7 +309,6 @@ async def test_a_trashed_resource_reads_back_for_its_deleted_event(
     # content to act on. Read payloads do not carry deleted_at today.
 
 
-@pytest.mark.integration
 async def test_guild_calendar_comments_reach_every_member(client, session, acting_user):
     """A guild calendar names no initiative; its everyone-grant reads as the
     whole guild, so any member can join its thread — same rule, wider room."""
@@ -347,7 +334,6 @@ async def test_guild_calendar_comments_reach_every_member(client, session, actin
     assert [c["content"] for c in listed.json()] == ["Game night?"]
 
 
-@pytest.mark.integration
 async def test_recent_drops_comments_of_a_disabled_tool(client, session, acting_user):
     """Switching a tool off takes its threads out of the recent feed, exactly
     as it takes the threads themselves away."""
@@ -379,7 +365,6 @@ def _detail_path(tool: Tool, entity_id: int) -> str:
     return f"/{tool.route_segment}/{entity_id}"
 
 
-@pytest.mark.integration
 class TestToolCommentSwitch:
     """``comments_enabled`` — the Details setting that takes a tool entity's
     thread off its page. Set through the generic
@@ -546,7 +531,9 @@ class TestToolCommentSwitch:
         assert denied.status_code == 403
         assert denied.json()["detail"] == CommentMessages.PERMISSION_DENIED
 
-        await _grant(session, Tool.wiki, wiki, b.user, ResourceAccessLevel.read)
+        await create_resource_grant(
+            session, wiki, user=b.user, level=ResourceAccessLevel.read
+        )
 
         allowed = await client.get(
             a.g("/comments/"), headers=b.headers, params={"wiki_page_id": page.id}
@@ -604,7 +591,9 @@ class TestToolCommentSwitch:
             initiative=a.initiative,
             initiative_role="member",
         )
-        await _grant(session, tool, entity, b.user, ResourceAccessLevel.read)
+        await create_resource_grant(
+            session, entity, user=b.user, level=ResourceAccessLevel.read
+        )
 
         denied = await client.put(
             a.g(f"/tools/{tool.value}/{entity.id}/comments"),
@@ -614,7 +603,6 @@ class TestToolCommentSwitch:
         assert denied.status_code == 403, denied.text
 
 
-@pytest.mark.integration
 class TestEditingAComment:
     """The edit reply is the client's read-back: it has to carry the whole
     comment, author and reactions included, on every surface."""
@@ -694,7 +682,9 @@ class TestEditingAComment:
             initiative=a.initiative,
             initiative_role="member",
         )
-        await _grant(session, Tool.project, project, b.user, ResourceAccessLevel.write)
+        await create_resource_grant(
+            session, project, user=b.user, level=ResourceAccessLevel.write
+        )
 
         posted = await client.post(
             a.g("/comments/"),

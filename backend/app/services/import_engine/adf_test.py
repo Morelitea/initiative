@@ -10,8 +10,6 @@ import pytest
 
 from app.services.import_engine.adf import adf_to_markdown
 
-pytestmark = pytest.mark.unit
-
 
 def doc(*content):
     return {"version": 1, "type": "doc", "content": list(content)}

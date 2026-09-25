@@ -11,7 +11,6 @@ import json
 from dataclasses import replace
 from datetime import date, datetime, timezone
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy import text
 from sqlmodel import select
@@ -38,7 +37,6 @@ from app.testing.factories import (
 )
 
 
-@pytest.mark.integration
 async def test_list_projects_as_admin_shows_all(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -59,7 +57,6 @@ async def test_list_projects_as_admin_shows_all(
     assert body["total_count"] >= 2
 
 
-@pytest.mark.integration
 async def test_list_projects_member_sees_initiative_projects(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -84,7 +81,6 @@ async def test_list_projects_member_sees_initiative_projects(
     assert project.id in project_ids
 
 
-@pytest.mark.integration
 async def test_search_project_members_returns_write_access_set(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -194,7 +190,6 @@ async def test_search_project_members_returns_write_access_set(
     assert [item["username"] for item in body["items"]] == ["quill"]
 
 
-@pytest.mark.integration
 async def test_search_project_members_requires_read_access(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -211,7 +206,6 @@ async def test_search_project_members_requires_read_access(
     assert response.status_code in (403, 404)
 
 
-@pytest.mark.integration
 async def test_list_projects_shows_archived_only_when_asked(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -231,7 +225,6 @@ async def test_list_projects_shows_archived_only_when_asked(
     assert project.id in {p["id"] for p in response.json()["items"]}
 
 
-@pytest.mark.integration
 async def test_list_projects_filters_by_initiative(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -259,7 +252,6 @@ async def test_list_projects_filters_by_initiative(
     assert body["total_count"] == 1
 
 
-@pytest.mark.integration
 async def test_list_projects_without_initiative_spans_them_all(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -277,7 +269,6 @@ async def test_list_projects_without_initiative_spans_them_all(
     assert {mine.id, theirs.id} <= project_ids
 
 
-@pytest.mark.integration
 async def test_list_projects_search_filters_by_name(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -302,7 +293,6 @@ async def test_list_projects_search_filters_by_name(
     assert data[0]["id"] == alpha.id
 
 
-@pytest.mark.integration
 async def test_list_projects_search_with_no_searchable_term_matches_nothing(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -328,7 +318,6 @@ async def test_list_projects_search_with_no_searchable_term_matches_nothing(
     assert {p["name"] for p in response.json()["items"]} == {"50% done"}
 
 
-@pytest.mark.integration
 async def test_list_projects_paginates_in_sql(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -357,7 +346,6 @@ async def test_list_projects_paginates_in_sql(
     assert ids_p1.isdisjoint(ids_p2)
 
 
-@pytest.mark.integration
 async def test_list_projects_slim_projection(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -383,7 +371,6 @@ async def test_list_projects_slim_projection(
     assert item["initiative"] is None
 
 
-@pytest.mark.integration
 async def test_list_projects_slim_permission_for_member(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -410,7 +397,6 @@ async def test_list_projects_slim_permission_for_member(
     assert item["my_permission_level"] == "write"
 
 
-@pytest.mark.integration
 async def test_create_project(client: AsyncClient, acting_user):
     """Test creating a new project."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -432,7 +418,6 @@ async def test_create_project(client: AsyncClient, acting_user):
     assert data["initiative"]["id"] == admin.initiative.id
 
 
-@pytest.mark.integration
 async def test_create_refuses_when_projects_are_switched_off(
     client: AsyncClient, acting_user, session
 ):
@@ -454,7 +439,6 @@ async def test_create_refuses_when_projects_are_switched_off(
     assert response.json()["detail"] == "PROJECTS_NOT_ENABLED"
 
 
-@pytest.mark.integration
 async def test_a_guild_admin_does_not_list_projects_of_a_switched_off_initiative(
     client: AsyncClient, acting_user, session
 ):
@@ -476,7 +460,6 @@ async def test_a_guild_admin_does_not_list_projects_of_a_switched_off_initiative
     assert listed.json()["items"] == []
 
 
-@pytest.mark.integration
 async def test_create_project_with_dates(client: AsyncClient, acting_user):
     """Start/end dates round-trip through create, the detail read, and the list."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -504,7 +487,6 @@ async def test_create_project_with_dates(client: AsyncClient, acting_user):
     assert item["end_date"] == "2026-09-30"
 
 
-@pytest.mark.integration
 async def test_create_project_without_dates_leaves_them_unset(
     client: AsyncClient, acting_user
 ):
@@ -538,7 +520,6 @@ async def _tasks_by_title(
     return {item["title"]: item for item in response.json()["items"]}
 
 
-@pytest.mark.integration
 async def test_create_from_template_shifts_task_dates(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -622,7 +603,6 @@ async def _template_with_dependency(session: AsyncSession, admin) -> tuple:
     return template, first, second
 
 
-@pytest.mark.integration
 async def test_create_from_template_copies_task_relations(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -662,7 +642,6 @@ async def test_create_from_template_copies_task_relations(
     assert [r["other"]["id"] for r in original] == [second.id]
 
 
-@pytest.mark.integration
 async def test_duplicate_project_copies_task_relations(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -699,7 +678,6 @@ async def test_duplicate_project_copies_task_relations(
     ]
 
 
-@pytest.mark.integration
 async def test_a_duplicate_keeps_the_sources_sharing_and_needs_the_create_right(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -739,7 +717,6 @@ async def test_a_duplicate_keeps_the_sources_sharing_and_needs_the_create_right(
     assert as_bystander.status_code == 403
 
 
-@pytest.mark.integration
 async def test_create_from_undated_template_anchors_on_earliest_task(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -783,7 +760,6 @@ async def test_create_from_undated_template_anchors_on_earliest_task(
     )
 
 
-@pytest.mark.integration
 async def test_create_from_template_end_date_only_anchors_on_end(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -823,7 +799,6 @@ async def test_create_from_template_end_date_only_anchors_on_end(
     )
 
 
-@pytest.mark.integration
 async def test_create_from_template_without_dates_copies_task_dates_verbatim(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -867,7 +842,6 @@ async def test_create_from_template_without_dates_copies_task_dates_verbatim(
     )
 
 
-@pytest.mark.integration
 async def test_update_project_sets_and_clears_dates(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -904,7 +878,6 @@ async def test_update_project_sets_and_clears_dates(
     assert cleared.json()["end_date"] is None
 
 
-@pytest.mark.integration
 async def test_create_project_as_member(client: AsyncClient, acting_user):
     """Test that initiative members can create projects."""
     member = await acting_user(guild_role=GuildRole.member, initiative=True)
@@ -923,7 +896,6 @@ async def test_create_project_as_member(client: AsyncClient, acting_user):
     assert data["name"] == "Member Project"
 
 
-@pytest.mark.integration
 async def test_create_project_not_in_initiative_forbidden(
     client: AsyncClient, acting_user
 ):
@@ -943,7 +915,6 @@ async def test_create_project_not_in_initiative_forbidden(
     assert response.status_code == 403
 
 
-@pytest.mark.integration
 async def test_get_project_by_id(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -961,7 +932,6 @@ async def test_get_project_by_id(
     assert data["name"] == project.name
 
 
-@pytest.mark.integration
 async def test_get_project_includes_task_statuses(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -990,7 +960,6 @@ async def test_get_project_includes_task_statuses(
     assert [s["category"] for s in statuses] == ["backlog", "done"]
 
 
-@pytest.mark.integration
 async def test_list_projects_omits_task_statuses(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1008,7 +977,6 @@ async def test_list_projects_omits_task_statuses(
     assert items and all(item["task_statuses"] == [] for item in items)
 
 
-@pytest.mark.integration
 async def test_get_project_not_found(client: AsyncClient, acting_user):
     """Test getting non-existent project."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -1018,7 +986,6 @@ async def test_get_project_not_found(client: AsyncClient, acting_user):
     assert response.status_code == 404
 
 
-@pytest.mark.integration
 async def test_update_project_as_owner(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1038,7 +1005,6 @@ async def test_update_project_as_owner(
     assert data["description"] == "Updated description"
 
 
-@pytest.mark.integration
 async def test_update_project_as_admin(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1063,7 +1029,6 @@ async def test_update_project_as_admin(
     assert data["name"] == "Admin Updated"
 
 
-@pytest.mark.integration
 async def test_update_project_without_permission_forbidden(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1083,7 +1048,6 @@ async def test_update_project_without_permission_forbidden(
     )  # RLS hides the content resource from a non-initiative-member (404, not 403)
 
 
-@pytest.mark.integration
 async def test_delete_project_as_owner(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1098,7 +1062,6 @@ async def test_delete_project_as_owner(
     assert response.status_code == 204
 
 
-@pytest.mark.integration
 async def test_delete_project_as_admin(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1119,7 +1082,6 @@ async def test_delete_project_as_admin(
     assert response.status_code == 204
 
 
-@pytest.mark.integration
 async def test_delete_project_without_permission_forbidden(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1137,7 +1099,6 @@ async def test_delete_project_without_permission_forbidden(
     )  # RLS hides the content resource from a non-initiative-member (404, not 403)
 
 
-@pytest.mark.integration
 async def test_favoriting_a_project_lists_it_until_it_is_unfavorited(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1172,7 +1133,6 @@ async def _task_assignee_ids(session, guild_id: int, task_id: int) -> set[int]:
     )
 
 
-@pytest.mark.integration
 async def test_a_grant_change_unassigns_only_who_loses_write(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1210,7 +1170,6 @@ async def test_a_grant_change_unassigns_only_who_loses_write(
     )
 
 
-@pytest.mark.integration
 async def test_project_guild_isolation(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1255,7 +1214,6 @@ async def test_project_guild_isolation(
         assert response2.status_code == 404
 
 
-@pytest.mark.integration
 async def test_create_project_takes_its_sharing_from_grants(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1314,7 +1272,6 @@ async def test_create_project_takes_its_sharing_from_grants(
     }
 
 
-@pytest.mark.integration
 async def test_create_project_defaults_to_all_members_viewer(
     client: AsyncClient, acting_user
 ):
@@ -1342,7 +1299,6 @@ async def test_create_project_defaults_to_all_members_viewer(
     assert data["my_permission_level"] == "owner"
 
 
-@pytest.mark.integration
 async def test_resaving_the_all_members_grant_does_not_collide_with_itself(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1377,7 +1333,6 @@ async def test_resaving_the_all_members_grant_does_not_collide_with_itself(
     ] == [("write", None, True)]
 
 
-@pytest.mark.integration
 async def test_project_shows_all_members_document_to_member(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1411,7 +1366,6 @@ async def test_project_shows_all_members_document_to_member(
     assert doc.id in doc_ids
 
 
-@pytest.mark.integration
 async def test_project_counts_by_initiative(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1466,7 +1420,6 @@ async def test_project_counts_by_initiative(
 # pinning.
 
 
-@pytest.mark.integration
 async def test_project_owner_sets_the_default_view(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1482,7 +1435,6 @@ async def test_project_owner_sets_the_default_view(
     assert response.json()["default_view_mode"] == "kanban"
 
 
-@pytest.mark.integration
 async def test_guild_admin_sets_the_default_view(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1501,7 +1453,6 @@ async def test_guild_admin_sets_the_default_view(
     assert response.json()["default_view_mode"] == "calendar"
 
 
-@pytest.mark.integration
 async def test_plain_write_edits_but_cannot_set_the_default_view(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1532,7 +1483,6 @@ async def test_plain_write_edits_but_cannot_set_the_default_view(
     assert response.status_code == 200
 
 
-@pytest.mark.integration
 async def test_default_view_rejects_an_unknown_mode(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1550,7 +1500,6 @@ async def test_default_view_rejects_an_unknown_mode(
 # ── Presets travel with the project ───────────────────────────────────
 
 
-@pytest.mark.integration
 async def test_new_project_is_seeded_with_default_presets(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1576,7 +1525,6 @@ async def test_new_project_is_seeded_with_default_presets(
     ]
 
 
-@pytest.mark.integration
 async def test_duplicating_a_project_clones_its_presets(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

@@ -28,7 +28,6 @@ from app.testing.oidc import (
     mint_id_token as _mint_id_token,
 )
 
-pytestmark = pytest.mark.unit
 
 REDIRECT_URI = "https://app.example.com/api/v1/auth/oidc/callback"
 

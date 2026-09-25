@@ -243,10 +243,6 @@ cd backend && pytest app/services/guilds_test.py
 # Run tests for a whole directory
 cd backend && pytest app/api/v1/endpoints/
 
-# Run only unit or integration tests
-cd backend && pytest -m unit
-cd backend && pytest -m integration
-
 # Run tests for files you've changed (vs main)
 cd backend && ./scripts/test-changed.sh
 

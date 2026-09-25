@@ -36,8 +36,6 @@ SECRET = "a-bundled-service-secret-for-tests"
 #: The service this deployment ships, by the public id its registration carries.
 BUNDLED_PUBLIC_ID = "acme.auto"
 
-pytestmark = pytest.mark.integration
-
 
 @pytest.fixture(autouse=True)
 def _wired(monkeypatch):

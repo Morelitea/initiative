@@ -16,8 +16,9 @@ from app.models.tenant.intake import IntakeBinding
 from app.models.tenant.comment import Comment
 from app.models.tenant.moderation import ModerationReport, ModerationReportReporter
 from app.models.tenant.task import Task
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.testing import (
+    create_resource_grant,
     create_comment,
     create_guild,
     create_initiative,
@@ -29,8 +30,6 @@ from app.testing import (
     emitted,
     get_auth_headers,
 )
-
-pytestmark = pytest.mark.integration
 
 
 async def _report(client: AsyncClient, actor, **body) -> Response:
@@ -112,18 +111,12 @@ async def scene(session, acting_user):
     # Shared with the initiative, which is what makes the comment something an
     # ordinary member can see — and therefore something they can report. A
     # report is only ever about a thing the reporter could reach.
-    session.add(
-        ResourceGrant(
-            # The service sets this on every grant it writes; a hand-made one
-            # without it is a grant no initiative-scoped read would find.
-            initiative_id=owner.initiative.id,
-            resource_type=Tool.project.value,
-            resource_id=owner.project.id,
-            all_initiative_members=True,
-            level=ResourceAccessLevel.write,
-        )
+    await create_resource_grant(
+        session,
+        owner.project,
+        all_initiative_members=True,
+        level=ResourceAccessLevel.write,
     )
-    await session.commit()
 
     task = await create_task(session, owner.project)
     comment = await create_comment(session, member.user, task=task)

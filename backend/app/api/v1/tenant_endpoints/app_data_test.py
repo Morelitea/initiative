@@ -57,7 +57,6 @@ from app.testing import (
     route_session_to_guild,
 )
 
-pytestmark = pytest.mark.integration
 
 APP_UID = "SHPAPP00000001"
 PUBLIC_ID = "acme.shop"

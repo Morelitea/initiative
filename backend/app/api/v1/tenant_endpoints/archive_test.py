@@ -7,14 +7,11 @@ before this existed, the two non-tools, and what a repeat of the same call does.
 
 from datetime import datetime
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
 from app.testing import create_document, create_queue, create_task
-
-pytestmark = pytest.mark.integration
 
 
 async def test_a_tool_that_could_not_be_archived_before_can_be_now(

@@ -16,7 +16,6 @@ from jwt.algorithms import ECAlgorithm
 from app.services.marketplace import app_keys
 from app.services.marketplace.registration_lookup import RegistrationSnapshot
 
-pytestmark = pytest.mark.unit
 
 BASE = "https://127.0.0.1:9443"
 JWKS_URI = f"{BASE}/.well-known/jwks.json"

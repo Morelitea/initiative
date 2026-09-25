@@ -25,7 +25,6 @@ from app.db.guild_ddl import APP_POLICY_TABLES, render_guild_rls_ddl
 from app.db.install_standing_test import (
     _install,
     _route,
-    _share_with_members,
 )
 from app.models.platform.guild import GuildRole
 from app.models.tenant.calendar import Calendar
@@ -37,6 +36,7 @@ from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.tenant.tag import Tag
 from app.testing import (
+    create_resource_grant,
     create_calendar,
     create_calendar_event,
     create_comment,
@@ -92,7 +92,6 @@ def _read_asks_the_install(policies, table: str, seen: frozenset[str] = frozense
     )
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize("command", ["SELECT", "INSERT", "UPDATE", "DELETE"])
 def test_every_table_an_app_reaches_asks_the_install(command):
     """Each command on each table the app role is granted carries the leg in
@@ -111,7 +110,6 @@ def test_every_table_an_app_reaches_asks_the_install(command):
     assert missing == [], f"{command} asks nothing of an install on {missing}"
 
 
-@pytest.mark.unit
 def test_the_refused_tables_refuse_every_command():
     policies = _policies()
     for table in sorted(APP_REFUSED_TABLES):
@@ -120,7 +118,6 @@ def test_the_refused_tables_refuse_every_command():
             assert _asks_the_install(policies, table, command), (table, command)
 
 
-@pytest.mark.unit
 def test_the_app_policies_are_restrictive():
     """They narrow what the table's own policies admit, and admit nothing."""
     found: dict[str, set[str]] = {}
@@ -152,12 +149,6 @@ async def _as_person(role_session, actor, install):
     return s
 
 
-async def _grant(session, install, **fields) -> None:
-    await route_session_to_guild(session, install.guild.id)
-    session.add(ResourceGrant(**fields))
-    await session.commit()
-
-
 async def _rename(s, document_id: int, name: str) -> int:
     result = await s.exec(
         text("UPDATE documents SET name = :n WHERE id = :id").bindparams(
@@ -172,7 +163,6 @@ async def _rename(s, document_id: int, name: str) -> int:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_a_document_is_read_with_read_and_changed_with_write(
     session, acting_user, role_session
 ):
@@ -182,16 +172,13 @@ async def test_a_document_is_read_with_read_and_changed_with_write(
     document = await create_document(
         session, install.a, install.seat.user, name="Shared"
     )
-    await _share_with_members(session, document, install.a.id)
+    await create_resource_grant(session, document, all_initiative_members=True)
     # A write grant naming the install; the scope still decides.
-    await _grant(
+    await create_resource_grant(
         session,
-        install,
-        resource_type=Tool.document.value,
-        resource_id=document.id,
+        document,
         app_install_id=install.app.id,
         level=ResourceAccessLevel.write,
-        initiative_id=install.a.id,
     )
 
     reader, _ = await _route(role_session, install, ["documents:read"])
@@ -205,14 +192,8 @@ async def test_a_document_is_read_with_read_and_changed_with_write(
 
     # A member's own write grant still answers for them.
     member = await _member(acting_user, install)
-    await _grant(
-        session,
-        install,
-        resource_type=Tool.document.value,
-        resource_id=document.id,
-        user_id=member.user.id,
-        level=ResourceAccessLevel.write,
-        initiative_id=install.a.id,
+    await create_resource_grant(
+        session, document, user=member.user, level=ResourceAccessLevel.write
     )
     person = await _as_person(role_session, member, install)
     assert (await person.exec(select(Document.name))).all() == ["Shared"]
@@ -220,7 +201,6 @@ async def test_a_document_is_read_with_read_and_changed_with_write(
     await person.rollback()
 
 
-@pytest.mark.integration
 async def test_a_private_document_is_the_installs_once_a_grant_names_it(
     session, acting_user, role_session
 ):
@@ -235,21 +215,14 @@ async def test_a_private_document_is_the_installs_once_a_grant_names_it(
     assert (await s.exec(select(Document.name))).all() == []
     await s.rollback()
 
-    await _grant(
-        session,
-        install,
-        resource_type=Tool.document.value,
-        resource_id=private.id,
-        app_install_id=install.app.id,
-        level=ResourceAccessLevel.read,
-        initiative_id=install.a.id,
+    await create_resource_grant(
+        session, private, app_install_id=install.app.id, level=ResourceAccessLevel.read
     )
     s, _ = await _route(role_session, install, ["documents:read"])
     assert (await s.exec(select(Document.name))).all() == ["Private"]
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_creating_asks_the_scope_of_what_is_created(
     session, acting_user, role_session
 ):
@@ -289,7 +262,6 @@ async def test_creating_asks_the_scope_of_what_is_created(
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_a_person_creating_a_document_gets_no_install_grant(
     session, acting_user, role_session
 ):
@@ -316,7 +288,6 @@ async def test_a_person_creating_a_document_gets_no_install_grant(
     await person.rollback()
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("target", ["owned", "unowned", "its_own", "for_a_person"])
 async def test_an_install_writes_no_grant_itself(
     session, acting_user, role_session, target
@@ -328,9 +299,9 @@ async def test_an_install_writes_no_grant_itself(
         session, acting_user, role_session, granted=["documents:write"]
     )
     owned = await create_document(session, install.a, install.seat.user)
-    await _share_with_members(session, owned, install.a.id)
+    await create_resource_grant(session, owned, all_initiative_members=True)
     unowned = await create_document(session, install.a, install.seat.user)
-    await _share_with_members(session, unowned, install.a.id)
+    await create_resource_grant(session, unowned, all_initiative_members=True)
     await route_session_to_guild(session, install.guild.id)
     await session.exec(
         text(
@@ -375,7 +346,6 @@ async def test_an_install_writes_no_grant_itself(
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_a_narrowed_token_reaches_nothing_of_the_community_as_a_whole(
     session, acting_user, role_session
 ):
@@ -408,7 +378,6 @@ async def test_a_narrowed_token_reaches_nothing_of_the_community_as_a_whole(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_comments_ask_the_comments_scope(session, acting_user, role_session):
     install = await _install(
         session,
@@ -417,7 +386,7 @@ async def test_comments_ask_the_comments_scope(session, acting_user, role_sessio
         granted=["documents:read", "comments:write"],
     )
     document = await create_document(session, install.a, install.seat.user)
-    await _share_with_members(session, document, install.a.id)
+    await create_resource_grant(session, document, all_initiative_members=True)
     await create_comment(session, install.seat.user, document=document, content="First")
 
     s, _ = await _route(role_session, install, ["documents:read"])
@@ -448,7 +417,6 @@ async def test_comments_ask_the_comments_scope(session, acting_user, role_sessio
     await person.rollback()
 
 
-@pytest.mark.integration
 async def test_tags_ask_the_tags_scope(session, acting_user, role_session):
     install = await _install(
         session,
@@ -485,7 +453,6 @@ async def test_tags_ask_the_tags_scope(session, acting_user, role_session):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_the_roster_is_read_with_members_read_and_never_written(
     session, acting_user, role_session
 ):
@@ -526,7 +493,6 @@ async def _subscription(session, install, *, app_install_id, url: str) -> None:
     await session.commit()
 
 
-@pytest.mark.integration
 async def test_an_install_sees_only_its_own_subscriptions(
     session, acting_user, role_session
 ):
@@ -552,7 +518,6 @@ async def test_an_install_sees_only_its_own_subscriptions(
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_every_tool_table_writes_an_installs_owner_row(session, acting_user):
     """The trigger list is stated in its migration; the catalog is what a new
     tool has to match."""

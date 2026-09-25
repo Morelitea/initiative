@@ -20,8 +20,6 @@ from app.models.platform.user_dm_guild_optout import UserDmGuildOptout
 from app.models.platform.user_ignore import UserIgnore
 from app.testing import create_guild, create_guild_membership, create_user
 
-pytestmark = pytest.mark.asyncio
-
 
 async def _policy(session, user, policy: DmPolicy) -> None:
     row = await session.get(UserDmSettings, user.id)

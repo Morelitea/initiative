@@ -24,7 +24,6 @@ from app.main import (
 from app.testing import create_app_service_registration
 
 
-@pytest.mark.unit
 async def test_validation_handler_strips_input_and_url() -> None:
     # FastAPI's default 422 echoes back `input` (and a pydantic docs `url`). On
     # a failed password/secret validation that would leak the submitted value
@@ -59,7 +58,6 @@ async def test_validation_handler_strips_input_and_url() -> None:
     assert "errors.pydantic.dev" not in response.body.decode()
 
 
-@pytest.mark.integration
 async def test_responses_carry_content_security_policy(client: AsyncClient) -> None:
     # The CSP middleware must attach an enforced policy to served responses.
     resp = await client.get("/api/v1/config")
@@ -69,7 +67,6 @@ async def test_responses_carry_content_security_policy(client: AsyncClient) -> N
     assert "object-src 'none'" in csp
 
 
-@pytest.mark.integration
 async def test_csp_admits_the_stored_captcha_provider(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -94,7 +91,6 @@ async def test_csp_admits_the_stored_captcha_provider(
 # --- WebAssembly worker assets (WebAssembly is named on these responses only) ---
 
 
-@pytest.mark.unit
 def test_wasm_worker_match_names_only_those_files() -> None:
     match = main_module._is_wasm_worker_asset
     # The widget sandbox (QuickJS) and the direct message ratchet (vodozemac),
@@ -123,7 +119,6 @@ def test_wasm_worker_match_names_only_those_files() -> None:
     assert not match("assets/pdfjs-wasm/6.3.289/jbig2_nowasm_fallback.js")
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("stem", "suffix"),
     [("sandbox.worker", ".js"), ("ratchet.worker", ".js"), ("pdf.worker", ".mjs")],
@@ -162,7 +157,6 @@ async def test_only_the_wasm_worker_assets_carry_their_policy(
 # --- The registered app frame origins (named on documents, and only there) ---
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "route",
     ["/c/7/apps/12", "/c/7/initiatives/3/apps/12", "/"],
@@ -203,7 +197,6 @@ async def test_every_document_frames_the_registered_apps(
     )
 
 
-@pytest.mark.integration
 async def test_register_validation_error_omits_input(client: AsyncClient) -> None:
     # End-to-end: a 422 from a real endpoint must not echo the submitted value.
     resp = await client.post(
@@ -252,20 +245,17 @@ async def _hsts_for(app_url: str) -> str | None:
     return resp.headers.get("strict-transport-security")
 
 
-@pytest.mark.unit
 async def test_hsts_emitted_for_https_app_url() -> None:
     # An https APP_URL must yield a long-lived, subdomain-covering HSTS header.
     hsts = await _hsts_for("https://app.example.com")
     assert hsts == "max-age=63072000; includeSubDomains"
 
 
-@pytest.mark.unit
 async def test_hsts_absent_for_http_app_url() -> None:
     # Over plain http the header is meaningless and must be omitted.
     assert await _hsts_for("http://localhost:5173") is None
 
 
-@pytest.mark.integration
 async def test_no_hsts_in_test_env_http(client: AsyncClient) -> None:
     # The suite's APP_URL is http, so the live app must not emit HSTS.
     resp = await client.get("/api/v1/config")
@@ -275,7 +265,6 @@ async def test_no_hsts_in_test_env_http(client: AsyncClient) -> None:
 # --- API docs gating (pentest SEC-16) ---
 
 
-@pytest.mark.integration
 async def test_docs_and_openapi_served_when_enabled(client: AsyncClient) -> None:
     # ENABLE_API_DOCS defaults True, so docs + schema are reachable in dev.
     docs = await client.get("/api/v1/docs")
@@ -285,7 +274,6 @@ async def test_docs_and_openapi_served_when_enabled(client: AsyncClient) -> None
     assert schema.json()["info"]["title"]
 
 
-@pytest.mark.integration
 async def test_docs_page_serves_scoped_csp(client: AsyncClient) -> None:
     # The custom /docs route relaxes CSP so Swagger's jsDelivr assets load, but
     # the relaxation must stay scoped to that page — /config keeps script-src 'self'.
@@ -302,7 +290,6 @@ async def test_docs_page_serves_scoped_csp(client: AsyncClient) -> None:
     assert "cdn.jsdelivr.net" not in other_csp.split("script-src")[1].split(";")[0]
 
 
-@pytest.mark.unit
 def test_docs_routes_return_404_when_disabled() -> None:
     """HTTP-level check for the disabled path.
 
@@ -328,7 +315,6 @@ def test_docs_routes_return_404_when_disabled() -> None:
     assert http.get("/api/v1/openapi.json").status_code == 404
 
 
-@pytest.mark.unit
 def test_real_app_serves_docs_only_when_enabled() -> None:
     # The deployed app object reflects the (default-on) setting — guards
     # against the wiring in app.main drifting from ENABLE_API_DOCS. docs_url is
@@ -340,7 +326,6 @@ def test_real_app_serves_docs_only_when_enabled() -> None:
     assert "/api/v1/docs" in docs_routes
 
 
-@pytest.mark.unit
 def test_mcp_is_served_with_or_without_the_trailing_slash() -> None:
     """Both spellings of the MCP URL reach the mount, and neither redirects.
 

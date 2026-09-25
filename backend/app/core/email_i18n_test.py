@@ -5,12 +5,10 @@ import pytest
 from app.core.email_i18n import email_t, translate
 
 
-@pytest.mark.unit
 def test_translate_resolves_email_namespace_by_default():
     assert translate("verification.subject", "en") == "Verify your Initiative account"
 
 
-@pytest.mark.unit
 def test_email_namespace_holds_rich_email_copy():
     # The email namespace carries subject + title + body for a notification.
     assert translate("event.invitation.subject", "en", event="Raid Night") == (
@@ -28,7 +26,6 @@ def test_email_namespace_holds_rich_email_copy():
     )
 
 
-@pytest.mark.unit
 def test_notifications_namespace_holds_terse_push_copy():
     # The notifications namespace carries only title + body, worded for push.
     assert (
@@ -47,7 +44,6 @@ def test_notifications_namespace_holds_terse_push_copy():
     )
 
 
-@pytest.mark.unit
 def test_translate_localizes_per_locale():
     assert (
         translate("comment.reply.title", "es", namespace="notifications")
@@ -66,7 +62,6 @@ def test_translate_localizes_per_locale():
     )
 
 
-@pytest.mark.unit
 def test_access_grant_level_word_is_localized():
     body = translate(
         "accessGrant.approved.body",
@@ -78,7 +73,6 @@ def test_access_grant_level_word_is_localized():
     assert body == "Votre accès en lecture-écriture à Guilde a été approuvé"
 
 
-@pytest.mark.unit
 def test_translate_falls_back_to_english_for_untranslated_locale():
     # ``zz`` has no locale files at all, so it must fall back to English
     # rather than surfacing the raw key.
@@ -88,19 +82,16 @@ def test_translate_falls_back_to_english_for_untranslated_locale():
     )
 
 
-@pytest.mark.unit
 def test_translate_returns_key_when_missing_everywhere():
     assert translate("event.nope.missing", "en", namespace="notifications") == (
         "event.nope.missing"
     )
 
 
-@pytest.mark.unit
 def test_email_t_is_backward_compatible():
     assert email_t("verification.subject", "fr") == "Vérifiez votre compte Initiative"
 
 
-@pytest.mark.unit
 def test_plural_selection_uses_count():
     one = translate("overdue.body", "en", count=1)
     other = translate("overdue.body", "en", count=3)
@@ -111,7 +102,6 @@ def test_plural_selection_uses_count():
 # --- HTML escaping of interpolated values (SEC-5) -------------------------
 
 
-@pytest.mark.unit
 def test_email_namespace_escapes_interpolated_values_by_default():
     # An attacker-controlled display name containing markup must render as
     # literal text inside the HTML email body — the template's own <strong>
@@ -131,7 +121,6 @@ def test_email_namespace_escapes_interpolated_values_by_default():
     assert body.startswith("<strong>")  # template markup untouched
 
 
-@pytest.mark.unit
 def test_email_namespace_escape_false_keeps_values_raw():
     # Plain-text contexts (subjects, textBody) opt out per call.
     assert (
@@ -142,7 +131,6 @@ def test_email_namespace_escape_false_keeps_values_raw():
     )
 
 
-@pytest.mark.unit
 def test_notifications_namespace_is_not_escaped_by_default():
     # Push copy is plain text rendered by the OS, never HTML.
     assert (
@@ -157,7 +145,6 @@ def test_notifications_namespace_is_not_escaped_by_default():
     )
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize("locale", ["en", "de", "es", "fr"])
 def test_every_category_has_a_digest_heading(locale: str):
     """A digest groups by category, so a category with no heading would print
@@ -172,7 +159,6 @@ def test_every_category_has_a_digest_heading(locale: str):
         )
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize("locale", ["en", "de", "es", "fr"])
 def test_every_reason_a_digest_goes_out_has_copy(locale: str):
     for reason in ("hourly", "daily", "weekly", "away", "recent"):

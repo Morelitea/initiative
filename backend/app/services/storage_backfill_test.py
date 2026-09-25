@@ -37,14 +37,12 @@ async def _reset_backfill_row(system_session):
     yield
 
 
-@pytest.mark.integration
 async def test_get_status_creates_idle_row(system_session) -> None:
     row = await storage_backfill.get_status(system_session)
     assert row["status"] == "idle"
     assert row["copied"] == 0
 
 
-@pytest.mark.integration
 async def test_claim_then_conflict(system_session) -> None:
     """The first claim wins and flips the row to running; a second concurrent
     claim (any worker) loses — this is the cross-worker start guard."""
@@ -56,7 +54,6 @@ async def test_claim_then_conflict(system_session) -> None:
     assert await storage_backfill.try_claim(system_session) is False
 
 
-@pytest.mark.integration
 async def test_stale_running_can_be_reclaimed(system_session) -> None:
     """A 'running' row whose heartbeat has gone stale (dead worker) is reclaimable
     so a backfill can't be wedged forever by a crash."""
@@ -70,7 +67,6 @@ async def test_stale_running_can_be_reclaimed(system_session) -> None:
     assert await storage_backfill.try_claim(system_session) is True
 
 
-@pytest.mark.integration
 async def test_start_backfill_conflict_raises(system_session, monkeypatch) -> None:
     """start_backfill claims synchronously and raises on a lost claim — the start
     path no longer 'returns too early' before the guard is checked."""
@@ -89,7 +85,6 @@ async def test_start_backfill_conflict_raises(system_session, monkeypatch) -> No
         await storage_backfill.start_backfill(system_session)
 
 
-@pytest.mark.integration
 async def test_finalize_maps_outcomes(system_session) -> None:
     await storage_backfill.try_claim(system_session)
     await storage_backfill._finalize(

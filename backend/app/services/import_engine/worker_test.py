@@ -17,8 +17,6 @@ from app.services.import_engine import worker as import_worker
 from app.services.storage import get_guild_storage
 from app.testing import create_guild, create_import_job, route_session_to_guild
 
-pytestmark = pytest.mark.integration
-
 
 @pytest.fixture(autouse=True)
 def _tmp_uploads(monkeypatch, tmp_path):

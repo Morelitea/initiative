@@ -16,8 +16,6 @@ from app.services.export.guild_sections import (
 )
 from app.services.export.provenance import BUILTIN_SOURCE, is_exportable
 
-pytestmark = pytest.mark.unit
-
 
 def test_every_guild_level_table_is_carried_or_exempt():
     decided = set(SECTION_TABLES) | set(EXEMPT)

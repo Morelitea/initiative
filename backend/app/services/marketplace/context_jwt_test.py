@@ -32,7 +32,6 @@ from app.core.config import settings
 from app.core.security import AppPlatformSigningNotConfiguredError
 from app.services.marketplace import context_jwt
 
-pytestmark = pytest.mark.unit
 
 _keypair = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 _PRIVATE_PEM = _keypair.private_bytes(

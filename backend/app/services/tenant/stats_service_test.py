@@ -5,8 +5,6 @@ per-guild schemas. These tests assert it routes into the guild schema rather
 than reading the empty ``public`` backup (which returned all-zero dashboards).
 """
 
-import pytest
-
 from app.models.platform.guild import GuildRole
 from app.models.tenant.task import TaskStatusCategory
 from app.services.tenant import stats_service
@@ -20,7 +18,6 @@ from app.testing import (
 )
 
 
-@pytest.mark.integration
 async def test_user_stats_reads_guild_schema(session):
     """A guild with completed tasks must report non-zero stats. If stats read
     the unrouted (public) schema this is 0 — the dashboard-zeros regression."""
@@ -51,7 +48,6 @@ async def test_user_stats_reads_guild_schema(session):
     )
 
 
-@pytest.mark.integration
 async def test_user_stats_all_guilds_aggregates(session):
     """guild_id=None aggregates completed counts across the user's guilds."""
     user = await create_user(session, email="multi-guild@example.com")

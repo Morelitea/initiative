@@ -39,7 +39,6 @@ class BrokenWebSocket(FakeWebSocket):
         raise ConnectionResetError("peer gone")
 
 
-@pytest.mark.integration
 async def test_frame_carries_no_notification_content(session, captured_stream) -> None:
     """An id envelope, and the inbox needs no ids — so nothing but the shape."""
     user = await create_user(session)
@@ -86,7 +85,6 @@ def captured_stream(monkeypatch):
     return stream
 
 
-@pytest.mark.integration
 async def test_no_frame_before_the_commit(session, captured_stream) -> None:
     """A flushed-but-uncommitted notification must not poke anyone: the client
     would refetch an inbox that does not yet contain it, and nothing polls
@@ -106,7 +104,6 @@ async def test_no_frame_before_the_commit(session, captured_stream) -> None:
     assert tab.sent == []
 
 
-@pytest.mark.integration
 async def test_frame_goes_out_on_commit(session, captured_stream) -> None:
     user = await create_user(session)
     tab = FakeWebSocket()
@@ -124,7 +121,6 @@ async def test_frame_goes_out_on_commit(session, captured_stream) -> None:
     assert [frame["action"] for frame in tab.sent] == ["created"]
 
 
-@pytest.mark.integration
 async def test_rollback_pokes_nobody(session, captured_stream) -> None:
     user = await create_user(session)
     tab = FakeWebSocket()
@@ -142,7 +138,6 @@ async def test_rollback_pokes_nobody(session, captured_stream) -> None:
     assert tab.sent == []
 
 
-@pytest.mark.integration
 async def test_several_notifications_in_one_transaction_send_one_frame(
     session, captured_stream
 ) -> None:
@@ -165,7 +160,6 @@ async def test_several_notifications_in_one_transaction_send_one_frame(
     assert len(tab.sent) == 1
 
 
-@pytest.mark.integration
 async def test_a_batch_pokes_each_recipient_once(session, captured_stream) -> None:
     alice = await create_user(session)
     bob = await create_user(session)
@@ -187,7 +181,6 @@ async def test_a_batch_pokes_each_recipient_once(session, captured_stream) -> No
     assert len(bob_tab.sent) == 1
 
 
-@pytest.mark.integration
 async def test_marking_read_pokes_the_users_other_tabs(
     session, captured_stream
 ) -> None:
@@ -213,7 +206,6 @@ async def test_marking_read_pokes_the_users_other_tabs(
     assert [frame["action"] for frame in tab.sent] == ["read"]
 
 
-@pytest.mark.integration
 async def test_mark_all_read_pokes_once(session, captured_stream) -> None:
     user = await create_user(session)
     for task_id in (1, 2):
@@ -243,7 +235,6 @@ async def test_mark_all_read_pokes_once(session, captured_stream) -> None:
     assert unread == []
 
 
-@pytest.mark.integration
 async def test_rolling_a_line_up_pokes_the_recipient(session, captured_stream) -> None:
     """A rolled-up reaction rewrites the existing line rather than adding one,
     so the rewrite is the only trace the second event leaves — and with no poll
@@ -269,7 +260,6 @@ async def test_rolling_a_line_up_pokes_the_recipient(session, captured_stream) -
     assert [frame["action"] for frame in tab.sent] == ["updated"]
 
 
-@pytest.mark.integration
 async def test_a_withdrawal_pokes_without_claiming_to_be_news(
     session, captured_stream
 ) -> None:
@@ -294,7 +284,6 @@ async def test_a_withdrawal_pokes_without_claiming_to_be_news(
     assert [frame["action"] for frame in tab.sent] == ["withdrawn"]
 
 
-@pytest.mark.integration
 async def test_deleting_a_line_pokes_the_recipient(session, captured_stream) -> None:
     """The last reaction being taken back removes the line outright; a bell
     still showing it is what this prevents."""
@@ -317,7 +306,6 @@ async def test_deleting_a_line_pokes_the_recipient(session, captured_stream) -> 
     assert [frame["action"] for frame in tab.sent] == ["withdrawn"]
 
 
-@pytest.mark.unit
 async def test_queue_signal_ignores_a_missing_recipient() -> None:
     """Defensive: a caller with no user id queues nothing rather than erroring
     inside someone else's transaction."""

@@ -7,7 +7,6 @@ one. What stops a reaction is a switch: a thread turned off, or a notice not
 taking them.
 """
 
-import pytest
 from sqlalchemy import delete as sa_delete
 
 from app.core.messages import ReactionMessages
@@ -16,25 +15,17 @@ from app.models.platform.guild import GuildRole
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.reaction import SUGGESTED_EMOJI
 from app.services.tenant.reactions import MAX_REACTIONS_PER_USER
-from app.testing import guild_of, create_post, create_project, create_task
+from app.testing import (
+    create_post,
+    create_project,
+    create_resource_grant,
+    create_task,
+    guild_of,
+)
 from app.testing.schema_harness import route_session_to_guild
 
 THUMBS = "\N{THUMBS UP SIGN}"
 PARTY = "\N{PARTY POPPER}"
-
-
-async def _grant(session, tool: Tool, entity, user, level: ResourceAccessLevel):
-    await route_session_to_guild(session, guild_of(entity))
-    session.add(
-        ResourceGrant(
-            resource_type=tool.value,
-            resource_id=entity.id,
-            user_id=user.id,
-            level=level,
-            initiative_id=entity.initiative_id,
-        )
-    )
-    await session.commit()
 
 
 async def _posts_enabled(session, initiative) -> None:
@@ -69,7 +60,6 @@ async def _comment_on_task(client, actor, task_id: int, content: str = "Hello") 
     return created.json()["id"]
 
 
-@pytest.mark.integration
 class TestReactionToggle:
     async def test_put_adds_then_takes_back(self, client, session, acting_user):
         a = await acting_user(
@@ -115,8 +105,8 @@ class TestReactionToggle:
             initiative=a.initiative,
             initiative_role="member",
         )
-        await _grant(
-            session, Tool.project, a.project, b.user, ResourceAccessLevel.write
+        await create_resource_grant(
+            session, a.project, user=b.user, level=ResourceAccessLevel.write
         )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
@@ -373,7 +363,6 @@ class TestReactionToggle:
         assert resp.json() == list(SUGGESTED_EMOJI)
 
 
-@pytest.mark.integration
 class TestReactionAccess:
     async def test_a_share_reaches_the_chips_and_the_toggle(
         self, client, session, acting_user
@@ -391,7 +380,9 @@ class TestReactionAccess:
             initiative=a.initiative,
             initiative_role="member",
         )
-        await _grant(session, Tool.project, a.project, b.user, ResourceAccessLevel.read)
+        await create_resource_grant(
+            session, a.project, user=b.user, level=ResourceAccessLevel.read
+        )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
         await client.put(
@@ -573,7 +564,9 @@ class TestReactionAccess:
             initiative=a.initiative,
             initiative_role="member",
         )
-        await _grant(session, Tool.post, post, b.user, ResourceAccessLevel.read)
+        await create_resource_grant(
+            session, post, user=b.user, level=ResourceAccessLevel.read
+        )
 
         refused = await client.put(
             a.g(f"/posts/{post.id}/reactions"),
@@ -583,7 +576,6 @@ class TestReactionAccess:
         assert refused.status_code == 403
 
 
-@pytest.mark.integration
 class TestReactionNotifications:
     async def test_author_hears_about_a_reaction_once(
         self, client, session, acting_user
@@ -601,8 +593,8 @@ class TestReactionNotifications:
             initiative=a.initiative,
             initiative_role="member",
         )
-        await _grant(
-            session, Tool.project, a.project, b.user, ResourceAccessLevel.write
+        await create_resource_grant(
+            session, a.project, user=b.user, level=ResourceAccessLevel.write
         )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
@@ -686,12 +678,8 @@ class TestReactionNotifications:
             initiative_role="member",
         )
         for reactor in (b, c):
-            await _grant(
-                session,
-                Tool.project,
-                a.project,
-                reactor.user,
-                ResourceAccessLevel.write,
+            await create_resource_grant(
+                session, a.project, user=reactor.user, level=ResourceAccessLevel.write
             )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
@@ -746,8 +734,8 @@ class TestReactionNotifications:
             initiative=a.initiative,
             initiative_role="member",
         )
-        await _grant(
-            session, Tool.project, a.project, b.user, ResourceAccessLevel.write
+        await create_resource_grant(
+            session, a.project, user=b.user, level=ResourceAccessLevel.write
         )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
@@ -791,8 +779,8 @@ class TestReactionNotifications:
             initiative=a.initiative,
             initiative_role="member",
         )
-        await _grant(
-            session, Tool.project, a.project, b.user, ResourceAccessLevel.write
+        await create_resource_grant(
+            session, a.project, user=b.user, level=ResourceAccessLevel.write
         )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
@@ -855,8 +843,8 @@ class TestReactionNotifications:
             initiative=a.initiative,
             initiative_role="member",
         )
-        await _grant(
-            session, Tool.project, a.project, b.user, ResourceAccessLevel.write
+        await create_resource_grant(
+            session, a.project, user=b.user, level=ResourceAccessLevel.write
         )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
@@ -910,8 +898,8 @@ class TestReactionNotifications:
             initiative=a.initiative,
             initiative_role="member",
         )
-        await _grant(
-            session, Tool.project, a.project, b.user, ResourceAccessLevel.write
+        await create_resource_grant(
+            session, a.project, user=b.user, level=ResourceAccessLevel.write
         )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
@@ -935,7 +923,6 @@ class TestReactionNotifications:
         assert queued == []
 
 
-@pytest.mark.integration
 class TestReactionLifecycle:
     async def test_purging_a_comment_takes_its_reactions(
         self, client, session, acting_user

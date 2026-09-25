@@ -12,14 +12,11 @@ subscription is its own sector.
 
 from __future__ import annotations
 
-import pytest
 
 from app.models.platform.identity_ref import IdentityPurpose
 from app.services.marketplace.app_refs import ensure_app_guild_ref, ensure_app_ref
 from app.services.tenant import webhook_refs
 from app.testing import create_guild, create_user
-
-pytestmark = pytest.mark.integration
 
 
 async def test_an_app_hears_the_names_it_already_holds(session):

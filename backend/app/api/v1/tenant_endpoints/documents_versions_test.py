@@ -50,7 +50,6 @@ async def _share(session: AsyncSession, doc: dict, actor, level) -> None:
     )
 
 
-@pytest.mark.integration
 async def test_upload_and_duplicate_each_start_at_version_one(
     client: AsyncClient, acting_user
 ) -> None:
@@ -82,7 +81,6 @@ async def test_upload_and_duplicate_each_start_at_version_one(
     assert downloaded.content == PDF_BYTES
 
 
-@pytest.mark.integration
 async def test_upload_version_creates_v2_and_mirrors_document(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -132,7 +130,6 @@ async def test_upload_version_creates_v2_and_mirrors_document(
         assert upload is not None
 
 
-@pytest.mark.integration
 async def test_upload_version_read_user_forbidden(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -156,7 +153,6 @@ async def test_upload_version_read_user_forbidden(
     assert resp.status_code == 403
 
 
-@pytest.mark.integration
 async def test_upload_version_type_mismatch_rejected(
     client: AsyncClient, acting_user
 ) -> None:
@@ -173,7 +169,6 @@ async def test_upload_version_type_mismatch_rejected(
     assert resp.json()["detail"] == "DOCUMENT_VERSION_TYPE_MISMATCH"
 
 
-@pytest.mark.integration
 async def test_upload_version_non_file_document_rejected(
     client: AsyncClient, acting_user
 ) -> None:
@@ -203,7 +198,6 @@ async def test_upload_version_non_file_document_rejected(
     assert list_resp.json()["detail"] == "DOCUMENT_NOT_A_FILE_DOCUMENT"
 
 
-@pytest.mark.integration
 async def test_upload_version_unsupported_file_rejected(
     client: AsyncClient, acting_user
 ) -> None:
@@ -226,7 +220,6 @@ async def test_upload_version_unsupported_file_rejected(
     assert resp.json()["detail"] == "DOCUMENT_INVALID_FILE"
 
 
-@pytest.mark.integration
 async def test_list_versions_read_user_allowed_and_ordered(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -259,7 +252,6 @@ async def test_list_versions_read_user_allowed_and_ordered(
     assert versions[1]["is_current"] is False
 
 
-@pytest.mark.integration
 async def test_download_specific_version_returns_its_bytes(
     client: AsyncClient, acting_user
 ) -> None:
@@ -294,7 +286,6 @@ async def test_download_specific_version_returns_its_bytes(
     assert r2.status_code == 200 and r2.content == PDF_BYTES_V2
 
 
-@pytest.mark.integration
 async def test_download_version_unknown_returns_404(
     client: AsyncClient, acting_user
 ) -> None:
@@ -310,7 +301,6 @@ async def test_download_version_unknown_returns_404(
     assert resp.json()["detail"] == "DOCUMENT_VERSION_NOT_FOUND"
 
 
-@pytest.mark.integration
 async def test_download_version_cross_guild_forbidden(
     client: AsyncClient, acting_user
 ) -> None:
@@ -333,7 +323,6 @@ async def test_download_version_cross_guild_forbidden(
     assert resp.status_code == 404
 
 
-@pytest.mark.integration
 async def test_delete_non_current_version_owner(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -389,7 +378,6 @@ async def test_delete_non_current_version_owner(
     assert refreshed.file_size == len(PDF_BYTES_V2)
 
 
-@pytest.mark.integration
 async def test_delete_current_version_promotes_previous(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -423,7 +411,6 @@ async def test_delete_current_version_promotes_previous(
     assert versions[0]["is_current"] is True
 
 
-@pytest.mark.integration
 async def test_delete_last_version_blocked(client: AsyncClient, acting_user) -> None:
     """The only remaining version can't be deleted."""
     owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -444,7 +431,6 @@ async def test_delete_last_version_blocked(client: AsyncClient, acting_user) -> 
     assert resp.json()["detail"] == "DOCUMENT_CANNOT_DELETE_LAST_VERSION"
 
 
-@pytest.mark.integration
 async def test_delete_version_non_owner_forbidden(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -479,7 +465,6 @@ async def test_delete_version_non_owner_forbidden(
     assert resp.status_code == 403
 
 
-@pytest.mark.integration
 async def test_upload_version_allowed_when_stored_content_type_is_null(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -507,7 +492,6 @@ async def test_upload_version_allowed_when_stored_content_type_is_null(
     assert resp.json()["version_number"] == 2
 
 
-@pytest.mark.integration
 async def test_delete_version_non_file_document_rejected(
     client: AsyncClient, acting_user
 ) -> None:
@@ -540,7 +524,6 @@ async def test_delete_version_non_file_document_rejected(
 _TINY_PDF = b"%PDF-1.4 tiny body for size tests"
 
 
-@pytest.mark.integration
 async def test_upload_document_file_over_limit_rejected(
     client: AsyncClient,
     session: AsyncSession,
@@ -573,7 +556,6 @@ async def test_upload_document_file_over_limit_rejected(
     assert all(d.name != "Too big" for d in docs)
 
 
-@pytest.mark.integration
 async def test_upload_document_file_just_under_limit_succeeds(
     client: AsyncClient,
     acting_user,
@@ -598,7 +580,6 @@ async def test_upload_document_file_just_under_limit_succeeds(
     assert resp.json()["file_size"] == cap
 
 
-@pytest.mark.integration
 async def test_upload_document_version_over_limit_rejected(
     client: AsyncClient,
     session: AsyncSession,
@@ -634,7 +615,6 @@ async def test_upload_document_version_over_limit_rejected(
     assert {v.version_number for v in versions} == {1}
 
 
-@pytest.mark.integration
 async def test_upload_document_version_just_under_limit_succeeds(
     client: AsyncClient,
     acting_user,
@@ -672,7 +652,6 @@ _TINY_PNG = (
 )
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("uploader_role", ["guild_admin", "initiative_manager"])
 @pytest.mark.parametrize(
     ("filename", "content", "content_type"),

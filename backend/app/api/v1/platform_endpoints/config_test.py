@@ -18,7 +18,6 @@ from app.core.version import get_min_native_version
 from app.services.tenant.attachments import MAX_DOCUMENT_FILE_SIZE
 
 
-@pytest.mark.integration
 async def test_config_exposes_upload_cap(client: AsyncClient):
     """The SPA reads the server-enforced upload cap from config so the limit
     has a single source of truth (no mirrored frontend constant)."""
@@ -28,7 +27,6 @@ async def test_config_exposes_upload_cap(client: AsyncClient):
     assert response.json()["max_upload_bytes"] == MAX_DOCUMENT_FILE_SIZE
 
 
-@pytest.mark.integration
 async def test_config_exposes_native_version_floor(client: AsyncClient):
     """The landing page builds its Android download link from the release the
     APK was last rebuilt for, which is the floor this server already ships."""
@@ -38,7 +36,6 @@ async def test_config_exposes_native_version_floor(client: AsyncClient):
     assert response.json()["min_native_version"] == get_min_native_version()
 
 
-@pytest.mark.integration
 async def test_config_omits_billing_when_url_unset(client: AsyncClient, monkeypatch):
     """Self-host default: no BILLING_URL ⇒ ``billing: null`` so the SPA hides
     every tier/upgrade/manage surface (the usage panel still renders)."""
@@ -50,7 +47,6 @@ async def test_config_omits_billing_when_url_unset(client: AsyncClient, monkeypa
     assert response.json()["billing"] is None
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("case", "provider", "secret"),
     [
@@ -78,7 +74,6 @@ async def test_config_reports_no_captcha_unless_it_is_fully_configured(
     assert response.json()["captcha"] is None
 
 
-@pytest.mark.integration
 async def test_config_exposes_billing_url_when_set(client: AsyncClient, monkeypatch):
     """With a URL configured, the SPA gets the base URL to build its
     link-out buttons. The operator route reports itself unavailable until its
@@ -97,7 +92,6 @@ async def test_config_exposes_billing_url_when_set(client: AsyncClient, monkeypa
     }
 
 
-@pytest.mark.integration
 async def test_config_reports_operator_handoff_when_signing_configured(
     client: AsyncClient, monkeypatch
 ):
@@ -112,7 +106,6 @@ async def test_config_reports_operator_handoff_when_signing_configured(
     assert response.json()["billing"]["operator_handoff"] is True
 
 
-@pytest.mark.integration
 async def test_config_endpoint_is_unauthenticated(client: AsyncClient):
     """The SPA needs to read this before any user is logged in. No
     cookie, no Authorization header — must still return 200."""
@@ -125,7 +118,6 @@ async def test_config_endpoint_is_unauthenticated(client: AsyncClient):
 # --- Captcha exposure -----------------------------------------------------
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("provider", ["hcaptcha", "turnstile", "recaptcha"])
 async def test_config_captcha_exposes_provider_and_site_key(
     client: AsyncClient, monkeypatch, provider: str
@@ -159,7 +151,6 @@ async def test_config_captcha_exposes_provider_and_site_key(
     assert "very-private-secret" not in response.text
 
 
-@pytest.mark.integration
 async def test_config_says_cookie_consent_is_off_by_default(client: AsyncClient):
     """The SPA reads the switch here because the notice is for somebody who has
     not signed in. Off unless an owner turned it on."""
@@ -169,7 +160,6 @@ async def test_config_says_cookie_consent_is_off_by_default(client: AsyncClient)
     assert response.json()["cookie_consent_enabled"] is False
 
 
-@pytest.mark.integration
 async def test_config_asks_about_nothing_a_deployment_does_not_do(client: AsyncClient):
     """The chooser offers a switch per category here. Self-host default:
     nothing optional is configured, so there is nothing to offer."""

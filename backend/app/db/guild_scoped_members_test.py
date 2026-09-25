@@ -23,7 +23,6 @@ from app.core.config import settings
 from app.db.schema_provisioning import guild_query_role_name
 from app.testing import create_guild, create_guild_membership, create_user
 
-pytestmark = pytest.mark.database
 
 _COUNT = "SELECT count(*) FROM public.current_guild_members"
 _IDS = "SELECT id FROM public.current_guild_members ORDER BY id"

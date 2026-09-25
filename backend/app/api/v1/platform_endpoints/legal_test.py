@@ -29,7 +29,6 @@ def hosted(monkeypatch):
     monkeypatch.setattr(settings, "BILLING_URL", PORTAL)
 
 
-@pytest.mark.integration
 async def test_a_self_hosted_deployment_publishes_no_terms(
     client: AsyncClient, monkeypatch
 ):
@@ -43,7 +42,6 @@ async def test_a_self_hosted_deployment_publishes_no_terms(
     assert document.status_code == 404
 
 
-@pytest.mark.integration
 async def test_index_names_the_documents_and_which_are_required(
     client: AsyncClient, hosted, monkeypatch
 ):
@@ -81,7 +79,6 @@ async def test_index_names_the_documents_and_which_are_required(
     assert body["required"] == list(legal_service.REQUIRED_DOCUMENTS)
 
 
-@pytest.mark.integration
 async def test_an_unreachable_portal_says_so_rather_than_inventing_terms(
     client: AsyncClient, hosted, monkeypatch
 ):
@@ -96,7 +93,6 @@ async def test_an_unreachable_portal_says_so_rather_than_inventing_terms(
     assert response.json()["detail"] == LegalMessages.PORTAL_UNAVAILABLE
 
 
-@pytest.mark.integration
 async def test_a_document_is_served_as_markdown_with_the_portal_etag(
     client: AsyncClient, hosted, monkeypatch
 ):
@@ -122,7 +118,6 @@ async def test_a_document_is_served_as_markdown_with_the_portal_etag(
     assert response.text == "# Terms of Service\n"
 
 
-@pytest.mark.integration
 async def test_a_document_the_portal_does_not_have_is_404(
     client: AsyncClient, hosted, monkeypatch
 ):

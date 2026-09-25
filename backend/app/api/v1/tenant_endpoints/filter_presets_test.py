@@ -9,30 +9,15 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.testing import guild_of
+from app.testing import create_resource_grant, guild_of
 from app.models.platform.guild import GuildRole
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.services.tenant import filter_presets as filter_presets_service
 from app.testing.factories import create_project
-
-pytestmark = pytest.mark.integration
 
 
 def _url(project, suffix: str = "/") -> str:
     return f"/api/v1/c/{guild_of(project)}/projects/{project.id}/filter-presets{suffix}"
-
-
-async def _grant(session: AsyncSession, project, user, level: ResourceAccessLevel):
-    session.add(
-        ResourceGrant(
-            resource_type="project",
-            resource_id=project.id,
-            user_id=user.id,
-            level=level,
-            initiative_id=project.initiative_id,
-        )
-    )
-    await session.commit()
 
 
 async def _seed(session: AsyncSession, project):
@@ -119,7 +104,9 @@ async def test_initiative_manager_may_manage_without_a_grant(
     )
     # Manager standing reaches the initiative; sharing still decides what may
     # change, so managing this project's presets takes a write grant on it.
-    await _grant(session, owner.project, pm.user, ResourceAccessLevel.write)
+    await create_resource_grant(
+        session, owner.project, user=pm.user, level=ResourceAccessLevel.write
+    )
     await _seed(session, owner.project)
 
     response = await client.post(
@@ -172,7 +159,9 @@ async def test_plain_write_access_is_not_enough(
         initiative=owner.initiative,
         initiative_role="member",
     )
-    await _grant(session, owner.project, editor.user, ResourceAccessLevel.write)
+    await create_resource_grant(
+        session, owner.project, user=editor.user, level=ResourceAccessLevel.write
+    )
     presets = await _seed(session, owner.project)
 
     create = await client.post(
@@ -209,7 +198,9 @@ async def test_read_access_cannot_mutate(
         initiative=owner.initiative,
         initiative_role="member",
     )
-    await _grant(session, owner.project, viewer.user, ResourceAccessLevel.read)
+    await create_resource_grant(
+        session, owner.project, user=viewer.user, level=ResourceAccessLevel.read
+    )
     await _seed(session, owner.project)
 
     response = await client.post(

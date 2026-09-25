@@ -23,8 +23,6 @@ from app.services.auth.platform_provider import (
     upsert_platform_provider,
 )
 
-pytestmark = [pytest.mark.integration, pytest.mark.database]
-
 
 async def _upsert(session, **overrides) -> AuthProvider:
     values = {

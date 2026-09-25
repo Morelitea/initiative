@@ -31,34 +31,14 @@ from app.db.system_grants import (
 from app.db.tenancy import SHARED_TABLES
 from app.models.platform.app_setting import AppSetting
 from app.services.platform.app_settings import GLOBAL_SETTINGS_ID
-from app.testing import create_user
+from app.testing import as_role, create_user
 
-pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 TABLE = "app_setting_secrets"
 MOVED_COLUMNS = ("smtp_password_encrypted", "s3_secret_access_key_encrypted")
 PLATFORM_FLOOR = f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
 REQUEST_FLOORS = ("app_user", "app_guild_base", "app_guild_base_ro", PLATFORM_FLOOR)
 VERBS = ("SELECT", "INSERT", "UPDATE", "DELETE")
-
-
-async def _as(session, role: str, user_id: int) -> None:
-    await session.exec(
-        text(
-            "SELECT set_config('app.current_user_id', :uid, false), "
-            "set_config('role', :role, false)"
-        ),
-        params={"uid": str(user_id), "role": role},
-    )
-
-
-async def _reset(session) -> None:
-    await session.exec(
-        text(
-            "SELECT set_config('role', 'none', false), "
-            "set_config('app.current_user_id', '', false)"
-        )
-    )
 
 
 async def _make_rows(session) -> None:
@@ -174,11 +154,12 @@ async def test_every_request_role_is_refused_select(session):
     assert seen == 1
 
     for role in [*REQUEST_FLOORS, *_config_manage_tiers()]:
-        await _as(session, role, user.id)
-        with pytest.raises(DBAPIError):
-            async with session.begin_nested():
-                await session.exec(text(f"SELECT smtp_password_encrypted FROM {TABLE}"))
-        await _reset(session)
+        async with as_role(session, role, user.id):
+            with pytest.raises(DBAPIError):
+                async with session.begin_nested():
+                    await session.exec(
+                        text(f"SELECT smtp_password_encrypted FROM {TABLE}")
+                    )
 
 
 async def test_the_system_engine_reads_and_writes_it(session):
@@ -187,8 +168,7 @@ async def test_the_system_engine_reads_and_writes_it(session):
     user = await create_user(session)
     await _make_rows(session)
 
-    await _as(session, "app_admin", user.id)
-    try:
+    async with as_role(session, "app_admin", user.id):
         async with session.begin_nested():
             value = (
                 await session.exec(
@@ -202,8 +182,6 @@ async def test_the_system_engine_reads_and_writes_it(session):
                     "WHERE id = 1"
                 )
             )
-    finally:
-        await _reset(session)
     stored = (
         await session.exec(
             text(f"SELECT s3_secret_access_key_encrypted FROM {TABLE} WHERE id = 1")

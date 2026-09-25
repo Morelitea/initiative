@@ -36,7 +36,6 @@ from app.testing import (
     route_session_to_guild,
 )
 
-pytestmark = pytest.mark.integration
 
 PLACED_ID = "platform.placed"
 PLACED_UID = marketplace_uid("placed")
@@ -266,8 +265,6 @@ class TestExport:
 
 class TestSurfaceAccess:
     """The one decision behind opening a surface, without a database."""
-
-    pytestmark = pytest.mark.unit
 
     EMBED = {"id": "e", "path": "/e", "scopes": ["guild", "initiative"]}
     ADMIN_ONLY = {**EMBED, "admin_only": True}

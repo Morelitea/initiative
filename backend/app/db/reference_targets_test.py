@@ -9,15 +9,12 @@ request failing at runtime.
 import importlib
 import pkgutil
 
-import pytest
 from sqlmodel import SQLModel
 
 import app.models.tenant as tenant_models
 from app.core.relationships import ENDPOINT_KINDS
 from app.db.reference_targets import VISUALS, Visual, _table_for
 from app.db.search_index import SEARCH_SOURCES
-
-pytestmark = pytest.mark.unit
 
 
 def _tables():

@@ -24,7 +24,6 @@ def _definition(*widgets: dict) -> dict:
     return {"widgets": list(widgets)}
 
 
-@pytest.mark.unit
 def test_every_slot_a_widget_declares_can_be_filled():
     """A slot nothing can fill is a widget nothing can drive. The table is the
     one widget with no shape, which is what makes it the fallback."""
@@ -36,7 +35,6 @@ def test_every_slot_a_widget_declares_can_be_filled():
     assert WIDGET_SPECS["table"].shape == ()
 
 
-@pytest.mark.unit
 def test_a_required_slot_comes_before_an_optional_one():
     """Inference walks the slots in order and takes the first column that fits,
     so anything a widget cannot draw without has to be asked for first."""
@@ -45,7 +43,6 @@ def test_a_required_slot_comes_before_an_optional_one():
         assert required == sorted(required, reverse=True), widget_type
 
 
-@pytest.mark.unit
 def test_presets_resolve_to_a_primitive_and_never_shadow_one():
     """A preset is a named configuration of a first-party widget — it ships no
     renderer, which is what makes it a safe extension point for the
@@ -58,7 +55,6 @@ def test_presets_resolve_to_a_primitive_and_never_shadow_one():
             assert value in spec.options[key], f"{name}: bad option {key}={value}"
 
 
-@pytest.mark.unit
 def test_every_option_defaults_to_a_value_it_allows():
     """The default is what a widget draws when a definition names no value, and
     what the palette shows as chosen. One that is not in its own list would put
@@ -72,7 +68,6 @@ def test_every_option_defaults_to_a_value_it_allows():
             )
 
 
-@pytest.mark.unit
 def test_preset_is_stored_resolved():
     """What lands in the row is always a primitive, with the preset name kept
     only as a label."""
@@ -91,7 +86,6 @@ def test_preset_is_stored_resolved():
     assert widget["options"]["mark"] == "bar"
 
 
-@pytest.mark.unit
 def test_preset_options_win_over_supplied_ones():
     """A preset's own options are its identity — a bar_chart stays a bar."""
     result = normalize_dashboard_definition(
@@ -106,7 +100,6 @@ def test_preset_options_win_over_supplied_ones():
     assert result["widgets"][0]["options"]["mark"] == "bar"
 
 
-@pytest.mark.unit
 def test_rejects_unknown_option_value():
     with pytest.raises(DashboardDefinitionError, match="WIDGET_OPTION_INVALID"):
         normalize_dashboard_definition(
@@ -120,7 +113,6 @@ def test_rejects_unknown_option_value():
         )
 
 
-@pytest.mark.unit
 def test_unknown_option_keys_are_dropped():
     result = normalize_dashboard_definition(
         _definition(
@@ -134,7 +126,6 @@ def test_unknown_option_keys_are_dropped():
     assert result["widgets"][0]["options"] == {"mark": "line"}
 
 
-@pytest.mark.unit
 def test_normalizes_to_canonical_shape():
     result = normalize_dashboard_definition(
         _definition(
@@ -156,7 +147,6 @@ def test_normalizes_to_canonical_shape():
     assert widget["grid"] == {"x": 0, "y": 0, "w": 12, "h": 6}
 
 
-@pytest.mark.unit
 def test_widget_ids_are_assigned_and_must_be_unique():
     result = normalize_dashboard_definition(
         _definition(
@@ -189,7 +179,6 @@ def test_widget_ids_are_assigned_and_must_be_unique():
         )
 
 
-@pytest.mark.unit
 def test_size_floor_is_enforced_per_widget_type():
     """A layout can't squeeze a widget below what it can legibly render."""
     result = normalize_dashboard_definition(
@@ -206,7 +195,6 @@ def test_size_floor_is_enforced_per_widget_type():
     assert grid["h"] == WIDGET_SPECS["gantt"].min_h
 
 
-@pytest.mark.unit
 def test_widget_is_kept_inside_the_grid():
     result = normalize_dashboard_definition(
         _definition(
@@ -221,7 +209,6 @@ def test_widget_is_kept_inside_the_grid():
     assert grid["x"] + grid["w"] <= 12
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "payload,code",
     [
@@ -268,7 +255,6 @@ def test_rejects_unknown_vocabulary(payload, code):
         normalize_dashboard_definition(payload)
 
 
-@pytest.mark.unit
 def test_rejects_too_many_widgets():
     widgets = [
         {
@@ -282,7 +268,6 @@ def test_rejects_too_many_widgets():
         normalize_dashboard_definition({"widgets": widgets})
 
 
-@pytest.mark.unit
 def test_no_definition_can_name_an_endpoint():
     """The closed source vocabulary is what keeps a URL out of a definition —
     there is no source a URL could be smuggled through."""
@@ -293,7 +278,6 @@ def test_no_definition_can_name_an_endpoint():
             )
 
 
-@pytest.mark.unit
 def test_binding_parameters_pass_through_untouched():
     """Parameters belong to the fetcher: the filter DSL enforces its own limits
     and ids are authorized by RLS at fetch time, so they are stored as given."""
@@ -319,7 +303,6 @@ def test_binding_parameters_pass_through_untouched():
     assert binding["group_by"] == "project"
 
 
-@pytest.mark.unit
 def test_a_binding_cannot_name_its_own_initiative_or_guild():
     """Scope comes from the row the dashboard lives on, not from the definition.
 
@@ -348,7 +331,6 @@ def test_a_binding_cannot_name_its_own_initiative_or_guild():
     assert binding["project_id"] == 7
 
 
-@pytest.mark.unit
 def test_unknown_structural_keys_are_dropped():
     result = normalize_dashboard_definition(
         {
@@ -366,7 +348,6 @@ def test_unknown_structural_keys_are_dropped():
     assert "onClick" not in result["widgets"][0]
 
 
-@pytest.mark.unit
 def test_config_is_scoped_to_the_definitions_widgets():
     definition = normalize_dashboard_definition(
         _definition(
@@ -384,7 +365,6 @@ def test_config_is_scoped_to_the_definitions_widgets():
     assert config == {"widgets": {"w1": {"counter_id": 42}}}
 
 
-@pytest.mark.unit
 def test_config_for_a_removed_widget_is_dropped():
     """Updating to a definition without that widget can't leave config behind."""
     definition = normalize_dashboard_definition(
@@ -432,7 +412,6 @@ def _app_widget(**overrides) -> dict:
     }
 
 
-@pytest.mark.unit
 def test_an_app_widget_keeps_its_namespaced_type():
     result = normalize_dashboard_definition(_definition(_app_widget()))
     widget = result["widgets"][0]
@@ -446,7 +425,6 @@ def test_an_app_widget_keeps_its_namespaced_type():
     assert widget["grid"]["w"] >= 2 and widget["grid"]["h"] >= 2
 
 
-@pytest.mark.unit
 def test_a_definition_outlives_the_app_its_widgets_came_from():
     """The check on an app widget is shape, never an install lookup.
 
@@ -462,7 +440,6 @@ def test_a_definition_outlives_the_app_its_widgets_came_from():
     assert normalize_dashboard_definition(first) == first
 
 
-@pytest.mark.unit
 def test_declared_parameters_are_kept_as_the_scalars_they_are():
     """Not coerced: the source's own params_schema declares the type, and
     turning a bool into an int here would satisfy a check the fetch path is
@@ -486,7 +463,6 @@ def test_declared_parameters_are_kept_as_the_scalars_they_are():
     }
 
 
-@pytest.mark.unit
 def test_a_parameter_may_hold_several_values():
     """An endpoint may declare a parameter takes several — several labels,
     several assignees — and a binding that could hold only one of them could not
@@ -515,7 +491,6 @@ def test_a_parameter_may_hold_several_values():
     }
 
 
-@pytest.mark.unit
 def test_values_inside_a_list_are_held_to_the_same_shapes():
     with pytest.raises(DashboardDefinitionError):
         normalize_dashboard_definition(
@@ -532,7 +507,6 @@ def test_values_inside_a_list_are_held_to_the_same_shapes():
         )
 
 
-@pytest.mark.unit
 def test_a_list_longer_than_a_definition_may_carry_is_refused():
     with pytest.raises(DashboardDefinitionError):
         normalize_dashboard_definition(
@@ -549,7 +523,6 @@ def test_a_list_longer_than_a_definition_may_carry_is_refused():
         )
 
 
-@pytest.mark.unit
 def test_an_app_widget_cannot_bind_another_apps_data():
     with pytest.raises(DashboardDefinitionError):
         normalize_dashboard_definition(
@@ -565,7 +538,6 @@ def test_an_app_widget_cannot_bind_another_apps_data():
         )
 
 
-@pytest.mark.unit
 def test_an_app_widget_binds_only_the_app_source():
     for source in sorted(TABULAR_SOURCES):
         with pytest.raises(DashboardDefinitionError):
@@ -589,7 +561,6 @@ def _builtin_over_an_app(**binding):
     )
 
 
-@pytest.mark.unit
 def test_a_builtin_widget_cannot_bind_an_app_it_cannot_read():
     """An app's rows are its own shape — keyed by names it chose, described
     nowhere a built-in can see — so a chart handed them has nothing to draw."""
@@ -597,7 +568,6 @@ def test_a_builtin_widget_cannot_bind_an_app_it_cannot_read():
         normalize_dashboard_definition(_builtin_over_an_app())
 
 
-@pytest.mark.unit
 def test_a_statement_is_what_lets_a_builtin_read_an_app():
     """A statement names the columns it returns, over columns the endpoint
     declared it hands back. That is the whole of what was missing."""
@@ -609,13 +579,11 @@ def test_a_statement_is_what_lets_a_builtin_read_an_app():
     assert binding["sql"] == "SELECT shop FROM rows"
 
 
-@pytest.mark.unit
 def test_a_statement_a_builtin_cannot_run_is_still_refused():
     with pytest.raises(DashboardDefinitionError):
         normalize_dashboard_definition(_builtin_over_an_app(sql="DELETE FROM rows"))
 
 
-@pytest.mark.unit
 def test_the_app_source_is_not_in_the_builtin_vocabulary():
     """`TABULAR_SOURCES` and `WIDGET_TYPES` stay the built-ins' own, so the
     served widget catalog and every drift test keep describing this build's
@@ -624,7 +592,6 @@ def test_the_app_source_is_not_in_the_builtin_vocabulary():
     assert not any(name.startswith("app:") for name in WIDGET_TYPES)
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "widget_type",
     [
@@ -641,7 +608,6 @@ def test_a_malformed_app_widget_type_is_refused(widget_type):
         normalize_dashboard_definition(_definition(_app_widget(type=widget_type)))
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "binding",
     [
@@ -673,7 +639,6 @@ def test_a_malformed_app_binding_is_refused(binding):
         normalize_dashboard_definition(_definition(_app_widget(binding=binding)))
 
 
-@pytest.mark.unit
 def test_an_app_binding_still_has_nowhere_to_put_an_address():
     """The rule that makes a stored definition safe: it names capabilities, not
     hosts. Where the app lives comes from the deployment's registration."""
@@ -694,7 +659,6 @@ def test_an_app_binding_still_has_nowhere_to_put_an_address():
     assert set(binding) == {"source", "app_uid", "endpoint_id"}
 
 
-@pytest.mark.unit
 def test_a_statement_is_read_before_it_is_stored():
     """A definition that cannot be fetched should not be storable: the author is
     looking at the query, so the refusal names the word that has to change."""
@@ -709,7 +673,6 @@ def test_a_statement_is_read_before_it_is_stored():
         )
 
 
-@pytest.mark.unit
 def test_a_query_binding_may_have_no_statement_yet():
     """A widget is placed before it is pointed anywhere, and an installed
     listing may ship one for its guild to fill in. Nothing is fetched for it
@@ -720,7 +683,6 @@ def test_a_query_binding_may_have_no_statement_yet():
     assert definition["widgets"][0]["binding"] == {"source": "query"}
 
 
-@pytest.mark.unit
 def test_a_statement_that_is_not_text_is_refused():
     with pytest.raises(DashboardDefinitionError, match="BINDING_SQL_MISSING"):
         normalize_dashboard_definition(
@@ -728,7 +690,6 @@ def test_a_statement_that_is_not_text_is_refused():
         )
 
 
-@pytest.mark.unit
 def test_a_mapping_names_the_widgets_own_slots():
     """Slots are the widget's, and a mapping keying on anything else would be
     read by nothing."""
@@ -755,7 +716,6 @@ def test_a_mapping_names_the_widgets_own_slots():
         )
 
 
-@pytest.mark.unit
 def test_only_a_repeatable_slot_takes_several_columns():
     """A funnel draws one measure. Two would be a chart."""
     with pytest.raises(DashboardDefinitionError, match="WIDGET_MAPPING_INVALID"):

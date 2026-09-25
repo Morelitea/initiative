@@ -16,7 +16,6 @@ from app.services.fields.registry import dataset_names
 from app.services.query.resolve import QueryError, resolve
 
 
-@pytest.mark.unit
 class TestTheVocabularyIsTheValidatorsOwn:
     def test_every_dataset_offered_can_be_read(self):
         """Named with a field it actually declares, not with ``id``: a join
@@ -56,7 +55,6 @@ class TestTheVocabularyIsTheValidatorsOwn:
         assert set(read_query_vocabulary().datasets) == set(dataset_names())
 
 
-@pytest.mark.integration
 class TestReadingIt:
     async def test_a_member_can_read_the_vocabulary(self, client, acting_user):
         actor = await acting_user(guild_role=GuildRole.member)

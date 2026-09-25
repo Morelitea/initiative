@@ -26,8 +26,6 @@ from app.models.platform.guild import GuildRole
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.testing.schema_harness import route_session_to_guild
 
-pytestmark = [pytest.mark.integration, pytest.mark.service]
-
 
 async def _subscribe(
     session: AsyncSession, *, guild_id: int, user_id: int, initiative_id: int | None
@@ -193,7 +191,6 @@ def _install_context(**overrides):
     return InstallContext(**defaults)
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     ("overrides", "event_types", "initiative_id"),
     [
@@ -222,7 +219,6 @@ def test_an_install_may_subscribe_within_its_standing(
     )
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     ("overrides", "event_types", "initiative_id"),
     [

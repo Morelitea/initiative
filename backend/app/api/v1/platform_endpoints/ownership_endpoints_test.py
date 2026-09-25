@@ -8,7 +8,6 @@ it reads has to be readable from there — a guild session reads people through
 than a request does.
 """
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -20,8 +19,6 @@ from app.testing import (
     TOOL_FACTORIES,
     route_session_to_guild,
 )
-
-pytestmark = pytest.mark.integration
 
 
 async def _released_project(session: AsyncSession, actor):

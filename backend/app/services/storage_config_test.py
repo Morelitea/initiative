@@ -21,7 +21,6 @@ def _reset_cache():
     storage_config.reset_for_tests()
 
 
-@pytest.mark.unit
 def test_current_config_falls_back_to_env_before_load(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -35,7 +34,6 @@ def test_current_config_falls_back_to_env_before_load(
     assert cfg.bucket == "env-bucket"
 
 
-@pytest.mark.integration
 async def test_refresh_loads_db_over_env(
     session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
@@ -69,7 +67,6 @@ async def test_refresh_loads_db_over_env(
     assert cfg.use_path_style is True
 
 
-@pytest.mark.integration
 async def test_test_connection_local_is_noop(session: AsyncSession) -> None:
     """A local backend has no remote to reach, so the connection test passes."""
     cfg = storage_config.ResolvedStorageConfig(
@@ -87,7 +84,6 @@ async def test_test_connection_local_is_noop(session: AsyncSession) -> None:
     assert ok is True
 
 
-@pytest.mark.unit
 def test_build_s3_client_disables_flexible_checksums() -> None:
     """Regression: botocore >=1.36's default flexible checksums break non-AWS
     S3 stores (signature/AccessDenied, classically on GetObject). The client must
@@ -110,7 +106,6 @@ def test_build_s3_client_disables_flexible_checksums() -> None:
     assert client.meta.config.response_checksum_validation == "when_required"
 
 
-@pytest.mark.integration
 async def test_test_connection_s3_requires_bucket(session: AsyncSession) -> None:
     cfg = storage_config.ResolvedStorageConfig(
         backend="s3",

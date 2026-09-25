@@ -8,7 +8,6 @@ serialization on the list summary, and the cross-guild ``/me`` calendar list's
 DAC filter (which now keys off calendar sharing, not per-event grants).
 """
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -97,7 +96,6 @@ async def _setup_event(session, acting_user):
     return a, a.guild, a.initiative, calendar, event
 
 
-@pytest.mark.integration
 async def test_list_events_summary_includes_tags(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -128,7 +126,6 @@ async def test_list_events_summary_includes_tags(
     assert tags[0]["name"] == "Priority"
 
 
-@pytest.mark.integration
 async def test_list_events_summary_tags_default_empty(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -144,7 +141,6 @@ async def test_list_events_summary_tags_default_empty(
     assert items[event.id]["tags"] == []
 
 
-@pytest.mark.integration
 async def test_create_event_notifies_attendees_not_creator(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -187,7 +183,6 @@ async def test_create_event_notifies_attendees_not_creator(
     )
 
 
-@pytest.mark.integration
 async def test_create_multi_day_timed_event_is_allowed(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -217,7 +212,6 @@ async def test_create_multi_day_timed_event_is_allowed(
     assert body["end_at"].startswith("2026-07-03")
 
 
-@pytest.mark.integration
 async def test_create_event_rejects_end_before_start(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -244,7 +238,6 @@ async def test_create_event_rejects_end_before_start(
     assert response.status_code == 422
 
 
-@pytest.mark.integration
 async def test_create_event_requires_calendar_write(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -274,7 +267,6 @@ async def test_create_event_requires_calendar_write(
     assert response.json()["detail"] == "CALENDAR_WRITE_ACCESS_REQUIRED"
 
 
-@pytest.mark.integration
 async def test_move_event_between_calendars_requires_write_on_both(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -320,7 +312,6 @@ async def test_move_event_between_calendars_requires_write_on_both(
     assert denied.status_code == 403
 
 
-@pytest.mark.integration
 async def test_update_event_time_notifies_attendees_as_rescheduled(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -354,7 +345,6 @@ async def test_update_event_time_notifies_attendees_as_rescheduled(
     assert updates[0].data["time_changed"] is True
 
 
-@pytest.mark.integration
 async def test_delete_event_notifies_attendees(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -385,7 +375,6 @@ async def test_delete_event_notifies_attendees(
     assert len(cancels) == 1
 
 
-@pytest.mark.integration
 async def test_update_event_skips_declined_attendees(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -425,7 +414,6 @@ async def test_update_event_skips_declined_attendees(
     assert updates == []
 
 
-@pytest.mark.integration
 async def test_delete_event_skips_declined_attendees(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -463,7 +451,6 @@ async def test_delete_event_skips_declined_attendees(
     assert cancels == []
 
 
-@pytest.mark.integration
 async def test_rsvp_notifies_organizer(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -495,7 +482,6 @@ async def test_rsvp_notifies_organizer(
     assert rsvps[0].data["rsvp_status"] == "accepted"
 
 
-@pytest.mark.integration
 async def test_global_calendar_events_reads_guild_schema(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -511,7 +497,6 @@ async def test_global_calendar_events_reads_guild_schema(
     assert event.id in {item["id"] for item in body["items"]}
 
 
-@pytest.mark.integration
 async def test_list_events_filters_events_without_calendar_grant(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -551,7 +536,6 @@ async def test_list_events_filters_events_without_calendar_grant(
     assert event.id in {item["id"] for item in resp.json()["items"]}
 
 
-@pytest.mark.integration
 async def test_my_calendar_events_filters_events_without_calendar_grant(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -588,7 +572,6 @@ async def test_my_calendar_events_filters_events_without_calendar_grant(
     assert event.id in {item["id"] for item in resp.json()["items"]}
 
 
-@pytest.mark.integration
 async def test_my_calendar_events_leaves_out_what_was_never_shared(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

@@ -5,15 +5,12 @@ about ``accounts.load`` and one fan-out that goes through it end to end. The
 seam is what makes the other five fan-outs true without a rule each.
 """
 
-import pytest
 from sqlmodel import select
 
 from app.models.platform.notification import Notification, NotificationType
 from app.models.platform.user_ignore import UserIgnore
 from app.services.platform import accounts as accounts_service
-from app.testing import create_user
-
-pytestmark = pytest.mark.asyncio
+from app.testing import create_resource_grant, create_user
 
 
 def _mentions(rows: list[Notification]) -> list[Notification]:
@@ -175,18 +172,10 @@ async def test_a_mention_from_an_ignored_account_writes_no_notification(
 async def _a_task(session, actor):
     """A task in a project every member of the initiative can read, so the
     people mentioned on it are people who may be told."""
-    from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
-    from app.testing import create_task, route_session_to_guild
+    from app.testing import create_task
 
-    await route_session_to_guild(session, actor.guild.id)
-    session.add(
-        ResourceGrant(
-            resource_type="project",
-            resource_id=actor.project.id,
-            all_initiative_members=True,
-            level=ResourceAccessLevel.read,
-            initiative_id=actor.project.initiative_id,
-        )
+    await create_resource_grant(
+        session, actor.project, all_initiative_members=True, commit=False
     )
     task = await create_task(session, actor.project)
     await session.commit()

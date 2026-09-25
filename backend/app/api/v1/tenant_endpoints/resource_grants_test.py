@@ -7,7 +7,6 @@ and a bad item never blocks the good ones.
 """
 
 from datetime import datetime, timezone
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -29,7 +28,6 @@ def _results_by_id(body: dict) -> dict[int, str]:
     return {r["resource_id"]: r["status"] for r in body["results"]}
 
 
-@pytest.mark.integration
 async def test_bulk_applies_grants_across_many_projects(
     client: AsyncClient, session: AsyncSession
 ):
@@ -79,7 +77,6 @@ async def test_bulk_applies_grants_across_many_projects(
         )
 
 
-@pytest.mark.integration
 async def test_bulk_dispatches_across_resource_types(
     client: AsyncClient, session: AsyncSession
 ):
@@ -122,7 +119,6 @@ async def test_bulk_dispatches_across_resource_types(
     assert statuses[("queue", queue.id)] == "ok"
 
 
-@pytest.mark.integration
 async def test_bulk_is_best_effort_per_item(client: AsyncClient, session: AsyncSession):
     """A missing resource (``not_found``) is skipped without blocking a valid item
     (``ok``) in the same request."""
@@ -164,7 +160,6 @@ async def test_bulk_is_best_effort_per_item(client: AsyncClient, session: AsyncS
     assert any(g["user_id"] == member.id for g in detail.json()["grants"])
 
 
-@pytest.mark.integration
 async def test_bulk_reports_forbidden_for_unmanageable_item(
     client: AsyncClient, session: AsyncSession
 ):
@@ -207,7 +202,6 @@ async def test_bulk_reports_forbidden_for_unmanageable_item(
     )
 
 
-@pytest.mark.integration
 async def test_bulk_skips_archived_project_but_applies_the_rest(
     client: AsyncClient, session: AsyncSession
 ):
@@ -249,7 +243,6 @@ async def test_bulk_skips_archived_project_but_applies_the_rest(
     assert _results_by_id(resp.json()) == {live.id: "ok", archived.id: "forbidden"}
 
 
-@pytest.mark.integration
 async def test_bulk_rejects_too_many_items(client: AsyncClient, session: AsyncSession):
     """A request over the item cap is rejected (422) before any work is done."""
     from app.schemas.tenant.resource_grant import MAX_BULK_GRANT_ITEMS
@@ -268,7 +261,6 @@ async def test_bulk_rejects_too_many_items(client: AsyncClient, session: AsyncSe
     assert resp.status_code == 422
 
 
-@pytest.mark.integration
 async def test_bulk_rejects_empty_items(client: AsyncClient, session: AsyncSession):
     """An empty item list is rejected (422)."""
     owner = await create_user(session, email="owner@example.com")

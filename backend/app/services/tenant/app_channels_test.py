@@ -9,11 +9,9 @@ one app's credentials and another's.
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
-import pytest
 
 from app.services.tenant.app_channels import owns_install
 
-pytestmark = pytest.mark.unit
 
 SHOP_UID = "TESTAPP0000001"
 

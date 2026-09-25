@@ -8,8 +8,6 @@ import pytest
 from app.services.export.contract import RenderedArtifact
 from app.services.export.engine import ExportError, _bundle, _dedupe_name
 
-pytestmark = pytest.mark.unit
-
 
 def _artifact(key: str, content: bytes = b"x", filename: str | None = None):
     return RenderedArtifact(

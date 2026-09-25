@@ -13,7 +13,6 @@ from app.services.import_engine import confluence_export as ce
 from app.services.import_engine.confluence_storage import storage_to_lexical
 from app.services.import_engine.jira_attachments import AssetBudget
 
-pytestmark = pytest.mark.unit
 
 PNG = b"\x89PNG\r\n\x1a\nchart"
 PDF = b"%PDF-spec"

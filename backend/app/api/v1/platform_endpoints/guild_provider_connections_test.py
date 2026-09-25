@@ -6,7 +6,6 @@ sees only the providers it is allowed to, and the narrowing it sets is what
 decides whether somebody arriving is one of theirs.
 """
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -21,8 +20,6 @@ from app.testing.factories import (
     create_user,
     get_auth_headers,
 )
-
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 
 async def _seat(session: AsyncSession, *, auth_options: list[str] | None = None):

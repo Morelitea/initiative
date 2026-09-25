@@ -36,7 +36,6 @@ async def _reset_role(session: AsyncSession) -> None:
     await session.exec(text("RESET ROLE"))
 
 
-@pytest.mark.integration
 async def test_pam_read_grant_sees_only_granted_guild(
     session: AsyncSession, reading_as
 ):
@@ -127,7 +126,6 @@ async def test_pam_read_grant_sees_only_granted_guild(
         await session.rollback()
 
 
-@pytest.mark.integration
 async def test_grantee_guild_settings_lazy_create_does_not_fault(
     session: AsyncSession, reading_as
 ):
@@ -164,7 +162,6 @@ async def test_grantee_guild_settings_lazy_create_does_not_fault(
     assert persisted == 0, "grantee read must not create a guild_settings row"
 
 
-@pytest.mark.integration
 async def test_pam_read_grant_does_not_fault_legacy_isolation_tables(
     session: AsyncSession, reading_as
 ):
@@ -211,7 +208,6 @@ async def test_pam_read_grant_does_not_fault_legacy_isolation_tables(
     )
 
 
-@pytest.mark.integration
 async def test_no_pam_flag_sees_nothing(session: AsyncSession):
     """An INACTIVE grant (pam_guild_id set, but neither flag) must yield no access.
 
@@ -260,7 +256,6 @@ async def test_no_pam_flag_sees_nothing(session: AsyncSession):
         await _reset_role(session)
 
 
-@pytest.mark.integration
 async def test_pam_write_grant_can_update(session: AsyncSession, reading_as):
     owner = await create_user(session, email="owner3@example.com", role=UserRole.owner)
     support = await create_user(
@@ -283,7 +278,6 @@ async def test_pam_write_grant_can_update(session: AsyncSession, reading_as):
     await reader.rollback()
 
 
-@pytest.mark.integration
 async def test_request_role_cannot_self_insert_an_access_grant(session: AsyncSession):
     """Grant creation is system-engine-only (migration 0146): a routed
     request-path session is refused when it writes ``access_grants``, so the

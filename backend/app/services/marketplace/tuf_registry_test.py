@@ -51,7 +51,6 @@ from app.testing.tuf_repository import (
     dashboard_definition,
 )
 
-pytestmark = pytest.mark.integration
 
 APP_UID = "ACME0000000001"
 BOARD_UID = "ACME0000000002"

@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import pytest
 
 from app.schemas.tenant.import_envelopes import WikiEnvelope
 from app.services.import_engine import confluence_mapping as cm
 from app.services.import_engine.confluence_attachments import PageMedia
 from app.services.import_engine.jira_attachments import StoredImage
 
-pytestmark = pytest.mark.unit
 
 SITE = "https://acme.atlassian.net"
 SPACE = {

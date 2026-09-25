@@ -6,8 +6,6 @@ from app.core.messages import ImportEngineMessages
 from app.services.import_engine import jira_attachments as ja
 from app.services.import_engine.contract import ImportEngineError
 
-pytestmark = pytest.mark.unit
-
 
 def _att(att_id, filename, mime="image/png", size=100):
     return {"id": att_id, "filename": filename, "mimeType": mime, "size": size}

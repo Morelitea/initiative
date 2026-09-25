@@ -53,7 +53,6 @@ def _b64url_encode(raw: bytes) -> str:
     return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     ("stored_hash", "expected_match"),
     [
@@ -93,7 +92,6 @@ def test_sign_in_password_check_runs_every_supported_kdf_step(
         assert stored_hash not in selected_hashes
 
 
-@pytest.mark.unit
 def test_sign_in_password_check_accepts_only_a_matching_account_hash() -> None:
     """Dummy work can never turn an absent or unusable credential into a login."""
     password = "independent-password-fixture"
@@ -110,8 +108,9 @@ def test_sign_in_password_check_accepts_only_a_matching_account_hash() -> None:
     assert security.verify_sign_in_password(password, "!") is False
 
 
-@pytest.mark.unit
-def test_billing_portal_handoff_carries_admin_claims_and_distinct_audience():
+def test_billing_portal_handoff_carries_admin_claims_and_distinct_audience(
+    handoff_signing_key,
+):
     """Claims present, and the audience is the portal's own."""
     token, seconds = security.create_billing_portal_handoff_token(
         guild_role="admin",
@@ -134,8 +133,9 @@ def test_billing_portal_handoff_carries_admin_claims_and_distinct_audience():
     assert "guild_id" not in payload
 
 
-@pytest.mark.unit
-def test_billing_portal_handoff_names_the_community_only_when_given_a_name():
+def test_billing_portal_handoff_names_the_community_only_when_given_a_name(
+    handoff_signing_key,
+):
     named, _ = security.create_billing_portal_handoff_token(
         guild_role="admin",
         user_ref="ubil_test42",
@@ -174,7 +174,6 @@ def test_billing_portal_handoff_names_the_community_only_when_given_a_name():
     assert "guild_name" not in _decode_unverified(blank)
 
 
-@pytest.mark.unit
 def test_billing_portal_handoff_refuses_to_mint_without_private_key(monkeypatch):
     """No RS256 key configured -> mint fails closed."""
     monkeypatch.setattr(security.settings, "HANDOFF_SIGNING_PRIVATE_KEY_PEM", None)
@@ -191,7 +190,6 @@ def test_billing_portal_handoff_refuses_to_mint_without_private_key(monkeypatch)
 # ──────────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.unit
 def test_upload_token_round_trips_to_user_id():
     """A freshly minted upload token verifies back to the user it names,
     carrying its minting session's auth standing (empty by default)."""
@@ -213,7 +211,6 @@ def test_upload_token_round_trips_to_user_id():
     )
 
 
-@pytest.mark.unit
 def test_upload_token_carries_how_the_session_was_opened():
     """A community can ask for a second factor or for a passkey, and the token
     carries the markers that answer each — a code presented after a password
@@ -228,7 +225,6 @@ def test_upload_token_carries_how_the_session_was_opened():
     assert verify_upload_token(neither)[3] == frozenset()
 
 
-@pytest.mark.unit
 def test_upload_token_carries_scope_and_audience_but_no_ver():
     """The token must carry the uploads aud/scope and deliberately omit
     ``ver`` — the general session-JWT path keys on ``ver`` and so will
@@ -241,7 +237,6 @@ def test_upload_token_carries_scope_and_audience_but_no_ver():
     assert "ver" not in payload
 
 
-@pytest.mark.unit
 def test_verify_upload_token_rejects_session_jwt():
     """A normal session JWT (different shape, no uploads aud) must not pass
     upload-token verification."""
@@ -256,7 +251,6 @@ def test_verify_upload_token_rejects_session_jwt():
         verify_upload_token(session_jwt)
 
 
-@pytest.mark.unit
 def test_verify_upload_token_rejects_expired_token():
     """An expired upload token is rejected."""
     token, _ = create_upload_token(user_id=7, expires_in=timedelta(seconds=-1))
@@ -264,7 +258,6 @@ def test_verify_upload_token_rejects_expired_token():
         verify_upload_token(token)
 
 
-@pytest.mark.unit
 def test_session_jwt_signed_with_dedicated_jwt_signing_key(monkeypatch):
     """When JWT_SIGNING_KEY is set, session JWTs are signed/verified with it — so it
     can be rotated independently of the encryption-rooting SECRET_KEY."""
@@ -296,7 +289,6 @@ def test_session_jwt_signed_with_dedicated_jwt_signing_key(monkeypatch):
         )
 
 
-@pytest.mark.unit
 def test_jwt_signing_key_does_not_affect_encryption(monkeypatch):
     """Setting/rotating JWT_SIGNING_KEY must not change encryption or the email HMAC —
     those are rooted in SECRET_KEY alone, so a JWT rotation can't orphan data."""
@@ -314,8 +306,7 @@ def test_jwt_signing_key_does_not_affect_encryption(monkeypatch):
     assert decrypt_field(before_ct, SALT_EMAIL) == "alice@example.com"
 
 
-@pytest.mark.unit
-def test_verify_upload_token_rejects_wrong_audience():
+def test_verify_upload_token_rejects_wrong_audience(handoff_signing_key):
     """A token signed with our secret but carrying a foreign audience (e.g. a
     handoff into another service) must not be honored as an upload token."""
     handoff, _ = security.create_billing_portal_handoff_token(
@@ -330,7 +321,6 @@ def test_verify_upload_token_rejects_wrong_audience():
 # ── New-model access token (auth rewrite, Phase 0) ─────────────────────────
 
 
-@pytest.mark.unit
 def test_mint_access_token_carries_session_claims():
     """The access token names the user, the backing session, and the auth
     context (amr/sat) that the guild-policy gate reads locally."""
@@ -356,7 +346,6 @@ def test_mint_access_token_carries_session_claims():
     assert payload["aud"] == AUTH_ACCESS_AUDIENCE
 
 
-@pytest.mark.unit
 def test_mint_access_token_exp_matches_advertised_seconds():
     """``exp`` must equal ``iat`` + the returned seconds — the SPA schedules its
     refresh off that number, so drift would refresh late (or never)."""
@@ -373,7 +362,6 @@ def test_mint_access_token_exp_matches_advertised_seconds():
     assert payload["exp"] - payload["iat"] == seconds
 
 
-@pytest.mark.unit
 def test_mint_access_token_is_verifiable_with_expected_audience():
     """A round-trip decode with the audience the verification path will require
     must succeed — signature + aud + iss all line up."""
@@ -400,7 +388,6 @@ def test_mint_access_token_is_verifiable_with_expected_audience():
 # ── Dual-verify decode (accepts new + legacy, rejects scoped) ───────────────
 
 
-@pytest.mark.unit
 def test_decode_session_token_accepts_new_access_token():
     token, _ = mint_access_token(
         subject="ucli_seven",
@@ -416,7 +403,6 @@ def test_decode_session_token_accepts_new_access_token():
     assert payload["sat"] == [3]
 
 
-@pytest.mark.unit
 def test_decode_session_token_refuses_the_pre_session_shape():
     """The JWT builds before 0.69.0 issued — signed by us, carrying ``sub`` and
     ``ver``, and no ``aud``/``iss`` — is no longer a session credential.
@@ -437,7 +423,6 @@ def test_decode_session_token_refuses_the_pre_session_shape():
         decode_session_token(legacy)
 
 
-@pytest.mark.unit
 def test_decode_session_token_rejects_scoped_upload_token():
     """A scoped upload token carries a foreign aud — it must NOT be honored as
     a session credential on either decode path (the key security property)."""
@@ -446,8 +431,7 @@ def test_decode_session_token_rejects_scoped_upload_token():
         decode_session_token(upload)
 
 
-@pytest.mark.unit
-def test_decode_session_token_rejects_handoff_token():
+def test_decode_session_token_rejects_handoff_token(handoff_signing_key):
     handoff, _ = security.create_billing_portal_handoff_token(
         guild_role="admin",
         user_ref="ubil_test7",
@@ -457,7 +441,6 @@ def test_decode_session_token_rejects_handoff_token():
         decode_session_token(handoff)
 
 
-@pytest.mark.unit
 def test_decode_session_token_rejects_expired_new_token():
     """An expired NEW token must surface its true ``ExpiredSignatureError`` from
     the first decode — not be masked by the legacy fallback's audience error —
@@ -474,7 +457,6 @@ def test_decode_session_token_rejects_expired_new_token():
         decode_session_token(token)
 
 
-@pytest.mark.unit
 def test_decode_session_token_rejects_garbage():
     with pytest.raises(jwt.PyJWTError):
         decode_session_token("not.a.jwt")
@@ -520,7 +502,6 @@ def public_bundle(*indexes: int) -> str:
     )
 
 
-@pytest.mark.unit
 def test_loader_reads_every_block_in_order():
     keys = security.load_verification_keys(public_bundle(0, 1, 2))
     assert len(keys) == 3
@@ -529,20 +510,17 @@ def test_loader_reads_every_block_in_order():
     ]
 
 
-@pytest.mark.unit
 def test_loader_reads_a_single_block():
     """The ordinary one-key case is the same code path."""
     assert len(security.load_verification_keys(public_bundle(0))) == 1
 
 
-@pytest.mark.unit
 def test_loader_treats_empty_as_no_keys():
     """An unset setting is "no peer", not an error — callers decide what that
     means for them."""
     assert security.load_verification_keys("") == ()
 
 
-@pytest.mark.unit
 def test_loader_refuses_an_unreadable_block_rather_than_skipping_it():
     """A silently dropped block would leave a rotation looking configured
     while the key it added does nothing."""
@@ -552,7 +530,6 @@ def test_loader_refuses_an_unreadable_block_rather_than_skipping_it():
     assert "block 2" in str(excinfo.value)
 
 
-@pytest.mark.unit
 def test_loader_refuses_a_private_key():
     """Only the public half belongs in a verifying setting."""
     with pytest.raises(security.PublicKeyBundleError):

@@ -8,7 +8,6 @@ detail says which way somebody got in.
 
 from __future__ import annotations
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -22,7 +21,6 @@ from app.models.platform.user import UserStatus
 from app.testing import emitted
 from app.testing.factories import create_user, get_auth_headers
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 PASSWORD = "testpassword123"
 

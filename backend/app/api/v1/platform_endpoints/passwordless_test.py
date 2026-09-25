@@ -39,7 +39,6 @@ from app.testing import (
     get_auth_token,
 )
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 PASSWORD = "correct-horse-battery-staple"
 NEW_PASSWORD = "a-different-horse-entirely"

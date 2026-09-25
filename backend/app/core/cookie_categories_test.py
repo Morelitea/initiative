@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 
 from app.core.config import settings
 from app.core.cookie_categories import (
@@ -10,8 +9,6 @@ from app.core.cookie_categories import (
     CookieCategory,
     active_cookie_categories,
 )
-
-pytestmark = pytest.mark.unit
 
 
 def test_the_vocabulary_is_what_the_frontend_has_labels_for():

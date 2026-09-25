@@ -69,7 +69,6 @@ async def _installation(installed: InstalledApp) -> str:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_an_app_token_names_only_the_client(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -88,7 +87,6 @@ async def test_an_app_token_names_only_the_client(
     assert token == AppAccessToken(client_id=CLIENT, exp=token.exp)
 
 
-@pytest.mark.integration
 async def test_a_p256_key_authenticates_too(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -104,7 +102,6 @@ async def test_a_p256_key_authenticates_too(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_an_installation_token_carries_every_granted_scope(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -128,7 +125,6 @@ async def test_an_installation_token_carries_every_granted_scope(
     assert token.initiative_id is None
 
 
-@pytest.mark.integration
 async def test_an_installation_token_can_be_down_scoped(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -150,7 +146,6 @@ async def test_an_installation_token_can_be_down_scoped(
     assert token.scopes == frozenset({"comments:read"})
 
 
-@pytest.mark.integration
 async def test_a_written_resource_may_be_asked_for_at_read(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -166,7 +161,6 @@ async def test_a_written_resource_may_be_asked_for_at_read(
     assert response.json()["scope"] == "documents:read"
 
 
-@pytest.mark.integration
 async def test_a_scope_to_use_another_app_is_issued_and_asked_for_by_name(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -194,7 +188,6 @@ async def test_a_scope_to_use_another_app_is_issued_and_asked_for_by_name(
     assert _error(other) == "invalid_scope"
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("scope", ["projects:read", "documents:write", "not-a-scope"])
 async def test_a_scope_beyond_the_grant_is_refused(
     client: AsyncClient, session: AsyncSession, acting_user, role_session, scope
@@ -229,7 +222,6 @@ async def _upgrade_dropping(session: AsyncSession, installed: InstalledApp, keep
     app_revocation.drain_revocations(session)
 
 
-@pytest.mark.integration
 async def test_a_scope_the_pinned_version_dropped_is_not_issued(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -264,7 +256,6 @@ async def test_a_scope_the_pinned_version_dropped_is_not_issued(
     assert sorted(row.granted_scopes) == ["comments:read", "documents:write"]
 
 
-@pytest.mark.integration
 async def test_a_placed_initiative_narrows_the_token(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -284,7 +275,6 @@ async def test_a_placed_initiative_narrows_the_token(
     assert token.initiative_id == installed.placed.id
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("which", ["unplaced", "malformed"])
 async def test_an_initiative_it_is_not_placed_in_is_refused(
     client: AsyncClient, session: AsyncSession, acting_user, role_session, which
@@ -306,7 +296,6 @@ async def test_an_initiative_it_is_not_placed_in_is_refused(
     assert _error(response) == "invalid_target"
 
 
-@pytest.mark.integration
 async def test_an_unknown_installation_is_refused(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -318,7 +307,6 @@ async def test_an_unknown_installation_is_refused(
     assert _error(response) == "invalid_grant"
 
 
-@pytest.mark.integration
 async def test_another_clients_installation_is_refused(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -338,7 +326,6 @@ async def test_another_clients_installation_is_refused(
     assert _error(response) == "invalid_grant"
 
 
-@pytest.mark.integration
 async def test_the_member_grant_takes_no_client_assertion(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -354,7 +341,6 @@ async def test_the_member_grant_takes_no_client_assertion(
     assert _error(response) == "invalid_request"
 
 
-@pytest.mark.integration
 async def test_an_unknown_grant_type_is_unsupported(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -371,7 +357,6 @@ async def test_an_unknown_grant_type_is_unsupported(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "overrides",
     [
@@ -402,7 +387,6 @@ async def test_a_bad_assertion_is_an_invalid_client(
     assert _error(response) == "invalid_client"
 
 
-@pytest.mark.integration
 async def test_an_assertion_is_used_once(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -417,7 +401,6 @@ async def test_an_assertion_is_used_once(
     assert _error(second) == "invalid_client"
 
 
-@pytest.mark.integration
 async def test_a_disabled_registration_is_an_invalid_client(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -431,7 +414,6 @@ async def test_a_disabled_registration_is_an_invalid_client(
     assert _error(response) == "invalid_client"
 
 
-@pytest.mark.integration
 async def test_no_assertion_is_an_invalid_client(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -443,7 +425,6 @@ async def test_no_assertion_is_an_invalid_client(
     assert _error(response) == "invalid_client"
 
 
-@pytest.mark.integration
 async def test_a_json_body_is_an_invalid_request(client: AsyncClient):
     response = await client.post(TOKEN_URL, json={"grant_type": "client_credentials"})
 
@@ -456,7 +437,6 @@ async def test_a_json_body_is_an_invalid_request(client: AsyncClient):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_an_app_token_lists_the_installs(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
@@ -483,7 +463,6 @@ async def test_an_app_token_lists_the_installs(
     ]
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("paused_by", ["install_off", "guild_on_hold", "guild_deleted"])
 async def test_a_paused_install_is_listed_as_inactive(
     client: AsyncClient,
@@ -523,7 +502,6 @@ async def test_a_paused_install_is_listed_as_inactive(
     assert listed["active"] is False
 
 
-@pytest.mark.integration
 async def test_an_installation_token_does_not_list_installs(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):

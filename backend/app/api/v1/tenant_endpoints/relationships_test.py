@@ -6,14 +6,13 @@ so a caller never has to know that a symmetric edge is stored in node-id order.
 """
 
 from datetime import datetime, timezone
-import pytest
 from httpx import AsyncClient
 
 from app.core.messages import RelationshipMessages
 from app.models.platform.guild import GuildRole
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.testing.schema_harness import route_session_to_guild
 from app.testing import (
+    create_resource_grant,
     create_calendar_event,
     create_document,
     create_guild_calendar,
@@ -24,8 +23,6 @@ from app.testing import (
     create_tag,
     create_task,
 )
-
-pytestmark = pytest.mark.integration
 
 
 def _url(a) -> str:
@@ -325,21 +322,8 @@ async def test_a_replace_cannot_drop_a_link_a_delete_would_refuse(
     assert made.status_code == 201, made.text
 
     # A co-member who can read both ends but edit neither.
-    await route_session_to_guild(session, owner.guild.id)
-    for resource_type, resource_id in (
-        ("project", owner.project.id),
-        ("document", doc.id),
-    ):
-        session.add(
-            ResourceGrant(
-                resource_type=resource_type,
-                resource_id=resource_id,
-                all_initiative_members=True,
-                level=ResourceAccessLevel.read,
-                initiative_id=owner.initiative.id,
-            )
-        )
-    await session.commit()
+    for resource in (owner.project, doc):
+        await create_resource_grant(session, resource, all_initiative_members=True)
 
     reader = await acting_user(
         guild_role=GuildRole.member,
@@ -775,16 +759,7 @@ async def test_asserting_a_link_from_something_you_may_read_but_not_edit(
     mine = await create_task(session, a.project)
     theirs = await create_project(session, a.initiative, b.user)
     # Readable by everyone in the initiative, writable only by its owner.
-    session.add(
-        ResourceGrant(
-            resource_type="project",
-            resource_id=theirs.id,
-            all_initiative_members=True,
-            level=ResourceAccessLevel.read,
-            initiative_id=theirs.initiative_id,
-        )
-    )
-    await session.commit()
+    await create_resource_grant(session, theirs, all_initiative_members=True)
 
     readable = await client.get(a.g(f"/projects/{theirs.id}"), headers=a.headers)
     assert readable.status_code == 200, "the case needs a readable far end"
@@ -817,16 +792,7 @@ async def test_a_symmetric_link_asks_only_that_both_ends_be_readable(
         initiative_role="member",
     )
     theirs = await create_document(session, a.initiative, b.user)
-    session.add(
-        ResourceGrant(
-            resource_type="document",
-            resource_id=theirs.id,
-            all_initiative_members=True,
-            level=ResourceAccessLevel.read,
-            initiative_id=theirs.initiative_id,
-        )
-    )
-    await session.commit()
+    await create_resource_grant(session, theirs, all_initiative_members=True)
 
     response = await client.post(
         _url(a),

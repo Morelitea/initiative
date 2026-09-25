@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 
-import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
@@ -22,7 +21,6 @@ from app.models.tenant.document import DocumentType
 from app.models.tenant.search_entry import SearchEntry
 from app.testing import Actor, create_document
 
-pytestmark = pytest.mark.integration
 
 ActingUser = Callable[..., Awaitable[Actor]]
 

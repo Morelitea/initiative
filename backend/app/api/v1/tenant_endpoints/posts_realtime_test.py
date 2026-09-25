@@ -12,7 +12,6 @@ moment the room hears about it.
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -33,8 +32,6 @@ from app.testing import (
     lexical_body,
     route_session_to_guild,
 )
-
-pytestmark = pytest.mark.integration
 
 
 async def _posts_enabled(session: AsyncSession, initiative) -> None:
@@ -87,7 +84,6 @@ class _Room:
         return [change["action"] for change in self.changes(resource_type)]
 
 
-@pytest.mark.asyncio
 async def test_posting_a_notice_tells_the_room(
     client: AsyncClient, acting_user, session
 ):
@@ -122,7 +118,6 @@ async def test_posting_a_notice_tells_the_room(
         )
 
 
-@pytest.mark.asyncio
 async def test_a_scheduled_draft_says_nothing_until_it_goes_up(
     client: AsyncClient, acting_user, session
 ):
@@ -147,7 +142,6 @@ async def test_a_scheduled_draft_says_nothing_until_it_goes_up(
         assert room.changes() == []
 
 
-@pytest.mark.asyncio
 async def test_publishing_a_draft_now_tells_the_room(
     client: AsyncClient, acting_user, session
 ):
@@ -184,7 +178,6 @@ async def test_publishing_a_draft_now_tells_the_room(
         assert changes[0]["resource"] == {"type": "posts", "id": post_id}
 
 
-@pytest.mark.asyncio
 async def test_editing_pinning_and_deleting_each_tell_the_room(
     client: AsyncClient, acting_user, session
 ):
@@ -214,7 +207,6 @@ async def test_editing_pinning_and_deleting_each_tell_the_room(
     assert room.actions() == ["updated", "updated", "deleted"]
 
 
-@pytest.mark.asyncio
 async def test_answering_a_poll_tells_the_room_the_tallies_moved(
     client: AsyncClient, acting_user, session
 ):
@@ -249,7 +241,6 @@ async def test_answering_a_poll_tells_the_room_the_tallies_moved(
     assert room.actions() == ["updated", "updated"]
 
 
-@pytest.mark.asyncio
 async def test_a_notice_never_reaches_another_initiatives_room(
     client: AsyncClient, acting_user, session
 ):

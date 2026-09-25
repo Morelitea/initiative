@@ -19,7 +19,6 @@ TINY_PNG = (
 )
 
 
-@pytest.mark.integration
 async def test_upload_image_too_large(client: AsyncClient, acting_user):
     """Uploading an image larger than MAX_IMAGE_BYTES returns 413."""
     a = await acting_user(guild_role=GuildRole.admin)
@@ -35,7 +34,6 @@ async def test_upload_image_too_large(client: AsyncClient, acting_user):
     assert response.json()["detail"] == "ATTACHMENT_TOO_LARGE"
 
 
-@pytest.mark.integration
 async def test_upload_image_within_limit(client: AsyncClient, acting_user):
     """A valid PNG under the size limit is accepted."""
     a = await acting_user(guild_role=GuildRole.admin)
@@ -50,7 +48,6 @@ async def test_upload_image_within_limit(client: AsyncClient, acting_user):
     assert response.json()["url"].startswith("/uploads/")
 
 
-@pytest.mark.integration
 async def test_upload_names_the_file_after_its_bytes(client: AsyncClient, acting_user):
     """The stored name and type come from the bytes, not from what the client
     called the file — so the name a serve request reads back describes it."""
@@ -69,7 +66,6 @@ async def test_upload_names_the_file_after_its_bytes(client: AsyncClient, acting
     assert payload["url"].endswith(".svg")
 
 
-@pytest.mark.integration
 async def test_upload_ignores_a_declared_svg_type(client: AsyncClient, acting_user):
     """A raster is identified as one however it is labelled."""
     a = await acting_user(guild_role=GuildRole.admin)
@@ -86,7 +82,6 @@ async def test_upload_ignores_a_declared_svg_type(client: AsyncClient, acting_us
     assert payload["url"].endswith(".png")
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "prolog",
     [
@@ -115,7 +110,6 @@ async def test_upload_accepts_an_svg_behind_a_prolog(
     assert response.json()["url"].endswith(".svg")
 
 
-@pytest.mark.integration
 async def test_upload_refuses_bytes_that_are_no_image(client: AsyncClient, acting_user):
     """Nothing the detector recognizes means nothing is stored, whatever the
     client called it."""
@@ -137,7 +131,6 @@ async def test_upload_refuses_bytes_that_are_no_image(client: AsyncClient, actin
     assert response.json()["detail"] == "ATTACHMENT_INVALID_IMAGE"
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "contents",
     [
@@ -157,7 +150,6 @@ def test_an_svg_root_is_found_behind_its_prolog(contents: bytes):
     assert detect_document_image_type(contents) == "image/svg+xml"
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "contents",
     [
@@ -175,7 +167,6 @@ def test_markup_that_is_not_an_svg_is_not_an_image(contents: bytes):
     assert detect_document_image_type(contents) is None
 
 
-@pytest.mark.unit
 def test_a_raster_is_identified_before_markup():
     """A raster signature settles it; nothing goes looking for markup in a PNG."""
     assert detect_document_image_type(TINY_PNG) == "image/png"
@@ -219,7 +210,6 @@ async def _set_description(client: AsyncClient, a, task_id: int, text: str) -> N
     assert response.status_code == 200, response.text
 
 
-@pytest.mark.integration
 async def test_a_pasted_picture_is_named_as_pasted(client: AsyncClient, acting_user):
     from app.services.tenant.attachments import PASTED_IMAGE_PREFIX
 
@@ -230,7 +220,6 @@ async def test_a_pasted_picture_is_named_as_pasted(client: AsyncClient, acting_u
     assert url.startswith(f"/uploads/{a.guild.id}/{PASTED_IMAGE_PREFIX}")
 
 
-@pytest.mark.integration
 async def test_taking_a_picture_out_of_a_description_deletes_it(
     client: AsyncClient, session, acting_user
 ):
@@ -249,7 +238,6 @@ async def test_taking_a_picture_out_of_a_description_deletes_it(
     assert not await _stored(session, a.guild.id, url)
 
 
-@pytest.mark.integration
 async def test_a_picture_another_task_still_shows_stays(
     client: AsyncClient, session, acting_user
 ):
@@ -267,7 +255,6 @@ async def test_a_picture_another_task_still_shows_stays(
     assert await _stored(session, a.guild.id, url)
 
 
-@pytest.mark.integration
 async def test_a_picture_that_is_not_a_description_s_is_never_deleted(
     client: AsyncClient, session, acting_user
 ):
@@ -290,7 +277,6 @@ async def test_a_picture_that_is_not_a_description_s_is_never_deleted(
     assert await _stored(session, a.guild.id, doc_url)
 
 
-@pytest.mark.integration
 async def test_purging_a_task_deletes_its_pictures(
     client: AsyncClient, session, acting_user
 ):
@@ -322,7 +308,6 @@ def _lexical(*urls: str) -> dict:
     return {"root": {"children": [{"type": "image", "src": url} for url in urls]}}
 
 
-@pytest.mark.integration
 async def test_a_picture_taken_out_of_a_document_goes_when_nothing_shows_it(
     client: AsyncClient, session, acting_user
 ):
@@ -386,7 +371,6 @@ async def _discard(client: AsyncClient, a, url: str) -> None:
     assert response.status_code == 204, response.text
 
 
-@pytest.mark.integration
 async def test_a_picture_left_unsaved_is_discarded(
     client: AsyncClient, session, acting_user
 ):
@@ -398,7 +382,6 @@ async def test_a_picture_left_unsaved_is_discarded(
     assert not await _stored(session, a.guild.id, url)
 
 
-@pytest.mark.integration
 async def test_a_saved_picture_is_not_discarded(
     client: AsyncClient, session, acting_user
 ):
@@ -416,7 +399,6 @@ async def test_a_saved_picture_is_not_discarded(
     assert await _stored(session, a.guild.id, url)
 
 
-@pytest.mark.integration
 async def test_nobody_discards_somebody_else_s_picture(
     client: AsyncClient, session, acting_user
 ):
@@ -429,7 +411,6 @@ async def test_nobody_discards_somebody_else_s_picture(
     assert await _stored(session, a.guild.id, url)
 
 
-@pytest.mark.integration
 async def test_only_a_pasted_picture_can_be_discarded(
     client: AsyncClient, session, acting_user
 ):
@@ -446,7 +427,6 @@ async def test_only_a_pasted_picture_can_be_discarded(
     assert await _stored(session, a.guild.id, doc_url)
 
 
-@pytest.mark.integration
 async def test_the_sweep_takes_pictures_nobody_saved_once_their_grace_is_over(
     client: AsyncClient, session, acting_user
 ):
@@ -484,7 +464,6 @@ async def _edit_comment(client: AsyncClient, a, comment_id: int, text: str) -> N
     assert response.status_code == 200, response.text
 
 
-@pytest.mark.integration
 async def test_taking_a_picture_out_of_a_comment_deletes_it(
     client: AsyncClient, session, acting_user
 ):
@@ -503,7 +482,6 @@ async def test_taking_a_picture_out_of_a_comment_deletes_it(
     assert not await _stored(session, a.guild.id, url)
 
 
-@pytest.mark.integration
 async def test_a_picture_a_comment_shows_outlives_the_description(
     client: AsyncClient, session, acting_user
 ):
@@ -522,7 +500,6 @@ async def test_a_picture_a_comment_shows_outlives_the_description(
     assert await _stored(session, a.guild.id, url)
 
 
-@pytest.mark.integration
 async def test_purging_a_task_takes_its_comments_pictures_too(
     client: AsyncClient, session, acting_user
 ):

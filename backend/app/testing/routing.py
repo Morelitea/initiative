@@ -10,14 +10,16 @@ routing now needs a membership or a grant to exist first.
 
 from __future__ import annotations
 
-from typing import Optional, Sequence
+from contextlib import asynccontextmanager
+from typing import AsyncIterator, Optional, Sequence
 
+from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.user import User
 
-__all__ = ["route_as", "route_as_install", "route_system"]
+__all__ = ["as_role", "route_as", "route_as_install", "route_system"]
 
 
 async def route_as(
@@ -106,3 +108,31 @@ async def route_system(session: AsyncSession, *, guild_id: int, **kwargs) -> Non
     from app.db.session import set_rls_context
 
     await set_rls_context(session, guild_id=guild_id, **kwargs)
+
+
+@asynccontextmanager
+async def as_role(
+    session: AsyncSession, role: str, user_id: int
+) -> AsyncIterator[None]:
+    """Run the block as the Postgres ``role`` with ``user_id`` as the current
+    user, on the session's connection, then return to the login role.
+
+    For a table's grants and policies read as a request role reads them, with
+    none of the routing a request does first.
+    """
+    await session.exec(
+        text(
+            "SELECT set_config('app.current_user_id', :uid, false), "
+            "set_config('role', :role, false)"
+        ),
+        params={"uid": str(user_id), "role": role},
+    )
+    try:
+        yield
+    finally:
+        await session.exec(
+            text(
+                "SELECT set_config('role', 'none', false), "
+                "set_config('app.current_user_id', '', false)"
+            )
+        )

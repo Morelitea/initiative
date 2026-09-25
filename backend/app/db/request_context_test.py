@@ -23,8 +23,6 @@ from app.db.request_context import (
     classify,
 )
 
-pytestmark = pytest.mark.unit
-
 
 def test_no_user_and_no_guild_is_unattributed():
     assert isinstance(classify(), Unattributed)

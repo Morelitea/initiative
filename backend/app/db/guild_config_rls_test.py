@@ -25,8 +25,6 @@ from app.testing import (
     route_as,
 )
 
-pytestmark = pytest.mark.integration
-
 
 def _invite(guild_id: int, user_id: int, code: str) -> GuildInvite:
     return GuildInvite(code=code, guild_id=guild_id, created_by=user_id, max_uses=1)

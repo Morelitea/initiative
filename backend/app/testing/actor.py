@@ -48,6 +48,12 @@ from app.testing.factories import (
 API = "/api/v1"
 
 
+def guild_url(guild_id: int, path: str = "/") -> str:
+    """Guild-scoped API URL: ``guild_url(7, "/projects/")`` →
+    ``/api/v1/c/7/projects/``."""
+    return f"{API}/c/{guild_id}{path}"
+
+
 @dataclass
 class Actor:
     """An authenticated test identity and the workspace it acts in."""
@@ -60,11 +66,10 @@ class Actor:
     project: Project | None = None
 
     def g(self, path: str = "/") -> str:
-        """Guild-scoped API URL: ``a.g("/projects/")`` →
-        ``/api/v1/c/<guild_id>/projects/``."""
+        """``guild_url`` for this actor's guild."""
         if self.guild is None:
             raise ValueError("actor has no guild; pass guild_role=")
-        return f"{API}/c/{self.guild.id}{path}"
+        return guild_url(self.guild.id, path)
 
 
 async def make_actor(

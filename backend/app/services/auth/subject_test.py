@@ -8,8 +8,6 @@ from app.services.auth.subject import subject_for_user, user_for_subject
 from app.services.platform import identity_refs
 from app.testing.factories import create_user
 
-pytestmark = pytest.mark.integration
-
 
 async def test_a_subject_is_a_reference_and_resolves_back(session: AsyncSession):
     user = await create_user(session)

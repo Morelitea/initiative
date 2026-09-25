@@ -24,7 +24,6 @@ from app.services.auth.oidc.id_token import (
     verify_id_token,
 )
 
-pytestmark = pytest.mark.unit
 
 ISSUER = "https://idp.example.com"
 AUDIENCE = "client-123"

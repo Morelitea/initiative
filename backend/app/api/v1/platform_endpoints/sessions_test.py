@@ -55,8 +55,6 @@ async def _sign_in(client: AsyncClient, email: str, *, user_agent: str):
     )
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_the_list_names_each_browser_and_marks_the_one_asking(
     client: AsyncClient, session: AsyncSession
 ):
@@ -87,8 +85,6 @@ async def test_the_list_names_each_browser_and_marks_the_one_asking(
     assert [row["label"] for row in current] == ["Chrome on macOS"]
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_the_list_carries_no_refresh_token(
     client: AsyncClient, session: AsyncSession
 ):
@@ -113,8 +109,6 @@ async def test_the_list_carries_no_refresh_token(
     }
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_a_session_is_dated_from_its_sign_in_not_its_last_renewal(
     client: AsyncClient, session: AsyncSession
 ):
@@ -141,8 +135,6 @@ async def test_a_session_is_dated_from_its_sign_in_not_its_last_renewal(
     assert rows[0]["started_at"] == started
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_ending_a_session_stops_it_renewing(
     client: AsyncClient, session: AsyncSession
 ):
@@ -169,8 +161,6 @@ async def test_ending_a_session_stops_it_renewing(
     assert [row["label"] for row in remaining] == ["Chrome on macOS"]
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_somebody_elses_session_answers_as_missing(
     client: AsyncClient, session: AsyncSession
 ):
@@ -199,8 +189,6 @@ async def test_somebody_elses_session_answers_as_missing(
     assert len(still_there.json()) == 1
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_signing_out_everywhere_else_spares_the_one_asking(
     client: AsyncClient, session: AsyncSession
 ):
@@ -220,8 +208,6 @@ async def test_signing_out_everywhere_else_spares_the_one_asking(
     assert rows[0]["is_current"] is True
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_signing_out_everywhere_else_takes_the_phones_too(
     client: AsyncClient, session: AsyncSession
 ):
@@ -243,8 +229,6 @@ async def test_signing_out_everywhere_else_takes_the_phones_too(
     assert spent.status_code == 401
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_a_native_client_sweeping_spares_its_own_device(
     client: AsyncClient, session: AsyncSession
 ):
@@ -268,8 +252,6 @@ async def test_a_native_client_sweeping_spares_its_own_device(
     assert stale.status_code == 401
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 @pytest.mark.parametrize(
     ("method", "path"),
     [
@@ -376,8 +358,6 @@ async def _open_stream(
     return socket
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_ending_a_session_closes_the_connections_opened_on_it(
     client: AsyncClient, session: AsyncSession, streams: ContentSockets
 ):
@@ -404,8 +384,6 @@ async def test_ending_a_session_closes_the_connections_opened_on_it(
     assert on_asking.closed is None
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_signing_out_everywhere_else_keeps_this_sessions_connections(
     client: AsyncClient, session: AsyncSession, streams: ContentSockets
 ):
@@ -437,8 +415,6 @@ async def test_signing_out_everywhere_else_keeps_this_sessions_connections(
     assert on_asking.closed is None
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_a_password_change_closes_the_connections_opened_before_it(
     client: AsyncClient, session: AsyncSession, streams: ContentSockets
 ):

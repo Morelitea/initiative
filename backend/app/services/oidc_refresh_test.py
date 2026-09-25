@@ -10,7 +10,6 @@ import base64
 import json
 
 import httpx
-import pytest
 from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -38,8 +37,6 @@ from app.testing.factories import (
     create_guild_provider_connection,
     create_user,
 )
-
-pytestmark = pytest.mark.integration
 
 
 async def _configured(session: AsyncSession, slug: str):

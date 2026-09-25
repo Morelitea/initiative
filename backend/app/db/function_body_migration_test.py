@@ -17,7 +17,6 @@ import pytest
 
 from app.testing import create_guild, create_user
 
-pytestmark = pytest.mark.integration
 
 _VERSIONS = Path(__file__).resolve().parents[2] / "alembic" / "versions"
 

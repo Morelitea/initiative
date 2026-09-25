@@ -23,7 +23,6 @@ from app.testing import (
 _SERVICE_DEFINITION = {"app_kind": "service", "service": {"public_id": "tests.app"}}
 
 
-@pytest.mark.integration
 async def test_grants_polymorphic_relationship_loads(session: AsyncSession):
     """The viewonly grants relationship returns only this resource's grants."""
     user = await create_user(session)
@@ -91,7 +90,6 @@ def _install_grant(project: Project, install: GuildApp, **overrides) -> Resource
     )
 
 
-@pytest.mark.integration
 async def test_a_grant_may_name_an_app_install_alone(session: AsyncSession):
     """An installed app is a grantee kind of its own: a row naming it and
     nothing else satisfies the one-grantee check."""
@@ -111,7 +109,6 @@ async def test_a_grant_may_name_an_app_install_alone(session: AsyncSession):
     assert stored.dashboard_id is None
 
 
-@pytest.mark.integration
 async def test_a_grant_naming_a_user_and_an_install_is_refused(
     session: AsyncSession,
 ):
@@ -123,7 +120,6 @@ async def test_a_grant_naming_a_user_and_an_install_is_refused(
     await session.rollback()
 
 
-@pytest.mark.integration
 async def test_an_install_holds_one_grant_per_resource(session: AsyncSession):
     _, guild, _, project, install = await _project_and_install(session)
 
@@ -136,7 +132,6 @@ async def test_an_install_holds_one_grant_per_resource(session: AsyncSession):
     await session.rollback()
 
 
-@pytest.mark.integration
 async def test_uninstalling_removes_the_installs_grants(session: AsyncSession):
     """Deleting the install row takes every grant made to it, and leaves the
     other grants on the same resource alone."""
@@ -165,7 +160,6 @@ async def test_uninstalling_removes_the_installs_grants(session: AsyncSession):
     )
 
 
-@pytest.mark.integration
 async def test_saving_the_sharing_panel_keeps_an_installs_grant(
     session: AsyncSession,
 ):
@@ -201,7 +195,6 @@ async def test_saving_the_sharing_panel_keeps_an_installs_grant(
     assert any(g.all_initiative_members for g in reported)
 
 
-@pytest.mark.integration
 async def test_the_sharing_panel_cannot_grant_an_install(session: AsyncSession):
     user, guild, initiative, project, install = await _project_and_install(session)
 
@@ -219,7 +212,6 @@ async def test_the_sharing_panel_cannot_grant_an_install(session: AsyncSession):
     assert excinfo.value.detail == SharingMessages.APP_INSTALL_GRANT_NOT_SET_HERE
 
 
-@pytest.mark.unit
 def test_the_grant_shape_counts_an_install_as_a_grantee():
     assert ResourceGrantSchema(app_install_id=3, level="read").app_install_id == 3
     with pytest.raises(ValueError):

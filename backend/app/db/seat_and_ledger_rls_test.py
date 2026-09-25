@@ -35,8 +35,6 @@ from app.testing import (
     route_session_to_guild,
 )
 
-pytestmark = pytest.mark.integration
-
 
 async def _as(role_session, *, user_id: int, guild_id: int, settings=False):
     """A request-login session routed into the community, as a request is."""

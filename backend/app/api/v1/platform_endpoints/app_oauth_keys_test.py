@@ -8,7 +8,6 @@ set's fetch is stood in for here; ``app_keys_test`` covers it.
 
 from __future__ import annotations
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -22,7 +21,6 @@ from app.testing.app_clients import (
     mint_client_assertion,
 )
 
-pytestmark = pytest.mark.integration
 
 TOKEN_URL = "/api/v1/app-platform/oauth/token"
 ASSERTION_TYPE = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"

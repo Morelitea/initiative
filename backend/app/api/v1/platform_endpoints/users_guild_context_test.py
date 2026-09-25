@@ -7,7 +7,6 @@ read another guild's data. There is no server-held guild context anymore — the
 URL is the single source of truth, per request and per tab.
 """
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -19,7 +18,6 @@ from app.testing.factories import (
 )
 
 
-@pytest.mark.integration
 async def test_non_member_gets_403_on_guild_path(
     client: AsyncClient, session: AsyncSession
 ):
@@ -39,7 +37,6 @@ async def test_non_member_gets_403_on_guild_path(
     assert response.json()["detail"] == "GUILD_ACCESS_DENIED"
 
 
-@pytest.mark.integration
 async def test_member_of_one_guild_cannot_address_another(
     client: AsyncClient, session: AsyncSession
 ):

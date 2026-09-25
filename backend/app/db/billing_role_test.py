@@ -31,8 +31,6 @@ from sqlalchemy.exc import DBAPIError
 from app.db.session import set_billing_context
 from app.testing import create_guild, create_guild_membership
 
-pytestmark = [pytest.mark.integration, pytest.mark.database]
-
 
 async def _denied(billing_session, sql: str) -> None:
     """The statement must die at the Postgres privilege/policy layer."""

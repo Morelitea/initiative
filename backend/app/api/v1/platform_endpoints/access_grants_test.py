@@ -57,7 +57,6 @@ async def _request_access(client: AsyncClient, actor: Actor, guild, **body) -> o
     )
 
 
-@pytest.mark.integration
 async def test_support_requests_owner_approves_and_the_queue_masks_addresses(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -97,7 +96,6 @@ async def test_support_requests_owner_approves_and_the_queue_masks_addresses(
     assert "@example.com" not in approved.text
 
 
-@pytest.mark.integration
 async def test_my_requests_respects_limit_and_order(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -135,7 +133,6 @@ async def test_my_requests_respects_limit_and_order(
     assert [g["reason"] for g in rest.json()] == ["old 1", "old 0"]
 
 
-@pytest.mark.integration
 async def test_queue_live_filter_excludes_expired(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -159,7 +156,6 @@ async def test_queue_live_filter_excludes_expired(
     assert [g["reason"] for g in queue.json()] == ["live one"]
 
 
-@pytest.mark.integration
 async def test_member_cannot_request_access(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -172,7 +168,6 @@ async def test_member_cannot_request_access(
     assert resp.status_code == 403
 
 
-@pytest.mark.integration
 async def test_requester_cannot_approve_own(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -192,7 +187,6 @@ async def test_requester_cannot_approve_own(
     assert resp.json()["detail"] == "ACCESS_GRANT_CANNOT_APPROVE_OWN"
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "tier,minutes,expected",
     [
@@ -220,7 +214,6 @@ async def test_the_window_a_role_may_ask_for(
         assert resp.json()["detail"] == "ACCESS_GRANT_DURATION_TOO_LONG"
 
 
-@pytest.mark.integration
 async def test_revoke_and_cancel(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -245,7 +238,6 @@ async def test_revoke_and_cancel(
     assert revoked.json()["is_live"] is False
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "tool,path,make",
     [
@@ -279,7 +271,6 @@ async def test_a_grant_reaches_a_tools_content_not_who_it_is_shared_with(
     assert resp.json()["detail"] == tool.grant_cannot_manage_members_code
 
 
-@pytest.mark.integration
 async def test_grantee_sees_guild_content(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -328,7 +319,6 @@ async def test_grantee_sees_guild_content(
     assert viewed.status_code == 200, viewed.text
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("tier", ["moderator", "operator"])
 async def test_a_scoped_read_write_grant_cannot_author_tools(
     client: AsyncClient, session: AsyncSession, acting_user, tier
@@ -372,7 +362,6 @@ async def test_a_scoped_read_write_grant_cannot_author_tools(
     assert created.status_code == 403, created.text
 
 
-@pytest.mark.integration
 async def test_grant_read_carries_guild_status(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -396,7 +385,6 @@ async def test_grant_read_carries_guild_status(
     assert rows and rows[0]["guild_status"] == "suspended"
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "tier,expected",
     [
@@ -425,7 +413,6 @@ async def test_the_queue_is_read_by_approvers_on_their_own_tier(
         assert row["user_email"] is not None
 
 
-@pytest.mark.integration
 async def test_a_grantee_reads_their_own_grant_and_not_somebody_elses(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -447,7 +434,6 @@ async def test_a_grantee_reads_their_own_grant_and_not_somebody_elses(
     assert theirs.status_code == 404, theirs.text
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "tier,expected",
     [
@@ -480,7 +466,6 @@ async def test_the_request_form_reads_the_callers_ceiling(
         assert limits.json()["max_duration_minutes"] == 90
 
 
-@pytest.mark.integration
 async def test_break_glass_requirements_carry_the_window(
     client: AsyncClient, acting_user
 ):

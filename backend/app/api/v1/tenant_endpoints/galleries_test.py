@@ -10,18 +10,17 @@ is reached only through its gallery, and how the list pages and anchors.
 import io
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from httpx import AsyncClient
-from sqlalchemy import delete as sa_delete
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
 from app.models.tenant.gallery import GalleryImage, GalleryImageVersion
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.models.tenant.upload import Upload
 from app.services.tenant import galleries as galleries_service
 from app.testing import (
+    strip_non_owner_grants,
     create_gallery,
     create_gallery_image,
     create_resource_grant,
@@ -37,19 +36,6 @@ async def _galleries_enabled(session: AsyncSession, initiative) -> None:
     await session.refresh(initiative)
 
 
-async def _strip_non_owner_grants(session, gallery, owner_id: int) -> None:
-    """Remove every grant except the owner's own — the gallery becomes
-    invisible to other members."""
-    await session.exec(
-        sa_delete(ResourceGrant).where(
-            ResourceGrant.resource_type == "gallery",
-            ResourceGrant.resource_id == gallery.id,
-            ResourceGrant.user_id.is_distinct_from(owner_id),
-        )
-    )
-    await session.commit()
-
-
 def _upload(name: str = "shot.png", data: bytes | None = None, **fields):
     """The multipart body the upload endpoints take."""
     return {
@@ -63,7 +49,6 @@ def _upload(name: str = "shot.png", data: bytes | None = None, **fields):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_create_gallery(client: AsyncClient, acting_user, session):
     """Creating seeds the creator's owner grant plus the default all-members
     read grant."""
@@ -91,7 +76,6 @@ async def test_create_gallery(client: AsyncClient, acting_user, session):
     assert (True, "read") in levels
 
 
-@pytest.mark.integration
 async def test_create_requires_feature_enabled(
     client: AsyncClient, acting_user, session
 ):
@@ -110,7 +94,6 @@ async def test_create_requires_feature_enabled(
     assert response.json()["detail"] == "GALLERIES_NOT_ENABLED"
 
 
-@pytest.mark.integration
 async def test_create_requires_the_create_permission(
     client: AsyncClient, acting_user, session
 ):
@@ -134,7 +117,6 @@ async def test_create_requires_the_create_permission(
     assert response.json()["detail"] == "GALLERY_CREATE_PERMISSION_REQUIRED"
 
 
-@pytest.mark.integration
 async def test_list_carries_counts_and_newest_picture_as_cover(
     client: AsyncClient, acting_user, session
 ):
@@ -177,7 +159,6 @@ async def test_list_carries_counts_and_newest_picture_as_cover(
     assert len(chosen.json()["preview"]) == 2
 
 
-@pytest.mark.integration
 async def test_preview_is_capped_at_the_newest_few(
     client: AsyncClient, acting_user, session
 ):
@@ -203,7 +184,6 @@ async def test_preview_is_capped_at_the_newest_few(
     ]
 
 
-@pytest.mark.integration
 async def test_cover_must_be_one_of_the_gallerys_own(
     client: AsyncClient, acting_user, session
 ):
@@ -223,7 +203,6 @@ async def test_cover_must_be_one_of_the_gallerys_own(
     assert response.json()["detail"] == "GALLERY_COVER_NOT_IN_GALLERY"
 
 
-@pytest.mark.integration
 async def test_update_and_delete_follow_the_dac_levels(
     client: AsyncClient, acting_user, session
 ):
@@ -256,14 +235,13 @@ async def test_update_and_delete_follow_the_dac_levels(
     assert gone.status_code == 404
 
 
-@pytest.mark.integration
 async def test_a_member_without_a_grant_cannot_see_it(
     client: AsyncClient, acting_user, session
 ):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
-    await _strip_non_owner_grants(session, gallery, a.user.id)
+    await strip_non_owner_grants(session, gallery, a.user.id)
     b = await acting_user(
         guild_role=GuildRole.member,
         guild=a.guild,
@@ -284,7 +262,6 @@ async def test_a_member_without_a_grant_cannot_see_it(
     assert pictures.status_code in (403, 404)
 
 
-@pytest.mark.integration
 async def test_counts_by_initiative(client: AsyncClient, acting_user, session):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
@@ -304,7 +281,6 @@ async def test_counts_by_initiative(client: AsyncClient, acting_user, session):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_upload_a_picture(client: AsyncClient, acting_user, session):
     """An upload is identified from its bytes: the size comes from the PNG
     header, not from anything the client said."""
@@ -335,7 +311,6 @@ async def test_upload_a_picture(client: AsyncClient, acting_user, session):
     assert any(u.filename == body["file_url"].split("/")[-1] for u in uploads)
 
 
-@pytest.mark.integration
 async def test_a_large_picture_gets_a_thumbnail(
     client: AsyncClient, acting_user, session
 ):
@@ -357,7 +332,6 @@ async def test_a_large_picture_gets_a_thumbnail(
     assert (body["width"], body["height"]) == (edge, edge // 2)
 
 
-@pytest.mark.integration
 async def test_upload_refuses_what_is_not_a_raster_image(
     client: AsyncClient, acting_user, session
 ):
@@ -400,7 +374,6 @@ async def test_upload_refuses_what_is_not_a_raster_image(
     assert empty.json()["detail"] == "GALLERY_IMAGE_EMPTY"
 
 
-@pytest.mark.unit
 def test_orphaned_blobs_are_discarded_only_when_that_is_certain(monkeypatch):
     """A failed commit strands the blobs written for it — but only some
     failures prove the rows are not there. A server that rejected a
@@ -427,7 +400,6 @@ def test_orphaned_blobs_are_discarded_only_when_that_is_certain(monkeypatch):
     assert deleted == [], "an inconclusive failure must leave the bytes alone"
 
 
-@pytest.mark.integration
 async def test_upload_refuses_what_the_decoder_will_not_read(
     client: AsyncClient, acting_user, session
 ):
@@ -458,7 +430,6 @@ async def test_upload_refuses_what_the_decoder_will_not_read(
     assert listing.json()["total_count"] == 0
 
 
-@pytest.mark.integration
 async def test_a_jump_lands_on_the_month_whichever_way_the_list_reads(
     client: AsyncClient, acting_user, session
 ):
@@ -507,7 +478,6 @@ async def test_a_jump_lands_on_the_month_whichever_way_the_list_reads(
     ]
 
 
-@pytest.mark.integration
 async def test_upload_needs_write_access_on_the_gallery(
     client: AsyncClient, acting_user, session
 ):
@@ -534,7 +504,6 @@ async def test_upload_needs_write_access_on_the_gallery(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_pictures_page_newest_first_and_anchor(
     client: AsyncClient, acting_user, session
 ):
@@ -589,7 +558,6 @@ async def test_pictures_page_newest_first_and_anchor(
     assert [i["title"] for i in oldest.json()["items"]] == ["day 0", "day 1"]
 
 
-@pytest.mark.integration
 async def test_the_timeline_groups_pictures_by_month(
     client: AsyncClient, acting_user, session
 ):
@@ -615,7 +583,6 @@ async def test_the_timeline_groups_pictures_by_month(
     assert [b["count"] for b in buckets] == [2, 1]
 
 
-@pytest.mark.integration
 async def test_pictures_filter_by_tag_and_search(
     client: AsyncClient, acting_user, session
 ):
@@ -683,7 +650,6 @@ async def test_pictures_filter_by_tag_and_search(
     assert [i["title"] for i in by_word.json()["items"]] == ["Hero"]
 
 
-@pytest.mark.integration
 async def test_a_picture_is_reached_only_through_its_gallery(
     client: AsyncClient, acting_user, session
 ):
@@ -701,7 +667,6 @@ async def test_a_picture_is_reached_only_through_its_gallery(
     assert response.json()["detail"] == "GALLERY_IMAGE_NOT_FOUND"
 
 
-@pytest.mark.integration
 async def test_removing_a_picture_trashes_it_and_clears_the_cover(
     client: AsyncClient, acting_user, session
 ):
@@ -732,7 +697,6 @@ async def test_removing_a_picture_trashes_it_and_clears_the_cover(
     )
 
 
-@pytest.mark.integration
 async def test_bulk_delete_trashes_a_selection_or_nothing(
     client: AsyncClient, acting_user, session
 ):
@@ -773,7 +737,6 @@ async def test_bulk_delete_trashes_a_selection_or_nothing(
     assert detail.json()["cover_image_id"] is None
 
 
-@pytest.mark.integration
 async def test_bulk_delete_needs_write_access(
     client: AsyncClient, acting_user, session
 ):
@@ -797,7 +760,6 @@ async def test_bulk_delete_needs_write_access(
     assert response.status_code == 403
 
 
-@pytest.mark.integration
 async def test_bulk_tags_on_pictures_go_through_the_gallery(
     client: AsyncClient, acting_user, session
 ):
@@ -852,7 +814,6 @@ async def test_bulk_tags_on_pictures_go_through_the_gallery(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_versions_replace_the_picture_and_keep_history(
     client: AsyncClient, acting_user, session
 ):
@@ -886,7 +847,6 @@ async def test_versions_replace_the_picture_and_keep_history(
     assert [v["is_current"] for v in versions.json()] == [True, False]
 
 
-@pytest.mark.integration
 async def test_deleting_the_current_version_promotes_the_previous(
     client: AsyncClient, acting_user, session
 ):
@@ -928,7 +888,6 @@ async def test_deleting_the_current_version_promotes_the_previous(
     assert last.json()["detail"] == "GALLERY_CANNOT_DELETE_LAST_VERSION"
 
 
-@pytest.mark.integration
 async def test_deleting_a_version_is_the_owners_call(
     client: AsyncClient, acting_user, session
 ):
@@ -968,7 +927,6 @@ async def test_deleting_a_version_is_the_owners_call(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_trashing_a_gallery_takes_its_pictures(
     client: AsyncClient, acting_user, session
 ):

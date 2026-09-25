@@ -23,7 +23,6 @@ from app.testing import (
     route_session_to_guild,
 )
 
-pytestmark = pytest.mark.integration
 
 _DISABLE = text("UPDATE guild_ai_member_prefs SET enabled = false")
 

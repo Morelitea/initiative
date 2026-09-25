@@ -6,7 +6,6 @@ somewhere to see what has been put away, and an answer to "may I take this
 back", which the capped permission level cannot give.
 """
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -14,8 +13,6 @@ from app.main import app
 from app.models.platform.guild import GuildRole
 from app.schemas.tenant.archive import ArchivableType
 from app.testing import create_document, create_queue
-
-pytestmark = pytest.mark.integration
 
 
 #: The wire name of every archivable tool, paired with the list route that has

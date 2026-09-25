@@ -15,28 +15,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
 from app.db.schema_provisioning import platform_role_name
-from app.testing import create_user
-
-pytestmark = [pytest.mark.integration, pytest.mark.database]
-
-
-async def _assume(session, tier: str, user_id: int) -> None:
-    await session.exec(
-        text(
-            "SELECT set_config('app.current_user_id', :uid, false), "
-            "set_config('role', :role, false)"
-        ),
-        params={"uid": str(user_id), "role": platform_role_name(tier)},
-    )
-
-
-async def _reset(session) -> None:
-    await session.exec(
-        text(
-            "SELECT set_config('role', 'none', false), "
-            "set_config('app.current_user_id', '', false)"
-        )
-    )
+from app.testing import as_role, create_user
 
 
 async def _make_secret_row(session) -> None:
@@ -72,10 +51,9 @@ async def test_auth_provider_secrets_unreadable_on_request_path(session):
     ).scalar_one()
     assert seen >= 1
 
-    await _assume(session, "owner", u1.id)
-    with pytest.raises(DBAPIError):
-        async with session.begin_nested():
-            await session.exec(
-                text("SELECT client_secret_encrypted FROM auth_provider_secrets")
-            )
-    await _reset(session)
+    async with as_role(session, platform_role_name("owner"), u1.id):
+        with pytest.raises(DBAPIError):
+            async with session.begin_nested():
+                await session.exec(
+                    text("SELECT client_secret_encrypted FROM auth_provider_secrets")
+                )

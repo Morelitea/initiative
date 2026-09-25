@@ -12,14 +12,11 @@ tool's sharing runs through.
 
 from __future__ import annotations
 
-import pytest
 from httpx import AsyncClient
 
 from app.core.audit_events import AuditEventType
 from app.models.platform.guild import GuildRole
 from app.testing import emitted
-
-pytestmark = pytest.mark.integration
 
 
 async def _document(client: AsyncClient, actor, *, grants: list | None = None) -> int:

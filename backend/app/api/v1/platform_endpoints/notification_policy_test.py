@@ -8,7 +8,6 @@ off promises beyond silence: the deployment stops holding device tokens and
 declines new ones.
 """
 
-import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -24,7 +23,6 @@ from app.testing import (
     guild_administration,
 )
 
-pytestmark = pytest.mark.asyncio
 
 PLATFORM = "/api/v1/settings/notifications"
 
@@ -51,7 +49,6 @@ async def _owner(session: AsyncSession, email: str):
 # --- the deployment's answers ------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_a_fresh_deployment_restricts_nothing(client, session) -> None:
     """An upgrade asks nothing of anybody it was not already asking."""
     _, headers = await _owner(session, "fresh-notify@example.com")
@@ -63,7 +60,6 @@ async def test_a_fresh_deployment_restricts_nothing(client, session) -> None:
     assert body["redact_notification_content"] is False
 
 
-@pytest.mark.integration
 async def test_only_the_owner_reaches_the_deployments_answers(client, session) -> None:
     member = await create_user(session, email="member-notify@example.com")
     headers = get_auth_headers(member)
@@ -72,7 +68,6 @@ async def test_only_the_owner_reaches_the_deployments_answers(client, session) -
     assert (await client.put(PLATFORM, json=_all(), headers=headers)).status_code == 403
 
 
-@pytest.mark.integration
 async def test_the_owner_sets_all_three_and_they_stick(client, session) -> None:
     _, headers = await _owner(session, "sets-notify@example.com")
 
@@ -96,7 +91,6 @@ async def test_the_owner_sets_all_three_and_they_stick(client, session) -> None:
 # --- what switching push off actually does -----------------------------------
 
 
-@pytest.mark.integration
 async def test_switching_push_off_drops_the_tokens_and_declines_new_ones(
     client, session
 ) -> None:
@@ -137,7 +131,6 @@ async def test_switching_push_off_drops_the_tokens_and_declines_new_ones(
     assert accepted.status_code == 200
 
 
-@pytest.mark.integration
 async def test_email_off_leaves_the_tokens_alone(client, session) -> None:
     """Only the push switch drops them; the other two are about wording and
     mail."""
@@ -163,7 +156,6 @@ async def test_email_off_leaves_the_tokens_alone(client, session) -> None:
 # --- a community's own answers -----------------------------------------------
 
 
-@pytest.mark.integration
 async def test_the_seat_sets_its_communitys_answers(
     client, session, acting_user
 ) -> None:
@@ -189,7 +181,6 @@ async def test_the_seat_sets_its_communitys_answers(
     assert seat.guild.redact_notification_content is True
 
 
-@pytest.mark.integration
 async def test_an_admin_below_the_seat_is_refused(client, session, acting_user) -> None:
     """The same seat as the three controls beside it on this page."""
     admin = await acting_user(guild_role=GuildRole.admin)
@@ -211,7 +202,6 @@ async def test_an_admin_below_the_seat_is_refused(client, session, acting_user) 
     ).status_code == 403
 
 
-@pytest.mark.integration
 async def test_a_community_without_the_entitlement_has_no_surface(
     client, session, acting_user
 ) -> None:
@@ -225,7 +215,6 @@ async def test_a_community_without_the_entitlement_has_no_surface(
     assert refused.json()["detail"] == "GUILD_AUTH_NOT_ENABLED"
 
 
-@pytest.mark.integration
 async def test_the_page_is_told_what_the_deployment_already_asks(
     client, session, acting_user
 ) -> None:
@@ -250,7 +239,6 @@ async def test_the_page_is_told_what_the_deployment_already_asks(
     assert body["redact_notification_content"] is False
 
 
-@pytest.mark.integration
 async def test_one_communitys_answer_does_not_reach_another(
     client, session, acting_user
 ) -> None:

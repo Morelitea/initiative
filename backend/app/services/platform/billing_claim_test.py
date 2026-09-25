@@ -18,26 +18,19 @@ import httpx
 import jwt
 import pytest
 
-from conftest import HANDOFF_TEST_PRIVATE_PEM, HANDOFF_TEST_PUBLIC_PEM
-
 from app.core import config as config_module
 from app.core.security import BILLING_PORTAL_AUDIENCE
 from app.services.platform import billing_claim
 
-pytestmark = pytest.mark.integration
 
 _URL = "https://billing.internal"
 
 
 @pytest.fixture
-def billing_configured(monkeypatch):
-    """Reachable billing + the suite's handoff keypair (conftest configures it)."""
+def billing_configured(monkeypatch, handoff_signing_key) -> str:
+    """Reachable billing + the suite's handoff keypair; returns its public PEM."""
     monkeypatch.setattr(config_module.settings, "BILLING_SERVICE_URL", _URL)
-    monkeypatch.setattr(
-        config_module.settings,
-        "HANDOFF_SIGNING_PRIVATE_KEY_PEM",
-        HANDOFF_TEST_PRIVATE_PEM,
-    )
+    return handoff_signing_key
 
 
 @pytest.fixture
@@ -113,7 +106,7 @@ async def test_the_request_carries_a_signed_handoff_and_no_bare_identity(
 
     claims = jwt.decode(
         seen["json"]["handoff_token"],
-        HANDOFF_TEST_PUBLIC_PEM,
+        billing_configured,
         algorithms=["RS256"],
         audience=BILLING_PORTAL_AUDIENCE,
     )

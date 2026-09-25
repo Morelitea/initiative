@@ -23,30 +23,10 @@ from app.db.system_grants import (
     SHARED_TABLE_TIER_GRANTS,
 )
 from app.models.platform.user import UserRole
-from app.testing import create_user
+from app.testing import as_role, create_user
 
-pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 TABLE = "app_service_registrations"
-
-
-async def _assume(session, tier: str, user_id: int) -> None:
-    await session.exec(
-        text(
-            "SELECT set_config('app.current_user_id', :uid, false), "
-            "set_config('role', :role, false)"
-        ),
-        params={"uid": str(user_id), "role": platform_role_name(tier)},
-    )
-
-
-async def _reset(session) -> None:
-    await session.exec(
-        text(
-            "SELECT set_config('role', 'none', false), "
-            "set_config('app.current_user_id', '', false)"
-        )
-    )
 
 
 async def _make_row(session, public_id: str = "acme.widgets") -> None:
@@ -97,11 +77,10 @@ async def test_no_platform_tier_reads_or_writes_registrations(session):
             f"UPDATE {TABLE} SET enabled = false",
             f"DELETE FROM {TABLE}",
         ):
-            await _assume(session, tier.value, user.id)
-            with pytest.raises(DBAPIError):
-                async with session.begin_nested():
-                    await session.exec(text(statement))
-            await _reset(session)
+            async with as_role(session, platform_role_name(tier.value), user.id):
+                with pytest.raises(DBAPIError):
+                    async with session.begin_nested():
+                        await session.exec(text(statement))
 
 
 async def test_registrations_table_forces_rls(session):

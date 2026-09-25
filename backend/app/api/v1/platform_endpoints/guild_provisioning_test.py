@@ -8,7 +8,6 @@ provisioning engine at the test DB and cleans up any schemas/roles created.
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -25,7 +24,6 @@ from app.testing.factories import (
     get_auth_headers,
 )
 
-pytestmark = pytest.mark.integration
 
 #: A fresh test database carries the shipped window.
 RETENTION = DEFAULT_GUILD_RETENTION_DAYS

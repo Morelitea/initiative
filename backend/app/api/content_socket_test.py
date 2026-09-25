@@ -68,7 +68,6 @@ def _text(payload: dict) -> dict:
 # ── the first frame ─────────────────────────────────────────────────────────
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize("frame", [_binary, _text], ids=["binary", "text"])
 async def test_the_first_frame_carries_the_token(frame) -> None:
     websocket = InboundWebSocket([frame({"token": "abc", "away_seconds": 4})])
@@ -83,7 +82,6 @@ async def test_the_first_frame_carries_the_token(frame) -> None:
     assert websocket.closed is None
 
 
-@pytest.mark.unit
 async def test_a_session_cookie_stands_in_for_a_null_token() -> None:
     websocket = InboundWebSocket(
         [_binary({"token": None})], cookies={SESSION_COOKIE_NAME: "from-cookie"}
@@ -94,7 +92,6 @@ async def test_a_session_cookie_stands_in_for_a_null_token() -> None:
     assert first is not None and first[0] == "from-cookie"
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "frame",
     [
@@ -113,7 +110,6 @@ async def test_a_first_frame_that_is_no_credential_is_refused(frame) -> None:
     assert websocket.closed == status.WS_1008_POLICY_VIOLATION
 
 
-@pytest.mark.unit
 async def test_a_socket_that_never_sends_its_first_frame_is_closed(
     monkeypatch,
 ) -> None:
@@ -130,7 +126,6 @@ async def test_a_socket_that_never_sends_its_first_frame_is_closed(
     assert websocket.closed == status.WS_1008_POLICY_VIOLATION
 
 
-@pytest.mark.unit
 async def test_hanging_up_before_the_first_frame_closes_nothing() -> None:
     websocket = InboundWebSocket([{"type": "websocket.disconnect", "code": 1000}])
 
@@ -155,7 +150,6 @@ async def _watch(guild_id: int, queue_id: int, token: str) -> InboundWebSocket:
     return websocket
 
 
-@pytest.mark.integration
 async def test_a_reader_of_the_queue_is_seated_and_told_of_changes(
     session: AsyncSession, acting_user
 ) -> None:
@@ -174,7 +168,6 @@ async def test_a_reader_of_the_queue_is_seated_and_told_of_changes(
     assert sockets.room_size(resource_room(a.guild.id, "queue", queue.id)) == 0
 
 
-@pytest.mark.integration
 async def test_a_revoked_sign_in_is_refused(session: AsyncSession, acting_user) -> None:
     """A sign-in ended by bumping ``token_version`` opens no socket."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -190,7 +183,6 @@ async def test_a_revoked_sign_in_is_refused(session: AsyncSession, acting_user) 
     assert websocket.closed == status.WS_1008_POLICY_VIOLATION
 
 
-@pytest.mark.integration
 async def test_a_queue_whose_tool_is_switched_off_is_not_streamed(
     session: AsyncSession, acting_user
 ) -> None:
@@ -206,7 +198,6 @@ async def test_a_queue_whose_tool_is_switched_off_is_not_streamed(
     assert websocket.closed == status.WS_1008_POLICY_VIOLATION
 
 
-@pytest.mark.integration
 async def test_a_member_the_queue_is_not_shared_with_is_refused(
     session: AsyncSession, acting_user
 ) -> None:
@@ -229,7 +220,6 @@ async def test_a_member_the_queue_is_not_shared_with_is_refused(
 # ── a held socket ───────────────────────────────────────────────────────────
 
 
-@pytest.mark.unit
 async def test_a_held_socket_hands_on_binary_frames_and_beats_when_quiet(
     monkeypatch,
 ) -> None:

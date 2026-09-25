@@ -19,8 +19,6 @@ from app.core.config import settings
 from app.models.platform.guild import GuildRole
 from app.testing import emitted
 
-pytestmark = pytest.mark.integration
-
 
 @pytest.fixture(autouse=True)
 def _tmp_uploads(monkeypatch, tmp_path):

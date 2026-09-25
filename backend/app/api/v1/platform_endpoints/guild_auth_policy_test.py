@@ -48,8 +48,6 @@ from app.testing.factories import (
 )
 from app.testing import route_as
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
-
 
 def _bearer(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
@@ -1270,7 +1268,6 @@ def _second_factor(guild_id: int) -> str:
     return f"/api/v1/communities/{guild_id}/second-factor"
 
 
-@pytest.mark.integration
 async def test_a_community_asks_for_a_factor_without_asking_about_arrival(
     client, session: AsyncSession, acting_user
 ):
@@ -1294,7 +1291,6 @@ async def test_a_community_asks_for_a_factor_without_asking_about_arrival(
     assert seat.guild.require_second_factor is True
 
 
-@pytest.mark.integration
 async def test_the_seat_answers_its_own_ask_first(
     client, session: AsyncSession, acting_user
 ):

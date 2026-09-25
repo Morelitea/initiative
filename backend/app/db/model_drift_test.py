@@ -19,7 +19,6 @@ assertion is an empty diff. Anything the models genuinely don't own belongs in
 not in a per-diff exception here.
 """
 
-import pytest
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
 from sqlalchemy import text
@@ -44,7 +43,6 @@ def _render(diffs: list) -> str:
     return "\n".join(f"  {diff}" for diff in diffs)
 
 
-@pytest.mark.database
 async def test_models_match_guild_template(engine):
     """Guild-content models == the migrated ``guild_template`` (the schema every
     guild is provisioned from). A diff means a model changed without running
@@ -63,7 +61,6 @@ async def test_models_match_guild_template(engine):
     )
 
 
-@pytest.mark.database
 async def test_models_match_public_schema(engine):
     """Shared/platform models == the migrated ``public`` schema. A diff means a
     model changed without running ``alembic revision --autogenerate``.

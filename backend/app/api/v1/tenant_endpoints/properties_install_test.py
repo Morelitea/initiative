@@ -18,6 +18,7 @@ from app.core.messages import AppMessages, QueryMessages
 from app.models.tenant.property import PropertyType
 from app.services.marketplace import app_refs
 from app.testing import (
+    guild_url,
     create_guild_app,
     create_property_definition,
     guild_of,
@@ -30,23 +31,10 @@ from app.testing.app_clients import (
     lift_person_and_guild_ids,
 )
 
-pytestmark = pytest.mark.integration
-
-
-@pytest.fixture(autouse=True)
-def _cold_reference_cache():
-    app_refs.forget_cached_install_refs()
-    yield
-    app_refs.forget_cached_install_refs()
-
-
-def _g(guild_id: int, path: str) -> str:
-    return f"/api/v1/c/{guild_id}{path}"
-
 
 async def _document(client: Any, session: Any, installed: Any, headers: dict) -> int:
     created = await client.post(
-        _g(installed.guild.id, "/documents/"),
+        guild_url(installed.guild.id, "/documents/"),
         headers=headers,
         json={"name": "The app's", "initiative_id": installed.placed.id},
     )
@@ -56,13 +44,13 @@ async def _document(client: Any, session: Any, installed: Any, headers: dict) ->
 
 async def _task(client: Any, session: Any, installed: Any, headers: dict) -> int:
     project = await client.post(
-        _g(installed.guild.id, "/projects/"),
+        guild_url(installed.guild.id, "/projects/"),
         headers=headers,
         json={"name": "The app's", "initiative_id": installed.placed.id},
     )
     assert project.status_code == 201, project.text
     task = await client.post(
-        _g(installed.guild.id, "/tasks/"),
+        guild_url(installed.guild.id, "/tasks/"),
         headers=headers,
         json={"project_id": project.json()["id"], "title": "The app's"},
     )
@@ -76,14 +64,14 @@ async def _event(client: Any, session: Any, installed: Any, headers: dict) -> in
     session.add(installed.placed)
     await session.commit()
     calendar = await client.post(
-        _g(installed.guild.id, "/calendars/"),
+        guild_url(installed.guild.id, "/calendars/"),
         headers=headers,
         json={"name": "The app's", "initiative_id": installed.placed.id},
     )
     assert calendar.status_code == 201, calendar.text
     start = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(days=1)
     event = await client.post(
-        _g(installed.guild.id, "/calendar-events/"),
+        guild_url(installed.guild.id, "/calendar-events/"),
         headers=headers,
         json={
             "calendar_id": calendar.json()["id"],
@@ -108,7 +96,9 @@ _KINDS = {
 async def _seat_reference(client: Any, installed: Any, headers: dict) -> str:
     """What the install calls the seat, a member of the initiative it is
     placed in."""
-    members = await client.get(_g(installed.guild.id, "/users/search"), headers=headers)
+    members = await client.get(
+        guild_url(installed.guild.id, "/users/search"), headers=headers
+    )
     assert members.status_code == 200, members.text
     [seat] = members.json()["items"]
     assert isinstance(seat["id"], str)
@@ -134,7 +124,7 @@ async def test_setting_values_needs_the_tools_write(
     note = await create_property_definition(
         session, installed.placed, name="Note", type=PropertyType.text
     )
-    url = _g(guild_id, f"{_KINDS[kind][2]}/{item_id}/properties")
+    url = guild_url(guild_id, f"{_KINDS[kind][2]}/{item_id}/properties")
     body = {"values": [{"property_id": note.id, "value": "Set by the app"}]}
 
     read_only = await client.put(
@@ -177,7 +167,7 @@ async def test_a_person_valued_property_is_set_and_read_by_reference(
     path = f"{_KINDS[kind][2]}/{item_id}"
 
     written = await client.put(
-        _g(guild_id, f"{path}/properties"),
+        guild_url(guild_id, f"{path}/properties"),
         headers=headers,
         json={"values": [{"property_id": owner.id, "value": seat_ref}]},
     )
@@ -186,14 +176,16 @@ async def test_a_person_valued_property_is_set_and_read_by_reference(
     assert value["value"]["id"] == seat_ref
     assert_names_nobody(written.text, [installed.seat.user.id, guild_id])
 
-    read = await client.get(_g(guild_id, path), headers=headers)
+    read = await client.get(guild_url(guild_id, path), headers=headers)
     assert read.status_code == 200, read.text
     [value] = read.json()[_KINDS[kind][3]]
     assert value["value"]["id"] == seat_ref
     assert_names_nobody(read.text, [installed.seat.user.id, guild_id])
 
     # A person reads the same value as the row id it is stored as.
-    as_person = await client.get(_g(guild_id, path), headers=installed.seat.headers)
+    as_person = await client.get(
+        guild_url(guild_id, path), headers=installed.seat.headers
+    )
     assert as_person.status_code == 200, as_person.text
     [value] = as_person.json()[_KINDS[kind][3]]
     assert value["value"]["id"] == installed.seat.user.id
@@ -227,7 +219,7 @@ async def test_a_person_named_any_other_way_is_a_422(
 
     for named in (foreign, installed.seat.user.id, "uapp_" + "x" * 32):
         response = await client.put(
-            _g(guild_id, f"/documents/{document_id}/properties"),
+            guild_url(guild_id, f"/documents/{document_id}/properties"),
             headers=headers,
             json={"values": [{"property_id": owner.id, "value": named}]},
         )
@@ -255,7 +247,7 @@ async def test_a_document_list_filter_that_names_a_person_is_refused(
         }
 
     named = await client.get(
-        _g(guild_id, "/documents/"),
+        guild_url(guild_id, "/documents/"),
         headers=headers,
         params=_filters("eq", installed.seat.user.id),
     )
@@ -264,13 +256,15 @@ async def test_a_document_list_filter_that_names_a_person_is_refused(
 
     # Asking whether anyone is set names nobody.
     unset = await client.get(
-        _g(guild_id, "/documents/"), headers=headers, params=_filters("is_null", True)
+        guild_url(guild_id, "/documents/"),
+        headers=headers,
+        params=_filters("is_null", True),
     )
     assert unset.status_code == 200, unset.text
 
     # A person filters by the row id as before.
     as_person = await client.get(
-        _g(guild_id, "/documents/"),
+        guild_url(guild_id, "/documents/"),
         headers=installed.seat.headers,
         params=_filters("eq", installed.seat.user.id),
     )

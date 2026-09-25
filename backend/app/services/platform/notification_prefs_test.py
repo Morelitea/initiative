@@ -2,7 +2,6 @@
 
 from datetime import datetime, timezone
 
-import pytest
 
 from app.core.notification_categories import Channel
 from app.models.platform.notification import NotificationType
@@ -13,8 +12,6 @@ from app.services.platform.notification_prefs import (
     quiet_hours,
     wants,
 )
-
-pytestmark = pytest.mark.unit
 
 
 def test_empty_prefs_take_every_default():

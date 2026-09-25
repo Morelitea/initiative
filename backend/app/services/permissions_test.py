@@ -30,7 +30,7 @@ from app.models.platform.user import UserRole
 from app.models.tenant.document import Document
 from app.models.tenant.initiative import InitiativeMember
 from app.models.tenant.project import Project
-from app.models.tenant.resource_grant import ResourceGrant
+from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.permissions import (
     DAC_RESOURCES,
     audience_user_ids,
@@ -42,7 +42,12 @@ from app.services.permissions import (
 )
 from app.services.tenant import posts as posts_service
 from app.services.tenant import project_grants
-from app.testing import create_access_grant, create_user, route_as
+from app.testing import (
+    create_access_grant,
+    create_resource_grant,
+    create_user,
+    route_as,
+)
 from app.testing.factories import TOOL_FACTORIES
 
 ALL_TOOLS = list(DAC_RESOURCES)
@@ -78,8 +83,8 @@ class World:
         self.guild = guild
         self.initiative = initiative
         self.model = type(row)
+        self.row = row
         self.row_id = row.id
-        self.initiative_id = getattr(row, "initiative_id", None)
         self.owner = owner
         self.co_member = co_member
         self.admin = admin
@@ -103,16 +108,14 @@ class World:
             )
         )
         if level is not None:
-            self.session.add(
-                ResourceGrant(
-                    initiative_id=self.initiative_id,
-                    resource_type=self.tool,
-                    resource_id=self.row_id,
-                    user_id=user.id if user is not None else None,
-                    role_id=role_id,
-                    all_initiative_members=everyone,
-                    level=level,
-                )
+            await create_resource_grant(
+                self.session,
+                self.row,
+                user=user,
+                role_id=role_id,
+                all_initiative_members=everyone,
+                level=ResourceAccessLevel(level),
+                commit=False,
             )
         await self.session.commit()
 
@@ -212,7 +215,6 @@ async def _freeze(session, guild) -> None:
 # ── Every tool resolves sharing through the same engine ──────────────────────
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("tool", ALL_TOOLS, ids=lambda t: t.value)
 async def test_every_tool_resolves_sharing_through_one_engine(
     session, role_session, acting_user, tool: Tool
@@ -273,7 +275,6 @@ async def test_every_tool_resolves_sharing_through_one_engine(
 # ── How a grant resolves ─────────────────────────────────────────────────────
 
 
-@pytest.mark.integration
 async def test_a_role_grant_elevates_over_a_users_own(
     session, role_session, acting_user
 ):
@@ -286,21 +287,13 @@ async def test_a_role_grant_elevates_over_a_users_own(
     row, context = await w.as_reader(w.co_member.user)
     assert compute_permission(row, context=context) == "read"
 
-    session.add(
-        ResourceGrant(
-            initiative_id=w.initiative_id,
-            resource_type=Tool.project,
-            resource_id=w.row_id,
-            role_id=role_id,
-            level="write",
-        )
+    await create_resource_grant(
+        session, w.row, role_id=role_id, level=ResourceAccessLevel.write
     )
-    await session.commit()
     row, context = await w.as_reader(w.co_member.user)
     assert compute_permission(row, context=context) == "write"
 
 
-@pytest.mark.integration
 async def test_general_access_covers_the_initiatives_members_only(
     session, role_session, acting_user
 ):
@@ -318,7 +311,6 @@ async def test_general_access_covers_the_initiatives_members_only(
     assert row is None
 
 
-@pytest.mark.integration
 async def test_membership_alone_grants_nothing(session, role_session, acting_user):
     """The gate is an AND-layer: being in the initiative is not access to its
     resources."""
@@ -328,7 +320,6 @@ async def test_membership_alone_grants_nothing(session, role_session, acting_use
     assert row is None
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("tool", ALL_TOOLS, ids=lambda t: t.value)
 async def test_a_grant_left_behind_after_removal_reaches_nothing(
     session, role_session, acting_user, reading_as, tool: Tool
@@ -361,7 +352,6 @@ async def test_a_grant_left_behind_after_removal_reaches_nothing(
     )
 
 
-@pytest.mark.integration
 async def test_write_holders_follow_the_level(session, role_session, acting_user):
     """Who may be assigned a project's tasks is who holds write on it, asked of
     the roster and the grant rows together."""
@@ -389,7 +379,6 @@ async def test_write_holders_follow_the_level(session, role_session, acting_user
 # ── The overrides that sit above sharing ─────────────────────────────────────
 
 
-@pytest.mark.integration
 async def test_a_guild_admin_bypasses_the_scope_gate(
     session, role_session, acting_user
 ):
@@ -419,7 +408,6 @@ def test_a_standing_for_another_community_is_never_read_back():
     assert db_session.guild_context(_Session({"guild_id": 9, "context": held})) is None
 
 
-@pytest.mark.integration
 async def test_a_platform_owner_holds_no_standing_bypass(
     session, role_session, acting_user
 ):
@@ -434,7 +422,6 @@ async def test_a_platform_owner_holds_no_standing_bypass(
     assert row is None
 
 
-@pytest.mark.integration
 async def test_a_frozen_guild_caps_everyone_at_read(session, role_session, acting_user):
     """A read_only guild caps the level the client sees and refuses every write
     — before the level is read, so full authority does not clear the hold.
@@ -636,7 +623,6 @@ class _Row:
         self.initiative_id = initiative_id
 
 
-@pytest.mark.integration
 async def test_the_audience_is_exactly_who_the_database_admits(
     session, role_session, acting_user
 ):
@@ -659,26 +645,14 @@ async def test_the_audience_is_exactly_who_the_database_admits(
     departed = await acting_user(guild_role=GuildRole.member, guild=w.guild)
 
     await w.grant("owner", user=named.user)
-    session.add_all(
-        [
-            ResourceGrant(
-                initiative_id=w.initiative_id,
-                resource_type=Tool.post,
-                resource_id=w.row_id,
-                role_id=await _role_id_of(session, w.initiative, by_role.user),
-                level="write",
-            ),
-            # Named, but not a member of the initiative.
-            ResourceGrant(
-                initiative_id=w.initiative_id,
-                resource_type=Tool.post,
-                resource_id=w.row_id,
-                user_id=departed.user.id,
-                level="read",
-            ),
-        ]
+    await create_resource_grant(
+        session,
+        w.row,
+        role_id=await _role_id_of(session, w.initiative, by_role.user),
+        level=ResourceAccessLevel.write,
     )
-    await session.commit()
+    # Named, but not a member of the initiative.
+    await create_resource_grant(session, w.row, user=departed.user)
 
     post = await posts_service.get_post(session, w.row_id)
     assert post is not None

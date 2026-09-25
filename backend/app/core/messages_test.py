@@ -25,7 +25,6 @@ from app.core import messages as messages_module
 from app.core.messages import SharingMessages
 from app.core.tools import Tool
 
-pytestmark = pytest.mark.unit
 
 LOCALES = ("de", "en", "es", "fr")
 

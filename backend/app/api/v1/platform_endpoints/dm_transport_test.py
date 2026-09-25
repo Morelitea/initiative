@@ -9,7 +9,6 @@ collected message stops existing.
 import base64
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from sqlalchemy import text
@@ -18,8 +17,6 @@ from app.core.transitions import DM_SIGNED_DEVICES
 from app.models.platform.user_dm_settings import DmPolicy
 from app.models.platform.user_ignore import UserIgnore
 from app.services.platform import app_settings as app_settings_service
-
-pytestmark = pytest.mark.asyncio
 
 
 def _key(seed: int) -> str:

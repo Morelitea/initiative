@@ -37,9 +37,6 @@ import ast
 from dataclasses import dataclass
 from pathlib import Path
 
-import pytest
-
-pytestmark = pytest.mark.unit
 
 _APP_DIR = Path(__file__).resolve().parents[1]
 _BACKEND_DIR = _APP_DIR.parent

@@ -29,7 +29,6 @@ from app.testing import (
 )
 
 
-@pytest.mark.integration
 async def test_task_comment_access_honors_grant(session: AsyncSession, reading_as):
     owner = await create_user(session, email="owner-cmt@example.com")
     grantee = await create_user(session, email="grantee-cmt@example.com")
@@ -64,7 +63,6 @@ async def test_task_comment_access_honors_grant(session: AsyncSession, reading_a
     await reader.rollback()
 
 
-@pytest.mark.integration
 async def test_document_comment_access_honors_grant(session: AsyncSession, reading_as):
     """The other branch of the parent check: a tool entity answers for itself,
     where a task answers through its project."""
@@ -105,7 +103,6 @@ async def test_document_comment_access_honors_grant(session: AsyncSession, readi
     await reader.rollback()
 
 
-@pytest.mark.integration
 async def test_a_read_only_grant_cannot_post(session: AsyncSession, reading_as):
     """The half of the rule the parent check no longer answers.
 
@@ -162,7 +159,6 @@ async def test_a_read_only_grant_cannot_post(session: AsyncSession, reading_as):
 _TOOL_FACTORIES = TOOL_FACTORIES
 
 
-@pytest.mark.database
 class TestCommentRlsLegs:
     """Comments carry one RLS leg per parent, rendered from the same
     declaration for every tool. These run under the real ``app_user`` login,

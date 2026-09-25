@@ -22,8 +22,6 @@ from app.models.platform.user_email_assertion import UserEmailAssertion
 from app.services.auth import addresses
 from app.testing.factories import create_user
 
-pytestmark = [pytest.mark.auth]
-
 
 async def _asserters(session: AsyncSession, user_email_id: int) -> list[int]:
     """The providers claiming one address, by id.
@@ -54,7 +52,6 @@ async def _addresses(session: AsyncSession, user_id: int) -> list[UserEmail]:
     )
 
 
-@pytest.mark.unit
 async def test_an_account_is_created_holding_its_address(session: AsyncSession):
     user = await create_user(session, email="held@example.com")
 
@@ -67,7 +64,6 @@ async def test_an_account_is_created_holding_its_address(session: AsyncSession):
     assert rows[0].verified_at is not None
 
 
-@pytest.mark.unit
 async def test_any_of_an_accounts_addresses_resolves_to_it(session: AsyncSession):
     """The point of the table: one account, more than one way in."""
     user = await create_user(session, email="first@example.com")
@@ -86,7 +82,6 @@ async def test_any_of_an_accounts_addresses_resolves_to_it(session: AsyncSession
         assert found is not None and found.id == user.id
 
 
-@pytest.mark.unit
 async def test_an_address_is_matched_however_it_is_typed(session: AsyncSession):
     user = await create_user(session, email="cased@example.com")
 
@@ -94,14 +89,12 @@ async def test_an_address_is_matched_however_it_is_typed(session: AsyncSession):
     assert found is not None and found.id == user.id
 
 
-@pytest.mark.unit
 async def test_an_address_nobody_holds_resolves_to_nobody(session: AsyncSession):
     await create_user(session, email="somebody@example.com")
 
     assert await addresses.find_user_by_address(session, "nobody@example.com") is None
 
 
-@pytest.mark.unit
 async def test_an_account_with_no_address_row_does_not_sign_in(
     session: AsyncSession,
 ):
@@ -115,7 +108,6 @@ async def test_an_account_with_no_address_row_does_not_sign_in(
     assert await addresses.find_user_by_address(session, "stranded@example.com") is None
 
 
-@pytest.mark.unit
 async def test_two_accounts_cannot_hold_one_address(session: AsyncSession):
     await create_user(session, email="shared@example.com")
     other = await create_user(session, email="other@example.com")
@@ -133,7 +125,6 @@ async def test_two_accounts_cannot_hold_one_address(session: AsyncSession):
     await session.rollback()
 
 
-@pytest.mark.unit
 async def test_an_account_has_one_primary_address(session: AsyncSession):
     user = await create_user(session, email="primary@example.com")
 
@@ -150,7 +141,6 @@ async def test_an_account_has_one_primary_address(session: AsyncSession):
     await session.rollback()
 
 
-@pytest.mark.integration
 async def test_erasure_takes_every_address(session: AsyncSession):
     """Erasing an account has to reach the whole set, not the one address it
     was created with — and nothing resolves what was erased."""
@@ -177,7 +167,6 @@ async def test_erasure_takes_every_address(session: AsyncSession):
         assert await addresses.find_user_by_address(session, gone) is None
 
 
-@pytest.mark.integration
 async def test_registering_records_the_address(
     client: AsyncClient, session: AsyncSession
 ):
@@ -204,7 +193,6 @@ async def test_registering_records_the_address(
     assert [(r.is_primary, r.source) for r in rows] == [(True, addresses.SOURCE_SIGNUP)]
 
 
-@pytest.mark.integration
 async def test_signing_in_stamps_the_address_it_resolved_through(
     client: AsyncClient, session: AsyncSession
 ):
@@ -222,7 +210,6 @@ async def test_signing_in_stamps_the_address_it_resolved_through(
     assert (await _addresses(session, user_id))[0].last_login_at is not None
 
 
-@pytest.mark.integration
 async def test_an_address_is_taken_whichever_account_holds_it(
     client: AsyncClient, session: AsyncSession
 ):
@@ -252,7 +239,6 @@ async def test_an_address_is_taken_whichever_account_holds_it(
     assert response.json()["detail"] == "EMAIL_ALREADY_REGISTERED"
 
 
-@pytest.mark.integration
 async def test_a_password_reset_finds_any_of_an_accounts_addresses(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -296,7 +282,6 @@ async def test_a_password_reset_finds_any_of_an_accounts_addresses(
     assert letters == [user_id, user_id]
 
 
-@pytest.mark.integration
 async def test_a_password_reset_without_mail_is_refused_for_every_address(
     client: AsyncClient, session: AsyncSession
 ):
@@ -313,7 +298,6 @@ async def test_a_password_reset_without_mail_is_refused_for_every_address(
     assert held.json() == unheld.json() == {"detail": "SMTP_NOT_CONFIGURED"}
 
 
-@pytest.mark.unit
 async def test_an_address_somebody_typed_is_asserted_by_nobody(
     session: AsyncSession,
 ):
@@ -322,7 +306,6 @@ async def test_an_address_somebody_typed_is_asserted_by_nobody(
     assert await _asserters(session, rows[0].id) == []
 
 
-@pytest.mark.unit
 async def test_a_provider_asserting_a_new_address_adds_it(session: AsyncSession):
     from app.testing.factories import create_auth_provider
 
@@ -350,7 +333,6 @@ async def test_a_provider_asserting_a_new_address_adds_it(session: AsyncSession)
     assert await _asserters(session, work.id) == [provider_id]
 
 
-@pytest.mark.unit
 async def test_two_providers_can_assert_one_address(session: AsyncSession):
     """A contractor at two organisations signs into both with one address, and
     neither directory's claim displaces the other."""
@@ -377,7 +359,6 @@ async def test_two_providers_can_assert_one_address(session: AsyncSession):
     assert await _asserters(session, rows[0].id) == sorted([acme_id, beta_id])
 
 
-@pytest.mark.unit
 async def test_asserting_again_refreshes_rather_than_duplicates(
     session: AsyncSession,
 ):
@@ -412,7 +393,6 @@ async def test_asserting_again_refreshes_rather_than_duplicates(
     assert claim.last_asserted_at == later
 
 
-@pytest.mark.unit
 async def test_asserting_an_address_the_account_already_holds_claims_it(
     session: AsyncSession,
 ):
@@ -440,7 +420,6 @@ async def test_asserting_an_address_the_account_already_holds_claims_it(
     assert rows[0].is_primary is True
 
 
-@pytest.mark.unit
 async def test_a_provider_cannot_move_somebody_elses_address(session: AsyncSession):
     from app.testing.factories import create_auth_provider
 
@@ -465,7 +444,6 @@ async def test_a_provider_cannot_move_somebody_elses_address(session: AsyncSessi
     assert still_theirs is not None and still_theirs.id == owner_id
 
 
-@pytest.mark.unit
 async def test_losing_a_race_to_insert_an_address_resolves_to_the_winner(
     session: AsyncSession, monkeypatch
 ):

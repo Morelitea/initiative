@@ -35,9 +35,9 @@ from app.models.tenant.initiative import Initiative
 from app.models.tenant.document import Document
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.initiative import PermissionKey
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.platform.identity_refs import ensure_ref
 from app.testing import (
+    create_resource_grant,
     create_app_service_registration,
     create_document,
     create_guild_app,
@@ -134,7 +134,6 @@ _ALL_KEYS = {key.value for key in PermissionKey}
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_the_standing_is_what_the_rows_say(session, acting_user, role_session):
     install = await _install(
         session,
@@ -205,7 +204,6 @@ async def test_the_standing_is_what_the_rows_say(session, acting_user, role_sess
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_a_narrowed_token_stands_in_one_initiative(
     session, acting_user, role_session
 ):
@@ -223,7 +221,6 @@ async def test_a_narrowed_token_stands_in_one_initiative(
     await s.rollback()
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "granted,token,read,write",
     [
@@ -294,7 +291,6 @@ async def _set_guild_status(session, install: _Install, status: GuildStatus) -> 
     await session.commit()
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "reason",
     [
@@ -360,7 +356,6 @@ async def test_an_install_that_may_not_act_is_refused(
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_a_read_only_community_writes_nothing(session, acting_user, role_session):
     install = await _install(
         session, acting_user, role_session, granted=["documents:write"]
@@ -374,7 +369,6 @@ async def test_a_read_only_community_writes_nothing(session, acting_user, role_s
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_a_community_that_is_gone_is_refused(session, role_session):
     """No role to assume is the same refusal as an install that may not act,
     and it leaves the session unrouted."""
@@ -393,7 +387,6 @@ async def test_a_community_that_is_gone_is_refused(session, role_session):
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_an_unknown_scope_is_refused(session, acting_user, role_session):
     install = await _install(
         session, acting_user, role_session, granted=["documents:read"]
@@ -414,20 +407,6 @@ async def test_an_unknown_scope_is_refused(session, acting_user, role_session):
 # ---------------------------------------------------------------------------
 
 
-async def _share_with_members(session, document: Document, initiative_id: int):
-    session.add(
-        ResourceGrant(
-            resource_type=Tool.document.value,
-            resource_id=document.id,
-            all_initiative_members=True,
-            level=ResourceAccessLevel.read,
-            initiative_id=initiative_id,
-        )
-    )
-    await session.commit()
-
-
-@pytest.mark.integration
 async def test_the_gates_answer_for_an_install(session, acting_user, role_session):
     """Placement is gate 2, the role keys its scopes give are gate 3, and a
     share with every member of an initiative it is placed in is gate 4. A
@@ -438,12 +417,12 @@ async def test_the_gates_answer_for_an_install(session, acting_user, role_sessio
     shared_a = await create_document(
         session, install.a, install.seat.user, name="Shared A"
     )
-    await _share_with_members(session, shared_a, install.a.id)
+    await create_resource_grant(session, shared_a, all_initiative_members=True)
     await create_document(session, install.a, install.seat.user, name="Private A")
     shared_b = await create_document(
         session, install.b, install.seat.user, name="Shared B"
     )
-    await _share_with_members(session, shared_b, install.b.id)
+    await create_resource_grant(session, shared_b, all_initiative_members=True)
 
     s, _context = await _route(role_session, install, ["documents:read"])
     assert set((await s.exec(select(Document.name))).all()) == {
@@ -459,7 +438,6 @@ async def test_the_gates_answer_for_an_install(session, acting_user, role_sessio
     await narrowed.rollback()
 
 
-@pytest.mark.integration
 async def test_an_install_without_a_tool_scope_reads_none_of_it(
     session, acting_user, role_session
 ):
@@ -467,14 +445,13 @@ async def test_an_install_without_a_tool_scope_reads_none_of_it(
         session, acting_user, role_session, granted=["comments:read"]
     )
     shared = await create_document(session, install.a, install.seat.user)
-    await _share_with_members(session, shared, install.a.id)
+    await create_resource_grant(session, shared, all_initiative_members=True)
     s, context = await _route(role_session, install, ["comments:read"])
     assert f"{install.a.id}:documents_enabled" in context.role_denies
     assert (await s.exec(select(Document.name))).all() == []
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_the_app_role_cannot_read_the_communitys_settings(
     session, acting_user, role_session
 ):
@@ -497,7 +474,6 @@ async def test_the_app_role_cannot_read_the_communitys_settings(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_the_seam_is_two_statements(session, acting_user, role_session):
     install = await _install(
         session, acting_user, role_session, granted=["documents:read"]
@@ -525,7 +501,6 @@ async def test_the_seam_is_two_statements(session, acting_user, role_session):
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_a_new_transaction_replays_the_install(
     session, acting_user, role_session
 ):
@@ -562,7 +537,6 @@ async def test_a_new_transaction_replays_the_install(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "table,readable",
     [
@@ -650,7 +624,6 @@ async def _sector_refs(session, install: _Install) -> dict[str, str]:
     return refs
 
 
-@pytest.mark.integration
 async def test_the_standing_resolves_only_the_install_s_own_references(
     session, acting_user, role_session
 ):
@@ -683,7 +656,6 @@ async def test_the_standing_resolves_only_the_install_s_own_references(
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_the_install_role_reads_and_mints_in_its_own_sector_only(
     session, acting_user, role_session
 ):
@@ -755,7 +727,6 @@ def _pending(**overrides) -> InstallContext:
     return InstallContext(**fields)
 
 
-@pytest.mark.unit
 def test_an_install_routing_is_its_own_shape():
     shape = classify(
         guild_id=3,
@@ -767,7 +738,6 @@ def test_an_install_routing_is_its_own_shape():
     assert isinstance(shape, InstallScoped)
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "kwargs",
     [
@@ -793,7 +763,6 @@ def test_an_install_routing_refuses_what_is_not_its_own(kwargs):
         classify(**kwargs)
 
 
-@pytest.mark.unit
 def test_an_install_context_never_routes_as_a_sweep():
     """A community routing with nobody behind it is a system sweep; carrying an
     install's context without its install id is refused rather than read as

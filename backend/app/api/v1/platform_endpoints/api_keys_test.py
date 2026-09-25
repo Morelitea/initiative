@@ -10,7 +10,6 @@ Tests the API key endpoints at /api/v1/users/me/api-keys including:
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -23,8 +22,6 @@ from app.testing.factories import (
 )
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_list_api_keys_empty(client: AsyncClient, session: AsyncSession):
     """Test listing API keys when user has none."""
     user = await create_user(session, email="test@example.com")
@@ -37,8 +34,6 @@ async def test_list_api_keys_empty(client: AsyncClient, session: AsyncSession):
     assert data["keys"] == []
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_create_api_key(client: AsyncClient, session: AsyncSession):
     """Test creating a new API key."""
     user = await create_user(session, email="test@example.com")
@@ -63,8 +58,6 @@ async def test_create_api_key(client: AsyncClient, session: AsyncSession):
     assert len(data["secret"]) > 20
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_create_api_key_with_expiration(
     client: AsyncClient, session: AsyncSession
 ):
@@ -89,8 +82,6 @@ async def test_create_api_key_with_expiration(
     assert abs((returned - expires).total_seconds()) < 5
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_list_api_keys_after_creation(client: AsyncClient, session: AsyncSession):
     """Test that created API keys appear in list."""
     user = await create_user(session, email="test@example.com")
@@ -119,8 +110,6 @@ async def test_list_api_keys_after_creation(client: AsyncClient, session: AsyncS
     assert "Key 2" in key_names
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_delete_api_key(client: AsyncClient, session: AsyncSession):
     """Test deleting an API key."""
     user = await create_user(session, email="test@example.com")
@@ -147,8 +136,6 @@ async def test_delete_api_key(client: AsyncClient, session: AsyncSession):
     assert len(list_response.json()["keys"]) == 0
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_delete_nonexistent_api_key(client: AsyncClient, session: AsyncSession):
     """Test deleting an API key that doesn't exist."""
     user = await create_user(session, email="test@example.com")
@@ -160,8 +147,6 @@ async def test_delete_nonexistent_api_key(client: AsyncClient, session: AsyncSes
     assert response.json()["detail"] == "USER_API_KEY_NOT_FOUND"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_cannot_delete_other_users_api_key(
     client: AsyncClient, session: AsyncSession
 ):
@@ -189,8 +174,6 @@ async def test_cannot_delete_other_users_api_key(
     assert delete_response.status_code == 404
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_authenticate_with_api_key(client: AsyncClient, session: AsyncSession):
     """Test that API keys can be used for authentication."""
     user = await create_user(session, email="test@example.com", full_name="Test User")
@@ -214,8 +197,6 @@ async def test_authenticate_with_api_key(client: AsyncClient, session: AsyncSess
     assert data["full_name"] == "Test User"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_api_key_works_for_platform_members(
     client: AsyncClient, session: AsyncSession
 ):
@@ -248,8 +229,6 @@ async def test_api_key_works_for_platform_members(
     assert auth_response.json()["email"] == "member@example.com"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_create_api_key_requires_authentication(client: AsyncClient):
     """Test that creating API keys requires authentication."""
     payload = {"name": "Unauthorized Key"}
@@ -259,8 +238,6 @@ async def test_create_api_key_requires_authentication(client: AsyncClient):
     assert response.status_code == 401
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_list_api_keys_requires_authentication(client: AsyncClient):
     """Test that listing API keys requires authentication."""
     response = await client.get("/api/v1/users/me/api-keys")
@@ -268,8 +245,6 @@ async def test_list_api_keys_requires_authentication(client: AsyncClient):
     assert response.status_code == 401
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_delete_api_key_requires_authentication(client: AsyncClient):
     """Test that deleting API keys requires authentication."""
     response = await client.delete("/api/v1/users/me/api-keys/1")
@@ -277,8 +252,6 @@ async def test_delete_api_key_requires_authentication(client: AsyncClient):
     assert response.status_code == 401
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_api_key_prefix_is_masked_in_list(
     client: AsyncClient, session: AsyncSession
 ):
@@ -307,8 +280,6 @@ async def test_api_key_prefix_is_masked_in_list(
 # --- Least-privilege scoping (read_only / guild_id) -------------------------
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_create_api_key_without_expiry_never_expires(
     client: AsyncClient, session: AsyncSession
 ):
@@ -334,8 +305,6 @@ async def test_create_api_key_without_expiry_never_expires(
     assert abs((returned - expected).total_seconds()) < 5
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_read_only_key_blocks_writes_allows_reads(
     client: AsyncClient, session: AsyncSession
 ):
@@ -364,8 +333,6 @@ async def test_read_only_key_blocks_writes_allows_reads(
     assert write.json()["detail"] == "USER_API_KEY_READ_ONLY"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_guild_bound_key_is_pinned_to_its_guild(
     client: AsyncClient, session: AsyncSession
 ):
@@ -409,8 +376,6 @@ async def test_guild_bound_key_is_pinned_to_its_guild(
     assert jwt_other.status_code == 200
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_create_guild_bound_key_rejects_non_member(
     client: AsyncClient, session: AsyncSession
 ):
@@ -430,8 +395,6 @@ async def test_create_guild_bound_key_rejects_non_member(
     assert response.json()["detail"] == "USER_API_KEY_GUILD_FORBIDDEN"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_create_guild_bound_key_rejects_unknown_guild(
     client: AsyncClient, session: AsyncSession
 ):
@@ -448,8 +411,6 @@ async def test_create_guild_bound_key_rejects_unknown_guild(
     assert response.json()["detail"] == "USER_API_KEY_GUILD_FORBIDDEN"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_password_change_deactivates_api_keys(
     client: AsyncClient, session: AsyncSession
 ):

@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -19,7 +18,6 @@ from app.models.platform.user import UserRole
 from app.testing import emitted
 from app.testing.factories import create_auth_provider, create_user, get_auth_headers
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 BASE = "/api/v1/settings/auth/providers/"
 SECRET = "s3cret-value"

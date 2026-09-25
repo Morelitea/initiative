@@ -23,6 +23,7 @@ from typing import Any
 
 from cryptography.hazmat.primitives.asymmetric import ec
 from jwt.algorithms import ECAlgorithm
+from sqlalchemy import delete as sa_delete
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -94,9 +95,12 @@ from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.user import User, UserRole, UserStatus
 from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
 from app.core import usernames
+from app.services.platform import guilds as guilds_service
 from app.services.tenant.initiatives import create_builtin_roles
 from app.schemas.tenant.task import mint_checklist_item_id
+from app.services.tenant.ownership import tool_for_row
 from app.services.tenant.task_completion import sync_completed_at
+from app.services.tenant.task_statuses import ensure_default_statuses
 from app.services.tenant.wikis import slugify_page_title
 from app.testing.schema_harness import guild_of, route_session_to_guild
 
@@ -220,46 +224,28 @@ async def create_guild(
     commit: bool = True,
     **overrides: Any,
 ) -> Guild:
+    """Create a test guild through the service's creation path.
+
+    The guild and its administration row, a named ``creator`` seated as its
+    superadmin, its schema provisioned and its settings row seeded — what the
+    community-create endpoint does, less the mandatory apps, which tests reach
+    through the backfill. Without a ``creator`` the guild is recorded as made by
+    a filler account and has no members.
+
+    Overrides for the operator-set fields (``max_storage_bytes``, ``max_users``,
+    ``tier_name``, ``auth_options``) land on ``guild_administration``; the rest
+    on the guild. Example: ``guild = await create_guild(session, name="Test")``.
     """
-    Create a test guild with sensible defaults.
-
-    Args:
-        session: Database session
-        creator: User who creates the guild (will be created if not provided)
-        commit: Whether to commit the transaction (default True)
-        **overrides: Override any default field values
-
-    Returns:
-        Created Guild instance
-
-    Example:
-        guild = await create_guild(session, name="Test Guild")
-    """
-    named_creator = creator is not None
-    if creator is None:
-        creator = await create_user(session, commit=commit)
-
-    # The operator-set fields live on ``guild_administration``, so overrides for
-    # them are routed to that row rather than to the guild. Tests keep passing
-    # them as if they were guild fields.
-    administration_defaults: dict[str, Any] = {
-        # Test guilds hold every sign-in option by default so the guild-auth
-        # surface is exercisable without extra setup; production guilds hold
-        # none (the operator grants each one from the Guilds dashboard). Pass
-        # ``auth_options=[]`` to exercise the ungranted paths, or a shorter list
-        # to exercise one option without the other.
+    # Test guilds hold every sign-in option by default so the guild-auth
+    # surface is exercisable without extra setup; production guilds hold none
+    # (the operator grants each one from the Guilds dashboard). Pass
+    # ``auth_options=[]`` to exercise the ungranted paths, or a shorter list to
+    # exercise one option without the other.
+    administration_data: dict[str, Any] = {
         "auth_options": [option.value for option in GuildAuthOption],
-    }
-    administration_data = {
-        **administration_defaults,
         **{
             field: overrides.pop(field)
-            for field in (
-                "max_storage_bytes",
-                "max_users",
-                "tier_name",
-                "auth_options",
-            )
+            for field in ("max_storage_bytes", "max_users", "tier_name", "auth_options")
             if field in overrides
         },
     }
@@ -268,42 +254,35 @@ async def create_guild(
         option.value if isinstance(option, GuildAuthOption) else option
         for option in administration_data["auth_options"]
     ]
-
-    defaults = {
-        "name": f"Test Guild {datetime.now(timezone.utc).timestamp()}",
-        "description": "A test guild for integration testing",
-        "created_by": creator.id,
-    }
-
-    guild_data = {**defaults, **overrides}
-    guild = Guild(**guild_data)
-    session.add(guild)
-    await session.flush()
-    # Every guild has exactly one, created with it — same as the service path.
-    session.add(GuildAdministration(guild_id=guild.id, **administration_data))
-    # A named creator administers what they made, as the service path has them
-    # do — a routing is a lookup now, so a community whose creator belonged to
-    # nothing could not be entered at all. An *invented* creator is the
-    # factory's own filler and joins nothing, so a test that did not ask for a
-    # member still has none.
-    if named_creator:
-        session.add(
-            GuildMembership(
-                user_id=creator.id,
-                guild_id=guild.id,
-                role=GuildRole.admin,
-                position=0,
-            )
+    if creator is None:
+        overrides.setdefault(
+            "created_by", (await create_user(session, commit=commit)).id
         )
+
+    guild = await guilds_service.create_guild(
+        session,
+        name=overrides.pop(
+            "name", f"Test Guild {datetime.now(timezone.utc).timestamp()}"
+        ),
+        description=overrides.pop(
+            "description", "A test guild for integration testing"
+        ),
+        creator=creator,
+    )
+    for field, value in overrides.items():
+        setattr(guild, field, value)
+    session.add(guild)
+    await guild_administration(session, guild, commit=False, **administration_data)
 
     if commit:
         await session.commit()
         await session.refresh(guild)
-        # Schema-native: commit the guild row, then provision its schema so the
-        # routing harness can send this guild's guild-scoped writes into it.
         from app.db.schema_provisioning import provision_guild
 
         await provision_guild(guild.id)
+        await route_session_to_guild(session, guild.id)
+        await guilds_service.create_guild_settings(session, guild.id)
+        await session.commit()
 
     return guild
 
@@ -687,18 +666,19 @@ async def create_resource_grant(
     user: User | None = None,
     role_id: int | None = None,
     all_initiative_members: bool = False,
+    app_install_id: int | None = None,
     commit: bool = True,
 ) -> ResourceGrant:
-    """Share a tool's row: ``level`` for ``user``, for an initiative role, or for
-    every member of its initiative — exactly one of the three. The kind is the
-    row's own table, a tool's table being its plural."""
+    """Share a tool's row: ``level`` for ``user``, for an initiative role, for
+    every member of its initiative, or for an installed app — exactly one."""
     await route_session_to_guild(session, guild_of(resource))
     grant = ResourceGrant(
-        resource_type=next(t for t in Tool if t.plural == resource.__tablename__).value,
+        resource_type=tool_for_row(resource),
         resource_id=resource.id,
         user_id=user.id if user is not None else None,
         role_id=role_id,
         all_initiative_members=all_initiative_members,
+        app_install_id=app_install_id,
         level=level,
         initiative_id=resource.initiative_id,
     )
@@ -706,6 +686,23 @@ async def create_resource_grant(
     if commit:
         await session.commit()
     return grant
+
+
+async def strip_non_owner_grants(
+    session: AsyncSession, resource: Any, owner_id: int
+) -> None:
+    """Remove every grant on a tool's row except ``owner_id``'s own, so the row
+    reaches nobody else. Role and all-member grants carry a NULL ``user_id``,
+    hence ``is_distinct_from`` rather than ``!=``."""
+    await route_session_to_guild(session, guild_of(resource))
+    await session.exec(
+        sa_delete(ResourceGrant).where(
+            ResourceGrant.resource_type == tool_for_row(resource),
+            ResourceGrant.resource_id == resource.id,
+            ResourceGrant.user_id.is_distinct_from(owner_id),
+        )
+    )
+    await session.commit()
 
 
 async def create_task(
@@ -721,33 +718,19 @@ async def create_task(
     """Create a test task (guild-scoped), with a status of the requested
     category and optional assignees.
 
-    Reuses an existing project status of the same category if one exists,
-    otherwise creates one. Pass ``status_category=TaskStatusCategory.done`` and
-    ``assignees=[user]`` to build a completed, assigned task (e.g. for stats).
+    The project gets its default statuses the way the service seeds them, and
+    the task takes the first of the requested category; a category the project
+    has no status for gets one. Pass ``status_category=TaskStatusCategory.done``
+    and ``assignees=[user]`` to build a completed, assigned task (e.g. for stats).
     """
-    from sqlmodel import select as _select
-
     await route_session_to_guild(session, guild_of(project))
 
-    status = (
-        await session.exec(
-            _select(TaskStatus)
-            .where(
-                TaskStatus.project_id == project.id,
-                TaskStatus.category == status_category,
-            )
-            .limit(1)
-        )
-    ).first()
+    statuses = await ensure_default_statuses(session, project.id)
+    status = next((s for s in statuses if s.category == status_category), None)
     if status is None:
-        status = TaskStatus(
-            project_id=project.id,
-            name=status_category.value.replace("_", " ").title(),
-            category=status_category,
-            position=0,
-            is_default=status_category == TaskStatusCategory.todo,
+        status = await create_task_status(
+            session, project, category=status_category, commit=False
         )
-        session.add(status)
         await session.flush()
 
     defaults: dict[str, Any] = {

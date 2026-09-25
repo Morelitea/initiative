@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -23,7 +22,6 @@ from app.testing.factories import (
     get_auth_headers,
 )
 
-pytestmark = pytest.mark.integration
 
 SMTP_PASSWORD = "smtp-pa55word"
 S3_SECRET = "s3-secret-access-key"

@@ -1,11 +1,7 @@
 """What a canvas compiles to, read off the statement it writes."""
 
-import pytest
-
 from app.services.query import resolve
 from app.services.query.canvas import compile_canvas
-
-pytestmark = pytest.mark.unit
 
 
 def _compiled(*statements: str):

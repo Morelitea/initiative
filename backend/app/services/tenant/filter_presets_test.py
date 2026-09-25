@@ -1,6 +1,5 @@
 """Seeding, slugs, defaults, and cloning for project filter presets."""
 
-import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.services.tenant import filter_presets as filter_presets_service
@@ -11,8 +10,6 @@ from app.testing.factories import (
     create_task_status,
     create_user,
 )
-
-pytestmark = [pytest.mark.integration, pytest.mark.service]
 
 
 async def _project(session: AsyncSession):

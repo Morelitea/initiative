@@ -26,8 +26,6 @@ from app.services.platform import (
 )
 from app.testing import create_guild, create_user, push_switched_on
 
-pytestmark = [pytest.mark.integration, pytest.mark.database]
-
 
 async def _platform(session: AsyncSession, **fields: bool) -> None:
     """Set the deployment's answers, as an owner's PUT would."""

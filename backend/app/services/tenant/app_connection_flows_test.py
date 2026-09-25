@@ -43,7 +43,6 @@ from app.testing import (
 )
 from app.testing.fake_vendor import FakeVendor
 
-pytestmark = pytest.mark.integration
 
 PUBLIC_ID = "tests.gh"
 LISTING_UID = "TESTAPP0000009"

@@ -1,10 +1,6 @@
 """Unit tests for the Markdown → export-blocks converter."""
 
-import pytest
-
 from app.services.export.markdown import blocks_from_markdown
-
-pytestmark = pytest.mark.unit
 
 
 def test_empty_and_whitespace_input():

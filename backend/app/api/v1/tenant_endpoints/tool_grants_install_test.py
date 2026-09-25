@@ -16,8 +16,12 @@ from sqlmodel import select
 from app.core.messages import AppMessages
 from app.core.tools import Tool
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
-from app.services.marketplace import app_refs
-from app.testing import create_project, route_session_to_guild
+from app.testing import (
+    create_project,
+    create_resource_grant,
+    guild_url,
+    route_session_to_guild,
+)
 from app.testing.app_clients import (
     assert_names_nobody,
     install_app,
@@ -25,20 +29,8 @@ from app.testing.app_clients import (
     lift_person_and_guild_ids,
 )
 
-pytestmark = pytest.mark.integration
 
 SHARE = ["projects:write", "sharing:write", "members:read", "initiatives:read"]
-
-
-@pytest.fixture(autouse=True)
-def _cold_reference_cache():
-    app_refs.forget_cached_install_refs()
-    yield
-    app_refs.forget_cached_install_refs()
-
-
-def _g(guild_id: int, path: str) -> str:
-    return f"/api/v1/c/{guild_id}{path}"
 
 
 async def _open_project(session: Any, installed: Any, level: str = "read") -> Any:
@@ -47,17 +39,9 @@ async def _open_project(session: Any, installed: Any, level: str = "read") -> An
     project = await create_project(
         session, installed.placed, installed.seat.user, name="The seat's"
     )
-    await route_session_to_guild(session, installed.guild.id)
-    session.add(
-        ResourceGrant(
-            resource_type=Tool.project.value,
-            resource_id=project.id,
-            all_initiative_members=True,
-            level=ResourceAccessLevel(level),
-            initiative_id=installed.placed.id,
-        )
+    await create_resource_grant(
+        session, project, all_initiative_members=True, level=ResourceAccessLevel(level)
     )
-    await session.commit()
     return project
 
 
@@ -65,7 +49,7 @@ async def _seat_ref(client: Any, session: Any, installed: Any, headers: dict) ->
     """What the install calls the seat, from the owner of a project it reads."""
     project = await _open_project(session, installed)
     read = await client.get(
-        _g(installed.guild.id, f"/projects/{project.id}"), headers=headers
+        guild_url(installed.guild.id, f"/projects/{project.id}"), headers=headers
     )
     assert read.status_code == 200, read.text
     return read.json()["owner_id"]
@@ -73,7 +57,7 @@ async def _seat_ref(client: Any, session: Any, installed: Any, headers: dict) ->
 
 async def _own_project(client: Any, installed: Any, headers: dict, **extra) -> Any:
     return await client.post(
-        _g(installed.guild.id, "/projects/"),
+        guild_url(installed.guild.id, "/projects/"),
         headers=headers,
         json={"name": "The app's", "initiative_id": installed.placed.id, **extra},
     )
@@ -107,7 +91,7 @@ async def test_an_install_shares_what_it_owns(
     project_id = created.json()["id"]
 
     shared = await client.put(
-        _g(gid, f"/projects/{project_id}/grants"),
+        guild_url(gid, f"/projects/{project_id}/grants"),
         headers=headers,
         json=[
             {"all_initiative_members": True, "level": "write"},
@@ -143,7 +127,7 @@ async def test_without_sharing_write_the_route_refuses(
     project_id = created.json()["id"]
 
     refused = await client.put(
-        _g(installed.guild.id, f"/projects/{project_id}/grants"),
+        guild_url(installed.guild.id, f"/projects/{project_id}/grants"),
         headers=headers,
         json=[{"all_initiative_members": True, "level": "read"}],
     )
@@ -163,7 +147,7 @@ async def test_sharing_asks_the_tool_and_the_roster_too(
         scopes.append("projects:read")
 
     refused = await client.put(
-        _g(installed.guild.id, f"/projects/{project_id}/grants"),
+        guild_url(installed.guild.id, f"/projects/{project_id}/grants"),
         headers=install_headers(installed, scopes),
         json=[{"all_initiative_members": True, "level": "read"}],
     )
@@ -178,7 +162,7 @@ async def test_reading_a_project_is_not_the_rung_to_share_it(
     project = await _open_project(session, installed, level="read")
 
     refused = await client.put(
-        _g(installed.guild.id, f"/projects/{project.id}/grants"),
+        guild_url(installed.guild.id, f"/projects/{project.id}/grants"),
         headers=install_headers(installed, SHARE),
         json=[{"all_initiative_members": True, "level": "write"}],
     )
@@ -230,7 +214,7 @@ async def test_sharing_read_shows_an_install_the_grants(
     project = await _open_project(session, installed)
 
     read = await client.get(
-        _g(installed.guild.id, f"/projects/{project.id}"),
+        guild_url(installed.guild.id, f"/projects/{project.id}"),
         headers=install_headers(installed, scopes),
     )
     assert read.status_code == 200, read.text

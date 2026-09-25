@@ -11,7 +11,6 @@ from app.services.export.contract import RenderItem, RenderRequest
 from app.services.export.local_backend import LocalRenderBackend
 from app.services.export.stamp import stamp_export
 
-pytestmark = pytest.mark.unit
 
 _TABLE = {
     "title": "Tasks",

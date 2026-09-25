@@ -2,7 +2,6 @@
 Integration tests for queue endpoints — CRUD, items, turns, permissions.
 """
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -64,7 +63,6 @@ async def _add_item_via_api(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_create_queue(client: AsyncClient, acting_user):
     """PM can create a queue."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -89,7 +87,6 @@ async def test_create_queue(client: AsyncClient, acting_user):
     assert data["current_round"] == 1
 
 
-@pytest.mark.integration
 async def test_create_queue_non_pm_forbidden(client: AsyncClient, acting_user):
     """Non-PM member cannot create a queue (unless role allows it)."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -112,7 +109,6 @@ async def test_create_queue_non_pm_forbidden(client: AsyncClient, acting_user):
     assert response.status_code == 403
 
 
-@pytest.mark.integration
 async def test_list_queues(client: AsyncClient, acting_user):
     """Admin can list queues."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -127,7 +123,6 @@ async def test_list_queues(client: AsyncClient, acting_user):
     assert "Listed Queue" in names
 
 
-@pytest.mark.integration
 async def test_get_queue(client: AsyncClient, acting_user):
     """Owner can fetch queue details."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -141,7 +136,6 @@ async def test_get_queue(client: AsyncClient, acting_user):
     assert data["my_permission_level"] == "owner"
 
 
-@pytest.mark.integration
 async def test_update_queue(client: AsyncClient, acting_user):
     """Owner can update queue name/description."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -159,7 +153,6 @@ async def test_update_queue(client: AsyncClient, acting_user):
     assert data["description"] == "Updated desc"
 
 
-@pytest.mark.integration
 async def test_delete_queue(client: AsyncClient, acting_user):
     """Owner can delete a queue."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -180,7 +173,6 @@ async def test_delete_queue(client: AsyncClient, acting_user):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_add_queue_item(client: AsyncClient, acting_user):
     """Owner can add an item to a queue."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -199,7 +191,6 @@ async def test_add_queue_item(client: AsyncClient, acting_user):
     assert data["color"] == "#FF0000"
 
 
-@pytest.mark.integration
 async def test_update_queue_item(client: AsyncClient, acting_user):
     """Owner can update an item."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -218,7 +209,6 @@ async def test_update_queue_item(client: AsyncClient, acting_user):
     assert data["position"] == 5
 
 
-@pytest.mark.integration
 async def test_delete_queue_item(client: AsyncClient, acting_user):
     """Owner can delete an item."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -232,7 +222,6 @@ async def test_delete_queue_item(client: AsyncClient, acting_user):
     assert response.status_code == 204
 
 
-@pytest.mark.integration
 async def test_reorder_queue_items(client: AsyncClient, acting_user):
     """Owner can bulk-reorder items."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -258,7 +247,6 @@ async def test_reorder_queue_items(client: AsyncClient, acting_user):
     assert items_by_id[item_b["id"]]["position"] == 10
 
 
-@pytest.mark.integration
 async def test_fractional_positions(client: AsyncClient, acting_user):
     """Items with the same integer initiative can be split by a fractional position."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -310,7 +298,6 @@ async def test_fractional_positions(client: AsyncClient, acting_user):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_start_and_stop_queue(client: AsyncClient, acting_user):
     """Start activates the queue, stop deactivates it."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -335,7 +322,6 @@ async def test_start_and_stop_queue(client: AsyncClient, acting_user):
     assert data["is_active"] is False
 
 
-@pytest.mark.integration
 async def test_advance_turn(client: AsyncClient, acting_user):
     """Advancing cycles through visible items."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -353,7 +339,6 @@ async def test_advance_turn(client: AsyncClient, acting_user):
     assert response.status_code == 200
 
 
-@pytest.mark.integration
 async def test_reset_queue(client: AsyncClient, acting_user):
     """Reset resets round to 1 and sets current to first visible item."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -394,7 +379,6 @@ def _items_by_id(payload: dict) -> dict[int, dict]:
     return {item["id"]: item for item in payload["items"]}
 
 
-@pytest.mark.integration
 async def test_hold_current_records_round_and_advances(
     client: AsyncClient, acting_user
 ):
@@ -413,7 +397,6 @@ async def test_hold_current_records_round_and_advances(
     assert by_id[a["id"]]["held_at_round"] == 1
 
 
-@pytest.mark.integration
 async def test_hold_only_item_clears_current(client: AsyncClient, acting_user):
     """Holding the last rotation-eligible item leaves current_item = None."""
     actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -432,7 +415,6 @@ async def test_hold_only_item_clears_current(client: AsyncClient, acting_user):
     assert _items_by_id(payload)[a["id"]]["held_at_round"] == 1
 
 
-@pytest.mark.integration
 async def test_advance_auto_releases_at_natural_slot(client: AsyncClient, acting_user):
     """Held A returns to current when round 2 reaches A's position-desc slot."""
     actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -464,7 +446,6 @@ async def test_advance_auto_releases_at_natural_slot(client: AsyncClient, acting
     assert _items_by_id(after_wrap)[b["id"]]["held_at_round"] is None
 
 
-@pytest.mark.integration
 async def test_release_clears_hold_without_rewinding(client: AsyncClient, acting_user):
     """Release clears `held_at_round` but leaves the current pointer alone.
 
@@ -489,7 +470,6 @@ async def test_release_clears_hold_without_rewinding(client: AsyncClient, acting
     assert _items_by_id(payload)[a["id"]]["held_at_round"] is None
 
 
-@pytest.mark.integration
 async def test_release_with_reposition_lifts_target_above_current(
     client: AsyncClient, acting_user
 ):
@@ -531,7 +511,6 @@ async def test_release_with_reposition_lifts_target_above_current(
     assert after_next["current_item"]["id"] == b["id"]
 
 
-@pytest.mark.integration
 async def test_release_with_reposition_between_current_and_higher(
     client: AsyncClient, acting_user
 ):
@@ -573,7 +552,6 @@ async def test_release_with_reposition_between_current_and_higher(
     )
 
 
-@pytest.mark.integration
 async def test_release_without_body_preserves_position(
     client: AsyncClient, acting_user
 ):
@@ -595,7 +573,6 @@ async def test_release_without_body_preserves_position(
     assert by_id[a["id"]]["position"] == original_position
 
 
-@pytest.mark.integration
 async def test_release_while_stopped(client: AsyncClient, acting_user):
     """Release works when the queue is stopped; is_active is preserved."""
     actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -620,7 +597,6 @@ async def test_release_while_stopped(client: AsyncClient, acting_user):
     assert _items_by_id(payload)[a["id"]]["held_at_round"] is None
 
 
-@pytest.mark.integration
 async def test_set_active_clears_held(client: AsyncClient, acting_user):
     """set-active on a held item also clears its held_at_round."""
     actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -639,7 +615,6 @@ async def test_set_active_clears_held(client: AsyncClient, acting_user):
     assert _items_by_id(payload)[a["id"]]["held_at_round"] is None
 
 
-@pytest.mark.integration
 async def test_previous_skips_held_no_auto_release(client: AsyncClient, acting_user):
     """Previous never lands on a held item, and never clears its hold."""
     actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -661,7 +636,6 @@ async def test_previous_skips_held_no_auto_release(client: AsyncClient, acting_u
     assert _items_by_id(payload)[a["id"]]["held_at_round"] == 1
 
 
-@pytest.mark.integration
 async def test_reset_preserves_held(client: AsyncClient, acting_user):
     """Reset jumps to the highest un-held item; held items stay held."""
     actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -680,7 +654,6 @@ async def test_reset_preserves_held(client: AsyncClient, acting_user):
     assert _items_by_id(payload)[a["id"]]["held_at_round"] == 1
 
 
-@pytest.mark.integration
 async def test_hold_no_current_item(client: AsyncClient, acting_user):
     """Hold with no current item returns 400 NO_CURRENT_ITEM."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -695,7 +668,6 @@ async def test_hold_no_current_item(client: AsyncClient, acting_user):
     assert response.json()["detail"] == "QUEUE_NO_CURRENT_ITEM"
 
 
-@pytest.mark.integration
 async def test_release_unheld_item_returns_400(client: AsyncClient, acting_user):
     """Calling release on an item that isn't held returns ITEM_NOT_HELD."""
     actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -709,7 +681,6 @@ async def test_release_unheld_item_returns_400(client: AsyncClient, acting_user)
     assert response.json()["detail"] == "QUEUE_ITEM_NOT_HELD"
 
 
-@pytest.mark.integration
 async def test_hold_requires_write_access(client: AsyncClient, acting_user):
     """Members without write permission can't hold."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -732,7 +703,6 @@ async def test_hold_requires_write_access(client: AsyncClient, acting_user):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_sharing_does_not_reach_past_the_role_gate(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -764,7 +734,6 @@ async def test_sharing_does_not_reach_past_the_role_gate(
     assert seen.status_code in (403, 404)
 
 
-@pytest.mark.integration
 async def test_member_with_read_can_view_queue(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -800,7 +769,6 @@ async def test_member_with_read_can_view_queue(
     assert response.status_code == 403
 
 
-@pytest.mark.integration
 async def test_member_without_permission_cannot_view(client: AsyncClient, acting_user):
     """Member with no permission cannot access the queue."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -831,7 +799,6 @@ async def test_member_without_permission_cannot_view(client: AsyncClient, acting
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_set_queue_item_tags(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -857,7 +824,6 @@ async def test_set_queue_item_tags(
     assert data["tags"][0]["id"] == tag.id
 
 
-@pytest.mark.integration
 async def test_create_queue_with_grants(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -907,7 +873,6 @@ async def test_create_queue_with_grants(
     assert len(user_grants) == 1
 
 
-@pytest.mark.integration
 async def test_delete_queue_still_emits_queue_deleted(
     client: AsyncClient, acting_user, monkeypatch
 ):
@@ -931,7 +896,6 @@ async def test_delete_queue_still_emits_queue_deleted(
     assert (a.guild.id, "queue", queue["id"], "queue_deleted") in emitted
 
 
-@pytest.mark.integration
 async def test_queue_counts_by_initiative(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -997,7 +961,6 @@ async def test_a_queue_item_resolves_by_its_own_id(client, session, acting_user)
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_a_queue_read_as_a_whole_carries_what_its_items_hold(
     client: AsyncClient, acting_user, session
 ):
@@ -1026,7 +989,6 @@ async def test_a_queue_read_as_a_whole_carries_what_its_items_hold(
     assert [d["document_id"] for d in row["documents"]] == [doc.id]
 
 
-@pytest.mark.integration
 async def test_an_items_attachment_count_covers_every_kind(
     client: AsyncClient, acting_user, session
 ):

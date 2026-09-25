@@ -19,7 +19,6 @@ from app.testing.factories import (
     get_auth_headers,
 )
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 BASE = "/api/v1/app-services/"
 PUBLISHERS = "/api/v1/app-publishers/"

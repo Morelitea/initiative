@@ -30,7 +30,6 @@ def a_while_later(monkeypatch):
     return go
 
 
-@pytest.mark.unit
 def test_nobody_is_online_until_something_is_open() -> None:
     roll = OnlineRoll()
 
@@ -38,7 +37,6 @@ def test_nobody_is_online_until_something_is_open() -> None:
     assert roll.is_online(7) is False
 
 
-@pytest.mark.unit
 def test_an_open_tab_shows_what_it_brought() -> None:
     roll = OnlineRoll()
     roll.arrived(7, Presence.busy)
@@ -47,7 +45,6 @@ def test_an_open_tab_shows_what_it_brought() -> None:
     assert roll.is_online(7) is True
 
 
-@pytest.mark.unit
 def test_appearing_offline_holds_with_a_tab_open() -> None:
     roll = OnlineRoll()
     roll.arrived(7, Presence.offline)
@@ -56,7 +53,6 @@ def test_appearing_offline_holds_with_a_tab_open() -> None:
     assert roll.is_online(7) is False
 
 
-@pytest.mark.unit
 def test_a_connect_that_started_first_cannot_undo_a_later_choice() -> None:
     """A socket reads the column somewhere on its way in and can arrive after a
     change that was made while it was still on its way."""
@@ -70,7 +66,6 @@ def test_a_connect_that_started_first_cannot_undo_a_later_choice() -> None:
     assert roll.presence_of(7) is Presence.offline
 
 
-@pytest.mark.unit
 def test_a_choice_made_with_nothing_open_survives_the_connect_it_raced() -> None:
     """The same race, with the write landing while the first tab is still
     opening — so there is no socket for the write to find."""
@@ -83,7 +78,6 @@ def test_a_choice_made_with_nothing_open_survives_the_connect_it_raced() -> None
     assert roll.presence_of(7) is Presence.offline
 
 
-@pytest.mark.unit
 def test_a_socket_that_read_after_the_change_carries_it() -> None:
     """The rule is which value is later, not which caller is a socket."""
     roll = OnlineRoll()
@@ -94,7 +88,6 @@ def test_a_socket_that_read_after_the_change_carries_it() -> None:
     assert roll.presence_of(7) is Presence.busy
 
 
-@pytest.mark.unit
 def test_closing_the_last_tab_puts_someone_offline() -> None:
     """Whatever they picked, nothing open is nothing to show."""
     roll = OnlineRoll()
@@ -108,7 +101,6 @@ def test_closing_the_last_tab_puts_someone_offline() -> None:
     assert roll.presence_of(7) is Presence.offline
 
 
-@pytest.mark.unit
 def test_a_change_is_followed_while_connected() -> None:
     roll = OnlineRoll()
     roll.arrived(7)
@@ -117,7 +109,6 @@ def test_a_change_is_followed_while_connected() -> None:
     assert roll.presence_of(7) is Presence.busy
 
 
-@pytest.mark.unit
 def test_a_change_by_someone_with_nothing_open_shows_nothing() -> None:
     """Recorded, so a connect in flight cannot undo it — but nothing open is
     still nothing to show."""
@@ -130,7 +121,6 @@ def test_a_change_by_someone_with_nothing_open_shows_nothing() -> None:
     assert roll.presence_of(7) is Presence.busy
 
 
-@pytest.mark.unit
 def test_the_socket_that_read_most_recently_wins() -> None:
     roll = OnlineRoll()
     roll.arrived(7, Presence.online)
@@ -139,7 +129,6 @@ def test_the_socket_that_read_most_recently_wins() -> None:
     assert roll.presence_of(7) is Presence.busy
 
 
-@pytest.mark.unit
 def test_an_open_tab_goes_idle_when_nobody_touches_it(a_while_later) -> None:
     """Nobody says they are away from their keyboard; the quiet says it."""
     roll = OnlineRoll()
@@ -152,7 +141,6 @@ def test_an_open_tab_goes_idle_when_nobody_touches_it(a_while_later) -> None:
     assert roll.is_online(7) is True
 
 
-@pytest.mark.unit
 def test_a_sign_of_them_brings_them_back(a_while_later) -> None:
     roll = OnlineRoll()
     roll.arrived(7)
@@ -164,7 +152,6 @@ def test_a_sign_of_them_brings_them_back(a_while_later) -> None:
     assert roll.presence_of(7) is Presence.online
 
 
-@pytest.mark.unit
 def test_one_tab_being_used_keeps_the_person_here(a_while_later) -> None:
     """A person reading in one window is at their keyboard whatever the other
     windows are doing."""
@@ -178,7 +165,6 @@ def test_one_tab_being_used_keeps_the_person_here(a_while_later) -> None:
     assert roll.presence_of(7) is Presence.online
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize("chosen", [Presence.idle, Presence.busy, Presence.offline])
 def test_a_guess_never_talks_over_what_someone_said(
     a_while_later, chosen: Presence
@@ -193,7 +179,6 @@ def test_a_guess_never_talks_over_what_someone_said(
     assert roll.presence_of(7) is chosen
 
 
-@pytest.mark.unit
 def test_picking_idle_holds_while_someone_is_typing() -> None:
     """Picked and inferred are the same state: someone who would rather look
     idle looks idle, whatever their keyboard says."""
@@ -206,7 +191,6 @@ def test_picking_idle_holds_while_someone_is_typing() -> None:
     assert roll.is_online(7) is True
 
 
-@pytest.mark.unit
 def test_a_sign_of_someone_with_nothing_open_is_ignored() -> None:
     roll = OnlineRoll()
 
@@ -215,7 +199,6 @@ def test_a_sign_of_someone_with_nothing_open_is_ignored() -> None:
     assert roll.presence_of(7) is Presence.offline
 
 
-@pytest.mark.unit
 def test_reconnecting_starts_the_clock_again(a_while_later) -> None:
     """Opening a tab is somebody doing something."""
     roll = OnlineRoll()

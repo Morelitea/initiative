@@ -13,7 +13,6 @@ from the seat's.
 
 from __future__ import annotations
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -26,7 +25,6 @@ from app.services.marketplace.app_refs import ensure_app_ref
 from app.testing import emitted, route_session_to_guild
 from app.testing.app_clients import CLIENT, InstalledApp, install_app
 
-pytestmark = pytest.mark.integration
 
 CONSENT_URL = "/api/v1/app-platform/consent-requests"
 
