@@ -27,15 +27,15 @@ import {
 import { invalidate, q } from "@/api/query-keys";
 import type { StoredMessage } from "@/crypto/messaging";
 import {
-  acknowledgePeerKeyChange,
   answerHistoryRequest,
   collect,
-  dismissHistoryAskNotice,
   ensureDevice,
+  historyAsk,
   historyAskWaiting,
   historyRequestToAnswer,
   markRead,
   messageLog,
+  peerKeyChanges,
   peerKeyChangesWaiting,
   registeredDevice,
   sendEdit,
@@ -317,7 +317,7 @@ export function usePeerKeyChanges() {
 export function useAcknowledgePeerKeyChange() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (deviceId: string) => acknowledgePeerKeyChange(deviceId),
+    mutationFn: (deviceId: string) => peerKeyChanges.acknowledge(deviceId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: messageKeys.peerKeyChanges });
     },
@@ -333,7 +333,7 @@ export function useAcknowledgePeerKeyChange() {
 export function useDismissHistoryAsk() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => dismissHistoryAskNotice(),
+    mutationFn: () => historyAsk.dismissNotice(),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: messageKeys.historyAsk });
     },

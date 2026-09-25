@@ -6,11 +6,10 @@
  * compiles, and a session list that overwrites still compiles. So they are
  * asserted here.
  *
- * Each call opens its own connection to the database, which is what a second
- * tab is — so these races are the cross-tab ones, not merely two promises in
- * one module. That is why the atomicity has to live in an IndexedDB
- * transaction: a JavaScript lock would pass these tests and still lose a
- * message between two windows.
+ * The atomicity has to live in an IndexedDB transaction: a JavaScript lock
+ * would pass a race inside one module and still lose a message between two
+ * windows. Each copy of this module holds one connection, as each tab does, so
+ * the cross-tab race below imports a second copy.
  */
 
 import "fake-indexeddb/auto";
@@ -56,9 +55,25 @@ describe("the message log", () => {
       mine: false,
     }));
 
-    await Promise.all(messages.map((message) => messageLog.append("conv", message)));
+    vi.resetModules();
+    const otherTab = await import("./store");
+
+    await Promise.all(
+      messages.map((message, index) =>
+        (index % 2 ? otherTab.messageLog : messageLog).append("conv", message)
+      )
+    );
 
     expect(await messageLog.get("conv")).toHaveLength(12);
+    // Deleting the database waits on every open connection; each lets go of
+    // its own, and the next call opens afresh.
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.deleteDatabase("initiative-dm");
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+      request.onblocked = () => reject(new Error("an open connection held the database"));
+    });
+    expect(await messageLog.get("conv")).toEqual([]);
   });
 
   it("ignores a message it already holds", async () => {

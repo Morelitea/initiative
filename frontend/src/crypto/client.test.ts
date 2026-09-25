@@ -9,7 +9,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ratchet, ratchetSupported } from "./client";
+import { ratchet, ratchetSupported, stopRatchet } from "./client";
 
 const engine = vi.hoisted(() => ({ createAccount: vi.fn() }));
 vi.mock("./engine", () => engine);
@@ -56,7 +56,29 @@ describe("the ratchet client", () => {
 
     expect(ratchetSupported()).toBe(false);
 
+    // Subtle crypto without `randomUUID` (Safari before 15.4) cannot name a
+    // registration or a message either.
+    Object.defineProperty(globalThis, "crypto", {
+      value: { subtle: real.subtle, getRandomValues: real.getRandomValues.bind(real) },
+      configurable: true,
+    });
+    expect(ratchetSupported()).toBe(false);
+
     Object.defineProperty(globalThis, "crypto", { value: real, configurable: true });
     expect(ratchetSupported()).toBe(true);
+  });
+
+  it("stops the worker, refusing what was still waiting on it", async () => {
+    const terminate = vi.fn();
+    globalThis.Worker = class {
+      postMessage() {}
+      terminate = terminate;
+    } as unknown as typeof Worker;
+    const waiting = ratchet.createAccount();
+
+    stopRatchet();
+
+    expect(terminate).toHaveBeenCalledTimes(1);
+    await expect(waiting).rejects.toThrow(/stopped/);
   });
 });

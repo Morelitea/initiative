@@ -313,7 +313,7 @@ export function MyMessagesPage() {
           key={current.id}
           conversationId={current.id}
           otherUserId={current.other_user_id}
-          memberIds={current.member_ids?.length ? current.member_ids : [current.other_user_id]}
+          memberIds={current.member_ids ?? []}
           name={isGroup(current) ? groupName(current) : nameOf(current.other_user_id)}
           // Everybody the thread might have to draw. One map for the page, so
           // a person looks the same in the header, in a message and in a quote.

@@ -28,8 +28,20 @@ const DEVICE_ID = "device-id";
 const SESSION_PREFIX = "session:";
 const READ_PREFIX = "last-read:";
 
+/** Where a wipe of this store is announced to every other realm. */
+const DROPPED = "initiative-dm-dropped";
+
+let connection: Promise<IDBDatabase> | null = null;
+
+/**
+ * The database, opened once per realm rather than on every read and write.
+ * IndexedDB serialises overlapping `readwrite` transactions whichever
+ * connection they are on. The connection is let go when another needs the
+ * database to itself, or the browser closes it, and the next call reopens.
+ */
 function open(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
+  if (connection !== null) return connection;
+  const opening = new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
@@ -37,9 +49,25 @@ function open(): Promise<IDBDatabase> {
         db.createObjectStore(STORE);
       }
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      const release = () => {
+        if (connection === opening) connection = null;
+      };
+      db.onversionchange = () => {
+        db.close();
+        release();
+      };
+      db.onclose = release;
+      resolve(db);
+    };
+    request.onerror = () => {
+      if (connection === opening) connection = null;
+      reject(request.error);
+    };
   });
+  connection = opening;
+  return opening;
 }
 
 async function read<T>(key: string): Promise<T | undefined> {
@@ -140,6 +168,22 @@ async function drop(): Promise<void> {
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
   });
+  if (typeof BroadcastChannel !== "undefined") {
+    const channel = new BroadcastChannel(DROPPED);
+    channel.postMessage(null);
+    channel.close();
+  }
+}
+
+/**
+ * Call `listener` whenever another realm wipes this store, for a realm that
+ * keeps something it read from it. `false` where the browser has no way to say
+ * so, which tells the caller not to keep anything.
+ */
+export function whenDropped(listener: () => void): boolean {
+  if (typeof BroadcastChannel === "undefined") return false;
+  new BroadcastChannel(DROPPED).onmessage = listener;
+  return true;
 }
 
 async function wrappingKey(): Promise<CryptoKey> {

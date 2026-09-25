@@ -12,8 +12,16 @@ import { describe, expect, it, vi } from "vitest";
 // The worker reads the pickle key from the store on its own side, and there is
 // no IndexedDB here — so the store is stubbed with a fixed key. The ratchet
 // under test is entirely real.
+const store = vi.hoisted(() => ({
+  pickleKey: vi.fn(async () => btoa(String.fromCharCode(...new Uint8Array(32).fill(7)))),
+  dropped: () => {},
+}));
 vi.mock("./store", () => ({
-  pickleKey: async () => btoa(String.fromCharCode(...new Uint8Array(32).fill(7))),
+  pickleKey: () => store.pickleKey(),
+  whenDropped: (listener: () => void) => {
+    store.dropped = listener;
+    return true;
+  },
 }));
 
 // The engine, not the client: the client only speaks to a worker, and what is
@@ -69,11 +77,19 @@ describe("the double ratchet", () => {
   });
 
   it("publishes a reusable fallback key alongside the pool", async () => {
+    store.dropped();
+    store.pickleKey.mockClear();
     const account = await ratchet.createAccount();
     const keys = await ratchet.generateKeys(account.pickle, 3, true);
 
     expect(keys.one_time_keys).toHaveLength(3);
     expect(keys.fallback_key).not.toBeNull();
+    // The pickle key is unwrapped once per worker, and again once the store is
+    // wiped from any tab.
+    expect(store.pickleKey).toHaveBeenCalledTimes(1);
+    store.dropped();
+    await ratchet.generateKeys(account.pickle, 1, false);
+    expect(store.pickleKey).toHaveBeenCalledTimes(2);
   });
 
   it("refuses a session pickle it cannot read", async () => {
