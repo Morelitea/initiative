@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.services.stream_authz import RoomMember
+from app.services.content_sockets import RoomMember
 from app.services.tenant import collaboration as collaboration_module
 from app.core.search import SearchEntityType
 from app.services.tenant.collaboration import (
@@ -199,8 +199,8 @@ async def test_a_room_being_read_in_is_not_collected_as_idle() -> None:
 # ── the connection register is the only register ─────────────────────────────
 
 
-class FakeAuthority:
-    """Stands in for the streaming spine, holding connections per room."""
+class FakeRegister:
+    """Stands in for the socket register, holding connections per room."""
 
     def __init__(self) -> None:
         self.rooms: dict[tuple, list[RoomMember]] = {}
@@ -208,11 +208,11 @@ class FakeAuthority:
     def add(self, guild_id, document_id, member) -> None:
         self.rooms.setdefault((guild_id, "document", document_id), []).append(member)
 
-    def room_size(self, guild_id, resource_type, resource_id) -> int:
-        return len(self.rooms.get((guild_id, resource_type, resource_id), []))
+    def room_size(self, room) -> int:
+        return len(self.rooms.get(room, []))
 
-    def room_members(self, guild_id, resource_type, resource_id):
-        return list(self.rooms.get((guild_id, resource_type, resource_id), []))
+    def room_members(self, room):
+        return list(self.rooms.get(room, []))
 
 
 def member(user_id: int, *, name: str = "Ada", can_write: bool = True) -> RoomMember:
@@ -224,8 +224,8 @@ def member(user_id: int, *, name: str = "Ada", can_write: bool = True) -> RoomMe
 
 @pytest.fixture
 def authority(monkeypatch):
-    fake = FakeAuthority()
-    monkeypatch.setattr(collaboration_module, "stream_authority", fake)
+    fake = FakeRegister()
+    monkeypatch.setattr(collaboration_module, "sockets", fake)
     return fake
 
 

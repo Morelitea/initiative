@@ -372,6 +372,10 @@ class GuildAppDetail(GuildAppRead):
     #: asks for anything. Absent for a version that asks nothing new, which
     #: applies without consent.
     pending_update: Optional[GuildAppUpgradeAsks] = None
+    #: For each ``apps:`` scope above, the requested ones and those the pending
+    #: version adds: the name the app it lets this one use goes by, keyed by
+    #: that app's public id. Its public id when the catalog has no name for it.
+    app_names: Dict[str, str] = {}
 
 
 class GuildAppListResponse(SanitizedBaseModel):
@@ -590,6 +594,7 @@ def serialize_guild_app_detail(
     update_offer: Any = None,
     placements: Sequence[Any] = (),
     consent_rows: Sequence[Any] = (),
+    app_names: Optional[Dict[str, str]] = None,
 ) -> GuildAppDetail:
     """The install and its connections, from the viewer's own perspective.
 
@@ -619,6 +624,7 @@ def serialize_guild_app_detail(
         grantable_scopes=grantable_scopes(
             app.definition, (install_state or InstallState()).scope_ceiling
         ),
+        app_names=dict(app_names or {}),
     )
 
 

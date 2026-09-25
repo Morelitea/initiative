@@ -220,6 +220,7 @@
     "read": "Lesen",
     "write": "Lesen und ändern",
     "notAllowed": "Dieser Server erlaubt das nicht",
+    "useApp": "{{name}} in dieser Community verwenden",
     "saved": "Zugriff gespeichert",
     "error": "Der Zugriff dieser App konnte nicht gespeichert werden.",
     "resources": {

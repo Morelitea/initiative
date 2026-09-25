@@ -52,7 +52,7 @@ from app.services.auth import totp as totp_service
 from app.services.platform import auth_posture
 from app.services.auth import sessions as session_service
 from app.services.auth.assurance import SECOND_FACTOR_AMR
-from app.services.stream_authz import authority as stream_authority
+from app.services.content_sockets import sockets as content_sockets
 
 router = APIRouter()
 
@@ -269,7 +269,7 @@ async def disable_second_factor(
     )
     await system_session.commit()
     # Connections opened on the ended sessions close; this one's stay.
-    await stream_authority.revoke_user_everywhere(current_user.id)
+    await content_sockets.revoke_user_everywhere(current_user.id)
     await email_service.announce_second_factor_change(
         system_session, current_user, enabled=False
     )

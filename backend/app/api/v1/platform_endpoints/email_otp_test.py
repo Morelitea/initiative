@@ -4,6 +4,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.security import decode_session_token
 from app.testing import captcha_switched_on, create_user
 
 pytestmark = [pytest.mark.integration, pytest.mark.auth]
@@ -243,6 +244,7 @@ async def test_a_second_factor_is_still_asked_for(
     assert await totp_service.confirm_enrolment(
         session, user_id=holder.id, code=pyotp.TOTP(enrolment.secret).now()
     )
+    recovery = await totp_service.issue_recovery_codes(session, user_id=holder.id)
     await session.commit()
 
     handle = await _ask(client, "factored@example.com")
@@ -253,6 +255,17 @@ async def test_a_second_factor_is_still_asked_for(
     assert answered.status_code == 401
     assert answered.json()["detail"] == "TOTP_REQUIRED"
     assert answered.json()["challenge"]
+
+    # The session it opens records what both legs proved: the code, not a
+    # password nobody presented.
+    finished = await client.post(
+        "/api/v1/auth/token/totp",
+        json={"challenge": answered.json()["challenge"], "recovery_code": recovery[0]},
+    )
+    assert finished.status_code == 200, finished.text
+    claims = decode_session_token(finished.json()["access_token"])
+    assert "otp" in claims["amr"] and "mfa" in claims["amr"]
+    assert "pwd" not in claims["amr"]
 
 
 async def test_proving_an_address_for_the_first_time_retires_what_came_before(

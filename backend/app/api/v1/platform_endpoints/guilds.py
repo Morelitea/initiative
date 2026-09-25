@@ -117,10 +117,9 @@ from app.services.platform import guild_images as images_service
 from app.services.tenant.attachments import FileTooLargeError, read_upload_bounded
 from app.services.platform import guilds as guilds_service
 from app.services.platform import intake as intake_service
-from app.services.realtime import manager as realtime_manager
+from app.services.content_sockets import sockets as content_sockets
 from app.services.tenant import app_connections as app_connections_service
 from app.services.tenant import app_revocation as app_revocation_service
-from app.services.stream_authz import authority as stream_authority
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
@@ -241,7 +240,7 @@ def _serialize_guild(
         # Read here rather than passed in, so every payload that names a guild
         # carries the same figure without each call site remembering to ask.
         # It costs no query — presence is a dict this process already holds.
-        online_count=realtime_manager.present_count(guild.id),
+        online_count=content_sockets.present_count(guild.id),
     )
 
 
@@ -394,7 +393,7 @@ async def list_community_guilds(
         ) from exc
     # Who is present is live state held by the process, not a column, so it is
     # read here for the page being returned rather than joined in the query.
-    online = realtime_manager.present_counts(guild.id for guild, _, _ in rows)
+    online = content_sockets.present_counts(guild.id for guild, _, _ in rows)
     # Digests only, in one query: a card names its pictures, never carries them.
     images = await images_service.image_urls(
         session,
@@ -678,7 +677,7 @@ async def read_guild(
         role=guild_context.rung,
         writes_settings=guild_context.writes_settings,
         position=_position_of(guild_context),
-        retention_days=await guilds_service.get_guild_retention_days(session, guild_id),
+        retention_days=await guilds_service.get_guild_retention_days(session),
         member_count=await guilds_service.count_members(session, guild_id=guild_id),
         administration=await guilds_service.get_administration(
             session, guild_id=guild_id
@@ -726,7 +725,7 @@ async def update_guild(
         _GUILD_PROFILE_FIELDS,
     )
     retention_before = (
-        await guilds_service.get_guild_retention_days(session, guild_id)
+        await guilds_service.get_guild_retention_days(session)
         if retention_days_provided
         else None
     )
@@ -783,13 +782,11 @@ async def update_guild(
             area="retention",
             before={"retention_days": retention_before},
             after={
-                "retention_days": await guilds_service.get_guild_retention_days(
-                    session, guild_id
-                )
+                "retention_days": await guilds_service.get_guild_retention_days(session)
             },
         )
     await session.commit()
-    retention_days = await guilds_service.get_guild_retention_days(session, guild_id)
+    retention_days = await guilds_service.get_guild_retention_days(session)
     member_count = await guilds_service.count_members(session, guild_id=guild_id)
     # Only a guild admin reaches this endpoint, so the caps belong in the reply.
     administration = await guilds_service.get_administration(session, guild_id=guild_id)
@@ -1035,7 +1032,7 @@ async def _guild_payload_after_image_change(
         role=guild_context.rung,
         writes_settings=guild_context.writes_settings,
         position=_position_of(guild_context),
-        retention_days=await guilds_service.get_guild_retention_days(session, guild_id),
+        retention_days=await guilds_service.get_guild_retention_days(session),
         member_count=await guilds_service.count_members(session, guild_id=guild_id),
         administration=await guilds_service.get_administration(
             session, guild_id=guild_id
@@ -1959,7 +1956,7 @@ async def update_guild_membership(
     # Guild-level access change (e.g. admin → member loses the guild-admin
     # bypass): re-check this user's live content streams now so the change takes
     # effect immediately, not on the next bounded re-auth tick.
-    await stream_authority.revoke_user(guild_id, user_id)
+    await content_sockets.revoke_user(guild_id, user_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -2060,7 +2057,7 @@ async def leave_guild(
 
     await session.commit()
     # Left the guild — drop this user's live content streams immediately.
-    await stream_authority.revoke_user(guild_id, current_user.id)
+    await content_sockets.revoke_user(guild_id, current_user.id)
     # …and tell this guild's apps that the credentials this person connected
     # under it are finished. After the commit, so an app is never told to let go
     # of something a rollback would have put back.

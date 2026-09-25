@@ -1092,6 +1092,50 @@ async def announce_password_removed(session: AsyncSession, user: User) -> None:
     )
 
 
+async def send_password_changed_email(session: AsyncSession, user: User) -> None:
+    """Tell the account its password was changed.
+
+    Account mail, like the password-removed letter: a way in changed, so it
+    goes to every address its holder has proved rather than only the nominated
+    one.
+    """
+    settings_obj, accent = await _email_context(session)
+    locale = _user_locale(user)
+    name = _display_name(user)
+    body = f"""
+    <p>{email_t("passwordChanged.greeting", locale=locale, name=name)}</p>
+    <p>{email_t("passwordChanged.body", locale=locale)}</p>
+    <p>{email_t("passwordChanged.fallbackText", locale=locale)}</p>
+    """
+    html_body = _build_html_layout(
+        email_t("passwordChanged.title", locale=locale), body, accent, locale=locale
+    )
+    await send_email(
+        session,
+        recipients=await _account_recipients(user),
+        subject=email_t("passwordChanged.subject", locale=locale, escape=False),
+        html_body=html_body,
+        text_body=email_t("passwordChanged.textBody", locale=locale, escape=False),
+        settings_obj=settings_obj,
+    )
+
+
+async def announce_password_changed(session: AsyncSession, user: User) -> None:
+    """Tell the account, and never fail the change because the letter could not go.
+
+    By the time this runs the new password is committed.
+    """
+    try:
+        await send_password_changed_email(session, user)
+    except EmailNotConfiguredError:
+        logger.info(
+            "no mail configured; password change for account %s not announced",
+            user.id,
+        )
+    except Exception:  # pragma: no cover - delivery is best effort
+        logger.exception("could not announce password change for account %s", user.id)
+
+
 def initiative_added_pieces(user: User, initiative_name: str) -> EmailPieces:
     locale = _user_locale(user)
     link = _frontend_url("/initiatives")

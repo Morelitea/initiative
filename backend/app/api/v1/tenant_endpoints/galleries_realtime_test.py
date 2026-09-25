@@ -14,8 +14,8 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
-from app.services.realtime import manager
-from app.services.realtime_test import FakeWebSocket
+from app.services.content_sockets import sockets
+from app.testing.sockets import FakeWebSocket, settle, watch_events_bus
 from app.services.tenant import room_sink
 from app.testing import create_gallery, create_gallery_image, create_tag, png_bytes
 
@@ -37,18 +37,19 @@ class _Room:
         self.socket = FakeWebSocket()
 
     async def __aenter__(self) -> "_Room":
-        await manager.connect(
+        watch_events_bus(
             self._guild_id, [self._initiative_id], self.socket, user_id=self._user_id
         )
         await room_sink.process_room_sweep()
         return self
 
     async def __aexit__(self, *exc) -> None:
-        await manager.disconnect(self.socket)
+        sockets.leave(self.socket)  # type: ignore[arg-type]
         room_sink._delivered.pop(self._guild_id, None)
 
     async def catch_up(self) -> None:
         await room_sink.process_room_sweep()
+        await settle()
 
     def changes(self, resource_type: str = "galleries") -> list[dict]:
         return [

@@ -220,6 +220,7 @@
     "read": "Read",
     "write": "Read and change",
     "notAllowed": "This server doesn't allow it",
+    "useApp": "Use {{name}} in this community",
     "saved": "Access saved",
     "error": "Couldn't save what this app can reach.",
     "resources": {

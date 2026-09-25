@@ -9,7 +9,7 @@ documents in particular.
 
 A room deliberately does **not**
 keep a list of who is connected: that register lives once, in
-:mod:`app.services.stream_authz`, keyed by socket. A channel that keeps its own
+:mod:`app.services.content_sockets`, keyed by socket. A channel that keeps its own
 copy has to keep the two in step, and the moment they disagree — which is every
 time one account opens a second tab — delivery and authorization stop matching
 the sockets that actually exist.
@@ -28,7 +28,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
 from app.db.session import SystemSessionLocal, set_rls_context
-from app.services.stream_authz import authority as stream_authority
+from app.services.content_sockets import resource_room, sockets
 from app.services.tenant.collaborative_resources import (
     YJS_STATE_COLUMN,
     YJS_UPDATED_COLUMN,
@@ -97,8 +97,8 @@ class CollaborationRoom:
 
     def connection_count(self) -> int:
         """How many sockets are in this room, asked of the one register."""
-        return stream_authority.room_size(
-            self.guild_id, self.resource_type, self.resource_id
+        return sockets.room_size(
+            resource_room(self.guild_id, self.resource_type, self.resource_id)
         )
 
     def is_empty(self) -> bool:
@@ -560,7 +560,9 @@ def room_roster(guild_id: int, resource_type: str, resource_id: int) -> list[dic
     can write if any of those connections may.
     """
     by_user: Dict[int, dict] = {}
-    for member in stream_authority.room_members(guild_id, resource_type, resource_id):
+    for member in sockets.room_members(
+        resource_room(guild_id, resource_type, resource_id)
+    ):
         user_id = member.user.id
         if user_id is None:
             continue
@@ -587,13 +589,13 @@ def user_has_connection(
     """
     return any(
         member.user.id == user_id
-        for member in stream_authority.room_members(
-            guild_id, resource_type, resource_id
+        for member in sockets.room_members(
+            resource_room(guild_id, resource_type, resource_id)
         )
     )
 
 
-async def broadcast_awareness(
+def broadcast_awareness(
     guild_id: int,
     resource_type: str,
     resource_id: int,
@@ -611,8 +613,8 @@ async def broadcast_awareness(
         bytes([MSG_AWARENESS])
         + json.dumps({"type": "awareness", "data": awareness_data}).encode()
     )
-    await stream_authority.emit_bytes(
-        guild_id, resource_type, resource_id, message, exclude=exclude
+    sockets.emit_bytes(
+        resource_room(guild_id, resource_type, resource_id), message, exclude=exclude
     )
 
 

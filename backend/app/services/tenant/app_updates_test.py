@@ -638,3 +638,51 @@ class TestVersionsThatAskForMore:
         assert accepted.granted_scopes == ["projects:read", "projects:write"]
         assert accepted.pending_version is None
         assert accepted.declined_version is None
+
+
+def _asking(*scopes: str) -> dict:
+    return {
+        "app_kind": "service",
+        "service": {"public_id": "tests.caller", "protocol": 1, "scopes": list(scopes)},
+        "features": [],
+    }
+
+
+def test_a_version_asking_to_use_another_app_asks_for_more():
+    """An ``apps:`` scope is a new thing the seat has not answered, like any
+    other scope a version adds."""
+    app = GuildApp(
+        listing_uid="TESTCALLER0001",
+        listing_version="1.0.0",
+        app_kind="service",
+        name="Caller",
+        definition=_asking("documents:read"),
+        granted_scopes=["documents:read"],
+        created_by=1,
+    )
+    ceiling = ("documents:read", "apps:tests.github")
+
+    asks = app_updates.upgrade_asks(
+        app, _asking("documents:read", "apps:tests.github"), ceiling
+    )
+
+    assert asks.added_scopes == ("apps:tests.github",)
+    assert asks.asks_more
+
+
+def test_an_app_scope_above_the_ceiling_asks_for_nothing():
+    app = GuildApp(
+        listing_uid="TESTCALLER0001",
+        listing_version="1.0.0",
+        app_kind="service",
+        name="Caller",
+        definition=_asking("documents:read"),
+        granted_scopes=["documents:read"],
+        created_by=1,
+    )
+
+    asks = app_updates.upgrade_asks(
+        app, _asking("documents:read", "apps:tests.github"), ("documents:read",)
+    )
+
+    assert not asks.asks_more

@@ -220,6 +220,7 @@
     "read": "Lire",
     "write": "Lire et modifier",
     "notAllowed": "Ce serveur ne l'autorise pas",
+    "useApp": "Utiliser {{name}} dans cette communauté",
     "saved": "Accès enregistré",
     "error": "Impossible d'enregistrer les accès de cette application.",
     "resources": {

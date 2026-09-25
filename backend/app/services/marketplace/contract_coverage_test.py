@@ -44,7 +44,7 @@ def maximal_manifest() -> dict:
         "service": {
             "public_id": "acme.tracker",
             "protocol": 1,
-            "scopes": ["projects:write", "comments:read"],
+            "scopes": ["projects:write", "comments:read", "apps:acme.github"],
         },
         "features": ["endpoints", "widgets", "embeds", "dashboards"],
         "default_name": "Acme Tracker",
@@ -157,6 +157,7 @@ def maximal_manifest() -> dict:
                 "requires": {"all_of": ["vendor"]},
                 "cache_ttl_seconds": 60,
                 "admin_only": True,
+                "public": True,
             },
             {
                 "id": "app.acme.tracker.written",
@@ -290,7 +291,11 @@ def test_every_service_field_survives_a_publish(published):
     inventory above does not reach it; its fields are measured here."""
     declared = contract.manifest_schema()["properties"]["service"]["properties"]
     assert set(declared) == set(published["service"])
-    assert published["service"]["scopes"] == ["comments:read", "projects:write"]
+    assert published["service"]["scopes"] == [
+        "apps:acme.github",
+        "comments:read",
+        "projects:write",
+    ]
 
 
 @pytest.mark.unit
@@ -317,6 +322,7 @@ def test_an_emitting_endpoint_keeps_what_describes_it(published):
         "cache_ttl_seconds",
         "actors",
         "admin_only",
+        "public",
     ):
         assert caller_side not in emitted
 

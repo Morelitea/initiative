@@ -1,228 +1,91 @@
-import asyncio
-import contextlib
-import json
 import logging
-from time import monotonic
 from typing import Optional
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
-from sqlalchemy import text
+from fastapi import APIRouter, WebSocket
 from sqlmodel import select
-
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import establish_guild_access, GuildAccessError
-from app.core.security import SESSION_COOKIE_NAME
-from app.db.cohorts import request_sessionmaker
-from app.db.session import CONNECTION_RESET_SQL
-from app.models.tenant.initiative import Initiative
+from app.api.content_socket import admit, hold_open
 from app.models.platform.user import User
+from app.models.tenant.initiative import Initiative
+from app.services.content_sockets import (
+    Authorizer,
+    RoomKey,
+    Subscriber,
+    Wire,
+    guild_room,
+    initiative_room,
+)
 from app.services.membership import initiative_scope_clause
-from app.services.realtime import manager
 from app.services.tenant.room_sink import EVERYTHING, missed_while_away
-from app.services.platform.ws_auth import authenticate_ws_token
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# Message type for authentication (matches frontend)
-MSG_AUTH = 5
 
-#: How long the socket may go without saying anything before it says that. The
-#: stream is quiet by nature — most guilds change nothing for minutes at a time
-#: — so silence is otherwise indistinguishable from a channel that has stopped
-#: carrying, and the client has nothing else to read.
-HEARTBEAT_SECONDS = 30.0
+def _rooms_for(guild_id: int) -> Authorizer:
+    """The events-bus rooms one reader may be in: the guild's own, and one per
+    initiative whose content they could read over REST.
 
-#: The beat itself. Named rather than empty so it is legible on the wire; it
-#: carries no changes, which is the whole of what the client does with it.
-HEARTBEAT_FRAME = {"heartbeat": True}
-
-
-async def _user_from_token(token: str, session: AsyncSession) -> Optional[User]:
-    """Validate a session JWT or device token and return the user, or None.
-
-    Delegates to the shared ``authenticate_ws_token`` helper so the
-    ``token_version`` revocation check stays in lockstep with the HTTP auth
-    path and the other realtime WebSocket endpoints (SEC-4).
+    ``initiative_scope_clause`` → ``initiative_access`` is the function RLS
+    uses, so the rooms are member initiatives plus every initiative for a guild
+    admin or a grant holder. Asked at connect and on every re-check, and the
+    answer replaces the socket's rooms: somebody added to an initiative is
+    given its room, and somebody removed loses it.
     """
-    return await authenticate_ws_token(token, session)
 
+    async def authorize(
+        session: AsyncSession, user: User
+    ) -> Optional[frozenset[RoomKey]]:
+        rows = await session.exec(
+            select(Initiative.id).where(initiative_scope_clause(user.id, Initiative.id))
+        )
+        return frozenset(
+            {guild_room(guild_id), *(initiative_room(guild_id, i) for i in rows.all())}
+        )
 
-async def _accessible_initiative_ids(
-    session: AsyncSession, *, user_id: int
-) -> list[int]:
-    """The initiative rooms this user may join in the already-established guild.
-
-    Reuses the single source of truth — ``initiative_scope_clause`` →
-    ``initiative_access`` — so the rooms a socket joins are exactly the
-    initiatives whose content it could read over REST: member initiatives, plus
-    every initiative for a guild admin / PAM / break-glass session (those legs
-    come free from the GUCs ``establish_guild_access`` set). A guild member who
-    is in no initiative joins no rooms and is never poked.
-    """
-    rows = await session.exec(
-        select(Initiative.id).where(initiative_scope_clause(user_id, Initiative.id))
-    )
-    return list(rows.all())
+    return authorize
 
 
 @router.websocket("/updates")
 async def websocket_updates(websocket: WebSocket, guild_id: int):
+    """Change envelopes for one guild: ``{changes: [...]}`` frames naming what
+    moved, never its content, and a heartbeat when nothing has.
+
+    The first frame carries the credential (see ``app.api.content_socket``) and
+    may say how long this tab was without a socket (``away_seconds``). A
+    reconnect that names a gap is told whether anything it can see changed
+    during it — one bit, since the frames that named the rows are gone.
+
+    The socket counts its user as present in the guild.
     """
-    WebSocket endpoint for real-time updates, scoped to a single guild.
+    behind = False
 
-    The guild comes from the ``/c/{guild_id}`` path segment — a separate socket
-    per guild, so different tabs/windows can subscribe to different guilds at
-    once. Authentication is done via MSG_AUTH message sent immediately after
-    connection, not via URL query parameters (for security - prevents token
-    leakage in logs): ``{"token": "..."}``. The server verifies the user
-    belongs to (or holds a live PAM grant for) the path-addressed guild and
-    only then registers the socket under it, so events never cross the tenancy
-    boundary.
-
-    The first frame may also say how long this tab was without a socket
-    (``away_seconds``). A reconnect that names a gap is told whether anything
-    it can see changed during it — one bit, and never which rows, since the
-    frames that named them are gone.
-
-    Authorization is connect-time only, by design: this stream carries
-    id-envelope pokes and never tooling content, so the client's refetch —
-    which re-runs every gate, including the guild auth policy — is the
-    authoritative decision point for anything a poke names. Content-bearing
-    channels (collaboration, counters, queues) ride the ``stream_authz``
-    spine with continuous re-authorization instead.
-    """
-    await websocket.accept()
-
-    away_seconds: float | None = None
-
-    # Wait for authentication message (must be first message)
-    try:
-        auth_data = await websocket.receive_bytes()
-        if len(auth_data) < 2 or auth_data[0] != MSG_AUTH:
-            logger.warning("Events WebSocket: Expected MSG_AUTH as first message")
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+    async def catch_up(session: AsyncSession, sub: Subscriber) -> None:
+        # Asked under the guild access just established, so the log answers
+        # for this subscriber. Joined first, so a change committing in between
+        # reaches the socket and this can only over-answer; a read that fails
+        # says the same bit, since a gap nobody could look into is a gap.
+        nonlocal behind
+        away = sub.first_frame.get("away_seconds")
+        if not isinstance(away, (int, float)) or away <= 0:
             return
-
-        # Parse auth payload
         try:
-            auth_payload = json.loads(auth_data[1:].decode())
-            token = auth_payload.get("token")
-            if not token:
-                # Fall back to session cookie (web sessions after page refresh)
-                token = websocket.cookies.get(SESSION_COOKIE_NAME)
-            if not token:
-                raise ValueError("Missing token")
-            # How long this tab went without a socket, measured by the tab. A
-            # reconnect and nothing else: a first connect leaves it out, having
-            # just fetched what it is showing.
-            away = auth_payload.get("away_seconds")
-            away_seconds = (
-                float(away) if isinstance(away, (int, float)) and away > 0 else None
-            )
-        except (json.JSONDecodeError, ValueError, TypeError) as e:
-            logger.warning(f"Events WebSocket: Invalid auth payload: {e}")
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
-
-    except WebSocketDisconnect:
-        logger.info("Events WebSocket: Client disconnected before auth")
-        return
-
-    # Validate the token in a SHORT-LIVED session and release it before the
-    # keepalive loop. Holding a request-scoped session for the websocket's whole
-    # lifetime keeps a connection idle-in-transaction, whose locks block DDL like
-    # DROP SCHEMA (guild deletion). Mirrors the queue/counter websockets.
-    async with request_sessionmaker(guild_id)() as session:
-        # Reset any stale GUCs the pooled connection may carry (e.g. a SET ROLE to
-        # a since-dropped guild role would make every query error) before the auth
-        # query — a session opened here doesn't run get_session's per-request reset.
-        await session.exec(text(CONNECTION_RESET_SQL))
-        # Taken before the row is read, so it is never later than the value
-        # that read comes back with.
-        presence_known_at = monotonic()
-        user = await _user_from_token(token, session)
-        if user is None:
-            logger.warning("Events WebSocket: Auth failed")
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
-        # Establish guild access (membership / live PAM / break-glass) through the
-        # single entry point, then resolve which initiative rooms this user may
-        # join. Both run inside this session block: after the ``async with`` exits
-        # the session would silently re-acquire a pooled connection WITHOUT the
-        # GUC reset above.
-        try:
-            await establish_guild_access(session, user, guild_id)
-        except GuildAccessError:
-            logger.warning(
-                f"Events WebSocket: user {user.id} not authorized for guild {guild_id}"
-            )
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
-        initiative_ids = await _accessible_initiative_ids(session, user_id=user.id)
-
-        # Initiative-scoped subscription: the socket joins exactly the rooms
-        # whose content the user can read, so a signal for an initiative never
-        # reaches a non-member. (A member of no initiative joins nothing —
-        # correct: they have no content to be notified about. The user is still
-        # present in the guild, which the manager tracks separately from the
-        # rooms.) In-memory and under a lock, so it costs the session nothing.
-        #
-        # Joined BEFORE the log is asked, so the two overlap rather than leave a
-        # seam: a change committing in between reaches a socket that is already
-        # in its room, and the question below can then only over-answer.
-        await manager.connect(
-            guild_id,
-            initiative_ids,
-            websocket,
-            user_id=user.id,
-            chosen_presence=user.presence,
-            presence_known_at=presence_known_at,
-        )
-
-        # Asked here, under the guild access just established, so the log
-        # answers for this subscriber. What comes back is one bit, which is all
-        # the frame below says — and a read that fails says the same bit, since
-        # a gap nobody could look into is a gap.
-        try:
-            behind = away_seconds is not None and await missed_while_away(
-                session, away_seconds
-            )
+            behind = await missed_while_away(session, float(away))
         except Exception:
             logger.exception("Events WS: catch-up read failed for guild %s", guild_id)
             behind = True
 
-    logger.info(
-        f"Events WS: user {user.id} joined {len(initiative_ids)} initiative room(s) in guild {guild_id}"
+    sub = await admit(
+        websocket,
+        guild_id,
+        wire=Wire.json,
+        authorize=_rooms_for(guild_id),
+        presence=True,
+        joined=catch_up,
     )
+    if sub is None:
+        return
     if behind:
-        # Something moved while this tab had no socket. Which rows is not
-        # recoverable — the frames that named them went to whoever was
-        # listening — so this says the one thing that is true, and the client
-        # reads the guild again.
-        await websocket.send_json(dict(EVERYTHING))
-    try:
-        while True:
-            # Awaiting keeps the connection open and surfaces the disconnect.
-            # The wait is bounded so the quiet case still says something: a
-            # half-open connection reports itself open and delivers nothing,
-            # and a beat is what lets the client tell that from a quiet guild.
-            try:
-                frame = await asyncio.wait_for(websocket.receive(), HEARTBEAT_SECONDS)
-            except asyncio.TimeoutError:
-                await websocket.send_json(HEARTBEAT_FRAME)
-                continue
-            if frame.get("type") == "websocket.disconnect":
-                break
-    except WebSocketDisconnect:
-        pass
-    except Exception:
-        with contextlib.suppress(Exception):
-            await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
-    finally:
-        # Unconditional, including the task being cancelled — which arrives as a
-        # BaseException and so past both excepts above. A room entry left behind
-        # is corrected by the first send that fails, but the socket's user would
-        # stay counted present in this guild with nothing to notice it.
-        await manager.disconnect(websocket)
+        sub.send_json(EVERYTHING)
+    await hold_open(sub)

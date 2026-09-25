@@ -250,10 +250,13 @@ describe("realtime socket lifecycle", () => {
     setInvalidationGuild(GUILD);
     vi.stubGlobal("WebSocket", MockWebSocket);
     vi.useFakeTimers();
+    // Reconnects are jittered; pin the draw so each lands mid-window.
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
   });
 
   afterEach(() => {
     setAuthToken(null);
+    vi.restoreAllMocks();
     vi.useRealTimers();
     vi.unstubAllGlobals();
     queryClient.clear();

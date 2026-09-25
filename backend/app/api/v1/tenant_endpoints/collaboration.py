@@ -16,14 +16,13 @@ from typing import Annotated
 
 from fastapi import (
     APIRouter,
+    HTTPException,
     Depends,
     Request,
     WebSocket,
     WebSocketDisconnect,
-    status,
 )
 
-from app.core.auth_context import satisfied_provider_ids
 from app.api.deps import (
     RLSSessionDep,
     SessionDep,
@@ -35,9 +34,9 @@ from app.api.deps import (
     GuildContext,
 )
 from app.core.messages import DocumentMessages
-from app.core.security import SESSION_COOKIE_NAME
 from app.db.cohorts import request_sessionmaker
 from app.models.platform.user import User
+from sqlmodel.ext.asyncio.session import AsyncSession
 from app.services.tenant.collaboration import (
     broadcast_awareness,
     collaboration_manager,
@@ -56,8 +55,9 @@ from app.services.tenant import content_references
 from app.services.tenant import documents as documents_service
 from app.services.tenant.relationships import Endpoint
 from app.services import permissions as permissions_service
-from app.services.stream_authz import authority as stream_authority
-from app.services.platform.ws_auth import authenticate_ws_token
+from app.services.content_sockets import RoomKey, Wire, resource_room, sockets
+from app.api.content_socket import admit
+from app.api import resource_access
 from app.core.request_audit import record_privileged_edit
 from app.core.user_display import display_name, handle_of
 
@@ -70,18 +70,7 @@ MSG_SYNC_STEP2 = 1  # Server sends current state
 MSG_UPDATE = 2  # Incremental Yjs update
 MSG_AWARENESS = 3  # Join / leave / roster, server to client (JSON)
 MSG_AWARENESS_BINARY = 4  # y-protocols awareness (binary, relayed as-is)
-MSG_AUTH = 5  # Authentication message (JSON: {token, guild_id})
 MSG_CONTENT = 6  # Editor's JSON rendering of the document, for the content column
-
-
-async def _get_user_from_token(token: str, session) -> Optional[User]:
-    """Validate a session JWT or device token and return the user, or None.
-
-    Delegates to the shared ``authenticate_ws_token`` helper so the
-    ``token_version`` revocation check stays in lockstep with the HTTP auth
-    path and the other realtime WebSocket endpoints (SEC-4).
-    """
-    return await authenticate_ws_token(token, session)
 
 
 def _addresses_the_same_thing(
@@ -134,6 +123,60 @@ async def websocket_collaborate_wiki_page(
     )
 
 
+class _Editing:
+    """Who may be in one body's room, asked at join and at every re-check.
+
+    The body and the row whose sharing governs it are loaded under RLS (the
+    initiative boundary), then ``resource_access.authorize`` asks what every
+    REST read asks: the tool's switch on its initiative, and the sharing. The
+    write level found at join is kept, and a writer who has lost it is closed
+    rather than quietly downgraded — they reconnect as the reader they now are.
+    A community turning read-only caps the level the same way.
+    """
+
+    def __init__(
+        self,
+        guild_id: int,
+        spec: CollaborativeResource,
+        resource_id: int,
+        parent_id: int | None,
+    ) -> None:
+        self.guild_id = guild_id
+        self.spec = spec
+        self.resource_id = resource_id
+        self.parent_id = parent_id
+        self.resolved: Collaborating | None = None
+        self.can_write: bool | None = None
+
+    async def __call__(
+        self, session: AsyncSession, user: User
+    ) -> Optional[frozenset[RoomKey]]:
+        resolved = await self.spec.load(session, self.resource_id, self.guild_id)
+        if resolved is None or not _addresses_the_same_thing(
+            self.spec, resolved, self.parent_id
+        ):
+            return None
+        context = require_guild_context(session)
+        try:
+            resource_access.authorize(
+                self.spec.tool, resolved.governing, user, context=context
+            )
+        except HTTPException:
+            return None
+        level = permissions_service.compute_permission(
+            resolved.governing, context=context
+        )
+        writes = level in ("write", "owner")
+        if self.can_write is None:
+            self.resolved = resolved
+            self.can_write = writes
+        elif self.can_write and not writes:
+            return None
+        return frozenset(
+            {resource_room(self.guild_id, self.spec.resource_type, self.resource_id)}
+        )
+
+
 async def _collaborate(
     websocket: WebSocket,
     guild_id: int,
@@ -142,185 +185,62 @@ async def _collaborate(
     *,
     parent_id: int | None = None,
 ):
+    """Live editing of one body over Yjs.
+
+    Entry is ``app.api.content_socket.admit``: the first frame is ``MSG_AUTH``
+    with ``{token}``, and the guild comes from the ``/c/{guild_id}`` path. Then:
+    the server asks for what the client has (``SYNC_STEP1``) and sends the
+    roster; the client answers and sends its own ``SYNC_STEP1``; after that,
+    ``UPDATE`` frames are applied and relayed, and binary awareness is relayed
+    as-is. Each frame is one type byte and its payload.
+
+    Database sessions are opened only for the join and the final write, never
+    held for the socket's life.
     """
-    WebSocket endpoint for collaborative editing of one body.
+    room_key = resource_room(guild_id, spec.resource_type, resource_id)
+    editing = _Editing(guild_id, spec, resource_id, parent_id)
+    room = None
+    # Filled before the socket is registered, so a roster read in between
+    # never shows this connection without its name.
+    meta: dict = {}
 
-    Protocol:
-    1. Client connects and sends MSG_AUTH with {token} as first message; the
-       guild comes from the ``/c/{guild_id}`` path segment
-    2. Server validates auth and sends current Yjs state (SYNC_STEP2)
-    3. Client sends incremental updates (UPDATE)
-    4. Server broadcasts updates to other clients
-    5. Awareness messages (AWARENESS) for cursor positions
-
-    Message format (binary):
-    - First byte: message type
-    - Rest: payload (Yjs update bytes or JSON for awareness)
-
-    Note: This endpoint manages its own database sessions to avoid holding
-    connections open for the entire WebSocket lifetime.
-    """
-    # One line per session says they edited it; the rest is keystrokes.
-    edit_recorded = False
-
-    # Must accept WebSocket before we can close it properly
-    # If we try to close before accept, the HTTP upgrade never completes
-    # and the client sees an abnormal closure (1006)
-    await websocket.accept()
-    logger.info(
-        f"Collaboration: WebSocket accepted for {spec.resource_type} {resource_id}"
-    )
-
-    # Wait for authentication message (must be first message)
-    try:
-        auth_data = await websocket.receive_bytes()
-        if len(auth_data) < 2 or auth_data[0] != MSG_AUTH:
-            logger.warning(
-                f"Collaboration: Expected MSG_AUTH as first message for "
-                f"{spec.resource_type} {resource_id}"
-            )
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
-
-        # Parse auth payload
-        try:
-            auth_payload = json.loads(auth_data[1:].decode())
-            token = auth_payload.get("token")
-            if not token:
-                # Fall back to session cookie (web sessions after page refresh)
-                token = websocket.cookies.get(SESSION_COOKIE_NAME)
-            if not token:
-                raise ValueError("Missing token")
-        except (json.JSONDecodeError, ValueError) as e:
-            logger.warning(
-                f"Collaboration: Invalid auth payload for {spec.resource_type} "
-                f"{resource_id}: {e}"
-            )
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
-
-    except WebSocketDisconnect:
-        logger.info(
-            f"Collaboration: Client disconnected before auth for "
-            f"{spec.resource_type} {resource_id}"
+    async def open_room(session: AsyncSession, user: User) -> None:
+        nonlocal room
+        meta.update(
+            {
+                "name": display_name(user),
+                "can_write": bool(editing.can_write),
+                "avatar_url": user.avatar_url,
+            }
         )
-        return
-
-    # Authenticate and check permissions using a short-lived session
-    async with request_sessionmaker(guild_id)() as session:
-        user = await _get_user_from_token(token, session)
-        if not user:
-            logger.warning(
-                f"Collaboration: Auth failed for {spec.resource_type} {resource_id}"
-            )
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
-
-        # Establish the guild access context through the single entry point —
-        # real membership, a live PAM grant, or break-glass — so the document
-        # checks below see the *same* context (the guild-admin rung, the rung a
-        # PAM or break-glass grant lends) the REST path would. Hand-rolling
-        # this here is exactly what let a guild admin be denied on the socket
-        # while allowed on the REST read.
-        try:
-            await establish_guild_access(session, user, guild_id)
-        except GuildAccessError:
-            logger.warning(
-                f"Collaboration: {handle_of(user)} has no access to guild {guild_id}"
-            )
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
-
-        # The body, and the row whose sharing governs it. For a document they
-        # are the same row; for a wiki page the governing row is its wiki.
-        resolved = await spec.load(session, resource_id, guild_id)
-        if resolved is None or not _addresses_the_same_thing(spec, resolved, parent_id):
-            logger.warning(
-                f"Collaboration: {spec.resource_type} {resource_id} not found "
-                f"or not in guild {guild_id}"
-            )
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
-        body = resolved.body
-
-        # Per-resource level via the shared DAC engine — guild admin (→ owner), a
-        # live PAM or break-glass grant lifted to its level, or
-        # the resource's explicit user/role/all-members grants. The active role +
-        # grant context was established above, and establish_guild_access already
-        # proved guild reach, so the only open question is this level.
-        level = permissions_service.compute_permission(
-            resolved.governing, context=require_guild_context(session)
-        )
-        if level is None:
-            logger.warning(
-                f"Collaboration: User {handle_of(user)} has no read access to "
-                f"{spec.resource_type} {resource_id}"
-            )
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
-        # The DAC engine caps the level at "read" while the guild's content is
-        # frozen (read_only lifecycle status, recorded by establish_guild_access),
-        # so a frozen guild can never hand out a writable socket.
-        can_write = level in ("write", "owner")
-
-        # Get or create the document room (needs session for initial load)
         room = await collaboration_manager.get_or_create_room(
             guild_id, spec.resource_type, resource_id, session
         )
-        # Held from here until this socket is in the register, so the room is
-        # not read as idle and retired in the gap between the two.
+        # Held until the socket is registered, so the room is not read as idle
+        # and retired in the gap between the two.
         room.hold()
 
-    logger.info(
-        f"Collaboration: user {user.id} authenticated for "
-        f"{spec.resource_type} {resource_id}"
-    )
-
-    collaborator_name = display_name(user)
-
-    # Govern this socket with continuous, every-level re-authorization. A
-    # grant / membership / role / PAM change disconnects it — immediately for
-    # guild- and initiative-level removal (via revoke_user), within the bounded
-    # interval for within-initiative DAC changes. The check re-runs the FULL join
-    # (establish_guild_access → load the document under RLS → DAC), so every gate
-    # is re-enforced in one place. ``needs_write`` makes a writer who loses write
-    # disconnect too (hard-disconnect, no mid-session downgrade), so the stale
-    # ``can_write`` below can't outlive the user's actual write access.
-    needs_write = can_write
-
-    async def _authorize(check_session, check_user):
-        again = await spec.load(check_session, resource_id, guild_id)
-        if again is None:
-            return False  # initiative removed (RLS hides it) or the row is gone
-        current = permissions_service.compute_permission(
-            again.governing, context=require_guild_context(check_session)
-        )
-        if current is None:
-            return False  # read access revoked
-        # A guild flipping to read_only mid-session caps ``current`` at "read"
-        # (the DAC engine reads the lifecycle flag recorded by the re-auth's
-        # establish_guild_access), so writer sockets hard-disconnect here and
-        # reconnect read-only — same rule as a lost DAC write level.
-        return not needs_write or current in ("write", "owner")
-
     try:
-        await stream_authority.join(
+        sub = await admit(
             websocket,
-            user,
-            guild_id=guild_id,
-            initiative_id=resolved.initiative_id,
-            resource_type=spec.resource_type,
-            resource_id=resource_id,
-            authorize=_authorize,
-            satisfied_providers=satisfied_provider_ids(),
-            meta={
-                "name": collaborator_name,
-                "can_write": can_write,
-                "avatar_url": user.avatar_url,
-            },
+            guild_id,
+            wire=Wire.bytes,
+            authorize=editing,
+            prepare=open_room,
+            meta=meta,
         )
     finally:
-        room.release()
+        if room is not None:
+            room.release()
+    if sub is None or room is None or editing.resolved is None:
+        return
+
+    user = sub.user
+    can_write = bool(editing.can_write)
+    body = editing.resolved.body
+    collaborator_name = meta["name"]
+    # One line per session says they edited it; the rest is keystrokes.
+    edit_recorded = False
 
     try:
         # Ask what this connection has that the room does not. A client that
@@ -328,19 +248,17 @@ async def _collaborate(
         # rebuilt from the row while it was away — can only hand it over if it
         # is asked. It answers with SYNC_STEP2, and sends its own SYNC_STEP1
         # for the other direction, so one connect settles both ways.
-        await websocket.send_bytes(bytes([MSG_SYNC_STEP1]) + room.state_vector())
-
-        # Send current collaborator list
-        collaborators_message = json.dumps(
-            {
-                "type": "collaborators",
-                "data": room_roster(guild_id, spec.resource_type, resource_id),
-            }
-        ).encode()
-        await websocket.send_bytes(bytes([MSG_AWARENESS]) + collaborators_message)
-
-        # Broadcast that a new user joined
-        await broadcast_awareness(
+        sub.send_bytes(bytes([MSG_SYNC_STEP1]) + room.state_vector())
+        sub.send_bytes(
+            bytes([MSG_AWARENESS])
+            + json.dumps(
+                {
+                    "type": "collaborators",
+                    "data": room_roster(guild_id, spec.resource_type, resource_id),
+                }
+            ).encode()
+        )
+        broadcast_awareness(
             guild_id,
             spec.resource_type,
             resource_id,
@@ -355,7 +273,6 @@ async def _collaborate(
             exclude=websocket,
         )
 
-        # Main message loop
         while True:
             data = await websocket.receive_bytes()
             if len(data) < 1:
@@ -365,17 +282,9 @@ async def _collaborate(
             payload = data[1:]
 
             if msg_type == MSG_SYNC_STEP1:
-                # Client requesting sync with their state vector
-                # Use state vector to compute diff - only send updates client is missing
-                logger.info(
-                    f"Collaboration: Received SYNC_STEP1 from {handle_of(user)}, state vector size: {len(payload)}"
-                )
+                # The client's state vector: send only what it is missing.
                 state = room.get_state_diff(payload) if payload else room.get_state()
-                sync_message = bytes([MSG_SYNC_STEP2]) + state
-                logger.info(
-                    f"Collaboration: Sending SYNC_STEP2 to {handle_of(user)}, diff size: {len(state)}"
-                )
-                await websocket.send_bytes(sync_message)
+                sub.send_bytes(bytes([MSG_SYNC_STEP2]) + state)
 
             elif msg_type in (MSG_UPDATE, MSG_SYNC_STEP2):
                 # An edit, or the answer to the room's opening SYNC_STEP1 —
@@ -404,12 +313,8 @@ async def _collaborate(
                         )
                     # Relayed under MSG_UPDATE whichever it arrived as: to every
                     # other connection this is simply state they do not have.
-                    await stream_authority.emit_bytes(
-                        guild_id,
-                        spec.resource_type,
-                        resource_id,
-                        bytes([MSG_UPDATE]) + payload,
-                        exclude=websocket,
+                    sockets.emit_bytes(
+                        room_key, bytes([MSG_UPDATE]) + payload, exclude=websocket
                     )
                 except Exception as e:
                     logger.warning(f"Failed to apply Yjs update: {e}")
@@ -440,33 +345,26 @@ async def _collaborate(
 
             elif msg_type == MSG_AWARENESS_BINARY:
                 # y-protocols awareness update - relay as-is to other clients
-                await stream_authority.emit_bytes(
-                    guild_id,
-                    spec.resource_type,
-                    resource_id,
-                    bytes([MSG_AWARENESS_BINARY]) + payload,
-                    exclude=websocket,
+                sockets.emit_bytes(
+                    room_key, bytes([MSG_AWARENESS_BINARY]) + payload, exclude=websocket
                 )
 
     except WebSocketDisconnect:
-        logger.info(
-            f"Collaboration: {handle_of(user)} disconnected from "
-            f"{spec.resource_type} {resource_id}"
-        )
+        pass
     except Exception as e:
         logger.error(
             f"Collaboration error for {handle_of(user)} on "
             f"{spec.resource_type} {resource_id}: {e}"
         )
     finally:
-        # Stop governing this socket (idempotent if the spine already closed it).
-        await stream_authority.leave(websocket)
+        # Idempotent if a re-check already closed it.
+        sockets.leave(websocket)
 
         # Tell the rest of the room only when this was the account's last
         # connection: the others keep a roster of people, and one of somebody's
         # two tabs closing does not take them out of the document.
         if not user_has_connection(guild_id, spec.resource_type, resource_id, user.id):
-            await broadcast_awareness(
+            broadcast_awareness(
                 guild_id,
                 spec.resource_type,
                 resource_id,

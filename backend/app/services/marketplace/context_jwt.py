@@ -98,6 +98,10 @@ def mint_context_token(
     endpoint_id: Optional[str] = None,
     hook: Optional[str] = None,
     connection_refs: Optional[Mapping[str, str]] = None,
+    caller: Optional[str] = None,
+    actor: Optional[str] = None,
+    member: Optional[str] = None,
+    initiative_id: Optional[int] = None,
     lifetime: timedelta = CONTEXT_TOKEN_LIFETIME,
 ) -> tuple[str, int]:
     """Sign one context token and return it with its lifetime in seconds.
@@ -110,6 +114,12 @@ def mint_context_token(
     that member's credential by. It is present only where the call genuinely
     depends on a per-member credential; a call satisfied by guild-scoped
     connections alone carries no user-derived claim at all.
+
+    A call another app made through Initiative also names that app
+    (``caller``, as ``act.sub``, RFC 8693 §4.1), whose behalf it is on
+    (``actor``: ``installation`` or ``member``), the member by this install's
+    own reference for them (``member``), and the initiative the caller's token
+    is narrowed to (``initiative_id``), each only when it applies.
     """
     if scope not in CONTEXT_SCOPES:
         raise ContextTokenError(f"unknown context scope {scope!r}")
@@ -136,6 +146,14 @@ def mint_context_token(
         payload["hook"] = hook
     if refs:
         payload["connection_refs"] = refs
+    if caller is not None:
+        payload["act"] = {"sub": caller}
+    if actor is not None:
+        payload["actor"] = actor
+    if member is not None:
+        payload["member"] = member
+    if initiative_id is not None:
+        payload["initiative_id"] = initiative_id
 
     key, algorithm, kid = resolve_app_platform_signing_material()
     headers: dict[str, Any] | None = {"kid": kid} if kid else None

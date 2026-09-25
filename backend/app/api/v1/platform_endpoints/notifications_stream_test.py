@@ -17,10 +17,11 @@ from fastapi import WebSocketDisconnect
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.api import content_socket
+from app.api.content_socket import MSG_AUTH
 from app.api.v1.platform_endpoints import notifications as notifications_endpoint
 from app.api.v1.platform_endpoints.notifications import (
     MSG_ACTIVE,
-    MSG_AUTH,
     websocket_notifications,
 )
 from app.core.security import SESSION_COOKIE_NAME
@@ -60,6 +61,10 @@ class FakeWebSocket:
         if not self._frames:
             return {"type": "websocket.disconnect", "code": 1000}
         return {"type": "websocket.receive", "bytes": self._frames.pop(0)}
+
+    @property
+    def pending(self) -> bool:
+        return bool(self._frames)
 
     async def close(self, code: int = 1000) -> None:
         self.closed_with = code
@@ -121,7 +126,11 @@ async def test_the_socket_is_registered_while_the_loop_runs(
 
     counted: list[int] = []
 
+    handshake = websocket.receive
+
     async def receive() -> dict:
+        if websocket.pending:
+            return await handshake()
         counted.append(stream.socket_count(user.id))
         return {"type": "websocket.disconnect", "code": 1000}
 
@@ -146,7 +155,11 @@ async def test_a_session_cookie_stands_in_for_a_null_token(
 
     counted: list[int] = []
 
+    handshake = websocket.receive
+
     async def receive() -> dict:
+        if websocket.pending:
+            return await handshake()
         counted.append(stream.socket_count(user.id))
         return {"type": "websocket.disconnect", "code": 1000}
 
@@ -239,14 +252,14 @@ async def test_a_socket_that_never_sends_its_first_frame_is_closed(
 ) -> None:
     """An accepted socket is not held open waiting for a frame that may never
     come."""
-    monkeypatch.setattr(notifications_endpoint, "AUTH_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(content_socket, "AUTH_TIMEOUT_SECONDS", 0.01)
     websocket = FakeWebSocket([])
 
-    async def receive_bytes() -> bytes:
+    async def receive() -> dict:
         await asyncio.sleep(60)
         raise AssertionError("should have timed out")
 
-    monkeypatch.setattr(websocket, "receive_bytes", receive_bytes)
+    monkeypatch.setattr(websocket, "receive", receive)
     await websocket_notifications(websocket)
 
     assert websocket.closed_with == WS_POLICY_VIOLATION

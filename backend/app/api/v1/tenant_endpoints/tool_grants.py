@@ -53,7 +53,7 @@ from app.api.v1.tenant_endpoints.tool_lists import TOOL_LISTS, ToolListSpec
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
-from app.services.stream_authz import authority as stream_authority
+from app.services.content_sockets import resource_room, sockets
 
 router = APIRouter(route_class=ActorRoute)
 
@@ -93,13 +93,12 @@ def _mount(
             session, tool, entity_id, current_user, guild_context, grants
         )
         result = await spec.read_row(session, entity_id, current_user, guild_context)
-        await stream_authority.emit(
-            guild_context.guild_id,
-            tool.value,
-            entity_id,
-            "permissions_changed",
-            {"grants": [grant.model_dump(mode="json") for grant in result.grants]},
+        # Whoever the new sharing leaves out is closed now rather than at the
+        # next sweep; whoever stays is told to refetch.
+        await sockets.recheck_room(
+            resource_room(guild_context.guild_id, tool.value, entity_id)
         )
+        sockets.signal(guild_context.guild_id, tool, entity_id, "permissions_changed")
         return result
 
     if spec.serves_apps:

@@ -156,9 +156,10 @@ async def test_someone_outside_the_initiative_gets_the_tools_not_found(
 async def test_the_room_is_told_that_sharing_moved(
     client: AsyncClient, session: AsyncSession, acting_user, tool: Tool, monkeypatch
 ):
-    """Sharing decides who has the thing at all, so every open window is told
-    and settles for itself what it may now see."""
-    from app.services import stream_authz
+    """Sharing decides who has the thing at all, so everyone in the room is
+    re-checked at once and the ones who remain are told to refetch — with the
+    change's name, never the new sharing itself."""
+    from app.services.content_sockets import resource_room, sockets
 
     a = await acting_user(guild_role=GuildRole.member, initiative=True)
     entity = await _entity(session, a, tool)
@@ -169,12 +170,17 @@ async def test_the_room_is_told_that_sharing_moved(
         initiative_role="member",
     )
 
-    emitted: list[tuple] = []
+    signalled: list[tuple] = []
+    rechecked: list[tuple] = []
 
-    async def _record(guild_id, resource_type, resource_id, event_type, data):
-        emitted.append((guild_id, resource_type, resource_id, event_type, data))
+    def _record(guild_id, signalled_tool, resource_id, event_type):
+        signalled.append((guild_id, signalled_tool, resource_id, event_type))
 
-    monkeypatch.setattr(stream_authz.authority, "emit", _record)
+    async def _recheck(room):
+        rechecked.append(room)
+
+    monkeypatch.setattr(sockets, "signal", _record)
+    monkeypatch.setattr(sockets, "recheck_room", _recheck)
 
     response = await client.put(
         a.g(f"/{_segment(tool)}/{entity.id}/grants"),
@@ -183,10 +189,5 @@ async def test_the_room_is_told_that_sharing_moved(
     )
     assert response.status_code == 200, response.text
 
-    changed = [event for event in emitted if event[3] == "permissions_changed"]
-    assert changed, emitted
-    guild_id, resource_type, resource_id, _, data = changed[-1]
-    assert (guild_id, resource_type, resource_id) == (a.guild.id, tool.value, entity.id)
-    assert [
-        grant["level"] for grant in data["grants"] if grant["user_id"] == b.user.id
-    ] == ["write"]
+    assert (a.guild.id, tool, entity.id, "permissions_changed") in signalled
+    assert rechecked == [resource_room(a.guild.id, tool.value, entity.id)]

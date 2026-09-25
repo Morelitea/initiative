@@ -28,9 +28,13 @@ from typing import Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.soft_delete_filter import select_including_deleted
 from app.models.tenant._mixins import ArchiveMixin
-from app.services.tenant.soft_delete import CASCADE_CHILDREN
+from app.services.tenant.lifecycle_tree import (
+    CASCADE_CHILDREN,
+    Level,
+    set_columns,
+    subtree_levels,
+)
 
 
 def _archivable_tree() -> dict[
@@ -53,36 +57,30 @@ def _archivable_tree() -> dict[
 ARCHIVE_CHILDREN = _archivable_tree()
 
 
-async def _descendant_levels(
-    session: AsyncSession,
-    parent: ArchiveMixin,
-    *,
-    matching: Optional[datetime],
-) -> list[list[ArchiveMixin]]:
-    """Every archivable descendant, grouped by how far down it sits.
+async def _levels(
+    session: AsyncSession, entity: ArchiveMixin, *, matching: Optional[datetime]
+) -> list[Level]:
+    """The entity and every archivable descendant, grouped by depth.
 
     ``matching`` picks the set: ``None`` takes the ones still live (what
     archiving stamps), a timestamp takes the ones this archiving stamped (what
     unarchiving brings back).
     """
-    levels: list[list[ArchiveMixin]] = []
-    frontier: list[ArchiveMixin] = [parent]
-    while frontier:
-        level: list[ArchiveMixin] = []
-        for node in frontier:
-            for child_model, fk_col in ARCHIVE_CHILDREN.get(type(node), []):
-                fk = getattr(child_model, fk_col)
-                stmt = select_including_deleted(child_model).where(fk == node.id)
-                if matching is None:
-                    stmt = stmt.where(child_model.archived_at.is_(None))
-                else:
-                    stmt = stmt.where(child_model.archived_at == matching)
-                level.extend((await session.exec(stmt)).all())
-        if not level:
-            break
-        levels.append(level)
-        frontier = level
-    return levels
+
+    def where(model: type):
+        column = model.archived_at
+        return column.is_(None) if matching is None else column == matching
+
+    return await subtree_levels(session, [entity], tree=ARCHIVE_CHILDREN, where=where)
+
+
+async def _write(
+    session: AsyncSession, levels: list[Level], archived_at: Optional[datetime]
+) -> None:
+    for level in levels:
+        for model, ids in level.items():
+            await set_columns(session, model, ids, {"archived_at": archived_at})
+        await session.flush()
 
 
 async def archive_entity(session: AsyncSession, entity: ArchiveMixin) -> datetime:
@@ -91,17 +89,9 @@ async def archive_entity(session: AsyncSession, entity: ArchiveMixin) -> datetim
     when it was last asked about. The caller commits."""
     if entity.archived_at is not None:
         return entity.archived_at
-    archived_at = datetime.now(timezone.utc)
-    levels = await _descendant_levels(session, entity, matching=None)
-
-    entity.archived_at = archived_at
-    session.add(entity)
     await session.flush()
-    for level in levels:
-        for child in level:
-            child.archived_at = archived_at
-            session.add(child)
-        await session.flush()
+    archived_at = datetime.now(timezone.utc)
+    await _write(session, await _levels(session, entity, matching=None), archived_at)
     return archived_at
 
 
@@ -110,19 +100,11 @@ async def unarchive_entity(session: AsyncSession, entity: ArchiveMixin) -> None:
     live row. The caller commits."""
     if entity.archived_at is None:
         return
-    matching = entity.archived_at
+    await session.flush()
     # Collected before anything is cleared, because the set is defined by the
     # timestamp being cleared.
-    levels = await _descendant_levels(session, entity, matching=matching)
-
-    entity.archived_at = None
-    session.add(entity)
-    await session.flush()
-    for level in levels:
-        for child in level:
-            child.archived_at = None
-            session.add(child)
-        await session.flush()
+    levels = await _levels(session, entity, matching=entity.archived_at)
+    await _write(session, levels, None)
 
 
 #: What the ``archived`` query parameter says, written once for every tool's

@@ -72,7 +72,7 @@ from app.services.platform import accounts as accounts_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.platform import guilds as guilds_service
 from app.services.platform import users as users_service
-from app.services.stream_authz import authority as stream_authority
+from app.services.content_sockets import sockets as content_sockets
 from app.services import rls as rls_service
 from app.services.membership import initiative_scope_clause
 
@@ -928,8 +928,7 @@ async def delete_initiative(
     projects, documents, queues, and calendar events; their descendants
     (tasks, comments, queue items) follow recursively. Restoring the
     initiative resurfaces everything that was cascaded together."""
-    from app.services.platform import guilds as guilds_service
-    from app.services.tenant.soft_delete import soft_delete_entity
+    from app.services.tenant.soft_delete import trash
 
     initiative = await _get_initiative_or_404(
         initiative_id, session, guild_context.guild_id
@@ -939,14 +938,10 @@ async def delete_initiative(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=InitiativeMessages.CANNOT_DELETE_DEFAULT,
         )
-    retention_days = await guilds_service.get_guild_retention_days(
-        session, guild_context.guild_id
-    )
-    await soft_delete_entity(
+    retention_days = await trash(
         session,
         initiative,
         deleted_by_user_id=current_user.id,
-        retention_days=retention_days,
     )
     await audit_service.record(
         session,
@@ -1703,7 +1698,7 @@ async def remove_initiative_member(
         await session.commit()
         # Removed from the initiative — drop this user's live content streams in
         # the guild immediately (initiative-level access change).
-        await stream_authority.revoke_user(guild_context.guild_id, user_id)
+        await content_sockets.revoke_user(guild_context.guild_id, user_id)
 
     # Re-fetch initiative with updated memberships
     initiative = await _get_initiative_or_404(
@@ -1805,7 +1800,7 @@ async def update_initiative_member(
         await session.commit()
         # Role change may reduce content access — re-check this user's live
         # content streams immediately (initiative-level access change).
-        await stream_authority.revoke_user(guild_context.guild_id, user_id)
+        await content_sockets.revoke_user(guild_context.guild_id, user_id)
 
     # Re-fetch initiative with updated memberships
     initiative = await _get_initiative_or_404(

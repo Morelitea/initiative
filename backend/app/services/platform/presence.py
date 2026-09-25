@@ -6,8 +6,8 @@ guild they don't, or no guild at all. So it lives here rather than inside any
 one channel's connection manager, and every channel that proves a person is
 present feeds the same roll.
 
-Two do. The guild events socket (``app.services.realtime``) only exists while a
-tab sits inside a guild. The notification stream
+Two do. The guild events socket (``app.services.content_sockets``) only exists
+while a tab sits inside a guild. The notification stream
 (``app.services.platform.notification_stream``) has no guild in its address and
 is open on every page for as long as someone is signed in, which is what makes
 it the signal that actually answers the question.

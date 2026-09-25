@@ -31,6 +31,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from app.core.app_scopes import app_scope_target
 from app.services.marketplace import contract
 from app.services.marketplace.manifest_values import (
     MAX_HINT_LENGTH,
@@ -131,6 +132,10 @@ SURFACE_SCOPES: frozenset[str] = contract.enum("surfaceScope")
 #: and member tokens act with. The contract's vocabulary, which is the same one
 #: ``app.core.app_scopes`` derives (``app_scopes_test`` holds the two equal).
 SCOPES: frozenset[str] = contract.enum("scope")
+
+#: How many ``apps:<public_id>`` scopes a service may ask for beside the fixed
+#: ones: one per app it calls through Initiative.
+MAX_APP_SCOPES = contract.cap("appScopes")
 
 #: A term an earlier contract used to say who opens a surface or reads an
 #: endpoint. Who opens a surface is now the community's to choose, per
@@ -959,6 +964,7 @@ def _endpoint(
             "cache_ttl_seconds",
             "actors",
             "admin_only",
+            "public",
         ):
             if endpoint.get(absent) is not None:
                 fail(f"{what}: an emit endpoint has no {absent}")
@@ -967,6 +973,11 @@ def _endpoint(
     # Whoever the call is for, stored whichever way it was declared so every
     # pinned endpoint answers the question the same way.
     cleaned["admin_only"] = _admin_only(endpoint, what=what)
+    # Whether other apps may call it through Initiative. Stored only when it
+    # is, so an endpoint published before the term reads the same as one that
+    # left it out.
+    if _public(endpoint, what=what):
+        cleaned["public"] = True
 
     if params:
         cleaned["params"] = params
@@ -989,6 +1000,16 @@ def _endpoint(
     if requires is not None:
         cleaned["requires"] = requires
     return cleaned
+
+
+def _public(raw: dict[str, Any], *, what: str) -> bool:
+    """``public``, defaulting to false; absent and null read the same."""
+    value = raw.get("public")
+    if value is None:
+        return False
+    if not isinstance(value, bool):
+        fail(f"{what}: public must be true or false")
+    return value
 
 
 def _returns(raw: Any, *, what: str) -> list[dict[str, Any]]:
@@ -1442,21 +1463,31 @@ def _service_block(raw: Any) -> dict[str, Any]:
 def _requested_scopes(raw: Any) -> list[str]:
     """The scopes a service asks a community to grant, canonically.
 
-    Absent means none. Each must be in the vocabulary and named once; stored
-    sorted, so re-publishing the same manifest produces the same document.
+    Absent means none. Each must be in the vocabulary, or an ``apps:`` scope
+    naming another app's public id, and named once; stored sorted, so
+    re-publishing the same manifest produces the same document.
     """
     if raw is None:
         return []
-    declared = require_list(raw, "service app: service.scopes", len(SCOPES))
+    declared = require_list(
+        raw, "service app: service.scopes", len(SCOPES) + MAX_APP_SCOPES
+    )
     scopes: set[str] = set()
+    app_scopes = 0
     for entry in declared:
         # Typed before it is looked up: set membership is defined only for a
         # hashable value.
-        if not isinstance(entry, str) or entry not in SCOPES:
+        if not isinstance(entry, str):
+            fail(f"service app: {entry!r} is not a scope an app may request")
+        if app_scope_target(entry) is not None:
+            app_scopes += 1
+        elif entry not in SCOPES:
             fail(f"service app: {entry!r} is not a scope an app may request")
         if entry in scopes:
             fail(f"service app: service.scopes names {entry!r} twice")
         scopes.add(entry)
+    if app_scopes > MAX_APP_SCOPES:
+        fail(f"service app: service.scopes names more than {MAX_APP_SCOPES} apps")
     return sorted(scopes)
 
 

@@ -26,19 +26,12 @@ from app.models.platform.user import User
 from app.models.tenant.tag import Tag
 from app.schemas.tenant.comment import ToolCommentSettings
 from app.schemas.tenant.tag import TagSetRequest, TagSummary
-from app.services.stream_authz import authority as stream_authority
+from app.services.content_sockets import sockets
 from app.services.tenant import tags as tags_service
 
 router = APIRouter()
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
-
-# Tools with a live stream room: (channel, event_type) for the content-free
-# update signal — subscribed views refetch through the REST path on any event.
-_STREAM_ROOMS: dict[Tool, tuple[str, str]] = {
-    Tool.queue: ("queue", "queue_updated"),
-    Tool.counter_group: ("counter_group", "group_updated"),
-}
 
 
 @router.put("/{tool}/{tool_id}/tags", response_model=List[TagSummary])
@@ -71,12 +64,7 @@ async def set_tool_tags(
     session.add(row)
     await session.commit()
 
-    room = _STREAM_ROOMS.get(tool)
-    if room is not None:
-        channel, event_type = room
-        await stream_authority.emit(
-            guild_context.guild_id, channel, row.id, event_type, {"id": row.id}
-        )
+    sockets.signal(guild_context.guild_id, tool, row.id, "updated")
 
     if not tag_ids:
         return []
@@ -126,11 +114,6 @@ async def set_tool_comment_settings(
     session.add(row)
     await session.commit()
 
-    room = _STREAM_ROOMS.get(tool)
-    if room is not None:
-        channel, event_type = room
-        await stream_authority.emit(
-            guild_context.guild_id, channel, row.id, event_type, {"id": row.id}
-        )
+    sockets.signal(guild_context.guild_id, tool, row.id, "updated")
 
     return ToolCommentSettings(comments_enabled=row.comments_enabled)

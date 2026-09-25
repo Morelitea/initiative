@@ -826,21 +826,21 @@ async def test_get_guild_retention_days_distinguishes_never_from_missing(
         # double-check no setting row exists (factory shouldn't create one)
         select(GuildSetting).limit(1)
     )
-    assert (await guild_service.get_guild_retention_days(session, guild.id)) == 90
+    assert (await guild_service.get_guild_retention_days(session)) == 90
 
     # 2. Row exists with retention_days = 30 -> 30.
     setting = GuildSetting(retention_days=30)
     session.add(setting)
     await session.commit()
     await route_session_to_guild(session, guild.id)
-    assert (await guild_service.get_guild_retention_days(session, guild.id)) == 30
+    assert (await guild_service.get_guild_retention_days(session)) == 30
 
     # 3. Row exists with retention_days = NULL -> None ("never").
     setting.retention_days = None
     session.add(setting)
     await session.commit()
     await route_session_to_guild(session, guild.id)
-    assert (await guild_service.get_guild_retention_days(session, guild.id)) is None
+    assert (await guild_service.get_guild_retention_days(session)) is None
 
     # Suppress unused-name warning if linters complain about the user
     # we created for symmetry with other tests in this module.

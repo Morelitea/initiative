@@ -50,7 +50,7 @@ from app.services.auth import addresses
 from app.services.auth import identity as identity_service
 from app.services.auth import totp as totp_service
 from app.services.platform import user_tokens
-from app.services.stream_authz import authority as stream_authority
+from app.services.content_sockets import sockets as content_sockets
 
 logger = logging.getLogger(__name__)
 
@@ -220,7 +220,7 @@ async def remove_password(
 
     # Open connections stand on the credentials retired above, this device's
     # included; its replacement session reconnects them.
-    await stream_authority.revoke_user_everywhere(current_user.id)
+    await content_sockets.revoke_user_everywhere(current_user.id)
     await email_service.announce_password_removed(system_session, account)
     return RecoveryCodes(codes=codes)
 
@@ -313,5 +313,6 @@ async def recover_with_code(
             detail=AuthMessages.SESSION_STORE_UNAVAILABLE,
         ) from exc
     # Open connections stand on credentials the recovery has just ended.
-    await stream_authority.revoke_user_everywhere(user_id)
+    await content_sockets.revoke_user_everywhere(user_id)
+    await email_service.announce_password_changed(system_session, user)
     return VerificationSendResponse(status="reset")

@@ -16,6 +16,7 @@ import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate } from "y-protoc
 import * as Y from "yjs";
 
 import { getAuthToken } from "@/api/client";
+import { reconnectDelay } from "@/lib/reconnectBackoff";
 
 // Message types matching the backend protocol
 const MSG_SYNC_STEP1 = 0;
@@ -835,7 +836,13 @@ export class CollaborationProvider implements Provider {
     }
 
     this.reconnectAttempts++;
-    const delay = budgetSpent ? 30000 : Math.min(1000 * 2 ** (this.reconnectAttempts - 1), 30000);
+    // Jittered like every other socket here, so a server restart does not
+    // bring every open document back in the same instant.
+    const delay = reconnectDelay(
+      budgetSpent ? Number.POSITIVE_INFINITY : this.reconnectAttempts - 1,
+      1000,
+      30000
+    );
 
     // Emit connecting status while waiting to reconnect
     this.emitStatus({ status: "connecting" });
