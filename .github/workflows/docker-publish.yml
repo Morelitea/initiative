@@ -283,6 +283,15 @@ jobs:
         with:
           images: ${{ env.IMAGE_NAME }}
 
+      - name: Require the app update signing key
+        env:
+          OTA_SIGNING_KEY: ${{ secrets.OTA_SIGNING_KEY }}
+        run: |
+          if [ -z "$OTA_SIGNING_KEY" ]; then
+            echo "::error::OTA_SIGNING_KEY is not set in the ota-release environment; a release image must carry a signed app update."
+            exit 1
+          fi
+
       - name: Build and push by digest
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
