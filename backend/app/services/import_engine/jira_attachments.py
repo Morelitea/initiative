@@ -120,7 +120,8 @@ class ImageReport:
     #: Images over the per-image cap, or past the bundle's byte budget.
     oversize: int = 0
     #: Files that are not images, left behind: attachments were brought for
-    #: their pictures only, or the initiative cannot take documents.
+    #: their pictures only, the initiative cannot take documents, or a
+    #: document cannot hold the file's type.
     other_files: int = 0
     #: Attachments the site would not hand over.
     unreadable: int = 0
@@ -182,6 +183,24 @@ def file_extension(filename: str) -> str:
     return extension if 1 < len(extension) <= 10 and extension[1:].isalnum() else ""
 
 
+def document_can_hold(filename: str, media_type: str) -> bool:
+    """Whether a file that is not a picture can become a document here: a
+    file document of a type one may hold, or a table of text, which becomes a
+    spreadsheet."""
+    from app.services.tenant.attachments import (
+        ALLOWED_DOCUMENT_MIME_TYPES,
+        EXTENSION_TO_MIME,
+    )
+    from app.services.tenant.spreadsheet_import import TEXT_TABLE_SUFFIXES
+
+    extension = file_extension(filename)
+    return (
+        media_type in ALLOWED_DOCUMENT_MIME_TYPES
+        or extension in EXTENSION_TO_MIME
+        or extension in TEXT_TABLE_SUFFIXES
+    )
+
+
 def storage_key(attachment: Attachment) -> str:
     """A fresh, flat storage key — never the site's filename, which is
     somebody else's text and not a path this server should write to."""
@@ -220,7 +239,11 @@ async def download_images(
         for attachment in issue_attachments(issue):
             is_image = attachment.mime_type in IMAGE_TYPES
             if attachment.mime_type in REFUSED_TYPES or (
-                not is_image and not documents
+                not is_image
+                and not (
+                    documents
+                    and document_can_hold(attachment.filename, attachment.mime_type)
+                )
             ):
                 report.other_files += 1
                 continue

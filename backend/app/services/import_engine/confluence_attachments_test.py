@@ -75,16 +75,22 @@ async def test_pictures_render_from_their_upload_and_other_files_wait_to_be_docu
         [
             attachment("1", "chart.png", "image/png"),
             attachment("2", "spec.pdf", "application/pdf"),
+            attachment("3", "counts.csv", "text/csv"),
+            attachment("4", "build.zip", "application/zip"),
         ]
     )
+    # A table of text comes over to become a spreadsheet; a type no document
+    # holds does not come at all.
+    assert set(media.files) == {"spec.pdf", "counts.csv"}
+    assert report.refused == 1
     stored = media.stored_images["chart.png"]
     assert media.images == {"chart.png": f"/uploads/7/{stored.storage_key}"}
     assert stored.storage_key.endswith(".png")
     pdf = media.files["spec.pdf"]
     # A fresh key, never the site's filename; the extension is kept.
     assert pdf.storage_key.endswith(".pdf") and "spec" not in pdf.storage_key
-    assert report.bytes == 20
-    assert (budget.bytes_left, budget.files_left) == (9_980, 98)
+    assert report.bytes == 30
+    assert (budget.bytes_left, budget.files_left) == (9_970, 97)
     assert ca.file_ref(pdf) == f"entry:assets/{pdf.storage_key}"
 
 
@@ -92,7 +98,7 @@ async def test_what_does_not_fit_is_counted_not_fetched():
     media, report, _budget = await _download(
         [
             attachment("1", "huge.png", "image/png", ca.MAX_IMAGE_BYTES + 1),
-            attachment("2", "huge.zip", "application/zip", ca.MAX_FILE_BYTES + 1),
+            attachment("2", "huge.pdf", "application/pdf", ca.MAX_FILE_BYTES + 1),
             attachment("3", "logo.svg", "image/svg+xml"),
             attachment("4", "past-budget.pdf", "application/pdf", 600),
         ],

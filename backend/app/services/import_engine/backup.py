@@ -75,7 +75,12 @@ from app.services.import_engine.context import (
 )
 from app.services.import_engine.links import resolve_page_links
 from app.services.import_engine.references import resolve_references
-from app.services.import_engine.zip_bounds import json_cap, open_zip, read_json_member
+from app.services.import_engine.zip_bounds import (
+    json_cap,
+    open_zip,
+    read_json_member,
+    read_member,
+)
 from app.services.tenant import tags as tags_service
 
 # Apply order within an initiative — convention, not correctness (cross-tool
@@ -581,7 +586,14 @@ async def _apply_entry(
         return EntryResult(**base, status="skipped")
     if entry.type == "file":
         outcome = await _apply_file_entry(
-            session, entry, initiative, user, assets_by_key, base, context=context
+            session,
+            archive,
+            entry,
+            initiative,
+            user,
+            assets_by_key,
+            base,
+            context=context,
         )
         _record_entry(context, entry, outcome)
         return outcome
@@ -853,6 +865,7 @@ async def _apply_initiative_structure(session, initiative, user: User, payload) 
 
 async def _apply_file_entry(
     session: AsyncSession,
+    archive: zipfile.ZipFile,
     entry: ManifestEntry,
     initiative,
     user: User,
@@ -861,7 +874,9 @@ async def _apply_file_entry(
     *,
     context: ImportContext | None = None,
 ) -> EntryResult:
-    """A file document: its content is the restored ``assets/`` blob."""
+    """A file document: its content is the restored ``assets/`` blob. A table
+    of text, which a file document cannot hold, becomes a spreadsheet read
+    from the zip instead."""
     from app.models.tenant.document import Document, DocumentType
     from app.models.tenant.property import DocumentPropertyValue
     from app.models.tenant.upload import Upload
@@ -874,6 +889,12 @@ async def _apply_file_entry(
         grant_ownership,
         resolve_property_values,
     )
+    from app.services.tenant.attachments import MAX_DOCUMENT_FILE_SIZE
+    from app.services.tenant.documents_spreadsheet import DocumentContentError
+    from app.services.tenant.spreadsheet_import import (
+        TEXT_TABLE_SUFFIXES,
+        parse_spreadsheet_file,
+    )
 
     storage_key = (entry.asset or "").removeprefix("assets/")
     if not storage_key:
@@ -881,33 +902,57 @@ async def _apply_file_entry(
             **base, status="failed", error=ImportEngineMessages.IMPORT_INVALID_ENVELOPE
         )
     asset = assets_by_key.get(storage_key)
-    upload = (
-        await session.exec(select(Upload).where(Upload.filename == storage_key))
-    ).one_or_none()
-    if upload is None:
-        # Uploads were excluded from this backup (or the blob was not
-        # restored) — recorded, not silently dropped.
-        return EntryResult(
-            **base, status="skipped", error=ImportEngineMessages.IMPORT_ASSET_MISSING
+    if storage_key.lower().endswith(TEXT_TABLE_SUFFIXES):
+        try:
+            data = await asyncio.to_thread(
+                read_member, archive, entry.asset, max_bytes=MAX_DOCUMENT_FILE_SIZE
+            )
+            sheets = await asyncio.to_thread(parse_spreadsheet_file, storage_key, data)
+        except KeyError:
+            return EntryResult(
+                **base,
+                status="skipped",
+                error=ImportEngineMessages.IMPORT_ASSET_MISSING,
+            )
+        except (ImportEngineError, DocumentContentError) as exc:
+            return EntryResult(**base, status="failed", error=exc.code)
+        document = Document(
+            name=entry.title,
+            document_type=DocumentType.spreadsheet,
+            content={"schema_version": 3, "kind": "spreadsheet", "sheets": sheets},
+            initiative_id=initiative.id,
+            created_by=user.id,
+        )
+    else:
+        upload = (
+            await session.exec(select(Upload).where(Upload.filename == storage_key))
+        ).one_or_none()
+        if upload is None:
+            # Uploads were excluded from this backup (or the blob was not
+            # restored) — recorded, not silently dropped.
+            return EntryResult(
+                **base,
+                status="skipped",
+                error=ImportEngineMessages.IMPORT_ASSET_MISSING,
+            )
+        document = Document(
+            name=entry.title,
+            document_type=DocumentType.file,
+            content={},
+            initiative_id=initiative.id,
+            created_by=user.id,
+            file_url=f"/uploads/{routed_guild_id(session)}/{storage_key}",
+            # The original name lives in the manifest's asset record — the
+            # uploads row's filename IS the storage key.
+            original_filename=(
+                asset.original_filename if asset is not None else storage_key
+            ),
+            file_content_type=upload.content_type,
+            file_size=upload.size_bytes,
         )
 
     try:
         async with session.begin_nested():
-            document = Document(
-                name=entry.title,
-                document_type=DocumentType.file,
-                content={},
-                initiative_id=initiative.id,
-                created_by=user.id,
-                file_url=f"/uploads/{routed_guild_id(session)}/{storage_key}",
-                # The original name lives in the manifest's asset record —
-                # the uploads row's filename IS the storage key.
-                original_filename=(
-                    asset.original_filename if asset is not None else storage_key
-                ),
-                file_content_type=upload.content_type,
-                file_size=upload.size_bytes,
-            )
             session.add(document)
             await session.flush()
             await grant_ownership(
@@ -991,8 +1036,13 @@ async def _restore_assets(
     is not a file this app holds is left out and reported as such. Either way
     an entry that needed it is skipped with ``IMPORT_ASSET_MISSING``.
     """
+    from app.services.tenant.spreadsheet_import import TEXT_TABLE_SUFFIXES
+
     assets: dict[str, ArchiveAsset] = {}
     for asset in manifest.assets:
+        if asset.storage_key.lower().endswith(TEXT_TABLE_SUFFIXES):
+            # Read into a spreadsheet by its entry, not stored as a file.
+            continue
         assets.setdefault(
             asset.storage_key,
             ArchiveAsset(
