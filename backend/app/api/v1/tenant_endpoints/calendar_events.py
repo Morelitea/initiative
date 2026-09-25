@@ -918,7 +918,6 @@ async def delete_calendar_event(
     await trash(
         session,
         event,
-        guild_id=guild_context.guild_id,
         deleted_by_user_id=current_user.id,
     )
     await session.commit()

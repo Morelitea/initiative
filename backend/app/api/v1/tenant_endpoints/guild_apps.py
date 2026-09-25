@@ -788,9 +788,7 @@ async def uninstall_guild_app(
     app = await _load(session, app_id, for_update=True)
     await _require_removable(app)
 
-    retention_days = await guilds_service.get_guild_retention_days(
-        session, guild_context.guild_id
-    )
+    retention_days = await guilds_service.get_guild_retention_days(session)
     connections = await connections_service.delete_app_connections(session, app=app)
     # Every member's answers to its requests go with it. The foreign key would
     # take them with the install row; removed here so the record counts them.

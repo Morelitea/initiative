@@ -330,7 +330,6 @@ async def delete_tag(
     await trash(
         session,
         tag,
-        guild_id=guild_context.guild_id,
         deleted_by_user_id=current_user.id,
     )
     await session.commit()

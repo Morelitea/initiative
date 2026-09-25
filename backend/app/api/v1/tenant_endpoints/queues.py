@@ -447,7 +447,6 @@ async def delete_queue(
     await trash(
         session,
         queue,
-        guild_id=guild_context.guild_id,
         deleted_by_user_id=current_user.id,
     )
     await session.commit()
@@ -605,7 +604,6 @@ async def delete_queue_item(
     await trash(
         session,
         item,
-        guild_id=guild_context.guild_id,
         deleted_by_user_id=current_user.id,
     )
     await session.commit()

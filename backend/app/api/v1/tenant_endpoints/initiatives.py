@@ -939,7 +939,6 @@ async def delete_initiative(
     retention_days = await trash(
         session,
         initiative,
-        guild_id=guild_context.guild_id,
         deleted_by_user_id=current_user.id,
     )
     await audit_service.record(

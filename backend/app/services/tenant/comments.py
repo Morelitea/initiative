@@ -1073,7 +1073,6 @@ async def delete_comment(
     await trash(
         session,
         comment,
-        guild_id=guild_id,
         deleted_by_user_id=user.id,
     )
     # A trashed comment is out of the conversation, so what it alone pointed at

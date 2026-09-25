@@ -2425,7 +2425,6 @@ async def delete_task(
     await trash(
         session,
         task,
-        guild_id=guild_context.guild_id,
         deleted_by_user_id=current_user.id,
     )
     await _touch_project(session, project_id)

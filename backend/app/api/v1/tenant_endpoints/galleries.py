@@ -537,7 +537,6 @@ async def delete_gallery(
     await trash(
         session,
         gallery,
-        guild_id=guild_context.guild_id,
         deleted_by_user_id=current_user.id,
     )
     await session.commit()
@@ -826,7 +825,6 @@ async def delete_gallery_image(
     await trash(
         session,
         image,
-        guild_id=guild_context.guild_id,
         deleted_by_user_id=current_user.id,
     )
     if gallery.cover_image_id == image.id:
@@ -872,9 +870,7 @@ async def bulk_delete_gallery_images(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=GalleryMessages.IMAGE_NOT_FOUND,
         )
-    retention_days = await guilds_service.get_guild_retention_days(
-        session, guild_context.guild_id
-    )
+    retention_days = await guilds_service.get_guild_retention_days(session)
     for image in images:
         await soft_delete_entity(
             session,

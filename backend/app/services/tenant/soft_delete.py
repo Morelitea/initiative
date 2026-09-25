@@ -193,14 +193,14 @@ async def trash(
     session: AsyncSession,
     entity: SoftDeleteMixin,
     *,
-    guild_id: int,
     deleted_by_user_id: Optional[int],
 ) -> Optional[int]:
-    """Put ``entity`` in the bin under the guild's retention, and return that
-    retention in days (``None``: kept until purged by hand). Caller commits."""
+    """Put ``entity`` in the bin under the retention of the guild the session
+    is routed to, and return that retention in days (``None``: kept until
+    purged by hand). Caller commits."""
     from app.services.platform import guilds as guilds_service
 
-    retention_days = await guilds_service.get_guild_retention_days(session, guild_id)
+    retention_days = await guilds_service.get_guild_retention_days(session)
     await soft_delete_entity(
         session,
         entity,

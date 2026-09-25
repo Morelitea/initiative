@@ -1714,7 +1714,6 @@ async def delete_project(
     await trash(
         session,
         project,
-        guild_id=guild_context.guild_id,
         deleted_by_user_id=current_user.id,
     )
     await session.commit()

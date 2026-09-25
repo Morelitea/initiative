@@ -191,9 +191,7 @@ async def list_guild_trash(
         session, guild_context.guild_id, only_deleted_by=None
     )
     items.sort(key=lambda i: i.deleted_at, reverse=True)
-    retention_days = await guilds_service.get_guild_retention_days(
-        session, guild_context.guild_id
-    )
+    retention_days = await guilds_service.get_guild_retention_days(session)
     return TrashListResponse(
         items=items, total=len(items), retention_days=retention_days
     )

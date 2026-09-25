@@ -333,7 +333,6 @@ async def delete_wiki(
     await soft_delete_service.trash(
         session,
         wiki,
-        guild_id=guild_context.guild_id,
         deleted_by_user_id=current_user.id,
     )
     await session.commit()
@@ -703,7 +702,6 @@ async def delete_wiki_page(
     await soft_delete_service.trash(
         session,
         page,
-        guild_id=guild_context.guild_id,
         deleted_by_user_id=current_user.id,
     )
     await session.commit()

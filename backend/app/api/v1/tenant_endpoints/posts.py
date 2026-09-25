@@ -681,7 +681,6 @@ async def delete_post(
     await trash(
         session,
         post,
-        guild_id=guild_context.guild_id,
         deleted_by_user_id=current_user.id,
     )
     await session.commit()
