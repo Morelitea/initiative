@@ -13,13 +13,12 @@ from datetime import datetime, timezone
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import delete as sa_delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
 from app.models.platform.guild import GuildRole
-from app.models.tenant.resource_grant import ResourceGrant
 from app.testing import (
+    strip_non_owner_grants,
     Actor,
     create_calendar,
     create_guild,
@@ -71,20 +70,6 @@ async def _create(client, actor, tool: Tool, name: str) -> dict:
     )
     assert response.status_code == 201, response.text
     return response.json()
-
-
-async def _strip_non_owner_grants(session, tool: Tool, row_id: int, owner_id: int):
-    """Remove every grant except the owner's own, so the row reaches nobody
-    else. (is_distinct_from: role grants carry a NULL user_id, which a plain
-    ``!=`` would silently skip.)"""
-    await session.exec(
-        sa_delete(ResourceGrant).where(
-            ResourceGrant.resource_type == tool.value,
-            ResourceGrant.resource_id == row_id,
-            ResourceGrant.user_id.is_distinct_from(owner_id),
-        )
-    )
-    await session.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -444,7 +429,7 @@ async def test_my_calendars_merge_across_guilds_and_apply_sharing(
         initiative=a.initiative,
         initiative_role="member",
     )
-    await _strip_non_owner_grants(session, Tool.calendar, secret.id, a.user.id)
+    await strip_non_owner_grants(session, secret, a.user.id)
     member_resp = await client.get("/api/v1/me/calendars", headers=member.headers)
     assert member_resp.status_code == 200
     member_names = {c["name"] for c in member_resp.json()["items"]}

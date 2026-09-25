@@ -42,7 +42,7 @@ from app.services import storage as storage_module
 from app.services.export import worker as export_worker
 from app.services.guild_sweeps import Scope, each_guild
 from app.services.storage import get_guild_storage
-from app.testing import route_session_to_guild
+from app.testing import create_resource_grant, route_session_to_guild
 from app.testing.factories import (
     assign_tag,
     checklist_items,
@@ -1317,17 +1317,9 @@ async def test_exporting_a_tool_takes_the_rung_that_may_delete_it(
         initiative=a.initiative,
         initiative_role="member",
     )
-    await route_session_to_guild(session, a.guild.id)
-    session.add(
-        ResourceGrant(
-            resource_type=tool.value,
-            resource_id=entity.id,
-            user_id=editor.user.id,
-            level=ResourceAccessLevel.write,
-            initiative_id=a.initiative.id,
-        )
+    await create_resource_grant(
+        session, entity, user=editor.user, level=ResourceAccessLevel.write
     )
-    await session.commit()
     admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
     source = tool_export_source(tool)
     params = {f"{tool.value}_id": entity.id, "format": "json"}
@@ -1405,17 +1397,7 @@ async def _wiki_with_filed_documents(session, a, acting_user):
     theirs = await create_document(
         session, a.initiative, other.user, name="Their map", content=_page_body("x")
     )
-    await route_session_to_guild(session, a.guild.id)
-    session.add(
-        ResourceGrant(
-            resource_type="document",
-            resource_id=theirs.id,
-            user_id=a.user.id,
-            level=ResourceAccessLevel.read,
-            initiative_id=a.initiative.id,
-        )
-    )
-    await session.commit()
+    await create_resource_grant(session, theirs, user=a.user)
     handout = await _file_document(
         session,
         a,
@@ -2183,16 +2165,7 @@ async def test_initiative_backup_includes_read_only_projects(
         initiative_role="member",
     )
     theirs = await create_project(session, owner.initiative, owner.user, name="Theirs")
-    session.add(
-        ResourceGrant(
-            resource_type="project",
-            resource_id=theirs.id,
-            user_id=exporter.user.id,
-            level=ResourceAccessLevel.read,
-            initiative_id=theirs.initiative_id,
-        )
-    )
-    await session.commit()
+    await create_resource_grant(session, theirs, user=exporter.user)
 
     # Standalone export of the same project: still write-gated.
     denied = await _export(

@@ -117,14 +117,12 @@ def _mounted():
     routes = list(_probe.routes)
     app.router.routes[0:0] = routes
     _state.clear()
-    app_refs.forget_cached_install_refs()
     try:
         yield
     finally:
         for route in routes:
             app.router.routes.remove(route)
         _state.clear()
-        app_refs.forget_cached_install_refs()
 
 
 @contextmanager

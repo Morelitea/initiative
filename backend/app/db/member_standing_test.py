@@ -27,7 +27,12 @@ from app.models.tenant.app_member_consent import AppMemberConsent, ConsentAccess
 from app.models.tenant.document import Document, DocumentType
 from app.models.tenant.initiative import InitiativeMember
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
-from app.testing import create_document, route_as_install, route_session_to_guild
+from app.testing import (
+    create_document,
+    create_resource_grant,
+    route_as_install,
+    route_session_to_guild,
+)
 from app.testing.app_clients import CLIENT, InstalledApp, install_app
 
 _NOW = datetime.now(timezone.utc)
@@ -240,17 +245,7 @@ async def test_what_is_shared_with_the_member_reaches_the_token(
     assert (await s.exec(select(Document.name))).all() == []
     await s.rollback()
 
-    await route_session_to_guild(session, installed.guild.id)
-    session.add(
-        ResourceGrant(
-            resource_type="document",
-            resource_id=private.id,
-            user_id=member.user.id,
-            level=ResourceAccessLevel.read,
-            initiative_id=installed.placed.id,
-        )
-    )
-    await session.commit()
+    await create_resource_grant(session, private, user=member.user)
 
     s, _context = await _route(
         role_session, installed, member.user.id, ["documents:read"]

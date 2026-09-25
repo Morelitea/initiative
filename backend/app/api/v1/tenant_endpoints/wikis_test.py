@@ -9,12 +9,15 @@ back).
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import delete as sa_delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
-from app.models.tenant.resource_grant import ResourceGrant
-from app.testing import create_document, create_wiki, create_wiki_page
+from app.testing import (
+    create_document,
+    create_wiki,
+    create_wiki_page,
+    strip_non_owner_grants,
+)
 
 
 async def _wikis_enabled(session: AsyncSession, initiative) -> None:
@@ -22,19 +25,6 @@ async def _wikis_enabled(session: AsyncSession, initiative) -> None:
     session.add(initiative)
     await session.commit()
     await session.refresh(initiative)
-
-
-async def _strip_non_owner_grants(session, wiki, owner_id: int) -> None:
-    """Remove every grant except the owner's own — the wiki becomes invisible
-    to other members."""
-    await session.exec(
-        sa_delete(ResourceGrant).where(
-            ResourceGrant.resource_type == "wiki",
-            ResourceGrant.resource_id == wiki.id,
-            ResourceGrant.user_id.is_distinct_from(owner_id),
-        )
-    )
-    await session.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -1094,7 +1084,7 @@ async def test_an_unshared_wiki_is_invisible_to_a_co_member(
     a = await acting_user(guild_role=GuildRole.member, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
-    await _strip_non_owner_grants(session, wiki, a.user.id)
+    await strip_non_owner_grants(session, wiki, a.user.id)
 
     b = await acting_user(
         guild_role=GuildRole.member,

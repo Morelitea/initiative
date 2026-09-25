@@ -17,9 +17,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.post import Post
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.models.tenant.resource_grant import ResourceGrant
 from app.services.tenant.post_publication import publish_due_posts
 from app.testing import (
+    create_resource_grant,
     guild_of,
     create_guild,
     create_guild_membership,
@@ -168,16 +169,8 @@ async def test_the_announcement_follows_the_sharing_not_the_roster(
     ).all()
     for grant in grants:
         await session.delete(grant)
-    session.add(
-        ResourceGrant(
-            resource_type="post",
-            resource_id=post_id,
-            user_id=named.id,
-            level=ResourceAccessLevel.read,
-            initiative_id=initiative.id,
-        )
-    )
-    await session.commit()
+    post = (await session.exec(select(Post).where(Post.id == post_id))).one()
+    await create_resource_grant(session, post, user=named)
 
     await publish_due_posts(session, now=datetime.now(timezone.utc))
     await session.commit()

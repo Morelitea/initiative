@@ -22,6 +22,7 @@ from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.marketplace import app_refs
 from app.testing import (
+    guild_url,
     create_calendar,
     create_calendar_event,
     create_guild_app,
@@ -38,17 +39,6 @@ from app.testing.app_clients import (
 
 
 pytestmark = pytest.mark.integration
-
-
-@pytest.fixture(autouse=True)
-def _cold_reference_cache():
-    app_refs.forget_cached_install_refs()
-    yield
-    app_refs.forget_cached_install_refs()
-
-
-def _g(guild_id: int, path: str) -> str:
-    return f"/api/v1/c/{guild_id}{path}"
 
 
 def _window() -> dict[str, str]:
@@ -99,13 +89,15 @@ async def test_reads_the_calendars_and_events_open_to_its_initiative(
     community = await create_guild_calendar(session, installed.guild, seat.user)
     headers = install_headers(installed, ["calendars:read"])
 
-    read = await client.get(_g(guild_id, f"/calendars/{in_a.id}"), headers=headers)
+    read = await client.get(
+        guild_url(guild_id, f"/calendars/{in_a.id}"), headers=headers
+    )
     assert read.status_code == 200, read.text
     assert read.json()["name"] == "A"
     assert read.json()["my_permission_level"] == "read"
 
     event = await client.get(
-        _g(guild_id, f"/calendar-events/{event_a.id}"), headers=headers
+        guild_url(guild_id, f"/calendar-events/{event_a.id}"), headers=headers
     )
     assert event.status_code == 200, event.text
     assert event.json()["title"] == "In A"
@@ -115,7 +107,7 @@ async def test_reads_the_calendars_and_events_open_to_its_initiative(
         f"/calendars/{in_b.id}",
         f"/calendar-events/{event_b.id}",
     ):
-        response = await client.get(_g(guild_id, path), headers=headers)
+        response = await client.get(guild_url(guild_id, path), headers=headers)
         assert response.status_code == 404, (path, response.text)
 
     # A token narrowed to A reaches nothing that belongs to the community as
@@ -124,10 +116,12 @@ async def test_reads_the_calendars_and_events_open_to_its_initiative(
         installed, ["calendars:read"], initiative_id=installed.placed.id
     )
     guild_level = await client.get(
-        _g(guild_id, f"/calendars/{community.id}"), headers=narrowed
+        guild_url(guild_id, f"/calendars/{community.id}"), headers=narrowed
     )
     assert guild_level.status_code == 404, guild_level.text
-    still_a = await client.get(_g(guild_id, f"/calendars/{in_a.id}"), headers=narrowed)
+    still_a = await client.get(
+        guild_url(guild_id, f"/calendars/{in_a.id}"), headers=narrowed
+    )
     assert still_a.status_code == 200, still_a.text
 
 
@@ -156,7 +150,7 @@ async def test_changing_anything_needs_the_write_scope(
         ("PUT", f"/calendar-events/{event.id}/attendees", []),
     ):
         response = await client.request(
-            method, _g(guild_id, path), headers=headers, json=body
+            method, guild_url(guild_id, path), headers=headers, json=body
         )
         assert response.status_code == 403, (method, path, response.text)
         assert response.json()["detail"] == AppMessages.SCOPE_REQUIRED
@@ -179,7 +173,7 @@ async def test_what_it_creates_is_its_own_and_names_nobody(
     headers = install_headers(installed, ["calendars:write"])
 
     created = await client.post(
-        _g(guild_id, "/calendars/"),
+        guild_url(guild_id, "/calendars/"),
         headers=headers,
         json={"name": "Made by the app", "initiative_id": installed.placed.id},
     )
@@ -191,7 +185,7 @@ async def test_what_it_creates_is_its_own_and_names_nobody(
     assert_names_nobody(created.text, [installed.seat.user.id, guild_id])
 
     event_created = await client.post(
-        _g(guild_id, "/calendar-events/"),
+        guild_url(guild_id, "/calendar-events/"),
         headers=headers,
         json={"calendar_id": calendar["id"], "title": "Stand-up", **_window()},
     )
@@ -203,7 +197,7 @@ async def test_what_it_creates_is_its_own_and_names_nobody(
     assert_names_nobody(event_created.text, [installed.seat.user.id, guild_id])
 
     renamed = await client.patch(
-        _g(guild_id, f"/calendars/{calendar['id']}"),
+        guild_url(guild_id, f"/calendars/{calendar['id']}"),
         headers=headers,
         json={"name": "Renamed by the app"},
     )
@@ -211,7 +205,7 @@ async def test_what_it_creates_is_its_own_and_names_nobody(
     assert renamed.json()["name"] == "Renamed by the app"
 
     moved = await client.patch(
-        _g(guild_id, f"/calendar-events/{event['id']}"),
+        guild_url(guild_id, f"/calendar-events/{event['id']}"),
         headers=headers,
         json={"title": "Retro"},
     )
@@ -247,7 +241,7 @@ async def test_it_shares_nothing_and_makes_no_community_calendar(
     headers = install_headers(installed, ["calendars:write"])
 
     shared = await client.post(
-        _g(guild_id, "/calendars/"),
+        guild_url(guild_id, "/calendars/"),
         headers=headers,
         json={
             "name": "Shared",
@@ -259,7 +253,7 @@ async def test_it_shares_nothing_and_makes_no_community_calendar(
     assert shared.json()["detail"] == AppMessages.SHARING_NOT_AVAILABLE
 
     community = await client.post(
-        _g(guild_id, "/calendars/"), headers=headers, json={"name": "Everyone"}
+        guild_url(guild_id, "/calendars/"), headers=headers, json={"name": "Everyone"}
     )
     assert community.status_code == 403, community.text
     assert community.json()["detail"] == CalendarMessages.APP_INITIATIVE_REQUIRED
@@ -291,20 +285,20 @@ async def test_invites_attendees_by_reference_in_its_own_name(
     headers = install_headers(installed, ["calendars:write", "members:read"])
 
     read = await client.get(
-        _g(guild_id, f"/calendar-events/{their_event.id}"), headers=headers
+        guild_url(guild_id, f"/calendar-events/{their_event.id}"), headers=headers
     )
     assert read.status_code == 200, read.text
     reference = read.json()["created_by"]
     assert isinstance(reference, str)
 
     calendar = await client.post(
-        _g(guild_id, "/calendars/"),
+        guild_url(guild_id, "/calendars/"),
         headers=headers,
         json={"name": "App calendar", "initiative_id": installed.placed.id},
     )
     assert calendar.status_code == 201, calendar.text
     created = await client.post(
-        _g(guild_id, "/calendar-events/"),
+        guild_url(guild_id, "/calendar-events/"),
         headers=headers,
         json={
             "calendar_id": calendar.json()["id"],
@@ -316,7 +310,7 @@ async def test_invites_attendees_by_reference_in_its_own_name(
     event_id = created.json()["id"]
 
     response = await client.put(
-        _g(guild_id, f"/calendar-events/{event_id}/attendees"),
+        guild_url(guild_id, f"/calendar-events/{event_id}/attendees"),
         headers=headers,
         json=[reference],
     )
@@ -341,7 +335,7 @@ async def test_invites_attendees_by_reference_in_its_own_name(
 
     # An edit worth telling them about names the app too.
     edited = await client.patch(
-        _g(guild_id, f"/calendar-events/{event_id}"),
+        guild_url(guild_id, f"/calendar-events/{event_id}"),
         headers=headers,
         json={"title": "Planning (moved)", **_window()},
     )
@@ -405,7 +399,7 @@ async def test_an_attendee_it_does_not_know_is_unprocessable(
 
     for attendees in ([attendee.user.id], [foreign], ["uapp_" + "x" * 32]):
         response = await client.put(
-            _g(guild_id, f"/calendar-events/{event.id}/attendees"),
+            guild_url(guild_id, f"/calendar-events/{event.id}/attendees"),
             headers=headers,
             json=attendees,
         )
@@ -415,7 +409,7 @@ async def test_an_attendee_it_does_not_know_is_unprocessable(
         }
 
     created = await client.post(
-        _g(guild_id, "/calendar-events/"),
+        guild_url(guild_id, "/calendar-events/"),
         headers=headers,
         json={
             "calendar_id": calendar.id,

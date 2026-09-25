@@ -8,6 +8,7 @@ from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.tenant import ownership as ownership_service
 from app.services.tenant import initiatives as initiatives_service
 from app.testing import (
+    create_resource_grant,
     TOOL_FACTORIES,
     create_guild,
     create_guild_membership,
@@ -225,17 +226,7 @@ async def test_transfer_to_an_existing_grantee_upgrades_one_row(session):
 
     project = await TOOL_FACTORIES[Tool.project](session, initiative, holder)
 
-    await route_session_to_guild(session, guild.id)
-    session.add(
-        ResourceGrant(
-            resource_type=Tool.project.value,
-            resource_id=project.id,
-            user_id=admin.id,
-            level=ResourceAccessLevel.read,
-            initiative_id=initiative.id,
-        )
-    )
-    await session.commit()
+    await create_resource_grant(session, project, user=admin)
 
     await ownership_service.transfer_content_ownership(
         session, from_user_id=holder.id, to=ownership_service.Owner(user_id=admin.id)
@@ -451,17 +442,9 @@ async def _make_role_the_owner(session, *, tool: Tool, row, role_id: int):
     assert grant is not None
     await session.delete(grant)
     await session.flush()
-    session.add(
-        ResourceGrant(
-            resource_type=tool.value,
-            resource_id=row.id,
-            user_id=None,
-            role_id=role_id,
-            level=ResourceAccessLevel.owner,
-            initiative_id=row.initiative_id,
-        )
+    await create_resource_grant(
+        session, row, role_id=role_id, level=ResourceAccessLevel.owner
     )
-    await session.commit()
 
 
 async def _manager_role_id(session, initiative) -> int:

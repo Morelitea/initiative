@@ -39,13 +39,6 @@ _FAKE_INFOS = [
 ]
 
 
-@pytest.fixture(autouse=True)
-def _cold_reference_cache():
-    app_refs.forget_cached_install_refs()
-    yield
-    app_refs.forget_cached_install_refs()
-
-
 @contextmanager
 def _mock_public_dns():
     """Resolve the webhook host to a fixed public address, and pass every other

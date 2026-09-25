@@ -8,12 +8,10 @@ accepts anything that would let a definition write.
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import delete as sa_delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
-from app.models.tenant.resource_grant import ResourceGrant
-from app.testing import create_dashboard
+from app.testing import create_dashboard, strip_non_owner_grants
 
 
 def _stat_definition() -> dict:
@@ -37,19 +35,6 @@ async def _dashboards_enabled(session: AsyncSession, initiative) -> None:
     session.add(initiative)
     await session.commit()
     await session.refresh(initiative)
-
-
-async def _strip_non_owner_grants(session, dashboard, owner_id: int) -> None:
-    """Remove every grant except the owner's own — the dashboard becomes
-    invisible to other members."""
-    await session.exec(
-        sa_delete(ResourceGrant).where(
-            ResourceGrant.resource_type == "dashboard",
-            ResourceGrant.resource_id == dashboard.id,
-            ResourceGrant.user_id.is_distinct_from(owner_id),
-        )
-    )
-    await session.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -295,7 +280,7 @@ async def test_unshared_dashboard_is_invisible_to_other_members(
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _dashboards_enabled(session, a.initiative)
     dashboard = await create_dashboard(session, a.initiative, a.user)
-    await _strip_non_owner_grants(session, dashboard, a.user.id)
+    await strip_non_owner_grants(session, dashboard, a.user.id)
 
     b = await acting_user(
         guild_role=GuildRole.member,

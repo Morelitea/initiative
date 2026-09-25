@@ -15,10 +15,9 @@ from app.core.search import SearchEntityType
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.relationship import EntityRelationship
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.tenant.relationships import Endpoint
 from app.services.tenant.task_description import newly_mentioned
-from app.testing import create_document, create_task, create_user
+from app.testing import create_document, create_resource_grant, create_task, create_user
 from app.testing.schema_harness import route_session_to_guild
 
 
@@ -66,17 +65,7 @@ async def _workspace(acting_user, session: AsyncSession):
         initiative=writer.initiative,
         initiative_role="member",
     )
-    await route_session_to_guild(session, writer.guild.id)
-    session.add(
-        ResourceGrant(
-            resource_type="project",
-            resource_id=writer.project.id,
-            all_initiative_members=True,
-            level=ResourceAccessLevel.read,
-            initiative_id=writer.project.initiative_id,
-        )
-    )
-    await session.commit()
+    await create_resource_grant(session, writer.project, all_initiative_members=True)
     return writer, teammate
 
 

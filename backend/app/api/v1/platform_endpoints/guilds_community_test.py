@@ -21,7 +21,6 @@ from app.models.platform.guild import (
 )
 from app.models.platform.user import UserRole
 from app.models.tenant.initiative import InitiativeMember
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import guilds as guilds_service
 from app.testing.factories import (
@@ -29,6 +28,7 @@ from app.testing.factories import (
     create_guild_membership,
     create_initiative,
     create_project,
+    create_resource_grant,
     create_user,
     guild_administration,
 )
@@ -754,17 +754,7 @@ async def _initiative_with_shared_project(
         session, guild, owner, name=name, join_policy="open", auto_join=auto_join
     )
     project = await create_project(session, initiative, owner, name=f"{name} work")
-    await route_session_to_guild(session, guild.id)
-    session.add(
-        ResourceGrant(
-            resource_type="project",
-            resource_id=project.id,
-            all_initiative_members=True,
-            level=ResourceAccessLevel.read,
-            initiative_id=initiative.id,
-        )
-    )
-    await session.commit()
+    await create_resource_grant(session, project, all_initiative_members=True)
     return initiative, project
 
 

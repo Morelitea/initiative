@@ -17,28 +17,9 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
 from app.db.schema_provisioning import platform_role_name
-from app.testing import create_user
+from app.testing import as_role, create_user
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
-
-
-async def _assume(session, tier: str, user_id: int) -> None:
-    await session.exec(
-        text(
-            "SELECT set_config('app.current_user_id', :uid, false), "
-            "set_config('role', :role, false)"
-        ),
-        params={"uid": str(user_id), "role": platform_role_name(tier)},
-    )
-
-
-async def _reset(session) -> None:
-    await session.exec(
-        text(
-            "SELECT set_config('role', 'none', false), "
-            "set_config('app.current_user_id', '', false)"
-        )
-    )
 
 
 async def _make_key_row(session, user_id: int, token: str) -> None:
@@ -70,16 +51,14 @@ async def test_user_api_keys_unreadable_on_request_path(session):
     assert seen >= 1
 
     # A different user, at the highest tier, is denied at the DB layer.
-    await _assume(session, "owner", other.id)
-    with pytest.raises(DBAPIError):
-        async with session.begin_nested():
-            await session.exec(text("SELECT token_hash FROM user_api_keys"))
-    await _reset(session)
+    async with as_role(session, platform_role_name("owner"), other.id):
+        with pytest.raises(DBAPIError):
+            async with session.begin_nested():
+                await session.exec(text("SELECT token_hash FROM user_api_keys"))
 
     # The key's own user is denied too — the request path never touches this
     # table (auth resolves it on the system engine).
-    await _assume(session, "owner", owner.id)
-    with pytest.raises(DBAPIError):
-        async with session.begin_nested():
-            await session.exec(text("SELECT id FROM user_api_keys"))
-    await _reset(session)
+    async with as_role(session, platform_role_name("owner"), owner.id):
+        with pytest.raises(DBAPIError):
+            async with session.begin_nested():
+                await session.exec(text("SELECT id FROM user_api_keys"))

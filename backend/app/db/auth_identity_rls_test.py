@@ -20,28 +20,9 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
 from app.db.schema_provisioning import platform_role_name
-from app.testing import create_user
+from app.testing import as_role, create_user
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
-
-
-async def _assume(session, tier: str, user_id: int) -> None:
-    await session.exec(
-        text(
-            "SELECT set_config('app.current_user_id', :uid, false), "
-            "set_config('role', :role, false)"
-        ),
-        params={"uid": str(user_id), "role": platform_role_name(tier)},
-    )
-
-
-async def _reset(session) -> None:
-    await session.exec(
-        text(
-            "SELECT set_config('role', 'none', false), "
-            "set_config('app.current_user_id', '', false)"
-        )
-    )
 
 
 async def _make_provider(session, slug: str) -> int:
@@ -75,14 +56,13 @@ async def test_federated_identity_is_own_row_on_request_path(session):
     await _link(session, u1.id, provider, "sub-1")
     await _link(session, u2.id, provider, "sub-2")
 
-    await _assume(session, "member", u1.id)
-    rows = {
-        r[0]
-        for r in (
-            await session.exec(text("SELECT user_id FROM federated_identities"))
-        ).fetchall()
-    }
-    await _reset(session)
+    async with as_role(session, platform_role_name("member"), u1.id):
+        rows = {
+            r[0]
+            for r in (
+                await session.exec(text("SELECT user_id FROM federated_identities"))
+            ).fetchall()
+        }
     assert rows == {u1.id}, "a member must see only their own federated identities"
 
 
@@ -95,14 +75,13 @@ async def test_no_platform_tier_reads_all_identities(session):
     await _link(session, u1.id, provider, "sub-a")
     await _link(session, u2.id, provider, "sub-b")
 
-    await _assume(session, "operator", u1.id)
-    rows = {
-        r[0]
-        for r in (
-            await session.exec(text("SELECT user_id FROM federated_identities"))
-        ).fetchall()
-    }
-    await _reset(session)
+    async with as_role(session, platform_role_name("operator"), u1.id):
+        rows = {
+            r[0]
+            for r in (
+                await session.exec(text("SELECT user_id FROM federated_identities"))
+            ).fetchall()
+        }
     assert rows == {u1.id}, (
         "platform_operator must not read-all identities via the request path"
     )
@@ -114,8 +93,7 @@ async def test_auth_providers_unreadable_on_request_path(session):
     await _make_provider(session, "acme3")
     u1 = await create_user(session)
 
-    await _assume(session, "owner", u1.id)
-    with pytest.raises(DBAPIError):
-        async with session.begin_nested():
-            await session.exec(text("SELECT id FROM auth_providers"))
-    await _reset(session)
+    async with as_role(session, platform_role_name("owner"), u1.id):
+        with pytest.raises(DBAPIError):
+            async with session.begin_nested():
+                await session.exec(text("SELECT id FROM auth_providers"))

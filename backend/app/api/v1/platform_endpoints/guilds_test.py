@@ -1019,7 +1019,7 @@ async def test_the_billing_handoff_needs_a_portal_and_a_signing_key(
 
 @pytest.mark.integration
 async def test_guild_billing_handoff_succeeds_for_admin(
-    client: AsyncClient, acting_user, monkeypatch
+    client: AsyncClient, acting_user, monkeypatch, handoff_signing_key
 ):
     """Admin gets an RS256 token with the billing-portal audience and role."""
     from app.core.config import settings as app_settings

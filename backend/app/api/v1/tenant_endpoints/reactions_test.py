@@ -16,25 +16,17 @@ from app.models.platform.guild import GuildRole
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.reaction import SUGGESTED_EMOJI
 from app.services.tenant.reactions import MAX_REACTIONS_PER_USER
-from app.testing import guild_of, create_post, create_project, create_task
+from app.testing import (
+    create_post,
+    create_project,
+    create_resource_grant,
+    create_task,
+    guild_of,
+)
 from app.testing.schema_harness import route_session_to_guild
 
 THUMBS = "\N{THUMBS UP SIGN}"
 PARTY = "\N{PARTY POPPER}"
-
-
-async def _grant(session, tool: Tool, entity, user, level: ResourceAccessLevel):
-    await route_session_to_guild(session, guild_of(entity))
-    session.add(
-        ResourceGrant(
-            resource_type=tool.value,
-            resource_id=entity.id,
-            user_id=user.id,
-            level=level,
-            initiative_id=entity.initiative_id,
-        )
-    )
-    await session.commit()
 
 
 async def _posts_enabled(session, initiative) -> None:
@@ -115,8 +107,8 @@ class TestReactionToggle:
             initiative=a.initiative,
             initiative_role="member",
         )
-        await _grant(
-            session, Tool.project, a.project, b.user, ResourceAccessLevel.write
+        await create_resource_grant(
+            session, a.project, user=b.user, level=ResourceAccessLevel.write
         )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
@@ -391,7 +383,9 @@ class TestReactionAccess:
             initiative=a.initiative,
             initiative_role="member",
         )
-        await _grant(session, Tool.project, a.project, b.user, ResourceAccessLevel.read)
+        await create_resource_grant(
+            session, a.project, user=b.user, level=ResourceAccessLevel.read
+        )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
         await client.put(
@@ -573,7 +567,9 @@ class TestReactionAccess:
             initiative=a.initiative,
             initiative_role="member",
         )
-        await _grant(session, Tool.post, post, b.user, ResourceAccessLevel.read)
+        await create_resource_grant(
+            session, post, user=b.user, level=ResourceAccessLevel.read
+        )
 
         refused = await client.put(
             a.g(f"/posts/{post.id}/reactions"),
@@ -601,8 +597,8 @@ class TestReactionNotifications:
             initiative=a.initiative,
             initiative_role="member",
         )
-        await _grant(
-            session, Tool.project, a.project, b.user, ResourceAccessLevel.write
+        await create_resource_grant(
+            session, a.project, user=b.user, level=ResourceAccessLevel.write
         )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
@@ -686,12 +682,8 @@ class TestReactionNotifications:
             initiative_role="member",
         )
         for reactor in (b, c):
-            await _grant(
-                session,
-                Tool.project,
-                a.project,
-                reactor.user,
-                ResourceAccessLevel.write,
+            await create_resource_grant(
+                session, a.project, user=reactor.user, level=ResourceAccessLevel.write
             )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
@@ -746,8 +738,8 @@ class TestReactionNotifications:
             initiative=a.initiative,
             initiative_role="member",
         )
-        await _grant(
-            session, Tool.project, a.project, b.user, ResourceAccessLevel.write
+        await create_resource_grant(
+            session, a.project, user=b.user, level=ResourceAccessLevel.write
         )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
@@ -791,8 +783,8 @@ class TestReactionNotifications:
             initiative=a.initiative,
             initiative_role="member",
         )
-        await _grant(
-            session, Tool.project, a.project, b.user, ResourceAccessLevel.write
+        await create_resource_grant(
+            session, a.project, user=b.user, level=ResourceAccessLevel.write
         )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
@@ -855,8 +847,8 @@ class TestReactionNotifications:
             initiative=a.initiative,
             initiative_role="member",
         )
-        await _grant(
-            session, Tool.project, a.project, b.user, ResourceAccessLevel.write
+        await create_resource_grant(
+            session, a.project, user=b.user, level=ResourceAccessLevel.write
         )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
@@ -910,8 +902,8 @@ class TestReactionNotifications:
             initiative=a.initiative,
             initiative_role="member",
         )
-        await _grant(
-            session, Tool.project, a.project, b.user, ResourceAccessLevel.write
+        await create_resource_grant(
+            session, a.project, user=b.user, level=ResourceAccessLevel.write
         )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
