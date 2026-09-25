@@ -676,7 +676,10 @@ export const useLoginAccessTokenApiV1AuthTokenPost = <
   return useMutation(getLoginAccessTokenApiV1AuthTokenPostMutationOptions(options), queryClient);
 };
 /**
- * The second leg of a password sign-in: the challenge, and the code.
+ * The second leg of a sign-in: the challenge, and the code.
+ *
+ * The first leg was a password or a code sent to one of the account's
+ * addresses; the challenge says which, and the session records both halves.
  *
  * A recovery code is accepted here too — it is what the account holds when
  * the authenticator is out of reach, and the set exists to be used this way.
@@ -1255,8 +1258,11 @@ export const useIssueUploadTokenApiV1AuthUploadTokenPost = <
   );
 };
 /**
- * Create a long-lived device token for mobile app authentication.
- * Device tokens do not expire and can be used instead of JWT tokens.
+ * Sign the app in with an address and password.
+ *
+ * Hands back a device token beside an ordinary session. The password is
+ * proved the same way ``/token`` proves it, including whether the deployment
+ * permits passwords at all.
  * @summary Create Device Token
  */
 export const createDeviceTokenApiV1AuthDeviceTokenPost = (
@@ -2561,6 +2567,11 @@ export const useConfirmVerificationApiV1AuthVerificationConfirmPost = <
   );
 };
 /**
+ * Send a reset link to the account an address reaches.
+ *
+ * Answered the same way for every address: whether mail can be sent at all is
+ * asked before the address is looked up, and the letter is posted after the
+ * response.
  * @summary Request Password Reset
  */
 export const requestPasswordResetApiV1AuthPasswordForgotPost = (
