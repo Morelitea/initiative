@@ -309,6 +309,15 @@ async def test_claiming_spends_a_prekey_but_never_the_fallback(
     )
     assert directory.json()["devices"][0]["signature"] == device["signature"]
 
+    # A sender that already holds a session with a device claims for the rest.
+    other = await _register(client, b, seed=50)
+    named = await client.post(
+        f"/api/v1/users/{b.user.id}/dm/session-keys",
+        json={"device_ids": [other]},
+        headers=a.headers,
+    )
+    assert [row["device_id"] for row in named.json()["devices"]] == [other]
+
 
 async def test_a_device_signs_its_keys(client, session, acting_user):
     """A signature must verify against the device's own key, a signed device's

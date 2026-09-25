@@ -44,6 +44,7 @@ from app.schemas.platform.dm_transport import (
     DmDevicesResponse,
     DmOneTimeKeyBatch,
     DmOwnSessionKeysRequest,
+    DmSessionKeysRequest,
     DmQueueAck,
     DmQueueResponse,
     DmSendRequest,
@@ -215,7 +216,10 @@ async def claim_own_session_keys(
     its own answer.
     """
     devices = await service.own_session_keys(
-        session, user_id=current_user.id, except_device=body.device_id
+        session,
+        user_id=current_user.id,
+        except_device=body.device_id,
+        only=body.device_ids,
     )
     await session.commit()
     return DmSessionKeysResponse(user_id=current_user.id, devices=devices)
@@ -228,6 +232,7 @@ async def claim_session_keys(
     user_id: TargetUserId,
     session: UserSessionDep,
     current_user: CurrentUser,
+    body: DmSessionKeysRequest | None = None,
 ) -> DmSessionKeysResponse:
     """Claim what is needed to open a session with each of that account's
     devices.
@@ -240,7 +245,9 @@ async def claim_session_keys(
             detail=Messages.CANNOT_MESSAGE_SELF,
         )
     try:
-        devices = await service.claim_session_keys(session, target_id=user_id)
+        devices = await service.claim_session_keys(
+            session, target_id=user_id, only=body.device_ids if body else None
+        )
     except service.DmTransportError as exc:
         raise _error(exc) from exc
     await session.commit()

@@ -3228,6 +3228,7 @@ export interface DmDeviceRead {
   id: string;
   identity_key: string;
   fingerprint_key: string;
+  signature: string | null;
   label: string | null;
   created_at: string;
   last_seen_at: string;
@@ -3245,6 +3246,8 @@ export interface DmOneTimeKeyUpload {
    * @maxLength 44
    */
   public_key: string;
+  signature?: string | null;
+  fallback?: boolean;
 }
 
 export interface DmDeviceRegistration {
@@ -3258,6 +3261,22 @@ export interface DmDeviceRegistration {
    * @maxLength 44
    */
   fingerprint_key: string;
+  signature?: string | null;
+  fallback_key: DmOneTimeKeyUpload;
+  /** @maxItems 100 */
+  one_time_keys?: DmOneTimeKeyUpload[];
+}
+
+/**
+ * A device registered before signing, signing itself: its signature, and a
+ * signed fallback and pool to replace the unsigned ones.
+ */
+export interface DmDeviceSignature {
+  /**
+   * @minLength 1
+   * @maxLength 88
+   */
+  signature: string;
   fallback_key: DmOneTimeKeyUpload;
   /** @maxItems 100 */
   one_time_keys?: DmOneTimeKeyUpload[];
@@ -3265,6 +3284,7 @@ export interface DmDeviceRegistration {
 
 export interface DmDevicesResponse {
   devices: DmDeviceRead[];
+  device_id?: string | null;
 }
 
 export interface DmGroupCreate {
@@ -3302,6 +3322,7 @@ export interface DmOutboundMessage {
  * Which device is asking, so it is left out of its own answer.
  */
 export interface DmOwnSessionKeysRequest {
+  device_ids?: string[] | null;
   device_id: string;
 }
 
@@ -3343,15 +3364,6 @@ export interface DmRosterCheckResponse {
   too_large?: boolean;
 }
 
-/**
- * Both parties' fingerprints, so the client can render the comparison.
- */
-export interface DmSafetyNumberResponse {
-  user_id: number;
-  their_fingerprints: string[];
-  my_fingerprints: string[];
-}
-
 export interface DmSendRequest {
   /**
    * @minItems 1
@@ -3374,7 +3386,16 @@ export interface DmSessionKey {
   device_id: string;
   identity_key: string;
   fingerprint_key: string;
+  signature?: string | null;
   one_time_key?: DmOneTimeKeyUpload | null;
+}
+
+/**
+ * Which devices to claim for: the ones a sender has no session with yet.
+ * Every device of the account when absent.
+ */
+export interface DmSessionKeysRequest {
+  device_ids?: string[] | null;
 }
 
 export interface DmSessionKeysResponse {

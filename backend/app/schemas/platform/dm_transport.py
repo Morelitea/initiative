@@ -121,7 +121,14 @@ class DmSessionKey(BaseModel):
     one_time_key: DmOneTimeKeyUpload | None = None
 
 
-class DmOwnSessionKeysRequest(BaseModel):
+class DmSessionKeysRequest(BaseModel):
+    """Which devices to claim for: the ones a sender has no session with yet.
+    Every device of the account when absent."""
+
+    device_ids: list[uuid.UUID] | None = Field(default=None, max_length=100)
+
+
+class DmOwnSessionKeysRequest(DmSessionKeysRequest):
     """Which device is asking, so it is left out of its own answer."""
 
     device_id: uuid.UUID

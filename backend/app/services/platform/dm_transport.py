@@ -403,19 +403,25 @@ def _session_key(
 
 
 async def _devices_of(
-    session: AsyncSession, user_id: int, *, except_device: uuid.UUID | None = None
+    session: AsyncSession,
+    user_id: int,
+    *,
+    except_device: uuid.UUID | None = None,
+    only: list[uuid.UUID] | None = None,
 ) -> list[DmDevice]:
     query = select(DmDevice).where(DmDevice.user_id == user_id)
     if except_device is not None:
         query = query.where(DmDevice.id != except_device)
+    if only is not None:
+        query = query.where(DmDevice.id.in_(only))
     return list((await session.exec(query.order_by(DmDevice.created_at))).all())
 
 
 async def claim_session_keys(
-    session: AsyncSession, *, target_id: int
+    session: AsyncSession, *, target_id: int, only: list[uuid.UUID] | None = None
 ) -> list[DmSessionKey]:
-    """The keys the caller needs to open a session with each of that account's
-    devices, spending one prekey per device.
+    """The keys the caller needs to open a session with that account's devices
+    (``only`` those, when named), spending one prekey per device.
 
     A claim is a delete: a prekey that cannot be handed out twice needs no state
     to say so. The reusable fallback key is the exception, and is what a device
@@ -428,7 +434,7 @@ async def claim_session_keys(
     # than the same one.
     claimed = [
         _session_key(device, await _claim_for(session, device.id))
-        for device in await _devices_of(session, target_id)
+        for device in await _devices_of(session, target_id, only=only)
     ]
     await session.flush()
     return claimed
@@ -472,7 +478,11 @@ async def directory(session: AsyncSession, *, target_id: int) -> list[DmSessionK
 
 
 async def own_session_keys(
-    session: AsyncSession, *, user_id: int, except_device: uuid.UUID
+    session: AsyncSession,
+    *,
+    user_id: int,
+    except_device: uuid.UUID,
+    only: list[uuid.UUID] | None = None,
 ) -> list[DmSessionKey]:
     """Keys for this account's *other* devices.
 
@@ -484,7 +494,9 @@ async def own_session_keys(
     """
     return [
         _session_key(device, await _claim_for(session, device.id))
-        for device in await _devices_of(session, user_id, except_device=except_device)
+        for device in await _devices_of(
+            session, user_id, except_device=except_device, only=only
+        )
     ]
 
 

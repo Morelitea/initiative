@@ -47,22 +47,33 @@ export function create_inbound_session(pickle, key, their_identity_key, cipherte
 
 /**
  * Open a session with a device, spending a prekey claimed from the directory.
+ *
+ * A signed prekey must verify against the device's fingerprint key; an
+ * unsigned one is accepted only from a device the caller already trusts
+ * unsigned (see the trust module).
  * @param {string} pickle
  * @param {string} key
  * @param {string} their_identity_key
+ * @param {string} their_fingerprint_key
  * @param {string} their_one_time_key
+ * @param {string | null | undefined} one_time_key_signature
+ * @param {boolean} fallback
  * @returns {any}
  */
-export function create_outbound_session(pickle, key, their_identity_key, their_one_time_key) {
+export function create_outbound_session(pickle, key, their_identity_key, their_fingerprint_key, their_one_time_key, one_time_key_signature, fallback) {
     const ptr0 = passStringToWasm0(pickle, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len0 = WASM_VECTOR_LEN;
     const ptr1 = passStringToWasm0(key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len1 = WASM_VECTOR_LEN;
     const ptr2 = passStringToWasm0(their_identity_key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len2 = WASM_VECTOR_LEN;
-    const ptr3 = passStringToWasm0(their_one_time_key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const ptr3 = passStringToWasm0(their_fingerprint_key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len3 = WASM_VECTOR_LEN;
-    const ret = wasm.create_outbound_session(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3);
+    const ptr4 = passStringToWasm0(their_one_time_key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len4 = WASM_VECTOR_LEN;
+    var ptr5 = isLikeNone(one_time_key_signature) ? 0 : passStringToWasm0(one_time_key_signature, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    var len5 = WASM_VECTOR_LEN;
+    const ret = wasm.create_outbound_session(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, ptr5, len5, fallback);
     if (ret[2]) {
         throw takeFromExternrefTable0(ret[1]);
     }
@@ -86,6 +97,21 @@ export function generate_keys(pickle, key, count, with_fallback) {
     const ptr1 = passStringToWasm0(key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len1 = WASM_VECTOR_LEN;
     const ret = wasm.generate_keys(ptr0, len0, ptr1, len1, count, with_fallback);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Which session a pre-key message opens, and who sent it, without opening it.
+ * @param {string} ciphertext
+ * @returns {any}
+ */
+export function inspect_prekey(ciphertext) {
+    const ptr0 = passStringToWasm0(ciphertext, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.inspect_prekey(ptr0, len0);
     if (ret[2]) {
         throw takeFromExternrefTable0(ret[1]);
     }
@@ -133,6 +159,59 @@ export function session_encrypt(pickle, key, plaintext) {
         throw takeFromExternrefTable0(ret[1]);
     }
     return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Sign this device's keys as belonging to `user_id`.
+ * @param {string} pickle
+ * @param {string} key
+ * @param {number} user_id_value
+ * @returns {string}
+ */
+export function sign_device(pickle, key, user_id_value) {
+    let deferred4_0;
+    let deferred4_1;
+    try {
+        const ptr0 = passStringToWasm0(pickle, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.sign_device(ptr0, len0, ptr1, len1, user_id_value);
+        var ptr3 = ret[0];
+        var len3 = ret[1];
+        if (ret[3]) {
+            ptr3 = 0; len3 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred4_0 = ptr3;
+        deferred4_1 = len3;
+        return getStringFromWasm0(ptr3, len3);
+    } finally {
+        wasm.__wbindgen_free(deferred4_0, deferred4_1, 1);
+    }
+}
+
+/**
+ * Whether a directory entry's keys were signed, by its own fingerprint key,
+ * as belonging to `user_id`.
+ * @param {number} user_id_value
+ * @param {string} identity_key
+ * @param {string} fingerprint_key
+ * @param {string} signature
+ * @returns {boolean}
+ */
+export function verify_device(user_id_value, identity_key, fingerprint_key, signature) {
+    const ptr0 = passStringToWasm0(identity_key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(fingerprint_key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passStringToWasm0(signature, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ret = wasm.verify_device(user_id_value, ptr0, len0, ptr1, len1, ptr2, len2);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return ret[0] !== 0;
 }
 function __wbg_get_imports() {
     const import0 = {
