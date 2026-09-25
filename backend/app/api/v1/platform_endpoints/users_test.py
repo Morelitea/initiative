@@ -2088,3 +2088,33 @@ async def test_a_pack_claiming_another_packs_decoration_is_refused(
     listed = await client.get("/api/v1/users/me/decoration-packs", headers=a.headers)
     installed = {item["uid"] for item in listed.json()["items"] if item["installed"]}
     assert installed == {first.uid}
+
+
+async def test_member_search_narrows_to_one_initiative(client, acting_user):
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    inside = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
+    )
+    outside = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+
+    narrowed = await client.get(
+        admin.g("/users/search"),
+        headers=admin.headers,
+        params={"initiative_id": admin.initiative.id},
+    )
+    assert narrowed.status_code == 200, narrowed.text
+    names = {item["username"] for item in narrowed.json()["items"]}
+    assert inside.user.username in names
+    assert outside.user.username not in names
+
+    # Somebody outside the initiative cannot list who is in it.
+    refused = await client.get(
+        outside.g("/users/search"),
+        headers=outside.headers,
+        params={"initiative_id": admin.initiative.id},
+    )
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == "INITIATIVE_NOT_A_MEMBER"

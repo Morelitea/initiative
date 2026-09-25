@@ -431,6 +431,7 @@
   "APP_SCOPE_REQUIRED": "Le jeton de cette application ne porte pas la portée dont cette action a besoin.",
   "APP_CONSENT_INITIATIVE_NOT_PLACED": "Cette application n'est pas placée dans cette initiative : elle ne peut pas demander à y agir.",
   "APP_CONSENT_OUTSIDE_TOKEN": "Le jeton de cette application vaut pour une seule initiative : elle ne peut demander à agir que là.",
+  "APP_CONSENT_MEMBER_NOT_IN_INITIATIVE": "Ce membre ne fait pas partie de cette initiative : l'application ne peut pas demander à agir en son nom ici.",
   "APP_CONSENT_RATE_LIMITED": "Cette application a demandé trop souvent. Elle pourra redemander plus tard.",
   "APP_SHARING_NOT_AVAILABLE": "Cette application n'est pas autorisée à modifier le partage ici, ni à désigner le propriétaire de ce qu'elle crée.",
   "APP_SERVICE_UNKNOWN_SCOPE": "Cette portée ne peut pas être accordée à une application.",

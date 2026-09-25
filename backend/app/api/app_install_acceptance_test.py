@@ -605,6 +605,36 @@ async def test_member_search_names_members_by_reference_and_carries_no_address(
     assert unknown.status_code == 422, unknown.text
 
 
+async def test_member_search_narrows_to_an_initiative_the_install_is_placed_in(
+    client, session, acting_user, role_session
+):
+    installed = await install_app(
+        session, acting_user, role_session, granted=["members:read"]
+    )
+    inside = await acting_user(
+        guild_role=GuildRole.member,
+        guild=installed.guild,
+        initiative=installed.placed,
+        initiative_role="member",
+    )
+    outside = await acting_user(guild_role=GuildRole.member, guild=installed.guild)
+    headers = install_headers(installed, ["members:read"])
+    url = _g(installed.guild.id, "/users/search")
+
+    narrowed = await client.get(
+        url, headers=headers, params={"initiative_id": installed.placed.id}
+    )
+    assert narrowed.status_code == 200, narrowed.text
+    names = {item["username"] for item in narrowed.json()["items"]}
+    assert inside.user.username in names
+    assert outside.user.username not in names
+
+    unplaced = await client.get(
+        url, headers=headers, params={"initiative_id": installed.unplaced.id}
+    )
+    assert unplaced.status_code == 403, unplaced.text
+
+
 async def test_member_search_needs_members_read(
     client, session, acting_user, role_session
 ):

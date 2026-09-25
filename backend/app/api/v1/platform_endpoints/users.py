@@ -67,6 +67,7 @@ from app.models.platform.guild_image import GuildImageVariant
 from app.core.intake import IntakeStream
 from app.models.platform.notification import Notification, NotificationType
 from app.models.platform.user import Presence, User, UserStatus
+from app.models.tenant.initiative import InitiativeMember
 from app.services.platform import intake as intake_service
 from app.models.platform.user_cookie_consent import UserCookieConsent
 from app.schemas.platform.guild import (
@@ -119,6 +120,7 @@ from app.core.messages import (
     AddressMessages,
     AuthMessages,
     GuildMessages,
+    InitiativeMessages,
     LegalMessages,
     UserMessages,
 )
@@ -316,11 +318,21 @@ async def list_users(
     return response
 
 
+def _in_initiative(initiative_id: int):
+    """Members of one initiative, as a filter on ``MemberProfile``."""
+    return MemberProfile.id.in_(
+        select(InitiativeMember.user_id).where(
+            InitiativeMember.initiative_id == initiative_id
+        )
+    )
+
+
 async def _search_members_for_app(
     session: AsyncSession,
     *,
     search: Optional[str],
     user_id: Optional[list[int]],
+    initiative_id: Optional[int],
     page: int,
     page_size: int,
 ) -> UserSummaryListResponse:
@@ -336,6 +348,8 @@ async def _search_members_for_app(
         MemberProfile.id.in_(select(GuildMember.id)),
         users_service.visible_to_other_people(),
     )
+    if initiative_id is not None:
+        base = base.where(_in_initiative(initiative_id))
     closest = None
     if search and (term := search.strip()):
         matches, closest = users_service.member_match(term, shows_names=False)
@@ -391,6 +405,13 @@ async def search_users(
     user_id: Annotated[
         list[PersonId] | None, Query(max_length=MAX_ID_FILTER_VALUES)
     ] = None,
+    initiative_id: Optional[int] = Query(
+        default=None,
+        description=(
+            "Only members of this initiative. The caller must reach it: be in "
+            "it, administer the community, or (an app) be placed there."
+        ),
+    ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=0, le=100),
 ) -> UserSummaryListResponse:
@@ -409,9 +430,25 @@ async def search_users(
     and reads what :class:`AppMemberRead` carries: the reference, the handle,
     the name where the guild shows names, and a picture hosted elsewhere.
     """
+    if initiative_id is not None and not (
+        initiative_id in guild_context.member_initiatives
+        or (
+            not isinstance(guild_context, InstallContext)
+            and (guild_context.is_admin or guild_context.is_pam)
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=InitiativeMessages.NOT_A_MEMBER,
+        )
     if isinstance(guild_context, InstallContext):
         return await _search_members_for_app(
-            session, search=search, user_id=user_id, page=page, page_size=page_size
+            session,
+            search=search,
+            user_id=user_id,
+            initiative_id=initiative_id,
+            page=page,
+            page_size=page_size,
         )
     base = (
         select(MemberProfile)
@@ -421,6 +458,8 @@ async def search_users(
             users_service.visible_to_other_people(),
         )
     )
+    if initiative_id is not None:
+        base = base.where(_in_initiative(initiative_id))
     #: Set while searching by name, and then what the page is ordered by.
     # Both calls take the guild's own setting: a name is searchable and
     # sortable only where the guild shows names, and a default here would

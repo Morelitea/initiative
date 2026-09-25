@@ -1306,6 +1306,8 @@ class AppMessages:
     CONSENT_INITIATIVE_NOT_PLACED = "APP_CONSENT_INITIATIVE_NOT_PLACED"
     #: A token narrowed to one initiative asks for consent beyond it.
     CONSENT_OUTSIDE_TOKEN = "APP_CONSENT_OUTSIDE_TOKEN"
+    #: A consent request names an initiative the member is not in.
+    CONSENT_MEMBER_NOT_IN_INITIATIVE = "APP_CONSENT_MEMBER_NOT_IN_INITIATIVE"
     #: The install has asked for consent too often; it tries again later.
     CONSENT_RATE_LIMITED = "APP_CONSENT_RATE_LIMITED"
     #: The request asks an installed app to change sharing without

@@ -431,6 +431,7 @@
   "APP_SCOPE_REQUIRED": "Das Token dieser App enthält nicht den Bereich, den diese Aktion braucht.",
   "APP_CONSENT_INITIATIVE_NOT_PLACED": "Diese App ist dieser Initiative nicht zugeordnet und kann dort nicht um Zustimmung bitten.",
   "APP_CONSENT_OUTSIDE_TOKEN": "Das Token dieser App gilt für eine Initiative, daher kann sie nur dort um Zustimmung bitten.",
+  "APP_CONSENT_MEMBER_NOT_IN_INITIATIVE": "Dieses Mitglied ist nicht in dieser Initiative, daher kann die App hier nicht darum bitten, in seinem Namen zu handeln.",
   "APP_CONSENT_RATE_LIMITED": "Diese App hat zu oft gefragt. Sie kann später erneut fragen.",
   "APP_SHARING_NOT_AVAILABLE": "Diese App darf hier keine Freigaben ändern und keinen Eigentümer für das festlegen, was sie erstellt.",
   "APP_SERVICE_UNKNOWN_SCOPE": "Dieser Bereich kann einer App nicht erteilt werden.",

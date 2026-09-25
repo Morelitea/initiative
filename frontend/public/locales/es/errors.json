@@ -431,6 +431,7 @@
   "APP_SCOPE_REQUIRED": "El token de esta aplicación no incluye el ámbito que necesita esta acción.",
   "APP_CONSENT_INITIATIVE_NOT_PLACED": "Esta aplicación no está en esa iniciativa, así que no puede pedir actuar allí.",
   "APP_CONSENT_OUTSIDE_TOKEN": "El token de esta aplicación es para una sola iniciativa, así que solo puede pedir actuar allí.",
+  "APP_CONSENT_MEMBER_NOT_IN_INITIATIVE": "Ese miembro no está en esta iniciativa, así que la aplicación no puede pedir actuar en su nombre aquí.",
   "APP_CONSENT_RATE_LIMITED": "Esta aplicación ha preguntado demasiadas veces. Podrá volver a preguntar más tarde.",
   "APP_SHARING_NOT_AVAILABLE": "Esta aplicación no puede cambiar el uso compartido aquí ni designar a la persona propietaria de lo que crea.",
   "APP_SERVICE_UNKNOWN_SCOPE": "Ese ámbito no se le puede conceder a una aplicación.",

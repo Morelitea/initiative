@@ -10922,6 +10922,10 @@ export type SearchUsersApiV1CGuildIdUsersSearchGetParams = {
   search?: string | null;
   user_id?: number[] | null;
   /**
+   * Only members of this initiative. The caller must reach it: be in it, administer the community, or (an app) be placed there.
+   */
+  initiative_id?: number | null;
+  /**
    * @minimum 1
    */
   page?: number;
