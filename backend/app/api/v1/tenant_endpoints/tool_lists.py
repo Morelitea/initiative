@@ -643,7 +643,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
                     default=False,
                     description=(
                         "Return a lightweight projection (id, name, icon, "
-                        "initiative_id, my_permission_level) without documents, "
+                        "initiative_id, can) without documents, "
                         "grants, tags, or the nested initiative. For project "
                         "pickers and other list-only callers."
                     ),

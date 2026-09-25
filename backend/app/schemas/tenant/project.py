@@ -7,7 +7,7 @@ from pydantic import ConfigDict, Field
 
 from app.core.identity_boundary import GuildId, PersonId
 from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
-from app.schemas.tenant.archive import ArchiveState
+from app.schemas.tenant.archive import ToolCan, ToolState
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.tenant.initiative import InitiativeSummary
@@ -73,7 +73,13 @@ class ProjectTaskSummary(SanitizedBaseModel):
     completed: int = 0
 
 
-class ProjectRead(ProjectBase, ArchiveState):
+class ProjectCan(ToolCan):
+    #: Configure the project itself — pin it, set its default view, curate its
+    #: filter presets (``permissions.can_configure_project``).
+    configure: bool = False
+
+
+class ProjectRead(ProjectBase, ToolState):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
@@ -103,10 +109,7 @@ class ProjectRead(ProjectBase, ArchiveState):
         default=None, validation_alias="owner_app_source"
     )
     initiative: Optional[InitiativeSummary] = None
-    #: Whether the reader may configure the project itself — pin it, set its
-    #: default view, curate its filter presets. The server's own answer, the
-    #: one the configuring routes ask.
-    can_configure: bool = False
+    can: ProjectCan = Field(default_factory=ProjectCan)
     sort_order: Optional[float] = None
     is_favorited: bool = False
     last_viewed_at: Optional[datetime] = None
@@ -127,8 +130,6 @@ class ProjectRead(ProjectBase, ArchiveState):
     # thread belongs to the task, not to the tool.
     comments_enabled: bool = True
     tags: List[TagSummary] = Field(default_factory=list)
-    # The current user's effective level on this resource (what *I* can do).
-    my_permission_level: Optional[str] = None
     # The full sharing state — every resource_grants row for this resource.
     grants: List[ResourceGrantSchema] = Field(default_factory=list)
 

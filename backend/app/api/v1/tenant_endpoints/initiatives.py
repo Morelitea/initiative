@@ -2,7 +2,7 @@ from typing import Annotated, List, Optional, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 
 from app.db.session import routed_guild_id
@@ -35,7 +35,6 @@ from app.models.tenant.initiative import (
     InitiativeRoleModel,
     JoinRequestStatus,
     LOCKED_PERMISSION_ROLE_NAMES,
-    PermissionKey,
 )
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import NotificationType
@@ -54,7 +53,6 @@ from app.schemas.tenant.initiative import (
     InitiativeRoleRead,
     InitiativeRoleUpdate,
     InitiativeUpdate,
-    MyInitiativePermissions,
     serialize_initiative,
     serialize_role,
 )
@@ -85,8 +83,9 @@ InitiativesRead = Annotated[ActorContext, Depends(app_scope("initiatives:read"))
 
 
 def _roster_options(guild_context: ActorContext) -> tuple:
-    """What an initiative read loads beside the row: its roster, each member's
-    profile, and each member's role with its permissions.
+    """What an initiative read loads beside the row: what the caller may do in
+    it, its roster, each member's profile, and each member's role with its
+    permissions.
 
     An installed app is not given what each role permits (the role permission
     rows are not in its reach), so its read leaves them unloaded and each
@@ -94,6 +93,7 @@ def _roster_options(guild_context: ActorContext) -> tuple:
     initiative's switches."""
     role = selectinload(Initiative.memberships).selectinload(InitiativeMember.role_ref)
     return (
+        undefer(Initiative.permitted_keys),
         selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
         role.noload(InitiativeRoleModel.permissions)
         if guild_context.user_id is None
@@ -154,6 +154,7 @@ async def _get_initiative_or_404(
         .where(Initiative.id == initiative_id)
         .execution_options(populate_existing=True)
         .options(
+            undefer(Initiative.permitted_keys),
             selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
             selectinload(Initiative.memberships)
             .selectinload(InitiativeMember.role_ref)
@@ -1239,101 +1240,6 @@ async def delete_initiative_role(
         await session.commit()
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-
-
-@router.get("/{initiative_id}/my-permissions", response_model=MyInitiativePermissions)
-async def get_my_initiative_permissions(
-    initiative_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
-) -> MyInitiativePermissions:
-    """Get the current user's permissions for an initiative."""
-    initiative = await _get_initiative_or_404(
-        initiative_id, session, guild_context.guild_id
-    )
-
-    # Whether a tool is available in this initiative at all: its master switch,
-    # for every tool.
-    def tool_available(t: Tool) -> bool:
-        return bool(getattr(initiative, t.view_permission))
-
-    # Content writes are frozen (read_only lifecycle status): report create
-    # permissions as denied so the UI hides its create affordances instead of
-    # offering writes the database role will refuse. Never true on the PAM
-    # branch — grants override the guild status.
-    content_frozen = guild_context.content_read_only
-
-    # Guild admins have all permissions
-    if guild_context.is_admin:
-        return MyInitiativePermissions(
-            is_manager=True,
-            # Guild admins view/edit everything regardless of sharing.
-            override_share_restrictions=True,
-            permissions={
-                **{PermissionKey(t.view_permission): tool_available(t) for t in Tool},
-                **{
-                    PermissionKey(t.create_permission): tool_available(t)
-                    and not content_frozen
-                    for t in Tool
-                },
-            },
-        )
-
-    # Scoped PAM grantee: time-bound, guild-wide access with no membership
-    # row. They can view every section (gated by the initiative's feature
-    # switches), and a read_write grant edits *existing* content only —
-    # authoring a new tool is an initiative-role permission a grantee never
-    # holds, so every create flag stays off. (Break-glass never reaches this
-    # branch: it is routed as a synthetic guild admin and answered above.)
-    # A grant never confers management.
-    if guild_context.is_pam:
-        return MyInitiativePermissions(
-            is_manager=False,
-            permissions={
-                **{PermissionKey(t.view_permission): tool_available(t) for t in Tool},
-                **{PermissionKey(t.create_permission): False for t in Tool},
-            },
-        )
-
-    membership = await initiatives_service.get_initiative_membership_with_role(
-        session,
-        initiative_id=initiative_id,
-        user_id=current_user.id,
-    )
-    if not membership:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=InitiativeMessages.NOT_A_MEMBER,
-        )
-
-    role = membership.role_ref
-    if not role:
-        return MyInitiativePermissions()
-
-    permissions = {
-        perm.permission_key: perm.enabled for perm in (role.permissions or [])
-    }
-
-    # Initiative-level master switches override role-level permissions, so
-    # members of an initiative whose toggle is off never see the tool
-    # regardless of what their role permits.
-    for t in Tool:
-        if not tool_available(t):
-            permissions[PermissionKey(t.view_permission)] = False
-            permissions[PermissionKey(t.create_permission)] = False
-    if content_frozen:
-        for t in Tool:
-            permissions[PermissionKey(t.create_permission)] = False
-
-    return MyInitiativePermissions(
-        role_id=role.id,
-        role_name=role.name,
-        role_display_name=role.display_name,
-        is_manager=role.is_manager,
-        override_share_restrictions=role.override_share_restrictions,
-        permissions=permissions,
-    )
 
 
 # ============================================================================

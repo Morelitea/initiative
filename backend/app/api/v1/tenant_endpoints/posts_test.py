@@ -120,7 +120,7 @@ async def test_create_post(client: AsyncClient, board: Actor):
     assert response.status_code == 201, response.text
     body = response.json()
     assert body["name"] == "Server maintenance Sunday"
-    assert body["my_permission_level"] == "owner"
+    assert body["can"]["delete"] is True
     assert body["is_pinned"] is False
     assert body["pinned_at"] is None
     assert body["excerpt"] == "We are upgrading at 9am."

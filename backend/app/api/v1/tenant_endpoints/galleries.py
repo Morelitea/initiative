@@ -77,6 +77,7 @@ from app.schemas.tenant.gallery import (
     serialize_gallery_image_versions,
 )
 from app.schemas.tenant.timeline import TimelineResponse
+from app.services.permissions import Action
 from app.services import storage_config
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import comments as comments_service
@@ -189,7 +190,7 @@ async def _load_image(
     guild_context: GuildContext,
     *,
     access: str = "read",
-    require_owner: bool = False,
+    action: Action | None = None,
 ) -> tuple[Gallery, GalleryImage]:
     """The gallery, authorized at ``access``, and one of its pictures.
 
@@ -203,7 +204,7 @@ async def _load_image(
         current_user,
         guild_context,
         access=access,
-        require_owner=require_owner,
+        action=action,
     )
     image = await galleries_service.get_image(session, gallery.id, image_id)
     if image is None:
@@ -480,7 +481,7 @@ async def delete_gallery(
         gallery_id,
         current_user,
         guild_context,
-        require_owner=True,
+        action=Action.delete,
     )
     await trash(
         session,
@@ -938,7 +939,7 @@ async def delete_gallery_image_version(
     one promotes the previous; deleting the last is refused — remove the
     picture instead."""
     _, image = await _load_image(
-        session, gallery_id, image_id, current_user, guild_context, require_owner=True
+        session, gallery_id, image_id, current_user, guild_context, action=Action.delete
     )
     # Serialize concurrent deletes on the same picture: two owner DELETEs that
     # both observe two versions could otherwise each remove one and leave none.

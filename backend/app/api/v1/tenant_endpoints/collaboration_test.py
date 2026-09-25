@@ -74,7 +74,7 @@ async def test_collaboration_guild_admin_gets_full_access(
     """A guild admin must get full collaboration access to a restricted document
     they hold no grant on and aren't an initiative member of — mirroring the REST
     guild-admin bypass. The collaboration paths resolve access straight through
-    the shared DAC engine (``permissions.compute_permission``), which reads the
+    the shared DAC engine (``permissions.allows``), which reads the
     active guild-role context that ``establish_guild_access`` records."""
     owner = await acting_user(guild_role=GuildRole.member, initiative=True)
     # admin is deliberately NOT a member of this initiative and holds no grant.
@@ -90,9 +90,8 @@ async def test_collaboration_guild_admin_gets_full_access(
         s, doc.id, owner.guild.id
     )
     assert resolved is not None
-    assert (
-        permissions_service.compute_permission(resolved.body, context=context)
-        == "owner"
+    assert permissions_service.allows(
+        resolved.body, permissions_service.Action.edit, context=context
     )
 
 

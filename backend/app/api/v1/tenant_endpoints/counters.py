@@ -48,8 +48,8 @@ from app.schemas.tenant.counter import (
     serialize_counter_group,
     _validate_counter_constraints,
 )
+from app.services.permissions import Action
 from app.services.tenant import counters as counters_service
-from app.services import permissions as permissions_service
 from app.api import resource_access
 from app.core.tools import Tool
 from app.services.content_sockets import sockets
@@ -289,13 +289,7 @@ async def delete_counter_group(
         group_id,
         current_user,
         guild_context,
-        access="read",
-    )
-    permissions_service.require_access(
-        permissions_service.DAC_RESOURCES[Tool.counter_group],
-        group,
-        require_owner=True,
-        context=guild_context,
+        action=Action.delete,
     )
     await trash(
         session,

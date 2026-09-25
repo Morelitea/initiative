@@ -487,7 +487,7 @@ def _calendar_event_loader_options():
     """Eager-load options shared by the list + aggregate event queries.
 
     Loads attendees, the parent calendar (grants + initiative memberships —
-    what my_permission_level needs), tags, and custom property values so
+    what its ``can`` needs), tags, and custom property values so
     serialization never triggers an async lazy-load.
     """
     return (

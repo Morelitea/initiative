@@ -8,7 +8,7 @@ from pydantic import ConfigDict, Field
 from app.core.identity_boundary import GuildId, PersonId
 from app.core.relationships import Related
 from app.schemas.base import SanitizedBaseModel
-from app.schemas.tenant.archive import ArchiveState
+from app.schemas.tenant.archive import ToolState
 
 from app.models.tenant.document import DocumentType
 from app.models.tenant.resource_grant import ResourceAccessLevel
@@ -78,7 +78,7 @@ class DocumentCopyRequest(SanitizedBaseModel):
     name: Optional[str] = None
 
 
-class DocumentSummary(DocumentBase, ArchiveState):
+class DocumentSummary(DocumentBase, ToolState):
     # ``validate_by_name`` so the serializer below can set ``owner`` and
     # ``owner_app`` by name; their aliases keep ``from_attributes`` from reading
     # an ORM relationship.
@@ -125,7 +125,6 @@ class DocumentSummary(DocumentBase, ArchiveState):
     # provider-specific icon without fetching the full content JSONB.
     # Only populated when document_type == "smart_link".
     smart_link_url: Optional[str] = None
-    my_permission_level: Optional[str] = None
     yjs_updated_at: Optional[datetime] = None
 
 
@@ -280,7 +279,7 @@ def serialize_document_summary(
         original_filename=document.original_filename,
         smart_link_url=smart_link_url,
         archived_at=document.archived_at,
-        **client_access(document, user_id, context=context),
+        can=client_access(document, user_id, context=context),
         yjs_updated_at=document.yjs_updated_at,
     )
 

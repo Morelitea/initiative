@@ -7,7 +7,7 @@ from pydantic import ConfigDict, Field, model_validator
 
 from app.core.identity_boundary import GuildId, PersonId
 from app.schemas.base import SanitizedBaseModel, TitleStr
-from app.schemas.tenant.archive import ArchiveState
+from app.schemas.tenant.archive import ToolState
 from app.schemas.platform.user import ProfileDecorations
 from app.schemas.tenant.comment import CommentAuthor
 from app.schemas.tenant.post_poll import PollRead, PollWrite, serialize_poll
@@ -106,7 +106,7 @@ class PostPinUpdate(SanitizedBaseModel):
         return self
 
 
-class PostSummary(PostBase, ArchiveState):
+class PostSummary(PostBase, ToolState):
     """A post without its body — for the surfaces that show one in a line.
 
     The board is not one of them: it renders notices, so its list returns
@@ -158,7 +158,6 @@ class PostSummary(PostBase, ArchiveState):
     #: this — a board is a place things are said out loud, and knowing whether
     #: a notice landed is the point of saying it there.
     read_count: int = 0
-    my_permission_level: Optional[str] = None
     # When false this entity's comment thread is off — the UI renders none
     # and the API refuses to read or post one.
     comments_enabled: bool = True
@@ -371,7 +370,7 @@ def serialize_post_summary(
         is_read=bool(getattr(post, "is_read", False)),
         read_count=int(getattr(post, "read_count", 0)),
         archived_at=post.archived_at,
-        **client_access(post, user_id, context=context),
+        can=client_access(post, user_id, context=context),
         comments_enabled=post.comments_enabled,
         reactions_enabled=post.reactions_enabled,
         comment_count=getattr(post, "comment_count", 0),

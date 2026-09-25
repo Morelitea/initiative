@@ -9,6 +9,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
+from pydantic import ConfigDict, Field
+
 from app.core.tools import ARCHIVE_TARGETS
 from app.schemas.base import SanitizedBaseModel
 
@@ -30,22 +32,36 @@ class ArchiveResponse(SanitizedBaseModel):
     archived_at: Optional[datetime] = None
 
 
-class ArchiveState(SanitizedBaseModel):
-    """What a read schema says about the archive, for every tool that has one.
+class ContentCan(SanitizedBaseModel):
+    """What the caller may do to a piece of content, as the server answers it.
 
-    Mixed into each tool's summary rather than written out on each, so a tool
-    cannot end up carrying the stamp without also carrying the way back out —
-    which is the state all but three of them were in.
-    """
+    Each flag is the check the route that does the thing runs, so a client
+    reads its affordances here rather than working them out from a rung."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    edit: bool = False
+
+
+class ToolCan(ContentCan):
+    """What the caller may do to one of a tool's rows
+    (``permissions.client_access``)."""
+
+    delete: bool = False
+    #: Change who it is shared with.
+    share: bool = False
+    #: Export it on its own. Still true while it is archived: an export
+    #: changes nothing.
+    export: bool = False
+    #: Take it back out of the archive. False for a row archived along with the
+    #: thing above it, which comes back with that thing.
+    unarchive: bool = False
+
+
+class ToolState(SanitizedBaseModel):
+    """What every tool's read carries beside its own fields: the archive stamp
+    and what the caller may do to it."""
 
     #: When this was put away, or ``null`` while it is live.
     archived_at: Optional[datetime] = None
-    #: Whether the caller may take it back out.
-    #:
-    #: Server-computed, and deliberately not derivable from the field beside it:
-    #: an archived row reports ``read`` for ``my_permission_level`` — the cap
-    #: that turns every edit affordance off at once — so the way out has to be
-    #: answered separately or it is capped away with everything else. False as
-    #: well for a row archived along with the thing above it, which comes back
-    #: with that thing rather than on its own.
-    can_unarchive: bool = False
+    can: ToolCan = Field(default_factory=ToolCan)

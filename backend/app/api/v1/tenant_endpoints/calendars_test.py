@@ -74,7 +74,7 @@ async def test_create_calendar(client: AsyncClient, acting_user, session):
     assert data["color"] == "#7c3aed"
     assert data["initiative_id"] == a.initiative.id
     assert data["created_by"] == a.user.id
-    assert data["my_permission_level"] == "owner"
+    assert data["can"]["delete"] is True
     grant_shapes = {
         (g["level"], g["all_initiative_members"], g["user_id"]) for g in data["grants"]
     }
@@ -136,7 +136,7 @@ async def test_get_calendar(client: AsyncClient, acting_user, session):
     assert response.status_code == 200
     data = response.json()
     assert data["id"] == calendar.id
-    assert data["my_permission_level"] == "owner"
+    assert data["can"]["delete"] is True
 
 
 async def test_list_calendars_dac_filtered(client: AsyncClient, acting_user, session):
@@ -332,7 +332,7 @@ async def test_any_member_creates_a_guild_calendar(
     assert response.status_code == 201, response.text
     body = response.json()
     assert body["initiative_id"] is None
-    assert body["my_permission_level"] == "owner"
+    assert body["can"]["delete"] is True
 
     await route_session_to_guild(session, admin.guild.id)
     grants = (

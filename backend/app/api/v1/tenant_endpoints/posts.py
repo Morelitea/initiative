@@ -75,6 +75,7 @@ from app.schemas.tenant.post_poll import (
     serialize_poll,
 )
 from app.schemas.tenant.timeline import TimelineResponse
+from app.services.permissions import Action
 from app.services import notifications as notifications_service
 from app.services import permissions as permissions_service
 from app.services import rls as rls_service
@@ -619,7 +620,7 @@ async def delete_post(
         post_id,
         current_user,
         guild_context,
-        require_owner=True,
+        action=Action.delete,
     )
     await trash(
         session,

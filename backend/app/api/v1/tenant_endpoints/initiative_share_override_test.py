@@ -174,13 +174,14 @@ async def test_moderator_reaches_restricted_content(
     )
     assert resp.status_code == 200
 
-    # my-permissions reflects the capability for the client.
+    # The roster reflects the capability for the client.
     resp = await client.get(
-        f"/api/v1/c/{guild.id}/initiatives/{initiative.id}/my-permissions",
+        f"/api/v1/c/{guild.id}/initiatives/{initiative.id}",
         headers=pm.headers,
     )
     assert resp.status_code == 200
-    assert resp.json()["override_share_restrictions"] is True
+    me = next(m for m in resp.json()["members"] if m["user"]["id"] == pm.user.id)
+    assert me["override_share_restrictions"] is True
 
 
 # ── Who may hand out the role ────────────────────────────────────────────────

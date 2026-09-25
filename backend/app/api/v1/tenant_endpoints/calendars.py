@@ -41,6 +41,7 @@ from app.schemas.tenant.calendar import (
     CalendarUpdate,
     serialize_calendar,
 )
+from app.services.permissions import Action
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import guild_apps as guild_apps_service
 from app.services.tenant import tags as tags_service
@@ -245,7 +246,7 @@ async def delete_calendar(
         calendar_id,
         current_user,
         guild_context,
-        require_owner=True,
+        action=Action.delete,
     )
     await trash(
         session,

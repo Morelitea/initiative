@@ -1621,6 +1621,16 @@ export interface TagSummary {
   color: string;
 }
 
+/**
+ * What the caller may do to a piece of content, as the server answers it.
+ *
+ * Each flag is the check the route that does the thing runs, so a client
+ * reads its affordances here rather than working them out from a rung.
+ */
+export interface ContentCan {
+  edit: boolean;
+}
+
 export interface CalendarEventSummary {
   /**
    * @minLength 1
@@ -1643,7 +1653,7 @@ export interface CalendarEventSummary {
   attendee_previews: CalendarEventAttendeePreview[];
   property_values: PropertySummary[];
   tags: TagSummary[];
-  my_permission_level: string | null;
+  can: ContentCan;
   created_at: string;
   updated_at: string;
 }
@@ -1943,7 +1953,7 @@ export interface CalendarEventRead {
   attendee_previews: CalendarEventAttendeePreview[];
   property_values: PropertySummary[];
   tags: TagSummary[];
-  my_permission_level: string | null;
+  can: ContentCan;
   created_at: string;
   updated_at: string;
   attendees: CalendarEventAttendeeRead[];
@@ -1961,9 +1971,21 @@ export interface CalendarEventUpdate {
   calendar_id?: number | null;
 }
 
+/**
+ * What the caller may do to one of a tool's rows
+ * (``permissions.client_access``).
+ */
+export interface ToolCan {
+  edit: boolean;
+  delete: boolean;
+  share: boolean;
+  export: boolean;
+  unarchive: boolean;
+}
+
 export interface CalendarSummary {
   archived_at: string | null;
-  can_unarchive: boolean;
+  can: ToolCan;
   /**
    * @minLength 1
    * @maxLength 255
@@ -1978,7 +2000,6 @@ export interface CalendarSummary {
   created_by: number | null;
   created_at: string;
   updated_at: string;
-  my_permission_level: string | null;
   comments_enabled: boolean;
   tags: TagSummary[];
   grants: ResourceGrantSchema[];
@@ -1994,7 +2015,7 @@ export interface CalendarListResponse {
 
 export interface CalendarRead {
   archived_at: string | null;
-  can_unarchive: boolean;
+  can: ToolCan;
   /**
    * @minLength 1
    * @maxLength 255
@@ -2009,7 +2030,6 @@ export interface CalendarRead {
   created_by: number | null;
   created_at: string;
   updated_at: string;
-  my_permission_level: string | null;
   comments_enabled: boolean;
   tags: TagSummary[];
   grants: ResourceGrantSchema[];
@@ -2666,7 +2686,7 @@ export interface CounterGroupDuplicateRequest {
 
 export interface CounterGroupSummary {
   archived_at: string | null;
-  can_unarchive: boolean;
+  can: ToolCan;
   /**
    * @minLength 1
    * @maxLength 255
@@ -2678,7 +2698,6 @@ export interface CounterGroupSummary {
   guild_id: number;
   created_by: number | null;
   counter_count: number;
-  my_permission_level: string | null;
   comments_enabled: boolean;
   tags: TagSummary[];
   created_at: string;
@@ -2719,7 +2738,7 @@ export interface CounterRead {
 
 export interface CounterGroupRead {
   archived_at: string | null;
-  can_unarchive: boolean;
+  can: ToolCan;
   /**
    * @minLength 1
    * @maxLength 255
@@ -2731,7 +2750,6 @@ export interface CounterGroupRead {
   guild_id: number;
   created_by: number | null;
   counter_count: number;
-  my_permission_level: string | null;
   comments_enabled: boolean;
   tags: TagSummary[];
   created_at: string;
@@ -2879,7 +2897,7 @@ export interface DashboardInstalledListings {
 
 export interface DashboardSummary {
   archived_at: string | null;
-  can_unarchive: boolean;
+  can: ToolCan;
   /**
    * @minLength 1
    * @maxLength 255
@@ -2894,7 +2912,6 @@ export interface DashboardSummary {
   updated_at: string;
   listing_uid: string | null;
   listing_version: string | null;
-  my_permission_level: string | null;
   comments_enabled: boolean;
   tags: TagSummary[];
   grants: ResourceGrantSchema[];
@@ -2923,7 +2940,7 @@ export interface PublishedOver {
 
 export interface DashboardRead {
   archived_at: string | null;
-  can_unarchive: boolean;
+  can: ToolCan;
   /**
    * @minLength 1
    * @maxLength 255
@@ -2938,7 +2955,6 @@ export interface DashboardRead {
   updated_at: string;
   listing_uid: string | null;
   listing_version: string | null;
-  my_permission_level: string | null;
   comments_enabled: boolean;
   tags: TagSummary[];
   grants: ResourceGrantSchema[];
@@ -3501,7 +3517,7 @@ export const DocumentType = {
 
 export interface DocumentSummary {
   archived_at: string | null;
-  can_unarchive: boolean;
+  can: ToolCan;
   name: string;
   initiative_id: number;
   featured_image_url: string | null;
@@ -3526,7 +3542,6 @@ export interface DocumentSummary {
   file_size: number | null;
   original_filename: string | null;
   smart_link_url: string | null;
-  my_permission_level: string | null;
   yjs_updated_at: string | null;
 }
 
@@ -3544,7 +3559,7 @@ export type DocumentReadContent = { [key: string]: unknown };
 
 export interface DocumentRead {
   archived_at: string | null;
-  can_unarchive: boolean;
+  can: ToolCan;
   name: string;
   initiative_id: number;
   featured_image_url: string | null;
@@ -3569,7 +3584,6 @@ export interface DocumentRead {
   file_size: number | null;
   original_filename: string | null;
   smart_link_url: string | null;
-  my_permission_level: string | null;
   yjs_updated_at: string | null;
   content: DocumentReadContent;
 }
@@ -4114,7 +4128,7 @@ export interface GalleryImageVersionRead {
 
 export interface GallerySummary {
   archived_at: string | null;
-  can_unarchive: boolean;
+  can: ToolCan;
   /**
    * @minLength 1
    * @maxLength 255
@@ -4131,7 +4145,6 @@ export interface GallerySummary {
   cover_image_id: number | null;
   cover: GalleryCover | null;
   preview: GalleryCover[];
-  my_permission_level: string | null;
   comments_enabled: boolean;
   comment_count: number;
   tags: TagSummary[];
@@ -4152,7 +4165,7 @@ export interface GalleryListResponse {
  */
 export interface GalleryRead {
   archived_at: string | null;
-  can_unarchive: boolean;
+  can: ToolCan;
   /**
    * @minLength 1
    * @maxLength 255
@@ -4169,7 +4182,6 @@ export interface GalleryRead {
   cover_image_id: number | null;
   cover: GalleryCover | null;
   preview: GalleryCover[];
-  my_permission_level: string | null;
   comments_enabled: boolean;
   comment_count: number;
   tags: TagSummary[];
@@ -5169,6 +5181,29 @@ export interface ImportJobRead {
   updated_at: string;
 }
 
+export type Tool = (typeof Tool)[keyof typeof Tool];
+
+export const Tool = {
+  project: "project",
+  document: "document",
+  queue: "queue",
+  counter_group: "counter_group",
+  calendar: "calendar",
+  dashboard: "dashboard",
+  post: "post",
+  gallery: "gallery",
+  wiki: "wiki",
+} as const;
+
+/**
+ * What the caller may do in an initiative (:func:`initiative_can`).
+ */
+export interface InitiativeCan {
+  manage: boolean;
+  view: Tool[];
+  create: Tool[];
+}
+
 /**
  * How a guild member may come to hold a membership row in an initiative.
  *
@@ -5395,6 +5430,7 @@ export interface InitiativeRead {
   created_at: string;
   updated_at: string;
   members: InitiativeMemberRead[];
+  can: InitiativeCan;
 }
 
 export type PermissionKey = (typeof PermissionKey)[keyof typeof PermissionKey];
@@ -5979,20 +6015,6 @@ export const ReportOutcome = {
   escalated: "escalated",
 } as const;
 
-export type Tool = (typeof Tool)[keyof typeof Tool];
-
-export const Tool = {
-  project: "project",
-  document: "document",
-  queue: "queue",
-  counter_group: "counter_group",
-  calendar: "calendar",
-  dashboard: "dashboard",
-  post: "post",
-  gallery: "gallery",
-  wiki: "wiki",
-} as const;
-
 /**
  * Where a reported thing is read.
  *
@@ -6054,18 +6076,6 @@ export interface MyAIConnectionRow {
   has_member_key: boolean;
   requires_member_key: boolean;
   is_selected: boolean;
-}
-
-/**
- * Current user's permissions for an initiative.
- */
-export interface MyInitiativePermissions {
-  role_id: number | null;
-  role_name: string | null;
-  role_display_name: string | null;
-  is_manager: boolean;
-  override_share_restrictions: boolean;
-  permissions: Partial<Record<PermissionKey, boolean>>;
 }
 
 export type MyToolCountsResponseCounts = { [key: string]: number };
@@ -7008,7 +7018,7 @@ export type PostReadBody = { [key: string]: unknown };
 
 export interface PostRead {
   archived_at: string | null;
-  can_unarchive: boolean;
+  can: ToolCan;
   /**
    * @minLength 1
    * @maxLength 255
@@ -7031,7 +7041,6 @@ export interface PostRead {
   is_published: boolean;
   is_read: boolean;
   read_count: number;
-  my_permission_level: string | null;
   comments_enabled: boolean;
   reactions_enabled: boolean;
   comment_count: number;
@@ -7162,6 +7171,15 @@ export interface ProjectActivityResponse {
   next_page: number | null;
 }
 
+export interface ProjectCan {
+  edit: boolean;
+  delete: boolean;
+  share: boolean;
+  export: boolean;
+  unarchive: boolean;
+  configure: boolean;
+}
+
 export interface ProjectCreate {
   name: string;
   description?: string | null;
@@ -7197,7 +7215,7 @@ export interface ProjectTaskSummary {
 
 export interface ProjectRead {
   archived_at: string | null;
-  can_unarchive: boolean;
+  can: ProjectCan;
   name: string;
   description: string | null;
   icon: string | null;
@@ -7215,7 +7233,6 @@ export interface ProjectRead {
   owner: UserPublic | null;
   owner_app: OwnerAppSummary | null;
   initiative: InitiativeSummary | null;
-  can_configure: boolean;
   sort_order: number | null;
   is_favorited: boolean;
   last_viewed_at: string | null;
@@ -7224,7 +7241,6 @@ export interface ProjectRead {
   task_statuses: TaskStatusRead[];
   comments_enabled: boolean;
   tags: TagSummary[];
-  my_permission_level: string | null;
   grants: ResourceGrantSchema[];
 }
 
@@ -7687,7 +7703,7 @@ export interface QueueItemUpdate {
 
 export interface QueueSummary {
   archived_at: string | null;
-  can_unarchive: boolean;
+  can: ToolCan;
   /**
    * @minLength 1
    * @maxLength 255
@@ -7703,7 +7719,6 @@ export interface QueueSummary {
   item_count: number;
   created_at: string;
   updated_at: string;
-  my_permission_level: string | null;
   comments_enabled: boolean;
   tags: TagSummary[];
   grants: ResourceGrantSchema[];
@@ -7719,7 +7734,7 @@ export interface QueueListResponse {
 
 export interface QueueRead {
   archived_at: string | null;
-  can_unarchive: boolean;
+  can: ToolCan;
   /**
    * @minLength 1
    * @maxLength 255
@@ -7735,7 +7750,6 @@ export interface QueueRead {
   item_count: number;
   created_at: string;
   updated_at: string;
-  my_permission_level: string | null;
   comments_enabled: boolean;
   tags: TagSummary[];
   grants: ResourceGrantSchema[];
@@ -9360,7 +9374,7 @@ export const WikiReadingWidth = {
 
 export interface WikiSummary {
   archived_at: string | null;
-  can_unarchive: boolean;
+  can: ToolCan;
   /**
    * @minLength 1
    * @maxLength 255
@@ -9382,7 +9396,6 @@ export interface WikiSummary {
   reading_width: WikiReadingWidth;
   accent_color: string | null;
   template_page_id: number | null;
-  my_permission_level: string | null;
   comments_enabled: boolean;
   comment_count: number;
   tags: TagSummary[];
@@ -9564,7 +9577,7 @@ export interface WikiPageUpdate {
  */
 export interface WikiRead {
   archived_at: string | null;
-  can_unarchive: boolean;
+  can: ToolCan;
   /**
    * @minLength 1
    * @maxLength 255
@@ -9586,7 +9599,6 @@ export interface WikiRead {
   reading_width: WikiReadingWidth;
   accent_color: string | null;
   template_page_id: number | null;
-  my_permission_level: string | null;
   comments_enabled: boolean;
   comment_count: number;
   tags: TagSummary[];
@@ -9874,7 +9886,7 @@ export type ListProjectsApiV1CGuildIdProjectsGetParams = {
    */
   initiative_id?: number | null;
   /**
-   * Return a lightweight projection (id, name, icon, initiative_id, my_permission_level) without documents, grants, tags, or the nested initiative. For project pickers and other list-only callers.
+   * Return a lightweight projection (id, name, icon, initiative_id, can) without documents, grants, tags, or the nested initiative. For project pickers and other list-only callers.
    */
   slim?: boolean;
   /**

@@ -8,7 +8,7 @@ from pydantic import ConfigDict, Field
 from app.core.identity_boundary import GuildId, PersonId
 from app.core.relationships import Related
 from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
-from app.schemas.tenant.archive import ArchiveState
+from app.schemas.tenant.archive import ToolState
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.tenant.tag import TagSummary, annotated_tags
@@ -136,7 +136,7 @@ class QueueUpdate(SanitizedBaseModel):
     description: Optional[str] = None
 
 
-class QueueSummary(QueueBase, ArchiveState):
+class QueueSummary(QueueBase, ToolState):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
@@ -150,7 +150,6 @@ class QueueSummary(QueueBase, ArchiveState):
     item_count: int = 0
     created_at: datetime
     updated_at: datetime
-    my_permission_level: Optional[str] = None
     # When false this entity's comment thread is off — the UI renders none
     # and the API refuses to read or post one. Tasks are unaffected; their
     # thread belongs to the task, not to the tool.
@@ -262,7 +261,7 @@ def serialize_queue_summary(
         created_at=queue.created_at,
         updated_at=queue.updated_at,
         archived_at=queue.archived_at,
-        **client_access(queue, user_id, context=context),
+        can=client_access(queue, user_id, context=context),
         comments_enabled=queue.comments_enabled,
         tags=annotated_tags(queue),
         grants=serialize_grants(queue, context=context),

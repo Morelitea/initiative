@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from pydantic import ConfigDict, Field
 
 from app.schemas.base import SanitizedBaseModel, TitleStr
-from app.schemas.tenant.archive import ArchiveState
+from app.schemas.tenant.archive import ToolState
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.services.fields.spec import FieldType
@@ -84,7 +84,7 @@ class DashboardUpdate(SanitizedBaseModel):
     config: Optional[Dict[str, Any]] = None
 
 
-class DashboardSummary(DashboardBase, ArchiveState):
+class DashboardSummary(DashboardBase, ToolState):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
@@ -98,7 +98,6 @@ class DashboardSummary(DashboardBase, ArchiveState):
     # Marketplace provenance; both null for a dashboard authored from scratch.
     listing_uid: Optional[str] = None
     listing_version: Optional[str] = None
-    my_permission_level: Optional[str] = None
     # When false this entity's comment thread is off — the UI renders none
     # and the API refuses to read or post one. Tasks are unaffected; their
     # thread belongs to the task, not to the tool.
@@ -317,7 +316,7 @@ def serialize_dashboard_summary(
         listing_uid=dashboard.listing_uid,
         listing_version=dashboard.listing_version,
         archived_at=dashboard.archived_at,
-        **client_access(dashboard, user_id, context=context),
+        can=client_access(dashboard, user_id, context=context),
         comments_enabled=dashboard.comments_enabled,
         tags=annotated_tags(dashboard),
         grants=serialize_grants(dashboard, context=context),

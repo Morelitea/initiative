@@ -62,6 +62,7 @@ from app.schemas.tenant.wiki import (
     serialize_document_as_page,
     serialize_wiki_page_summary,
 )
+from app.services.permissions import Action
 from app.services import permissions as permissions_service
 from app.services.tenant import comments as comments_service
 from app.services.tenant import content_references
@@ -108,14 +109,6 @@ async def _refetch_wiki(
     return wiki
 
 
-def _may_write(wiki: Wiki, current_user: User, *, context: GuildContext) -> bool:
-    """Whether this person may write this wiki — guild admins and full-access
-    initiative members included, which is why it goes through the DAC engine
-    rather than reading grants directly."""
-    level = permissions_service.compute_permission(wiki, context=context)
-    return level in ("write", "owner")
-
-
 async def _load_page(
     session: RLSSessionDep,
     wiki_id: int,
@@ -138,7 +131,8 @@ async def _load_page(
     # missing rather than refused — the same answer they get for a page that
     # was never written.
     if page is None or (
-        page.is_draft and not _may_write(wiki, current_user, context=guild_context)
+        page.is_draft
+        and not permissions_service.allows(wiki, Action.edit, context=guild_context)
     ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -281,7 +275,7 @@ async def delete_wiki(
 ) -> None:
 
     wiki = await resource_access.load_authorized(
-        session, Tool.wiki, wiki_id, current_user, guild_context, require_owner=True
+        session, Tool.wiki, wiki_id, current_user, guild_context, action=Action.delete
     )
     await soft_delete_service.trash(
         session,
@@ -331,7 +325,9 @@ async def list_wiki_pages(
     rows = await wikis_service.load_list(
         session,
         wiki,
-        include_drafts=_may_write(wiki, current_user, context=guild_context),
+        include_drafts=permissions_service.allows(
+            wiki, Action.edit, context=guild_context
+        ),
     )
     await tags_service.annotate_tags(
         session, [row for row in rows if isinstance(row, WikiPage)]

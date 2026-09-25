@@ -14,7 +14,8 @@ decisions the policies do not express:
 
   - :func:`require_access` — a *named* refusal on a loaded row, plus the
     frozen-guild cap
-  - :func:`compute_permission` — what the client renders affordances from
+  - :func:`client_access` — what the client renders affordances from, the
+    same checks the routes run (:data:`ACTIONS`)
   - :func:`granted_scope_clause` — deliberately NARROWER than the policy for a
     list spanning initiatives (no guild-admin leg)
   - :func:`writable_scope_clause` — "which of these may I change", which a read
@@ -25,6 +26,7 @@ Postgres.
 """
 
 from dataclasses import dataclass
+from enum import Enum
 from collections.abc import Callable
 from typing import Any
 
@@ -253,6 +255,10 @@ class DacResource:
 
 #: Every tool, by construction — ``tools_test`` has nothing to catch up on.
 DAC_RESOURCES: dict[Tool, DacResource] = {t: DacResource(t) for t in Tool}
+#: The same, by the table a tool's row is read from.
+_RESOURCE_BY_TABLE: dict[str, DacResource] = {
+    t.plural: r for t, r in DAC_RESOURCES.items()
+}
 
 
 def _grant_level(level: Any) -> str:
@@ -363,7 +369,7 @@ def may_write(row: Any) -> bool:
 
     The row-shaped form of :func:`writable_scope_clause`: the rung the
     database answered, at :data:`WRITE_LEVELS`. Deliberately not
-    :func:`compute_permission`, which caps at read while a community is frozen
+    ``allows(row, Action.edit)``, which is refused while a community is frozen
     — that answers "may I edit this right now", and the question here is
     whether the row is this person's at all.
     """
@@ -665,6 +671,89 @@ async def replace_resource_grants(
         )
 
 
+class Action(str, Enum):
+    """What somebody may do to one of a tool's rows, beyond reading it."""
+
+    edit = "edit"
+    delete = "delete"
+    share = "share"
+    export = "export"
+
+
+#: What each action asks of the caller, as :func:`require_access` arguments.
+#: The routes that do the thing pass these, and :func:`client_access` reports
+#: the same checks to the client, so a flag and its guard cannot disagree.
+#: Deleting a thing, changing who it is shared with and exporting it are the
+#: owner's (full access to its initiative counts, as everywhere).
+ACTIONS: dict[Action, dict[str, Any]] = {
+    Action.edit: {"access": "write"},
+    Action.delete: {"require_owner": True},
+    Action.share: {"require_owner": True, "manage_access": True},
+    Action.export: {"export": True},
+}
+
+
+def _refusal(
+    resource: DacResource,
+    row: Any,
+    *,
+    context: ActorContext | None,
+    access: str = "read",
+    require_owner: bool = False,
+    manage_access: bool = False,
+    export: bool = False,
+    allow_frozen: bool = False,
+) -> HTTPException | None:
+    """Why the request may not act on ``row``, or ``None`` when it may.
+
+    The body of :func:`require_access`, and of the flags :func:`client_access`
+    reports."""
+    # A frozen guild (read_only lifecycle status) caps EVERY real member at
+    # read — before the level is read, so full authority does not clear it.
+    # The flag is never set for PAM/break-glass requests, whose grants
+    # override the status by design. An export changes nothing, so it is
+    # answered from the rung alone.
+    changes = (access != "read" or require_owner) and not export
+    if changes and _frozen_community(context):
+        return HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=resource.write_msg
+        )
+    # Archived or trashed content is read-only, and so is everything under it.
+    # Not a permission answer — the caller may well own it — so it carries its
+    # own code and its own status, and the thing to do is bring it back first.
+    if changes and not allow_frozen and row_is_frozen(row):
+        return HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=CommonMessages.CONTENT_IS_FROZEN,
+        )
+    # Sharing is the resource's own to give; a borrowed content grant does not
+    # extend to it.
+    if manage_access and context is not None and context.grant_content is not None:
+        return HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=resource.name.grant_cannot_manage_members_code,
+        )
+    effective = level_of(row)
+    if export and effective != ResourceAccessLevel.owner.value:
+        return HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ExportMessages.EXPORT_OWNER_REQUIRED,
+        )
+    if require_owner and effective != ResourceAccessLevel.owner.value:
+        return HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=resource.owner_msg
+        )
+    if effective is None:
+        return HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=resource.denied_msg
+        )
+    if access == "write" and effective == ResourceAccessLevel.read.value:
+        return HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=resource.write_msg
+        )
+    return None
+
+
 def require_access(
     resource: DacResource,
     row: Any,
@@ -672,10 +761,12 @@ def require_access(
     context: ActorContext | None,
     access: str = "read",
     require_owner: bool = False,
+    manage_access: bool = False,
+    export: bool = False,
     allow_frozen: bool = False,
 ) -> None:
-    """Raise 403 unless the request may act on ``row``: frozen-guild read cap
-    → the rung the database answered, against the access asked for.
+    """Raise unless the request may act on ``row``: the community's hold, the
+    row's archive, then the rung the database answered against what is asked.
 
     No initiative-scope step. The row was loaded through a routed session, and
     every content table's policy defers to ``initiative_access`` before
@@ -683,44 +774,28 @@ def require_access(
     does not arrive to be checked. What is left is the part the policies do not
     do: saying which refusal it is.
 
-    ``allow_frozen`` is for the write that ENDS the frozen state — unarchiving,
-    which asks for write on a row that is archived by definition. The caller
-    still needs the write level."""
-    # A frozen guild (read_only lifecycle status) caps EVERY real member at
-    # read — before the level is read, so full authority does not clear it. The flag is never set for PAM/break-glass requests, whose grants
-    # override the status by design. The Postgres role (guild_<id>_ro) would
-    # refuse the write anyway; failing here keeps the app layer in agreement
-    # and the error clean.
-    if _frozen_community(context) and (access != "read" or require_owner):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=resource.write_msg
-        )
-    # Archived or trashed content is read-only, and so is everything under it.
-    # Not a permission answer — the caller may well own it — so it carries its
-    # own code and its own status, and the thing to do is bring it back first.
-    if not allow_frozen and row_is_frozen(row) and (access != "read" or require_owner):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=CommonMessages.CONTENT_IS_FROZEN,
-        )
-    effective = level_of(row)
+    An action spells its arguments from :data:`ACTIONS`. ``allow_frozen`` is
+    for the write that ENDS the frozen state — unarchiving, which asks for
+    write on a row that is archived by definition."""
+    refusal = _refusal(
+        resource,
+        row,
+        context=context,
+        access=access,
+        require_owner=require_owner,
+        manage_access=manage_access,
+        export=export,
+        allow_frozen=allow_frozen,
+    )
+    if refusal is not None:
+        raise refusal
 
-    if require_owner:
-        if effective != "owner":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail=resource.owner_msg
-            )
-        return
 
-    if effective is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=resource.denied_msg
-        )
-
-    if access == "write" and effective == "read":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=resource.write_msg
-        )
+def allows(row: Any, action: Action, *, context: ActorContext | None) -> bool:
+    """Whether the request may take ``action`` on ``row`` — the answer
+    :func:`require_access` gives the route that does it."""
+    resource = _RESOURCE_BY_TABLE[row.__tablename__]
+    return _refusal(resource, row, context=context, **ACTIONS[action]) is None
 
 
 #: What exporting one tool asks for. An export hands the whole thing over at
@@ -738,47 +813,21 @@ def require_export_access(
     context: ActorContext | None,
     access: str = EXPORT_ACCESS,
 ) -> None:
-    """Raise unless the request may export ``row``: read it at all, and — for
-    a tool exported on its own — hold its owner rung.
-
-    Checked against the rung the database answered rather than the one a
-    client is shown, so archived content and a read-only community stay
-    exportable by whoever owns them: an export changes nothing."""
-    require_access(resource, row, context=context, access="read")
-    if access == EXPORT_ACCESS and level_of(row) != EXPORT_ACCESS:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=ExportMessages.EXPORT_OWNER_REQUIRED,
-        )
-
-
-def compute_permission(row: Any, *, context: ActorContext | None) -> str | None:
-    """``my_permission_level`` for the client: the rung the database answered
-    (full authority reports owner; a content grant lends its own rung).
-    A frozen guild (read_only lifecycle status) caps the result at read — the
-    single place the client-facing level reflects the hold, so every surface
-    (edit affordances, writable filters, the collaboration socket's can_write)
-    inherits it without re-deriving the status. Archived and trashed content
-    caps it the same way and for the same reason: one place, so a document in
-    the trash opens with its editor already read-only rather than failing on the
-    first keystroke."""
-    level = level_of(row)
-    if level is not None and _frozen_community(context):
-        return "read"
-    if level is not None and row_is_frozen(row):
-        return "read"
-    return level
+    """Raise unless the request may export ``row``: :data:`ACTIONS`' export for
+    a tool exported on its own, a read for one inside a backup."""
+    if access == EXPORT_ACCESS:
+        require_access(resource, row, context=context, **ACTIONS[Action.export])
+    else:
+        require_access(resource, row, context=context)
 
 
 def may_unarchive(row: Any, *, context: ActorContext | None) -> bool:
     """Whether the caller may take this row back out of the archive.
 
-    ``compute_permission`` caps a frozen row at read so that every edit
-    affordance goes off at once. Coming back out is a write too, and gating it
-    on that capped level would shut the only door out of the state — so it is
-    answered here instead, from the level the caller would have had if the row
-    were live. The endpoint asks the same question its own way
-    (``allow_frozen``), so the button and the handler agree.
+    Every other change is refused while a row is archived, so this is answered
+    from the level the caller would have had if the row were live — the
+    endpoint asks the same question its own way (``allow_frozen``), so the
+    button and the handler agree.
 
     Two things have to hold. The caller could write it if it were live. And the
     stamp is the row's own: a row archived along with the thing above it comes
@@ -800,24 +849,16 @@ def may_unarchive(row: Any, *, context: ActorContext | None) -> bool:
 
 def client_access(
     row: Any, user_id: int | None, *, context: ActorContext | None
-) -> dict[str, Any]:
-    """The two access fields a tool's read schema carries, answered together.
+) -> dict[str, bool]:
+    """What the caller may do to ``row``, for its read schema's ``can``.
 
-    They are a pair. One says what may be done to the row as it stands — capped
-    at read while it is archived, so every edit affordance goes off at once. The
-    other says whether the caller may end that state. Answered in one place
-    because a surface that reports the first without the second tells someone
-    they may not edit a thing and nothing about how to get it back, which is the
-    state every archived tool was in.
-
-    Returned as a mapping so the pair travels into a serializer as one argument
-    and neither half can be passed without the other.
-    """
+    Each flag is the check the route that does the thing runs, so the client
+    reads its affordances rather than working them out from a rung."""
     if user_id is None and not isinstance(context, InstallContext):
-        return {"my_permission_level": None, "can_unarchive": False}
+        return {}
     return {
-        "my_permission_level": compute_permission(row, context=context),
-        "can_unarchive": may_unarchive(row, context=context),
+        **{action.value: allows(row, action, context=context) for action in Action},
+        "unarchive": may_unarchive(row, context=context),
     }
 
 
@@ -833,14 +874,15 @@ def can_configure_project(project: Project, *, context: ActorContext | None) -> 
     project's own owner. Plain write access is deliberately not enough.
 
     Read off the standing and the level the database answered, so the routes
-    that configure a project and the ``can_configure`` a project reports are
+    that configure a project and the ``can.configure`` a project reports are
     the same answer.
     """
     if context is None:
         return False
     if context.is_admin:
         return True
-    if compute_permission(project, context=context) == "owner":
+    # The owner's rung, which is what deleting it asks.
+    if allows(project, Action.delete, context=context):
         return True
     return project.initiative_id in context.manager_initiatives
 

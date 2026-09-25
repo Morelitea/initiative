@@ -34,8 +34,10 @@ from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.permissions import (
     DAC_RESOURCES,
     audience_user_ids,
-    compute_permission,
+    Action,
+    client_access,
     granted_scope_clause,
+    level_of,
     listing_scope_clause,
     require_access,
     writable_scope_clause,
@@ -233,7 +235,10 @@ async def test_every_tool_resolves_sharing_through_one_engine(
     await w.grant("owner", user=w.owner.user)
     row, context = await w.as_reader(w.owner.user)
     require_access(resource, row, context=context, access="write")
-    assert compute_permission(row, context=context) == "owner"
+    assert client_access(row, context.user_id, context=context) == {
+        **{action.value: True for action in Action},
+        "unarchive": False,
+    }
 
     # An initiative co-member with no grant on this resource: the table's own
     # policy admits nothing, so there is no row to refuse.
@@ -244,7 +249,10 @@ async def test_every_tool_resolves_sharing_through_one_engine(
     row, context = await w.as_reader(w.admin.user)
     require_access(resource, row, context=context, access="write")
     require_access(resource, row, context=context, require_owner=True)
-    assert compute_permission(row, context=context) == "owner"
+    assert client_access(row, context.user_id, context=context) == {
+        **{action.value: True for action in Action},
+        "unarchive": False,
+    }
 
     # A PAM read grant opens the guild for reading only. The grantee holds the
     # rung the grant lends, so the write stops at the level check and names
@@ -271,6 +279,18 @@ async def test_every_tool_resolves_sharing_through_one_engine(
         == resource.owner_msg
     )
 
+    # A writer edits it; deleting it and changing who it is shared with are
+    # the owner's.
+    await w.grant("write", user=w.co_member.user)
+    row, context = await w.as_reader(w.co_member.user)
+    assert client_access(row, context.user_id, context=context) == {
+        "edit": True,
+        "delete": False,
+        "share": False,
+        "export": False,
+        "unarchive": False,
+    }
+
 
 # ── How a grant resolves ─────────────────────────────────────────────────────
 
@@ -285,13 +305,13 @@ async def test_a_role_grant_elevates_over_a_users_own(
     role_id = await _role_id_of(session, w.initiative, w.co_member.user)
     await w.grant("read", user=w.co_member.user)
     row, context = await w.as_reader(w.co_member.user)
-    assert compute_permission(row, context=context) == "read"
+    assert level_of(row) == "read"
 
     await create_resource_grant(
         session, w.row, role_id=role_id, level=ResourceAccessLevel.write
     )
-    row, context = await w.as_reader(w.co_member.user)
-    assert compute_permission(row, context=context) == "write"
+    row, _ = await w.as_reader(w.co_member.user)
+    assert level_of(row) == "write"
 
 
 async def test_general_access_covers_the_initiatives_members_only(
@@ -304,7 +324,7 @@ async def test_general_access_covers_the_initiatives_members_only(
 
     await w.grant("write", everyone=True)
     row, context = await w.as_reader(w.co_member.user)
-    assert compute_permission(row, context=context) == "write"
+    assert level_of(row) == "write"
     require_access(w.resource, row, context=context, access="write")
 
     row, _ = await w.as_reader(outsider.user)
@@ -423,8 +443,9 @@ async def test_a_platform_owner_holds_no_standing_bypass(
 
 
 async def test_a_frozen_guild_caps_everyone_at_read(session, role_session, acting_user):
-    """A read_only guild caps the level the client sees and refuses every write
-    — before the level is read, so full authority does not clear the hold.
+    """A read_only guild refuses every change — before the level is read, so
+    full authority does not clear the hold — and still lets its owner export,
+    which changes nothing.
 
     ``guild_suspension_test`` covers the same hold end-to-end through an
     endpoint; this pins where in the engine the cap sits.
@@ -435,7 +456,13 @@ async def test_a_frozen_guild_caps_everyone_at_read(session, role_session, actin
 
     row, context = await w.as_reader(w.owner.user)
     assert context.content_read_only
-    assert compute_permission(row, context=context) == "read"
+    assert client_access(row, context.user_id, context=context) == {
+        "edit": False,
+        "delete": False,
+        "share": False,
+        "export": True,
+        "unarchive": False,
+    }
     require_access(w.resource, row, context=context, access="read")
     assert (
         refused(w.resource, row, context=context, access="write").detail
@@ -444,7 +471,7 @@ async def test_a_frozen_guild_caps_everyone_at_read(session, role_session, actin
     refused(w.resource, row, context=context, require_owner=True)
 
     row, context = await w.as_reader(w.admin.user)
-    assert compute_permission(row, context=context) == "read"
+    assert not client_access(row, context.user_id, context=context)["edit"]
     refused(w.resource, row, context=context, access="write")
 
 

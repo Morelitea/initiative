@@ -100,7 +100,7 @@ async def test_reads_what_is_open_to_its_initiative(
     assert read.status_code == 200, read.text
     body = read.json()
     assert body["name"] == "In A"
-    assert body["my_permission_level"] == "read"
+    assert body["can"]["edit"] is False
     # The seat is named by this install's reference, and the community by its
     # own.
     assert isinstance(body["created_by"], str)
@@ -217,7 +217,7 @@ async def test_what_it_creates_is_its_own(
     body = created.json()
     assert body["created_by"] is None
     assert isinstance(body["guild_id"], str)
-    assert body["my_permission_level"] == "owner"
+    assert body["can"]["delete"] is True
     assert_names_nobody(created.text, [seat.user.id, guild_id])
 
     await route_session_to_guild(session, guild_id)

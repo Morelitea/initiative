@@ -86,8 +86,10 @@ async def test_an_archived_tool_says_it_can_be_taken_back(
 
     body = read.json()
     assert body["archived_at"] is not None
-    assert body["my_permission_level"] == "read"
-    assert body["can_unarchive"] is True
+    assert body["can"]["edit"] is False
+    assert body["can"]["unarchive"] is True
+    # An export changes nothing, so its owner still has it.
+    assert body["can"]["export"] is True
 
 
 async def test_a_live_tool_offers_nothing_to_take_back(
@@ -100,7 +102,7 @@ async def test_a_live_tool_offers_nothing_to_take_back(
 
     body = read.json()
     assert body["archived_at"] is None
-    assert body["can_unarchive"] is False
+    assert body["can"]["unarchive"] is False
 
 
 async def test_a_reader_is_not_offered_the_way_back(
@@ -130,7 +132,7 @@ async def test_a_reader_is_not_offered_the_way_back(
     read = await client.get(a.g(f"/documents/{document_id}"), headers=b.headers)
 
     assert read.status_code == 200
-    assert read.json()["can_unarchive"] is False
+    assert read.json()["can"]["unarchive"] is False
 
 
 async def test_something_archived_with_its_initiative_comes_back_with_it(
@@ -146,7 +148,7 @@ async def test_something_archived_with_its_initiative_comes_back_with_it(
 
     body = read.json()
     assert body["archived_at"] is not None
-    assert body["can_unarchive"] is False
+    assert body["can"]["unarchive"] is False
 
 
 async def test_the_archived_list_agrees_with_the_detail_about_the_way_back(
@@ -162,5 +164,5 @@ async def test_the_archived_list_agrees_with_the_detail_about_the_way_back(
     row = next(q for q in listed.json()["items"] if q["id"] == queue.id)
     detail = await client.get(a.g(f"/queues/{queue.id}"), headers=a.headers)
 
-    assert row["can_unarchive"] == detail.json()["can_unarchive"]
-    assert row["can_unarchive"] is False
+    assert row["can"]["unarchive"] == detail.json()["can"]["unarchive"]
+    assert row["can"]["unarchive"] is False

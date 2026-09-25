@@ -153,10 +153,9 @@ class _Editing:
             )
         except HTTPException:
             return None
-        level = permissions_service.compute_permission(
-            resolved.governing, context=context
+        writes = permissions_service.allows(
+            resolved.governing, permissions_service.Action.edit, context=context
         )
-        writes = level in ("write", "owner")
         if self.can_write is None:
             self.resolved = resolved
             self.can_write = writes
