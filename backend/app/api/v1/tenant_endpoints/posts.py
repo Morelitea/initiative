@@ -221,9 +221,7 @@ async def _announce(
     hydrated = await posts_service.get_post(session, post.id, populate_existing=True)
     if hydrated is None:  # pragma: no cover — written in this transaction
         return
-    await post_publication.announce_post(
-        session, hydrated, author=author, guild_id=guild_context.guild_id
-    )
+    await post_publication.announce_post(session, hydrated, author=author)
 
 
 async def annotate_post_rows(

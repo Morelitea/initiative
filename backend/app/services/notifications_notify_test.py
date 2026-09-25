@@ -1,4 +1,4 @@
-"""Who may be told about a thing.
+"""``notifications.notify``: who hears, and how often.
 
 A notice names what it is about, so it goes to somebody who can open that
 thing now. The comment fan-out is driven end to end; the rest are asked of the
@@ -16,7 +16,7 @@ from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.platform import user_notifications
-from app.services.tenant import audience
+from app.services import notifications
 from app.testing import create_task, create_user, route_session_to_guild
 
 pytestmark = pytest.mark.asyncio
@@ -111,30 +111,37 @@ async def test_a_community_admin_is_among_the_readers(session, acting_user):
     # Routed the way a request or a sweep is, which is what names the community.
     await set_rls_context(session, guild_id=owner.guild.id)
 
-    shared = await audience.audience(session, Tool.project, owner.project.id)
-    readers = await audience.readers(session, Tool.project, owner.project.id)
+    subject = await notifications.resolve_subject(
+        session, (Tool.project.value, owner.project.id)
+    )
 
-    assert admin.user.id not in shared
-    assert admin.user.id in readers
-    assert owner.user.id in shared
+    assert subject is not None
+    assert admin.user.id not in subject.shared_with
+    assert admin.user.id in subject.readers
+    assert owner.user.id in subject.shared_with
 
 
 @pytest.mark.integration
-async def test_repeated_document_mentions_fold_into_one_line(session, acting_user):
-    from app.services import notifications
+async def test_repeated_document_mentions_fold_into_one_line(
+    client, session, acting_user
+):
+    """The editor reports mentions as it saves; an unread line absorbs the next
+    report."""
+    from app.testing import create_document
 
-    author = await acting_user(guild_role=GuildRole.member)
-    reader = await create_user(session)
-    for _ in range(3):
-        await notifications.notify_document_mention(
-            session,
-            mentioned_user=reader,
-            mentioned_by=author.user,
-            document_id=41,
-            document_name="Plan",
-            guild_id=author.guild.id,
-        )
+    author = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    document = await create_document(session, author.initiative, author.user)
+    reader = await acting_user(guild_role=GuildRole.admin, guild=author.guild)
     await session.commit()
+    for _ in range(3):
+        posted = await client.post(
+            author.g(f"/documents/{document.id}/mentions"),
+            json={"mentioned_user_ids": [reader.user.id]},
+            headers=author.headers,
+        )
+        assert posted.status_code == 204, posted.text
+
+    reader = reader.user
 
     lines = await _mentions(reader.id)
     assert len(lines) == 1

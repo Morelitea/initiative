@@ -18,10 +18,7 @@ Two ways in, one fan-out:
   anything is sent**. Email and push leave the building; a rollback cannot
   call them back. Committing the claim first means a crash mid-announce costs
   some notifications, where the other order would send the whole board a
-  second set on the next pass. The fan-out isolates each recipient so that
-  cost is bounded by an actual crash rather than by one bad address — which is
-  already better than every other notifier in the app, all of which fan out
-  inline before their own commit. Making delivery exactly-once needs a
+  second set on the next pass. Making delivery exactly-once needs a
   per-recipient ledger, and that is a bar to raise everywhere at once rather
   than for one tool.
 
@@ -36,21 +33,22 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+from typing import cast
 
 from sqlalchemy import update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.session import routed_guild_id
 from app.db.session import SystemSessionLocal, set_rls_context
 from app.models.platform.guild import Guild, GuildStatus
 from app.models.platform.user import User
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.post import Post
 from app.models.tenant.resource_grant import ResourceAccessLevel
-from app.schemas.tenant.post import post_excerpt
 from app.services import notifications as notifications_service
 from app.services.notifications import AppAuthor
+from app.models.platform.notification import NotificationType
+from app.core.tools import Tool
 from app.services.platform import accounts as accounts_service
 from app.services.tenant import posts as posts_service
 from app.services.tenant import tags as tags_service
@@ -67,56 +65,32 @@ async def announce_post(
     post: Post,
     *,
     author: User | AppAuthor,
-    guild_id: int,
-) -> int:
-    """Tell everyone the notice was shared with that it is up. Returns how many
-    were actually told.
+) -> None:
+    """Tell everyone the notice was shared with that it is up.
 
     The audience is the post's own sharing — :func:`posts.audience_user_ids`,
     which resolves the same grant rows the per-request check reads. A notice
     shared with three people interrupts three people; posting to a subset of a
     large initiative does not ring everyone's bell.
 
-    Recipients are loaded on the system engine: an account's notification
-    settings and address are not a guild's to read. That load is also where
-    somebody who ignores the author drops out — the one place a recipient is
-    resolved, so a person who has stopped hearing from them is not one.
+    Delivered through ``notifications.notify``, which is where somebody who
+    ignores the author drops out.
 
     ``author`` is the person who posted it, or the installed app that did,
     named by the app's name and by no account.
     """
-    recipient_ids = posts_service.audience_user_ids(post, exclude=author.id)
-    if not recipient_ids:
-        return 0
+    recipient_ids = sorted(posts_service.audience_user_ids(post, exclude=author.id))
     author_name = notifications_service.actor_name(author)
-    excerpt = post_excerpt(post.body)
-    recipients = await accounts_service.load_all(
-        sorted(recipient_ids), excluding_ignorers_of=author.id
+    await notifications_service.notify(
+        session,
+        NotificationType.post_published,
+        recipient_ids,
+        about=(Tool.post.value, cast(int, post.id)),
+        key="post.published",
+        values={"actor": author_name, "post": post.name},
+        data={"post_id": post.id, "author_name": author_name, "author_id": author.id},
+        actor=author,
     )
-    delivered = 0
-    for recipient in recipients:
-        # One recipient at a time, and one recipient's failure costs only
-        # theirs. By here the publication is already committed, so an exception
-        # raised out of this loop would leave the notice up and unclaimable
-        # with the rest of the board never told — a whole audience lost to one
-        # bad address.
-        try:
-            await notifications_service.notify_post_published(
-                session,
-                recipient=recipient,
-                post_id=post.id,
-                post_name=post.name,
-                excerpt=excerpt,
-                author_name=author_name,
-                author_id=author.id,
-                guild_id=guild_id,
-                initiative_id=post.initiative_id,
-            )
-        except Exception:
-            logger.exception("Could not tell %s about post %s", recipient.id, post.id)
-            continue
-        delivered += 1
-    return delivered
 
 
 async def _author_of(session: AsyncSession, post: Post) -> User | AppAuthor | None:
@@ -192,9 +166,7 @@ async def publish_due_posts(session: AsyncSession, *, now: datetime) -> list[int
             # The account is gone; the notice still goes up, silently.
             logger.warning("Post %s published with no author to attribute", post.id)
             continue
-        await announce_post(
-            session, post, author=author, guild_id=routed_guild_id(session)
-        )
+        await announce_post(session, post, author=author)
     return post_ids
 
 

@@ -21,10 +21,6 @@ does not hear from them — no notification row, so no email, no push, no unread
 count and no realtime frame — and because that is decided here, no fan-out
 carries a rule of its own.
 
-Each row also carries its holder's notification settings, read in the same
-session (``notification_prefs.prefs_for_delivery`` reads them back), so a
-fan-out resolves its whole audience's settings in the load that found them.
-
 The rows come back **detached**. Every column is loaded, so callers read them
 exactly as they read a request-loaded row; what a detached row cannot do is
 lazy-load a relationship or be written back, which is right for something the
@@ -68,7 +64,6 @@ async def load(
     # session module reaches back into configuration at import time.
     from app.db.session import SystemSessionLocal
     from app.models.platform.user_ignore import UserIgnore
-    from app.services.platform import notification_prefs
 
     statement = select(User).where(User.id.in_(tuple(wanted)))
     if excluding_ignorers_of is not None:
@@ -83,16 +78,8 @@ async def load(
 
     async with SystemSessionLocal() as system_session:
         rows = list((await system_session.exec(statement)).all())
-        # A recipient's notification settings ride on the row, read in the
-        # same session, so delivery never opens another one per person.
-        prefs = await notification_prefs.load_prefs_for(
-            system_session, [row.id for row in rows if row.id is not None]
-        )
         for row in rows:
             system_session.expunge(row)
-            object.__setattr__(
-                row, notification_prefs.DELIVERY_PREFS_ATTR, prefs.get(row.id, {})
-            )
     return {row.id: row for row in rows if row.id is not None}
 
 

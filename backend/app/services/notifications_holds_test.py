@@ -14,7 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.notification_categories import Channel
 from app.models.platform.notification import NotificationType
-from app.services.notifications.sweeps import _run_hold_summary_pass
+from app.services.notifications import _run_hold_summary_pass
 from app.services.platform import notification_prefs, user_notifications
 from app.services.platform.notification_prefs import HoldKind
 from app.testing import create_guild, create_user, set_notification_prefs

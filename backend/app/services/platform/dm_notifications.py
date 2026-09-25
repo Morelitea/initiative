@@ -308,7 +308,7 @@ async def _roll_up(
         # listed them back to themselves would be naming the one person who
         # already knows they are there.
         line["member_names"] = others
-    prefs = await notification_prefs.prefs_for_delivery(recipient)
+    prefs = await notification_prefs.load_prefs_for_delivery(recipient.id)
     written = existing
     if existing is None:
         written = await user_notifications.create_notification(

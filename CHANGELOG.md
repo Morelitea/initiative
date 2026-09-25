@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Account erasure emails arrive once** — the email confirming an account was erased could arrive twice. It now goes out once.
 - **Turning off password sign-in covers the app** — the app's email-and-password sign-in kept working after an operator turned password sign-in off. It is now refused like the browser's.
 - **A community's shorter session limit applies to every sign-in** — the app's sign-in, single sign-on, and the extra check a community asks for all gave out access that outlasted the limit. Only the browser's password sign-in kept to it before.
 - **API keys limited to one community stay in it** — such a key could still reach other communities through views that span communities, such as **My Tasks**, and through community sign-in settings and file links. It now reaches only its own community.

@@ -63,6 +63,7 @@ from app.models.tenant.initiative import (
     PermissionKey,
 )
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.models.platform.notification import NotificationType
 from app.models.platform.user import User
 from app.schemas.tenant.document import (
     DocumentCopyRequest,
@@ -82,7 +83,6 @@ from app.schemas.tenant.document import (
 from app.schemas.ai_generation import GenerateDocumentSummaryResponse
 from app.schemas.tenant.property import PropertyValuesSetRequest
 from app.services.tenant import attachments as attachments_service
-from app.services.tenant import audience as audience_service
 from app.services import storage_config
 from app.services.storage import build_upload_response, get_guild_storage
 from app.api import resource_access
@@ -93,7 +93,6 @@ from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import tool_listing
 from app.services import notifications as notifications_service
-from app.services.platform import accounts as accounts_service
 from app.services import permissions as permissions_service
 from app.services import reachability
 from app.services.tenant import properties as properties_service
@@ -1372,28 +1371,24 @@ async def notify_mentions(
         access="write",
         hydrated=True,
     )
-    # The notice names the document, so it goes only to people who can open it.
-    told = await audience_service.may_be_told(
-        session, (Tool.document, document.id), mentioned_user_ids
+    name = notifications_service.actor_name(current_user)
+    await notifications_service.notify(
+        session,
+        NotificationType.mention,
+        mentioned_user_ids,
+        about=(Tool.document.value, document.id),
+        key="mention.document",
+        values={"actor": name, "document": document.name},
+        data={
+            "document_id": document.id,
+            "mentioned_by_name": name,
+            "mentioned_by_id": current_user.id,
+        },
+        actor=current_user,
+        # The editor reports mentions as it saves: an unread line absorbs the
+        # next report rather than mailing again.
+        rollup_key=f"document-body:{document.id}",
     )
-    # Who to tell is a question about their account, so it is asked where an
-    # account may be read.
-    recipients = await accounts_service.load(
-        told, excluding_ignorers_of=current_user.id
-    )
-    for user_id in told:
-        mentioned_user = recipients.get(user_id)
-        if not mentioned_user:
-            continue
-        await notifications_service.notify_document_mention(
-            session,
-            mentioned_user=mentioned_user,
-            mentioned_by=current_user,
-            document_id=document.id,
-            document_name=document.name,
-            guild_id=guild_context.guild_id,
-            initiative_id=document.initiative_id,
-        )
     await session.commit()
 
 

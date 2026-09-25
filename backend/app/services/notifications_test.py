@@ -37,14 +37,14 @@ from app.services.notifications import (
     ASSIGNMENT_ITEM_RETENTION,
     ASSIGNMENT_MAX_WINDOW,
     ASSIGNMENT_QUIET_PERIOD,
-    notify_initiative_membership,
+    notify,
 )
-from app.services.notifications.digests import (
+from app.services.notifications import (
     _run_assignment_digest_pass,
     _run_assignment_gc_pass,
 )
-from app.services.notifications.notifiers import _format_event_when
-from app.services.notifications.sweeps import (
+from app.services.notifications import event_when
+from app.services.notifications import (
     _run_event_reminder_pass,
     _run_overdue_pass,
 )
@@ -150,10 +150,10 @@ def test_format_event_when_localizes_to_recipient_timezone():
         all_day=False,
     )
     la = _unsaved_user("America/Los_Angeles")
-    assert _format_event_when(event, la) == "Wed, Jul 1, 2026 at 2:30 PM PDT"
+    assert event_when(event, la) == "Wed, Jul 1, 2026 at 2:30 PM PDT"
 
     utc_user = _unsaved_user("UTC")
-    assert _format_event_when(event, utc_user) == "Wed, Jul 1, 2026 at 9:30 PM UTC"
+    assert event_when(event, utc_user) == "Wed, Jul 1, 2026 at 9:30 PM UTC"
 
 
 @pytest.mark.unit
@@ -165,7 +165,7 @@ def test_format_event_when_all_day_omits_time_and_zone():
         end_at=datetime(2026, 7, 1, 23, 59, tzinfo=timezone.utc),
         all_day=True,
     )
-    assert _format_event_when(event, _unsaved_user("Asia/Tokyo")) == "Wed, Jul 1, 2026"
+    assert event_when(event, _unsaved_user("Asia/Tokyo")) == "Wed, Jul 1, 2026"
 
 
 @pytest.mark.unit
@@ -177,7 +177,7 @@ def test_format_event_when_falls_back_on_bad_timezone():
         end_at=datetime(2026, 7, 1, 22, 30, tzinfo=timezone.utc),
         all_day=False,
     )
-    assert _format_event_when(event, _unsaved_user("Not/AZone")) == (
+    assert event_when(event, _unsaved_user("Not/AZone")) == (
         "Wed, Jul 1, 2026 at 9:30 PM UTC"
     )
 
@@ -314,7 +314,7 @@ async def test_event_reminder_skips_declined_attendees(session: AsyncSession):
 
 
 @pytest.mark.integration
-async def test_notify_initiative_membership_carries_guild_context(
+async def test_a_community_notice_carries_its_guild(
     session: AsyncSession,
 ):
     """The initiative_added notification must carry its guild so the merged
@@ -324,13 +324,17 @@ async def test_notify_initiative_membership_carries_guild_context(
     initiative = await create_initiative(session, guild, creator, name="Onboarding")
     member = await create_user(session, email="ini-member@example.com")
 
-    await notify_initiative_membership(
+    await set_rls_context(session, guild_id=guild.id)
+    await notify(
         session,
-        member,
-        initiative_id=initiative.id,
-        initiative_name=initiative.name,
-        guild_id=guild.id,
+        NotificationType.initiative_added,
+        [member.id],
+        about=None,
+        key="initiative.added",
+        values={"initiative": initiative.name},
+        data={"initiative_id": initiative.id, "target_path": f"/i/{initiative.id}"},
     )
+    await set_rls_context(session)
 
     notifs = (
         await session.exec(
@@ -1059,7 +1063,7 @@ async def test_reaction_digest_gathers_across_guilds_and_marks_processed(
     so it must show the same cross-guild behaviour: gather from every guild the
     user belongs to, send once, mark processed in each schema."""
     from app.models.tenant.reaction_digest import ReactionDigestItem
-    from app.services.notifications.reactions import _run_reaction_digest_pass
+    from app.services.notifications import _run_reaction_digest_pass
 
     user = await create_user(session, email="reaction-digest@example.com")
     guild_a = await _reaction_item_in_new_guild(session, user, label="Alpha")
@@ -1101,7 +1105,7 @@ async def test_reaction_digest_waits_for_the_flurry_to_end(
 ):
     """Reactions arrive in bursts more than anything else in the app, so the
     quiet period matters most here."""
-    from app.services.notifications.reactions import _run_reaction_digest_pass
+    from app.services.notifications import _run_reaction_digest_pass
 
     user = await create_user(session, email="reaction-debounce@example.com")
     await _reaction_item_in_new_guild(session, user, label="Alpha")
@@ -1139,7 +1143,7 @@ async def test_reaction_digest_waits_for_the_flurry_to_end(
 async def test_reaction_digest_respects_the_opt_out(session: AsyncSession, monkeypatch):
     """The reaction gate is its own: switching reactions off must not need the
     mention or assignment preferences touched, and must not silence them."""
-    from app.services.notifications.reactions import _run_reaction_digest_pass
+    from app.services.notifications import _run_reaction_digest_pass
 
     user = await create_user(
         session,
@@ -1175,7 +1179,7 @@ class TestReactionBellRollup:
     makes of a line written before reactions rolled up at all."""
 
     def test_a_pre_rollup_line_counts_as_the_one_reaction_it_named(self):
-        from app.services.notifications.reactions import (
+        from app.services.notifications import (
             _rolled_up_count,
             _rolled_up_reactions,
         )
@@ -1196,7 +1200,7 @@ class TestReactionBellRollup:
         ]
 
     def test_an_empty_payload_stands_for_nothing(self):
-        from app.services.notifications.reactions import (
+        from app.services.notifications import (
             _rolled_up_count,
             _rolled_up_reactions,
         )
@@ -1208,7 +1212,7 @@ class TestReactionBellRollup:
         """The detail rolls off; what the sentence says must not. A line that
         forgot its oldest reactions still knows how big its crowd is."""
         from app.services.notifications import MAX_ROLLED_UP_REACTIONS
-        from app.services.notifications.reactions import _reaction_line
+        from app.services.notifications import _reaction_line
 
         entries = [
             {
@@ -1239,7 +1243,7 @@ class TestReactionBellRollup:
         """A cap on the roster would be a cap on the truth — the count would
         freeze on exactly the comment where the number matters most."""
         from app.services.notifications import MAX_ROLLED_UP_REACTIONS
-        from app.services.notifications.reactions import _reaction_line
+        from app.services.notifications import _reaction_line
 
         crowd = list(range(MAX_ROLLED_UP_REACTIONS * 10))
         line = _reaction_line(
@@ -1264,7 +1268,7 @@ class TestReactionBellRollup:
         assert len(line["reactions"]) == MAX_ROLLED_UP_REACTIONS
 
     def test_a_pre_roster_line_reads_its_crowd_off_the_reactions_it_kept(self):
-        from app.services.notifications.reactions import _rolled_up_reactor_ids
+        from app.services.notifications import _rolled_up_reactor_ids
 
         assert _rolled_up_reactor_ids(
             {
@@ -1283,7 +1287,7 @@ class TestReactionBellRollup:
     def test_a_pre_rollup_gesture_is_matched_by_who_reacted_and_with_what(self):
         """Such a line carries no reaction id, so an un-react would never match
         it on id alone and the line would keep claiming the reaction stands."""
-        from app.services.notifications.reactions import _matches_withdrawn
+        from app.services.notifications import _matches_withdrawn
 
         legacy = {
             "id": None,
@@ -1367,3 +1371,31 @@ async def test_withdrawal_keeps_a_reactor_whose_other_gesture_rolled_off(
     # him leaving.
     assert bob in line.data["reactor_ids"]
     assert line.data["reactor_count"] == 25
+
+
+@pytest.mark.integration
+async def test_two_passes_at_once_send_one_digest(session: AsyncSession, monkeypatch):
+    """Items are taken by the statement that reads them, so two passes sweeping
+    at the same moment send one digest between them."""
+    import asyncio
+
+    from app.db.session import SystemSessionLocal
+
+    user = await create_user(session, email="claimed-digest@example.com")
+    await _assignment_item_in_new_guild(session, user, label="Gamma")
+    sent: list[int] = []
+
+    async def _capture_email(sess, recipient, **kwargs):
+        sent.append(recipient.id)
+        return True
+
+    monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
+    now = datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+
+    async def _pass() -> None:
+        async with SystemSessionLocal() as own:
+            await _run_assignment_digest_pass(own, now=now)
+
+    await asyncio.gather(_pass(), _pass())
+
+    assert sent == [user.id]

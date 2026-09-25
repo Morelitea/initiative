@@ -131,7 +131,7 @@ async def _write(
         "target_path": target_path,
     }
 
-    prefs = await notification_prefs.prefs_for_delivery(recipient)
+    prefs = await notification_prefs.load_prefs_for_delivery(recipient.id)
     await user_notifications.create_notification(
         session,
         user_id=recipient.id,

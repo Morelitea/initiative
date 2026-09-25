@@ -264,6 +264,41 @@ async def test_the_purge_waits_out_the_window_then_erases(
     assert row.status == UserStatus.anonymized
 
 
+async def test_each_account_is_erased_and_told_once(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """An account another sweep is erasing is left to it, and one already
+    erased is not erased again: the receipt goes once."""
+    from app.db.session import SystemSessionLocal
+    from app.services import email as email_service
+
+    letters: list[list[str]] = []
+
+    async def _record(_session, *, recipients, locale="en"):
+        letters.append(list(recipients))
+
+    monkeypatch.setattr(email_service, "announce_account_erased", _record)
+    user = await create_user(session)
+    await _delete_own_account(client, user)
+    session.expunge_all()
+    later = datetime.now(timezone.utc) + timedelta(
+        days=DEFAULT_ACCOUNT_RETENTION_DAYS + 1
+    )
+
+    async with SystemSessionLocal() as other_sweep:
+        await other_sweep.exec(
+            select(User.id).where(User.id == user.id).with_for_update()
+        )
+        assert await account_purge.purge_due_accounts(session, now=later) == 0
+        await other_sweep.rollback()
+
+    session.expunge_all()
+    assert await account_purge.purge_due_accounts(session, now=later) == 1
+    session.expunge_all()
+    assert await account_purge.purge_due_accounts(session, now=later) == 0
+    assert len(letters) == 1
+
+
 async def test_the_purge_leaves_every_other_status_alone(session: AsyncSession):
     """Somebody on a break is never erased by a timer."""
     kept: list[int] = []

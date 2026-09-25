@@ -1228,7 +1228,6 @@ def initiative_join_request_pieces(
     *,
     event: str,
     initiative_name: str,
-    link: str,
     requester: str | None = None,
     message: str | None = None,
 ) -> EmailPieces:
@@ -1239,8 +1238,8 @@ def initiative_join_request_pieces(
     initiative's managers and carries what they need to decide; the other two go
     to the requester and carry the outcome.
 
-    ``link`` is supplied by the caller because these are guild-scoped: it is the
-    guild-aware smart link, not a bare frontend path.
+    No link: these are guild-scoped, so the notice they ride on fills in its
+    guild-aware smart link.
     """
     locale = _user_locale(user)
     base = f"initiativeJoinRequest.{event}"
@@ -1268,7 +1267,6 @@ def initiative_join_request_pieces(
             requester=requester or "",
         )
         + note,
-        link=link,
         link_label=email_t(f"{base}.buttonLabel", locale=locale),
     )
 

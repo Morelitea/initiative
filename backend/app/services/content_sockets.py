@@ -1,10 +1,13 @@
-"""Every socket a guild page holds open, in one register.
+"""Every socket a page holds open, in one register.
 
 A guild page opens up to three kinds of socket: the events bus
 (``/c/{guild}/events/updates``), a change signal for one queue or counter group
 (``/c/{guild}/{tool}/{id}/ws``) and a collaboration room for one document body.
-They differ in what they carry. What they share is everything else, and that
-lives here once:
+Every page also holds the account's own socket (``/notifications/stream``),
+which belongs to no guild: it is registered with ``guild_id=None`` in its
+account's room, so it is re-checked here like the rest while its frames go out
+through ``app.services.platform.user_stream``. They differ in what they carry.
+What they share is everything else, and that lives here once:
 
 * **Rooms.** A socket sits in a set of rooms, each ``(guild_id, kind, id)``. The
   guild id is part of every key: content ids are per-schema sequences and
@@ -83,11 +86,12 @@ OUTBOX_LIMIT = 256
 #: credential for the same account reconnects with it.
 WS_CREDENTIAL_ENDED = 4001
 
-#: ``(guild_id, kind, id)``.
-RoomKey = tuple[int, str, int]
+#: ``(guild_id, kind, id)``; ``guild_id`` is ``None`` only for an account room.
+RoomKey = tuple[Optional[int], str, int]
 
 _GUILD = "guild"
 _INITIATIVE = "initiative"
+_ACCOUNT = "account"
 
 
 def guild_room(guild_id: int) -> RoomKey:
@@ -106,6 +110,11 @@ def resource_room(guild_id: int, kind: str, resource_id: int) -> RoomKey:
     return (guild_id, kind, resource_id)
 
 
+def account_room(user_id: int) -> RoomKey:
+    """An account's own sockets, which belong to no guild."""
+    return (None, _ACCOUNT, user_id)
+
+
 class Wire(enum.Enum):
     """What a socket's frames are. A JSON signal is never sent to a byte
     stream, and the other way round."""
@@ -118,6 +127,17 @@ class Wire(enum.Enum):
 #: already routed. The join and every re-check call it; ``None`` or an empty
 #: set refuses.
 Authorizer = Callable[[AsyncSession, User], Awaitable[Optional[frozenset[RoomKey]]]]
+
+
+async def account_authorizer(
+    _session: AsyncSession, user: User
+) -> Optional[frozenset[RoomKey]]:
+    """An account socket's rooms: its account's own, while the account is
+    active and the sign-in it was opened with stands (both asked before this
+    runs)."""
+    if user.id is None:
+        return None
+    return frozenset({account_room(user.id)})
 
 
 @dataclass(frozen=True)
@@ -168,7 +188,9 @@ class Subscriber:
 
     websocket: WebSocket
     user: User
-    guild_id: int
+    #: The guild the socket was admitted to, or ``None`` for an account socket:
+    #: its re-check is the credential and the account's standing alone.
+    guild_id: Optional[int]
     wire: Wire
     authorize: Authorizer
     credential: Credential
@@ -191,12 +213,17 @@ class Subscriber:
     #: The register it joined, which owns its writer.
     register: Optional["ContentSockets"] = field(default=None, repr=False)
 
+    def __post_init__(self) -> None:
+        # Read once: the row outlives the session that loaded it, and an
+        # expired attribute cannot be reloaded once that session has closed.
+        user_id = self.user.id
+        assert user_id is not None, "a socket is only opened by a stored account"
+        self._user_id: int = user_id
+
     @property
     def user_id(self) -> int:
-        """The account's id. A socket is only ever opened by a stored account."""
-        user_id = self.user.id
-        assert user_id is not None
-        return user_id
+        """The account's id."""
+        return self._user_id
 
     def send_json(self, message: Mapping[str, Any]) -> None:
         """Queue one JSON frame for this socket."""
@@ -455,7 +482,11 @@ class ContentSockets:
         try:
             async with request_sessionmaker(first.guild_id)() as session:
                 current = await session.get(User, first.user_id)
-                if current is not None and current.status == UserStatus.active:
+                if (
+                    current is not None
+                    and current.status == UserStatus.active
+                    and first.guild_id is not None
+                ):
                     # Present this socket's sign-in and nothing else: whatever
                     # the task that asked for the re-check had recorded (an
                     # API key, another session) is not this socket's.

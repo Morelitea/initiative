@@ -274,3 +274,50 @@ async def test_hanging_up_before_authenticating_registers_nothing(stream) -> Non
 
     assert websocket.accepted
     assert websocket.closed_with is None
+
+
+@pytest.mark.integration
+async def test_the_socket_closes_when_its_sign_in_ends(
+    session, stream, ws_sessions, monkeypatch
+) -> None:
+    """The bell is its account's socket in the register: a re-check while the
+    sign-in stands leaves it open, and one after the sign-in ends closes it."""
+    from sqlalchemy import update
+
+    from app.models.platform.user import User
+    from app.services.content_sockets import WS_CREDENTIAL_ENDED, ContentSockets
+
+    from app.services.auth import sessions as session_service
+
+    register = ContentSockets()
+    monkeypatch.setattr(notifications_endpoint, "sockets", register)
+    user = await create_user(session)
+    issued = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[]
+    )
+    await session.commit()
+    token = get_auth_token(user, session_id=issued.session.id)
+    websocket = FakeWebSocket([_auth_frame(f'{{"token": "{token}"}}'.encode())])
+    seen: list[int | None] = []
+    handshake = websocket.receive
+
+    async def receive() -> dict:
+        if websocket.pending:
+            return await handshake()
+        await register.revoke_user_everywhere(user.id)
+        seen.append(websocket.closed_with)
+        await session.exec(
+            update(User)
+            .where(User.id == user.id)
+            .values(token_version=User.token_version + 1)
+        )
+        await session.commit()
+        await register.revoke_user_everywhere(user.id)
+        seen.append(websocket.closed_with)
+        return {"type": "websocket.disconnect", "code": 1000}
+
+    monkeypatch.setattr(websocket, "receive", receive)
+    await websocket_notifications(websocket)
+
+    assert seen == [None, WS_CREDENTIAL_ENDED]
+    assert stream.socket_count(user.id) == 0

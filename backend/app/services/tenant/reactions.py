@@ -34,7 +34,6 @@ from app.models.tenant.comment import Comment
 from app.models.tenant.reaction import Reaction
 from app.models.platform.user import User
 from app.services.platform import accounts as accounts_service
-from app.services.tenant import audience as audience_service
 from app.schemas.tenant.reaction import ReactionGroup, ReactionSummary, ReactionUser
 
 logger = logging.getLogger(__name__)
@@ -89,8 +88,9 @@ class TargetContext:
     #: Where a notification about this belongs in the navigation.
     initiative_id: Optional[int] = None
     tool: Optional[str] = None
-    #: The tool row whose sharing decides who may hear about it.
-    anchor: Optional[audience_service.Anchor] = None
+    #: What a notice about it names: the reacted-to thing's own ``(kind, id)``
+    #: — a comment's thread, or the post.
+    about: Optional[tuple[str, int]] = None
 
 
 #: Resolver signature: load + authorize one target, or raise.
@@ -129,7 +129,7 @@ async def _resolve_comment(
         target_path=comments_service.comment_target_path(comment, ctx),
         author_id=comment.created_by,
         initiative_id=ctx.initiative_id,
-        anchor=ctx.anchor,
+        about=(cast(str, ctx.ref_type), ctx.entity_id),
         # A tool comment names its own tool; a task comment belongs to the
         # Projects list the task lives in.
         tool=(
@@ -192,7 +192,7 @@ async def _resolve_post(
         author_id=post.created_by,
         initiative_id=post.initiative_id,
         tool=Tool.post.value,
-        anchor=(Tool.post, cast(int, post.id)),
+        about=(Tool.post.value, cast(int, post.id)),
     )
 
 
@@ -438,7 +438,12 @@ async def _queue_reaction_notification(
         return
     # The line names what was reacted to, so it goes only to an author who can
     # still open it.
-    if not await audience_service.may_be_told(session, ctx.anchor, [ctx.author_id]):
+    subject = (
+        await notifications.resolve_subject(session, ctx.about)
+        if ctx.about is not None
+        else None
+    )
+    if subject is None or ctx.author_id not in subject.readers:
         return
     # On the system engine: whether they want to hear about this, and where to
     # write to, are facts about their account rather than about this guild.
