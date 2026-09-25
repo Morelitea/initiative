@@ -1111,7 +1111,6 @@ class TrashMessages:
 
 class GuildAppMessages:
     NOT_FOUND = "GUILD_APP_NOT_FOUND"
-    SUPERADMIN_REQUIRED = "GUILD_APP_SUPERADMIN_REQUIRED"
     #: The listing named is not an app, or names an app kind this build cannot
     #: install.
     NOT_AN_APP = "GUILD_APP_LISTING_NOT_AN_APP"

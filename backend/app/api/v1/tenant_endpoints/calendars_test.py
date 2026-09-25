@@ -8,7 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
 from app.models.tenant.calendar_event import CalendarEvent
-from app.models.tenant.resource_grant import ResourceGrant
+from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.testing import (
     strip_non_owner_grants,
     create_calendar,
@@ -17,6 +17,7 @@ from app.testing import (
     route_session_to_guild,
     create_initiative,
     create_guild_calendar,
+    create_resource_grant,
 )
 
 CALENDAR_APP = {
@@ -315,18 +316,25 @@ async def test_calendar_counts_by_initiative(
 # ---------------------------------------------------------------------------
 
 
-async def test_any_member_creates_a_guild_calendar(
+async def test_a_guild_calendar_is_the_admin_s_and_the_install_owns_it(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """No initiative means no initiative gate: an ordinary member may add a
-    calendar to the guild's own, and owns what they made."""
+    """No initiative means no initiative gate: a guild calendar is the guild
+    admin's to make. The calendar app's install owns it, which is what makes it
+    one of the app's artifacts and what uninstalling trashes."""
     admin = await acting_user(guild_role=GuildRole.admin)
-    await _install_calendar_app(session, admin.guild, admin.user)
+    app = await _install_calendar_app(session, admin.guild, admin.user)
     member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
 
+    refused = await client.post(
+        member.g("/calendars/"), headers=member.headers, json={"name": "Holidays"}
+    )
+    assert refused.status_code == 403
+    assert refused.json()["detail"] == "GUILD_ADMIN_REQUIRED"
+
     response = await client.post(
-        member.g("/calendars/"),
-        headers=member.headers,
+        admin.g("/calendars/"),
+        headers=admin.headers,
         json={"name": "Holidays", "color": "#22c55e"},
     )
     assert response.status_code == 201, response.text
@@ -343,69 +351,50 @@ async def test_any_member_creates_a_guild_calendar(
             )
         )
     ).all()
-    # The creator owns it, and the default sharing reads as the whole guild.
-    assert {(g.user_id, str(g.level), g.all_initiative_members) for g in grants} == {
-        (member.user.id, "owner", False),
-        (None, "read", True),
-    }
+    # The install owns it, and the default sharing reads as the whole guild.
+    assert {
+        (g.app_install_id, g.user_id, str(g.level), g.all_initiative_members)
+        for g in grants
+    } == {(app.id, None, "owner", False), (None, None, "read", True)}
     assert all(g.initiative_id is None for g in grants)
 
+    listed = await client.get(admin.g(f"/apps/{app.id}"), headers=admin.headers)
+    assert listed.json()["artifacts"] == [{"type": "calendar", "id": body["id"]}]
 
-async def test_a_guild_calendar_joins_the_app_s_artifacts(
+
+async def test_a_write_grant_writes_a_guild_calendar_s_events(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """The app is the container: removing it walks its artifacts, so a calendar
-    added later has to be among them."""
-    a = await acting_user(guild_role=GuildRole.admin)
-    app = await _install_calendar_app(session, a.guild, a.user)
-
-    response = await client.post(
-        a.g("/calendars/"), headers=a.headers, json={"name": "Holidays"}
+    """The admin decides who writes what a guild calendar holds. Writing the
+    calendar itself stays the admin's."""
+    admin = await acting_user(guild_role=GuildRole.admin)
+    app = await _install_calendar_app(session, admin.guild, admin.user)
+    calendar = await create_guild_calendar(session, admin.guild, admin.user, app=app)
+    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    await create_resource_grant(
+        session, calendar, level=ResourceAccessLevel.write, user=member.user
     )
-    assert response.status_code == 201, response.text
 
-    await route_session_to_guild(session, a.guild.id)
-    await session.refresh(app)
-    assert app.artifacts == [{"type": "calendar", "id": response.json()["id"]}]
-
-
-async def test_a_calendar_joins_artifacts_it_never_saw(
-    session: AsyncSession, acting_user
-):
-    """Any member may add a calendar, so two of them can be adding one at the
-    same moment. The append is made against the stored list rather than against
-    a copy of it, so an entry written since this one was read still survives —
-    otherwise it would stop being something the app removes."""
-    from sqlalchemy import update
-
-    from app.models.tenant.guild_app import GuildApp
-    from app.services.tenant import guild_apps as guild_apps_service
-
-    a = await acting_user(guild_role=GuildRole.admin)
-    app = await _install_calendar_app(session, a.guild, a.user)
-    calendar = await create_guild_calendar(session, a.guild, a.user)
-
-    # Someone else's calendar lands first; this copy of the row knows nothing
-    # about it.
-    await route_session_to_guild(session, a.guild.id)
-    await session.exec(
-        update(GuildApp)
-        .where(GuildApp.id == app.id)
-        .values(artifacts=[{"type": "calendar", "id": calendar.id}])
-        .execution_options(synchronize_session=False)
+    renamed = await client.patch(
+        member.g(f"/calendars/{calendar.id}"),
+        headers=member.headers,
+        json={"name": "Mine now"},
     )
-    await session.commit()
+    assert renamed.status_code == 403
+    assert renamed.json()["detail"] == "GUILD_ADMIN_REQUIRED"
 
-    await guild_apps_service.record_artifact(
-        session, app, artifact_type="calendar", artifact_id=999
+    event = await client.post(
+        member.g("/calendar-events/"),
+        headers=member.headers,
+        json={
+            "calendar_id": calendar.id,
+            "title": "Club night",
+            "start_at": "2026-07-01T19:00:00Z",
+            "end_at": "2026-07-01T22:00:00Z",
+            "all_day": False,
+        },
     )
-    await session.commit()
-
-    await session.refresh(app)
-    assert app.artifacts == [
-        {"type": "calendar", "id": calendar.id},
-        {"type": "calendar", "id": 999},
-    ]
+    assert event.status_code == 201, event.text
 
 
 async def test_a_guild_calendar_needs_the_app(

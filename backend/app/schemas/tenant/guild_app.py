@@ -30,7 +30,6 @@ from app.schemas.base import SanitizedBaseModel
 from app.services.marketplace.registration_lookup import InstallState
 from app.services.tenant import app_config as app_config_service
 from app.services.tenant.guild_apps import (
-    app_artifacts,
     grantable_scopes,
     requested_scopes,
     surface_openability,
@@ -473,6 +472,7 @@ def serialize_guild_app(
     install_state: Optional[InstallState] = None,
     avatar_url: Optional[str] = None,
     placements: Sequence[Any] = (),
+    artifacts: Sequence[Dict[str, Any]] = (),
 ) -> GuildAppRead:
     """One install as the client sees it.
 
@@ -480,7 +480,8 @@ def serialize_guild_app(
     (§7.7): whether the platform provides it, and whether it can be reached at
     all. It is passed in rather than looked up here so a list of installs
     resolves it once. ``placements`` are the install's ``app_placements`` rows,
-    loaded by the caller for the same reason.
+    and ``artifacts`` what it owns at guild scope, loaded by the caller for the
+    same reason.
     """
     definition = app.definition or {}
     state = app_config_service.config_state(app)
@@ -501,7 +502,7 @@ def serialize_guild_app(
         name=app.name,
         enabled=app.enabled,
         auto_update=app.auto_update,
-        artifacts=[GuildAppArtifact(**artifact) for artifact in app_artifacts(app)],
+        artifacts=[GuildAppArtifact(**artifact) for artifact in artifacts],
         needs_config=state.needs_config,
         config_state=state.state,
         config_state_detail=state.detail,
@@ -593,6 +594,7 @@ def serialize_guild_app_detail(
     avatar_url: Optional[str] = None,
     update_offer: Any = None,
     placements: Sequence[Any] = (),
+    artifacts: Sequence[Dict[str, Any]] = (),
     consent_rows: Sequence[Any] = (),
     app_names: Optional[Dict[str, str]] = None,
 ) -> GuildAppDetail:
@@ -607,6 +609,7 @@ def serialize_guild_app_detail(
         install_state=install_state,
         avatar_url=avatar_url,
         placements=placements,
+        artifacts=artifacts,
     )
     connections = [
         serialize_connection(

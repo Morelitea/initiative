@@ -11,7 +11,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.messages import GuildAppMessages
+from app.core.messages import GuildAppMessages, GuildMessages
 from app.models.platform.guild import GuildRole
 from app.models.tenant.guild_app import GuildApp
 from app.services.tenant.initiatives import get_role_by_name
@@ -195,7 +195,7 @@ class TestConsentAtInstall:
         response = await _install(client, a, granted_scopes=["projects:read"])
 
         assert response.status_code == 403
-        assert response.json()["detail"] == GuildAppMessages.SUPERADMIN_REQUIRED
+        assert response.json()["detail"] == GuildMessages.GUILD_SUPERADMIN_REQUIRED
 
 
 class TestTheListingSaysWhatTheDialogAsks:

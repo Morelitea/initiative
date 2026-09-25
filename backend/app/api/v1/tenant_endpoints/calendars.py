@@ -6,9 +6,9 @@ the calendar flows from its resource-grant DAC (``resource_grants`` +
 ``PUT /{id}/grants``). Events themselves carry no grants.
 
 A calendar with no initiative is a **guild calendar** — it belongs to the guild
-itself, and lives inside the calendar app. There is no initiative to gate its
-creation, so guild membership is the gate: any member may make one, and what
-they made is theirs to share. See ``history/guild-calendars-design.md``.
+itself, and lives inside the calendar app, whose install owns it. Guild admins
+make one and decide its sharing; a member with a write grant on it writes its
+events. See ``history/guild-calendars-design.md``.
 """
 
 from datetime import datetime, timezone
@@ -30,7 +30,7 @@ from app.api.deps import (
     app_scope,
     get_guild_membership,
 )
-from app.core.messages import CalendarMessages
+from app.core.messages import CalendarMessages, GuildMessages
 from app.core.tools import Tool
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.guild_app import GuildApp
@@ -41,9 +41,11 @@ from app.schemas.tenant.calendar import (
     CalendarUpdate,
     serialize_calendar,
 )
+from app.services import permissions as permissions_service
 from app.services.permissions import Action
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import guild_apps as guild_apps_service
+from app.services.tenant import ownership as ownership_service
 from app.services.tenant import tags as tags_service
 
 router = APIRouter(route_class=ActorRoute)
@@ -99,18 +101,17 @@ async def create_calendar(
     current_user: ActorUserDep,
     guild_context: CalendarsWrite,
 ) -> CalendarRead:
-    """Create a calendar; the creator gets the owner grant.
+    """Create a calendar.
 
     Two scopes, two gates. An **initiative** calendar needs that initiative's
     calendars switch on and the ``create_calendars`` permission (or guild
-    admin). A **guild** calendar — ``initiative_id`` omitted — belongs to no
-    initiative, so neither has anything to say about it: guild membership is the
-    gate, which ``GuildContextDep`` has already established. What it needs
-    instead is the calendar app, which is what holds it and what its removal
-    takes with it.
+    admin), and its creator gets the owner grant. A **guild** calendar —
+    ``initiative_id`` omitted — belongs to no initiative, so neither has
+    anything to say about it: it is the guild admin's to make. It needs the
+    calendar app, whose install owns it and whose removal takes it along.
 
     An installed app creates initiative calendars only: a guild calendar is
-    recorded on the calendar app's install, which is community configuration.
+    owned by the calendar app's install, which is community configuration.
     What it creates is owned by its install, whose owner row the table's
     trigger writes; it sets no initial sharing.
     """
@@ -124,14 +125,13 @@ async def create_calendar(
             detail=CalendarMessages.APP_INITIATIVE_REQUIRED,
         )
     if initiative_id is None:
-        # Held until this request commits, so the calendar and the app it
-        # belongs to cannot part company midway: an uninstall arriving now waits
-        # and takes this calendar with it.
+        if not guild_context.is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=GuildMessages.GUILD_ADMIN_REQUIRED,
+            )
         app = await guild_apps_service.find_mounting_app(
-            session,
-            guild_id=guild_context.guild_id,
-            tool=Tool.calendar.value,
-            for_update=True,
+            session, tool=Tool.calendar.value
         )
         if app is None:
             raise HTTPException(
@@ -153,23 +153,37 @@ async def create_calendar(
     session.add(calendar)
     await session.flush()
 
-    # The default sharing, at guild scope, reads as every member of the guild.
-    await resource_access.grant_initial_sharing(
-        session,
-        guild_context,
-        Tool.calendar,
-        user=current_user,
-        resource_id=calendar.id,
-        initiative_id=initiative_id,
-        payload=calendar_in,
-        grants=calendar_in.grants,
-    )
-
-    # The app is the container, so it is answerable for this too: uninstalling
-    # walks its artifacts and trashes each one.
-    if app is not None:
-        await guild_apps_service.record_artifact(
-            session, app, artifact_type=Tool.calendar.value, artifact_id=calendar.id
+    if app is None:
+        await resource_access.grant_initial_sharing(
+            session,
+            guild_context,
+            Tool.calendar,
+            user=current_user,
+            resource_id=calendar.id,
+            initiative_id=initiative_id,
+            payload=calendar_in,
+            grants=calendar_in.grants,
+        )
+    else:
+        # The app is the container, so it owns this: uninstalling trashes what
+        # the install owns. The owner grant names the install row, so an
+        # uninstall holding that row finishes first and this insert fails.
+        await ownership_service.set_resource_owner(
+            session,
+            tool=Tool.calendar,
+            row=calendar,
+            new_owner=ownership_service.Owner(app_install_id=app.id),
+        )
+        # The default sharing, at guild scope, reads as every member of the guild.
+        await permissions_service.replace_resource_grants(
+            session,
+            resource_type=Tool.calendar.value,
+            resource_id=calendar.id,
+            guild_id=guild_context.guild_id,
+            initiative_id=None,
+            owner_id=None,
+            grants=calendar_in.grants,
+            actor_user_id=guild_context.user_id,
         )
 
     if calendar_in.tag_ids:
@@ -196,7 +210,8 @@ async def update_calendar(
     current_user: ActorUserDep,
     guild_context: CalendarsWrite,
 ) -> CalendarRead:
-    """Rename/update a calendar. Requires write access."""
+    """Rename/update a calendar. Requires write access, and a guild calendar
+    the guild admin: a write grant on one writes its events."""
     calendar = await resource_access.load_authorized(
         session,
         Tool.calendar,
@@ -205,6 +220,11 @@ async def update_calendar(
         guild_context,
         access="write",
     )
+    if calendar.initiative_id is None and not guild_context.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildMessages.GUILD_ADMIN_REQUIRED,
+        )
     updated = False
     update_data = calendar_in.model_dump(exclude_unset=True)
 

@@ -39,6 +39,7 @@ from app.core.config import settings
 from app.core.messages import (
     AppServiceMessages,
     GuildAppMessages,
+    GuildMessages,
     InitiativeMessages,
 )
 from app.models.platform.publisher import Publisher
@@ -1105,13 +1106,13 @@ class TestPlacementRoutes:
             json={"role_ids": []},
         )
         assert put.status_code == 403
-        assert put.json()["detail"] == GuildAppMessages.SUPERADMIN_REQUIRED
+        assert put.json()["detail"] == GuildMessages.GUILD_SUPERADMIN_REQUIRED
 
         removed = await client.delete(
             self._path(admin, app.id, a.initiative.id), headers=admin.headers
         )
         assert removed.status_code == 403
-        assert removed.json()["detail"] == GuildAppMessages.SUPERADMIN_REQUIRED
+        assert removed.json()["detail"] == GuildMessages.GUILD_SUPERADMIN_REQUIRED
 
     async def test_a_role_of_another_initiative_is_refused(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
@@ -1289,7 +1290,7 @@ class TestScopesRoute:
                 json={"granted": ["projects:read"]},
             )
             assert response.status_code == 403, role
-            assert response.json()["detail"] == GuildAppMessages.SUPERADMIN_REQUIRED
+            assert response.json()["detail"] == GuildMessages.GUILD_SUPERADMIN_REQUIRED
 
 
 class TestHandoffWithoutASigningKey:

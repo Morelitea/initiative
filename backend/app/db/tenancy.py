@@ -213,11 +213,9 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         "guild_settings",
         # Installed apps: guild-wide by definition, and readable by any member —
         # the sidebar has to know an app is there. Installing, configuring and
-        # removing are gated at the endpoint (the seat); what a member may do
+        # removing are the seat's (SEAT_TABLES below); what a member may do
         # *inside* an app is decided by that instance's own grants, not by this
-        # row. Not in SEAT_TABLES: a member adding a guild calendar locks the
-        # install and appends to its ``artifacts``, and a member disconnecting
-        # their own account locks it too.
+        # row.
         "guild_apps",
         # Where an install appears, one row per initiative, with the roles
         # allowed to open it there. A fact about the install rather than
@@ -326,7 +324,9 @@ OWN_ROW_TABLES: dict[str, str] = {
 # ``app.db.guild_ddl._SEAT_TRIGGER_WRITTEN_INSERT``. Rendered as ``seat_*`` policies by
 # ``app.db.guild_ddl.render_guild_rls_ddl``. Every entry here MUST also be in
 # ``GUILD_LEVEL_TABLES`` — enforced in ``tenancy_test.py``.
-SEAT_TABLES: frozenset[str] = frozenset({"app_placements", "guild_ai_connections"})
+SEAT_TABLES: frozenset[str] = frozenset(
+    {"app_placements", "guild_ai_connections", "guild_apps"}
+)
 
 # --- Ledger overlay on guild-level tables -------------------------------------
 # Guild-level bookkeeping a system job keeps about a parent row: table ->

@@ -1146,14 +1146,15 @@ async def create_guild_calendar(
     *,
     name: str | None = None,
     shared_with_everyone: bool = True,
+    app: GuildApp | None = None,
     **overrides: Any,
 ) -> Calendar:
     """A guild calendar — the one the calendar app installs.
 
     Belongs to no initiative, which is the whole of what makes it different: it
-    holds its own events and reaches into nothing. Mirrors what
-    ``guild_apps.create_app_artifacts`` builds, so a test exercises the same row
-    an install produces rather than an approximation of one.
+    holds its own events and reaches into nothing. Given ``app``, it is what
+    ``guild_apps.create_app_artifacts`` builds: owned by that install. Without
+    one, ``creator`` owns it.
     """
     await route_session_to_guild(session, guild.id)
 
@@ -1170,7 +1171,12 @@ async def create_guild_calendar(
     await session.refresh(calendar)
 
     await create_resource_grant(
-        session, calendar, level=ResourceAccessLevel.owner, user=creator, commit=False
+        session,
+        calendar,
+        level=ResourceAccessLevel.owner,
+        user=creator if app is None else None,
+        app_install_id=app.id if app is not None else None,
+        commit=False,
     )
     if shared_with_everyone:
         # At guild scope the everyone grant reads as every member of the guild.

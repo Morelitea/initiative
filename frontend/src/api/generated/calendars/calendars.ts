@@ -461,18 +461,17 @@ export function useListCalendarsApiV1CGuildIdCalendarsGet<
 }
 
 /**
- * Create a calendar; the creator gets the owner grant.
+ * Create a calendar.
  *
  * Two scopes, two gates. An **initiative** calendar needs that initiative's
  * calendars switch on and the ``create_calendars`` permission (or guild
- * admin). A **guild** calendar — ``initiative_id`` omitted — belongs to no
- * initiative, so neither has anything to say about it: guild membership is the
- * gate, which ``GuildContextDep`` has already established. What it needs
- * instead is the calendar app, which is what holds it and what its removal
- * takes with it.
+ * admin), and its creator gets the owner grant. A **guild** calendar —
+ * ``initiative_id`` omitted — belongs to no initiative, so neither has
+ * anything to say about it: it is the guild admin's to make. It needs the
+ * calendar app, whose install owns it and whose removal takes it along.
  *
  * An installed app creates initiative calendars only: a guild calendar is
- * recorded on the calendar app's install, which is community configuration.
+ * owned by the calendar app's install, which is community configuration.
  * What it creates is owned by its install, whose owner row the table's
  * trigger writes; it sets no initial sharing.
  * @summary Create Calendar
@@ -761,7 +760,8 @@ export function useReadCalendarApiV1CGuildIdCalendarsCalendarIdGet<
 }
 
 /**
- * Rename/update a calendar. Requires write access.
+ * Rename/update a calendar. Requires write access, and a guild calendar
+ * the guild admin: a write grant on one writes its events.
  * @summary Update Calendar
  */
 export const updateCalendarApiV1CGuildIdCalendarsCalendarIdPatch = (

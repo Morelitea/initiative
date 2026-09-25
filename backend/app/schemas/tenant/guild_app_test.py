@@ -73,7 +73,6 @@ def _app(**overrides) -> SimpleNamespace:
             "config_secrets": {"admin": {"admin_token": SECRET_CIPHERTEXT}},
             "config_state": "ok",
             "config_state_detail": None,
-            "artifacts": [],
             "granted_scopes": [],
             "created_by": 11,
             "created_at": now,

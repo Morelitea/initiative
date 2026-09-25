@@ -43,6 +43,10 @@ from app.db.session import routed_guild_id
 from app.api.deps import (
     GuildContext,
     RLSSessionDep,
+    SeatContextDep,
+    SeatSessionDep,
+    SeatWriteContextDep,
+    SeatWriteSessionDep,
     get_current_active_user,
     get_guild_membership,
     require_first_party_session,
@@ -245,8 +249,8 @@ async def _load(
 
     ``for_update`` holds the row for the rest of the transaction — see
     :func:`~app.services.tenant.guild_apps.lock_install`. Anything that rewrites
-    a value on this row wants it: removal reads the list of what the install is
-    answerable for, and a connect writes the handle map, both of which someone
+    a value on this row wants it: removal reads what the install owns, and a
+    connect writes the handle map, both of which someone
     else may be changing at the same moment.
     """
     app = (
@@ -379,6 +383,9 @@ async def list_guild_apps(
     placements = await guild_apps_service.placements_by_install(
         session, [app.id for app in apps]
     )
+    artifacts = await guild_apps_service.artifacts_by_install(
+        session, [app.id for app in apps]
+    )
     return GuildAppListResponse(
         items=[
             serialize_guild_app(
@@ -387,6 +394,7 @@ async def list_guild_apps(
                 avatar_url=avatars.get(app.listing_uid),
                 context=guild_context,
                 placements=placements.get(app.id, []),
+                artifacts=artifacts.get(app.id, []),
             )
             for app in apps
         ]
@@ -417,6 +425,7 @@ async def get_guild_app(
         app_names=await _app_names(session, app, offer),
         context=guild_context,
         placements=await _placements(session, app),
+        artifacts=await guild_apps_service.app_artifacts(session, app),
         consent_rows=await consents_service.list_member_consents(
             session, install_id=app.id, user_id=current_user.id
         ),
@@ -426,9 +435,9 @@ async def get_guild_app(
 @router.post("/", response_model=GuildAppRead, status_code=status.HTTP_201_CREATED)
 async def install_guild_app(
     payload: GuildAppInstall,
-    session: RLSSessionDep,
+    session: SeatWriteSessionDep,
     current_user: CurrentUser,
-    guild_context: GuildContextDep,
+    guild_context: SeatWriteContextDep,
 ) -> GuildAppRead:
     """Install a listing as a guild app.
 
@@ -447,7 +456,6 @@ async def install_guild_app(
     that exists now), and the built-in roles that open it in each. Anything
     refused is refused before the install exists.
     """
-    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     unknown_roles = set(payload.role_kinds) - set(guild_apps_service.BUILTIN_ROLE_NAMES)
     if unknown_roles:
         raise HTTPException(
@@ -522,6 +530,7 @@ async def install_guild_app(
         avatar_url=await _app_avatar(session, app),
         context=guild_context,
         placements=await _placements(session, app),
+        artifacts=await guild_apps_service.app_artifacts(session, app),
     )
     await _count_install(guild_context.guild_id, listing.id)
     return installed
@@ -530,9 +539,9 @@ async def install_guild_app(
 @router.post("/{app_id}/upgrade", response_model=GuildAppDetail)
 async def upgrade_guild_app(
     app_id: int,
-    session: RLSSessionDep,
+    session: SeatWriteSessionDep,
     current_user: CurrentUser,
-    guild_context: GuildContextDep,
+    guild_context: SeatWriteContextDep,
     payload: Optional[GuildAppUpgrade] = None,
 ) -> GuildAppDetail:
     """Re-pin an installed app to its listing's current version, now.
@@ -554,7 +563,6 @@ async def upgrade_guild_app(
     with it. Without it the answer is 409, carrying what the version asks
     for; so is a consent naming a version the catalog no longer offers.
     """
-    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     # Upgrading prunes both configuration maps to the new definition, so it
     # takes the row: an app writing a flow's result back at the same moment
     # must land on one side of the prune or the other.
@@ -648,6 +656,7 @@ async def upgrade_guild_app(
         app_names=await _app_names(session, app, offer),
         context=guild_context,
         placements=await _placements(session, app),
+        artifacts=await guild_apps_service.app_artifacts(session, app),
     )
 
 
@@ -655,9 +664,9 @@ async def upgrade_guild_app(
 async def decline_guild_app_upgrade(
     app_id: int,
     payload: GuildAppDecline,
-    session: RLSSessionDep,
+    session: SeatWriteSessionDep,
     current_user: CurrentUser,
-    guild_context: GuildContextDep,
+    guild_context: SeatWriteContextDep,
 ) -> GuildAppDetail:
     """Keep the pinned version, and stop being asked about this one.
 
@@ -665,7 +674,6 @@ async def decline_guild_app_upgrade(
     The sweep does not ask about the declined version again; a newer one is
     asked about afresh. Accepting it later is still the Update button.
     """
-    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     app = await _load(session, app_id, for_update=True)
     offer = await app_updates_service.update_offer(session, app)
     if offer is None:
@@ -701,6 +709,7 @@ async def decline_guild_app_upgrade(
         app_names=await _app_names(session, app, offer),
         context=guild_context,
         placements=await _placements(session, app),
+        artifacts=await guild_apps_service.app_artifacts(session, app),
     )
 
 
@@ -708,9 +717,9 @@ async def decline_guild_app_upgrade(
 async def update_guild_app(
     app_id: int,
     payload: GuildAppUpdate,
-    session: RLSSessionDep,
+    session: SeatWriteSessionDep,
     current_user: CurrentUser,
-    guild_context: GuildContextDep,
+    guild_context: SeatWriteContextDep,
 ) -> GuildAppRead:
     """Rename an app, place it, choose how it updates, or turn it off.
 
@@ -731,7 +740,6 @@ async def update_guild_app(
     is removed. It is the community's own answer to where an app belongs rather
     than a permission, so it reads the same for everyone, admins included.
     """
-    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     app = await _load(session, app_id)
 
     before = {
@@ -779,15 +787,16 @@ async def update_guild_app(
         avatar_url=await _app_avatar(session, app),
         context=guild_context,
         placements=await _placements(session, app),
+        artifacts=await guild_apps_service.app_artifacts(session, app),
     )
 
 
 @router.delete("/{app_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def uninstall_guild_app(
     app_id: int,
-    session: RLSSessionDep,
+    session: SeatWriteSessionDep,
     current_user: CurrentUser,
-    guild_context: GuildContextDep,
+    guild_context: SeatWriteContextDep,
 ) -> None:
     """Remove an app, ending its access and trashing what it created.
 
@@ -801,10 +810,9 @@ async def uninstall_guild_app(
     An app the deployment provides to every guild is not removable here (§7.7):
     the operator's registration decides whether it exists at all.
     """
-    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
-    # Held for the rest of this transaction, so a member adding a calendar to
-    # the app either lands before this read and is trashed with everything else,
-    # or finds no install and is refused.
+    # Held for the rest of this transaction, so a calendar being given to the
+    # app either lands before this read and is trashed with everything else, or
+    # finds no install and is refused.
     app = await _load(session, app_id, for_update=True)
     await _require_removable(app)
 
@@ -887,9 +895,9 @@ async def uninstall_guild_app(
 async def update_guild_app_config(
     app_id: int,
     payload: GuildAppConfigUpdate,
-    session: RLSSessionDep,
+    session: SeatWriteSessionDep,
     current_user: CurrentUser,
-    guild_context: GuildContextDep,
+    guild_context: SeatWriteContextDep,
 ) -> GuildAppDetail:
     """Set the guild-wide values an app's connections ask for.
 
@@ -902,7 +910,6 @@ async def update_guild_app_config(
     member's to make, and the fields an app marks ``managed`` come from its
     ``after_connect`` hook when a flow completes rather than through a form.
     """
-    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     # Both configuration maps are rewritten whole below, so the row is taken
     # first — a flow completing is doing the same thing to the same values.
     app = await _load(session, app_id, for_update=True)
@@ -987,6 +994,7 @@ async def update_guild_app_config(
         app_names=await _app_names(session, app, offer),
         context=guild_context,
         placements=await _placements(session, app),
+        artifacts=await guild_apps_service.app_artifacts(session, app),
     )
 
 
@@ -1025,16 +1033,15 @@ async def put_guild_app_placement(
     app_id: int,
     initiative_id: int,
     payload: AppPlacementUpdate,
-    session: RLSSessionDep,
+    session: SeatWriteSessionDep,
     current_user: CurrentUser,
-    guild_context: GuildContextDep,
+    guild_context: SeatWriteContextDep,
 ) -> AppPlacementRead:
     """Place the app in one initiative with exactly these roles.
 
     Creates the placement or replaces its roles. Every role must be one of that
     initiative's; guild admins open the app there whatever the roles say.
     """
-    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     app = await _load(session, app_id)
     before = await guild_apps_service.placement_role_ids(session, app.id, initiative_id)
     try:
@@ -1077,9 +1084,9 @@ async def put_guild_app_placement(
 async def delete_guild_app_placement(
     app_id: int,
     initiative_id: int,
-    session: RLSSessionDep,
+    session: SeatWriteSessionDep,
     current_user: CurrentUser,
-    guild_context: GuildContextDep,
+    guild_context: SeatWriteContextDep,
 ) -> None:
     """Take the app out of one initiative.
 
@@ -1087,7 +1094,6 @@ async def delete_guild_app_placement(
     exists, and the seat still decides where it appears. The removal stays;
     only an initiative created later is placed automatically.
     """
-    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     app = await _load(session, app_id)
     before = await guild_apps_service.placement_role_ids(session, app.id, initiative_id)
     if await guild_apps_service.remove_placement(session, app, initiative_id):
@@ -1114,9 +1120,9 @@ async def delete_guild_app_placement(
 async def put_guild_app_scopes(
     app_id: int,
     payload: GuildAppScopesUpdate,
-    session: RLSSessionDep,
+    session: SeatWriteSessionDep,
     current_user: CurrentUser,
-    guild_context: GuildContextDep,
+    guild_context: SeatWriteContextDep,
 ) -> GuildAppRead:
     """Grant the install exactly these scopes.
 
@@ -1124,7 +1130,6 @@ async def put_guild_app_scopes(
     registration allows the app (its ceiling). The whole set is replaced: a
     scope left out is withdrawn.
     """
-    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     app = await _load(session, app_id, for_update=True)
 
     granted = set(payload.granted)
@@ -1159,6 +1164,7 @@ async def put_guild_app_scopes(
         avatar_url=await _app_avatar(session, app),
         context=guild_context,
         placements=await _placements(session, app),
+        artifacts=await guild_apps_service.app_artifacts(session, app),
     )
 
 
@@ -1306,7 +1312,7 @@ async def connect_guild_app(
         )
     guild_wide = connection.get("scope") == "static"
     if guild_wide:
-        require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
+        require_seat(guild_context)
 
     registration = await handoff_service.require_live_registration(app)
 
@@ -1371,13 +1377,14 @@ async def disconnect_guild_app(
     else's uses the Members endpoints, which record who acted. Clearing a
     guild-wide credential is an admin action, since it is the guild's.
     """
-    # Clearing rewrites both configuration maps, so it takes the row: an app
-    # writing back at the same moment must not put back what was cleared.
-    app = await _load(session, app_id, for_update=True)
+    app = await _load(session, app_id)
     connection = _connection_or_404(app, connection_id)
 
     if connection.get("scope") == "static":
-        require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
+        require_seat(guild_context)
+        # Clearing rewrites both configuration maps, so it takes the row: an app
+        # writing back at the same moment must not put back what was cleared.
+        app = await _load(session, app_id, for_update=True)
         if (app.config or {}).get(connection_id) or (app.config_secrets or {}).get(
             connection_id
         ):
@@ -1539,9 +1546,9 @@ async def revoke_my_consent(
 @router.get("/{app_id}/members", response_model=GuildAppMembersResponse)
 async def list_guild_app_members(
     app_id: int,
-    session: RLSSessionDep,
+    session: SeatSessionDep,
     current_user: CurrentUser,
-    guild_context: GuildContextDep,
+    guild_context: SeatContextDep,
 ) -> GuildAppMembersResponse:
     """Who has connected which of this app's per-member connections.
 
@@ -1549,7 +1556,6 @@ async def list_guild_app_members(
     — seeing which vendor account somebody connected as, and ending it — rather
     than looking at credentials.
     """
-    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     app = await _load(session, app_id)
 
     rows = await connections_service.list_app_connections(session, app_id=app.id)
@@ -1599,12 +1605,11 @@ async def revoke_member_connection(
     app_id: int,
     user_id: int,
     connection_id: str,
-    session: RLSSessionDep,
+    session: SeatWriteSessionDep,
     current_user: CurrentUser,
-    guild_context: GuildContextDep,
+    guild_context: SeatWriteContextDep,
 ) -> None:
     """End one member's connection. They may connect again unless blocked."""
-    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     app = await _load(session, app_id)
     _connection_or_404(app, connection_id)
 
@@ -1627,16 +1632,15 @@ async def block_member_connection(
     app_id: int,
     user_id: int,
     connection_id: str,
-    session: RLSSessionDep,
+    session: SeatWriteSessionDep,
     current_user: CurrentUser,
-    guild_context: GuildContextDep,
+    guild_context: SeatWriteContextDep,
 ) -> None:
     """Revoke a member's connection and refuse the next one.
 
     The lever for "this person should no longer reach that system through us"
     that does not mean uninstalling the app for everyone.
     """
-    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     app = await _load(session, app_id)
     _connection_or_404(app, connection_id)
 
@@ -1659,12 +1663,11 @@ async def unblock_member_connection(
     app_id: int,
     user_id: int,
     connection_id: str,
-    session: RLSSessionDep,
+    session: SeatWriteSessionDep,
     current_user: CurrentUser,
-    guild_context: GuildContextDep,
+    guild_context: SeatWriteContextDep,
 ) -> None:
     """Lift a block, so the member may connect their own account again."""
-    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     app = await _load(session, app_id)
     _connection_or_404(app, connection_id)
 
@@ -1681,9 +1684,9 @@ async def unblock_member_connection(
 async def revoke_member_consents(
     app_id: int,
     user_id: int,
-    session: RLSSessionDep,
+    session: SeatWriteSessionDep,
     current_user: CurrentUser,
-    guild_context: GuildContextDep,
+    guild_context: SeatWriteContextDep,
 ) -> None:
     """End every answer one member gave this app's requests to act as them,
     pending requests included.
@@ -1692,7 +1695,6 @@ async def revoke_member_consents(
     again themselves, or nobody does. Governance runs one way here, which is
     what keeps "the app acts as me" something its subject actually decided.
     """
-    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     app = await _load(session, app_id)
 
     await consents_service.revoke_member_consents(
@@ -1708,9 +1710,9 @@ async def revoke_member_consents(
 @router.post("/{app_id}/consents/revoke-all", status_code=status.HTTP_204_NO_CONTENT)
 async def revoke_all_member_consents(
     app_id: int,
-    session: RLSSessionDep,
+    session: SeatWriteSessionDep,
     current_user: CurrentUser,
-    guild_context: GuildContextDep,
+    guild_context: SeatWriteContextDep,
 ) -> None:
     """Stop this app acting as anybody, without uninstalling it.
 
@@ -1720,7 +1722,6 @@ async def revoke_all_member_consents(
     configuration. Members may allow requests again once the guild is
     satisfied.
     """
-    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     app = await _load(session, app_id)
 
     await consents_service.revoke_all(
@@ -1735,16 +1736,15 @@ async def revoke_all_member_consents(
 @router.post("/{app_id}/revoke-all", status_code=status.HTTP_204_NO_CONTENT)
 async def revoke_all_member_connections(
     app_id: int,
-    session: RLSSessionDep,
+    session: SeatWriteSessionDep,
     current_user: CurrentUser,
-    guild_context: GuildContextDep,
+    guild_context: SeatWriteContextDep,
 ) -> None:
     """End every member's connection at once, leaving the install standing.
 
     For a suspected app or vendor compromise: reacting fast should not cost the
     guild its configuration.
     """
-    require_seat(guild_context, detail=GuildAppMessages.SUPERADMIN_REQUIRED)
     app = await _load(session, app_id)
 
     await connections_service.revoke_all(session, app=app)

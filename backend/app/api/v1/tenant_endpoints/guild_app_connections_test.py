@@ -35,7 +35,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import SALT_APP_CONFIG, encrypt_field
-from app.core.messages import GuildAppMessages, MarketplaceMessages
+from app.core.messages import GuildAppMessages, GuildMessages, MarketplaceMessages
 from app.models.platform.guild import GuildRole
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.marketplace.registration_lookup import invalidate_registrations
@@ -331,7 +331,7 @@ class TestConfig:
             json={"values": {"admin": VALID_ADMIN_VALUES}},
         )
         assert response.status_code == 403
-        assert response.json()["detail"] == GuildAppMessages.SUPERADMIN_REQUIRED
+        assert response.json()["detail"] == GuildMessages.GUILD_SUPERADMIN_REQUIRED
 
     async def test_values_are_validated_against_the_pinned_schema(
         self, client: AsyncClient, acting_user, session: AsyncSession
@@ -534,7 +534,7 @@ class TestConnect:
             headers=member.headers,
         )
         assert response.status_code == 403
-        assert response.json()["detail"] == GuildAppMessages.SUPERADMIN_REQUIRED
+        assert response.json()["detail"] == GuildMessages.GUILD_SUPERADMIN_REQUIRED
 
     async def test_a_flow_needs_the_vendor_values(
         self, client: AsyncClient, acting_user, session: AsyncSession
@@ -662,7 +662,7 @@ class TestConnectionVisibility:
             member.g(f"/apps/{app.id}/members"), headers=member.headers
         )
         assert response.status_code == 403
-        assert response.json()["detail"] == GuildAppMessages.SUPERADMIN_REQUIRED
+        assert response.json()["detail"] == GuildMessages.GUILD_SUPERADMIN_REQUIRED
 
     async def test_a_guild_admin_sees_every_members_connection(
         self, client: AsyncClient, acting_user, session: AsyncSession

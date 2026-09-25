@@ -24,7 +24,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.messages import GuildAppMessages, MarketplaceMessages
+from app.core.messages import GuildAppMessages, GuildMessages, MarketplaceMessages
 from app.models.platform.guild import GuildRole
 from app.models.tenant.calendar import Calendar
 from app.testing import (
@@ -151,7 +151,7 @@ class TestInstall:
             json={"listing_uid": CALENDAR_APP_UID},
         )
         assert response.status_code == 403
-        assert response.json()["detail"] == GuildAppMessages.SUPERADMIN_REQUIRED
+        assert response.json()["detail"] == GuildMessages.GUILD_SUPERADMIN_REQUIRED
 
     async def test_a_listing_that_is_not_an_app_is_a_404(
         self, client: AsyncClient, acting_user, session
