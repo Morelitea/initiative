@@ -436,7 +436,7 @@ describe("tool exports", () => {
     const { DOCUMENT_TYPE_FORMATS, TOOL_EXPORT_FORMATS } = await import(
       "@/components/exports/formats"
     );
-    const { DocumentReadDocumentType } = await import("@/api/generated/initiativeAPI.schemas");
+    const { DocumentType } = await import("@/api/generated/initiativeAPI.schemas");
     const { BULK_EXPORT_TOOLS } = await import("@/lib/tools");
 
     for (const tool of BULK_EXPORT_TOOLS) {
@@ -448,7 +448,7 @@ describe("tool exports", () => {
         `missing TOOL_EXPORT_FORMATS[${tool}]`
       ).toBeGreaterThan(0);
     }
-    for (const type of Object.values(DocumentReadDocumentType)) {
+    for (const type of Object.values(DocumentType)) {
       expect(
         DOCUMENT_TYPE_FORMATS[type]?.length,
         `missing DOCUMENT_TYPE_FORMATS.${type}`

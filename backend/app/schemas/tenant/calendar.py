@@ -10,7 +10,7 @@ from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.tenant.archive import ArchiveState
 
 from app.models.tenant.calendar import DEFAULT_CALENDAR_COLOR
-from app.schemas.tenant.resource_grant import ResourceGrantSchema
+from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -37,11 +37,7 @@ class CalendarCreate(CalendarBase):
     # Initial sharing — the same grant list the PUT /grants endpoint takes.
     # Defaults to Viewer for all initiative members, which at guild scope reads
     # as every member of the guild.
-    grants: List[ResourceGrantSchema] = Field(
-        default_factory=lambda: [
-            ResourceGrantSchema(all_initiative_members=True, level="read")
-        ]
-    )
+    grants: List[ResourceGrantSchema] = Field(default_factory=initiative_readable)
 
 
 class CalendarUpdate(SanitizedBaseModel):

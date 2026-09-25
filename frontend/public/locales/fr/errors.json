@@ -138,7 +138,6 @@
   "ATTACHMENT_FILE_EMPTY": "Le fichier téléchargé est vide",
   "ATTACHMENT_INVALID_IMAGE": "Impossible de valider le contenu de l'image",
   "DOCUMENT_NOT_FOUND": "Document introuvable",
-  "DOCUMENT_INITIATIVE_MEMBERSHIP_REQUIRED": "Appartenance à l'initiative requise",
   "DOCUMENT_PERMISSION_REQUIRED": "Votre rôle dans l'initiative n'inclut pas les documents.",
   "DOCUMENT_WRITE_ACCESS_REQUIRED": "Vous avez besoin d'un accès en écriture à ce document",
   "DOCUMENT_OWNER_REQUIRED": "Permission de propriétaire du document requise",

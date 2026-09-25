@@ -78,6 +78,12 @@ class ResourceGrantSchema(SanitizedBaseModel):
         return self
 
 
+def initiative_readable() -> list[ResourceGrantSchema]:
+    """The sharing a new tool starts with unless its create says otherwise:
+    every member of its initiative may read it."""
+    return [ResourceGrantSchema(all_initiative_members=True, level="read")]
+
+
 class ResourceGrantBulkItem(SanitizedBaseModel):
     """One tool's full target sharing state in a bulk request — the same ``grants``
     body the per-resource ``PUT /{id}/grants`` takes, tagged with which tool it

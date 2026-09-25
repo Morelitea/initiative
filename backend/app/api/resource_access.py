@@ -24,13 +24,14 @@ from app.api.deps import (
     get_guild_membership,
 )
 from app.core.app_scopes import AppScopeAccess, scope_name, tool_resource
-from app.core.messages import AppMessages
+from app.core.messages import AppMessages, InitiativeMessages
 from app.core.tools import Tool
 from app.db.guild_standing import InstallContext
 from app.db.initiative_rls import governing_path
-from app.models.tenant.initiative import PermissionKey
+from app.models.tenant.initiative import Initiative, PermissionKey
+from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.models.platform.user import User
-from app.schemas.tenant.resource_grant import ResourceGrantSchema
+from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.services import permissions as permissions_service
 from app.services import rls as rls_service
 from app.services import reachability
@@ -206,6 +207,44 @@ async def require_create(
     )
 
 
+async def prepare_create(
+    session: Any,
+    kind: Tool,
+    initiative_id: int,
+    user: Optional[User],
+    guild_context: ActorContext,
+) -> Initiative:
+    """The initiative a new ``kind`` goes into, once the caller may make one
+    there: it exists (404), its switch for the tool is on
+    (:func:`require_tool_enabled`) and the caller's role may create the tool
+    (:func:`require_create`). Every tool's create and duplicate start here.
+    """
+    initiative = await session.get(Initiative, initiative_id)
+    if initiative is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=InitiativeMessages.NOT_FOUND,
+        )
+    require_tool_enabled(kind, initiative)
+    await require_create(session, kind, initiative, user, guild_context)
+    return initiative
+
+
+def duplicate_sharing(source: Any, *, initiative_id: int) -> list[ResourceGrantSchema]:
+    """Who a duplicate of ``source`` is shared with: the same people and roles
+    as ``source`` while it stays in the same initiative, where they exist, and
+    the create default when it goes to another. ``source.grants`` is loaded."""
+    if initiative_id != source.initiative_id:
+        return initiative_readable()
+    return [
+        ResourceGrantSchema.model_validate(grant)
+        for grant in source.grants
+        if grant.level != ResourceAccessLevel.owner
+        and grant.dashboard_id is None
+        and grant.app_install_id is None
+    ]
+
+
 #: The scope an installed app holds to change a resource's sharing.
 SHARING_WRITE = "sharing:write"
 
@@ -230,19 +269,6 @@ def refuse_app_sharing(actor: ActorContext, payload: Any, *fields: str) -> None:
     if not any(field in payload.model_fields_set for field in fields):
         return
     require_install_may_share(actor, None)
-
-
-def refuse_app_owner(actor: ActorContext, payload: Any, *fields: str) -> None:
-    """Raise 403 when an installed app's create names an owner in any of
-    ``fields``. What it creates is its own: the tool table's trigger writes
-    that owner row."""
-    if not isinstance(actor, InstallContext):
-        return
-    if any(field in payload.model_fields_set for field in fields):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=AppMessages.SHARING_NOT_AVAILABLE,
-        )
 
 
 def require_install_may_share(actor: ActorContext, kind: Optional[Tool]) -> None:
@@ -314,6 +340,52 @@ async def apply_app_initial_sharing(
         owner_id=actor.member_user_id,
         grants=grants,
         by_install=True,
+    )
+
+
+async def grant_initial_sharing(
+    session: Any,
+    actor: ActorContext,
+    kind: Tool,
+    *,
+    user: Optional[User],
+    resource_id: int,
+    initiative_id: Optional[int],
+    payload: Any,
+    grants: list[ResourceGrantSchema],
+) -> None:
+    """Share a resource that has just been made: its maker owns it, and
+    ``grants`` says who else may reach it.
+
+    A person gets the owner row here. An installed app's is written by the
+    table's own trigger as the row goes in, and only the sharing its create
+    asked for is applied (:func:`apply_app_initial_sharing`). The row is
+    flushed first; the caller commits.
+    """
+    owner = ownership_service.creator_owner_grant(
+        actor, tool=kind, resource_id=resource_id, initiative_id=initiative_id
+    )
+    if owner is None or user is None:
+        await apply_app_initial_sharing(
+            session,
+            actor,
+            kind,
+            resource_id=resource_id,
+            initiative_id=initiative_id,
+            payload=payload,
+            grants=grants,
+        )
+        return
+    session.add(owner)
+    await permissions_service.replace_resource_grants(
+        session,
+        resource_type=kind.value,
+        resource_id=resource_id,
+        guild_id=actor.guild_id,
+        initiative_id=initiative_id,
+        owner_id=user.id,
+        grants=grants,
+        actor_user_id=user.id,
     )
 
 

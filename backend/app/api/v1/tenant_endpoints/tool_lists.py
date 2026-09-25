@@ -443,7 +443,6 @@ async def _document_conditions(spec: ToolListSpec, req: ListRequest) -> list:
         await documents_endpoints.get_initiative_or_404(
             req.session,
             initiative_id=values["initiative_id"],
-            guild_id=req.guild_id,
         )
     ids = values.get("ids")
     if ids is not None and len(ids) > documents_endpoints.MAX_DOCUMENT_IDS:

@@ -12,7 +12,7 @@ from app.schemas.platform.user import ProfileDecorations
 from app.schemas.tenant.comment import CommentAuthor
 from app.schemas.tenant.post_poll import PollRead, PollWrite, serialize_poll
 from app.schemas.tenant.reaction import ReactionGroup
-from app.schemas.tenant.resource_grant import ResourceGrantSchema
+from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -53,11 +53,7 @@ class PostCreate(PostBase):
     # Initial sharing — the same grant list the PUT /grants endpoint takes.
     # A board notice defaults to readable by the whole initiative, which is the
     # point of posting it.
-    grants: List[ResourceGrantSchema] = Field(
-        default_factory=lambda: [
-            ResourceGrantSchema(all_initiative_members=True, level="read")
-        ]
-    )
+    grants: List[ResourceGrantSchema] = Field(default_factory=initiative_readable)
     #: When the notice should go up. Omitted (or in the past) posts it now.
     #: Until then it is a draft: only the people who could edit it see it, and
     #: nobody is notified.

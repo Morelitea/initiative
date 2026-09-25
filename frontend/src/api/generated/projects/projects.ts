@@ -822,6 +822,7 @@ export const useDuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost = <
   );
 };
 /**
+ * The reader's favorite projects, most recently favorited first.
  * @summary Favorite Projects
  */
 export const favoriteProjectsApiV1CGuildIdProjectsFavoritesGet = (
@@ -1768,9 +1769,8 @@ export const useDeleteProjectApiV1CGuildIdProjectsProjectIdDelete = <
  * The assignable set is the project's **write/owner DAC set** — explicit
  * per-user grants, members holding a write-access role, and every member
  * when an all-initiative-members write grant exists — computed server-side
- * via the shared permission engine. This replaces the client-side
- * ``project.grants`` derivation the pickers used to run over the full guild
- * roster. Requester needs read access to the project.
+ * via the shared permission engine. Requester needs read access to the
+ * project.
  *
  * Pass ``user_id`` one or more times to resolve a known selection (a picker
  * rehydrating stored ids into names/avatars) rather than searching; it

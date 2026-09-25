@@ -24,7 +24,7 @@ from app.models.tenant.counter import (
     CounterGroup,
 )
 from app.models.tenant.initiative import Initiative
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.models.tenant.resource_grant import ResourceGrant
 from app.models.platform.user import User
 from app.schemas.tenant.counter import CounterSortDirection, CounterSortField
 from app.services.tenant import tags as tags_service
@@ -211,78 +211,25 @@ async def reset_all_counters(
     return group
 
 
-async def duplicate_counter_group(
-    session: AsyncSession,
-    source: CounterGroup,
-    *,
-    name: str,
-    user_id: int,
-    guild_id: int,
-) -> CounterGroup:
-    """Create a copy of ``source`` within the same initiative.
-
-    Copies every live counter (values, bounds, view mode, position) and the
-    source's role + user permissions, then makes ``user_id`` the owner of the
-    copy. Adds the new rows to the session and flushes; the caller commits.
+async def copy_counters(
+    session: AsyncSession, source: CounterGroup, target: CounterGroup
+) -> None:
+    """Copy every live counter of ``source`` (values, bounds, view mode,
+    position) into ``target``, a duplicate whose sharing is already in the
+    session. Adds the rows; the caller commits.
     """
-    new_group = CounterGroup(
-        initiative_id=source.initiative_id,
-        created_by=user_id,
-        name=name,
-        description=source.description,
-    )
-    session.add(new_group)
-    await session.flush()
-
-    session.add(
-        ResourceGrant(
-            resource_type="counter_group",
-            resource_id=new_group.id,
-            user_id=user_id,
-            role_id=None,
-            level=ResourceAccessLevel.owner,
-            initiative_id=new_group.initiative_id,
-        )
-    )
-
-    for grant in getattr(source, "grants", None) or []:
-        if grant.level == ResourceAccessLevel.owner:
-            continue
-        if grant.role_id is not None:
-            session.add(
-                ResourceGrant(
-                    resource_type="counter_group",
-                    resource_id=new_group.id,
-                    user_id=None,
-                    role_id=grant.role_id,
-                    level=grant.level,
-                    initiative_id=new_group.initiative_id,
-                )
-            )
-        elif grant.user_id is not None and grant.user_id != user_id:
-            session.add(
-                ResourceGrant(
-                    resource_type="counter_group",
-                    resource_id=new_group.id,
-                    user_id=grant.user_id,
-                    role_id=None,
-                    level=grant.level,
-                    initiative_id=new_group.initiative_id,
-                )
-            )
-
     # The sharing has to be IN the database before the counters are, because a
     # counter is reached through its group: adding it to the session is not
     # enough, since a flush orders its statements by table rather than by the
     # order things were added.
     await session.flush()
 
-    for counter in getattr(source, "counters", None) or []:
+    for counter in source.counters:
         if counter.deleted_at is not None:
             continue
         session.add(
             Counter(
-                counter_group_id=new_group.id,
+                counter_group_id=target.id,
                 name=counter.name,
                 color=counter.color,
                 count=counter.count,
@@ -294,8 +241,6 @@ async def duplicate_counter_group(
                 position=counter.position,
             )
         )
-
-    return new_group
 
 
 async def sort_counters(

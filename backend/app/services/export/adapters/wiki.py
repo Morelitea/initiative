@@ -94,7 +94,7 @@ class WikiAdapter(ToolExportAdapter):
             try:
                 documents.append(
                     await get_document_for_export(
-                        session, user, guild_id, document_id=linked.id, access=access
+                        session, document_id=linked.id, access=access
                     )
                 )
             except HTTPException:

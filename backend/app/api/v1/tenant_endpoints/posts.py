@@ -33,8 +33,6 @@ from datetime import datetime, timezone
 from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import selectinload
-from sqlmodel import select
 
 from app.api import resource_access
 from app.api.actor_route import ActorRoute
@@ -49,7 +47,7 @@ from app.api.deps import (
     get_current_active_user,
     get_guild_membership,
 )
-from app.core.messages import CommonMessages, InitiativeMessages, PostMessages
+from app.core.messages import CommonMessages, PostMessages
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative
@@ -84,7 +82,6 @@ from app.services.notifications import AppAuthor
 from app.core.search import SearchEntityType
 from app.services.tenant import comments as comments_service
 from app.services.tenant import content_references
-from app.services.tenant import ownership as ownership_service
 from app.services.tenant import post_polls as post_polls_service
 from app.services.tenant import post_publication
 from app.services.tenant import posts as posts_service
@@ -113,28 +110,6 @@ PostsWrite = Annotated[ActorContext, Depends(app_scope("posts:write"))]
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-async def _get_initiative_for_post(
-    session: RLSSessionDep,
-    initiative_id: int,
-) -> Initiative:
-    stmt = (
-        select(Initiative)
-        .where(Initiative.id == initiative_id)
-        .options(
-            selectinload(Initiative.memberships),
-            selectinload(Initiative.roles),
-        )
-    )
-    result = await session.exec(stmt)
-    initiative = result.one_or_none()
-    if not initiative:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=InitiativeMessages.NOT_FOUND,
-        )
-    return initiative
 
 
 def _validated_body(body: dict | None) -> dict:
@@ -401,14 +376,8 @@ async def create_post(
     """Post a notice to an initiative's board. Requires create_posts permission
     on the initiative (or guild admin); the author gets the owner grant."""
     resource_access.refuse_app_sharing(guild_context, post_in, "grants")
-    initiative = await _get_initiative_for_post(session, post_in.initiative_id)
-    if not initiative.posts_enabled:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=Tool.post.feature_disabled_code,
-        )
-    await resource_access.require_create(
-        session, Tool.post, initiative, current_user, guild_context
+    initiative = await resource_access.prepare_create(
+        session, Tool.post, post_in.initiative_id, current_user, guild_context
     )
 
     now = datetime.now(timezone.utc)
@@ -431,40 +400,16 @@ async def create_post(
     session.add(post)
     await session.flush()
 
-    # The author's owner grant. An installed app's is written by the table's
-    # own trigger as the row goes in.
-    owner_grant = ownership_service.creator_owner_grant(
+    await resource_access.grant_initial_sharing(
+        session,
         guild_context,
-        tool=Tool.post,
+        Tool.post,
+        user=current_user,
         resource_id=post.id,
         initiative_id=initiative.id,
+        payload=post_in,
+        grants=post_in.grants,
     )
-    if owner_grant is not None and current_user is not None:
-        session.add(owner_grant)
-
-        # Apply the initial sharing exactly the way edits do — one grant list,
-        # one code path (defaults to Viewer for all initiative members). An
-        # installed app's is applied below, when it asked for one.
-        await permissions_service.replace_resource_grants(
-            session,
-            resource_type="post",
-            resource_id=post.id,
-            guild_id=guild_context.guild_id,
-            initiative_id=initiative.id,
-            owner_id=current_user.id,
-            grants=post_in.grants,
-            actor_user_id=current_user.id,
-        )
-    else:
-        await resource_access.apply_app_initial_sharing(
-            session,
-            guild_context,
-            Tool.post,
-            resource_id=post.id,
-            initiative_id=initiative.id,
-            payload=post_in,
-            grants=post_in.grants,
-        )
 
     # What the new body points at becomes `references` edges.
     await content_references.sync_for_entity(

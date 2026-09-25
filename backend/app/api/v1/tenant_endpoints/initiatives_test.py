@@ -18,15 +18,22 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import GuildMessages, InitiativeMessages
 from app.core.notification_categories import NotificationCategory
+from app.core.tools import Tool
 from app.models.platform.access_grant import AccessGrant
 from app.models.platform.email_outbox import EmailOutboxItem
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.initiative import InitiativeJoinRequest, InitiativeMember
+from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services import email as email_service
 from app.services.platform import email_outbox
 from app.services.tenant import initiatives as initiatives_service
-from app.testing import guild_of, set_notification_prefs
+from app.testing import (
+    create_resource_grant,
+    create_tool_entity,
+    enable_all_tools,
+    set_notification_prefs,
+)
 from app.testing.factories import create_initiative
 
 
@@ -87,22 +94,10 @@ async def _caller(acting_user, kind: str, owner, initiative):
 async def _project_shared_with_the_initiative(session: AsyncSession, initiative, owner):
     """A project every member of the initiative may read, so that the
     membership row is the only thing that changes when somebody joins."""
-    from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
     from app.testing.factories import create_project
-    from app.testing.schema_harness import route_session_to_guild
 
     project = await create_project(session, initiative, owner, name="Shared work")
-    await route_session_to_guild(session, guild_of(initiative))
-    session.add(
-        ResourceGrant(
-            resource_type="project",
-            resource_id=project.id,
-            all_initiative_members=True,
-            level=ResourceAccessLevel.read,
-            initiative_id=initiative.id,
-        )
-    )
-    await session.commit()
+    await create_resource_grant(session, project, all_initiative_members=True)
     return project
 
 
@@ -968,7 +963,8 @@ async def test_removing_a_membership_ends_it(
 
     Ending a membership is not blocked by it being the last manager's;
     ``test_cannot_demote_last_manager`` covers the case that still is, which
-    edits a live membership rather than ending it.
+    edits a live membership rather than ending it. The sharing that came with
+    the membership goes with it, on every tool; owner grants stay.
     """
     owner, initiative = await _initiative_with_owner(session, acting_user)
     target = (
@@ -976,6 +972,11 @@ async def test_removing_a_membership_ends_it(
         if who == "the last manager"
         else await _caller(acting_user, "member", owner, initiative)
     )
+    await enable_all_tools(session, initiative)
+    for tool in Tool:
+        row = await create_tool_entity(session, tool, initiative, owner.user)
+        if target is not owner:
+            await create_resource_grant(session, row, user=target.user)
 
     response = await client.delete(
         owner.g(f"/initiatives/{initiative.id}/members/{target.user.id}"),
@@ -985,6 +986,14 @@ async def test_removing_a_membership_ends_it(
     assert response.status_code == 200, response.text
     remaining = {m["user"]["id"] for m in response.json()["members"]}
     assert remaining == (set() if who == "the last manager" else {owner.user.id})
+    levels = (
+        await session.exec(
+            select(ResourceGrant.level).where(ResourceGrant.user_id == target.user.id)
+        )
+    ).all()
+    assert levels == (
+        [ResourceAccessLevel.owner] * len(Tool) if target is owner else []
+    )
 
 
 @pytest.mark.integration

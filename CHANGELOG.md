@@ -30,10 +30,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Notifications go to people who can open what they name** — a mention, reply, comment, reaction, event update or task assignment now reaches someone only if they can open the task, document or calendar it is about. To bring someone into a thread, share the item with them first.
 - **Read notifications are cleared after 30 days** — once read, a notification stays in your list for 30 days. Unread ones stay until you read them.
 - **Repeated mentions in a document are one notification** — mentions of you in the same document join one unread notification until you read it, instead of a new email and push each time.
+- **Duplicates keep their sharing and need the create permission** — duplicating a project, document or counter group now shares the copy exactly as the original is shared, as long as it stays in the same initiative, and needs the permission to create one there. A project's copy used to be readable by everyone in the initiative, a document's copy by nobody but you, and a counter group's copy dropped its "all members" sharing.
+- **A project is owned by whoever makes it** — `POST /projects/` no longer takes an `owner_id`. To give a project to someone else, transfer its ownership after creating it.
 - **Export date and author move into the file's properties** — PDF and Markdown exports of documents, wikis, projects, queues, counter groups and task lists no longer print "exported …" or "generated … by …" under the title. Who exported the file and when is kept in the PDF, Word or Excel document properties, and as a hidden comment at the top of a Markdown file. Reports keep their counts, and the download's file name still has the date.
 
 ### Fixed
 
+- **Leaving an initiative ends access to everything in it** — removing someone from an initiative, or someone leaving the community, now removes the access they were given to its queues, counters, calendars, dashboards, notices, pictures and wikis too. Before, only projects and documents were covered, and the rest came back if they rejoined.
+- **Duplicating a file document copies the file** — the copy used to have no file to download.
+- **Document exports follow the documents switch** — documents can no longer be exported from an initiative with documents turned off.
 - **Pictures stay while something still shows them** — taking a picture out of a document deleted it, even when another document, task or comment still showed it. It now stays until nothing shows it. Changing the cover of a picture file document no longer deletes the file itself.
 - **Duplicated documents count toward storage** — the pictures in a duplicated document are real copies, and they now count toward the community's storage limit like any other upload.
 - **Account erasure emails arrive once** — the email confirming an account was erased could arrive twice. It now goes out once.

@@ -3,43 +3,24 @@ Integration tests for document file-version endpoints:
 upload new version, list versions, download a specific version, delete a version.
 """
 
-from pathlib import Path
-
 import pytest
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import settings
+from app.services.storage import get_guild_storage
 from app.services.tenant import attachments as attachments_service
 from app.models.tenant.document import (
     Document,
     DocumentFileVersion,
 )
 from app.models.platform.guild import GuildRole
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.models.tenant.upload import Upload
-from app.testing import (
-    create_user,
-    get_auth_headers,
-)
+from app.testing import create_resource_grant
 
 PDF_BYTES = b"%PDF-1.4 first version body"
 PDF_BYTES_V2 = b"%PDF-1.4 second version body that differs"
-
-
-def _uploads_dir() -> Path:
-    path = Path(settings.UPLOADS_DIR)
-    path.mkdir(parents=True, exist_ok=True)
-    return path
-
-
-async def _setup_guild_with_owner(acting_user):
-    """Owner is a guild admin and the initiative's project manager.
-
-    Returns ``(owner_actor, guild, initiative)`` for call-site compatibility."""
-    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    return owner, owner.guild, owner.initiative
 
 
 async def _upload_initial_file_doc(
@@ -63,29 +44,42 @@ async def _upload_initial_file_doc(
     return response.json()
 
 
+async def _share(session: AsyncSession, doc: dict, actor, level) -> None:
+    await create_resource_grant(
+        session, await session.get(Document, doc["id"]), user=actor.user, level=level
+    )
+
+
 @pytest.mark.integration
-async def test_initial_upload_creates_version_one(
-    client: AsyncClient, session: AsyncSession, acting_user
+async def test_upload_and_duplicate_each_start_at_version_one(
+    client: AsyncClient, acting_user
 ) -> None:
-    """Uploading a file document seeds version 1."""
-    owner, guild, initiative = await _setup_guild_with_owner(acting_user)
-    doc = await _upload_initial_file_doc(client, owner, initiative=initiative)
+    """Uploading a file document seeds version 1, and a duplicate of it is a
+    file document of its own: a copy of the file, at its own version 1."""
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
 
-    resp = await client.get(
-        owner.g(f"/documents/{doc['id']}/versions"), headers=owner.headers
+    duplicate = await client.post(
+        owner.g(f"/documents/{doc['id']}/duplicate"), headers=owner.headers
     )
-    assert resp.status_code == 200
-    versions = resp.json()
-    assert len(versions) == 1
-    assert versions[0]["version_number"] == 1
-    assert versions[0]["is_current"] is True
+    assert duplicate.status_code == 201, duplicate.text
+    copy = duplicate.json()
+    assert copy["document_type"] == "file"
+    assert copy["file_url"] != doc["file_url"]
 
-    # Clean up the blob.
-    result = await session.exec(
-        select(DocumentFileVersion).where(DocumentFileVersion.document_id == doc["id"])
+    for document in (doc, copy):
+        resp = await client.get(
+            owner.g(f"/documents/{document['id']}/versions"), headers=owner.headers
+        )
+        assert resp.status_code == 200
+        assert [(v["version_number"], v["is_current"]) for v in resp.json()] == [
+            (1, True)
+        ]
+    downloaded = await client.get(
+        owner.g(f"/documents/{copy['id']}/download"), headers=owner.headers
     )
-    for v in result.all():
-        (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
+    assert downloaded.status_code == 200
+    assert downloaded.content == PDF_BYTES
 
 
 @pytest.mark.integration
@@ -93,26 +87,16 @@ async def test_upload_version_creates_v2_and_mirrors_document(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """A write user uploads v2; document mirror + Upload row + version row update."""
-    owner, guild, initiative = await _setup_guild_with_owner(acting_user)
+    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
     writer = await acting_user(
         guild_role=GuildRole.member,
-        guild=guild,
-        initiative=initiative,
+        guild=owner.guild,
+        initiative=owner.initiative,
         initiative_role="member",
     )
 
-    doc = await _upload_initial_file_doc(client, owner, initiative=initiative)
-    # Grant the writer write access.
-    session.add(
-        ResourceGrant(
-            resource_type="document",
-            resource_id=doc["id"],
-            user_id=writer.user.id,
-            level=ResourceAccessLevel.write,
-            initiative_id=initiative.id,
-        )
-    )
-    await session.commit()
+    doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
+    await _share(session, doc, writer, ResourceAccessLevel.write)
 
     resp = await client.post(
         writer.g(f"/documents/{doc['id']}/versions"),
@@ -146,7 +130,6 @@ async def test_upload_version_creates_v2_and_mirrors_document(
             )
         ).one_or_none()
         assert upload is not None
-        (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
 
 
 @pytest.mark.integration
@@ -154,25 +137,16 @@ async def test_upload_version_read_user_forbidden(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """A read-only user cannot upload a new version."""
-    owner, guild, initiative = await _setup_guild_with_owner(acting_user)
+    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
     reader = await acting_user(
         guild_role=GuildRole.member,
-        guild=guild,
-        initiative=initiative,
+        guild=owner.guild,
+        initiative=owner.initiative,
         initiative_role="member",
     )
 
-    doc = await _upload_initial_file_doc(client, owner, initiative=initiative)
-    session.add(
-        ResourceGrant(
-            resource_type="document",
-            resource_id=doc["id"],
-            user_id=reader.user.id,
-            level=ResourceAccessLevel.read,
-            initiative_id=initiative.id,
-        )
-    )
-    await session.commit()
+    doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
+    await _share(session, doc, reader, ResourceAccessLevel.read)
 
     resp = await client.post(
         reader.g(f"/documents/{doc['id']}/versions"),
@@ -181,23 +155,14 @@ async def test_upload_version_read_user_forbidden(
     )
     assert resp.status_code == 403
 
-    for v in (
-        await session.exec(
-            select(DocumentFileVersion).where(
-                DocumentFileVersion.document_id == doc["id"]
-            )
-        )
-    ).all():
-        (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
-
 
 @pytest.mark.integration
 async def test_upload_version_type_mismatch_rejected(
-    client: AsyncClient, session: AsyncSession, acting_user
+    client: AsyncClient, acting_user
 ) -> None:
     """A new version must match the original file type."""
-    owner, guild, initiative = await _setup_guild_with_owner(acting_user)
-    doc = await _upload_initial_file_doc(client, owner, initiative=initiative)
+    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
 
     resp = await client.post(
         owner.g(f"/documents/{doc['id']}/versions"),
@@ -207,26 +172,17 @@ async def test_upload_version_type_mismatch_rejected(
     assert resp.status_code == 400
     assert resp.json()["detail"] == "DOCUMENT_VERSION_TYPE_MISMATCH"
 
-    for v in (
-        await session.exec(
-            select(DocumentFileVersion).where(
-                DocumentFileVersion.document_id == doc["id"]
-            )
-        )
-    ).all():
-        (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
-
 
 @pytest.mark.integration
 async def test_upload_version_non_file_document_rejected(
     client: AsyncClient, acting_user
 ) -> None:
     """Native documents don't support versions."""
-    owner, guild, initiative = await _setup_guild_with_owner(acting_user)
+    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
     create = await client.post(
         owner.g("/documents/"),
         headers=owner.headers,
-        json={"name": "Native doc", "initiative_id": initiative.id},
+        json={"name": "Native doc", "initiative_id": owner.initiative.id},
     )
     assert create.status_code == 201
     native_id = create.json()["id"]
@@ -249,11 +205,11 @@ async def test_upload_version_non_file_document_rejected(
 
 @pytest.mark.integration
 async def test_upload_version_unsupported_file_rejected(
-    client: AsyncClient, session: AsyncSession, acting_user
+    client: AsyncClient, acting_user
 ) -> None:
     """An unsupported/invalid file is rejected with a coded error."""
-    owner, guild, initiative = await _setup_guild_with_owner(acting_user)
-    doc = await _upload_initial_file_doc(client, owner, initiative=initiative)
+    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
 
     resp = await client.post(
         owner.g(f"/documents/{doc['id']}/versions"),
@@ -269,40 +225,22 @@ async def test_upload_version_unsupported_file_rejected(
     assert resp.status_code == 400
     assert resp.json()["detail"] == "DOCUMENT_INVALID_FILE"
 
-    for v in (
-        await session.exec(
-            select(DocumentFileVersion).where(
-                DocumentFileVersion.document_id == doc["id"]
-            )
-        )
-    ).all():
-        (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
-
 
 @pytest.mark.integration
 async def test_list_versions_read_user_allowed_and_ordered(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """Read users can list versions; newest first with is_current on the highest."""
-    owner, guild, initiative = await _setup_guild_with_owner(acting_user)
+    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
     reader = await acting_user(
         guild_role=GuildRole.member,
-        guild=guild,
-        initiative=initiative,
+        guild=owner.guild,
+        initiative=owner.initiative,
         initiative_role="member",
     )
 
-    doc = await _upload_initial_file_doc(client, owner, initiative=initiative)
-    session.add(
-        ResourceGrant(
-            resource_type="document",
-            resource_id=doc["id"],
-            user_id=reader.user.id,
-            level=ResourceAccessLevel.read,
-            initiative_id=initiative.id,
-        )
-    )
-    await session.commit()
+    doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
+    await _share(session, doc, reader, ResourceAccessLevel.read)
 
     # Owner uploads v2.
     await client.post(
@@ -320,23 +258,14 @@ async def test_list_versions_read_user_allowed_and_ordered(
     assert versions[0]["is_current"] is True
     assert versions[1]["is_current"] is False
 
-    for v in (
-        await session.exec(
-            select(DocumentFileVersion).where(
-                DocumentFileVersion.document_id == doc["id"]
-            )
-        )
-    ).all():
-        (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
-
 
 @pytest.mark.integration
 async def test_download_specific_version_returns_its_bytes(
-    client: AsyncClient, session: AsyncSession, acting_user
+    client: AsyncClient, acting_user
 ) -> None:
     """Downloading an old version returns that version's bytes, not the current one."""
-    owner, guild, initiative = await _setup_guild_with_owner(acting_user)
-    doc = await _upload_initial_file_doc(client, owner, initiative=initiative)
+    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
 
     await client.post(
         owner.g(f"/documents/{doc['id']}/versions"),
@@ -353,61 +282,41 @@ async def test_download_specific_version_returns_its_bytes(
     v1 = next(v for v in versions if v["version_number"] == 1)
     v2 = next(v for v in versions if v["version_number"] == 2)
 
-    auth_headers = get_auth_headers(owner.user)
     r1 = await client.get(
         owner.g(f"/documents/{doc['id']}/versions/{v1['id']}/download"),
-        headers=auth_headers,
+        headers=owner.headers,
     )
     r2 = await client.get(
         owner.g(f"/documents/{doc['id']}/versions/{v2['id']}/download"),
-        headers=auth_headers,
+        headers=owner.headers,
     )
     assert r1.status_code == 200 and r1.content == PDF_BYTES
     assert r2.status_code == 200 and r2.content == PDF_BYTES_V2
 
-    for v in (
-        await session.exec(
-            select(DocumentFileVersion).where(
-                DocumentFileVersion.document_id == doc["id"]
-            )
-        )
-    ).all():
-        (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
-
 
 @pytest.mark.integration
 async def test_download_version_unknown_returns_404(
-    client: AsyncClient, session: AsyncSession, acting_user
+    client: AsyncClient, acting_user
 ) -> None:
     """A version id that doesn't belong to the document 404s."""
-    owner, guild, initiative = await _setup_guild_with_owner(acting_user)
-    doc = await _upload_initial_file_doc(client, owner, initiative=initiative)
+    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
 
-    auth_headers = get_auth_headers(owner.user)
     resp = await client.get(
         owner.g(f"/documents/{doc['id']}/versions/99999/download"),
-        headers=auth_headers,
+        headers=owner.headers,
     )
     assert resp.status_code == 404
     assert resp.json()["detail"] == "DOCUMENT_VERSION_NOT_FOUND"
 
-    for v in (
-        await session.exec(
-            select(DocumentFileVersion).where(
-                DocumentFileVersion.document_id == doc["id"]
-            )
-        )
-    ).all():
-        (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
-
 
 @pytest.mark.integration
 async def test_download_version_cross_guild_forbidden(
-    client: AsyncClient, session: AsyncSession, acting_user
+    client: AsyncClient, acting_user
 ) -> None:
     """A user from another guild cannot download a version."""
-    owner, guild, initiative = await _setup_guild_with_owner(acting_user)
-    doc = await _upload_initial_file_doc(client, owner, initiative=initiative)
+    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
     versions = (
         await client.get(
             owner.g(f"/documents/{doc['id']}/versions"),
@@ -416,21 +325,12 @@ async def test_download_version_cross_guild_forbidden(
     ).json()
     v1 = versions[0]
 
-    outsider = await create_user(session)
+    outsider = await acting_user("member")
     resp = await client.get(
         owner.g(f"/documents/{doc['id']}/versions/{v1['id']}/download"),
-        headers=get_auth_headers(outsider),
+        headers=outsider.headers,
     )
     assert resp.status_code == 404
-
-    for v in (
-        await session.exec(
-            select(DocumentFileVersion).where(
-                DocumentFileVersion.document_id == doc["id"]
-            )
-        )
-    ).all():
-        (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
 
 
 @pytest.mark.integration
@@ -438,8 +338,8 @@ async def test_delete_non_current_version_owner(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """Owner deletes an old version; current stays, blob + Upload row removed."""
-    owner, guild, initiative = await _setup_guild_with_owner(acting_user)
-    doc = await _upload_initial_file_doc(client, owner, initiative=initiative)
+    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
     await client.post(
         owner.g(f"/documents/{doc['id']}/versions"),
         headers=owner.headers,
@@ -460,6 +360,8 @@ async def test_delete_non_current_version_owner(
         )
     ).one()
     v1_filename = v1_row.file_url.split("/")[-1]
+    storage = get_guild_storage(owner.guild.id)
+    assert storage.exists(v1_filename)
 
     resp = await client.delete(
         owner.g(f"/documents/{doc['id']}/versions/{v1['id']}"),
@@ -479,15 +381,12 @@ async def test_delete_non_current_version_owner(
     assert (
         await session.exec(select(Upload).where(Upload.filename == v1_filename))
     ).one_or_none() is None
-    assert not (_uploads_dir() / v1_filename).exists()
+    assert not storage.exists(v1_filename)
 
     # Current (v2) unchanged on document.
-    remaining_filename = remaining[0].file_url.split("/")[-1]
     session.expire_all()
     refreshed = await session.get(Document, doc["id"])
     assert refreshed.file_size == len(PDF_BYTES_V2)
-
-    (_uploads_dir() / remaining_filename).unlink(missing_ok=True)
 
 
 @pytest.mark.integration
@@ -495,8 +394,8 @@ async def test_delete_current_version_promotes_previous(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """Deleting the current version rolls the document back to the prior version."""
-    owner, guild, initiative = await _setup_guild_with_owner(acting_user)
-    doc = await _upload_initial_file_doc(client, owner, initiative=initiative)
+    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
     v2_resp = await client.post(
         owner.g(f"/documents/{doc['id']}/versions"),
         headers=owner.headers,
@@ -523,16 +422,12 @@ async def test_delete_current_version_promotes_previous(
     assert [v["version_number"] for v in versions] == [1]
     assert versions[0]["is_current"] is True
 
-    (_uploads_dir() / refreshed.file_url.split("/")[-1]).unlink(missing_ok=True)
-
 
 @pytest.mark.integration
-async def test_delete_last_version_blocked(
-    client: AsyncClient, session: AsyncSession, acting_user
-) -> None:
+async def test_delete_last_version_blocked(client: AsyncClient, acting_user) -> None:
     """The only remaining version can't be deleted."""
-    owner, guild, initiative = await _setup_guild_with_owner(acting_user)
-    doc = await _upload_initial_file_doc(client, owner, initiative=initiative)
+    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
     versions = (
         await client.get(
             owner.g(f"/documents/{doc['id']}/versions"),
@@ -548,41 +443,22 @@ async def test_delete_last_version_blocked(
     assert resp.status_code == 400
     assert resp.json()["detail"] == "DOCUMENT_CANNOT_DELETE_LAST_VERSION"
 
-    (_uploads_dir() / versions[0]["original_filename"]).unlink(missing_ok=True)
-    for v in (
-        await session.exec(
-            select(DocumentFileVersion).where(
-                DocumentFileVersion.document_id == doc["id"]
-            )
-        )
-    ).all():
-        (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
-
 
 @pytest.mark.integration
 async def test_delete_version_non_owner_forbidden(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """A write (non-owner) user cannot delete versions."""
-    owner, guild, initiative = await _setup_guild_with_owner(acting_user)
+    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
     writer = await acting_user(
         guild_role=GuildRole.member,
-        guild=guild,
-        initiative=initiative,
+        guild=owner.guild,
+        initiative=owner.initiative,
         initiative_role="member",
     )
 
-    doc = await _upload_initial_file_doc(client, owner, initiative=initiative)
-    session.add(
-        ResourceGrant(
-            resource_type="document",
-            resource_id=doc["id"],
-            user_id=writer.user.id,
-            level=ResourceAccessLevel.write,
-            initiative_id=initiative.id,
-        )
-    )
-    await session.commit()
+    doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
+    await _share(session, doc, writer, ResourceAccessLevel.write)
     await client.post(
         owner.g(f"/documents/{doc['id']}/versions"),
         headers=owner.headers,
@@ -602,15 +478,6 @@ async def test_delete_version_non_owner_forbidden(
     )
     assert resp.status_code == 403
 
-    for v in (
-        await session.exec(
-            select(DocumentFileVersion).where(
-                DocumentFileVersion.document_id == doc["id"]
-            )
-        )
-    ).all():
-        (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
-
 
 @pytest.mark.integration
 async def test_upload_version_allowed_when_stored_content_type_is_null(
@@ -622,8 +489,8 @@ async def test_upload_version_allowed_when_stored_content_type_is_null(
     mismatch the uploaded MIME type and permanently reject new versions
     with ``VERSION_TYPE_MISMATCH``.
     """
-    owner, guild, initiative = await _setup_guild_with_owner(acting_user)
-    doc = await _upload_initial_file_doc(client, owner, initiative=initiative)
+    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
 
     # Simulate a legacy / backfilled row where the content type was never recorded.
     db_doc = await session.get(Document, doc["id"])
@@ -639,26 +506,17 @@ async def test_upload_version_allowed_when_stored_content_type_is_null(
     assert resp.status_code == 201, resp.text
     assert resp.json()["version_number"] == 2
 
-    for v in (
-        await session.exec(
-            select(DocumentFileVersion).where(
-                DocumentFileVersion.document_id == doc["id"]
-            )
-        )
-    ).all():
-        (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
-
 
 @pytest.mark.integration
 async def test_delete_version_non_file_document_rejected(
     client: AsyncClient, acting_user
 ) -> None:
     """Delete is rejected on non-file documents with the same code as upload/list."""
-    owner, guild, initiative = await _setup_guild_with_owner(acting_user)
+    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
     create = await client.post(
         owner.g("/documents/"),
         headers=owner.headers,
-        json={"name": "Native doc", "initiative_id": initiative.id},
+        json={"name": "Native doc", "initiative_id": owner.initiative.id},
     )
     assert create.status_code == 201
     native_id = create.json()["id"]
@@ -693,13 +551,13 @@ async def test_upload_document_file_over_limit_rejected(
     cap = 1024
     monkeypatch.setattr(attachments_service, "MAX_DOCUMENT_FILE_SIZE", cap)
 
-    owner, guild, initiative = await _setup_guild_with_owner(acting_user)
+    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
     oversized = b"%PDF-1.4 " + b"A" * (cap + 1)
     resp = await client.post(
         owner.g("/documents/upload"),
         headers=owner.headers,
-        data={"name": "Too big", "initiative_id": str(initiative.id)},
+        data={"name": "Too big", "initiative_id": str(owner.initiative.id)},
         files={"file": ("big.pdf", oversized, "application/pdf")},
     )
 
@@ -709,7 +567,7 @@ async def test_upload_document_file_over_limit_rejected(
     # Nothing was persisted.
     docs = (
         await session.exec(
-            select(Document).where(Document.initiative_id == initiative.id)
+            select(Document).where(Document.initiative_id == owner.initiative.id)
         )
     ).all()
     assert all(d.name != "Too big" for d in docs)
@@ -718,7 +576,6 @@ async def test_upload_document_file_over_limit_rejected(
 @pytest.mark.integration
 async def test_upload_document_file_just_under_limit_succeeds(
     client: AsyncClient,
-    session: AsyncSession,
     acting_user,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -726,29 +583,19 @@ async def test_upload_document_file_just_under_limit_succeeds(
     cap = 4096
     monkeypatch.setattr(attachments_service, "MAX_DOCUMENT_FILE_SIZE", cap)
 
-    owner, guild, initiative = await _setup_guild_with_owner(acting_user)
+    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
     under = _TINY_PDF + b" " + b"B" * (cap - len(_TINY_PDF) - 1)
     assert len(under) == cap
     resp = await client.post(
         owner.g("/documents/upload"),
         headers=owner.headers,
-        data={"name": "Under cap", "initiative_id": str(initiative.id)},
+        data={"name": "Under cap", "initiative_id": str(owner.initiative.id)},
         files={"file": ("under.pdf", under, "application/pdf")},
     )
 
     assert resp.status_code == 201, resp.text
-    body = resp.json()
-    assert body["file_size"] == cap
-
-    for v in (
-        await session.exec(
-            select(DocumentFileVersion).where(
-                DocumentFileVersion.document_id == body["id"]
-            )
-        )
-    ).all():
-        (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
+    assert resp.json()["file_size"] == cap
 
 
 @pytest.mark.integration
@@ -759,9 +606,9 @@ async def test_upload_document_version_over_limit_rejected(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """POST /documents/{id}/versions rejects a body over the cap with 413."""
-    owner, guild, initiative = await _setup_guild_with_owner(acting_user)
+    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
     # Seed v1 while the cap is still large so the document exists.
-    doc = await _upload_initial_file_doc(client, owner, initiative=initiative)
+    doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
 
     cap = 1024
     monkeypatch.setattr(attachments_service, "MAX_DOCUMENT_FILE_SIZE", cap)
@@ -785,20 +632,17 @@ async def test_upload_document_version_over_limit_rejected(
         )
     ).all()
     assert {v.version_number for v in versions} == {1}
-    for v in versions:
-        (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
 
 
 @pytest.mark.integration
 async def test_upload_document_version_just_under_limit_succeeds(
     client: AsyncClient,
-    session: AsyncSession,
     acting_user,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """POST /documents/{id}/versions accepts a body at/under the cap."""
-    owner, guild, initiative = await _setup_guild_with_owner(acting_user)
-    doc = await _upload_initial_file_doc(client, owner, initiative=initiative)
+    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
 
     cap = 4096
     monkeypatch.setattr(attachments_service, "MAX_DOCUMENT_FILE_SIZE", cap)
@@ -815,15 +659,6 @@ async def test_upload_document_version_just_under_limit_succeeds(
     body = resp.json()
     assert body["version_number"] == 2
     assert body["file_size"] == cap
-
-    for v in (
-        await session.exec(
-            select(DocumentFileVersion).where(
-                DocumentFileVersion.document_id == doc["id"]
-            )
-        )
-    ).all():
-        (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
 
 
 #: A real 1x1 PNG — the header reader walks IHDR, so a stub signature is not
@@ -888,5 +723,3 @@ async def test_upload_document_file_as_any_author(
         )
     ).all()
     assert [v.version_number for v in versions] == [1]
-    for v in versions:
-        (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
