@@ -35,10 +35,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { SecondFactorRequiredError, useAuth } from "@/hooks/useAuth";
-import { useGuilds } from "@/hooks/useGuilds";
+import { useResumeAfterSignIn } from "@/hooks/useResumeAfterSignIn";
 import { useServer } from "@/hooks/useServer";
 import { getErrorCode } from "@/lib/errorMessage";
-import { guildIdFromPath } from "@/lib/guildUrl";
 import { passkeyFailureMessage } from "@/lib/passkeyFailure";
 import {
   browserOffersPasskeyAutofill,
@@ -97,7 +96,7 @@ export const LoginPage = () => {
     device_name?: string;
   };
   const { login, completeSecondFactor, applyPasskeySignIn } = useAuth();
-  const { refreshGuilds } = useGuilds();
+  const resumeAfterSignIn = useResumeAfterSignIn();
   const {
     isNativePlatform,
     isServerConfigured,
@@ -199,9 +198,7 @@ export const LoginPage = () => {
   // from an effect, and a handler that is a new function every render would
   // have that effect chasing its own tail.
   const goWhereTheySignedInFor = useCallback(async () => {
-    // The page they were headed for before they were asked to sign in, if it
-    // is a path in this app. An invite still wins: it is why they are here.
-    const returnTo = returnPath(searchParams.next) ?? "/";
+    // An invite wins over the page they were headed for: it is why they are here.
     if (inviteCodeParam) {
       router.navigate({
         to: "/invite/$code",
@@ -210,22 +207,8 @@ export const LoginPage = () => {
       });
       return;
     }
-    // ``next`` says where somebody was interrupted, and it is carried by a
-    // browser rather than by an account: the session that expired here, or the
-    // one a step-up ended, may not be the account now signing in. A path inside
-    // a community is only theirs to resume if they are in that community, so
-    // ask the list before going there and start them at home if they are not.
-    const wanted = guildIdFromPath(returnTo);
-    if (wanted === null) {
-      router.navigate({ to: returnTo, replace: true });
-      return;
-    }
-    const reachable = await refreshGuilds();
-    router.navigate({
-      to: reachable.some((guild) => guild.id === wanted) ? returnTo : "/",
-      replace: true,
-    });
-  }, [inviteCodeParam, refreshGuilds, router, searchParams.next]);
+    await resumeAfterSignIn(searchParams.next);
+  }, [inviteCodeParam, resumeAfterSignIn, router, searchParams.next]);
 
   /** What to put on the card when a passkey sign-in the person asked for did
    *  not finish. Nothing is said for a prompt this page stood down itself. */
