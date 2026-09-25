@@ -14,13 +14,6 @@
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MAX_SLUG_LENGTH = 64;
 
-export interface ViewSearch<V extends string> {
-  /** Which view the list is in. Absent means "whatever the default resolves to". */
-  view?: V;
-  /** Which saved preset the list is showing, by slug. */
-  preset?: string;
-}
-
 /** Coerce a `?preset=` value. Anything malformed is dropped, never thrown —
  *  a pasted link with a typo should still render the project. */
 export function parsePresetSlug(raw: unknown): string | undefined {

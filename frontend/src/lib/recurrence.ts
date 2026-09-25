@@ -20,48 +20,24 @@ export type RecurrencePreset =
 
 type WeekdayConfig = {
   value: TaskRecurrenceOutputWeekdaysItem;
-  label: string;
-  short: string;
   dateIndex: number;
 };
 
 export const WEEKDAYS: WeekdayConfig[] = [
-  { value: "monday", label: "Monday", short: "Mon", dateIndex: 1 },
-  { value: "tuesday", label: "Tuesday", short: "Tue", dateIndex: 2 },
-  { value: "wednesday", label: "Wednesday", short: "Wed", dateIndex: 3 },
-  { value: "thursday", label: "Thursday", short: "Thu", dateIndex: 4 },
-  { value: "friday", label: "Friday", short: "Fri", dateIndex: 5 },
-  { value: "saturday", label: "Saturday", short: "Sat", dateIndex: 6 },
-  { value: "sunday", label: "Sunday", short: "Sun", dateIndex: 0 },
+  { value: "monday", dateIndex: 1 },
+  { value: "tuesday", dateIndex: 2 },
+  { value: "wednesday", dateIndex: 3 },
+  { value: "thursday", dateIndex: 4 },
+  { value: "friday", dateIndex: 5 },
+  { value: "saturday", dateIndex: 6 },
+  { value: "sunday", dateIndex: 0 },
 ];
 
 const WEEKDAY_ORDER = Object.fromEntries(
   WEEKDAYS.map((item, index) => [item.value, index])
 ) as Record<TaskRecurrenceOutputWeekdaysItem, number>;
 
-const POSITION_LABELS: Record<TaskWeekPosition, string> = {
-  first: "first",
-  second: "second",
-  third: "third",
-  fourth: "fourth",
-  last: "last",
-};
-
-const MONTH_NAMES = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
-
+/** The `dates:recurrenceSummary.*` unit keys for each frequency. */
 const FREQUENCY_LABELS: Record<
   TaskRecurrenceOutputFrequency,
   { singular: string; plural: string }
@@ -71,8 +47,6 @@ const FREQUENCY_LABELS: Record<
   monthly: { singular: "month", plural: "months" },
   yearly: { singular: "year", plural: "years" },
 };
-
-const _clampInterval = (value: number) => Math.max(1, Math.min(365, Math.floor(value)));
 
 const getReferenceDate = (value?: string | null): Date => {
   if (!value) {
@@ -206,13 +180,11 @@ export const detectRecurrencePreset = (rule: TaskRecurrenceOutput | null): Recur
   return "custom";
 };
 
-const formatWeekdayList = (weekdays: TaskRecurrenceOutputWeekdaysItem[], t?: TranslateFn) => {
+const formatWeekdayList = (weekdays: TaskRecurrenceOutputWeekdaysItem[], t: TranslateFn) => {
   if (!weekdays.length) {
     return "";
   }
-  const labels = sortWeekdays(weekdays).map((day) =>
-    t ? t(`dates:weekdays.${day}`) : (WEEKDAYS.find((config) => config.value === day)?.label ?? day)
-  );
+  const labels = sortWeekdays(weekdays).map((day) => t(`dates:weekdays.${day}`));
   if (labels.length === 1) {
     return labels[0] ?? "";
   }
@@ -226,7 +198,7 @@ const formatWeekdayList = (weekdays: TaskRecurrenceOutputWeekdaysItem[], t?: Tra
   }
 };
 
-const formatEnding = (rule: TaskRecurrenceOutput, t?: TranslateFn) => {
+const formatEnding = (rule: TaskRecurrenceOutput, t: TranslateFn) => {
   if (rule.ends === "on_date" && rule.end_date) {
     // Parse date-only string as local date to avoid timezone issues
     const match = rule.end_date.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -234,74 +206,54 @@ const formatEnding = (rule: TaskRecurrenceOutput, t?: TranslateFn) => {
       ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
       : new Date(rule.end_date);
     if (!Number.isNaN(date.getTime())) {
-      const formatted = date.toLocaleDateString();
-      return t ? t("dates:recurrenceSummary.untilDate", { date: formatted }) : `until ${formatted}`;
+      return t("dates:recurrenceSummary.untilDate", { date: date.toLocaleDateString() });
     }
   }
   if (rule.ends === "after_occurrences" && typeof rule.end_after_occurrences === "number") {
-    return t
-      ? t("dates:recurrenceSummary.forOccurrences", { count: rule.end_after_occurrences })
-      : `for ${rule.end_after_occurrences} occurrences`;
+    return t("dates:recurrenceSummary.forOccurrences", { count: rule.end_after_occurrences });
   }
   return "";
 };
 
-const describeMonthlyDetail = (rule: TaskRecurrenceOutput, t?: TranslateFn) => {
+const describeMonthlyDetail = (rule: TaskRecurrenceOutput, t: TranslateFn) => {
   if (rule.monthly_mode === "day_of_month" && typeof rule.day_of_month === "number") {
-    return t
-      ? t("dates:recurrenceSummary.onDay", { day: rule.day_of_month })
-      : `on day ${rule.day_of_month}`;
+    return t("dates:recurrenceSummary.onDay", { day: rule.day_of_month });
   }
   if (rule.weekday_position && rule.weekday) {
-    const weekdayLabel = t
-      ? t(`dates:weekdays.${rule.weekday}`)
-      : (WEEKDAYS.find((item) => item.value === rule.weekday)?.label ?? rule.weekday);
-    const posLabel = t
-      ? t(`dates:positions.${rule.weekday_position}`)
-      : POSITION_LABELS[rule.weekday_position];
-    return t
-      ? t("dates:recurrenceSummary.onPositionWeekday", {
-          position: posLabel,
-          weekday: weekdayLabel,
-        })
-      : `on the ${posLabel} ${weekdayLabel}`;
+    return t("dates:recurrenceSummary.onPositionWeekday", {
+      position: t(`dates:positions.${rule.weekday_position}`),
+      weekday: t(`dates:weekdays.${rule.weekday}`),
+    });
   }
   return "";
 };
 
 export const summarizeRecurrence = (
   rule: TaskRecurrenceOutput | null,
-  options?: { referenceDate?: string | null; strategy?: TaskListReadRecurrenceStrategy },
-  t?: TranslateFn
+  options: { referenceDate?: string | null; strategy?: TaskListReadRecurrenceStrategy } | undefined,
+  t: TranslateFn
 ): string => {
   if (!rule) {
-    return t ? t("dates:recurrenceSummary.doesNotRepeat") : "Does not repeat";
+    return t("dates:recurrenceSummary.doesNotRepeat");
   }
 
   const frequencyLabel = FREQUENCY_LABELS[rule.frequency];
-  const unit = t
-    ? rule.interval === 1
+  const unit =
+    rule.interval === 1
       ? t(`dates:recurrenceSummary.${frequencyLabel.singular}`)
-      : t(`dates:recurrenceSummary.${frequencyLabel.plural}`)
-    : rule.interval === 1
-      ? frequencyLabel.singular
-      : frequencyLabel.plural;
-  const everyLabel = t
-    ? rule.interval === 1
+      : t(`dates:recurrenceSummary.${frequencyLabel.plural}`);
+  const schedule =
+    rule.interval === 1
       ? t("dates:recurrenceSummary.everySingular", { unit })
-      : t("dates:recurrenceSummary.everyPlural", { count: rule.interval, unit })
-    : rule.interval === 1
-      ? `every ${unit}`
-      : `every ${rule.interval} ${unit}`;
+      : t("dates:recurrenceSummary.everyPlural", { count: rule.interval, unit });
 
   let detail = "";
   switch (rule.frequency) {
     case "weekly":
       if (rule.weekdays.length) {
-        const weekdayList = formatWeekdayList(rule.weekdays, t);
-        detail = t
-          ? t("dates:recurrenceSummary.onWeekdays", { weekdays: weekdayList })
-          : `on ${weekdayList}`;
+        detail = t("dates:recurrenceSummary.onWeekdays", {
+          weekdays: formatWeekdayList(rule.weekdays, t),
+        });
       }
       break;
     case "monthly":
@@ -314,15 +266,15 @@ export const summarizeRecurrence = (
           : options?.referenceDate
             ? getReferenceDate(options.referenceDate).getMonth() + 1
             : null;
-      const monthName =
-        monthNum != null ? (t ? t(`dates:months.${monthNum}`) : MONTH_NAMES[monthNum - 1]) : "";
+      const monthName = monthNum != null ? t(`dates:months.${monthNum}`) : "";
       const monthlyDetail = describeMonthlyDetail(rule, t);
       if (monthName && monthlyDetail) {
-        detail = t
-          ? t("dates:recurrenceSummary.detailOfMonth", { detail: monthlyDetail, month: monthName })
-          : `${monthlyDetail} of ${monthName}`;
+        detail = t("dates:recurrenceSummary.detailOfMonth", {
+          detail: monthlyDetail,
+          month: monthName,
+        });
       } else if (monthName) {
-        detail = t ? t("dates:recurrenceSummary.inMonth", { month: monthName }) : `in ${monthName}`;
+        detail = t("dates:recurrenceSummary.inMonth", { month: monthName });
       } else {
         detail = monthlyDetail;
       }
@@ -332,11 +284,9 @@ export const summarizeRecurrence = (
       detail = "";
   }
 
-  const schedule = everyLabel;
-  const parts = [t ? t("dates:recurrenceSummary.repeats", { schedule }) : `Repeats ${schedule}`];
+  const parts = [t("dates:recurrenceSummary.repeats", { schedule })];
   if (options?.strategy === "rolling") {
-    const label = t ? t("dates:recurrenceSummary.afterCompletion") : "after completion";
-    parts.push(`(${label})`);
+    parts.push(`(${t("dates:recurrenceSummary.afterCompletion")})`);
   }
   if (detail) {
     parts.push(detail);

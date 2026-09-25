@@ -26,17 +26,6 @@ from app.services.platform import user_stream
 RESOURCE = "notification"
 
 
-async def signal_user(user_id: int, action: str = "changed") -> None:
-    """Tell one user's open tabs that their inbox moved.
-
-    ``ids`` is deliberately empty: the inbox is addressed by *who is asking*,
-    so there is nothing for the client to name in its refetch and nothing here
-    worth carrying. ``action`` distinguishes a new arrival from a read-state
-    change only so a client could treat them differently; both mean "refetch".
-    """
-    await user_stream.publish(user_id, user_stream.build_frame(RESOURCE, action))
-
-
 def queue_signal(session: Any, user_id: int | None, action: str = "changed") -> None:
     """Note that this session changed ``user_id``'s inbox.
 

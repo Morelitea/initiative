@@ -87,11 +87,6 @@ def open_expr(table_name: str, table: Table) -> ColumnElement:
     return rule(table) if rule is not None else null()
 
 
-def can_block(table_name: str) -> bool:
-    """Whether this kind can be said to be holding anything up."""
-    return table_name in OPEN_WHEN
-
-
 def blocking_kinds() -> list[tuple[str, Table, ColumnElement]]:
     """Every kind that can hold something up: how an edge names it, its table,
     and the reading of "still outstanding" over that table.

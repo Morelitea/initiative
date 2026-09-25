@@ -1,9 +1,9 @@
 """Tests for the resolved push-config cache.
 
-Same precedence rules as the captcha and storage caches, plus the one thing
-specific to this credential: the service-account JSON is big enough that the
-column it is stored in had to be sized for it, so a round trip is asserted on a
-realistic document rather than on a short string.
+The stored row wins over env once saved, plus the one thing specific to this
+credential: the service-account JSON is big enough that the column it is stored
+in had to be sized for it, so a round trip is asserted on a realistic document
+rather than on a short string.
 """
 
 from __future__ import annotations
@@ -47,24 +47,6 @@ def _reset_cache():
     push_config.reset_for_tests()
 
 
-@pytest.mark.unit
-def test_current_config_falls_back_to_env_before_load(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Before the first load the resolver reads env, so a deployment that has
-    always configured FCM through the environment keeps working unchanged."""
-    monkeypatch.setattr(app_config, "FCM_ENABLED", True, raising=False)
-    monkeypatch.setattr(app_config, "FCM_PROJECT_ID", "env-project", raising=False)
-    monkeypatch.setattr(
-        app_config, "FCM_SERVICE_ACCOUNT_JSON", _service_account("env"), raising=False
-    )
-
-    cfg = push_config.current_push_config()
-    assert cfg.enabled is True
-    assert cfg.project_id == "env-project"
-    assert json.loads(cfg.service_account_json or "{}")["project_id"] == "env"
-
-
 @pytest.mark.integration
 async def test_refresh_loads_db_over_env(
     session: AsyncSession,
@@ -86,7 +68,7 @@ async def test_refresh_loads_db_over_env(
         secret_provided=True,
     )
 
-    cfg = push_config.current_push_config()
+    cfg = await push_config.ensure_push_config_fresh()
     assert cfg.enabled is True
     assert cfg.project_id == "db-project"
     assert cfg.api_key == "db-api-key"
@@ -118,7 +100,7 @@ async def test_full_service_account_survives_the_round_trip(
         secret_provided=True,
     )
 
-    stored = push_config.current_push_config().service_account_json
+    stored = (await push_config.ensure_push_config_fresh()).service_account_json
     assert stored == account
     assert json.loads(stored or "{}")["project_id"] == "demo-project"
 
@@ -150,6 +132,6 @@ async def test_credential_is_kept_when_not_sent(session: AsyncSession) -> None:
         secret_provided=False,
     )
 
-    cfg = push_config.current_push_config()
+    cfg = await push_config.ensure_push_config_fresh()
     assert cfg.enabled is False
     assert cfg.service_account_json == account

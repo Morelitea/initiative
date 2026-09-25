@@ -137,7 +137,7 @@ class TestThePolicy:
         await session.commit()
         invalidate_registrations()
 
-        assert await app_frame_policy() == settings.content_security_policy
+        assert await app_frame_policy() == _ordinary_policy()
 
     async def test_an_unreadable_list_leaves_the_ordinary_policy(self, monkeypatch):
         """Answered, not raised: this runs on the route that serves every
@@ -149,14 +149,19 @@ class TestThePolicy:
 
         monkeypatch.setattr(registration_lookup, "frame_origins", boom)
 
-        assert await app_frame_policy() == settings.content_security_policy
+        assert await app_frame_policy() == _ordinary_policy()
 
 
 @pytest.mark.unit
 def test_the_ordinary_policy_frames_no_app():
     """What the middleware puts on every response that is not a document."""
-    assert "example.test" not in _directive(
-        settings.content_security_policy, "frame-src"
+    assert "example.test" not in _directive(_ordinary_policy(), "frame-src")
+
+
+def _ordinary_policy() -> str:
+    """The app-wide policy, framing no app."""
+    return settings.content_security_policy_with_frames(
+        (), captcha_provider=settings.CAPTCHA_PROVIDER
     )
 
 

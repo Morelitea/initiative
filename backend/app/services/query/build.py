@@ -31,7 +31,7 @@ from app.schemas.query import FilterOp
 from app.services.fields import dataset
 from app.services.fields.registry import dataset_names
 from app.services.fields.spec import ControlKind
-from app.services.query.resolve import VIEWER, QueryError, ResolvedQuery, resolve
+from app.services.query.resolve import VIEWER, QueryError
 
 #: What a column may be reduced to. Aggregates only — a window function is a
 #: different question and the validator does not admit one.
@@ -526,13 +526,3 @@ def build(spec: QuerySpec) -> str:
         select.limitOption = LimitOption.LIMIT_OPTION_COUNT
 
     return RawStream()(select)
-
-
-def build_and_resolve(spec: QuerySpec) -> tuple[str, ResolvedQuery]:
-    """The statement, and proof that the surface will run it.
-
-    Resolved here rather than left to the caller: a builder that can produce a
-    statement the validator refuses is a builder somebody can get stuck in.
-    """
-    sql = build(spec)
-    return sql, resolve(sql)

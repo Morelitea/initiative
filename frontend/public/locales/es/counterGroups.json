@@ -3,7 +3,6 @@
   "group": "Grupo de contadores",
   "groups": "Grupos de contadores",
   "counter": "Contador",
-  "counters": "Contadores",
   "noGroups": "Aún no hay grupos de contadores",
   "noGroupsDescription": "Los grupos de contadores reúnen valores numéricos relacionados —como PG, munición o puntuaciones— que puedes incrementar, decrementar o ajustar directamente.",
   "createGroup": "Crear grupo de contadores",

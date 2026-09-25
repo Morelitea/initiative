@@ -19,7 +19,6 @@ from dataclasses import dataclass
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import settings as app_config
 from app.core.encryption import SALT_FCM_SERVICE_ACCOUNT, decrypt_field
 
 #: How long a snapshot is trusted before a dispatch reloads it. The 30 seconds
@@ -40,25 +39,6 @@ class ResolvedPushConfig:
     api_key: str | None
     sender_id: str | None
     service_account_json: str | None  # decrypted plaintext, or None when unset
-
-
-def _from_env() -> ResolvedPushConfig:
-    """Straight from env settings — the bootstrap / pre-database fallback."""
-    return ResolvedPushConfig(
-        enabled=bool(app_config.FCM_ENABLED),
-        project_id=app_config.FCM_PROJECT_ID,
-        application_id=app_config.FCM_APPLICATION_ID,
-        api_key=app_config.FCM_API_KEY,
-        sender_id=app_config.FCM_SENDER_ID,
-        service_account_json=app_config.FCM_SERVICE_ACCOUNT_JSON,
-    )
-
-
-def current_push_config() -> ResolvedPushConfig:
-    """The cached configuration, or the env fallback if not yet loaded."""
-    if _resolved is not None:
-        return _resolved
-    return _from_env()
 
 
 async def resolve_saved_service_account() -> str | None:

@@ -8,48 +8,25 @@ not cover, which is the structural initiative set (``initiatives`` itself and
 its roster): those are guild-scoped by the schema boundary, so this clause is
 their only scope gate rather than a second opinion on one.
 
-This module also provides the guild/initiative-membership batch lookups
-(resolve membership for many users or initiatives in one round trip instead of
-a per-user loop).
-
-Routing contract:
-  - ``guild_memberships`` is a shared/public table — the guild helpers work on
-    any session, routed or not.
-  - ``initiative_members`` lives in each guild's schema — callers must already
-    be routed into the right guild (``RLSSessionDep`` or ``set_rls_context``)
-    before using the initiative helpers, exactly like any other guild-scoped
-    query.
+This module also provides a batch guild-role lookup (resolve the role for
+many users in one round trip instead of a per-user loop). ``guild_memberships``
+is a shared/public table, so it works on any session, routed or not; the scope
+clause needs a session already routed into the right guild (``RLSSessionDep``
+or ``set_rls_context``), exactly like any other guild-scoped query.
 """
 
-from typing import Collection, Iterable, Optional
+from typing import Iterable
 
-from sqlalchemy import ColumnElement, exists, func, select
+from sqlalchemy import ColumnElement, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership, GuildRole
-from app.models.tenant.initiative import InitiativeMember
+from app.models.platform.guild import GuildMembership, GuildRole
 from app.db.authorization import standing_arg
 
 
 # ---------------------------------------------------------------------------
 # Clause builders — compose into WHERE conditions of any statement
 # ---------------------------------------------------------------------------
-
-
-def initiative_member_clause(
-    user_id: int, initiative_id_col: ColumnElement[int] | int
-) -> ColumnElement[bool]:
-    """EXISTS predicate: ``user_id`` is a member of the referenced initiative.
-
-    ``initiative_id_col`` is typically a column on the outer statement
-    (e.g. ``Document.initiative_id``) but a literal id also works.
-    """
-    return exists(
-        select(1).where(
-            InitiativeMember.initiative_id == initiative_id_col,
-            InitiativeMember.user_id == user_id,
-        )
-    )
 
 
 def initiative_scope_clause(
@@ -75,72 +52,9 @@ def initiative_scope_clause(
     )
 
 
-#: Distinguishes "this row has no initiative_id column" from "its initiative_id
-#: is NULL". Only the second means guild scope.
-NO_SCOPE_COLUMN = object()
-
-
 # ---------------------------------------------------------------------------
-# Batch lookups — one query regardless of how many users/initiatives
+# Batch lookups — one query regardless of how many users
 # ---------------------------------------------------------------------------
-
-
-async def initiative_member_user_ids(
-    session: AsyncSession,
-    initiative_id: int,
-    user_ids: Optional[Collection[int]] = None,
-) -> set[int]:
-    """The subset of ``user_ids`` that are members of the initiative
-    (every member when ``user_ids`` is None). One query for any batch size."""
-    stmt = select(InitiativeMember.user_id).where(
-        InitiativeMember.initiative_id == initiative_id
-    )
-    if user_ids is not None:
-        if not user_ids:
-            return set()
-        stmt = stmt.where(InitiativeMember.user_id.in_(tuple(set(user_ids))))
-    return set((await session.exec(stmt)).scalars().all())
-
-
-async def user_member_initiative_ids(
-    session: AsyncSession,
-    user_id: int,
-    initiative_ids: Optional[Collection[int]] = None,
-) -> set[int]:
-    """The subset of ``initiative_ids`` the user is a member of (all of the
-    user's initiatives in the routed guild when ``initiative_ids`` is None)."""
-    stmt = select(InitiativeMember.initiative_id).where(
-        InitiativeMember.user_id == user_id
-    )
-    if initiative_ids is not None:
-        if not initiative_ids:
-            return set()
-        stmt = stmt.where(
-            InitiativeMember.initiative_id.in_(tuple(set(initiative_ids)))
-        )
-    return set((await session.exec(stmt)).scalars().all())
-
-
-async def is_initiative_member(
-    session: AsyncSession, initiative_id: int, user_id: int
-) -> bool:
-    """Single-user convenience over :func:`initiative_member_user_ids`."""
-    return bool(await initiative_member_user_ids(session, initiative_id, (user_id,)))
-
-
-async def guild_member_user_ids(
-    session: AsyncSession,
-    guild_id: int,
-    user_ids: Optional[Collection[int]] = None,
-) -> set[int]:
-    """The subset of ``user_ids`` that belong to the guild (every member when
-    ``user_ids`` is None). Shared table — no guild routing required."""
-    stmt = select(GuildMembership.user_id).where(GuildMembership.guild_id == guild_id)
-    if user_ids is not None:
-        if not user_ids:
-            return set()
-        stmt = stmt.where(GuildMembership.user_id.in_(tuple(set(user_ids))))
-    return set((await session.exec(stmt)).scalars().all())
 
 
 async def guild_role_map(
@@ -160,10 +74,3 @@ async def guild_role_map(
         )
     )
     return {user_id: role for user_id, role in rows.all()}
-
-
-async def is_guild_admin(session: AsyncSession, guild_id: int, user_id: int) -> bool:
-    """Whether the user is an admin of the guild. Shared table — works on any
-    session."""
-    role = (await guild_role_map(session, guild_id, (user_id,))).get(user_id)
-    return role in GUILD_ADMIN_ROLES

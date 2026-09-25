@@ -421,20 +421,6 @@ export type SceneNode =
   | EmptyNode
   | StackNode;
 
-export const SCENE_NODE_KINDS = [
-  "metric",
-  "series",
-  "timeline",
-  "funnel",
-  "progress",
-  "matrix",
-  "table",
-  "board",
-  "text",
-  "empty",
-  "stack",
-] as const;
-
 /** What a widget module returns. */
 export interface SceneSpec {
   /** Widget API version the module was written against. */

@@ -17,10 +17,7 @@ from sqlmodel import select
 from app.models.platform.notification import Notification, NotificationType
 from app.services.platform import user_notifications
 from app.services.platform import user_stream
-from app.services.platform.notification_stream import (
-    queue_signal,
-    signal_user,
-)
+from app.services.platform.notification_stream import queue_signal
 from app.services.platform.user_stream import UserStream
 from app.testing import create_user
 
@@ -42,18 +39,21 @@ class BrokenWebSocket(FakeWebSocket):
         raise ConnectionResetError("peer gone")
 
 
-@pytest.mark.unit
-async def test_frame_carries_no_notification_content() -> None:
+@pytest.mark.integration
+async def test_frame_carries_no_notification_content(session, captured_stream) -> None:
     """An id envelope, and the inbox needs no ids — so nothing but the shape."""
-    stream = UserStream()
+    user = await create_user(session)
     tab = FakeWebSocket()
-    await stream.connect(7, tab)
-    original = user_stream.stream
-    user_stream.stream = stream
-    try:
-        await signal_user(7, "created")
-    finally:
-        user_stream.stream = original
+    await captured_stream.connect(user.id, tab)
+
+    await user_notifications.create_notification(
+        session,
+        user_id=user.id,
+        notification_type=NotificationType.task_assignment,
+        data={"task_id": 1},
+    )
+    await session.commit()
+    await _drain_tasks()
 
     frame = tab.sent[0]
     assert frame["resource"] == "notification"

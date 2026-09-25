@@ -12,7 +12,6 @@ from uuid import uuid4
 
 from fastapi import UploadFile
 
-from app.core.config import settings
 from app.services.storage import get_guild_storage
 
 logger = logging.getLogger(__name__)
@@ -125,12 +124,6 @@ EXTENSION_TO_MIME: Dict[str, str] = {
     ".md": "text/markdown",
     ".markdown": "text/markdown",
 }
-
-
-def _uploads_dir() -> Path:
-    path = Path(settings.UPLOADS_DIR)
-    path.mkdir(parents=True, exist_ok=True)
-    return path
 
 
 def normalize_upload_url(url: str | None) -> str | None:

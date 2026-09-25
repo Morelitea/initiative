@@ -20,7 +20,7 @@ from app.models.platform.oidc_claim_mapping import (
 )
 from app.models.tenant.initiative import InitiativeMember
 from app.services.oidc_sync import sync_oidc_assignments
-from app.services.tenant.initiatives import get_pm_role
+from app.services.tenant.initiatives import get_role_by_name
 from app.testing.factories import (
     NARROWED_CLAIM,
     NARROWED_VALUE,
@@ -66,7 +66,9 @@ async def test_claim_mapped_role_survives_auto_join(session: AsyncSession):
     initiative = await create_initiative(
         session, guild, owner, name="Onboarding", join_policy="open", auto_join=True
     )
-    pm_role = await get_pm_role(session, initiative_id=initiative.id)
+    pm_role = await get_role_by_name(
+        session, initiative_id=initiative.id, role_name="project_manager"
+    )
     await create_guild_provider_connection(session, guild=guild, provider=provider)
 
     newcomer = await create_user(session)
@@ -251,7 +253,9 @@ async def test_auto_join_still_covers_what_the_claims_do_not(session: AsyncSessi
     unmapped = await create_initiative(
         session, guild, owner, name="Welcome", join_policy="open", auto_join=True
     )
-    mapped_pm = await get_pm_role(session, initiative_id=mapped.id)
+    mapped_pm = await get_role_by_name(
+        session, initiative_id=mapped.id, role_name="project_manager"
+    )
     await create_guild_provider_connection(session, guild=guild, provider=provider)
 
     newcomer = await create_user(session)

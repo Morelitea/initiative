@@ -67,9 +67,8 @@ class PropertyDefinitionUpdate(SanitizedBaseModel):
     """Mutable fields on a property definition.
 
     ``type`` is deliberately excluded — type changes require a dedicated
-    flow because existing values would become invalid. The endpoint
-    raises 409 PROPERTY_TYPE_CHANGE_BLOCKED if any values exist; the
-    service layer enforces the rule.
+    flow because existing values would become invalid. A ``type`` sent
+    in the payload is ignored.
     """
 
     name: Optional[str] = Field(default=None, min_length=1, max_length=100)

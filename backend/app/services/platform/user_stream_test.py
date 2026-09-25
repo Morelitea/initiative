@@ -70,7 +70,7 @@ async def test_disconnect_drops_only_that_socket() -> None:
 
     assert laptop.sent == []
     assert len(phone.sent) == 1
-    assert stream.socket_count(7) == 1
+    assert len(stream._sockets.get(7, ())) == 1
 
 
 @pytest.mark.unit
@@ -80,10 +80,10 @@ async def test_last_socket_leaving_empties_the_user() -> None:
     await stream.connect(7, tab)
     await stream.disconnect(tab)
 
-    assert stream.socket_count(7) == 0
+    assert len(stream._sockets.get(7, ())) == 0
     # Idempotent: a socket the endpoint's ``finally`` already removed.
     await stream.disconnect(tab)
-    assert stream.socket_count(7) == 0
+    assert len(stream._sockets.get(7, ())) == 0
 
 
 @pytest.mark.unit
@@ -96,4 +96,4 @@ async def test_a_dead_socket_is_dropped_and_does_not_block_the_others() -> None:
     await stream.send(7, {"resource": "notification"})
 
     assert len(alive.sent) == 1
-    assert stream.socket_count(7) == 1
+    assert len(stream._sockets.get(7, ())) == 1

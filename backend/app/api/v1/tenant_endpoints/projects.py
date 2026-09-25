@@ -30,7 +30,6 @@ from app.api.deps import (
     get_current_active_user,
     get_guild_membership,
     GuildContext,
-    require_guild_roles,
 )
 from app.models.tenant.project import (
     Project,
@@ -57,7 +56,6 @@ from app.models.tenant.initiative import (
 )
 from app.core import usernames
 from app.models.platform.user import User, UserStatus
-from app.models.platform.guild import GuildRole
 from app.models.tenant.document import Document
 from app.api import resource_access
 from app.core.user_display import handle_of
@@ -122,9 +120,6 @@ GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 #: The routes an installed app may call, under the projects scopes.
 ProjectsRead = Annotated[ActorContext, Depends(app_scope("projects:read"))]
 ProjectsWrite = Annotated[ActorContext, Depends(app_scope("projects:write"))]
-GuildAdminContext = Annotated[
-    GuildContext, Depends(require_guild_roles(GuildRole.admin))
-]
 
 MAX_RECENT_PROJECTS = 20
 

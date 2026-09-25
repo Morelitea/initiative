@@ -67,31 +67,24 @@ def bus_off(monkeypatch):
     monkeypatch.setattr(notify_bus, "notify", _unavailable)
 
 
-@pytest.mark.unit
-async def test_the_frame_says_nothing_about_the_account(captured_stream) -> None:
+@pytest.mark.integration
+async def test_the_frame_says_nothing_about_the_account(
+    session, captured_stream
+) -> None:
     """It names the channel and nothing else — the client re-reads to learn."""
+    user = await create_user(session)
     tab = FakeWebSocket()
-    await captured_stream.connect(7, tab)
+    await captured_stream.connect(user.id, tab)
 
-    await account_stream.signal_account(7, "membership")
+    account_stream.queue_account_signal(session, user.id, "membership")
+    await session.commit()
+    await _drain_tasks()
 
     frame = tab.sent[0]
     assert frame["resource"] == "account"
     assert frame["action"] == "membership"
     assert frame["ids"] == {}
     assert set(frame) == {"resource", "action", "ids", "timestamp"}
-
-
-@pytest.mark.unit
-async def test_a_frame_never_reaches_another_account(captured_stream) -> None:
-    mine, theirs = FakeWebSocket(), FakeWebSocket()
-    await captured_stream.connect(7, mine)
-    await captured_stream.connect(8, theirs)
-
-    await account_stream.signal_account(7)
-
-    assert len(mine.sent) == 1
-    assert theirs.sent == []
 
 
 @pytest.mark.integration

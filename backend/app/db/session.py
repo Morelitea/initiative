@@ -950,21 +950,6 @@ def routed_guild_id(session: AsyncSession) -> int | None:
     return None
 
 
-def require_routed_guild_id(session: AsyncSession) -> int:
-    """The guild this session is routed to, for a payload that has to name one.
-
-    A serializer runs inside the routed session that read its rows, so there is
-    one. Raising beats reporting a community nobody routed into.
-    """
-    guild_id = routed_guild_id(session)
-    if guild_id is None:
-        raise RuntimeError(
-            "no community is routed on this session; set_rls_context must run "
-            "before guild content is serialized"
-        )
-    return guild_id
-
-
 def guild_context(session: AsyncSession) -> GuildContext | None:
     """The standing this session was routed with, or ``None``.
 
@@ -1008,18 +993,6 @@ def install_context(session: AsyncSession) -> InstallContext | None:
     if not isinstance(context, InstallContext):
         return None
     return context if context.guild_id == routed_guild_id(session) else None
-
-
-def require_install_context(session: AsyncSession) -> InstallContext:
-    """The installed app's standing this session was routed with, for a caller
-    that needs one."""
-    context = install_context(session)
-    if context is None:
-        raise RuntimeError(
-            "no install standing is recorded on this session; "
-            "establish_install_access must run before a decision is made from one"
-        )
-    return context
 
 
 def require_actor_context(session: AsyncSession) -> GuildContext | InstallContext:

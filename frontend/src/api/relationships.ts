@@ -95,26 +95,6 @@ export const setRelated = (
     other_type: otherType,
   });
 
-/**
- * Unlink two things.
- *
- * A link is removed by its own id, so the pair is resolved to one first. A
- * surface that renders links already holds their ids and should call
- * {@link removeRelationship} directly; this is for the callers that know the
- * two things and not the link between them.
- */
-export const unrelate = async (
-  guildId: number,
-  entity: EndpointRef,
-  other: EndpointRef,
-  relationshipType: RelationshipType = RelationshipType.attached
-): Promise<void> => {
-  const links = await listRelated(guildId, entity, other.type, relationshipType);
-  const link = links.find((row) => row.other.id === other.id);
-  if (!link) return;
-  await removeRelationship(guildId, link.id);
-};
-
 /** Remove a link by its own id. */
 export const removeRelationship = (guildId: number, relationshipId: number): Promise<void> =>
   removeRelationshipApiV1CGuildIdRelationshipsRelationshipIdDelete(guildId, relationshipId);

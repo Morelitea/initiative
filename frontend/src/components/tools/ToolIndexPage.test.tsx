@@ -2,7 +2,7 @@
  * The shelf every card-grid tool is browsed from, asked once for all of them.
  *
  * Each tool used to carry its own copy of this page, so each would have needed
- * its own copy of these tests. The cases come from {@link TOOL_INDEX} itself:
+ * its own copy of these tests. The cases come from the page's own `TOOL_INDEX`:
  * add a tool with an entry and it is covered here the moment it exists.
  *
  * What is tool-specific stays where it belongs — the queue's status select and

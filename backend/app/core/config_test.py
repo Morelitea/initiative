@@ -348,6 +348,13 @@ def test_cors_origins_strips_path_component():
     )
 
 
+def _csp(settings: Settings) -> str:
+    """The app-wide policy, framing no app, for the settings' own captcha."""
+    return settings.content_security_policy_with_frames(
+        (), captcha_provider=settings.CAPTCHA_PROVIDER
+    )
+
+
 def _directive(policy: str, name: str) -> str:
     """Return one directive segment (e.g. "script-src 'self'") from a CSP string."""
     for part in policy.split(";"):
@@ -358,7 +365,7 @@ def _directive(policy: str, name: str) -> str:
 
 
 def test_csp_confines_scripts_and_locks_down_vectors():
-    csp = _settings().content_security_policy
+    csp = _csp(_settings())
 
     # Scripts are same-origin only — NO unsafe-inline/eval, so injected markup
     # can't execute even if it reaches the DOM.
@@ -376,7 +383,7 @@ def test_csp_confines_scripts_and_locks_down_vectors():
 def test_csp_allows_inline_styles_but_not_scripts():
     # The chart component / UI libs inject inline <style>, so style-src must
     # permit 'unsafe-inline' — but script-src must not (asserted above).
-    csp = _settings().content_security_policy
+    csp = _csp(_settings())
     assert "'unsafe-inline'" in _directive(csp, "style-src")
     assert "'unsafe-inline'" not in _directive(csp, "script-src")
 
@@ -387,7 +394,7 @@ def test_webassembly_is_named_only_on_the_wasm_worker_policy():
     # needs a source expression the app-wide policy does not carry. It is named
     # on those workers' own responses and nowhere else.
     settings = _settings()
-    assert "'wasm-unsafe-eval'" not in settings.content_security_policy
+    assert "'wasm-unsafe-eval'" not in _csp(settings)
     assert "'wasm-unsafe-eval'" not in settings.docs_content_security_policy
 
     sandbox = settings.wasm_worker_content_security_policy
@@ -407,31 +414,31 @@ def test_wasm_worker_policy_grants_only_what_the_workers_use():
 
 
 def test_csp_websocket_scheme_follows_app_url():
-    https = _settings(APP_URL="https://app.example.com").content_security_policy
+    https = _csp(_settings(APP_URL="https://app.example.com"))
     assert "wss:" in _directive(https, "connect-src")
 
-    http = _settings(APP_URL="http://localhost:5173").content_security_policy
+    http = _csp(_settings(APP_URL="http://localhost:5173"))
     assert "ws:" in _directive(http, "connect-src")
 
 
 def test_csp_allows_spell_check_dictionary_cdn():
     # The spell checker fetches its English dictionary from jsDelivr
     # (frontend/src/lib/spell-check.ts); connect-src must allow it.
-    csp = _settings().content_security_policy
+    csp = _csp(_settings())
     assert "https://cdn.jsdelivr.net" in _directive(csp, "connect-src")
 
 
 def test_csp_allows_excalidraw_font_cdn():
     # The bundled Excalidraw whiteboard loads its .woff2 faces from esm.sh;
     # font-src must allow it.
-    csp = _settings().content_security_policy
+    csp = _csp(_settings())
     assert "https://esm.sh" in _directive(csp, "font-src")
 
 
 def test_csp_captcha_origins_only_when_configured():
-    assert "hcaptcha.com" not in _settings().content_security_policy
+    assert "hcaptcha.com" not in _csp(_settings())
 
-    on = _settings(CAPTCHA_PROVIDER="hcaptcha").content_security_policy
+    on = _csp(_settings(CAPTCHA_PROVIDER="hcaptcha"))
     assert "https://*.hcaptcha.com" in _directive(on, "script-src")
 
 
@@ -439,11 +446,9 @@ def test_csp_billing_origin_only_when_portal_configured():
     """The landing page fetches the pricing catalog from the billing portal,
     so its origin is allowed for fetch() only on a deployment that names one —
     and only the origin, never the path it was configured with."""
-    assert "billing.example.com" not in _settings().content_security_policy
+    assert "billing.example.com" not in _csp(_settings())
 
-    on = _settings(
-        BILLING_URL="https://billing.example.com/portal/"
-    ).content_security_policy
+    on = _csp(_settings(BILLING_URL="https://billing.example.com/portal/"))
     assert "https://billing.example.com" in _directive(on, "connect-src")
     assert "/portal" not in _directive(on, "connect-src")
     assert "billing.example.com" not in _directive(on, "script-src")
@@ -454,7 +459,7 @@ def test_docs_csp_allows_swagger_cdn_but_main_csp_does_not():
     # docs-scoped policy; the app-wide script-src stays 'self' (pentest MED-001).
     settings = _settings()
     docs = settings.docs_content_security_policy
-    main = settings.content_security_policy
+    main = _csp(settings)
 
     assert "https://cdn.jsdelivr.net" in _directive(docs, "script-src")
     assert "https://static.cloudflareinsights.com" in _directive(docs, "script-src")
