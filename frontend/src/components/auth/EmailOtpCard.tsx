@@ -18,6 +18,7 @@ import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
+import type { Token } from "@/api/generated/initiativeAPI.schemas";
 import { CaptchaWidget } from "@/components/auth/CaptchaWidget";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
+import { useServer } from "@/hooks/useServer";
 import { getErrorMessage } from "@/lib/errorMessage";
 
 type Step = "address" | "code" | "handle";
@@ -44,6 +46,7 @@ const compact = (value: string) => value.replace(/\s+/g, "");
 export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode }: Props) => {
   const { t } = useTranslation("auth");
   const { applyEmailOtpSignIn } = useAuth();
+  const { isNativePlatform } = useServer();
   // Null on the deployments that run no captcha, which is most of them.
   const { captcha } = useAppConfig();
 
@@ -72,6 +75,7 @@ export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode }: Props) => {
     try {
       const { data } = await apiClient.post<{ challenge: string }>("/auth/email-otp/send", {
         email: email.toLowerCase().trim(),
+        native: isNativePlatform,
         ...(inviteCode ? { invite_code: inviteCode } : {}),
         ...(captcha ? { captcha_token: captchaToken } : {}),
       });
@@ -94,10 +98,10 @@ export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode }: Props) => {
     setBusy(true);
     setError(null);
     try {
-      const response = await apiClient.post<{
-        access_token?: string;
-        registration_ticket?: string;
-      }>("/auth/email-otp/verify", { challenge, code: compact(code) });
+      const response = await apiClient.post<Partial<Token> & { registration_ticket?: string }>(
+        "/auth/email-otp/verify",
+        { challenge, code: compact(code) }
+      );
       // 202 means the code was right and the address belongs to nobody yet,
       // so what is left is to say who this is.
       if (response.status === 202 && response.data.registration_ticket) {
@@ -106,7 +110,7 @@ export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode }: Props) => {
         return;
       }
       if (response.data.access_token) {
-        await applyEmailOtpSignIn(response.data.access_token);
+        await applyEmailOtpSignIn({ ...response.data, access_token: response.data.access_token });
         onSignedIn();
       }
     } catch (err) {
@@ -123,14 +127,14 @@ export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode }: Props) => {
     setBusy(true);
     setError(null);
     try {
-      const { data } = await apiClient.post<{ access_token: string }>("/auth/email-otp/register", {
+      const { data } = await apiClient.post<Token>("/auth/email-otp/register", {
         registration_ticket: ticket,
         username: username.trim(),
         ...(fullName.trim() ? { full_name: fullName.trim() } : {}),
         ...(inviteCode ? { invite_code: inviteCode } : {}),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
-      await applyEmailOtpSignIn(data.access_token);
+      await applyEmailOtpSignIn(data);
       onSignedIn();
     } catch (err) {
       setError(getErrorMessage(err, "auth:emailOtp.registerError"));

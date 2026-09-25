@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import ConfigDict, EmailStr, Field
+from pydantic import ConfigDict, EmailStr, Field, field_validator
 
 from app.core.user_agents import ClientKind
 from app.schemas.base import RawTextStr, SanitizedBaseModel
@@ -73,6 +73,27 @@ class DeviceTokenExchangeRequest(SanitizedBaseModel):
     """A device token offered in return for a session."""
 
     device_token: str
+
+
+#: RFC 7636 §4.1: a verifier is 43–128 unreserved characters.
+_VERIFIER_CHARS = frozenset(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
+)
+
+
+class NativeSignInRedeem(SanitizedBaseModel):
+    """The code a sign-in in the phone's browser came back with, and the PKCE
+    verifier the app began it with."""
+
+    code: str = Field(max_length=4096)
+    code_verifier: str = Field(min_length=43, max_length=128)
+
+    @field_validator("code_verifier")
+    @classmethod
+    def _unreserved(cls, value: str) -> str:
+        if not set(value) <= _VERIFIER_CHARS:
+            raise ValueError("code_verifier holds a character RFC 7636 does not allow")
+        return value
 
 
 class RefreshRequest(SanitizedBaseModel):

@@ -68,7 +68,9 @@ async def test_begin_builds_authorization_url():
     idp = FakeIdp()
     provider = _provider(idp)
 
-    begun = await provider.begin(mobile=True, device_name="Pixel")
+    begun = await provider.begin(
+        mobile=True, device_name="Pixel", app_challenge="c" * 43
+    )
     parts = urlsplit(begun.authorization_url)
     assert f"{parts.scheme}://{parts.netloc}{parts.path}" == f"{ISSUER}/authorize"
     params = {k: v[0] for k, v in parse_qs(parts.query).items()}
@@ -85,6 +87,9 @@ async def test_begin_builds_authorization_url():
     assert params["code_challenge"] == flow.code_challenge
     assert flow.mobile is True
     assert flow.device_name == "Pixel"
+    # The app's own challenge rides the state; the IdP is sent a different one.
+    assert flow.app_challenge == "c" * 43
+    assert params["code_challenge"] != flow.app_challenge
 
 
 async def test_begin_appends_to_existing_query():
@@ -111,6 +116,7 @@ async def test_complete_returns_verified_identity():
     assert done.access_token == "at-123"
     assert done.refresh_token == "rt-456"
     assert done.mobile is False
+    assert done.app_challenge == ""
 
 
 async def test_complete_sends_code_exchange_form():

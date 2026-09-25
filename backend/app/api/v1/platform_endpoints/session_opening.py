@@ -72,7 +72,7 @@ logger = logging.getLogger(__name__)
 
 #: Where a phone's sign-in comes back to. The app registers this scheme and
 #: ``useDeepLinks`` routes it; the OIDC callback and the passkey relay both
-#: hand the app a device token at this address.
+#: hand the app a one-time code at this address (see ``native_handoff``).
 MOBILE_CALLBACK_URI = "initiative://oidc/callback"
 
 

@@ -1415,6 +1415,8 @@ class AIMessages:
 
 class NativeMessages:
     OTA_BUNDLE_NOT_AVAILABLE = "NATIVE_OTA_BUNDLE_NOT_AVAILABLE"
+    #: The app's sign-in is from before the code flow, and its grace has run out.
+    APP_UPDATE_REQUIRED = "NATIVE_APP_UPDATE_REQUIRED"
 
 
 class LegalMessages:

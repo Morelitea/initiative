@@ -92,6 +92,11 @@ class ChallengePurpose(str, Enum):
     email_otp_register = "email_otp_register"
     #: The same, from the native sign-up.
     email_otp_register_native = "email_otp_register_native"
+    #: A sign-in finished in the phone's browser, waiting for the app that
+    #: began it. The value is the sealed code the browser hands back; the
+    #: answer is the app's S256 challenge, so only the verifier behind it
+    #: redeems the code.
+    native_handoff = "native_handoff"
     #: A passkey is being registered for an account that does not exist yet.
     #: The row names nobody — there is nobody to name — and what it stands for
     #: is that the gates a registration has to pass were passed before the

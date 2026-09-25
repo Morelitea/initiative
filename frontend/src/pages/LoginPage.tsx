@@ -38,6 +38,7 @@ import { SecondFactorRequiredError, useAuth } from "@/hooks/useAuth";
 import { useResumeAfterSignIn } from "@/hooks/useResumeAfterSignIn";
 import { useServer } from "@/hooks/useServer";
 import { getErrorCode } from "@/lib/errorMessage";
+import { beginNativeSignIn } from "@/lib/nativeSignIn";
 import { passkeyFailureMessage } from "@/lib/passkeyFailure";
 import {
   browserOffersPasskeyAutofill,
@@ -94,6 +95,7 @@ export const LoginPage = () => {
     passkey?: string | number;
     mobile?: string | boolean;
     device_name?: string;
+    code_challenge?: string;
   };
   const { login, completeSecondFactor, applyPasskeySignIn } = useAuth();
   const resumeAfterSignIn = useResumeAfterSignIn();
@@ -103,7 +105,6 @@ export const LoginPage = () => {
     getServerHostname,
     getServerOrigin,
     clearServerUrl,
-    serverUrl,
   } = useServer();
   const { passwordLoginEnabled, passkeyLoginEnabled, emailOtpLoginEnabled } = useAppConfig();
   const [email, setEmail] = useState("");
@@ -133,6 +134,8 @@ export const LoginPage = () => {
   const relayMode = flag(searchParams.passkey) === "1" && flag(searchParams.mobile) === "true";
   const relayDeviceName =
     typeof searchParams.device_name === "string" ? searchParams.device_name : "";
+  const relayChallenge =
+    typeof searchParams.code_challenge === "string" ? searchParams.code_challenge : "";
 
   // A phone's Add-a-passkey equivalent: the browser decides which site it is
   // on, so on native the button opens one rather than prompting in the webview.
@@ -164,12 +167,16 @@ export const LoginPage = () => {
   };
 
   const handleProviderLogin = async (provider: LoginProviderEntry) => {
-    if (isNativePlatform && serverUrl) {
-      // On mobile, open in system browser with mobile flag and device name
-      const baseUrl = getServerOrigin() ?? serverUrl;
-      const deviceName = await resolveDeviceName();
-      const mobileLoginUrl = `${baseUrl}${provider.login_url}?mobile=true&device_name=${encodeURIComponent(deviceName)}`;
-      await Browser.open({ url: mobileLoginUrl });
+    const origin = getServerOrigin();
+    if (isNativePlatform && origin) {
+      // The phone's browser runs the provider's sign-in and hands back a code
+      // for this app to redeem.
+      const params = new URLSearchParams({
+        mobile: "true",
+        device_name: await resolveDeviceName(),
+        code_challenge: await beginNativeSignIn(origin),
+      });
+      await Browser.open({ url: `${origin}${provider.login_url}?${params}` });
     } else {
       // On web, redirect directly — carrying where they were headed, so an
       // account that only signs in through a provider finishes the trip it
@@ -277,12 +284,13 @@ export const LoginPage = () => {
   /** Send a phone to a browser, which is what knows the site the passkey
    *  belongs to. The app takes over again at the callback link. */
   const openPasskeyRelay = async () => {
-    const baseUrl = getServerOrigin() ?? serverUrl;
-    if (!baseUrl) return;
-    const deviceName = await resolveDeviceName();
-    await Browser.open({
-      url: `${baseUrl}${RELAY_PATH}&device_name=${encodeURIComponent(deviceName)}`,
+    const origin = getServerOrigin();
+    if (!origin) return;
+    const params = new URLSearchParams({
+      device_name: await resolveDeviceName(),
+      code_challenge: await beginNativeSignIn(origin),
     });
+    await Browser.open({ url: `${origin}${RELAY_PATH}&${params}` });
   };
 
   const handlePasskeyLogin = async () => {
@@ -366,7 +374,10 @@ export const LoginPage = () => {
   if (relayMode) {
     return (
       <SignInFrame>
-        <PasskeyRelayCard deviceName={relayDeviceName || FALLBACK_DEVICE_NAME} />
+        <PasskeyRelayCard
+          deviceName={relayDeviceName || FALLBACK_DEVICE_NAME}
+          codeChallenge={relayChallenge}
+        />
       </SignInFrame>
     );
   }

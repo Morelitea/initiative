@@ -87,6 +87,7 @@ vi.mock("@/lib/passkeys", () => ({
 }));
 
 import { SecondFactorRequiredError } from "@/hooks/useAuth";
+import { takePendingSignIn } from "@/lib/nativeSignIn";
 
 import { LoginPage } from "./LoginPage";
 
@@ -453,15 +454,38 @@ describe("LoginPage passkey", () => {
 
     await user.click(await passkeyButton());
 
-    expect(Browser.open).toHaveBeenCalledWith({
-      url: "https://example.com/login?passkey=1&mobile=true&device_name=Test%20Device",
+    // The browser is sent the challenge of a sign-in this app has written down,
+    // so the code it hands back can only be redeemed here.
+    const opened = new URL(vi.mocked(Browser.open).mock.calls[0][0].url);
+    expect(`${opened.origin}${opened.pathname}`).toBe("https://example.com/login");
+    expect(Object.fromEntries(opened.searchParams)).toMatchObject({
+      passkey: "1",
+      mobile: "true",
+      device_name: "Test Device",
     });
+    const pending = takePendingSignIn("https://example.com");
+    expect(pending).not.toBeNull();
+    const digest = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(pending?.verifier)
+    );
+    expect(opened.searchParams.get("code_challenge")).toBe(
+      btoa(String.fromCharCode(...new Uint8Array(digest)))
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "")
+    );
     expect(mocks.signInWithPasskey).not.toHaveBeenCalled();
   });
 });
 
 describe("LoginPage passkey relay", () => {
-  const relaySearch = { passkey: 1, mobile: true, device_name: "Pixel" };
+  const relaySearch = {
+    passkey: 1,
+    mobile: true,
+    device_name: "Pixel",
+    code_challenge: "c".repeat(43),
+  };
   const originalLocation = Object.getOwnPropertyDescriptor(window, "location");
   let assign: ReturnType<typeof vi.fn>;
 
@@ -494,18 +518,18 @@ describe("LoginPage passkey relay", () => {
     const user = userEvent.setup();
     mocks.signInWithPasskey.mockResolvedValue({
       token_type: "bearer",
-      redirect_to: "initiative://oidc/callback?token=abc&token_type=device_token",
+      redirect_to: "initiative://oidc/callback?code=abc",
     });
     renderLogin(relaySearch);
 
     await user.click(await screen.findByRole("button", { name: /continue with a passkey/i }));
 
-    expect(mocks.signInWithPasskey).toHaveBeenCalledWith({ mobile: true, deviceName: "Pixel" });
-    await waitFor(() =>
-      expect(assign).toHaveBeenCalledWith(
-        "initiative://oidc/callback?token=abc&token_type=device_token"
-      )
-    );
+    expect(mocks.signInWithPasskey).toHaveBeenCalledWith({
+      mobile: true,
+      deviceName: "Pixel",
+      codeChallenge: "c".repeat(43),
+    });
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("initiative://oidc/callback?code=abc"));
     expect(await screen.findByText(/go back to the app/i)).toBeInTheDocument();
   });
 

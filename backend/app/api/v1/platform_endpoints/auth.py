@@ -1,4 +1,6 @@
 from datetime import datetime, timezone
+import hashlib
+import hmac
 import logging
 from dataclasses import dataclass, replace
 from typing import Any, Annotated
@@ -39,8 +41,10 @@ from app.core.encryption import (
     SALT_OIDC_CLIENT_SECRET,
 )
 from app.core.login_methods import LoginMethod
+from app.core.transitions import NATIVE_SIGN_IN_CODE
 from app.core.messages import (
     AuthMessages,
+    NativeMessages,
     OidcMessages,
 )
 from app.core.password_policy import enforce_password_policy
@@ -97,6 +101,7 @@ from app.schemas.platform.auth import (
     DeviceTokenInfo,
     DeviceTokenRequest,
     DeviceTokenExchangeRequest,
+    NativeSignInRedeem,
     DeviceTokenResponse,
     RefreshRequest,
     LoginProviderEntry,
@@ -125,6 +130,7 @@ from app.services.auth import (
     guild_provider_connections as guild_connections,
 )
 from app.services.auth import challenges as challenge_service
+from app.services.auth import native_handoff
 from app.services.auth import passkeys as passkey_service
 from app.services.auth import totp as totp_service
 from app.services.auth import sessions as session_service
@@ -1294,6 +1300,58 @@ async def exchange_device_token(
     return issued.to_token(include_refresh=True)
 
 
+@router.post("/native/token", response_model=Token)
+@limiter.limit("20/15minutes")
+async def redeem_native_sign_in(
+    request: Request,
+    system_session: SystemSessionDep,
+    payload: NativeSignInRedeem,
+) -> Token:
+    """Open the session a sign-in in the phone's browser earned.
+
+    The app presents the code the browser handed back and the PKCE verifier it
+    began the sign-in with, and is given an access token and a refresh token to
+    keep. The session carries what the sign-in proved, satisfied providers
+    included.
+    """
+    handoff = await native_handoff.redeem(
+        system_session, code=payload.code, code_verifier=payload.code_verifier
+    )
+    user = (
+        await system_session.get(User, handoff.user_id) if handoff is not None else None
+    )
+    if handoff is None or user is None or user.status not in SIGN_IN_STATUSES:
+        await system_session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=AuthMessages.NOT_AUTHENTICATED,
+        )
+    user_id, token_version = user.id, user.token_version
+    async with session_store(system_session, user_id=user_id):
+        await audit_service.record(
+            system_session,
+            event_type=AuditEventType.AUTH_SIGNED_IN,
+            actor_user_id=user_id,
+            detail={
+                "method": handoff.method,
+                "native": True,
+                "device_name": handoff.device_name,
+            },
+        )
+        await sign_in_locks.record_success(system_session, user_id)
+        issued = await issue_session(
+            request,
+            system_session,
+            user_id=user_id,
+            token_version=token_version,
+            amr=handoff.amr,
+            satisfied_providers=handoff.satisfied_providers,
+            provider_auth=handoff.provider_auth,
+            device_name=handoff.device_name,
+        )
+    return issued.to_token(include_refresh=True)
+
+
 @router.get("/device-tokens", response_model=list[DeviceTokenInfo])
 async def list_device_tokens(
     system_session: SystemSessionDep,
@@ -1355,6 +1413,13 @@ def _frontend_redirect_uri() -> str:
 # routes and short-lived — it only needs to survive one IdP round trip.
 OIDC_NEXT_COOKIE = "oidc_next"
 OIDC_NEXT_COOKIE_MAX_AGE = 600
+# The browser that began a provider sign-in, named by a digest of its state:
+# the callback completes only in the browser the state was handed to.
+OIDC_FLOW_COOKIE = "oidc_flow"
+
+
+def _state_digest(state: str) -> str:
+    return hashlib.sha256(state.encode("utf-8")).hexdigest()
 
 
 async def _active_platform_provider(
@@ -1519,6 +1584,7 @@ async def _begin_provider_login(
     mobile: bool,
     device_name: str,
     next_path: str,
+    app_challenge: str = "",
 ) -> RedirectResponse:
     """Begin the relying-party flow for a resolved provider row.
 
@@ -1529,7 +1595,9 @@ async def _begin_provider_login(
     provider = await _build_row_oidc_provider(system_session, provider_row)
     try:
         begun = await provider.begin(
-            mobile=mobile, device_name=device_name if mobile else ""
+            mobile=mobile,
+            device_name=device_name if mobile else "",
+            app_challenge=app_challenge if mobile else "",
         )
     except OidcFlowError as exc:
         logger.error("OIDC login could not start: %s (%s)", exc.code, exc)
@@ -1541,6 +1609,15 @@ async def _begin_provider_login(
     # (see app.services.auth.oidc.discovery), so a malformed or tampered
     # discovery document cannot send the user to a non-TLS location.
     response = RedirectResponse(begun.authorization_url)
+    response.set_cookie(
+        key=OIDC_FLOW_COOKIE,
+        value=_state_digest(begun.state),
+        max_age=OIDC_NEXT_COOKIE_MAX_AGE,
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite="lax",
+        path=REFRESH_COOKIE_PATH,
+    )
     if not mobile and is_safe_next_path(next_path):
         response.set_cookie(
             key=OIDC_NEXT_COOKIE,
@@ -1590,10 +1667,16 @@ async def provider_login(
     mobile: bool = Query(default=False),
     device_name: str = Query(default="Mobile Device"),
     next_path: str = Query(default="", alias="next"),
+    code_challenge: str = Query(default=""),
 ) -> RedirectResponse:
     """Begin the relying-party flow for one operator-global provider. The
     platform provider's slug is ``oidc``, so the pre-generalization
-    ``/auth/oidc/login`` URL is this same route."""
+    ``/auth/oidc/login`` URL is this same route.
+
+    The app sends ``code_challenge`` (S256) and gets back a one-time code bound
+    to it; see :mod:`app.services.auth.native_handoff`."""
+    if code_challenge and not native_handoff.is_challenge(code_challenge):
+        return _error_redirect(mobile, "invalid_state")
     provider_row = await _resolve_login_provider(system_session, provider_slug)
     return await _begin_provider_login(
         system_session,
@@ -1601,6 +1684,7 @@ async def provider_login(
         mobile=mobile,
         device_name=device_name,
         next_path=next_path,
+        app_challenge=code_challenge,
     )
 
 
@@ -1637,6 +1721,10 @@ async def _complete_provider_login(
         except FlowStateError:
             is_mobile = None
 
+    if not state or not hmac.compare_digest(
+        request.cookies.get(OIDC_FLOW_COOKIE, ""), _state_digest(state)
+    ):
+        return _error_redirect(is_mobile, "invalid_state")
     provider = await _build_row_oidc_provider(system_session, provider_row)
     try:
         completion = await provider.complete(code=code or "", state=state or "")
@@ -1825,7 +1913,12 @@ async def _complete_provider_login(
     except Exception:
         logger.exception("OIDC claim sync failed for user %s", user.id)
 
-    if is_mobile:
+    if is_mobile and not completion.app_challenge:
+        # An app bundle from before the code flow began this sign-in.
+        if await app_settings_service.transition_over(
+            system_session, NATIVE_SIGN_IN_CODE
+        ):
+            return _error_redirect(True, NativeMessages.APP_UPDATE_REQUIRED)
         device_name = completion.device_name or "Mobile Device"
         device_token = await user_tokens.create_device_token(
             system_session,
@@ -1879,6 +1972,7 @@ async def _complete_provider_login(
         frontend_uri = f"{frontend_uri}?{urlencode({'next': next_path})}"
     oidc_response = RedirectResponse(frontend_uri)
     oidc_response.delete_cookie(key=OIDC_NEXT_COOKIE, path=REFRESH_COOKIE_PATH)
+    oidc_response.delete_cookie(key=OIDC_FLOW_COOKIE, path=REFRESH_COOKIE_PATH)
     assurance = read_assurance(completion.claims)
     # What this provider asserted for the claims some community narrows it by.
     # A fact about the authentication, kept beside the rest, so the rule about
@@ -1897,6 +1991,28 @@ async def _complete_provider_login(
         asserts_second_factor=provider_asserts_factor,
     )
     satisfied = [provider_id]
+    if is_mobile:
+        try:
+            code = await native_handoff.issue(
+                system_session,
+                app_challenge=completion.app_challenge,
+                handoff=native_handoff.Handoff(
+                    user_id=user_id,
+                    method="oidc",
+                    amr=amr,
+                    device_name=completion.device_name or "Mobile Device",
+                    satisfied_providers=satisfied,
+                    provider_auth=record_for_provider(
+                        None, provider_id=provider_id, assurance=assurance
+                    ),
+                ),
+            )
+            await system_session.commit()
+        except Exception:
+            await system_session.rollback()
+            logger.exception("Could not hand a native sign-in to user %s", user_id)
+            return _error_redirect(True, OidcMessages.SESSION_STORE_UNAVAILABLE)
+        return RedirectResponse(f"{MOBILE_CALLBACK_URI}?{urlencode({'code': code})}")
     # A step-up upgrades the session it interrupted rather than starting over:
     # its factors and satisfied providers carry forward, and it is replaced.
     # Satisfying one guild's requirement never un-satisfies another's. Only the

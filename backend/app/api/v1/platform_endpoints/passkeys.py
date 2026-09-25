@@ -45,7 +45,8 @@ from app.api.v1.platform_endpoints.session_opening import (
 )
 from app.core.audit_events import AuditEventType
 from app.core.login_methods import LoginMethod
-from app.core.messages import AuthMessages
+from app.core.messages import AuthMessages, NativeMessages
+from app.core.transitions import NATIVE_SIGN_IN_CODE
 from app.core.rate_limit import get_user_or_ip_key, limiter
 from app.core.security import has_usable_password
 from app.db.session import get_system_session, get_session
@@ -70,9 +71,11 @@ from app.services import audit as audit_service
 from app.services import email as email_service
 from app.services.auth import addresses
 from app.services.auth import challenges as challenge_service
+from app.services.auth import native_handoff
 from app.services.auth import identity as identity_service
 from app.services.auth import passkeys as passkey_service
 from app.services.auth.assurance import passkey_amr
+from app.services.platform import app_settings as app_settings_service
 from app.services.platform import auth_posture
 from app.services.platform import user_tokens
 
@@ -540,10 +543,34 @@ async def finish_passkey_sign_in(
         await system_session.rollback()
         raise _sign_in_invalid()
 
+    if payload.mobile and payload.code_challenge:
+        # The relay page in the phone's system browser hands the app a one-time
+        # code; the app opens the session with it (see native_handoff).
+        code = await native_handoff.issue(
+            system_session,
+            app_challenge=payload.code_challenge,
+            handoff=native_handoff.Handoff(
+                user_id=user_id,
+                method="passkey",
+                amr=passkey_amr(backed_up=backed_up),
+                device_name=payload.device_name.strip() or _DEFAULT_DEVICE_NAME,
+            ),
+        )
+        # One commit for the code, the spent challenge and the counter.
+        await system_session.commit()
+        return PasskeySignInResult(
+            redirect_to=f"{MOBILE_CALLBACK_URI}?{urlencode({'code': code})}"
+        )
     if payload.mobile:
-        # The relay page in the phone's system browser: it hands the app a
-        # device token to come back with rather than opening a session of its
-        # own, which is the road the SSO mobile login already takes.
+        # An app bundle from before the code flow began this sign-in.
+        if await app_settings_service.transition_over(
+            system_session, NATIVE_SIGN_IN_CODE
+        ):
+            await system_session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=NativeMessages.APP_UPDATE_REQUIRED,
+            )
         device_name = payload.device_name.strip() or _DEFAULT_DEVICE_NAME
         device_token = await user_tokens.create_device_token(
             system_session,

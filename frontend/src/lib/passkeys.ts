@@ -48,6 +48,8 @@ export interface PasskeySignInOptions {
   mobile?: boolean;
   /** What to call the device the app is running on, for the sign-in record. */
   deviceName?: string;
+  /** The app's challenge, which the code handed back to it is bound to. */
+  codeChallenge?: string;
 }
 
 /**
@@ -60,6 +62,7 @@ export const signInWithPasskey = async ({
   conditional = false,
   mobile = false,
   deviceName,
+  codeChallenge,
 }: PasskeySignInOptions = {}): Promise<PasskeySignInResult> => {
   // Nothing to say at the start: the options are the same whoever asked and
   // whatever they are asking for. Where the answer goes — a session for this
@@ -79,6 +82,7 @@ export const signInWithPasskey = async ({
     credential: credential as unknown as PasskeySignInFinishCredential,
     mobile,
     device_name: deviceName ?? "",
+    code_challenge: codeChallenge ?? "",
   });
   return finished.data;
 };

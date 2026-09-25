@@ -41,6 +41,9 @@ SALT_TOTP_SECRET = b"totp-secret"
 # token lives ten minutes and is never stored, so a key rotation ends the ones
 # in flight and their apps ask again.
 SALT_APP_ACCESS_TOKEN = b"app-access-token"
+# A sign-in finished in the phone's browser, on its way back to the app that
+# began it. Transient: it lives two minutes and is spent once.
+SALT_NATIVE_HANDOFF = b"native-handoff"
 # The value a job needs to read a foreign site. Kept under its original
 # name so values written before the job carried it still decrypt.
 SALT_IMPORT_CREDENTIAL = b"import-credential"

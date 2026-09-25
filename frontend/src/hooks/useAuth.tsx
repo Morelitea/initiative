@@ -27,6 +27,7 @@ import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import {
   clearRefreshToken,
+  type NativeSession,
   readRefreshToken,
   sessionFromResponse,
   storeRefreshToken,
@@ -103,11 +104,13 @@ interface AuthContextValue {
   login: (payload: LoginPayload) => Promise<void>;
   completeSecondFactor: (payload: SecondFactorPayload) => Promise<void>;
   applyPasskeySignIn: (result: PasskeySignInResult) => Promise<void>;
-  applyEmailOtpSignIn: (accessToken: string) => Promise<void>;
+  applyEmailOtpSignIn: (token: Token) => Promise<void>;
   stepUpWithFactor: (payload: StepUpPayload) => Promise<void>;
   stepUpWithPasskey: () => Promise<void>;
   register: (payload: RegisterPayload) => Promise<UserRead>;
-  completeOidcLogin: (accessToken?: string, isDevice?: boolean) => Promise<void>;
+  /** Finish a sign-in that ended outside this page: a browser's, whose cookie
+   *  the server set, or the app's, with what its callback redeemed. */
+  completeOidcLogin: (credential?: NativeSession | { deviceToken: string }) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -525,20 +528,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   /**
-   * Adopt the session a passkey ceremony produced.
-   *
-   * The end of `completeSecondFactor`, for a sign-in that had no password leg:
-   * the server has already set the browser's refresh cookie and handed back the
-   * access token, so what is left is to stop holding anything older and read
-   * the account the token belongs to. Only a browser lands here — an app's
-   * ceremony runs in the system browser and comes back as a device token
-   * through the callback page.
+   * Adopt a session a sign-in without a password leg produced: stop holding
+   * anything older and read the account the token belongs to. A browser's
+   * refresh token is the cookie the server set; the app keeps the one it is
+   * handed. (An app's passkey ceremony runs in the system browser and is
+   * finished by `useDeepLinks`.)
    */
   const adoptBrowserSession = useCallback(
-    async (accessToken: string) => {
+    async (accessToken: string, refreshToken?: string | null) => {
       removeItem(TOKEN_STORAGE_KEY);
       removeItem(DEVICE_TOKEN_KEY);
-      clearRefreshToken();
+      if (refreshToken) storeRefreshToken(refreshToken);
+      else clearRefreshToken();
       setAuthToken(accessToken, false);
       setTokenState(accessToken);
       setIsDeviceToken(false);
@@ -560,16 +561,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 
   /**
-   * Adopt the session a code sent to an address produced.
-   *
-   * The same shape as the passkey one above and for the same reason: the
-   * server has already set the refresh cookie and handed back the access
-   * token, so what is left is to stop holding anything older and read the
-   * account it belongs to.
+   * Adopt the session a code sent to an address produced. A browser's refresh
+   * token is the cookie the server set; the app is handed its own to keep.
    */
   const applyEmailOtpSignIn = useCallback(
-    async (accessToken: string) => {
-      await adoptBrowserSession(accessToken);
+    async (token: Token) => {
+      await adoptBrowserSession(token.access_token, isNative ? token.refresh_token : null);
     },
     [adoptBrowserSession]
   );
@@ -647,16 +644,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // function also sets the user it depends on. An unstable identity would make
   // that effect re-run on every render it causes — an endless /users/me loop.
   const completeOidcLogin = useCallback(
-    async (accessToken?: string, isDevice = false) => {
-      if (isDevice && accessToken) {
-        // Native: store device token in persistent storage
-        setAuthToken(accessToken, true);
-        setItem(TOKEN_STORAGE_KEY, accessToken);
+    async (credential?: NativeSession | { deviceToken: string }) => {
+      if (credential && "deviceToken" in credential) {
+        // A deployment from before the code flow hands the app a device token.
+        setAuthToken(credential.deviceToken, true);
+        setItem(TOKEN_STORAGE_KEY, credential.deviceToken);
         setItem(DEVICE_TOKEN_KEY, "true");
-        setTokenState(accessToken);
+        setTokenState(credential.deviceToken);
         setIsDeviceToken(true);
+      } else if (credential) {
+        removeItem(TOKEN_STORAGE_KEY);
+        removeItem(DEVICE_TOKEN_KEY);
+        storeRefreshToken(credential.refreshToken);
+        setAuthToken(credential.accessToken, false);
+        setTokenState(credential.accessToken);
+        setIsDeviceToken(false);
       }
-      // Web: cookie was already set by the backend redirect — just fetch the user
+      // A browser's cookie was set by the server's redirect.
       const me = await apiClient.get<UserRead>("/users/me");
       replaceIdentity(me.data);
       markJustSignedIn();

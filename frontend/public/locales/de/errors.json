@@ -295,6 +295,7 @@
   "DOCUMENT_GRANT_CANNOT_MANAGE_MEMBERS": "Temporärer Zugriff kann keine Dokumentmitglieder verwalten",
   "COUNTER_GROUP_GRANT_CANNOT_MANAGE_MEMBERS": "Temporärer Zugriff kann den Zugriff auf Zählergruppen nicht verwalten",
   "NATIVE_OTA_BUNDLE_NOT_AVAILABLE": "Dieser Server-Build hat kein Over-the-Air-Update-Bundle verfügbar",
+  "NATIVE_APP_UPDATE_REQUIRED": "Mit dieser Version der App ist keine Anmeldung mehr möglich. Aktualisiere die App und versuche es erneut.",
   "SETTINGS_STORAGE_BACKFILL_RUNNING": "Ein Backfill läuft bereits.",
   "SETTINGS_STORAGE_BACKFILL_NOT_CONFIGURED": "Konfiguriere einen S3-Bucket, bevor du den Backfill ausführst.",
   "IMPORT_UNKNOWN_TYPE": "Diese Datei ist kein bekannter Initiative-Export.",
