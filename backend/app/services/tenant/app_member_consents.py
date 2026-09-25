@@ -37,10 +37,12 @@ from app.services import audit as audit_service
 
 __all__ = [
     "ConsentRequest",
+    "delete_install_consents",
     "delete_member_consents",
     "find_consent",
     "get_member_consent",
     "grant",
+    "list_install_consents",
     "list_member_consents",
     "live_consent",
     "request_consent",
@@ -153,6 +155,27 @@ async def list_member_consents(
     )
 
 
+async def list_install_consents(
+    session: AsyncSession, *, install_id: int
+) -> list[AppMemberConsent]:
+    """Every member's rows for one install, for the seat's members view:
+    grouped by member, app-wide first within each, then by purpose."""
+    rows = (
+        await session.exec(
+            select(AppMemberConsent).where(AppMemberConsent.install_id == install_id)
+        )
+    ).all()
+    return sorted(
+        rows,
+        key=lambda row: (
+            row.user_id,
+            row.purpose is not None,
+            row.purpose or "",
+            row.id or 0,
+        ),
+    )
+
+
 async def get_member_consent(
     session: AsyncSession, *, consent_id: int, install_id: int, user_id: int
 ) -> Optional[AppMemberConsent]:
@@ -196,7 +219,7 @@ async def grant(
     await session.flush()
     await audit_service.record(
         session,
-        event_type=AuditEventType.DELEGATION_GRANTED,
+        event_type=AuditEventType.APP_CONSENT_GRANTED,
         actor_user_id=actor_user_id,
         target_user_id=row.user_id,
         guild_id=routed_guild_id(session),
@@ -241,7 +264,7 @@ async def revoke(
     if status is ConsentStatus.granted:
         await audit_service.record(
             session,
-            event_type=AuditEventType.DELEGATION_REVOKED,
+            event_type=AuditEventType.APP_CONSENT_REVOKED,
             actor_user_id=actor_user_id,
             target_user_id=row.user_id,
             guild_id=routed_guild_id(session),
@@ -314,6 +337,15 @@ async def revoke_all(
         ):
             changed += 1
     return changed
+
+
+async def delete_install_consents(session: AsyncSession, *, install_id: int) -> int:
+    """Every member's rows for one install, for its uninstall. Returns how many
+    went, which the uninstall records."""
+    result = await session.exec(
+        sa_delete(AppMemberConsent).where(AppMemberConsent.install_id == install_id)  # type: ignore[arg-type]
+    )
+    return result.rowcount or 0
 
 
 async def delete_member_consents(session: AsyncSession, *, user_id: int) -> int:

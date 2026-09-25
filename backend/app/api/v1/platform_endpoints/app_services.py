@@ -3,7 +3,7 @@ and its publishers (``publishers``).
 
 A listing declares what an app is; a registration is this deployment's separate
 statement that the app is wired up — which listing it is, its addresses, its
-public keys, and the powers (``grants``) and reach (``mandatory``) an operator
+public keys, its scope ceiling, and the reach (``mandatory``) an operator
 confers on it. A publisher is the prefix of an app's ``public_id``, with a
 switch that stops every app under it. Nothing here can be claimed by a
 manifest, which is why the whole surface is gated on ``apps.manage`` (owner
@@ -61,7 +61,6 @@ def _to_read(
         base_url=row.base_url,
         embed_origin=row.embed_origin,
         allowed_origins=list(row.allowed_origins or []),
-        grants=list(row.grants or []),
         jwks=row.jwks,
         jwks_uri=row.jwks_uri,
         scope_ceiling=list(row.scope_ceiling or []),
@@ -117,7 +116,6 @@ async def create_app_service(
         base_url=payload.base_url,
         embed_origin=payload.embed_origin,
         allowed_origins=payload.allowed_origins,
-        grants=payload.grants,
         jwks=payload.jwks,
         jwks_uri=payload.jwks_uri,
         scope_ceiling=payload.scope_ceiling,
@@ -153,7 +151,6 @@ async def update_app_service(
         base_url=payload.base_url,
         embed_origin=payload.embed_origin,
         allowed_origins=payload.allowed_origins,
-        grants=payload.grants,
         jwks=payload.jwks,
         jwks_uri=payload.jwks_uri,
         scope_ceiling=payload.scope_ceiling,

@@ -303,7 +303,6 @@ EXEMPT: dict[str, str] = {
     "guild_ai_connections": "credentials",
     "guild_ai_member_keys": "credentials",
     "guild_app_user_connections": "credentials",
-    "guild_app_user_delegations": "credentials",
     "app_member_consents": "credentials",
     # Per-member personal preference, not community property — it belongs to
     # the member, and follows them rather than the guild.

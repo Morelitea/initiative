@@ -13,7 +13,6 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   type AppConfigValue,
   type AppConnectStart,
-  type AppDelegation,
   type AppMembersResponse,
   blockMemberConnection,
   connectGuildApp,
@@ -23,13 +22,11 @@ import {
   getGuildApp,
   getGuildAppMembers,
   grantAppConsent,
-  grantAppDelegation,
   revokeAllMemberConnections,
-  revokeAllMemberDelegations,
+  revokeAllMemberConsents,
   revokeAppConsent,
-  revokeAppDelegation,
   revokeMemberConnection,
-  revokeMemberDelegation,
+  revokeMemberConsents,
   unblockMemberConnection,
   updateGuildAppConfig,
   upgradeGuildApp,
@@ -152,40 +149,21 @@ export const useRevokeAllConnections = (appId: number) => {
 
 // --- acting as a member ------------------------------------------------------
 
-/** Authorize the app to act as you, or change the depth of an authorization
- *  already given. Takes no user id: the caller is the subject. */
-export const useGrantAppDelegation = (appId: number) => {
-  const guildId = useActiveGuildId();
-  return useMutation<AppDelegation, unknown, boolean>({
-    mutationFn: (canWrite) => grantAppDelegation(guildId, appId, canWrite),
-    onSuccess: () => invalidate(q.apps()),
-  });
-};
-
-/** Withdraw your own. */
-export const useRevokeAppDelegation = (appId: number) => {
-  const guildId = useActiveGuildId();
-  return useMutation<void, unknown, void>({
-    mutationFn: () => revokeAppDelegation(guildId, appId),
-    onSuccess: () => invalidate(q.apps()),
-  });
-};
-
-/** A guild admin ending one member's. There is deliberately no counterpart
- *  that creates one — governance runs one way here. */
-export const useRevokeMemberDelegation = (appId: number) => {
+/** A guild admin ending every answer one member gave. There is deliberately
+ *  no counterpart that gives one — governance runs one way here. */
+export const useRevokeMemberConsents = (appId: number) => {
   const guildId = useActiveGuildId();
   return useMutation<void, unknown, number>({
-    mutationFn: (userId) => revokeMemberDelegation(guildId, appId, userId),
+    mutationFn: (userId) => revokeMemberConsents(guildId, appId, userId),
     onSuccess: () => invalidate(q.apps()),
   });
 };
 
 /** Stop the app acting as anybody, without uninstalling it. */
-export const useRevokeAllDelegations = (appId: number) => {
+export const useRevokeAllConsents = (appId: number) => {
   const guildId = useActiveGuildId();
   return useMutation<void, unknown, void>({
-    mutationFn: () => revokeAllMemberDelegations(guildId, appId),
+    mutationFn: () => revokeAllMemberConsents(guildId, appId),
     onSuccess: () => invalidate(q.apps()),
   });
 };

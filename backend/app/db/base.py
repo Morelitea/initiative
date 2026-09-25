@@ -13,7 +13,6 @@ from app.models.tenant.app_member_consent import AppMemberConsent
 from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
-from app.models.tenant.guild_app_user_delegation import GuildAppUserDelegation
 from app.models.tenant.guild_setting import GuildSetting
 from app.models.tenant.project import Project
 from app.models.tenant.filter_preset import ProjectFilterPreset
@@ -106,7 +105,6 @@ from app.models.platform.mfa_recovery_code import MfaRecoveryCode
 from app.models.platform.auth_challenge import AuthChallenge
 from app.models.platform.user_token import UserToken
 from app.models.platform.push_token import PushToken
-from app.models.platform.auto_delegation_jti import AutoDelegationJti
 from app.models.platform.billing import BillingEventLog, BillingJti
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.models.tenant.reaction import Reaction
@@ -222,7 +220,6 @@ __all__ = [
     "DmQueueItem",
     "UserToken",
     "PushToken",
-    "AutoDelegationJti",
     "BillingEventLog",
     "BillingJti",
     "TaskAssignmentDigestItem",
@@ -249,7 +246,6 @@ __all__ = [
     "AppPlacement",
     "GuildApp",
     "GuildAppUserConnection",
-    "GuildAppUserDelegation",
     "UserTotp",
     "UserTotpSecret",
     "MfaRecoveryCode",

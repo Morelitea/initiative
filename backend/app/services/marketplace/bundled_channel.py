@@ -2,8 +2,8 @@
 
 A bundled service is named by an operator rather than installed from the
 marketplace, and this authenticates the one channel it holds here. Everything
-else it does with this deployment it does as a delegate, on a member's behalf,
-through the app channel.
+else it does with this deployment it does as an installed app, on its own
+tokens.
 
 The envelope is the one its own inbound surfaces use, so the two directions are
 the same shape: an HMAC over ``METHOD\\nPATH\\nTIMESTAMP\\nsha256(body)``,

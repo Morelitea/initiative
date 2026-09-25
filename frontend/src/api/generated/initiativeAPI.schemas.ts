@@ -859,7 +859,6 @@ export interface AppServiceRegistrationCreate {
   base_url: string;
   embed_origin?: string | null;
   allowed_origins?: string[] | null;
-  grants?: string[] | null;
   jwks?: AppServiceRegistrationCreateJwks;
   jwks_uri?: string | null;
   scope_ceiling?: string[] | null;
@@ -883,7 +882,6 @@ export interface AppServiceRegistrationRead {
   base_url: string | null;
   embed_origin: string | null;
   allowed_origins: string[];
-  grants: string[];
   jwks: AppServiceRegistrationReadJwks;
   jwks_uri: string | null;
   scope_ceiling: string[];
@@ -910,7 +908,6 @@ export interface AppServiceRegistrationUpdate {
   base_url?: string | null;
   embed_origin?: string | null;
   allowed_origins?: string[] | null;
-  grants?: string[] | null;
   jwks?: AppServiceRegistrationUpdateJwks;
   jwks_uri?: string | null;
   scope_ceiling?: string[] | null;
@@ -4312,33 +4309,6 @@ export interface GuildAppDecline {
   version: string;
 }
 
-/**
- * Authorize the app to act as you.
- *
- * ``can_read`` is not asked for: authorizing at all is what lets the app act,
- * so the only remaining question is whether it may change things. Withdrawing
- * is how a member says no.
- */
-export interface GuildAppDelegationGrant {
-  can_write?: boolean;
-}
-
-/**
- * What the viewer has authorized this app to do as them.
- *
- * Always answerable, so the absence of a grant is a state rather than a 404:
- * ``granted`` false is "you have not authorized this", which is exactly what
- * the settings page needs to draw the question.
- */
-export interface GuildAppDelegationRead {
-  granted: boolean;
-  can_read: boolean;
-  can_write: boolean;
-  granted_at: string | null;
-  revoked_at: string | null;
-  confirmed_factor: string | null;
-}
-
 export type GuildAppDetailDefinition = { [key: string]: unknown };
 
 /**
@@ -4384,12 +4354,10 @@ export interface GuildAppDetail {
   granted_scopes: string[];
   mandatory: boolean;
   available: boolean;
-  delegates: boolean;
   created_by: number;
   created_at: string;
   updated_at: string;
   connections: GuildAppConnectionRead[];
-  delegation: GuildAppDelegationRead | null;
   consents: GuildAppConsentRead[];
   update_version: string | null;
   requested_scopes: string[];
@@ -4456,7 +4424,6 @@ export interface GuildAppRead {
   granted_scopes: string[];
   mandatory: boolean;
   available: boolean;
-  delegates: boolean;
   created_by: number;
   created_at: string;
   updated_at: string;
@@ -4486,22 +4453,27 @@ export interface GuildAppMemberConnection {
 }
 
 /**
- * One member's authorization, in the admin's Members view.
+ * One member's answer to one of the app's requests, in the seat's Members
+ * view.
  */
-export interface GuildAppMemberDelegation {
-  user_id: number;
-  can_read: boolean;
-  can_write: boolean;
-  revoked: boolean;
-  granted_at: string;
+export interface GuildAppMemberConsent {
+  id: number;
+  purpose: string | null;
+  label: string;
+  initiative_id: number | null;
+  requested_access: ConsentAccess;
+  granted_access: ConsentAccess | null;
+  status: ConsentStatus;
+  requested_at: string;
+  granted_at: string | null;
   revoked_at: string | null;
-  updated_at: string;
+  user_id: number;
 }
 
 export interface GuildAppMembersResponse {
   summary: GuildAppConnectionSummary[];
   items: GuildAppMemberConnection[];
-  delegations: GuildAppMemberDelegation[];
+  consents: GuildAppMemberConsent[];
 }
 
 /**
@@ -9129,11 +9101,10 @@ export interface VerificationSendResponse {
 }
 
 /**
- * Body for ``POST /api/v1/auto/subscriptions``.
+ * Body for ``POST /api/v1/c/{guild_id}/webhooks/subscriptions``.
  *
- * Initiative-id and guild-id are NOT taken from the body — they
- * come from the caller's delegation token (guild) and an optional
- * delegation initiative_id claim.
+ * The guild comes from the path. ``initiative_id`` narrows the subscription
+ * to one initiative; omitted, it covers the whole community.
  */
 export interface WebhookSubscriptionCreate {
   /**

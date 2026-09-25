@@ -218,10 +218,9 @@ async def create_subscription(
     references for both at its install, and an envelope should arrive under
     those (``webhook_refs``).
 
-    ``created_by`` is the account this runs as — an app registering one acts as
-    the member who authorized it — so it is also who the audit record names.
-    ``None`` for an installed app acting as its community, which names no
-    person (:func:`create_install_subscription`).
+    ``created_by`` is the account this runs as, so it is also who the audit
+    record names. ``None`` for an installed app acting as its community, which
+    names no person (:func:`create_install_subscription`).
     """
     assert_vocabulary(list(payload.event_types), payload.fields)
 
@@ -371,7 +370,7 @@ async def deactivate_for_install(
     Called from the uninstall path, which runs as a guild admin — the authority
     the guild-wide ones need, and more than enough for the rest.
 
-    **Staged, not committed.** Uninstall removes connections, delegations, these
+    **Staged, not committed.** Uninstall removes connections, consents, these
     and the install itself, and commits once at the end so the whole thing
     happens or none of it does. Committing here would make everything staked
     before it durable while the install is still there to fail on.

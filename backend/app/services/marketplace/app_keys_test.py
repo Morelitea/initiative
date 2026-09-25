@@ -38,7 +38,6 @@ def _snapshot(*, jwks_uri: str | None = JWKS_URI, base_url: str = BASE, keys=Non
         base_url=base_url,
         embed_origin=None,
         allowed_origins=(base_url,),
-        grants=(),
         keys=MappingProxyType(keys or {}),
         mandatory=False,
         enabled=True,

@@ -868,15 +868,16 @@ class Settings(BaseSettings):
     # Path to a mounted file of app service registrations, reconciled into the
     # database at startup so a chart can wire approved apps with no owner
     # clicks. JSON (or a JSON array in a .json file):
-    #   [{"public_id": "acme.shopify", "base_url": "http://shopify:9100",
+    #   [{"public_id": "acme.shopify", "listing_uid": "<14-character uid>",
+    #     "base_url": "http://shopify:9100",
     #     "embed_origin": "https://shopify.example.com",
-    #     "secret_env": "SHOPIFY_APP_SECRET", "allowed_origins": ["…"],
-    #     "grants": [], "mandatory": false}]
+    #     "jwks": {"keys": […]}, "scope_ceiling": ["projects:read"],
+    #     "allowed_origins": ["…"], "mandatory": false}]
     # ``base_url`` is where this deployment's server calls the app, so it may be
     # an address only the cluster resolves; ``embed_origin`` is where a browser
     # loads its iframes and connection pages, and is omitted when the app
     # answers both at one address.
-    # The secret is named, never inlined, so the file can be a plain ConfigMap.
+    # It holds only public keys, so the file can be a plain ConfigMap.
     # Unset (the default) ⇒ no reconciliation runs. Reconciliation never
     # re-enables a registration an operator disabled, and never blocks boot.
     APP_SERVICES_CONFIG: str | None = None
@@ -908,9 +909,8 @@ class Settings(BaseSettings):
     # a guild is unrelated to another's and only this deployment holds both. A
     # bundled service that has to reconcile two of them asks here.
     #
-    # Named rather than inferred from a grant: ``delegation`` says an app may
-    # act for a member, which is a different question. Either value unset ⇒ the
-    # channel answers 503 and nothing on it is reachable.
+    # Either value unset ⇒ the channel answers 503 and nothing on it is
+    # reachable.
     BUNDLED_SERVICE_PUBLIC_ID: str | None = None
     BUNDLED_SERVICE_SHARED_SECRET: str | None = None
 

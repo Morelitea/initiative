@@ -20,7 +20,6 @@ import {
   useUpdateAppService,
 } from "@/hooks/useAppServices";
 import { useAuth } from "@/hooks/useAuth";
-import { hasGrant, mergeGrants } from "@/lib/appServices";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { Capability, hasCapability } from "@/lib/permissions";
@@ -69,15 +68,6 @@ export const SettingsAppServicesPage = () => {
 
   const handleSubmit = (values: AppServiceFormValues) => {
     const origins = values.allowedOrigins.length > 0 ? values.allowedOrigins : null;
-    // A PATCH replaces the whole list, so it is built from every control the
-    // form shows and then merged with anything stored that it does not.
-    const grants = mergeGrants(
-      [
-        ...(values.delegation ? (["delegation"] as const) : []),
-        ...(values.appDirectory ? (["app_directory"] as const) : []),
-      ],
-      editing?.grants
-    );
 
     if (editing) {
       updateService.mutate(
@@ -90,7 +80,6 @@ export const SettingsAppServicesPage = () => {
             // surfaces back on the base URL.
             embed_origin: values.embedOrigin,
             allowed_origins: origins,
-            grants,
             // Null leaves the stored key set alone; {} clears it.
             ...(values.jwks === null ? {} : { jwks: values.jwks }),
             // Always sent, so emptying the field clears the address.
@@ -116,7 +105,6 @@ export const SettingsAppServicesPage = () => {
         base_url: values.baseUrl,
         embed_origin: values.embedOrigin || null,
         allowed_origins: origins,
-        grants,
         jwks: values.jwks,
         jwks_uri: values.jwksUri || null,
         mandatory: values.mandatory,
@@ -181,8 +169,6 @@ export const SettingsAppServicesPage = () => {
         ) : (
           <ul className="divide-y rounded-md border">
             {registrations.map((registration) => {
-              const delegation = hasGrant(registration, "delegation");
-              const appDirectory = hasGrant(registration, "app_directory");
               const keysMissing = !hasKeys(registration);
 
               return (
@@ -220,12 +206,6 @@ export const SettingsAppServicesPage = () => {
                         )}
                         {registration.mandatory && (
                           <Badge variant="secondary">{t("appServices.mandatoryBadge")}</Badge>
-                        )}
-                        {delegation && (
-                          <Badge variant="secondary">{t("appServices.delegationBadge")}</Badge>
-                        )}
-                        {appDirectory && (
-                          <Badge variant="secondary">{t("appServices.appDirectoryBadge")}</Badge>
                         )}
                       </div>
                       {registration.base_url ? (
@@ -323,7 +303,6 @@ export const SettingsAppServicesPage = () => {
                     )}
                     {keysMissing && <p>{t("appServices.noKeysHelp")}</p>}
                     {registration.mandatory && <p>{t("appServices.mandatoryHelp")}</p>}
-                    {delegation && <p>{t("appServices.delegationHelp")}</p>}
                   </div>
                 </li>
               );

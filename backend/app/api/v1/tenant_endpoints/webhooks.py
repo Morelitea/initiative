@@ -9,8 +9,8 @@ initiative's changes; omitting it means the whole community's, which is why
 registering one of those is a guild admin's to do. Nobody's standing is read at
 delivery: an envelope is identifiers and changed column names, and a consumer
 reads current state back through the REST path, where every gate applies to the
-read. An automation calling back does so under a delegation naming a member,
-gated as if that member had asked, on a grant re-read every call.
+read. An installed app calling back does so on its own token, whose standing is
+read on every call.
 
 So a subscription is the community's integration configuration rather than the
 personal property of whoever registered it, and it outlives their membership,
@@ -48,7 +48,7 @@ from __future__ import annotations
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.actor_route import ActorRoute
@@ -169,7 +169,6 @@ async def _named(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_subscription(
-    request: Request,
     payload: WebhookSubscriptionCreate,
     session: ActorSessionDep,
     guild_context: SubscriptionsByEventType,
@@ -208,9 +207,6 @@ async def create_subscription(
                 payload=payload,
                 created_by=guild_context.user_id,
                 guild_id=guild_context.guild_id,
-                # Set when an app registered this through its delegation. The
-                # install decides which names its deliveries arrive under.
-                app_install_id=getattr(request.state, "delegating_install_id", None),
             )
     except WebhookSubscriptionVocabularyError as exc:
         raise HTTPException(

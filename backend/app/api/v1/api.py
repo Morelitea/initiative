@@ -75,7 +75,6 @@ from app.api.v1.platform_endpoints import (
     billing,
     config,
     contacts,
-    delegation_exchange,
     guild_reference,
     guild_provider_connections,
     guilds,
@@ -174,12 +173,6 @@ api_router.include_router(
 # credential, because requiring one to fetch a verification key is circular.
 api_router.include_router(
     app_platform.router, prefix="/app-platform", tags=["app-platform"]
-)
-# Same prefix, but authenticated: a delegate trades the token it holds for one
-# addressed to the app it is about to call, because only this side holds both
-# sectors' references (history/opaque-identity-design.md §12).
-api_router.include_router(
-    delegation_exchange.router, prefix="/app-platform", tags=["app-platform"]
 )
 api_router.include_router(
     guild_reference.router, prefix="/app-platform", tags=["app-platform"]

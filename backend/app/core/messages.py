@@ -1173,11 +1173,6 @@ class GuildAppMessages:
     DISABLED = "GUILD_APP_DISABLED"
 
     # --- acting as a member ---
-    #: This app never acts as anybody, so there is nothing for a member to
-    #: authorize.
-    DELEGATION_NOT_OFFERED = "GUILD_APP_DELEGATION_NOT_OFFERED"
-    #: No authorization from this member for this app.
-    DELEGATION_NOT_FOUND = "GUILD_APP_DELEGATION_NOT_FOUND"
     #: No request from this app to act as the caller, by that id.
     CONSENT_NOT_FOUND = "GUILD_APP_CONSENT_NOT_FOUND"
     #: The answer allows more than the app asked for.
@@ -1217,29 +1212,6 @@ class GuildAppMessages:
     #: The consent or the decline names a version other than the one the
     #: catalog offers now.
     UPGRADE_VERSION_MOVED = "GUILD_APP_UPGRADE_VERSION_MOVED"
-
-
-class DelegationExchangeMessages:
-    """Codes for re-addressing a delegate's token to the app it will act at.
-
-    Read by a delegate deciding whether to park the work or give up on it, so
-    the three states it can actually do something about are told apart.
-
-    Machine-to-machine (a delegate, not the SPA), so these are consumed by the
-    caller's logs and retry logic rather than ``errors.json`` — the same
-    reasoning as :class:`BillingMessages`. No surface renders one to a person,
-    and a translation for one would be a string nothing reads.
-    """
-
-    #: No app of this deployment answers to that public id.
-    UNKNOWN_AUDIENCE = "APP_DELEGATION_UNKNOWN_AUDIENCE"
-    #: The guild the caller's token names has not installed that app.
-    NOT_INSTALLED = "APP_DELEGATION_NOT_INSTALLED"
-    #: Installed, and the guild has switched it off.
-    INSTALL_DISABLED = "APP_DELEGATION_INSTALL_DISABLED"
-    #: Reached with something that is not a delegation, so there is nothing
-    #: held to re-address.
-    NOT_DELEGATED = "APP_DELEGATION_NOT_DELEGATED"
 
 
 class BundledChannelMessages:
@@ -1288,8 +1260,6 @@ class AppServiceMessages:
     #: address Initiative's own server calls.
     INVALID_EMBED_ORIGIN = "APP_SERVICE_INVALID_EMBED_ORIGIN"
     INVALID_ORIGIN = "APP_SERVICE_INVALID_ORIGIN"
-    #: A grant outside the closed operator-conferred vocabulary.
-    UNKNOWN_GRANT = "APP_SERVICE_UNKNOWN_GRANT"
     #: A scope ceiling naming something outside the app scope vocabulary.
     UNKNOWN_SCOPE = "APP_SERVICE_UNKNOWN_SCOPE"
     #: The key set is not a JWKS this build can verify against, or an entry in
@@ -1312,8 +1282,8 @@ class AppServiceMessages:
     #: A publisher's name is empty or too long.
     INVALID_PUBLISHER_NAME = "APP_PUBLISHER_INVALID_NAME"
     #: The registration arrived from the registry, which keeps the fields
-    #: asked to change. The operator keeps its switch, grants, mandatory flag,
-    #: origins and, for a container, its location.
+    #: asked to change. The operator keeps its switch, mandatory flag, origins
+    #: and, for a container, its location.
     REGISTRY_MANAGED = "APP_SERVICE_REGISTRY_MANAGED"
 
 
@@ -1399,9 +1369,6 @@ class AppChannelMessages:
     CONNECTION_NOT_FOUND = "APP_CHANNEL_CONNECTION_NOT_FOUND"
     #: A guild admin stopped this member's connection; the app may not revive it.
     CONNECTION_BLOCKED = "APP_CHANNEL_CONNECTION_BLOCKED"
-    #: This install declares more than one per-member connection, and the
-    #: request did not say which of them it meant.
-    CONNECTION_UNSPECIFIED = "APP_CHANNEL_CONNECTION_UNSPECIFIED"
 
     # --- what the app sent ---
     #: The body is not the JSON object this channel expects.

@@ -219,7 +219,7 @@ async def _collaborate(
         # Establish the guild access context through the single entry point —
         # real membership, a live PAM grant, or break-glass — so the document
         # checks below see the *same* context (the guild-admin rung, the rung a
-        # PAM or break-glass grant lends, delegation pin) the REST path would. Hand-rolling
+        # PAM or break-glass grant lends) the REST path would. Hand-rolling
         # this here is exactly what let a guild admin be denied on the socket
         # while allowed on the REST read.
         try:

@@ -10,11 +10,10 @@ from app.schemas.base import SanitizedBaseModel
 
 
 class WebhookSubscriptionCreate(SanitizedBaseModel):
-    """Body for ``POST /api/v1/auto/subscriptions``.
+    """Body for ``POST /api/v1/c/{guild_id}/webhooks/subscriptions``.
 
-    Initiative-id and guild-id are NOT taken from the body — they
-    come from the caller's delegation token (guild) and an optional
-    delegation initiative_id claim.
+    The guild comes from the path. ``initiative_id`` narrows the subscription
+    to one initiative; omitted, it covers the whole community.
     """
 
     target_url: HttpUrl

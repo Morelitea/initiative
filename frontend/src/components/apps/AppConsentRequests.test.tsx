@@ -18,15 +18,13 @@ import {
 } from "@/api/generated/initiativeAPI.schemas";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
-import { AppDelegationPanel } from "./AppDelegationPanel";
+import { AppConsentRequests } from "./AppConsentRequests";
 
 const grantConsent = vi.fn();
 const revokeConsent = vi.fn();
 
 vi.mock("@/hooks/useGuildAppDetail", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useGuildAppDetail")>()),
-  useGrantAppDelegation: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useRevokeAppDelegation: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useGrantAppConsent: () => ({ mutateAsync: grantConsent, isPending: false }),
   useRevokeAppConsent: () => ({ mutateAsync: revokeConsent, isPending: false }),
 }));
@@ -50,16 +48,10 @@ const consent = (overrides: Partial<GuildAppConsentRead> = {}): GuildAppConsentR
   ...overrides,
 });
 
-const render = (consents: GuildAppConsentRead[], delegates = false) =>
+const render = (consents: GuildAppConsentRead[]) =>
   renderPage(() => (
     <TooltipProvider>
-      <AppDelegationPanel
-        appId={3}
-        appName="Auto"
-        delegation={null}
-        delegates={delegates}
-        consents={consents}
-      />
+      <AppConsentRequests appId={3} appName="Auto" consents={consents} />
     </TooltipProvider>
   ));
 
@@ -73,8 +65,6 @@ describe("AppConsentRequests", () => {
     render([consent()]);
     expect(await screen.findByText("Auto: “Comment on the linked issue”")).toBeInTheDocument();
     expect(screen.getByText("Waiting for you")).toBeInTheDocument();
-    // An app that never asked the app-wide question does not get it drawn.
-    expect(screen.queryByText("Acting as you")).toBeNull();
   });
 
   it("offers both levels when the app asked for changes, and answers that one line", async () => {

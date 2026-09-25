@@ -238,7 +238,7 @@ async def test_wrong_jwt_key_rejected(client: AsyncClient, session: AsyncSession
 
 @pytest.mark.parametrize(
     "claim_overrides",
-    [{"aud": "initiative:auto-delegation"}, {"iss": "someone-else"}],
+    [{"aud": "initiative:someone-else"}, {"iss": "someone-else"}],
 )
 async def test_wrong_audience_or_issuer_rejected(
     client: AsyncClient, session: AsyncSession, claim_overrides: dict

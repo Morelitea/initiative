@@ -225,22 +225,22 @@ async def _end_app_access(
 ) -> None:
     """End everything this account let an app do, in one guild.
 
-    Every app credential they connected, and every app they let act as them.
-    Losing the account has to end the vendor access it opened, and an
-    authorization to carry somebody's name has nothing left to mean once the
-    account it named is gone.
+    Every app credential they connected, and every answer they gave an app
+    asking to act as them. Losing the account has to end the vendor access it
+    opened, and consent to carry somebody's name has nothing left to mean once
+    the account it named is gone.
 
     The caller routes the session into ``guild_id`` as guild admin first, which
     is what lets the own-row policy admit rows the acting session does not own
     (an operator closing somebody else's account).
     """
     from app.services.tenant import app_connections as app_connections_service
-    from app.services.tenant import app_delegations as app_delegations_service
+    from app.services.tenant import app_member_consents as consents_service
 
     await app_connections_service.delete_member_connections(
         session, user_id=user_id, reason="account_closed"
     )
-    await app_delegations_service.delete_member_delegations(session, user_id=user_id)
+    await consents_service.delete_member_consents(session, user_id=user_id)
 
 
 async def _end_app_access_everywhere(session: AsyncSession, *, user_id: int) -> None:

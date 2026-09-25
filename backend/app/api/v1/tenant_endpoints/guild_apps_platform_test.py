@@ -427,6 +427,8 @@ class TestHandoff:
         assert claims["surface_id"] == "board"
         assert claims["jti"]
         assert "email" not in claims and "guild_role" not in claims
+        # Whether the viewer administers the community, and no other role.
+        assert claims["guild_admin"] is True
 
         # The subject is pairwise (OIDC Core §8.1): it names the member to this
         # install and is not the row id, so an app storing `sub` as its key for
@@ -600,7 +602,32 @@ class TestInitiativeHandoff:
             headers=member.headers,
         )
         assert response.status_code == 200, response.text
-        assert self._claims(response.json())["initiative_id"] == a.initiative.id
+        claims = self._claims(response.json())
+        assert claims["initiative_id"] == a.initiative.id
+        # A member opening it through the placement does not administer the
+        # community, and the token says so.
+        assert claims["guild_admin"] is False
+
+    async def test_a_guild_admin_is_told_so_in_the_token(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        """An admin rung below the seat carries the same fact: the claim is the
+        standing's admin leg, not the seat."""
+        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        app = await _installed(session, a, placed=[a.initiative.id])
+        admin = await acting_user(
+            guild_role=GuildRole.admin,
+            guild=a.guild,
+            initiative=a.initiative,
+            initiative_role="member",
+        )
+
+        response = await client.post(
+            self._path(admin, a.initiative.id, app.id, "runs"), headers=admin.headers
+        )
+
+        assert response.status_code == 200, response.text
+        assert self._claims(response.json())["guild_admin"] is True
 
     async def test_a_role_the_placement_does_not_allow_is_refused(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
@@ -1575,7 +1602,7 @@ class TestUninstallStopsDeliveries:
     async def test_switching_them_off_is_staged_with_the_rest_of_the_uninstall(
         self, acting_user, session: AsyncSession
     ):
-        """Uninstall removes connections, delegations, these and the install in
+        """Uninstall removes connections, consents, these and the install in
         one transaction, and commits once at the end.
 
         A commit in the middle would make everything staged before it durable

@@ -17,8 +17,8 @@ connection carries the rule, and the two meet in the gate.
 The value is either the frozenset of provider ids the session proved, or the
 ``SYSTEM_SATISFIED`` sentinel string (see ``app.db.session``) that
 user-attributed system work sets explicitly. The default is the empty set —
-credentials that carry no ``sat`` (legacy tokens, API keys, device tokens,
-delegation JWTs) fail closed against policy-gated guilds.
+credentials that carry no ``sat`` (legacy tokens, API keys, device tokens)
+fail closed against policy-gated guilds.
 """
 
 from __future__ import annotations
@@ -66,8 +66,8 @@ def satisfied_claims() -> dict[str, dict[str, list[str]]]:
     """Those assertions, for this request/task.
 
     Empty for every credential that records nothing about how its owner signed
-    in — device tokens, API keys, delegation JWTs — which is the fail-closed
-    answer against a community that narrows the way in.
+    in — device tokens, API keys — which is the fail-closed answer against a
+    community that narrows the way in.
     """
     return _satisfied_claims.get()
 
@@ -113,8 +113,8 @@ def claims_from_provider_auth(
 #: wrote, and a boolean each meant every seam between the validator and the
 #: gate grew a parameter every time a method was added.
 #:
-#: Empty for every credential that is not a session — an API key, a delegation
-#: JWT — which is the fail-closed answer to any community that asks.
+#: Empty for every credential that is not a session — an API key, a device
+#: token — which is the fail-closed answer to any community that asks.
 _session_amr: contextvars.ContextVar[frozenset[str]] = contextvars.ContextVar(
     "auth_session_amr", default=frozenset()
 )

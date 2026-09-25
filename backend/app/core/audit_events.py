@@ -147,9 +147,10 @@ class AuditEventType(str, Enum):
     #: Everything one account owned in a community now belongs to another,
     #: or to nobody. One record per transfer, with counts by tool.
     CONTENT_OWNERSHIP_TRANSFERRED = "content.ownership_transferred"
-    #: A member let an installed app act as them, or took that back.
-    DELEGATION_GRANTED = "delegation.granted"
-    DELEGATION_REVOKED = "delegation.revoked"
+    #: A member allowed an installed app's request to act as them, or took
+    #: that back (or the community's seat ended it for them).
+    APP_CONSENT_GRANTED = "app_consent.granted"
+    APP_CONSENT_REVOKED = "app_consent.revoked"
 
     # Configuration. The record says which fields moved; a value is copied in
     # only where its type rules out a secret (see ``audit.changed_fields``).
@@ -256,7 +257,7 @@ class AuditCategory(str, Enum):
 
     MODERATION = "moderation"
     AUTHENTICATION = "authentication"
-    #: Who may reach what: memberships, roles, shares, delegations, and
+    #: Who may reach what: memberships, roles, shares, app consents, and
     #: privileged access into a community from outside it.
     AUTHORIZATION = "authorization"
     #: The platform itself: who holds which rung of its ladder. Operator
@@ -440,10 +441,10 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
     AuditEventType.CONTENT_OWNERSHIP_TRANSFERRED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHORIZATION, is_write=True
     ),
-    AuditEventType.DELEGATION_GRANTED: AuditEventMeta(
+    AuditEventType.APP_CONSENT_GRANTED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHORIZATION, is_write=True
     ),
-    AuditEventType.DELEGATION_REVOKED: AuditEventMeta(
+    AuditEventType.APP_CONSENT_REVOKED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHORIZATION, is_write=True
     ),
     # Configuration, at either level.

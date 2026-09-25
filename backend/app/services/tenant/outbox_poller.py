@@ -13,10 +13,9 @@ placement or a scope stops delivery from the next pass on.
 
 That is the right granularity because of what a delivery is. An envelope is
 identifiers and changed column **names**; a consumer reads current state back
-through the REST path, where every gate applies to the read. An automation
-calling back presents a delegation naming a member, and that request is gated
-as if the member had made it, on a grant re-read every call — so what an
-automation may *do*, and the instant at which it stops being able to, is
+through the REST path, where every gate applies to the read. An installed app
+calling back presents its own token, whose standing is read on every call — so
+what an app may *do*, and the instant at which it stops being able to, is
 decided there rather than here.
 
 A subscription is therefore the community's integration configuration, not the

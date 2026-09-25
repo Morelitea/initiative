@@ -16,10 +16,25 @@ that is there. An app never has to make that decision, and never sees a request
 from somebody who failed it.
 
 **The token carries the minimum.** Guild, install, surface, who is opening it,
-and — where the surface was opened inside an initiative — which one. Nothing
-about their role, their name, or their address. What an app may do with a person
-is a function of what the manifest declared and the guild accepted, not of
-anything it can read out of a claim set.
+whether they administer the community, and — where the surface was opened
+inside an initiative — which one. Nothing about their name or their address,
+and no other role. What an app may do with a person is a function of what the
+manifest declared and the guild accepted, not of anything it can read out of a
+claim set.
+
+The claims an app receives:
+
+* ``sub`` — the member, by the reference this install knows them by;
+* ``guild_ref`` — the community, by the reference this install knows it by;
+* ``app_install_id`` and ``surface_id`` — which install and which surface;
+* ``guild_admin`` — ``true`` when the viewer administers the community, read
+  from the same standing that decided whether they may open the surface. An
+  app uses it to shape its own screens, such as showing community-level
+  settings; it is not a grant, and every call the app makes to Initiative is
+  still decided by that call's own token;
+* ``initiative_id`` — present only when the surface was opened inside an
+  initiative;
+* ``jti``, ``iat``, ``exp``, ``iss`` and ``aud`` — the envelope.
 
 **Where a surface was opened is the route's to say.** A surface declares the
 scopes it renders in, and the caller names none of them: the initiative in the
@@ -234,6 +249,9 @@ async def mint_embed_handoff(
         "guild_ref": guild_ref,
         "app_install_id": app.id,
         "surface_id": surface_id,
+        # The viewer's community role, from the standing the access decision
+        # above was measured on, so an app need not ask for it separately.
+        "guild_admin": bool(context.is_admin),
     }
     # Absent guild-wide rather than null, so "which initiative is this?" has one
     # answer instead of two shapes that both mean none.

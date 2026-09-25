@@ -29,11 +29,12 @@ from app.core.messages import BundledChannelMessages
 from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
 from app.services.marketplace.app_refs import ensure_app_guild_ref
 from app.services.platform.identity_refs import ensure_ref
-from app.testing import create_guild, create_user
-from app.testing.delegation import DELEGATE_PUBLIC_ID, install_delegate
+from app.testing import create_guild, create_guild_app, create_user
 
 ROUTE = "/api/v1/app-platform/community-reference"
 SECRET = "a-bundled-service-secret-for-tests"
+#: The service this deployment ships, by the public id its registration carries.
+BUNDLED_PUBLIC_ID = "acme.auto"
 
 pytestmark = pytest.mark.integration
 
@@ -42,7 +43,7 @@ pytestmark = pytest.mark.integration
 def _wired(monkeypatch):
     """An operator has named the bundled service and wired its secret."""
     monkeypatch.setattr(
-        config_module.settings, "BUNDLED_SERVICE_PUBLIC_ID", DELEGATE_PUBLIC_ID
+        config_module.settings, "BUNDLED_SERVICE_PUBLIC_ID", BUNDLED_PUBLIC_ID
     )
     monkeypatch.setattr(config_module.settings, "BUNDLED_SERVICE_SHARED_SECRET", SECRET)
 
@@ -65,7 +66,16 @@ async def _ask(client: AsyncClient, payload: dict, **overrides):
 
 async def _callers_own_ref(session: AsyncSession, guild) -> str:
     """A reference minted at the bundled service's own install."""
-    app = await install_delegate(session, guild)
+    # A user is a public row, so it is made before the session is routed into
+    # the guild to write the install.
+    installer = await create_user(session)
+    app = await create_guild_app(
+        session,
+        guild,
+        installer,
+        definition={"app_kind": "service", "service": {"public_id": BUNDLED_PUBLIC_ID}},
+        name="Bundled",
+    )
     await session.commit()
     return await ensure_app_guild_ref(guild_id=guild.id, app_install_id=app.id)
 

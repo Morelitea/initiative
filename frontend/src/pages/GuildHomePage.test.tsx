@@ -603,9 +603,7 @@ describe("GuildHomePage", () => {
           name: "Auto",
           definition: {},
           enabled: true,
-          delegates: false,
           connections: [],
-          delegation: null,
           consents: [
             {
               id: 41,

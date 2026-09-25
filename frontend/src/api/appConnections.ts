@@ -18,6 +18,7 @@ import { apiClient } from "@/api/client";
 import type {
   ConsentAccess,
   GuildAppConsentRead,
+  GuildAppMemberConsent,
   GuildAppUpgrade,
   GuildAppUpgradeAsks,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -109,16 +110,10 @@ export interface GuildAppDetail {
   mandatory: boolean;
   /** False when the app's service is not wired up here, or is switched off. */
   available: boolean;
-  /** Whether this app is one that acts as members, and so has something for
-   *  each of them to authorize. */
-  delegates: boolean;
   created_by: number;
   created_at: string;
   updated_at: string;
   connections: AppConnection[];
-  /** The viewer's own authorization, so the page draws it without a second
-   *  request. Says nothing about anybody else. */
-  delegation?: AppDelegation | null;
   /** The viewer's own answers to this app's requests to act as them, one per
    *  purpose, the app-wide one first. Nobody else's. */
   consents?: GuildAppConsentRead[];
@@ -164,37 +159,11 @@ export interface AppConnectionSummary {
   member_count: number;
 }
 
-/** One member's authorization for the app to act as them, in an admin's view. */
-export interface AppMemberDelegation {
-  user_id: number;
-  can_read: boolean;
-  can_write: boolean;
-  revoked: boolean;
-  granted_at: string;
-  revoked_at?: string | null;
-  updated_at: string;
-}
-
 export interface AppMembersResponse {
   summary: AppConnectionSummary[];
   items: AppMemberConnection[];
-  delegations: AppMemberDelegation[];
-}
-
-/**
- * What the viewer has authorized this app to do as them.
- *
- * Answerable whether or not they ever have: `granted` false with a
- * `revoked_at` is somebody who withdrew, and `granted` false without one is
- * somebody who was never asked. The page says different things for each.
- */
-export interface AppDelegation {
-  granted: boolean;
-  can_read: boolean;
-  can_write: boolean;
-  granted_at?: string | null;
-  revoked_at?: string | null;
-  confirmed_factor?: string | null;
+  /** Every member's answers to the app's requests to act as them. */
+  consents: GuildAppMemberConsent[];
 }
 
 /** A value being set, or `null` to clear it. A key left out is untouched. */
@@ -273,25 +242,18 @@ export const revokeAllMemberConnections = (guildId: number, appId: number) =>
   apiClient.post<void>(`${base(guildId, appId)}/revoke-all`).then(() => undefined);
 
 // --- acting as a member ------------------------------------------------------
-// These take no user id on purpose: whose name an app may carry is answered by
-// that person and nobody else, so the caller *is* the subject. The one admin
-// route below ends an authorization and cannot create one.
+// The seat's two routes end answers and cannot give one: whose name an app may
+// carry is answered by that person.
 
-export const grantAppDelegation = (guildId: number, appId: number, canWrite: boolean) =>
+/** End every answer one member gave this app, pending requests included. */
+export const revokeMemberConsents = (guildId: number, appId: number, userId: number) =>
   apiClient
-    .put<AppDelegation>(`${base(guildId, appId)}/delegation`, { can_write: canWrite })
-    .then((r) => r.data);
-
-export const revokeAppDelegation = (guildId: number, appId: number) =>
-  apiClient.delete<void>(`${base(guildId, appId)}/delegation`).then(() => undefined);
-
-export const revokeMemberDelegation = (guildId: number, appId: number, userId: number) =>
-  apiClient
-    .delete<void>(`${base(guildId, appId)}/members/${userId}/delegation`)
+    .delete<void>(`${base(guildId, appId)}/members/${userId}/consents`)
     .then(() => undefined);
 
-export const revokeAllMemberDelegations = (guildId: number, appId: number) =>
-  apiClient.post<void>(`${base(guildId, appId)}/delegations/revoke-all`).then(() => undefined);
+/** End every member's answers to this app, without uninstalling it. */
+export const revokeAllMemberConsents = (guildId: number, appId: number) =>
+  apiClient.post<void>(`${base(guildId, appId)}/consents/revoke-all`).then(() => undefined);
 
 // An app asks for one purpose at a time; the member answers each on its own.
 // Again no user id: the caller is the member being asked.
