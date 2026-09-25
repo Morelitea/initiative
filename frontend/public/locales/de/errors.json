@@ -527,6 +527,7 @@
   "CONTACT_GRANT_CANNOT_REACH": "Du kannst dieses Konto derzeit nicht erreichen.",
   "DM_DEVICE_NOT_FOUND": "Dieses Gerät ist nicht für verschlüsselte Nachrichten eingerichtet.",
   "DM_MALFORMED_KEY": "Dieser Schlüssel konnte nicht gelesen werden. Versuche es auf diesem Gerät erneut.",
+  "DM_INVALID_SIGNATURE": "Die Verschlüsselungsschlüssel dieses Geräts sind nicht signiert. Lade die App neu und versuche es erneut.",
   "DM_DUPLICATE_KEY_ID": "Dieses Gerät hat bereits einen Schlüssel mit diesem Namen veröffentlicht.",
   "DM_TOO_MANY_KEYS": "Dieses Gerät hat so viele Schlüssel veröffentlicht, wie es halten darf.",
   "DM_NOT_REACHABLE": "Du kannst diesem Konto derzeit keine Nachricht senden.",

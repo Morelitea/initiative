@@ -1508,6 +1508,9 @@ class DirectMessageTransportMessages:
     ROSTER_TOO_SMALL = "DM_ROSTER_TOO_SMALL"
     #: Answering an invitation that is not there, or is already answered.
     NO_INVITATION = "DM_NO_INVITATION"
+    #: A device's or key's signature is missing where one is required, or does
+    #: not verify against the device's own fingerprint key.
+    INVALID_SIGNATURE = "DM_INVALID_SIGNATURE"
 
 
 class ContactGrantMessages:

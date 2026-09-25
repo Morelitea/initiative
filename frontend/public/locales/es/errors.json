@@ -527,6 +527,7 @@
   "CONTACT_GRANT_CANNOT_REACH": "No puedes contactar con esa cuenta ahora mismo.",
   "DM_DEVICE_NOT_FOUND": "Ese dispositivo no está configurado para mensajes cifrados.",
   "DM_MALFORMED_KEY": "No se pudo leer esa clave. Inténtalo de nuevo en este dispositivo.",
+  "DM_INVALID_SIGNATURE": "Las claves de cifrado de este dispositivo no están firmadas. Recarga la app y vuelve a intentarlo.",
   "DM_DUPLICATE_KEY_ID": "Este dispositivo ya publicó una clave con ese nombre.",
   "DM_TOO_MANY_KEYS": "Este dispositivo ya publicó todas las claves que puede tener.",
   "DM_NOT_REACHABLE": "No puedes enviar mensajes a esa cuenta en este momento.",

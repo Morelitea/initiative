@@ -7,12 +7,17 @@ collected message stops existing.
 """
 
 import base64
+from datetime import datetime, timedelta, timezone
 
 import pytest
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from sqlalchemy import text
 
+from app.core.transitions import DM_SIGNED_DEVICES
 from app.models.platform.user_dm_settings import DmPolicy
 from app.models.platform.user_ignore import UserIgnore
+from app.services.platform import app_settings as app_settings_service
 
 pytestmark = pytest.mark.asyncio
 
@@ -29,6 +34,44 @@ def _registration(seed: int = 1) -> dict:
         "fallback_key": {"key_id": "fb", "public_key": _key(seed + 2)},
         "one_time_keys": [{"key_id": "otk-1", "public_key": _key(seed + 3)}],
     }
+
+
+def _b64(raw: bytes) -> str:
+    return base64.b64encode(raw).decode().rstrip("=")
+
+
+def _signed_registration(user_id: int, seed: int = 1, *, sign: bool = True) -> dict:
+    """A registration from a real device key, signed the way the ratchet signs
+    (``crypto/src/lib.rs``). ``sign=False`` leaves every signature off, as a
+    device registered before signing did."""
+    device = Ed25519PrivateKey.generate()
+    fingerprint = device.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+    identity = bytes([seed % 251]) * 32
+
+    def published(key_id: str, raw: bytes, tag: bytes) -> dict:
+        key = {"key_id": key_id, "public_key": _b64(raw)}
+        return {**key, "signature": _b64(device.sign(tag + raw))} if sign else key
+
+    registration = {
+        "identity_key": _b64(identity),
+        "fingerprint_key": _b64(fingerprint),
+        "fallback_key": published(
+            "fb", bytes([seed + 2]) * 32, b"initiative-dm-fallback-v1\0"
+        ),
+        "one_time_keys": [
+            published("otk-1", bytes([seed + 3]) * 32, b"initiative-dm-otk-v1\0")
+        ],
+    }
+    if sign:
+        registration["signature"] = _b64(
+            device.sign(
+                b"initiative-dm-device-v1\0"
+                + user_id.to_bytes(8, "big")
+                + identity
+                + fingerprint
+            )
+        )
+    return {**registration, "_device": device}
 
 
 async def _set_policy(session, user, policy: DmPolicy) -> None:
@@ -80,9 +123,7 @@ async def _register(client, actor, seed=1, user_agent="Firefox on Linux") -> str
         headers={**actor.headers, "user-agent": user_agent},
     )
     assert response.status_code == 201, response.text
-    # Newest last: the list is ordered by creation, and a second registration
-    # must return the device it just made rather than the first one.
-    return response.json()["devices"][-1]["id"]
+    return response.json()["device_id"]
 
 
 # ------------------------------------------------------------------ devices ---
@@ -237,20 +278,115 @@ async def test_claiming_spends_a_prekey_but_never_the_fallback(
     await _set_policy(session, a.user, DmPolicy.public)
     await _set_policy(session, b.user, DmPolicy.public)
     await _open_channel(session, a.user, b.user)
-    await _register(client, b, seed=40)
+    registration = _signed_registration(b.user.id, seed=40)
+    registration.pop("_device")
+    registered = await client.post(
+        "/api/v1/me/dm/devices", json=registration, headers=b.headers
+    )
+    assert registered.status_code == 201, registered.text
 
     first = await client.post(
         f"/api/v1/users/{b.user.id}/dm/session-keys", headers=a.headers
     )
     assert first.status_code == 200, first.text
-    assert first.json()["devices"][0]["one_time_key"]["key_id"] == "otk-1"
+    device = first.json()["devices"][0]
+    assert device["signature"]
+    assert device["one_time_key"]["key_id"] == "otk-1"
+    assert device["one_time_key"]["fallback"] is False
+    assert device["one_time_key"]["signature"]
 
     # The pool is empty now, so the reusable last-resort key answers instead of
-    # the account becoming unreachable.
+    # the account becoming unreachable. It is signed under its own tag.
     second = await client.post(
         f"/api/v1/users/{b.user.id}/dm/session-keys", headers=a.headers
     )
-    assert second.json()["devices"][0]["one_time_key"]["key_id"] == "fb"
+    fallback = second.json()["devices"][0]["one_time_key"]
+    assert (fallback["key_id"], fallback["fallback"]) == ("fb", True)
+    assert fallback["signature"]
+
+    directory = await client.get(
+        f"/api/v1/users/{b.user.id}/dm/devices", headers=a.headers
+    )
+    assert directory.json()["devices"][0]["signature"] == device["signature"]
+
+
+async def test_a_device_signs_its_keys(client, session, acting_user):
+    """A signature must verify against the device's own key, a signed device's
+    keys are signed too, and a device registered before signing signs itself
+    once. After this deployment's grace, an unsigned registration is refused."""
+    a = await acting_user()
+
+    wrong_key = _signed_registration(a.user.id)
+    wrong_key.pop("_device")
+    wrong_key["signature"] = _b64(Ed25519PrivateKey.generate().sign(b"x"))
+    unsigned_key = _signed_registration(a.user.id)
+    unsigned_key.pop("_device")
+    unsigned_key["one_time_keys"][0].pop("signature")
+    for body in (wrong_key, unsigned_key):
+        refused = await client.post(
+            "/api/v1/me/dm/devices", json=body, headers=a.headers
+        )
+        assert refused.status_code == 400, refused.text
+        assert refused.json()["detail"] == "DM_INVALID_SIGNATURE"
+
+    legacy = _signed_registration(a.user.id, seed=7, sign=False)
+    device = legacy.pop("_device")
+    registered = await client.post(
+        "/api/v1/me/dm/devices", json=legacy, headers=a.headers
+    )
+    device_id = registered.json()["device_id"]
+    signed = _signed_registration(a.user.id, seed=7)
+    signed.pop("_device")
+    fingerprint = base64.b64decode(legacy["fingerprint_key"] + "=")
+    identity = base64.b64decode(legacy["identity_key"] + "=")
+    tags = (b"initiative-dm-fallback-v1\0", b"initiative-dm-otk-v1\0")
+    backfill = {
+        "signature": _b64(
+            device.sign(
+                b"initiative-dm-device-v1\0"
+                + a.user.id.to_bytes(8, "big")
+                + identity
+                + fingerprint
+            )
+        ),
+        "fallback_key": {
+            "key_id": "fb-2",
+            "public_key": _b64(bytes([9]) * 32),
+            "signature": _b64(device.sign(tags[0] + bytes([9]) * 32)),
+        },
+        "one_time_keys": [
+            {
+                "key_id": f"otk-{n}",
+                "public_key": _b64(bytes([n]) * 32),
+                "signature": _b64(device.sign(tags[1] + bytes([n]) * 32)),
+            }
+            for n in (10, 11)
+        ],
+    }
+    url = f"/api/v1/me/dm/devices/{device_id}/signature"
+    signed_itself = await client.put(url, json=backfill, headers=a.headers)
+    assert signed_itself.status_code == 200, signed_itself.text
+    listed = signed_itself.json()["devices"][0]
+    assert listed["signature"].rstrip("=") == backfill["signature"]
+    assert listed["one_time_key_count"] == 2
+    again = await client.put(url, json=backfill, headers=a.headers)
+    assert again.json()["detail"] == "DM_INVALID_SIGNATURE"
+
+    await app_settings_service.record_running_version(
+        session, version="0.99.0", transitions=[DM_SIGNED_DEVICES.name]
+    )
+    row = await app_settings_service.get_app_settings(session)
+    row.transitions = {
+        DM_SIGNED_DEVICES.name: (
+            datetime.now(timezone.utc) - DM_SIGNED_DEVICES.grace - timedelta(days=1)
+        ).isoformat()
+    }
+    session.add(row)
+    await session.commit()
+    late = _signed_registration(a.user.id, seed=20, sign=False)
+    late.pop("_device")
+    refused = await client.post("/api/v1/me/dm/devices", json=late, headers=a.headers)
+    assert refused.json()["detail"] == "DM_INVALID_SIGNATURE"
 
 
 # ------------------------------------------------------------ conversations ---
