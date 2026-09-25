@@ -409,7 +409,7 @@ async def unresolve_wikilinks_to_document(
     )
 
     # Documents whose in-memory collaboration room has to be retired, so
-    # persist_room cannot write the pre-repair content back over this.
+    # a room's save cannot write the pre-repair content back over this.
     affected_doc_ids: list[int] = []
 
     for doc in linking_documents:
@@ -427,7 +427,7 @@ async def unresolve_wikilinks_to_document(
     await session.flush()
 
     # Invalidate any in-memory collaboration rooms for affected documents
-    # This prevents persist_room from overwriting our changes when users disconnect
+    # This prevents a room's save from overwriting our changes when users disconnect
     # Note: If a room has active collaborators, they'll have stale wikilinks until reload
     # Rooms are keyed by (guild, document), and the documents above were read
     # through this session, so the guild it is routed to is theirs. An unrouted

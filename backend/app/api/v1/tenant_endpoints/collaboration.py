@@ -1,41 +1,33 @@
 """
-WebSocket endpoint for real-time document collaboration.
+Live editing of a collaborative body (a document, a wiki page).
 
-Handles:
-- Token-based authentication
-- Document permission checks
-- Yjs sync protocol
-- Awareness (cursor presence)
+The socket carries the Yjs sync protocol, updates and awareness; entry and
+continuous re-authorization are ``app.api.content_socket``'s. The POST beside
+each socket hands over edits a tab made while its socket was closed.
 """
 
 import json
 import logging
 from typing import Optional
 
-from typing import Annotated
 
 from fastapi import (
     APIRouter,
     HTTPException,
-    Depends,
-    Request,
     WebSocket,
-    WebSocketDisconnect,
+    status,
 )
 
 from app.api.deps import (
-    RLSSessionDep,
     SessionDep,
     UploadUserDep,
     establish_guild_access,
-    get_current_active_user,
-    get_guild_membership,
     GuildAccessError,
-    GuildContext,
+    raise_for_guild_access,
 )
 from app.core.messages import DocumentMessages
-from app.db.cohorts import request_sessionmaker
 from app.models.platform.user import User
+from app.schemas.tenant.collaboration import CollaborationHandover
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.services.tenant.collaboration import (
     broadcast_awareness,
@@ -51,12 +43,10 @@ from app.services.tenant.collaborative_resources import (
 )
 from app.core.search import SearchEntityType
 from app.db.session import require_guild_context
-from app.services.tenant import content_references
 from app.services.tenant import documents as documents_service
-from app.services.tenant.relationships import Endpoint
 from app.services import permissions as permissions_service
 from app.services.content_sockets import RoomKey, Wire, resource_room, sockets
-from app.api.content_socket import admit
+from app.api.content_socket import admit, hold_open
 from app.api import resource_access
 from app.core.request_audit import record_privileged_edit
 from app.core.user_display import display_name, handle_of
@@ -172,8 +162,16 @@ class _Editing:
             self.can_write = writes
         elif self.can_write and not writes:
             return None
+        # The body's room, and the room of the row whose sharing governs it —
+        # the same room for a document, the wiki's for a page — so a change
+        # to that sharing re-checks this socket at once.
         return frozenset(
-            {resource_room(self.guild_id, self.spec.resource_type, self.resource_id)}
+            {
+                resource_room(self.guild_id, self.spec.resource_type, self.resource_id),
+                resource_room(
+                    self.guild_id, self.spec.tool.value, resolved.governing.id
+                ),
+            }
         )
 
 
@@ -273,11 +271,8 @@ async def _collaborate(
             exclude=websocket,
         )
 
-        while True:
-            data = await websocket.receive_bytes()
-            if len(data) < 1:
-                continue
-
+        def on_bytes(data: bytes) -> None:
+            nonlocal edit_recorded
             msg_type = data[0]
             payload = data[1:]
 
@@ -295,9 +290,9 @@ async def _collaborate(
                     logger.warning(
                         f"Collaboration: Read-only user {handle_of(user)} tried to send update"
                     )
-                    continue
+                    return
                 if not payload:
-                    continue
+                    return
 
                 try:
                     room.apply_update(payload, connection=websocket)
@@ -324,7 +319,7 @@ async def _collaborate(
                 # the room and written alongside the Yjs state, so the two
                 # views of the document are always saved from one moment.
                 if not can_write:
-                    continue
+                    return
                 try:
                     room.offer_content(
                         spec.normalize(body, json.loads(payload.decode())),
@@ -349,8 +344,7 @@ async def _collaborate(
                     room_key, bytes([MSG_AWARENESS_BINARY]) + payload, exclude=websocket
                 )
 
-    except WebSocketDisconnect:
-        pass
+        await hold_open(sub, on_bytes=on_bytes)
     except Exception as e:
         logger.error(
             f"Collaboration error for {handle_of(user)} on "
@@ -372,132 +366,126 @@ async def _collaborate(
                 exclude=websocket,
             )
 
-        # Save what this session added. The room is only retired afterwards,
-        # and only once nothing is connected to it — another tab of the same
-        # account is another connection, and keeps it.
-        async with request_sessionmaker(guild_id)() as session:
-            await establish_guild_access(session, user, guild_id)
-            await collaboration_manager.persist_room(
-                guild_id, spec.resource_type, resource_id, session
-            )
-        await collaboration_manager.remove_room(
-            guild_id, spec.resource_type, resource_id
-        )
+        # Save what this session added and retire the room, once nothing is
+        # connected to it — another tab of the same account is another
+        # connection, and keeps it.
+        await collaboration_manager.leave(guild_id, spec.resource_type, resource_id)
 
 
-@router.get("/documents/{document_id}/collaborators")
-async def get_document_collaborators(
-    document_id: int,
-    session: RLSSessionDep,
-    _current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
-) -> list[dict]:
-    """Get the list of current collaborators on a document."""
-    return room_roster(
-        guild_context.guild_id, SearchEntityType.document.value, document_id
-    )
-
-
-@router.post("/documents/{document_id}/sync-content")
-async def sync_document_content(
-    document_id: int,
+@router.post(
+    "/documents/{document_id}/collaborate", status_code=status.HTTP_204_NO_CONTENT
+)
+async def hand_over_document_edits(
     guild_id: int,
-    request: Request,
+    document_id: int,
+    handover: CollaborationHandover,
     session: SessionDep,
     user: UploadUserDep,
-):
+) -> None:
+    """Merge edits a tab made while its socket was closed into the document."""
+    await _hand_over(
+        session,
+        user,
+        guild_id,
+        resource_for(SearchEntityType.document.value),
+        document_id,
+        handover,
+    )
+
+
+@router.post(
+    "/wikis/{wiki_id}/pages/{page_id}/collaborate",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def hand_over_wiki_page_edits(
+    guild_id: int,
+    wiki_id: int,
+    page_id: int,
+    handover: CollaborationHandover,
+    session: SessionDep,
+    user: UploadUserDep,
+) -> None:
+    """Merge edits a tab made while its socket was closed into the page."""
+    await _hand_over(
+        session,
+        user,
+        guild_id,
+        resource_for(SearchEntityType.wiki_page.value),
+        page_id,
+        handover,
+        parent_id=wiki_id,
+    )
+
+
+async def _hand_over(
+    session: AsyncSession,
+    user: User,
+    guild_id: int,
+    spec: CollaborativeResource,
+    resource_id: int,
+    handover: CollaborationHandover,
+    *,
+    parent_id: int | None = None,
+) -> None:
+    """Hand a leaving tab's unsent edits to the body's room.
+
+    Called as a page unloads with its socket already gone, so what the tab did
+    offline is not lost with it. The edits go through the room — merged into
+    whatever the room holds, live or loaded for the purpose — and are saved the
+    way the room always saves, both views together. The tab's rendering is
+    taken only when the tab had everything the merged room has; otherwise it
+    describes an older document, and the room keeps the rendering it had.
+
+    Authenticates the header-less way (session cookie on web, a short-lived
+    uploads-scoped ``?token=`` on native), since a keepalive request carries no
+    header, and is admitted exactly as the socket is, at the write level.
     """
-    Sync Lexical content from the frontend to the database.
-
-    Called via a ``keepalive`` fetch on page unload to keep the content column
-    in sync with yjs_state. Authenticates with the same header-less scheme as
-    ``/uploads/*`` and document downloads (``UploadUserDep``): the HttpOnly
-    session cookie on web, a short-lived uploads-scoped ``?token=`` on native —
-    so the long-lived session JWT never rides in a URL (SEC-12), unlike the
-    earlier ``?token=<session jwt>`` version. The guild comes from the
-    ``/c/{guild_id}`` path — the document being synced was open inside it.
-
-    The request body should contain the Lexical serialized state as JSON.
-    """
-    # Parse the JSON body (the keepalive fetch sends a raw body)
-    try:
-        content = await request.json()
-    except Exception as e:
-        logger.warning(f"Sync content: Failed to parse JSON body: {e}")
-        return {"status": "error", "message": "Invalid JSON body"}
-
-    # Establish the guild access context through the single entry point (same as
-    # the REST path and the collaboration socket). The path is only a selector;
-    # this validates real membership / a live PAM grant / break-glass and applies
-    # the full RLS + role + grant context. Previously this endpoint did a
-    # membership-only check, so a break-glass or PAM grantee couldn't sync.
     try:
         await establish_guild_access(session, user, guild_id)
-    except GuildAccessError:
-        logger.warning(
-            f"Sync content: user {user.id} has no access to guild {guild_id}"
+    except GuildAccessError as exc:
+        raise_for_guild_access(exc)
+    editing = _Editing(guild_id, spec, resource_id, parent_id)
+    if not await editing(session, user) or editing.resolved is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=spec.tool.not_found_code
         )
-        return {"status": "error", "message": "No guild access"}
+    if not editing.can_write:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=spec.tool.write_required_code
+        )
 
-    # Get document and check write permission
-    spec = resource_for(SearchEntityType.document.value)
-    resolved = await spec.load(session, document_id, guild_id)
-    document = resolved.body if resolved else None
-    if not document:
-        logger.warning(f"Sync content: Document {document_id} not found")
-        return {"status": "error", "message": "Document not found"}
-
-    # Write level via the shared DAC engine (guild-admin / break-glass / PAM /
-    # explicit grants), against the context establish_guild_access set above.
-    level = permissions_service.compute_permission(
-        document, context=require_guild_context(session)
+    room = await collaboration_manager.get_or_create_room(
+        guild_id, spec.resource_type, resource_id, session
     )
-    if level not in ("write", "owner"):
-        logger.warning(
-            f"Sync content: User {handle_of(user)} has no write access to document {document_id}"
-        )
-        return {"status": "error", "message": "No write access"}
-
-    # A live room owns both views of the document and writes them together,
-    # so a snapshot arriving beside it is not applied here: this beacon can
-    # come from a tab that has been disconnected for some time, and its idea
-    # of the content is that old. With no room, this is the only writer.
-    if collaboration_manager.has_active_collaborators(
-        guild_id, spec.resource_type, document_id
-    ):
-        # The room owns the content column while it is live and takes its
-        # rendering from the connection that made it. This request carries no
-        # connection, so it is not applied.
-        logger.info(
-            f"Sync content: document {document_id} is live; leaving the "
-            "content column to its room"
-        )
-        return {
-            "status": "error",
-            "message": DocumentMessages.LIVE_SESSION_OWNS_CONTENT,
-        }
-
-    # Update the content column
+    room.hold()
     try:
-        # Record what the new body points at, and repair any link whose target
-        # has since been deleted.
-        fixed_content = await content_references.sync_for_entity(
-            session,
-            Endpoint(SearchEntityType.document, document_id),
-            body=content,
-            author_id=user.id,
-            fix_content=True,
+        tab = object()
+        try:
+            room.apply_update(handover.update, connection=tab)
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=DocumentMessages.COLLABORATION_UPDATE_INVALID,
+            ) from None
+        if handover.content is not None and room.known_to(handover.state_vector):
+            try:
+                room.offer_content(
+                    spec.normalize(editing.resolved.body, handover.content),
+                    connection=tab,
+                )
+            except (documents_service.DocumentContentError, ContentFrameError):
+                pass
+        sockets.emit_bytes(
+            resource_room(guild_id, spec.resource_type, resource_id),
+            bytes([MSG_UPDATE]) + handover.update,
         )
-        document.content = fixed_content if fixed_content else content
-        session.add(document)
-        await session.commit()
-        logger.info(
-            f"Sync content: Updated content for document {document_id} by {handle_of(user)}"
+        record_privileged_edit(
+            guild_id=guild_id,
+            resource_type=spec.resource_type,
+            resource_id=resource_id,
+            actor_user_id=user.id,
         )
-        return {"status": "ok"}
-    except Exception as e:
-        # Log the full error server-side; return a generic message so internal
-        # detail (e.g. DB error text) isn't exposed to the caller.
-        logger.error(f"Sync content: Failed to update document {document_id}: {e}")
-        await session.rollback()
-        return {"status": "error", "message": "Failed to sync content"}
+    finally:
+        room.release()
+    if room.is_empty():
+        await collaboration_manager.leave(guild_id, spec.resource_type, resource_id)

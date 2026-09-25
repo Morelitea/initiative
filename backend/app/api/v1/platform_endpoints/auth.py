@@ -1153,7 +1153,7 @@ async def issue_upload_token(
     general API credential.
     """
     # Copy the minting session's satisfied-provider set into the scoped token
-    # so media loads and the sync-content keepalive pass a policy-gated guild
+    # so media loads and the collaboration handover pass a policy-gated guild
     # exactly when the session itself would.
     satisfied = auth_context.satisfied_providers()
     token, expires_in = create_upload_token(

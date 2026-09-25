@@ -224,3 +224,71 @@ async def test_a_member_the_queue_is_not_shared_with_is_refused(
     await websocket.serving  # type: ignore[attr-defined]
 
     assert websocket.closed == status.WS_1008_POLICY_VIOLATION
+
+
+# ── a held socket ───────────────────────────────────────────────────────────
+
+
+@pytest.mark.unit
+async def test_a_held_socket_hands_on_binary_frames_and_beats_when_quiet(
+    monkeypatch,
+) -> None:
+    """Every socket beats the same way, the collaboration socket included, so
+    one client-side check notices a connection that has stopped carrying."""
+    from types import SimpleNamespace
+
+    from app.services.content_sockets import (
+        ContentSockets,
+        Credential,
+        Subscriber,
+        Wire,
+    )
+    from app.testing.sockets import FakeWebSocket
+
+    register = ContentSockets()
+    monkeypatch.setattr(content_socket, "sockets", register)
+    monkeypatch.setattr(content_socket, "HEARTBEAT_SECONDS", 0.01)
+
+    inbound = [
+        {"type": "websocket.receive", "bytes": b"\x02edit"},
+        None,  # the client says nothing for a while
+        {"type": "websocket.receive", "text": "ignored"},
+        {"type": "websocket.disconnect", "code": 1000},
+    ]
+
+    class Client(FakeWebSocket):
+        async def receive(self) -> dict:
+            # Let the writer deliver what is queued, as a real socket would.
+            await settle()
+            frame = inbound.pop(0)
+            if frame is None:
+                await asyncio.sleep(1)
+                return {}
+            return frame
+
+    websocket = Client()
+
+    async def keep(_session, _user):
+        return frozenset({resource_room(1, "document", 3)})
+
+    sub = Subscriber(
+        websocket=websocket,  # type: ignore[arg-type]
+        user=SimpleNamespace(id=1),  # type: ignore[arg-type]
+        guild_id=1,
+        wire=Wire.bytes,
+        authorize=keep,
+        credential=Credential(),
+        rooms=frozenset({resource_room(1, "document", 3)}),
+    )
+    register.join(sub)
+    received: list[bytes] = []
+    try:
+        await content_socket.hold_open(sub, on_bytes=received.append)
+        await settle()
+    finally:
+        if register._loop_task is not None:
+            register._loop_task.cancel()
+
+    assert received == [b"\x02edit"]
+    assert content_socket.HEARTBEAT_FRAME in websocket.sent
+    assert register.room_size(resource_room(1, "document", 3)) == 0

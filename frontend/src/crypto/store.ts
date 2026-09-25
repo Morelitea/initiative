@@ -16,6 +16,8 @@
  * every session, and must never be mirrored anywhere it could be read back.
  */
 
+import { toBase64 } from "@/lib/base64";
+
 const DB_NAME = "initiative-dm";
 const DB_VERSION = 1;
 const STORE = "keys";
@@ -151,17 +153,6 @@ async function wrappingKey(): Promise<CryptoKey> {
   ]);
   await write(WRAP_KEY, key);
   return key;
-}
-
-function toBase64(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary);
-}
-
-function fromBase64(value: string): Uint8Array {
-  const binary = atob(value);
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }
 
 /**
@@ -1066,5 +1057,3 @@ export const sessionPickle = {
 export async function forgetDevice(): Promise<void> {
   await drop();
 }
-
-export { fromBase64, toBase64 };
