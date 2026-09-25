@@ -15,8 +15,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
 from app.models.tenant.event_outbox import EventOutbox
-from app.services.realtime import manager
-from app.services.realtime_test import FakeWebSocket
+from app.services.content_sockets import sockets
+from app.testing.sockets import FakeWebSocket, settle, watch_events_bus
 from app.services.tenant import room_sink
 from app.testing import (
     create_comment,
@@ -29,9 +29,9 @@ from app.testing import (
 pytestmark = pytest.mark.integration
 
 
-#: A socket belonging to nobody in particular. Rooms are otherwise re-derived
-#: from the roster for whoever holds the socket, so a test that means "only the
-#: rooms I was constructed with" has to hold a socket no roster names.
+#: A socket belonging to nobody in particular. Rooms are otherwise recomputed
+#: for whoever holds the socket when a roster they are on moves, so a test that
+#: means "only the rooms I was constructed with" holds a socket no roster names.
 NOBODY = 0
 
 
@@ -48,21 +48,23 @@ class _Watcher:
 
     async def __aenter__(self) -> "_Watcher":
         room_sink._missed_hints = False
-        await manager.connect(
+        watch_events_bus(
             self._guild_id,
-            list(self._initiative_ids),
+            self._initiative_ids,
             self.socket,
             user_id=self._user_id,
         )
         await room_sink.process_room_sweep()
+        await settle()
         return self
 
     async def __aexit__(self, *exc) -> None:
-        await manager.disconnect(self.socket)
+        sockets.leave(self.socket)  # type: ignore[arg-type]
         room_sink._delivered.pop(self._guild_id, None)
 
     async def catch_up(self) -> None:
         await room_sink.process_room_sweep()
+        await settle()
 
     @property
     def changes(self) -> list[dict]:

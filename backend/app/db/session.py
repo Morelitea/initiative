@@ -220,8 +220,8 @@ def clear_rls_context(session: AsyncSession) -> None:
 # Maximum age of a *user-derived* authorization snapshot. The stored params
 # capture membership / guild role / PAM state as validated by
 # establish_guild_access; replaying them indefinitely would launder a revoked
-# grant. The realtime spine re-validates sockets every REAUTH_INTERVAL_SECONDS
-# (= half this bound; stream_authz derives it from this constant), so any
+# grant. The socket register re-validates sockets every REAUTH_INTERVAL_SECONDS
+# (= half this bound; content_sockets derives it from this constant), so any
 # properly registered consumer refreshes long before the floor. Only a
 # consumer that HOLDS a routed session without re-validating hits it — which
 # must fail. System contexts (no user_id: workers, seeding) are not
@@ -265,14 +265,6 @@ def _search_path(*schemas: str) -> str:
     """
     return ", ".join((*schemas, "pg_temp"))
 
-
-#: Clears the role and path a pooled connection may still carry. For entry
-#: points that build their own session (websockets, background re-auth) instead
-#: of going through ``get_session``, which resets per request.
-CONNECTION_RESET_SQL = (
-    "SELECT set_config('role', 'none', false), "
-    f"set_config('search_path', '{_search_path('public')}', false)"
-)
 
 #: The GUC naming the initiatives this request holds "Full access" in. One of
 #: the standing keys: written empty by the routing statement below and filled

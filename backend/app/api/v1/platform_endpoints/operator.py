@@ -43,7 +43,7 @@ from app.services.auth import challenges as challenge_service
 from app.services.auth import sessions as session_service
 from app.services.auth import sign_in_locks
 from app.services.auth import totp as totp_service
-from app.services.stream_authz import authority as stream_authority
+from app.services.content_sockets import sockets as content_sockets
 from app.services import notifications as notifications_service
 from app.services.platform import user_avatars as user_avatars_service
 from app.services import audit as audit_service
@@ -223,7 +223,7 @@ async def clear_second_factor(
     )
     await session.commit()
     # Connections opened on the ended sessions close now.
-    await stream_authority.revoke_user_everywhere(user_id)
+    await content_sockets.revoke_user_everywhere(user_id)
     await email_service.announce_second_factor_change(session, user, enabled=False)
 
 
@@ -543,7 +543,7 @@ async def set_user_suspension(
         # joined, so they are re-checked now rather than at the next sweep.
         # Everywhere at once: this is a change to the account, which has no one
         # guild to name.
-        await stream_authority.revoke_user_everywhere(user_id)
+        await content_sockets.revoke_user_everywhere(user_id)
 
     return await users_service.to_operator_read_one(user)
 

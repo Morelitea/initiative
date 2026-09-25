@@ -28,7 +28,7 @@ async def authenticate_ws_token(token: str, session: AsyncSession) -> Optional[U
     is for a request, so the ``establish_guild_access`` call that follows
     applies the guild auth-policy gate to the socket exactly as REST would, and
     the streams it joins keep which credential it was and ask again later
-    whether it still stands (see ``app.services.stream_authz``). A session
+    whether it still stands (see ``app.services.content_sockets``). A session
     token with no ``sid`` names no sign-in to ask about and opens no socket.
     """
     try:

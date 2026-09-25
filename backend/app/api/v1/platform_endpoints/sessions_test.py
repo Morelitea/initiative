@@ -12,11 +12,18 @@ from app.api.v1.platform_endpoints import users as users_endpoints
 from app.core import auth_context
 from app.core.security import get_password_hash
 from app.models.platform.user import UserStatus
-from app.services import stream_authz
+from app.services import content_sockets
 from app.services.platform import api_keys as api_keys_service
 from app.services.platform import user_tokens
 from app.services.platform.ws_auth import authenticate_ws_token
-from app.services.stream_authz import WS_CREDENTIAL_ENDED, StreamAuthority
+from app.services.content_sockets import (
+    WS_CREDENTIAL_ENDED,
+    ContentSockets,
+    Credential,
+    Subscriber,
+    Wire,
+    resource_room,
+)
 from app.testing import create_user, get_auth_headers
 
 CHROME_MAC = (
@@ -321,45 +328,50 @@ class _LiveAccountSession:
 
 @pytest.fixture
 def streams(monkeypatch):
-    """A stream registry the endpoints under test report to, whose guild and
+    """A socket register the endpoints under test report to, whose guild and
     resource checks pass, so a socket closes on its credential or not at all."""
     auth_context.set_session_credential(None)
     auth_context.set_device_token_id(None)
-    authority = StreamAuthority()
+    register = ContentSockets()
 
     async def _admitted(*_a, **_k):
         return None
 
     monkeypatch.setattr(
-        stream_authz, "request_sessionmaker", lambda _guild_id: _LiveAccountSession
+        content_sockets, "request_sessionmaker", lambda _guild_id: _LiveAccountSession
     )
-    monkeypatch.setattr(stream_authz, "establish_guild_access", _admitted)
-    monkeypatch.setattr(sessions_endpoints, "stream_authority", authority)
-    monkeypatch.setattr(users_endpoints, "stream_authority", authority)
-    yield authority
-    if authority._loop_task is not None:
-        authority._loop_task.cancel()
+    monkeypatch.setattr(content_sockets, "establish_guild_access", _admitted)
+    monkeypatch.setattr(sessions_endpoints, "content_sockets", register)
+    monkeypatch.setattr(users_endpoints, "content_sockets", register)
+    yield register
+    for sub in list(register._subs.values()):
+        register.leave(sub.websocket)
+    if register._loop_task is not None:
+        register._loop_task.cancel()
 
 
 async def _open_stream(
-    authority: StreamAuthority, token: str, session: AsyncSession
+    register: ContentSockets, token: str, session: AsyncSession
 ) -> _Socket:
     """Authenticate the way a socket's handshake does, then join a room."""
     user = await authenticate_ws_token(token, session)
     assert user is not None
+    room = frozenset({resource_room(1, "document", 1)})
 
     async def _readable(_session, _user):
-        return True
+        return room
 
     socket = _Socket()
-    await authority.join(
-        socket,  # type: ignore[arg-type]
-        user,
-        guild_id=1,
-        initiative_id=1,
-        resource_type="document",
-        resource_id=1,
-        authorize=_readable,
+    register.join(
+        Subscriber(
+            websocket=socket,  # type: ignore[arg-type]
+            user=user,
+            guild_id=1,
+            wire=Wire.json,
+            authorize=_readable,
+            credential=Credential.captured(),
+            rooms=room,
+        )
     )
     return socket
 
@@ -367,7 +379,7 @@ async def _open_stream(
 @pytest.mark.integration
 @pytest.mark.auth
 async def test_ending_a_session_closes_the_connections_opened_on_it(
-    client: AsyncClient, session: AsyncSession, streams: StreamAuthority
+    client: AsyncClient, session: AsyncSession, streams: ContentSockets
 ):
     await _signed_in_user(session, "end-streams@example.com")
     doomed = await _sign_in(
@@ -395,7 +407,7 @@ async def test_ending_a_session_closes_the_connections_opened_on_it(
 @pytest.mark.integration
 @pytest.mark.auth
 async def test_signing_out_everywhere_else_keeps_this_sessions_connections(
-    client: AsyncClient, session: AsyncSession, streams: StreamAuthority
+    client: AsyncClient, session: AsyncSession, streams: ContentSockets
 ):
     user = await _signed_in_user(session, "sweep-streams@example.com")
     elsewhere = await _sign_in(
@@ -428,7 +440,7 @@ async def test_signing_out_everywhere_else_keeps_this_sessions_connections(
 @pytest.mark.integration
 @pytest.mark.auth
 async def test_a_password_change_closes_the_connections_opened_before_it(
-    client: AsyncClient, session: AsyncSession, streams: StreamAuthority
+    client: AsyncClient, session: AsyncSession, streams: ContentSockets
 ):
     """Every credential the account held goes with the old password, this
     device's included; its replacement session is what it reconnects with."""
