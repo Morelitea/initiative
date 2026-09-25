@@ -412,19 +412,19 @@ def test_orphaned_blobs_are_discarded_only_when_that_is_certain(monkeypatch):
 
     from app.api.v1.tenant_endpoints import galleries as endpoint
 
-    deleted: list[list[str]] = []
+    deleted: list[tuple[int, set[str]]] = []
     monkeypatch.setattr(
         endpoint.attachments_service,
-        "delete_uploads_by_urls",
-        lambda urls: deleted.append(list(urls)),
+        "delete_blobs",
+        lambda guild_id, names: deleted.append((guild_id, set(names))),
     )
 
     urls = ["/uploads/1/a.png", "/uploads/1/a-thumb.webp"]
-    endpoint._discard_orphans(urls, IntegrityError("stmt", {}, Exception()))
-    assert deleted == [urls]
+    endpoint._discard_orphans(7, urls, IntegrityError("stmt", {}, Exception()))
+    assert deleted == [(7, {"a.png", "a-thumb.webp"})]
 
     deleted.clear()
-    endpoint._discard_orphans(urls, OperationalError("stmt", {}, Exception()))
+    endpoint._discard_orphans(7, urls, OperationalError("stmt", {}, Exception()))
     assert deleted == [], "an inconclusive failure must leave the bytes alone"
 
 

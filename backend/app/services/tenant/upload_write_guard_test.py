@@ -35,9 +35,9 @@ _SEAM = "app/services/tenant/attachments.py::store_upload"
 
 #: Where an ``uploads`` row may be built other than the seam, and why.
 _ROW_EXCEPTIONS = {
-    # A duplicated document copies blobs already stored; its rows record the
-    # copies, and no new bytes arrive.
-    "app/services/tenant/documents.py",
+    # A copy of a file the guild already stores; its row carries the source's
+    # size, type and hash, and no new bytes arrive.
+    "app/services/tenant/attachments.py::copy_uploads",
     # Test data.
     "app/testing/factories.py",
 }
@@ -113,7 +113,7 @@ def test_only_the_seam_builds_an_upload_row():
         for rel, fn in _functions(path)
         if _builds_upload_row(fn)
         and f"{rel}::{fn.name}" != _SEAM
-        and rel not in _ROW_EXCEPTIONS
+        and not {rel, f"{rel}::{fn.name}"} & _ROW_EXCEPTIONS
     )
     assert offenders == [], (
         "store an upload with attachments.store_upload, which writes the bytes "

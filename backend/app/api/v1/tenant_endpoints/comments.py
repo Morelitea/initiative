@@ -415,7 +415,7 @@ async def update_comment(
     # relationship — serializing would then lazy-load it mid-request.
     await session.commit()
     # A picture taken out of the comment goes once the edit has landed.
-    attachments_service.delete_uploads_by_urls(released_images)
+    attachments_service.delete_blobs(guild_context.guild_id, released_images)
     response = comments_service.serialize_comment(comment, viewer_id=current_user.id)
     return response
 
