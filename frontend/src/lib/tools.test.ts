@@ -38,7 +38,6 @@ import {
   toolCreateLabelKey,
   toolCreatePermission,
   toolDetailRoute,
-  toolKebabSingular,
   toolListRoute,
   toolNavLabelKey,
   toolParamName,
