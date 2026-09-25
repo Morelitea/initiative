@@ -20,8 +20,8 @@ Three tables.
 
 The guild tables' policies are rendered from the registries at boot.
 
-Revision ID: 20260925_0398
-Revises: 20260925_0397
+Revision ID: 20260925_0400
+Revises: 20260925_0399
 Create Date: 2026-09-25
 """
 
@@ -32,8 +32,8 @@ from sqlalchemy.dialects import postgresql
 from app.core.config import settings
 from app.db.guild_migrations import guild_schema_names, run_for_each_guild_schema
 
-revision = "20260925_0398"
-down_revision = "20260925_0397"
+revision = "20260925_0400"
+down_revision = "20260925_0399"
 branch_labels = None
 depends_on = None
 
