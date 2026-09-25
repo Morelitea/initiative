@@ -10386,11 +10386,11 @@ export type ExportDocumentApiV1CGuildIdExportsDocumentGetFormat =
 export const ExportDocumentApiV1CGuildIdExportsDocumentGetFormat = {
   json: "json",
   md: "md",
+  pdf: "pdf",
+  docx: "docx",
   csv: "csv",
   xlsx: "xlsx",
   file: "file",
-  pdf: "pdf",
-  docx: "docx",
 } as const;
 
 export type ExportQueueApiV1CGuildIdExportsQueueGetParams = {
