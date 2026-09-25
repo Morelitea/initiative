@@ -926,8 +926,7 @@ async def delete_initiative(
     projects, documents, queues, and calendar events; their descendants
     (tasks, comments, queue items) follow recursively. Restoring the
     initiative resurfaces everything that was cascaded together."""
-    from app.services.platform import guilds as guilds_service
-    from app.services.tenant.soft_delete import soft_delete_entity
+    from app.services.tenant.soft_delete import trash
 
     initiative = await _get_initiative_or_404(
         initiative_id, session, guild_context.guild_id
@@ -937,14 +936,10 @@ async def delete_initiative(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=InitiativeMessages.CANNOT_DELETE_DEFAULT,
         )
-    retention_days = await guilds_service.get_guild_retention_days(
-        session, guild_context.guild_id
-    )
-    await soft_delete_entity(
+    retention_days = await trash(
         session,
         initiative,
         deleted_by_user_id=current_user.id,
-        retention_days=retention_days,
     )
     await audit_service.record(
         session,

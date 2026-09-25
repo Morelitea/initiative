@@ -39,9 +39,8 @@ from app.models.tenant.gallery import GalleryImage
 from app.models.tenant.queue import QueueItem
 from app.models.platform.user import User
 from app.services import permissions as permissions_service
-from app.services.platform import guilds as guilds_service
 from app.services.tenant import tags as tags_service
-from app.services.tenant.soft_delete import soft_delete_entity
+from app.services.tenant.soft_delete import trash
 from app.schemas.tenant.tag import (
     TagBulkEditRequest,
     TagBulkEditResponse,
@@ -328,14 +327,10 @@ async def delete_tag(
     stay in place (reads hide them via the soft-delete filter) and fall with
     the tag's ORM relationship cascade on hard purge."""
     tag = await _get_tag_or_404(session, tag_id, guild_context.guild_id)
-    retention_days = await guilds_service.get_guild_retention_days(
-        session, guild_context.guild_id
-    )
-    await soft_delete_entity(
+    await trash(
         session,
         tag,
         deleted_by_user_id=current_user.id,
-        retention_days=retention_days,
     )
     await session.commit()
 
