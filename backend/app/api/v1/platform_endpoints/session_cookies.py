@@ -14,9 +14,8 @@ REFRESH_COOKIE_PATH = f"{API_V1_STR}/auth"
 
 
 def set_session_cookie(response: Response, token: str, *, max_age: int) -> None:
-    """Set the session-auth cookie (read by ``get_current_user``). During the
-    cutover this holds a legacy JWT on the fallback path and a new-model access
-    token otherwise — the verifier accepts either."""
+    """Set the session-auth cookie, which holds the access token
+    ``get_current_user`` reads."""
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=token,
@@ -37,6 +36,17 @@ def set_refresh_cookie(response: Response, token: str) -> None:
         secure=settings.cookie_secure,
         max_age=settings.AUTH_REFRESH_TTL_DAYS * 86400,
         path=REFRESH_COOKIE_PATH,
+    )
+
+
+def clear_session_cookie(response: Response) -> None:
+    """Clear the session-auth cookie, with the attributes it was set with."""
+    response.delete_cookie(
+        key=SESSION_COOKIE_NAME,
+        path="/",
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite="lax",
     )
 
 

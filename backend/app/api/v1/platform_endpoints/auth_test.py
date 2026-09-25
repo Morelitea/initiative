@@ -160,6 +160,35 @@ async def test_register_duplicate_email(client: AsyncClient, session: AsyncSessi
 
 @pytest.mark.integration
 @pytest.mark.auth
+async def test_closed_registration_says_nothing_about_the_address(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """Where registration needs an invite, a held address and a free one are
+    refused the same way: whether one is held is only told to somebody the
+    deployment would register."""
+    from app.core import config as cfg
+
+    monkeypatch.setattr(cfg.settings, "ENABLE_PUBLIC_REGISTRATION", False)
+    await create_user(session, email="held-closed@example.com")
+
+    answers = []
+    for email in ("held-closed@example.com", "free-closed@example.com"):
+        response = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": email,
+                "username": "closed",
+                "full_name": "Closed Door",
+                "password": "password1234",
+            },
+        )
+        answers.append((response.status_code, response.json()["detail"]))
+
+    assert answers == [(403, "REGISTRATION_REQUIRES_INVITE")] * 2
+
+
+@pytest.mark.integration
+@pytest.mark.auth
 async def test_register_normalizes_email(client: AsyncClient):
     """Test that email is normalized during registration."""
     user_data = {
@@ -2292,6 +2321,39 @@ async def test_password_reset_revokes_sessions_and_device_tokens(
         )
     ).one()
     assert token_row.consumed_at is not None
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_password_reset_tells_the_account(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """A changed password is announced, as a changed passkey or factor is."""
+    from app.models.platform.user_token import UserTokenPurpose
+    from app.services import email as email_service
+    from app.services.platform import user_tokens
+
+    user = await create_user(session, email="reset-told@example.com")
+    user_id = user.id
+    reset_token = await user_tokens.create_token(
+        session,
+        user_id=user_id,
+        purpose=UserTokenPurpose.password_reset,
+    )
+
+    told: list[int] = []
+
+    async def _capture(session_, user_):
+        told.append(user_.id)
+
+    monkeypatch.setattr(email_service, "send_password_changed_email", _capture)
+
+    response = await client.post(
+        "/api/v1/auth/password/reset",
+        json={"token": reset_token, "password": "brand-new-secret-123"},
+    )
+    assert response.status_code == 200, response.text
+    assert told == [user_id]
 
 
 @pytest.mark.integration

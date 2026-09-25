@@ -502,13 +502,18 @@ async def _find_identity(
     ).one_or_none()
 
 
+async def any_account_exists(session: AsyncSession) -> bool:
+    """Whether the deployment holds any account yet — the first one to arrive
+    bootstraps it. One indexed probe rather than a count of every row."""
+    return (await session.exec(select(User.id).limit(1))).first() is not None
+
+
 async def _registration_open(session: AsyncSession) -> bool:
     """Mirrors the existing OIDC flow's gate: a closed instance still admits
     the very first user (fresh-install bootstrap)."""
     if settings.ENABLE_PUBLIC_REGISTRATION and not settings.DISABLE_GUILD_CREATION:
         return True
-    user_count = (await session.exec(select(func.count(User.id)))).one()
-    return user_count == 0
+    return not await any_account_exists(session)
 
 
 def _address_lock_key(normalized: str) -> int:

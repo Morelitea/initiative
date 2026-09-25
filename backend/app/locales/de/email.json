@@ -267,6 +267,14 @@
     "fallbackText": "Falls du das nicht warst, lege mit einem deiner Wiederherstellungscodes sofort wieder ein Passwort fest und wende dich an die Betreiber dieser Seite.",
     "textBody": "Dein Konto hat kein Passwort mehr. Du meldest dich jetzt mit deinem Passkey oder über deinen Anmeldedienst an."
   },
+  "passwordChanged": {
+    "subject": "Dein Passwort wurde geändert",
+    "title": "Dein Passwort wurde geändert",
+    "greeting": "Hallo <strong>{{name}}</strong>,",
+    "body": "Das Passwort deines Kontos wurde gerade geändert. Alle anderen Geräte, die bei deinem Konto angemeldet waren, wurden abgemeldet.",
+    "fallbackText": "Falls du das nicht warst, setze dein Passwort sofort zurück und wende dich an die Betreiber dieser Seite.",
+    "textBody": "Das Passwort deines Kontos wurde gerade geändert. Alle anderen Geräte, die bei deinem Konto angemeldet waren, wurden abgemeldet. Falls du das nicht warst, setze dein Passwort sofort zurück."
+  },
   "passkey": {
     "greeting": "Hallo <strong>{{name}}</strong>,",
     "fallbackText": "Falls du das nicht warst, ändere sofort dein Passwort und wende dich an die Betreiber dieser Seite.",

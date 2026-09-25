@@ -21,11 +21,13 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.platform_endpoints.session_opening import (
+    EMAIL_CODE_LEG,
     count_wrong_answer,
     open_session,
     record_sign_in_failure,
     refuse_if_locked,
     require_login_method,
+    second_factor_outstanding,
 )
 from app.core.audit_events import AuditEventType
 from app.core.login_methods import LoginMethod
@@ -48,8 +50,6 @@ from app.services import email as email_service
 from app.services.auth import addresses
 from app.services.auth import challenges as challenge_service
 from app.services.auth import email_otp as email_otp_service
-from app.services.auth import totp as totp_service
-from app.services.platform import auth_posture
 from app.services.platform import user_tokens
 from app.services.stream_authz import authority as stream_authority
 
@@ -304,37 +304,23 @@ async def verify_sign_in_code(
     native = email_otp_service.is_native(challenge)
     # The code proved the address; an account holding a second factor still
     # presents it, the same way a password sign-in does.
-    if await auth_posture.login_method_allowed(
-        session, LoginMethod.totp
-    ) and await totp_service.is_enrolled(system_session, user_id=user_id):
-        follow_on = await challenge_service.create(
-            system_session,
-            user_id=user_id,
-            purpose=(
-                challenge_service.ChallengePurpose.sign_in_native
-                if native
-                else challenge_service.ChallengePurpose.sign_in
-            ),
-        )
-        await system_session.commit()
+    token_version = user.token_version
+    challenge_response = await second_factor_outstanding(
+        session, system_session, user_id=user_id, leg=EMAIL_CODE_LEG, native=native
+    )
+    if challenge_response is not None:
         if retired:
             await stream_authority.revoke_user_everywhere(user_id)
-        return JSONResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            content={
-                "detail": AuthMessages.TOTP_REQUIRED,
-                "challenge": follow_on.value,
-            },
-        )
+        return challenge_response
 
     opened = await open_session(
         request,
         response,
         system_session,
         user_id=user_id,
-        token_version=user.token_version,
-        amr=["otp"],
-        audit_detail={"method": "email_otp"},
+        token_version=token_version,
+        amr=EMAIL_CODE_LEG.amr,
+        audit_detail={"method": EMAIL_CODE_LEG.method},
         return_refresh_token=native,
     )
     if retired:
@@ -409,7 +395,7 @@ async def register_with_code(
         system_session,
         user_id=registered.user.id,
         token_version=registered.user.token_version,
-        amr=["otp"],
-        audit_detail={"method": "email_otp", "during": "registration"},
+        amr=EMAIL_CODE_LEG.amr,
+        audit_detail={"method": EMAIL_CODE_LEG.method, "during": "registration"},
         return_refresh_token=email_otp_service.is_native(ticket),
     )

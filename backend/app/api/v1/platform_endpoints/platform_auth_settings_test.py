@@ -266,6 +266,18 @@ async def test_withdrawing_password_closes_its_routes(
     assert token.status_code == 403
     assert token.json()["detail"] == "SETTINGS_LOGIN_METHOD_NOT_PERMITTED"
 
+    # The app's password sign-in is the same door.
+    device = await client.post(
+        "/api/v1/auth/device-token",
+        json={
+            "email": "someone@example.com",
+            "password": "whatever",
+            "device_name": "Phone",
+        },
+    )
+    assert device.status_code == 403
+    assert device.json()["detail"] == "SETTINGS_LOGIN_METHOD_NOT_PERMITTED"
+
     register = await client.post(
         "/api/v1/auth/register",
         json={

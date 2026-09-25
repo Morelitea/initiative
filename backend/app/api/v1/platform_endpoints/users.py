@@ -1298,6 +1298,7 @@ async def update_users_me(
             amr=["pwd"] if held_password else [],
             satisfied_providers=[],
         )
+        await email_service.announce_password_changed(system_session, current_user)
 
     if "avatar_url" in update_data:
         url_value = update_data["avatar_url"]

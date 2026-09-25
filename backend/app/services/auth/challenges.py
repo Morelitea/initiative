@@ -56,6 +56,12 @@ class ChallengePurpose(str, Enum):
     #: different things: a browser reads its refresh token from a cookie, and
     #: the app is given it to keep.
     sign_in_native = "sign_in_native"
+    #: A code sent to one of the account's addresses was accepted and the
+    #: account's second factor is outstanding. Kept apart from :attr:`sign_in`
+    #: because the session it opens records what the first leg proved.
+    sign_in_after_code = "sign_in_after_code"
+    #: The same, from the native sign-in.
+    sign_in_after_code_native = "sign_in_after_code_native"
     #: A passkey registration is under way. The value is the WebAuthn challenge
     #: itself, so the finish route reads it back out of the signed client data.
     passkey_register = "passkey_register"
