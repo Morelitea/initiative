@@ -10,7 +10,7 @@ guild's ``guild_<id>`` schema before touching the database (see
 ``route_session_to_guild``.
 """
 
-from app.testing.actor import Actor, make_actor
+from app.testing.actor import Actor, guild_url, make_actor
 from app.testing.audit import emitted
 from app.testing.captcha import captcha_switched_on
 from app.testing.factories import (
@@ -59,6 +59,7 @@ from app.testing.factories import (
     create_initiative_member,
     create_project,
     create_resource_grant,
+    strip_non_owner_grants,
     create_property_definition,
     create_queue,
     create_queue_item,
@@ -87,10 +88,11 @@ from app.testing.passkeys import (
     stub_registration,
 )
 from app.testing.push import push_switched_on
-from app.testing.routing import route_as, route_as_install, route_system
+from app.testing.routing import as_role, route_as, route_as_install, route_system
 from app.testing.schema_harness import guild_of, route_session_to_guild
 
 __all__ = [
+    "as_role",
     "captcha_switched_on",
     "assertion_for",
     "create_passkey",
@@ -102,6 +104,7 @@ __all__ = [
     "enable_all_tools",
     "create_tool_entity",
     "Actor",
+    "guild_url",
     "make_actor",
     "emitted",
     "create_app_service_registration",
@@ -145,6 +148,7 @@ __all__ = [
     "grant_role_permission",
     "create_project",
     "create_resource_grant",
+    "strip_non_owner_grants",
     "create_property_definition",
     "create_queue",
     "create_queue_item",

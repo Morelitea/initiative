@@ -25,7 +25,7 @@ from sqlmodel import select
 from app.api.v1.tenant_endpoints.tasks import _advance_recurrence_if_needed
 from app.models.platform.guild import GuildRole
 from app.models.tenant.task import Task, TaskStatusCategory
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.testing.schema_harness import route_session_to_guild
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.core.relationships import RelationshipType
@@ -44,7 +44,7 @@ from app.testing.factories import (
     create_task_status,
     create_user,
 )
-from app.testing import route_as
+from app.testing import create_resource_grant, route_as
 
 LOS_ANGELES = ZoneInfo("America/Los_Angeles")
 
@@ -585,17 +585,12 @@ async def test_unassigning_withdraws_the_pending_digest_item(
         initiative_role="member",
     )
     # The assignment notice names the task, so the assignee has to reach it.
-    await route_session_to_guild(session, user.guild.id)
-    session.add(
-        ResourceGrant(
-            resource_type="project",
-            resource_id=user.project.id,
-            all_initiative_members=True,
-            level=ResourceAccessLevel.write,
-            initiative_id=user.project.initiative_id,
-        )
+    await create_resource_grant(
+        session,
+        user.project,
+        all_initiative_members=True,
+        level=ResourceAccessLevel.write,
     )
-    await session.commit()
     task = await _create_task(session, user.project)
 
     assign = await client.patch(
@@ -1932,17 +1927,7 @@ async def test_a_blocker_the_reader_cannot_open_is_not_counted(
 
     # The project is shared with the whole initiative, so the reader can open
     # the task itself: what is being tested is the far end of its blocker.
-    await route_session_to_guild(session, owner.guild.id)
-    session.add(
-        ResourceGrant(
-            resource_type="project",
-            resource_id=owner.project.id,
-            all_initiative_members=True,
-            level=ResourceAccessLevel.read,
-            initiative_id=owner.initiative.id,
-        )
-    )
-    await session.commit()
+    await create_resource_grant(session, owner.project, all_initiative_members=True)
 
     reader = await acting_user(
         guild_role=GuildRole.member,

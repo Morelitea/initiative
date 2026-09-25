@@ -8,6 +8,7 @@ from app.core.tools import Tool
 from app.models.platform.guild import GuildRole
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.testing import (
+    create_resource_grant,
     guild_of,
     create_task,
     create_wiki_page,
@@ -41,20 +42,6 @@ async def _tool_entity(session, tool: Tool, initiative, creator):
     )
     await session.commit()
     return entity
-
-
-async def _grant(session, tool: Tool, entity, user, level: ResourceAccessLevel):
-    await route_session_to_guild(session, guild_of(entity))
-    session.add(
-        ResourceGrant(
-            resource_type=tool.value,
-            resource_id=entity.id,
-            user_id=user.id,
-            level=level,
-            initiative_id=entity.initiative_id,
-        )
-    )
-    await session.commit()
 
 
 def _param(tool: Tool) -> str:
@@ -129,7 +116,9 @@ class TestToolComments:
             initiative=a.initiative,
             initiative_role="member",
         )
-        await _grant(session, tool, entity, b.user, ResourceAccessLevel.read)
+        await create_resource_grant(
+            session, entity, user=b.user, level=ResourceAccessLevel.read
+        )
 
         listed = await client.get(
             a.g("/comments/"), headers=b.headers, params={_param(tool): entity.id}
@@ -546,7 +535,9 @@ class TestToolCommentSwitch:
         assert denied.status_code == 403
         assert denied.json()["detail"] == CommentMessages.PERMISSION_DENIED
 
-        await _grant(session, Tool.wiki, wiki, b.user, ResourceAccessLevel.read)
+        await create_resource_grant(
+            session, wiki, user=b.user, level=ResourceAccessLevel.read
+        )
 
         allowed = await client.get(
             a.g("/comments/"), headers=b.headers, params={"wiki_page_id": page.id}
@@ -604,7 +595,9 @@ class TestToolCommentSwitch:
             initiative=a.initiative,
             initiative_role="member",
         )
-        await _grant(session, tool, entity, b.user, ResourceAccessLevel.read)
+        await create_resource_grant(
+            session, entity, user=b.user, level=ResourceAccessLevel.read
+        )
 
         denied = await client.put(
             a.g(f"/tools/{tool.value}/{entity.id}/comments"),
@@ -694,7 +687,9 @@ class TestEditingAComment:
             initiative=a.initiative,
             initiative_role="member",
         )
-        await _grant(session, Tool.project, project, b.user, ResourceAccessLevel.write)
+        await create_resource_grant(
+            session, project, user=b.user, level=ResourceAccessLevel.write
+        )
 
         posted = await client.post(
             a.g("/comments/"),

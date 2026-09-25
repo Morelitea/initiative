@@ -32,7 +32,13 @@ from app.models.tenant.resource_grant import (
     ResourceAccessLevel,
     ResourceGrant,
 )
-from app.testing import create_access_grant, create_user, route_as, route_system
+from app.testing import (
+    create_access_grant,
+    create_resource_grant,
+    create_user,
+    route_as,
+    route_system,
+)
 from app.testing.schema_harness import route_session_to_guild
 
 OWNER = ResourceAccessLevel.owner.value
@@ -152,16 +158,14 @@ async def _apply_grant(session, a, shape, subject):
             "role_write": WRITE,
             "everyone": READ,
         }[shape]
-        session.add(
-            ResourceGrant(
-                resource_type="project",
-                resource_id=a.project.id,
-                initiative_id=a.initiative.id,
-                user_id=subject.id if shape.startswith("user_") else None,
-                role_id=member_role_id if shape == "role_write" else None,
-                all_initiative_members=shape == "everyone",
-                level=level,
-            )
+        await create_resource_grant(
+            session,
+            a.project,
+            user=subject if shape.startswith("user_") else None,
+            role_id=member_role_id if shape == "role_write" else None,
+            all_initiative_members=shape == "everyone",
+            level=level,
+            commit=False,
         )
     await session.commit()
 

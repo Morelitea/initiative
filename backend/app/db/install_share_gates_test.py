@@ -15,10 +15,15 @@ from sqlalchemy.exc import DBAPIError
 from sqlmodel import select
 
 from app.core.tools import Tool
-from app.db.install_standing_test import _install, _route, _share_with_members
+from app.db.install_standing_test import _install, _route
 from app.models.tenant.document import Document, DocumentType
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
-from app.testing import create_document, route_as, route_session_to_guild
+from app.testing import (
+    create_document,
+    create_resource_grant,
+    route_as,
+    route_session_to_guild,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -120,16 +125,12 @@ async def test_without_both_write_scopes_an_install_shares_nothing(
                 ResourceGrant.resource_id == document.id,
             )
         )
-        session.add(
-            ResourceGrant(
-                resource_type=Tool.document.value,
-                resource_id=document.id,
-                initiative_id=install.a.id,
-                app_install_id=install.app.id,
-                level=ResourceAccessLevel.owner,
-            )
+        await create_resource_grant(
+            session,
+            document,
+            app_install_id=install.app.id,
+            level=ResourceAccessLevel.owner,
         )
-        await session.commit()
         target = document.id
         s, _ = await _route(role_session, install, token)
     s.add(_share(target, install.a.id, all_initiative_members=True))
@@ -143,7 +144,7 @@ async def test_reading_a_resource_is_not_enough_to_share_it(
 ):
     install = await _install(session, acting_user, role_session, granted=_SHARES)
     readable = await create_document(session, install.a, install.seat.user)
-    await _share_with_members(session, readable, install.a.id)
+    await create_resource_grant(session, readable, all_initiative_members=True)
 
     s, _ = await _route(role_session, install, _SHARES)
     assert (

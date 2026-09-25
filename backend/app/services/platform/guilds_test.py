@@ -817,15 +817,14 @@ async def test_get_guild_retention_days_distinguishes_never_from_missing(
     from app.testing import route_session_to_guild
 
     # 1. No guild_settings row at all -> default 90.
-    user = await create_user(session)
-    guild = await create_guild(session)  # bare factory, no settings row
+    guild = await create_guild(session)
     # guild_settings is guild-scoped: its rows live only in guild_<id> post-squash,
     # so route the session there before reading it (production callers route too).
     await route_session_to_guild(session, guild.id)
-    await session.exec(
-        # double-check no setting row exists (factory shouldn't create one)
-        select(GuildSetting).limit(1)
-    )
+    setting = (await session.exec(select(GuildSetting))).one()
+    await session.delete(setting)
+    await session.commit()
+    await route_session_to_guild(session, guild.id)
     assert (await guild_service.get_guild_retention_days(session)) == 90
 
     # 2. Row exists with retention_days = 30 -> 30.
@@ -842,10 +841,6 @@ async def test_get_guild_retention_days_distinguishes_never_from_missing(
     await route_session_to_guild(session, guild.id)
     assert (await guild_service.get_guild_retention_days(session)) is None
 
-    # Suppress unused-name warning if linters complain about the user
-    # we created for symmetry with other tests in this module.
-    _ = user
-
 
 async def test_list_memberships_reads_retention_per_guild(session: AsyncSession):
     """retention_days lives in each guild's own schema. The guild list must read
@@ -860,10 +855,12 @@ async def test_list_memberships_reads_retention_per_guild(session: AsyncSession)
         session, user=user, guild=guild_30, role=GuildRole.admin
     )
     await route_session_to_guild(session, guild_30.id)
-    session.add(GuildSetting(retention_days=30))
+    setting = (await session.exec(select(GuildSetting))).one()
+    setting.retention_days = 30
+    session.add(setting)
     await session.commit()
 
-    # A guild with no settings row should fall back to the 90-day default.
+    # A guild with the seeded settings row keeps the 90-day default.
     guild_default = await create_guild(session, creator=user)
     await create_guild_membership(
         session, user=user, guild=guild_default, role=GuildRole.admin
@@ -877,7 +874,7 @@ async def test_list_memberships_reads_retention_per_guild(session: AsyncSession)
     }
 
     assert by_guild[guild_30.id] == 30  # read from the guild's own schema
-    assert by_guild[guild_default.id] == 90  # default when no settings row
+    assert by_guild[guild_default.id] == 90  # the seeded default
 
 
 @pytest.mark.unit

@@ -4,7 +4,6 @@ DAC levels, guild-admin override)."""
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import delete as sa_delete
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -12,6 +11,7 @@ from app.models.platform.guild import GuildRole
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.resource_grant import ResourceGrant
 from app.testing import (
+    strip_non_owner_grants,
     create_calendar,
     create_calendar_event,
     create_guild_app,
@@ -44,20 +44,6 @@ async def _calendars_enabled(session: AsyncSession, initiative) -> None:
     session.add(initiative)
     await session.commit()
     await session.refresh(initiative)
-
-
-async def _strip_non_owner_grants(session, calendar, owner_id: int) -> None:
-    """Remove every grant except the owner's own — the calendar becomes
-    invisible to other members. (is_distinct_from: role grants carry a NULL
-    user_id, which a plain ``!=`` would silently skip.)"""
-    await session.exec(
-        sa_delete(ResourceGrant).where(
-            ResourceGrant.resource_type == "calendar",
-            ResourceGrant.resource_id == calendar.id,
-            ResourceGrant.user_id.is_distinct_from(owner_id),
-        )
-    )
-    await session.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -175,7 +161,7 @@ async def test_list_calendars_dac_filtered(client: AsyncClient, acting_user, ses
     admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
     shared = await create_calendar(session, a.initiative, a.user, name="Shared")
     secret = await create_calendar(session, a.initiative, a.user, name="Secret")
-    await _strip_non_owner_grants(session, secret, a.user.id)
+    await strip_non_owner_grants(session, secret, a.user.id)
 
     member_list = await client.get(member.g("/calendars/"), headers=member.headers)
     assert member_list.status_code == 200

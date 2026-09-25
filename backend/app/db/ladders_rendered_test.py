@@ -19,15 +19,14 @@ from app.models.tenant.resource_grant import (
     RESOURCE_LEVEL_LADDER,
     WRITE_LEVELS,
     ResourceAccessLevel,
-    ResourceGrant,
 )
 from app.testing import (
+    create_resource_grant,
     create_access_grant,
     create_project,
     create_user,
     route_as,
 )
-from app.testing.schema_harness import route_session_to_guild
 
 
 @pytest.mark.unit
@@ -101,17 +100,7 @@ async def test_the_write_leg_reads_the_sharing_ladder(
         project = await create_project(session, a.initiative, member.user)
     else:
         project = await create_project(session, a.initiative, a.user)
-        await route_session_to_guild(session, a.guild.id)
-        session.add(
-            ResourceGrant(
-                resource_type="project",
-                resource_id=project.id,
-                user_id=member.user.id,
-                level=level,
-                initiative_id=a.initiative.id,
-            )
-        )
-        await session.commit()
+        await create_resource_grant(session, project, user=member.user, level=level)
 
     s = await role_session("app_user")
     await route_as(s, user_id=member.user.id, guild_id=a.guild.id)

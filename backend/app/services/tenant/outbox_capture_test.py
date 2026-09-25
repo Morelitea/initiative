@@ -15,7 +15,7 @@ from sqlmodel import select
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.tenant.event_outbox import EventOutbox
-from app.testing import create_task, create_tag, route_as
+from app.testing import create_resource_grant, create_tag, create_task, route_as
 
 
 pytestmark = pytest.mark.integration
@@ -142,22 +142,12 @@ async def test_a_grant_is_reported_against_the_resource_it_shares(session, actin
     against the project (or document, queue, …) named in the row — which the
     subscriber can fetch, and which is the thing that actually changed.
     """
-    from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
 
     before = len(await _outbox(session, a.guild.id))
-    session.add(
-        ResourceGrant(
-            initiative_id=a.initiative.id,
-            resource_type="project",
-            resource_id=a.project.id,
-            user_id=b.user.id,
-            level=ResourceAccessLevel.read,
-        )
-    )
-    await session.commit()
+    await create_resource_grant(session, a.project, user=b.user)
 
     new_rows = (await _outbox(session, a.guild.id))[before:]
     reported = [

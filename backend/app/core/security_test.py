@@ -111,7 +111,9 @@ def test_sign_in_password_check_accepts_only_a_matching_account_hash() -> None:
 
 
 @pytest.mark.unit
-def test_billing_portal_handoff_carries_admin_claims_and_distinct_audience():
+def test_billing_portal_handoff_carries_admin_claims_and_distinct_audience(
+    handoff_signing_key,
+):
     """Claims present, and the audience is the portal's own."""
     token, seconds = security.create_billing_portal_handoff_token(
         guild_role="admin",
@@ -135,7 +137,9 @@ def test_billing_portal_handoff_carries_admin_claims_and_distinct_audience():
 
 
 @pytest.mark.unit
-def test_billing_portal_handoff_names_the_community_only_when_given_a_name():
+def test_billing_portal_handoff_names_the_community_only_when_given_a_name(
+    handoff_signing_key,
+):
     named, _ = security.create_billing_portal_handoff_token(
         guild_role="admin",
         user_ref="ubil_test42",
@@ -315,7 +319,7 @@ def test_jwt_signing_key_does_not_affect_encryption(monkeypatch):
 
 
 @pytest.mark.unit
-def test_verify_upload_token_rejects_wrong_audience():
+def test_verify_upload_token_rejects_wrong_audience(handoff_signing_key):
     """A token signed with our secret but carrying a foreign audience (e.g. a
     handoff into another service) must not be honored as an upload token."""
     handoff, _ = security.create_billing_portal_handoff_token(
@@ -447,7 +451,7 @@ def test_decode_session_token_rejects_scoped_upload_token():
 
 
 @pytest.mark.unit
-def test_decode_session_token_rejects_handoff_token():
+def test_decode_session_token_rejects_handoff_token(handoff_signing_key):
     handoff, _ = security.create_billing_portal_handoff_token(
         guild_role="admin",
         user_ref="ubil_test7",

@@ -11,26 +11,9 @@ from sqlmodel import select
 
 from app.models.platform.guild import GuildRole
 from app.models.tenant.queue import Queue
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
-from app.testing import guild_of, create_queue, grant_role_permission
-from app.testing.schema_harness import route_session_to_guild
+from app.testing import create_queue, create_resource_grant, grant_role_permission
 
 pytestmark = pytest.mark.integration
-
-
-async def _shared(session, queue, user) -> None:
-    """A read grant on the queue — gate 4 satisfied, so only gate 3 is left."""
-    await route_session_to_guild(session, guild_of(queue))
-    session.add(
-        ResourceGrant(
-            resource_type="queue",
-            resource_id=queue.id,
-            user_id=user.id,
-            level=ResourceAccessLevel.read,
-            initiative_id=queue.initiative_id,
-        )
-    )
-    await session.commit()
 
 
 async def _names(reading_as, guild_id, actor) -> list[str]:
@@ -53,7 +36,7 @@ async def test_a_role_that_cannot_engage_the_tool_is_refused(
         initiative_role="member",
     )
     queue = await create_queue(session, a.initiative, a.user, name="Vendor intake")
-    await _shared(session, queue, b.user)
+    await create_resource_grant(session, queue, user=b.user)
     # The factory's member may use the initiative's tools, as somebody the
     # sharing picker would have offered. This one may not.
     await grant_role_permission(session, a.initiative, "queues_enabled", enabled=False)
@@ -70,7 +53,7 @@ async def test_the_role_permission_admits_them(session, acting_user, reading_as)
         initiative_role="member",
     )
     queue = await create_queue(session, a.initiative, a.user, name="Vendor intake")
-    await _shared(session, queue, b.user)
+    await create_resource_grant(session, queue, user=b.user)
     await grant_role_permission(session, a.initiative, "queues_enabled")
 
     assert await _names(reading_as, a.guild.id, b) == ["Vendor intake"]
@@ -87,7 +70,7 @@ async def test_a_manager_role_needs_no_row(session, acting_user, reading_as):
         initiative_role="project_manager",
     )
     queue = await create_queue(session, a.initiative, a.user, name="Vendor intake")
-    await _shared(session, queue, b.user)
+    await create_resource_grant(session, queue, user=b.user)
 
     assert await _names(reading_as, a.guild.id, b) == ["Vendor intake"]
 

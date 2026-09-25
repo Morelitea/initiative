@@ -35,10 +35,6 @@ _DEFINITION = {"app_kind": "service", "service": {"public_id": "tests.owner-app"
 _WRITES_PROJECTS = ["projects:write"]
 
 
-def _g(guild_id: int, path: str) -> str:
-    return f"/api/v1/c/{guild_id}{path}"
-
-
 async def _app(
     session: AsyncSession,
     admin: Any,
@@ -85,9 +81,7 @@ async def _owner(session: AsyncSession, guild_id: int, tool: Tool, resource_id: 
 
 
 async def _unowned_ids(client: AsyncClient, admin: Any) -> set[int]:
-    listed = await client.get(
-        _g(admin.guild.id, "/users/unowned-content"), headers=admin.headers
-    )
+    listed = await client.get(admin.g("/users/unowned-content"), headers=admin.headers)
     assert listed.status_code == 200, listed.text
     return {item["id"] for item in listed.json()["items"]}
 
@@ -107,7 +101,7 @@ async def test_a_live_apps_content_is_owned_and_a_claim_leaves_it(
     assert project.id not in await _unowned_ids(client, admin)
 
     claimed = await client.post(
-        _g(admin.guild.id, "/users/unowned-content/claim"),
+        admin.g("/users/unowned-content/claim"),
         headers=admin.headers,
         json={"new_owner_id": admin.user.id},
     )
@@ -164,7 +158,7 @@ async def test_a_claim_of_a_switched_off_apps_content_keeps_it_writing(
     await session.commit()
 
     claimed = await client.post(
-        _g(admin.guild.id, "/users/unowned-content/claim"),
+        admin.g("/users/unowned-content/claim"),
         headers=admin.headers,
         json={"new_owner_id": admin.user.id},
     )
@@ -211,7 +205,7 @@ async def test_a_members_content_goes_to_an_app_that_may_own_it(
     member, project = await _members_project(session, admin, acting_user)
 
     listed = await client.get(
-        _g(admin.guild.id, f"/users/{member.user.id}/owned-content"),
+        admin.g(f"/users/{member.user.id}/owned-content"),
         headers=admin.headers,
     )
     assert listed.status_code == 200, listed.text
@@ -220,7 +214,7 @@ async def test_a_members_content_goes_to_an_app_that_may_own_it(
     ]
 
     moved = await client.post(
-        _g(admin.guild.id, f"/users/{member.user.id}/transfer-ownership"),
+        admin.g(f"/users/{member.user.id}/transfer-ownership"),
         headers=admin.headers,
         json={"new_owner_app_id": app.id},
     )
@@ -243,13 +237,11 @@ async def test_the_unowned_pile_goes_to_an_app_that_may_own_it(
     )
     await session.commit()
 
-    listed = await client.get(
-        _g(admin.guild.id, "/users/unowned-content"), headers=admin.headers
-    )
+    listed = await client.get(admin.g("/users/unowned-content"), headers=admin.headers)
     assert [a["id"] for a in listed.json()["eligible_apps"]] == [app.id]
 
     claimed = await client.post(
-        _g(admin.guild.id, "/users/unowned-content/claim"),
+        admin.g("/users/unowned-content/claim"),
         headers=admin.headers,
         json={"new_owner_app_id": app.id},
     )
@@ -274,13 +266,13 @@ async def test_content_is_not_handed_to_an_app_that_may_not_own_it(
     member, project = await _members_project(session, admin, acting_user)
 
     listed = await client.get(
-        _g(admin.guild.id, f"/users/{member.user.id}/owned-content"),
+        admin.g(f"/users/{member.user.id}/owned-content"),
         headers=admin.headers,
     )
     assert listed.json()["eligible_apps"] == []
 
     moved = await client.post(
-        _g(admin.guild.id, f"/users/{member.user.id}/transfer-ownership"),
+        admin.g(f"/users/{member.user.id}/transfer-ownership"),
         headers=admin.headers,
         json={"new_owner_app_id": app.id},
     )
@@ -303,7 +295,7 @@ async def test_an_app_placed_elsewhere_takes_none_of_a_mixed_pile(
     await create_project(session, elsewhere, member.user)
 
     moved = await client.post(
-        _g(admin.guild.id, f"/users/{member.user.id}/transfer-ownership"),
+        admin.g(f"/users/{member.user.id}/transfer-ownership"),
         headers=admin.headers,
         json={"new_owner_app_id": app.id},
     )
@@ -320,7 +312,7 @@ async def test_a_transfer_names_exactly_one_recipient(
     app = await _app(session, admin, granted=_WRITES_PROJECTS)
     for body in ({}, {"new_owner_id": admin.user.id, "new_owner_app_id": app.id}):
         response = await client.post(
-            _g(admin.guild.id, "/users/unowned-content/claim"),
+            admin.g("/users/unowned-content/claim"),
             headers=admin.headers,
             json=body,
         )
@@ -349,30 +341,26 @@ async def test_the_read_models_name_the_owning_app(
     await session.commit()
     owning_app = {"id": app.id, "name": "Automations", "avatar_url": None}
 
-    read = await client.get(
-        _g(admin.guild.id, f"/projects/{project.id}"), headers=admin.headers
-    )
+    read = await client.get(admin.g(f"/projects/{project.id}"), headers=admin.headers)
     assert read.status_code == 200, read.text
     body = read.json()
     assert body["owner_app"] == owning_app
     assert body["owner_id"] is None and body["owner"] is None
 
     listed = await client.get(
-        _g(admin.guild.id, f"/projects/?initiative_id={admin.initiative.id}"),
+        admin.g(f"/projects/?initiative_id={admin.initiative.id}"),
         headers=admin.headers,
     )
     row = next(p for p in listed.json()["items"] if p["id"] == project.id)
     assert row["owner_app"] == owning_app
 
-    doc = await client.get(
-        _g(admin.guild.id, f"/documents/{document.id}"), headers=admin.headers
-    )
+    doc = await client.get(admin.g(f"/documents/{document.id}"), headers=admin.headers)
     assert doc.status_code == 200, doc.text
     assert doc.json()["owner_app"] == owning_app
     assert doc.json()["owner"] is None
 
     docs = await client.get(
-        _g(admin.guild.id, f"/documents/?initiative_id={admin.initiative.id}"),
+        admin.g(f"/documents/?initiative_id={admin.initiative.id}"),
         headers=admin.headers,
     )
     row = next(d for d in docs.json()["items"] if d["id"] == document.id)
@@ -385,9 +373,7 @@ async def test_a_person_owner_is_named_and_no_app_is(
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     document = await create_document(session, admin.initiative, admin.user)
 
-    doc = await client.get(
-        _g(admin.guild.id, f"/documents/{document.id}"), headers=admin.headers
-    )
+    doc = await client.get(admin.g(f"/documents/{document.id}"), headers=admin.headers)
     assert doc.status_code == 200, doc.text
     assert doc.json()["owner"]["id"] == admin.user.id
     assert doc.json()["owner_app"] is None

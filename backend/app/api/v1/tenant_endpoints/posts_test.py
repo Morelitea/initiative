@@ -13,16 +13,17 @@ from typing import Any
 import pytest
 from fastapi import HTTPException
 from httpx import AsyncClient
-from sqlalchemy import delete as sa_delete, text
+from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.post import Post
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.schemas.tenant.post import MAX_POST_TEXT_CHARS
 from app.testing import (
+    strip_non_owner_grants,
     Actor,
     create_comment,
     create_post,
@@ -37,19 +38,6 @@ async def _posts_enabled(session: AsyncSession, initiative) -> None:
     session.add(initiative)
     await session.commit()
     await session.refresh(initiative)
-
-
-async def _strip_non_owner_grants(session, post, owner_id: int) -> None:
-    """Remove every grant except the owner's own — the post becomes invisible
-    to other members."""
-    await session.exec(
-        sa_delete(ResourceGrant).where(
-            ResourceGrant.resource_type == "post",
-            ResourceGrant.resource_id == post.id,
-            ResourceGrant.user_id.is_distinct_from(owner_id),
-        )
-    )
-    await session.commit()
 
 
 async def _joins(acting_user, actor: Actor, **overrides: Any) -> Actor:
@@ -263,7 +251,7 @@ async def test_a_post_not_shared_is_not_listed(
     client: AsyncClient, acting_user, board: Actor, session
 ):
     post = await create_post(session, board.initiative, board.user, name="Private")
-    await _strip_non_owner_grants(session, post, board.user.id)
+    await strip_non_owner_grants(session, post, board.user.id)
     b = await _joins(acting_user, board, initiative_role="member")
 
     listing = await client.get(b.g("/posts/"), headers=b.headers)
@@ -473,7 +461,7 @@ async def test_pin_requires_read_access_before_the_manager_check(
     """The two gates run in order: read access on the post, then initiative
     authority. A caller without the first is refused at it."""
     post = await create_post(session, board.initiative, board.user)
-    await _strip_non_owner_grants(session, post, board.user.id)
+    await strip_non_owner_grants(session, post, board.user.id)
     b = await _joins(acting_user, board, initiative_role="member")
 
     response = await client.put(
@@ -581,7 +569,7 @@ async def test_reacting_takes_read_access_and_nothing_more(
     react to either."""
     post = await create_post(session, board.initiative, board.user)
     if not shared_with_them:
-        await _strip_non_owner_grants(session, post, board.user.id)
+        await strip_non_owner_grants(session, post, board.user.id)
     b = await _joins(acting_user, board, initiative_role="member")
 
     response = await client.put(
@@ -1187,7 +1175,7 @@ async def test_a_reader_cannot_mark_a_notice_they_cannot_see(
     """
     member = await _joins(acting_user, board)
     post = await create_post(session, board.initiative, board.user, name="Not theirs")
-    await _strip_non_owner_grants(session, post, board.user.id)
+    await strip_non_owner_grants(session, post, board.user.id)
 
     response = await client.post(
         member.g("/posts/read"),
@@ -1361,7 +1349,7 @@ async def test_somebody_who_has_left_is_on_neither_side(
     )
 
     # The sharing goes; the receipt does not.
-    await _strip_non_owner_grants(session, post, board.user.id)
+    await strip_non_owner_grants(session, post, board.user.id)
 
     listing = await client.get(board.g("/posts/"), headers=board.headers)
     roster = (
@@ -1386,7 +1374,7 @@ async def test_a_guild_admin_can_mark_read_without_a_grant(
     post = await create_post(
         session, author.initiative, author.user, name="Admin reads"
     )
-    await _strip_non_owner_grants(session, post, author.user.id)
+    await strip_non_owner_grants(session, post, author.user.id)
 
     # The board shows it to them — the real request names its initiative,
     # which is the scope where a guild admin's authority answers.

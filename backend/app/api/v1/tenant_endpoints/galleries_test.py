@@ -12,16 +12,16 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import delete as sa_delete
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
 from app.models.tenant.gallery import GalleryImage, GalleryImageVersion
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.models.tenant.upload import Upload
 from app.services.tenant import galleries as galleries_service
 from app.testing import (
+    strip_non_owner_grants,
     create_gallery,
     create_gallery_image,
     create_resource_grant,
@@ -35,19 +35,6 @@ async def _galleries_enabled(session: AsyncSession, initiative) -> None:
     session.add(initiative)
     await session.commit()
     await session.refresh(initiative)
-
-
-async def _strip_non_owner_grants(session, gallery, owner_id: int) -> None:
-    """Remove every grant except the owner's own — the gallery becomes
-    invisible to other members."""
-    await session.exec(
-        sa_delete(ResourceGrant).where(
-            ResourceGrant.resource_type == "gallery",
-            ResourceGrant.resource_id == gallery.id,
-            ResourceGrant.user_id.is_distinct_from(owner_id),
-        )
-    )
-    await session.commit()
 
 
 def _upload(name: str = "shot.png", data: bytes | None = None, **fields):
@@ -263,7 +250,7 @@ async def test_a_member_without_a_grant_cannot_see_it(
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user)
-    await _strip_non_owner_grants(session, gallery, a.user.id)
+    await strip_non_owner_grants(session, gallery, a.user.id)
     b = await acting_user(
         guild_role=GuildRole.member,
         guild=a.guild,

@@ -17,8 +17,9 @@ from sqlmodel import select
 from app.core.messages import AppMessages
 from app.models.tenant.post import Post
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
-from app.services.marketplace import app_refs
 from app.testing import (
+    create_resource_grant,
+    guild_url,
     create_gallery,
     create_post,
     create_post_poll,
@@ -35,17 +36,6 @@ from app.testing.app_clients import (
 
 
 pytestmark = pytest.mark.integration
-
-
-@pytest.fixture(autouse=True)
-def _cold_reference_cache():
-    app_refs.forget_cached_install_refs()
-    yield
-    app_refs.forget_cached_install_refs()
-
-
-def _g(guild_id: int, path: str) -> str:
-    return f"/api/v1/c/{guild_id}{path}"
 
 
 @dataclass(frozen=True)
@@ -102,12 +92,14 @@ async def test_reads_what_is_open_to_its_initiative(
     in_b = await tool.make(session, installed.unplaced, seat.user, name="In B")
     headers = install_headers(installed, [f"{tool.plural}:read"])
 
-    listed = await client.get(_g(guild_id, f"/{tool.plural}/"), headers=headers)
+    listed = await client.get(guild_url(guild_id, f"/{tool.plural}/"), headers=headers)
     assert listed.status_code == 200, listed.text
     assert [row["name"] for row in listed.json()["items"]] == ["In A"]
     assert_names_nobody(listed.text, [seat.user.id, guild_id])
 
-    read = await client.get(_g(guild_id, f"/{tool.plural}/{in_a.id}"), headers=headers)
+    read = await client.get(
+        guild_url(guild_id, f"/{tool.plural}/{in_a.id}"), headers=headers
+    )
     assert read.status_code == 200, read.text
     body = read.json()
     assert body["name"] == "In A"
@@ -119,12 +111,14 @@ async def test_reads_what_is_open_to_its_initiative(
     assert listed.json()["items"][0]["created_by"] == body["created_by"]
     assert_names_nobody(read.text, [seat.user.id, guild_id])
 
-    other = await client.get(_g(guild_id, f"/{tool.plural}/{in_b.id}"), headers=headers)
+    other = await client.get(
+        guild_url(guild_id, f"/{tool.plural}/{in_b.id}"), headers=headers
+    )
     assert other.status_code == 404, other.text
 
     # A person reading the same row is served row ids, as always.
     person = await client.get(
-        _g(guild_id, f"/{tool.plural}/{in_a.id}"), headers=seat.headers
+        guild_url(guild_id, f"/{tool.plural}/{in_a.id}"), headers=seat.headers
     )
     assert person.status_code == 200, person.text
     assert person.json()["created_by"] == seat.user.id
@@ -148,7 +142,7 @@ async def test_a_post_it_reads_carries_no_one_s_own_state(
     headers = install_headers(installed, ["posts:read"])
 
     for path in ("/posts/", f"/posts/{post.id}", "/posts/?unread=true"):
-        response = await client.get(_g(guild_id, path), headers=headers)
+        response = await client.get(guild_url(guild_id, path), headers=headers)
         assert response.status_code == 200, (path, response.text)
         body = response.json()
         row = body["items"][0] if "items" in body else body
@@ -190,7 +184,7 @@ async def test_changing_anything_needs_the_write_scope(
         attempts.append(("PUT", f"/posts/{row.id}/pin", {"pinned": True}))
     for method, path, payload in attempts:
         response = await client.request(
-            method, _g(guild_id, path), headers=headers, json=payload
+            method, guild_url(guild_id, path), headers=headers, json=payload
         )
         assert response.status_code == 403, (method, path, response.text)
         assert response.json()["detail"] == AppMessages.SCOPE_REQUIRED
@@ -212,7 +206,7 @@ async def test_what_it_creates_is_its_own(
 
     # It shares nothing: an explicit grant list is refused.
     shared = await client.post(
-        _g(guild_id, f"/{tool.plural}/"),
+        guild_url(guild_id, f"/{tool.plural}/"),
         headers=headers,
         json={**create, "grants": [{"all_initiative_members": True, "level": "read"}]},
     )
@@ -220,7 +214,7 @@ async def test_what_it_creates_is_its_own(
     assert shared.json()["detail"] == AppMessages.SHARING_NOT_AVAILABLE
 
     created = await client.post(
-        _g(guild_id, f"/{tool.plural}/"), headers=headers, json=create
+        guild_url(guild_id, f"/{tool.plural}/"), headers=headers, json=create
     )
     assert created.status_code == 201, created.text
     body = created.json()
@@ -243,7 +237,9 @@ async def test_what_it_creates_is_its_own(
     ]
 
     updated = await client.patch(
-        _g(guild_id, f"/{tool.plural}/{body['id']}"), headers=headers, json=tool.patch
+        guild_url(guild_id, f"/{tool.plural}/{body['id']}"),
+        headers=headers,
+        json=tool.patch,
     )
     assert updated.status_code == 200, updated.text
     assert updated.json()["name"] == "Renamed"
@@ -261,7 +257,7 @@ async def test_pins_the_posts_it_may_write(client, session, acting_user, role_se
     headers = install_headers(installed, ["posts:write"])
 
     created = await client.post(
-        _g(guild_id, "/posts/"),
+        guild_url(guild_id, "/posts/"),
         headers=headers,
         json={"name": "Notice", "initiative_id": installed.placed.id},
     )
@@ -269,7 +265,9 @@ async def test_pins_the_posts_it_may_write(client, session, acting_user, role_se
     own_id = created.json()["id"]
 
     pinned = await client.put(
-        _g(guild_id, f"/posts/{own_id}/pin"), headers=headers, json={"pinned": True}
+        guild_url(guild_id, f"/posts/{own_id}/pin"),
+        headers=headers,
+        json={"pinned": True},
     )
     assert pinned.status_code == 200, pinned.text
     assert pinned.json()["is_pinned"] is True
@@ -280,24 +278,23 @@ async def test_pins_the_posts_it_may_write(client, session, acting_user, role_se
     # not pin it.
     theirs = await create_post(session, installed.placed, seat.user, name="Theirs")
     refused = await client.put(
-        _g(guild_id, f"/posts/{theirs.id}/pin"), headers=headers, json={"pinned": True}
+        guild_url(guild_id, f"/posts/{theirs.id}/pin"),
+        headers=headers,
+        json={"pinned": True},
     )
     assert refused.status_code == 403, refused.text
 
     # Shared with the app at write, it does.
-    await route_session_to_guild(session, guild_id)
-    session.add(
-        ResourceGrant(
-            resource_type="post",
-            resource_id=theirs.id,
-            app_install_id=installed.app.id,
-            level=ResourceAccessLevel.write,
-            initiative_id=installed.placed.id,
-        )
+    await create_resource_grant(
+        session,
+        theirs,
+        app_install_id=installed.app.id,
+        level=ResourceAccessLevel.write,
     )
-    await session.commit()
     allowed = await client.put(
-        _g(guild_id, f"/posts/{theirs.id}/pin"), headers=headers, json={"pinned": True}
+        guild_url(guild_id, f"/posts/{theirs.id}/pin"),
+        headers=headers,
+        json={"pinned": True},
     )
     assert allowed.status_code == 200, allowed.text
     assert allowed.json()["is_pinned"] is True

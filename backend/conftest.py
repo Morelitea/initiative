@@ -9,6 +9,7 @@ This module provides the core testing infrastructure including:
 """
 
 import asyncio
+import functools
 import hashlib
 import os
 from collections.abc import AsyncGenerator
@@ -75,27 +76,10 @@ RUN_ID = f"{CHECKOUT_ID}_{WORKER_ID}"
 settings.GUILD_ROLE_PREFIX = f"test_{RUN_ID}_"
 settings.PLATFORM_ROLE_PREFIX = f"test_{RUN_ID}_"
 
-# Advanced-tool handoff tokens are always RS256 (verified across a trust
-# boundary), so any test that mints one needs a real signing key. Generate one
-# ephemeral keypair for the whole session: the private PEM is what the mint path
-# reads; the public PEM is exported for tests that verify a minted token's
-# signature end to end.
-_handoff_key = _rsa.generate_private_key(public_exponent=65537, key_size=2048)
-HANDOFF_TEST_PRIVATE_PEM = _handoff_key.private_bytes(
-    encoding=_serialization.Encoding.PEM,
-    format=_serialization.PrivateFormat.PKCS8,
-    encryption_algorithm=_serialization.NoEncryption(),
-).decode("ascii")
-HANDOFF_TEST_PUBLIC_PEM = (
-    _handoff_key.public_key()
-    .public_bytes(
-        encoding=_serialization.Encoding.PEM,
-        format=_serialization.PublicFormat.SubjectPublicKeyInfo,
-    )
-    .decode("ascii")
-)
-settings.HANDOFF_SIGNING_PRIVATE_KEY_PEM = HANDOFF_TEST_PRIVATE_PEM
-settings.HANDOFF_SIGNING_KEY_ID = "test-handoff-key"
+# Handoff tokens are RS256 and need a real signing key, which a test that mints
+# one asks for through ``handoff_signing_key``. Everywhere else the deployment
+# default holds: no key.
+settings.HANDOFF_SIGNING_PRIVATE_KEY_PEM = None
 
 # Pin the dev-only webhook/AI target escape hatch OFF so the suite asserts
 # production target policy (https + public addresses) regardless of a local
@@ -468,19 +452,23 @@ def _isolated_uploads_dir(monkeypatch, tmp_path):
 
 
 @pytest.fixture(autouse=True)
-def _reset_app_registration_cache():
-    """Start and end every test with no cached app service registrations.
+def _reset_app_caches():
+    """Start and end every test with no cached app service registrations and
+    no cached install references.
 
-    The request path reads registrations through a short-lived in-process
-    snapshot (see ``registration_lookup``). Test databases are rebuilt per test
-    while that snapshot is module state, so without this a registration created
-    in one test would still be answering reads in the next.
+    The request path reads both through in-process caches (see
+    ``registration_lookup`` and ``app_refs``). Test databases are rebuilt per
+    test while those caches are module state, so without this a row created in
+    one test would still be answering reads in the next.
     """
+    from app.services.marketplace.app_refs import forget_cached_install_refs
     from app.services.marketplace.registration_lookup import invalidate_registrations
 
     invalidate_registrations()
+    forget_cached_install_refs()
     yield
     invalidate_registrations()
+    forget_cached_install_refs()
 
 
 @pytest.fixture(autouse=True)
@@ -498,6 +486,36 @@ def _reset_presence_roll():
     presence.online = presence.OnlineRoll()
     yield
     presence.online = presence.OnlineRoll()
+
+
+@functools.cache
+def _handoff_keypair() -> tuple[str, str]:
+    """One RSA keypair per process, built the first time a test asks for it."""
+    key = _rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    private_pem = key.private_bytes(
+        encoding=_serialization.Encoding.PEM,
+        format=_serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=_serialization.NoEncryption(),
+    ).decode("ascii")
+    public_pem = (
+        key.public_key()
+        .public_bytes(
+            encoding=_serialization.Encoding.PEM,
+            format=_serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        .decode("ascii")
+    )
+    return private_pem, public_pem
+
+
+@pytest.fixture
+def handoff_signing_key(monkeypatch) -> str:
+    """Configure a handoff signing key for this test; returns its public PEM
+    for tests that verify a minted token's signature."""
+    private_pem, public_pem = _handoff_keypair()
+    monkeypatch.setattr(settings, "HANDOFF_SIGNING_PRIVATE_KEY_PEM", private_pem)
+    monkeypatch.setattr(settings, "HANDOFF_SIGNING_KEY_ID", "test-handoff-key")
+    return public_pem
 
 
 @pytest.fixture(autouse=True)
@@ -1051,8 +1069,6 @@ async def acting_user(session):
     platform tier (public path) or guild role (``/c/{guild_id}`` path) on a
     real ``app_user`` connection — RLS enforced, like production.
     """
-    import functools
-
     from app.testing.actor import make_actor
 
     return functools.partial(make_actor, session)

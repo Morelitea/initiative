@@ -34,6 +34,8 @@ from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.marketplace import app_refs
 from app.testing import (
+    create_resource_grant,
+    guild_url,
     create_comment,
     create_document,
     create_guild_calendar,
@@ -59,17 +61,6 @@ pytestmark = pytest.mark.integration
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-@pytest.fixture(autouse=True)
-def _cold_reference_cache():
-    app_refs.forget_cached_install_refs()
-    yield
-    app_refs.forget_cached_install_refs()
-
-
-def _g(guild_id: int, path: str) -> str:
-    return f"/api/v1/c/{guild_id}{path}"
 
 
 async def _seat_session(installed: Any, role_session: Any) -> Any:
@@ -118,19 +109,21 @@ async def test_reads_the_documents_open_to_its_initiative(
     await share_with_members(session, in_b, installed.unplaced.id)
     headers = install_headers(installed, ["documents:read"])
 
-    listed = await client.get(_g(installed.guild.id, "/documents/"), headers=headers)
+    listed = await client.get(
+        guild_url(installed.guild.id, "/documents/"), headers=headers
+    )
     assert listed.status_code == 200, listed.text
     assert [d["name"] for d in listed.json()["items"]] == ["Open in A"]
 
     read = await client.get(
-        _g(installed.guild.id, f"/documents/{shared.id}"), headers=headers
+        guild_url(installed.guild.id, f"/documents/{shared.id}"), headers=headers
     )
     assert read.status_code == 200, read.text
     assert read.json()["name"] == "Open in A"
     assert read.json()["my_permission_level"] == "read"
 
     other = await client.get(
-        _g(installed.guild.id, f"/documents/{in_b.id}"), headers=headers
+        guild_url(installed.guild.id, f"/documents/{in_b.id}"), headers=headers
     )
     assert other.status_code == 404, other.text
 
@@ -150,7 +143,7 @@ async def test_what_it_creates_is_its_own_and_names_nobody(
     headers = install_headers(installed, ["documents:write"])
 
     created = await client.post(
-        _g(installed.guild.id, "/documents/"),
+        guild_url(installed.guild.id, "/documents/"),
         headers=headers,
         json={"name": "Made by the app", "initiative_id": installed.placed.id},
     )
@@ -191,7 +184,7 @@ async def test_a_document_a_person_made_names_them_by_reference(
     headers = install_headers(installed, ["documents:read"])
 
     read = await client.get(
-        _g(installed.guild.id, f"/documents/{shared.id}"), headers=headers
+        guild_url(installed.guild.id, f"/documents/{shared.id}"), headers=headers
     )
     assert read.status_code == 200, read.text
     body = read.json()
@@ -201,14 +194,16 @@ async def test_a_document_a_person_made_names_them_by_reference(
     assert body["grants"] == []
     assert_names_nobody(read.text, [installed.seat.user.id, installed.guild.id])
 
-    listed = await client.get(_g(installed.guild.id, "/documents/"), headers=headers)
+    listed = await client.get(
+        guild_url(installed.guild.id, "/documents/"), headers=headers
+    )
     assert listed.status_code == 200, listed.text
     assert listed.json()["items"][0]["created_by"] == body["created_by"]
     assert_names_nobody(listed.text, [installed.seat.user.id, installed.guild.id])
 
     # A person reading the same document is served row ids, as always.
     person = await client.get(
-        _g(installed.guild.id, f"/documents/{shared.id}"),
+        guild_url(installed.guild.id, f"/documents/{shared.id}"),
         headers=installed.seat.headers,
     )
     assert person.status_code == 200, person.text
@@ -221,23 +216,6 @@ async def test_a_document_a_person_made_names_them_by_reference(
 # ---------------------------------------------------------------------------
 
 
-async def _grant_to_install(
-    session: Any, installed: Any, document: Document, level: ResourceAccessLevel
-) -> None:
-    """Share ``document`` with the install, the way the seat's grant would."""
-    await route_session_to_guild(session, installed.guild.id)
-    session.add(
-        ResourceGrant(
-            resource_type="document",
-            resource_id=document.id,
-            app_install_id=installed.app.id,
-            level=level,
-            initiative_id=document.initiative_id,
-        )
-    )
-    await session.commit()
-
-
 async def test_a_private_document_is_read_only_once_shared_with_the_app(
     client, session, acting_user, role_session
 ):
@@ -248,11 +226,16 @@ async def test_a_private_document_is_read_only_once_shared_with_the_app(
         session, installed.placed, installed.seat.user, name="Private in A"
     )
     headers = install_headers(installed, ["documents:read"])
-    url = _g(installed.guild.id, f"/documents/{private.id}")
+    url = guild_url(installed.guild.id, f"/documents/{private.id}")
 
     assert (await client.get(url, headers=headers)).status_code == 404
 
-    await _grant_to_install(session, installed, private, ResourceAccessLevel.read)
+    await create_resource_grant(
+        session,
+        private,
+        app_install_id=installed.app.id,
+        level=ResourceAccessLevel.read,
+    )
     read = await client.get(url, headers=headers)
     assert read.status_code == 200, read.text
     assert read.json()["my_permission_level"] == "read"
@@ -267,8 +250,13 @@ async def test_it_cannot_write_even_what_is_shared_with_it_at_write(
     document = await create_document(
         session, installed.placed, installed.seat.user, name="Shared at write"
     )
-    await _grant_to_install(session, installed, document, ResourceAccessLevel.write)
-    url = _g(installed.guild.id, f"/documents/{document.id}")
+    await create_resource_grant(
+        session,
+        document,
+        app_install_id=installed.app.id,
+        level=ResourceAccessLevel.write,
+    )
+    url = guild_url(installed.guild.id, f"/documents/{document.id}")
 
     # A token that asks for the read scope only.
     refused = await client.patch(
@@ -298,7 +286,7 @@ async def test_it_cannot_create_a_project(client, session, acting_user, role_ses
         session, acting_user, role_session, granted=["documents:read"]
     )
     response = await client.post(
-        _g(installed.guild.id, "/projects/"),
+        guild_url(installed.guild.id, "/projects/"),
         headers=install_headers(installed, ["documents:read"]),
         json={"name": "Nope", "initiative_id": installed.placed.id},
     )
@@ -360,18 +348,18 @@ async def test_a_narrowed_token_reads_only_its_initiative(
     narrow = install_headers(installed, scopes, initiative_id=installed.placed.id)
     guild = installed.guild.id
 
-    everything = await client.get(_g(guild, "/documents/"), headers=wide)
+    everything = await client.get(guild_url(guild, "/documents/"), headers=wide)
     assert sorted(d["name"] for d in everything.json()["items"]) == ["In A", "In B"]
 
-    only_a = await client.get(_g(guild, "/documents/"), headers=narrow)
+    only_a = await client.get(guild_url(guild, "/documents/"), headers=narrow)
     assert [d["name"] for d in only_a.json()["items"]] == ["In A"]
     assert (
-        await client.get(_g(guild, f"/documents/{in_b.id}"), headers=narrow)
+        await client.get(guild_url(guild, f"/documents/{in_b.id}"), headers=narrow)
     ).status_code == 404
 
-    community = await client.get(_g(guild, "/calendars/"), headers=wide)
+    community = await client.get(guild_url(guild, "/calendars/"), headers=wide)
     assert "Community" in [c["name"] for c in community.json()["items"]]
-    narrowed = await client.get(_g(guild, "/calendars/"), headers=narrow)
+    narrowed = await client.get(guild_url(guild, "/calendars/"), headers=narrow)
     assert "Community" not in [c["name"] for c in narrowed.json()["items"]]
 
 
@@ -389,7 +377,9 @@ async def _open_document(session: Any, installed: Any) -> Document:
 
 
 async def _names(client: Any, installed: Any, headers: dict[str, str]) -> Any:
-    response = await client.get(_g(installed.guild.id, "/documents/"), headers=headers)
+    response = await client.get(
+        guild_url(installed.guild.id, "/documents/"), headers=headers
+    )
     if response.status_code != 200:
         return response.status_code
     return [d["name"] for d in response.json()["items"]]
@@ -479,7 +469,7 @@ async def test_an_unmarked_route_refuses_an_installation_token(
         session, acting_user, role_session, granted=["documents:read"]
     )
     response = await client.get(
-        _g(installed.guild.id, "/documents/counts"),
+        guild_url(installed.guild.id, "/documents/counts"),
         headers=install_headers(installed, ["documents:read"]),
     )
     assert response.status_code == 401, response.text
@@ -529,7 +519,7 @@ async def test_a_list_costs_two_statements_before_its_handler(
 
     with _counting() as statements, _handler_start(monkeypatch, statements) as seen:
         response = await client.get(
-            _g(installed.guild.id, "/documents/"), headers=headers
+            guild_url(installed.guild.id, "/documents/"), headers=headers
         )
     assert response.status_code == 200, response.text
     assert seen == [2], statements[:4]
@@ -543,7 +533,7 @@ async def test_a_response_naming_people_costs_one_statement_cold_and_none_warm(
     )
     document = await _open_document(session, installed)
     headers = install_headers(installed, ["documents:read"])
-    url = _g(installed.guild.id, f"/documents/{document.id}")
+    url = guild_url(installed.guild.id, f"/documents/{document.id}")
 
     # Mint the references once, then measure a warm read against a cold one.
     first = await client.get(url, headers=headers)
@@ -575,7 +565,7 @@ async def test_member_search_names_members_by_reference_and_carries_no_address(
     headers = install_headers(installed, ["members:read"])
 
     response = await client.get(
-        _g(installed.guild.id, "/users/search"), headers=headers
+        guild_url(installed.guild.id, "/users/search"), headers=headers
     )
     assert response.status_code == 200, response.text
     items = response.json()["items"]
@@ -590,7 +580,7 @@ async def test_member_search_names_members_by_reference_and_carries_no_address(
     # The reference resolves a known selection, as a row id does for a person.
     ref = items[0]["id"]
     picked = await client.get(
-        _g(installed.guild.id, "/users/search"),
+        guild_url(installed.guild.id, "/users/search"),
         headers=headers,
         params={"user_id": ref},
     )
@@ -598,7 +588,7 @@ async def test_member_search_names_members_by_reference_and_carries_no_address(
 
     # A row id, or somebody outside its sector, names nobody.
     unknown = await client.get(
-        _g(installed.guild.id, "/users/search"),
+        guild_url(installed.guild.id, "/users/search"),
         headers=headers,
         params={"user_id": str(elsewhere.user.id)},
     )
@@ -619,7 +609,7 @@ async def test_member_search_narrows_to_an_initiative_the_install_is_placed_in(
     )
     outside = await acting_user(guild_role=GuildRole.member, guild=installed.guild)
     headers = install_headers(installed, ["members:read"])
-    url = _g(installed.guild.id, "/users/search")
+    url = guild_url(installed.guild.id, "/users/search")
 
     narrowed = await client.get(
         url, headers=headers, params={"initiative_id": installed.placed.id}
@@ -642,7 +632,7 @@ async def test_member_search_needs_members_read(
         session, acting_user, role_session, granted=["documents:read"]
     )
     response = await client.get(
-        _g(installed.guild.id, "/users/search"),
+        guild_url(installed.guild.id, "/users/search"),
         headers=install_headers(installed, ["documents:read"]),
     )
     assert response.status_code == 403, response.text
@@ -664,19 +654,19 @@ async def test_a_write_naming_three_people_costs_the_same_two(
     guild = installed.guild.id
 
     project = await client.post(
-        _g(guild, "/projects/"),
+        guild_url(guild, "/projects/"),
         headers=headers,
         json={"name": "The app's", "initiative_id": installed.placed.id},
     )
     assert project.status_code == 201, project.text
-    members = await client.get(_g(guild, "/users/search"), headers=headers)
+    members = await client.get(guild_url(guild, "/users/search"), headers=headers)
     refs = [item["id"] for item in members.json()["items"]]
     others = [ref for ref in refs][:3]
     assert len(others) == 3
 
     with _counting() as statements, _handler_start(monkeypatch, statements) as seen:
         created = await client.post(
-            _g(guild, "/tasks/"),
+            guild_url(guild, "/tasks/"),
             headers=headers,
             json={
                 "project_id": project.json()["id"],
@@ -698,22 +688,13 @@ async def _open_project(session: Any, installed: Any, initiative: Any, name: str
     """A project in ``initiative`` shared with every member of it, which an
     install placed there counts as."""
     project = await create_project(session, initiative, installed.seat.user, name=name)
-    session.add(
-        ResourceGrant(
-            resource_type="project",
-            resource_id=project.id,
-            all_initiative_members=True,
-            level=ResourceAccessLevel.read,
-            initiative_id=initiative.id,
-        )
-    )
-    await session.commit()
+    await create_resource_grant(session, project, all_initiative_members=True)
     return project
 
 
 async def _suggest(client: Any, installed: Any, headers: dict[str, str], **params):
     return await client.get(
-        _g(installed.guild.id, "/search/suggest"), headers=headers, params=params
+        guild_url(installed.guild.id, "/search/suggest"), headers=headers, params=params
     )
 
 

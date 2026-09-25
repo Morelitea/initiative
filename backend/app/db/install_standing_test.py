@@ -35,9 +35,9 @@ from app.models.tenant.initiative import Initiative
 from app.models.tenant.document import Document
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.initiative import PermissionKey
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.platform.identity_refs import ensure_ref
 from app.testing import (
+    create_resource_grant,
     create_app_service_registration,
     create_document,
     create_guild_app,
@@ -414,19 +414,6 @@ async def test_an_unknown_scope_is_refused(session, acting_user, role_session):
 # ---------------------------------------------------------------------------
 
 
-async def _share_with_members(session, document: Document, initiative_id: int):
-    session.add(
-        ResourceGrant(
-            resource_type=Tool.document.value,
-            resource_id=document.id,
-            all_initiative_members=True,
-            level=ResourceAccessLevel.read,
-            initiative_id=initiative_id,
-        )
-    )
-    await session.commit()
-
-
 @pytest.mark.integration
 async def test_the_gates_answer_for_an_install(session, acting_user, role_session):
     """Placement is gate 2, the role keys its scopes give are gate 3, and a
@@ -438,12 +425,12 @@ async def test_the_gates_answer_for_an_install(session, acting_user, role_sessio
     shared_a = await create_document(
         session, install.a, install.seat.user, name="Shared A"
     )
-    await _share_with_members(session, shared_a, install.a.id)
+    await create_resource_grant(session, shared_a, all_initiative_members=True)
     await create_document(session, install.a, install.seat.user, name="Private A")
     shared_b = await create_document(
         session, install.b, install.seat.user, name="Shared B"
     )
-    await _share_with_members(session, shared_b, install.b.id)
+    await create_resource_grant(session, shared_b, all_initiative_members=True)
 
     s, _context = await _route(role_session, install, ["documents:read"])
     assert set((await s.exec(select(Document.name))).all()) == {
@@ -467,7 +454,7 @@ async def test_an_install_without_a_tool_scope_reads_none_of_it(
         session, acting_user, role_session, granted=["comments:read"]
     )
     shared = await create_document(session, install.a, install.seat.user)
-    await _share_with_members(session, shared, install.a.id)
+    await create_resource_grant(session, shared, all_initiative_members=True)
     s, context = await _route(role_session, install, ["comments:read"])
     assert f"{install.a.id}:documents_enabled" in context.role_denies
     assert (await s.exec(select(Document.name))).all() == []

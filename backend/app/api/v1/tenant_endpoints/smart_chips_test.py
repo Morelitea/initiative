@@ -17,12 +17,12 @@ from app.core.smart_chips import SMART_CHIP_KINDS, SmartChipKind, kind_value
 from app.models.platform.guild import GuildRole
 from sqlmodel import select
 
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.tenant.task import TaskPriority, TaskStatus, TaskStatusCategory
 from app.core.references import NOT_REFERENCEABLE, REFERENCEABLE_TYPES
 from app.db.reference_targets import referenceable_types
 from app.services.tenant.smart_chips import MAX_REFS, SMART_CHIP_SOURCES
 from app.testing import (
+    create_resource_grant,
     Actor,
     create_calendar,
     create_calendar_event,
@@ -213,16 +213,7 @@ async def test_a_checkbox_is_offered_only_to_whoever_may_tick_it(
         initiative=a.initiative,
         initiative_role="member",
     )
-    session.add(
-        ResourceGrant(
-            resource_type="project",
-            resource_id=a.project.id,
-            user_id=b.user.id,
-            level=ResourceAccessLevel.read,
-            initiative_id=a.project.initiative_id,
-        )
-    )
-    await session.commit()
+    await create_resource_grant(session, a.project, user=b.user)
     task = await create_task(session, a.project)
 
     body = await _chips(

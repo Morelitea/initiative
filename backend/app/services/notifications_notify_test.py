@@ -14,10 +14,14 @@ from app.core.tools import Tool
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.platform import user_notifications
 from app.services import notifications
-from app.testing import create_task, create_user, route_session_to_guild
+from app.testing import (
+    create_resource_grant,
+    create_task,
+    create_user,
+    route_session_to_guild,
+)
 
 pytestmark = pytest.mark.asyncio
 
@@ -32,20 +36,6 @@ async def _mentions(user_id: int) -> list[Notification]:
             )
         ).all()
     return [row for row in rows if str(row.type) == NotificationType.mention.value]
-
-
-async def _share_with_members(session, actor) -> None:
-    await route_session_to_guild(session, actor.guild.id)
-    session.add(
-        ResourceGrant(
-            resource_type="project",
-            resource_id=actor.project.id,
-            all_initiative_members=True,
-            level=ResourceAccessLevel.read,
-            initiative_id=actor.project.initiative_id,
-        )
-    )
-    await session.commit()
 
 
 async def _mention(client, actor, task_id: int, user) -> int:
@@ -83,7 +73,7 @@ async def test_a_mention_reaches_only_people_the_project_is_shared_with(
     assert await _mentions(member.user.id) == []
 
     # The control: once it is shared with them, the same mention arrives.
-    await _share_with_members(session, owner)
+    await create_resource_grant(session, owner.project, all_initiative_members=True)
     mentioned = await _mention(client, owner, task.id, member.user)
     assert len(await _mentions(member.user.id)) == 1
     plain = await client.post(
@@ -116,7 +106,7 @@ async def test_a_mention_of_somebody_outside_the_community_tells_nobody(
     owner = await acting_user(
         guild_role=GuildRole.member, initiative=True, project=True
     )
-    await _share_with_members(session, owner)
+    await create_resource_grant(session, owner.project, all_initiative_members=True)
     stranger = await create_user(session)
     await route_session_to_guild(session, owner.guild.id)
     task = await create_task(session, owner.project)
