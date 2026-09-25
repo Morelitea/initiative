@@ -5,6 +5,7 @@ import remarkGfm from "remark-gfm";
 
 import { LinkedMentionSpan } from "@/components/comments/MentionSpan";
 import { remarkMentions } from "@/components/comments/remarkCommentPlugins";
+import { ImageLightboxScope, InLink, ProseImage } from "@/components/markdown/ProseImage";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +16,9 @@ interface MarkdownProps {
    *  `#task[Ship it](12)` — as chips rather than links to a bare number. Only
    *  prose written in that composer carries it, so it is asked for. */
   mentions?: boolean;
+  /** Whether a picture opens full size on click. Off where the pictures are
+   *  not shown at all, such as a clamped card preview. */
+  zoomImages?: boolean;
 }
 
 /** Anything that can be wider than its container is wrapped or scrolled here,
@@ -59,13 +63,13 @@ function MarkdownAnchor({ node: _node, href, children, ...props }: AnchorProps) 
   if (href?.startsWith("#")) {
     return (
       <a href={href} onClick={handleHashClick} {...props}>
-        {children}
+        <InLink>{children}</InLink>
       </a>
     );
   }
   return (
     <a href={href} {...props}>
-      {children}
+      <InLink>{children}</InLink>
     </a>
   );
 }
@@ -74,9 +78,9 @@ type ImageProps = ComponentPropsWithoutRef<"img"> & { node?: unknown };
 
 /** A picture stored here is addressed at the server, which on the native app is
  *  not the origin the page is served from. */
-function MarkdownImage({ node: _node, src, alt, ...props }: ImageProps) {
-  const resolved = typeof src === "string" ? (resolveUploadUrl(src) ?? src) : src;
-  return <img src={resolved} alt={alt ?? ""} loading="lazy" {...props} />;
+function MarkdownImage({ src, alt, title }: ImageProps) {
+  if (typeof src !== "string" || !src) return null;
+  return <ProseImage src={resolveUploadUrl(src) ?? src} alt={alt ?? ""} title={title} />;
 }
 
 const PLAIN_PLUGINS = [remarkGfm];
@@ -85,11 +89,16 @@ const REHYPE_PLUGINS = [rehypeSlug];
 const PLAIN_COMPONENTS = { a: MarkdownAnchor, img: MarkdownImage };
 const MENTION_COMPONENTS = { a: MarkdownAnchor, img: MarkdownImage, span: LinkedMentionSpan };
 
-export const Markdown = ({ content, className, mentions = false }: MarkdownProps) => {
+export const Markdown = ({
+  content,
+  className,
+  mentions = false,
+  zoomImages = true,
+}: MarkdownProps) => {
   if (!content) {
     return null;
   }
-  return (
+  const rendered = (
     <div className={cn(CONTAINMENT_CLASS, PROSE_CLASS, className)}>
       <ReactMarkdown
         remarkPlugins={mentions ? MENTION_PLUGINS : PLAIN_PLUGINS}
@@ -100,4 +109,5 @@ export const Markdown = ({ content, className, mentions = false }: MarkdownProps
       </ReactMarkdown>
     </div>
   );
+  return zoomImages ? <ImageLightboxScope>{rendered}</ImageLightboxScope> : rendered;
 };

@@ -1,4 +1,5 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 
@@ -215,5 +216,23 @@ describe("pictures in a comment", () => {
 
     expect(container.querySelector("img")).toBeNull();
     expect(screen.getByText("shot")).toBeInTheDocument();
+  });
+
+  it("opens a stored picture full size", async () => {
+    const user = userEvent.setup();
+    renderContent("![shot](/uploads/9/pasted-a.png)");
+
+    await user.click(screen.getByRole("button", { name: "View shot full size" }));
+
+    expect(
+      within(screen.getByRole("dialog")).getByRole("img", { name: "shot" })
+    ).toBeInTheDocument();
+  });
+
+  it("leaves the click to the link when the body sits inside one", () => {
+    renderWithProviders(<CommentContent content="![shot](/uploads/9/pasted-a.png)" disableLinks />);
+
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "shot" })).toBeInTheDocument();
   });
 });

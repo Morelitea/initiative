@@ -174,7 +174,9 @@
     "description": "Usa las flechas o desliza para pasar de una imagen a otra.",
     "position": "{{current}} / {{total}}",
     "zoomIn": "Acercar",
-    "zoomOut": "Alejar"
+    "zoomOut": "Alejar",
+    "open": "Ver esta imagen a tamaño completo",
+    "openNamed": "Ver {{name}} a tamaño completo"
   },
   "timeline": {
     "label": "Ir a un mes",

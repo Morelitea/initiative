@@ -174,7 +174,9 @@
     "description": "Utilisez les flèches ou faites glisser pour passer d’une image à l’autre.",
     "position": "{{current}} / {{total}}",
     "zoomIn": "Zoom avant",
-    "zoomOut": "Zoom arrière"
+    "zoomOut": "Zoom arrière",
+    "open": "Voir cette image en taille réelle",
+    "openNamed": "Voir {{name}} en taille réelle"
   },
   "timeline": {
     "label": "Aller à un mois",

@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { Markdown } from "./Markdown";
@@ -56,5 +57,30 @@ describe("Markdown", () => {
 
     const anchor = container.querySelector("a");
     expect(anchor?.getAttribute("node")).toBeNull();
+  });
+
+  it("opens a picture full size, paging through the others in reading order", async () => {
+    const user = userEvent.setup();
+    render(<Markdown content={"![First](/a.png)\n\ntext\n\n![Second](/b.png)"} />);
+
+    await user.click(screen.getByRole("button", { name: "View Second full size" }));
+
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("img", { name: "Second" })).toBeInTheDocument();
+    expect(within(dialog).getByText("2 / 2")).toBeInTheDocument();
+  });
+
+  it("leaves a picture inside a link to the link", () => {
+    render(<Markdown content="[![Badge](/badge.svg)](https://example.com)" />);
+
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.getByRole("link").querySelector("img")).not.toBeNull();
+  });
+
+  it("draws the picture without a way to open it when zooming is off", () => {
+    render(<Markdown content="![Shot](/a.png)" zoomImages={false} />);
+
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Shot" })).toBeInTheDocument();
   });
 });
