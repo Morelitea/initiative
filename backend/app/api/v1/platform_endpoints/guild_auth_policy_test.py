@@ -25,7 +25,7 @@ from app.core.auth_context import (
 from app.db.session import SYSTEM_SATISFIED, set_rls_context
 from app.models.platform.guild import Guild, GuildRole
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
-from app.models.platform.user import User
+from app.models.platform.user import User, UserRole
 from app.models.tenant.project import Project
 from app.services.auth.assurance import SECOND_FACTOR_AMR
 from app.services.platform import api_keys as api_keys_service
@@ -34,6 +34,7 @@ from app.services.platform.ws_auth import authenticate_ws_token
 from app.testing.actor import Actor
 from app.testing.factories import (
     satisfied_claims_for,
+    create_access_grant,
     create_auth_provider,
     create_document,
     create_guild,
@@ -41,6 +42,7 @@ from app.testing.factories import (
     create_guild_membership,
     create_guild_provider_connection,
     create_initiative,
+    create_user,
     get_auth_token,
     guild_administration,
 )
@@ -706,6 +708,44 @@ async def test_db_layer_blocks_unsatisfied_session(
     # connection's own login, which this is not, so it reads nothing.
     await set_rls_context(app_session, guild_id=guild_id)
     assert await _visible_projects() == 0
+
+
+async def test_a_grantee_answers_the_rule_a_member_does(
+    session: AsyncSession, role_session, acting_user
+):
+    """A content grant reaches the community's work, and the community's
+    sign-in rule governs that work whoever reaches it. The database answers
+    for the grantee's routing as it does for a member's."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    provider = await create_auth_provider(session, slug="corp")
+    await create_guild_auth_policy(session, a.guild, provider)
+    operator = await create_user(session, role=UserRole.operator)
+    await create_access_grant(session, user=operator, guild=a.guild)
+
+    app_session = await role_session("app_user")
+
+    with pytest.raises(GuildAccessError) as refused:
+        await route_as(app_session, user_id=operator.id, guild_id=a.guild.id)
+    assert refused.value.detail == "GUILD_AUTH_STEP_UP_REQUIRED"
+    assert refused.value.step_up_provider_slug == "corp"
+    await app_session.rollback()
+
+    # Routed on the grant, with nothing on the session that answers the rule.
+    await route_as(
+        app_session,
+        user_id=operator.id,
+        guild_id=a.guild.id,
+        satisfied_providers=SYSTEM_SATISFIED,
+    )
+    verdict = (
+        await app_session.exec(
+            text(
+                "SELECT set_config('app.satisfied_providers', '', true), "
+                "public.guild_auth_satisfied() AS verdict"
+            )
+        )
+    ).one()
+    assert verdict.verdict is False
 
 
 # --- The rule is decided twice, and the two must agree ----------------------

@@ -3,6 +3,7 @@ import json
 import logging
 import time
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, AsyncGenerator, Optional, Sequence
 
@@ -1084,45 +1085,75 @@ async def guild_schema_context(
     ``seed_guild_content`` and the ``oidc_sync`` per-guild loop make). What this
     adds is the return trip: several callers keep using the session after the
     excursion, so whatever context they were carrying is put back on the way
-    out — including the freshness stamp, which this excursion must not renew.
-
-    A session that carried no context at all (the system engine on its login
-    role) is returned to exactly that: the current transaction is neutralized
-    and the stored params are dropped, so later transactions start pristine
-    rather than replaying a context this helper invented.
+    out (:func:`restore_rls_context`).
 
     The session must already be inside the caller's transaction; this neither
     commits nor rolls back.
     """
-    previous = session.info.get(_RLS_PARAMS_INFO_KEY)
-    previous_established = session.info.get(_RLS_ESTABLISHED_INFO_KEY)
-    # The excursion routes with no user of its own, which forgets the tier; the
-    # caller on the other side of it is still the same request.
-    previous_tier = session.info.get(_RLS_TIER_INFO_KEY)
+    saved = save_rls_context(session)
     routed = False
     try:
         await set_rls_context(session, guild_id=guild_id)
         routed = True
         yield session
     finally:
-        # Restoring the stored params comes first and cannot fail, so the
-        # caller's next transaction replays the caller's own context whatever
-        # happened in between.
-        session.info[_RLS_PARAMS_INFO_KEY] = previous if previous is not None else {}
-        if previous_established is not None:
-            session.info[_RLS_ESTABLISHED_INFO_KEY] = previous_established
-        if previous_tier is not None:
-            session.info[_RLS_TIER_INFO_KEY] = previous_tier
-        else:
-            session.info.pop(_RLS_TIER_INFO_KEY, None)
         # Routing that did not complete leaves a transaction that accepts no
         # further statements, and its own rollback puts the settings back; more
         # SQL there would only replace the real error with a second one.
-        if routed and session.in_transaction():
-            await _apply_stored_context(session)
-        if previous is None:
-            session.info.pop(_RLS_PARAMS_INFO_KEY, None)
-            session.info.pop(_RLS_ESTABLISHED_INFO_KEY, None)
+        await restore_rls_context(session, saved, apply=routed)
+
+
+@dataclass(frozen=True)
+class SavedContext:
+    """A session's stored context, as :func:`save_rls_context` found it."""
+
+    params: Optional[dict[str, Any]]
+    established: Optional[float]
+    #: The tier the request authenticated as. A routing records it, so it is
+    #: put back with the rest: the caller on the other side is still the same
+    #: request, and one that had recorded none has none again.
+    tier: Optional[str]
+
+
+def save_rls_context(session: AsyncSession) -> SavedContext:
+    """What :func:`restore_rls_context` needs to put this session back."""
+    return SavedContext(
+        params=session.info.get(_RLS_PARAMS_INFO_KEY),
+        established=session.info.get(_RLS_ESTABLISHED_INFO_KEY),
+        tier=session.info.get(_RLS_TIER_INFO_KEY),
+    )
+
+
+async def restore_rls_context(
+    session: AsyncSession, saved: SavedContext, *, apply: bool = True
+) -> None:
+    """Put back the context ``saved`` recorded, including the freshness stamp,
+    which a routing in between must not renew.
+
+    A session that carried no context at all (the system engine on its login
+    role) is returned to exactly that: the current transaction is neutralized
+    and the stored params are dropped, so later transactions start pristine
+    rather than replaying a context something else invented. ``apply`` false
+    leaves the current transaction alone, for one that accepts no further
+    statements.
+    """
+    # Restoring the stored params comes first and cannot fail, so the caller's
+    # next transaction replays the caller's own context whatever happened in
+    # between.
+    session.info[_RLS_PARAMS_INFO_KEY] = (
+        saved.params if saved.params is not None else {}
+    )
+    if saved.established is not None:
+        session.info[_RLS_ESTABLISHED_INFO_KEY] = saved.established
+    if saved.tier is not None:
+        session.info[_RLS_TIER_INFO_KEY] = saved.tier
+    else:
+        session.info.pop(_RLS_TIER_INFO_KEY, None)
+    if apply and session.in_transaction():
+        await _apply_stored_context(session)
+    if saved.params is None:
+        session.info.pop(_RLS_PARAMS_INFO_KEY, None)
+        session.info.pop(_RLS_ESTABLISHED_INFO_KEY, None)
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]

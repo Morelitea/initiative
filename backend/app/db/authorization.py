@@ -260,8 +260,17 @@ $function$
 """
 
 
+#: The community this request is in, however it was reached: as a member, on a
+#: content grant, or on a settings grant. The gate asks its question of that
+#: community, so the rule binds a grantee as it binds a member.
+_ROUTED_GUILD_ID = """COALESCE(
+                    NULLIF(current_setting('app.current_guild_id', true), ''),
+                    NULLIF(current_setting('app.pam_guild_id', true), ''),
+                    NULLIF(current_setting('app.settings_guild_id', true), '')
+                  )::int"""
+
 #: Gate 0: the guild's sign-in policy, satisfied by this session.
-GUILD_AUTH_SATISFIED = """\
+GUILD_AUTH_SATISFIED = f"""\
 CREATE OR REPLACE FUNCTION public.guild_auth_satisfied()
  RETURNS boolean
  LANGUAGE sql
@@ -278,9 +287,7 @@ AS $function$
         public.platform_factor_satisfied()
         AND NOT EXISTS (
             SELECT 1 FROM public.guild_auth_policies p
-            WHERE p.guild_id = NULLIF(
-                    current_setting('app.current_guild_id', true), ''
-                  )::int
+            WHERE p.guild_id = {_ROUTED_GUILD_ID}
               AND p.policy <> 'open'
               AND (
                   -- The provider this guild names, if it names one: the
@@ -324,9 +331,7 @@ AS $function$
             -- like the leg above it.
             SELECT 1
             FROM public.guilds g
-            WHERE g.id = NULLIF(
-                    current_setting('app.current_guild_id', true), ''
-                  )::int
+            WHERE g.id = {_ROUTED_GUILD_ID}
               AND g.require_second_factor
               AND NOT ('mfa' = ANY(public.session_amr()))
         ))

@@ -19,9 +19,9 @@ class GuildAuthPolicy(SQLModel, table=True):
     denormalized copy so the step-up response can name the provider without a
     registry read (slugs are immutable, so it cannot drift).
 
-    Enforced twice: the guild-context gate (step-up 401) and, at the database
-    layer, ``public.guild_auth_satisfied()`` inside the guild RLS — an
-    unsatisfied session sees no rows even if an app path skips the gate.
+    Enforced by ``public.guild_auth_satisfied()``, which the standing statement
+    asks for every request into the community: an unsatisfied session sees no
+    rows, and the guild-context gate answers it with the step-up 401.
     """
 
     __tablename__ = "guild_auth_policies"

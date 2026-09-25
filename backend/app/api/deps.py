@@ -71,6 +71,8 @@ from app.db.session import (
     apply_install_standing,
     clear_rls_context,
     get_session,
+    restore_rls_context,
+    save_rls_context,
     set_rls_context,
 )
 from app.models.platform.access_grant import (
@@ -458,9 +460,11 @@ async def _enforce_guild_auth_policy(
     sign-in policy must be satisfied by THIS session — membership and PAM
     grants alike. No policy row (or ``open``) admits any authenticated
     session; the SYSTEM_SATISFIED sentinel (user-attributed system work whose
-    enqueueing request already passed this gate) passes. Mirrored at the
-    database layer by ``public.guild_auth_satisfied()`` inside the guild
-    RLS.
+    enqueueing request already passed this gate) passes.
+
+    Decided by ``public.guild_auth_satisfied()``, which the standing statement
+    asks for every request. This is the same rule read in Python, run once the
+    standing has said no, to name the step-up the session owes.
 
     A row can ask two things and a session has to answer both. ``provider_id``
     names one provider the session must have come through; ``require_methods``
@@ -468,9 +472,7 @@ async def _enforce_guild_auth_policy(
     are one question to ``guild_connection_admits``, which also applies the
     narrowing a community put on the connection.
 
-    ``policy`` is the guild's row as the session may see it, read by whichever
-    branch of :func:`_load_guild_context` got here — a member's read and a
-    grantee's happen under different contexts, and each carries its own.
+    ``policy`` is the guild's row, read under the routed session.
     """
     if satisfied == SYSTEM_SATISFIED:
         return
@@ -503,9 +505,8 @@ async def _enforce_guild_auth_policy(
 
     # "Any of ours": any connection this community holds, narrowing included.
     # Named rather than counted: ``require_methods`` may hold more than one
-    # method, and each is read as itself. Mirrors the matching leg in
-    # ``public.guild_auth_satisfied()``, which the database applies to the same
-    # row.
+    # method, and each is read as itself. The matching leg in
+    # ``public.guild_auth_satisfied()`` reads the same row.
     if LoginMethod.sso in policy.require_methods and not (
         await guild_connections.admits_this_session(session, guild_id=guild_id)
     ):
@@ -571,16 +572,13 @@ def _enforce_guild_api_access(guild: Guild) -> None:
 
 async def _read_membership_gate(
     session: AsyncSession, guild_id: int, user_id: int
-) -> (
-    tuple[GuildMembership, Guild, GuildAuthPolicy | None, SecondFactorRequirement, bool]
-    | None
-):
-    """The four rows the gate needs about a member, in one query.
+) -> tuple[GuildMembership, Guild, SecondFactorRequirement, bool] | None:
+    """The three rows the gate needs about a member, in one query.
 
-    ``guild_memberships``, ``guilds`` and ``guild_auth_policies`` all live in
-    ``public`` and are all keyed on the guild this request addresses, so asking
-    for them separately was three trips for one answer. The settings singleton
-    rides along for the same reason — what the deployment asks of an account is
+    ``guild_memberships`` and ``guilds`` both live in ``public`` and are both
+    keyed on the guild this request addresses, so asking for them separately
+    was two trips for one answer. The settings singleton rides along for the
+    same reason — what the deployment asks of an account is
     decided in the same breath as what the community asks of the session, and a
     read of its own would be a round trip on every guild request there is.
 
@@ -591,12 +589,9 @@ async def _read_membership_gate(
     """
     row = (
         await session.exec(
-            select(GuildMembership, Guild, GuildAuthPolicy, AppSetting)
+            select(GuildMembership, Guild, AppSetting)
             .select_from(GuildMembership)
             .outerjoin(Guild, Guild.id == GuildMembership.guild_id)
-            .outerjoin(
-                GuildAuthPolicy, GuildAuthPolicy.guild_id == GuildMembership.guild_id
-            )
             .outerjoin(AppSetting, AppSetting.id == GLOBAL_SETTINGS_ID)
             .where(
                 GuildMembership.guild_id == guild_id,
@@ -606,7 +601,7 @@ async def _read_membership_gate(
     ).one_or_none()
     if row is None:
         return None
-    membership, guild, policy, settings_row = row
+    membership, guild, settings_row = row
     if guild is None:
         raise ValueError(GuildMessages.GUILD_NOT_FOUND)
     # The age switch rides along for the same reason the factor requirement
@@ -615,34 +610,32 @@ async def _read_membership_gate(
     age_gate_on = bool(
         settings_row is not None and settings_row.community_age_gate_enabled
     )
-    return membership, guild, policy, asked_of_an_account(settings_row), age_gate_on
+    return membership, guild, asked_of_an_account(settings_row), age_gate_on
 
 
 async def _read_grant_gate(
     session: AsyncSession, guild_id: int
-) -> tuple[Guild, GuildAuthPolicy | None, SecondFactorRequirement]:
+) -> tuple[Guild, SecondFactorRequirement]:
     """The same public rows for a grantee, whose PAM context has just been
     applied — a grant reaches the guild row through its own policy leg, so this
     read cannot be folded into the membership one above."""
     row = (
         await session.exec(
-            select(Guild, GuildAuthPolicy, AppSetting)
+            select(Guild, AppSetting)
             .select_from(Guild)
-            .outerjoin(GuildAuthPolicy, GuildAuthPolicy.guild_id == Guild.id)
             .outerjoin(AppSetting, AppSetting.id == GLOBAL_SETTINGS_ID)
             .where(Guild.id == guild_id)
         )
     ).one_or_none()
     if row is None:
         raise ValueError(GuildMessages.GUILD_NOT_FOUND)
-    return row[0], row[1], asked_of_an_account(row[2])
+    return row[0], asked_of_an_account(row[1])
 
 
 async def _load_guild_context(
     session: AsyncSession,
     current_user: User,
     guild_id: int,
-    satisfied: frozenset[int] | str = frozenset(),
     *,
     for_settings: bool = False,
 ) -> GuildContext:
@@ -710,7 +703,7 @@ async def _load_guild_context(
             pam_read=True,
             pam_write=is_read_write,
         )
-        guild, policy, asked = await _read_grant_gate(session, guild_id)
+        guild, asked = await _read_grant_gate(session, guild_id)
         _enforce_guild_api_access(guild)
         # What the deployment asks of the account, before what this community
         # asks of the session. Asked here as well as in the dependency above
@@ -719,23 +712,6 @@ async def _load_guild_context(
         # row the read above already carried.
         if await platform_factor_unmet(session, current_user, level=asked):
             raise GuildAccessError(GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED)
-        # The guild's sign-in policy binds grantees too — PAM is a scoped
-        # access path, not a policy bypass. Content only, the same line the
-        # membership branch draws: the rule a community sets for coming in
-        # governs its work, and the surface that sets the rule is reachable by
-        # whoever administers the community, which is what a settings grant
-        # lends. The database draws the same line on its own — the standing
-        # statement answers the sign-in question from the rows, and the
-        # initiative gates read that answer whatever this call was for.
-        if not for_settings:
-            await _enforce_guild_auth_policy(
-                session,
-                policy,
-                guild_id,
-                satisfied,
-                auth_context.session_amr(),
-                require_second_factor=guild.require_second_factor,
-            )
         # A grantee holds no membership row, and none is invented for them:
         # what the two grants reach is computed from the rows themselves by
         # the standing statement. ``context.role`` answers ``support`` — the
@@ -750,7 +726,7 @@ async def _load_guild_context(
                 None if settings_grant is None else settings_grant.access_level
             ),
         )
-    membership, guild, policy, asked, age_gate_on = gate
+    membership, guild, asked, age_gate_on = gate
     # Membership access respects the guild's lifecycle status: the statuses
     # that serve members are named, and every other one is refused, on every
     # surface. A suspended community is in time out — its administrators are
@@ -780,15 +756,6 @@ async def _load_guild_context(
     # And the deployment's own question, off the row the gate read carried.
     if await platform_factor_unmet(session, current_user, level=asked):
         raise GuildAccessError(GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED)
-    if not for_settings:
-        await _enforce_guild_auth_policy(
-            session,
-            policy,
-            guild_id,
-            satisfied,
-            auth_context.session_amr(),
-            require_second_factor=guild.require_second_factor,
-        )
     return GuildContext(
         guild=guild,
         user_id=current_user.id,
@@ -1170,11 +1137,46 @@ async def establish_guild_access(
         else satisfied_providers
     )
     guild_context = await _load_guild_context(
-        session, current_user, guild_id, satisfied=satisfied, for_settings=for_settings
+        session, current_user, guild_id, for_settings=for_settings
     )
-    return await apply_guild_session_context(
+    looked_up = save_rls_context(session)
+    guild_context = await apply_guild_session_context(
         session, current_user, guild_context, satisfied=satisfied, for_seat=for_seat
     )
+    # The community's sign-in rule governs its work, not the surface that sets
+    # the rule: an administrator keeps that one while their session does not
+    # answer it.
+    if not for_settings and not guild_context.guild_auth_ok:
+        try:
+            await _refuse_sign_in(session, guild_context, satisfied)
+        except GuildAccessError:
+            # Refused, the session goes back to the lookup's context, as a
+            # refusal before routing leaves it: a caller that carries on with
+            # it is not left inside the community.
+            await restore_rls_context(session, looked_up)
+            raise
+    return guild_context
+
+
+async def _refuse_sign_in(
+    session: AsyncSession, guild_context: GuildContext, satisfied: frozenset[int] | str
+) -> NoReturn:
+    """Refuse a session the standing says does not answer the community's
+    sign-in rule, saying what it is missing.
+
+    The standing statement answered the question from the rows; this reads the
+    rule, under the routing, to name the step-up the caller owes.
+    """
+    guild_id = guild_context.guild_id
+    await _enforce_guild_auth_policy(
+        session,
+        await session.get(GuildAuthPolicy, guild_id),
+        guild_id,
+        satisfied,
+        auth_context.session_amr(),
+        require_second_factor=guild_context.guild.require_second_factor,
+    )
+    raise GuildAccessError()
 
 
 @dataclass(frozen=True)
