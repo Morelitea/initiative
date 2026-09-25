@@ -13,10 +13,11 @@ reaches nothing, and the answer is the same 401 however it failed.
 registration's listing but pinning another app's definition is not this
 app's, and neither is a connection handle minted in another community.
 
-**Plaintext leaves on exactly one route.** The config route returns decrypted
-values to the app that uses them; the connections route reports which handles
-are live and carries no value at all. Both are asserted against the whole
-response body.
+**Plaintext leaves on two routes.** The config route returns decrypted
+values to the app that uses them, and never a flow's tokens; the token route
+hands out one access token by reference (``app_connection_flows_test``). The
+connections route reports which handles are live and carries no value at all.
+Each is asserted against the whole response body.
 
 **The app is the only party that can say whether credentials work.** Nothing
 else in this build moves ``config_state`` off ``unverified``.
@@ -32,7 +33,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.app_access_token import seal_install_token
 from app.core.body_limit import APP_INSTALLATION_MAX_REQUEST_BYTES, _RULES
 from app.core.encryption import SALT_APP_CONFIG, encrypt_field
-from app.core.messages import AppChannelMessages, GuildAppMessages
+from app.core.messages import AppChannelMessages
 from app.models.platform.app_service_registration import AppServiceRegistration
 from app.models.platform.publisher import Publisher
 from app.models.tenant.guild_app import GuildApp
@@ -73,21 +74,20 @@ ADMIN_CONNECTION = {
     ],
 }
 
+FLOW = {
+    "type": "oauth2",
+    "authorize_url": "https://github.test/login/oauth/authorize",
+    "token_url": "https://github.test/login/oauth/access_token",
+    "client_id": "{vendor.client_id}",
+    "after_connect": True,
+}
+
 MEMBER_CONNECTION = {
     "id": "github",
     "scope": "interactive",
     "label": {"en": "GitHub"},
-    "connect_path": "/connect/github",
-    "fields": [_field("access_token", "secret", managed=True)],
-}
-
-#: The guild's own credential, obtained by an admin rather than typed.
-WORKSPACE_CONNECTION = {
-    "id": "workspace",
-    "scope": "static",
-    "label": {"en": "Organization"},
-    "connect_path": "/install/github",
-    "fields": [_field("owner", "string", managed=True, required=True)],
+    "fields": [_field("login", "string", managed=True)],
+    "flow": FLOW,
 }
 
 
@@ -98,15 +98,6 @@ def _definition(public_id: str = SHOP) -> dict:
         "features": ["endpoints"],
         "connections": [ADMIN_CONNECTION, MEMBER_CONNECTION],
         "endpoints": [{"id": ORDER_CREATED, "direction": "emit"}],
-    }
-
-
-def _workspace_definition() -> dict:
-    return {
-        "app_kind": "service",
-        "service": {"public_id": SHOP, "protocol": 1},
-        "features": [],
-        "connections": [WORKSPACE_CONNECTION],
     }
 
 
@@ -161,7 +152,7 @@ async def _member_connection(
         connection_id=connection_id,
         user_id=user.id,
         connection_ref=connection_ref,
-        config={},
+        config={"login": "alice"} if with_secret else {},
         config_secrets=(
             {"access_token": encrypt_field(MEMBER_TOKEN, SALT_APP_CONFIG)}
             if with_secret
@@ -345,7 +336,9 @@ class TestConfig:
         }
         member = body["member_connections"][0]
         assert member["connection_ref"] == "cr_member_one"
-        assert member["values"] == {"access_token": MEMBER_TOKEN}
+        # A flow's token is asked for by reference, never handed over here.
+        assert member["values"] == {"login": "alice"}
+        assert MEMBER_TOKEN not in response.text
         # The app is told which member by handle, and by nothing else.
         assert "user_id" not in member
         assert user.seeded_address not in response.text
@@ -443,139 +436,6 @@ class TestConnections:
 
         assert response.status_code == 200, response.text
         assert response.json()["items"][0]["blocked"] is True
-
-
-# ---------------------------------------------------------------------------
-# Writing back what a vendor flow produced
-# ---------------------------------------------------------------------------
-
-
-class TestConnectionWriteBack:
-    async def test_a_managed_value_is_stored_and_served_only_on_config(
-        self, client: AsyncClient, session: AsyncSession
-    ):
-        await _register(session)
-        guild, user, app = await _install(session)
-        row = await _member_connection(
-            session, guild=guild, app=app, user=user, with_secret=False
-        )
-
-        written = await client.put(
-            f"{BASE}/connections/{row.connection_ref}",
-            headers=_headers(guild, app),
-            json={
-                "values": {"access_token": "gho_freshly_minted"},
-                "account_label": "@alice",
-            },
-        )
-
-        assert written.status_code == 200, written.text
-        assert written.json()["status"] == "connected"
-        assert written.json()["account_label"] == "@alice"
-        assert "gho_freshly_minted" not in written.text
-
-        config = await client.get(f"{BASE}/config", headers=_headers(guild, app))
-        assert config.json()["member_connections"][0]["values"] == {
-            "access_token": "gho_freshly_minted"
-        }
-
-    async def test_a_ref_only_resolves_in_the_install_it_was_minted_for(
-        self, client: AsyncClient, session: AsyncSession
-    ):
-        """Both communities have the app installed, so the install resolves
-        and the handle lookup is what is exercised."""
-        await _register(session)
-        guild, user, app = await _install(session)
-        row = await _member_connection(
-            session, guild=guild, app=app, user=user, with_secret=False
-        )
-        other_guild, _other_user, other_app = await _install(session)
-
-        written = await client.put(
-            f"{BASE}/connections/{row.connection_ref}",
-            headers=_headers(other_guild, other_app),
-            json={"values": {"access_token": "gho_written_to_the_wrong_guild"}},
-        )
-
-        assert written.status_code == 404, written.text
-        assert written.json()["detail"] == AppChannelMessages.CONNECTION_NOT_FOUND
-
-        config = await client.get(f"{BASE}/config", headers=_headers(guild, app))
-        assert config.json()["member_connections"][0]["values"] == {}
-
-    async def test_a_blocked_connection_refuses_a_write_back(
-        self, client: AsyncClient, session: AsyncSession
-    ):
-        await _register(session)
-        guild, user, app = await _install(session)
-        row = await _member_connection(
-            session, guild=guild, app=app, user=user, blocked=True
-        )
-
-        response = await client.put(
-            f"{BASE}/connections/{row.connection_ref}",
-            headers=_headers(guild, app),
-            json={"values": {"access_token": "gho_sneaking_back"}},
-        )
-
-        assert response.status_code == 403
-        assert response.json()["detail"] == AppChannelMessages.CONNECTION_BLOCKED
-
-    async def test_a_field_the_definition_does_not_declare_is_refused(
-        self, client: AsyncClient, session: AsyncSession
-    ):
-        await _register(session)
-        guild, user, app = await _install(session)
-        row = await _member_connection(session, guild=guild, app=app, user=user)
-
-        response = await client.put(
-            f"{BASE}/connections/{row.connection_ref}",
-            headers=_headers(guild, app),
-            json={"values": {"not_a_field": "x"}},
-        )
-
-        assert response.status_code == 400
-        assert response.json()["detail"] == GuildAppMessages.CONFIG_UNKNOWN_FIELD
-
-    async def test_the_guild_s_own_connection_lands_in_its_config(
-        self, client: AsyncClient, session: AsyncSession
-    ):
-        """A vendor flow an admin ran lands where a guild-wide value lives, and
-        the install stops needing configuring."""
-        await _register(session)
-        guild, _user, app = await _install(
-            session,
-            definition=_workspace_definition(),
-            connection_refs={"workspace": "gcr_workspace"},
-        )
-
-        written = await client.put(
-            f"{BASE}/connections/gcr_workspace",
-            headers=_headers(guild, app),
-            json={"values": {"owner": "morelitea"}},
-        )
-
-        assert written.status_code == 200, written.text
-        assert written.json()["connection_id"] == "workspace"
-        config = await client.get(f"{BASE}/config", headers=_headers(guild, app))
-        assert config.json()["connections"]["workspace"] == {"owner": "morelitea"}
-        assert config.json()["member_connections"] == []
-        assert config.json()["needs_config"] is False
-
-    async def test_a_handle_nobody_minted_is_refused(
-        self, client: AsyncClient, session: AsyncSession
-    ):
-        await _register(session)
-        guild, _user, app = await _install(session, definition=_workspace_definition())
-
-        response = await client.put(
-            f"{BASE}/connections/gcr_never_minted",
-            headers=_headers(guild, app),
-            json={"values": {"owner": "somebody-elses-org"}},
-        )
-
-        assert response.status_code == 404
-        assert response.json()["detail"] == AppChannelMessages.CONNECTION_NOT_FOUND
 
 
 # ---------------------------------------------------------------------------

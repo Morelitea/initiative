@@ -7,12 +7,11 @@ narrowed to one initiative reaches them too. A member token acts for somebody
 and is refused.
 
 * ``GET /installation/config`` — the decrypted configuration: the guild-wide
-  values an admin supplied, and the per-member values the app wrote back. The
-  one place stored plaintext leaves.
+  values, and each member's managed values. Never a flow's tokens.
 * ``GET /installation/connections`` — the app's per-member connections, by
   opaque reference, with status only.
-* ``PUT /installation/connections/{connection_ref}`` — what a vendor flow
-  produced, written back into the platform's custody.
+* ``POST /installation/connections/{connection_ref}/token`` — a usable access
+  token for one connection, refreshed or minted first.
 * ``POST /installation/config-status`` — the app's verdict on the
   configuration it was handed.
 * ``POST /installation/events`` — a third-party event, re-emitted through the
@@ -54,7 +53,7 @@ from app.models.tenant.guild_app import GuildApp
 from app.schemas.tenant.app_channel import (
     AppConnectionRead,
     AppConnectionsResponse,
-    AppConnectionWrite,
+    AppConnectionToken,
     AppInstallConfigRead,
     AppInstallationEvent,
     AppStatusRead,
@@ -200,33 +199,31 @@ async def list_installation_connections(
     return AppConnectionsResponse(items=[AppConnectionRead(**row) for row in rows])
 
 
-@router.put("/connections/{connection_ref}", response_model=AppConnectionRead)
-async def write_installation_connection(
+@router.post("/connections/{connection_ref}/token", response_model=AppConnectionToken)
+async def read_installation_connection_token(
     connection_ref: str,
-    payload: AppConnectionWrite,
     installation: InstallationDep,
     session: SystemSessionDep,
-) -> AppConnectionRead:
-    """Store what a vendor flow produced for one member's connection, or for
-    the community-wide one.
+) -> AppConnectionToken:
+    """A usable access token for one of this install's connections.
 
-    Refresh and first connect are the same call. Bounded to the fields the
-    pinned manifest marked ``managed``; a connection a guild admin blocked is
-    refused.
+    A member's connection must be connected and not blocked; its token is
+    refreshed first when it is within two minutes of expiring, and one the
+    vendor will not refresh leaves the connection ``expired`` (409). A
+    guild-wide connection answers its ``jwt_bearer`` token, minted and reused
+    until shortly before it expires, or its own stored token.
     """
     try:
         app = await _load(session, installation, for_write=True)
-        row = await channels_service.write_connection_values(
+        token = await channels_service.connection_token(
             session,
             app,
+            installation.registration,
             connection_ref=connection_ref,
-            values=payload.values,
-            status=payload.status,
-            account_label=payload.account_label,
         )
     except AppChannelError as exc:
         raise _to_http(exc) from exc
-    return AppConnectionRead(**row)
+    return AppConnectionToken(**token)
 
 
 @router.post("/config-status", response_model=AppStatusRead)

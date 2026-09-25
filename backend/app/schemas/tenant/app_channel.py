@@ -5,10 +5,12 @@ its own installation (``/app-platform/installation/*``), so they are shaped by
 two rules the browser-facing schemas in :mod:`app.schemas.tenant.guild_app` do
 not share:
 
-* **Credentials do appear here — in exactly one payload.**
-  :class:`AppInstallConfigRead` is the custody channel: the app is the party
-  that uses these values, so it is handed them decrypted. Every other payload,
-  the connections view included, carries state and never a value.
+* **Credentials do appear here — in two payloads.**
+  :class:`AppInstallConfigRead` carries the values a community typed and the
+  managed values a connection's ``after_connect`` hook returned, decrypted; a
+  flow's tokens are never in it. :class:`AppConnectionToken` is one usable
+  access token, asked for by reference. Every other payload, the connections
+  view included, carries state and never a value.
 * **Members are references.** A per-member connection is addressed by its
   opaque ``connection_ref``; there is no user id, email, or display name in any
   shape below.
@@ -29,7 +31,7 @@ from app.schemas.base import SanitizedBaseModel
 __all__ = [
     "AppConnectionRead",
     "AppConnectionsResponse",
-    "AppConnectionWrite",
+    "AppConnectionToken",
     "AppInstallConfigRead",
     "AppInstallationEvent",
     "AppMemberConfigRead",
@@ -52,10 +54,11 @@ class AppMemberConfigRead(SanitizedBaseModel):
 class AppInstallConfigRead(SanitizedBaseModel):
     """The decrypted configuration for one install — the custody channel.
 
-    ``connections`` holds the guild-wide values an admin typed, keyed by
-    connection id; ``member_connections`` holds the per-member values the app
-    itself wrote back, keyed by reference. Both are plaintext, and this is the
-    only payload in the build where that is true.
+    ``connections`` holds the guild-wide values, keyed by connection id;
+    ``member_connections`` holds each member's managed values, keyed by
+    reference. ``connection_refs`` names the handle of each guild-wide
+    connection that has one, for asking for its token. A flow's tokens are in
+    none of them.
     """
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
@@ -69,6 +72,7 @@ class AppInstallConfigRead(SanitizedBaseModel):
     config_state_detail: Optional[str] = None
     needs_config: bool = False
     connections: Dict[str, Dict[str, Any]] = {}
+    connection_refs: Dict[str, str] = {}
     member_connections: List[AppMemberConfigRead] = []
 
 
@@ -98,20 +102,18 @@ class AppConnectionsResponse(SanitizedBaseModel):
     items: List[AppConnectionRead] = []
 
 
-class AppConnectionWrite(SanitizedBaseModel):
-    """What an app writes back after completing a vendor flow.
+class AppConnectionToken(SanitizedBaseModel):
+    """A usable access token for one connection.
 
-    Only fields the pinned manifest marked ``managed`` may be set this way; a
-    key sent as ``null`` clears that value, and a key left out is untouched, so
-    a refresh that carries one rotated token does not disturb the rest.
+    Refreshed first when it was close to expiring, or minted for a connection
+    that declares a ``jwt_bearer`` token. ``expires_at`` is in epoch seconds,
+    and absent when the vendor did not say.
     """
 
-    values: Dict[str, Any] = {}
-    #: ``pending`` while a flow is still in progress; otherwise the stored
-    #: values decide, so an app cannot claim a connection it does not hold.
-    status: Optional[Literal["pending", "connected"]] = None
-    #: The vendor account the member connected as, e.g. ``@alice``.
-    account_label: Optional[str] = Field(default=None, max_length=200)
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    access_token: str
+    expires_at: Optional[int] = None
 
 
 class AppStatusReport(SanitizedBaseModel):

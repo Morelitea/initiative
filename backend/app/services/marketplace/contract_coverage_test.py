@@ -48,10 +48,22 @@ def maximal_manifest() -> dict:
         },
         "features": ["endpoints", "widgets", "embeds", "dashboards"],
         "default_name": "Acme Tracker",
+        "vendor": {
+            "label": {"en": "Acme client"},
+            "fields": [
+                {
+                    "key": "client_id",
+                    "type": "string",
+                    "required": True,
+                    "label": {"en": "Client id"},
+                },
+                {"key": "private_key", "type": "secret", "label": {"en": "Key"}},
+            ],
+        },
         "connections": [
             {
                 "id": "vendor",
-                "scope": "interactive",
+                "scope": "static",
                 "label": {"en": "Vendor"},
                 "fields": [
                     {
@@ -63,7 +75,28 @@ def maximal_manifest() -> dict:
                         "managed": True,
                     }
                 ],
-                "connect_path": "/connect",
+                "flow": {
+                    "type": "oauth2",
+                    "authorize_url": "https://acme.test/oauth/authorize",
+                    "token_url": "https://acme.test/oauth/token",
+                    "client_id": "{vendor.client_id}",
+                    "client_secret": "{vendor.private_key}",
+                    "scopes": ["read"],
+                    "pkce": True,
+                    "authorize_params": {"prompt": "consent"},
+                    "install_url": "https://acme.test/install",
+                    "after_connect": True,
+                    "revoke": "rfc7009",
+                    "revoke_url": "https://acme.test/oauth/revoke",
+                },
+                "token": {
+                    "type": "jwt_bearer",
+                    "exchange_url": "https://acme.test/installs/{choice}/token",
+                    "iss": "{vendor.client_id}",
+                    "key": "{vendor.private_key}",
+                    "alg": "RS256",
+                    "lifetime": 300,
+                },
                 "access_hint": {"api": "Acme API", "scopes": ["read"]},
             },
             {
@@ -206,6 +239,10 @@ def _nodes(published: dict) -> list[tuple[str, dict]]:
         ("manifest", published),
         ("connection", connection),
         ("connectionField", connection["fields"][0]),
+        ("connectionFlow", connection["flow"]),
+        ("connectionToken", connection["token"]),
+        ("vendor", published["vendor"]),
+        ("vendorField", published["vendor"]["fields"][0]),
         ("accessHint", connection["access_hint"]),
         # A read carries the caller-side fields and a write carries the
         # identity; no single direction carries every field, so the two are

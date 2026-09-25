@@ -37,6 +37,7 @@ from app.services.marketplace.manifest_values import (
     MAX_LABEL_LENGTH,
     MAX_NAME_LENGTH,
     check_identifier,
+    check_single_line,
     check_json_size,
     check_path,
     check_public_id,
@@ -47,6 +48,7 @@ from app.services.marketplace.manifest_values import (
     require_mapping,
     utf8_bytes,
 )
+from app.services.tenant.app_config import RESERVED_TOKEN_KEYS
 from app.services.marketplace.widget_meta import (
     MAX_TEXT_LENGTH,
     localized_text,
@@ -92,13 +94,21 @@ FEATURE_BLOCKS: dict[str, str] = {feature: feature for feature in sorted(FEATURE
 #: ``interactive`` — each member's own account at a vendor that authorizes
 #: people, and never anybody else's.
 #:
-#: A ``connect_path`` is the second question, asked of either: with one, the app
-#: runs the vendor's flow, and the scope decides who is sent — every member for
-#: their own account, or a guild admin once, for the guild. Without one, a
-#: static connection is a form an admin types into. Some vendors leave no
-#: choice: an organization-wide install is a page at the vendor with a button
-#: on it, and no string an admin retypes here is the same thing.
+#: A ``flow`` is the second question, asked of either: with one, Initiative
+#: runs the vendor's OAuth flow, and the scope decides who is sent — every
+#: member for their own account, or a guild admin once, for the guild. Without
+#: one, a static connection is a form an admin types into. Some vendors leave
+#: no choice: an organization-wide install is a page at the vendor with a
+#: button on it, and no string an admin retypes here is the same thing.
 CONNECTION_SCOPES: frozenset[str] = contract.enum("connectionScope")
+
+#: What a vendor field may hold, what a flow is, how a token is minted, how a
+#: grant is ended, and what a minted token's JWT is signed with.
+VENDOR_FIELD_TYPES: frozenset[str] = contract.enum("vendorFieldType")
+FLOW_TYPES: frozenset[str] = contract.enum("flowType")
+TOKEN_TYPES: frozenset[str] = contract.enum("tokenType")
+REVOKE_METHODS: frozenset[str] = contract.enum("revokeMethod")
+JWT_ALGORITHMS: frozenset[str] = contract.enum("jwtAlgorithm")
 
 #: Field kinds a connection form can render. The same closed enum the automation
 #: service's node contract settled on, so one generic form renderer draws every
@@ -218,6 +228,11 @@ RETURN_TYPES: frozenset[str] = contract.enum("returnValueType")
 
 MAX_CONNECTIONS = contract.cap("connections")
 MAX_FIELDS_PER_CONNECTION = contract.cap("fieldsPerConnection")
+MAX_VENDOR_FIELDS = contract.cap("vendorFields")
+MAX_FLOW_SCOPES = contract.cap("flowScopes")
+MAX_AUTHORIZE_PARAMS = contract.cap("authorizeParams")
+MAX_TOKEN_LIFETIME_SECONDS = contract.cap("tokenLifetimeSeconds")
+MAX_TEMPLATE_LENGTH = contract.cap("urlLength")
 MAX_SELECT_OPTIONS = contract.cap("selectOptions")
 MAX_ACCESS_HINT_SCOPES = contract.cap("accessHintScopes")
 MAX_REQUIRES_TERMS = contract.cap("requiresTerms")
@@ -495,7 +510,212 @@ def _access_hint(raw: Any, *, what: str) -> dict[str, Any] | None:
     return cleaned or None
 
 
-def _connection(raw: Any) -> dict[str, Any]:
+def _vendor(raw: Any) -> dict[str, Any] | None:
+    """What an operator supplies for the app's vendor client, declared and
+    never valued: every value is entered on the deployment."""
+    if raw is None:
+        return None
+    vendor = require_mapping(raw, "service app: vendor")
+    entries = require_list(
+        vendor.get("fields"), "service app: vendor fields", MAX_VENDOR_FIELDS
+    )
+    if not entries:
+        fail("service app: vendor must declare at least one field")
+    fields: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for entry in entries:
+        field = require_mapping(entry, "service app: vendor field")
+        key = check_identifier(field.get("key"), what="service app: vendor field key")
+        if key in seen:
+            fail(f"service app: two vendor fields share the key {key!r}")
+        seen.add(key)
+        field_type = field.get("type")
+        if field_type not in VENDOR_FIELD_TYPES:
+            fail(f"service app: vendor field {key!r}: unknown type {field_type!r}")
+        fields.append(
+            {
+                "key": key,
+                "type": field_type,
+                "required": field.get("required") is True,
+                "label": _label(
+                    field.get("label"), what=f"service app: vendor field {key!r}"
+                ),
+            }
+        )
+    cleaned: dict[str, Any] = {"fields": fields}
+    label = localized_text(vendor.get("label"), MAX_TEXT_LENGTH)
+    if label is not None:
+        cleaned["label"] = label
+    return cleaned
+
+
+def _template(
+    raw: Any,
+    *,
+    what: str,
+    vendor_keys: set[str],
+    field_keys: set[str],
+    required: bool = True,
+    https: bool = False,
+) -> str | None:
+    """A declared value that may name ``{vendor.<key>}`` or ``{<key>}``, each
+    of which must be declared: a vendor field, or one of the connection's own
+    fields."""
+    text = clean_text(raw, what=what, limit=MAX_TEMPLATE_LENGTH, required=required)
+    if text is None:
+        return None
+    check_single_line(text, what=what)
+    if https and not text.startswith("https://"):
+        fail(f"{what} must be an https address")
+    position = 0
+    while True:
+        start = text.find("{", position)
+        if start == -1:
+            break
+        end = text.find("}", start + 1)
+        if end == -1:
+            fail(f"{what} opens a '{{' it does not close")
+        name = text[start + 1 : end]
+        if name.startswith("vendor."):
+            if name[len("vendor.") :] not in vendor_keys:
+                fail(
+                    f"{what} names {{{name}}}, which the vendor block does not declare"
+                )
+        elif name not in field_keys:
+            fail(f"{what} names {{{name}}}, which is not a field of this connection")
+        position = end + 1
+    return text
+
+
+def _flow(
+    raw: Any,
+    *,
+    what: str,
+    scope: str,
+    field_keys: set[str],
+    vendor_keys: set[str],
+) -> dict[str, Any]:
+    """How Initiative establishes a connection: an OAuth 2.0 authorization code
+    flow, with the vendor client's values named from the vendor block."""
+    flow = require_mapping(raw, f"{what} flow")
+    flow_type = flow.get("type")
+    if flow_type not in FLOW_TYPES:
+        fail(f"{what} flow: unknown type {flow_type!r}")
+
+    def template(key: str, **kwargs: Any) -> str | None:
+        return _template(
+            flow.get(key),
+            what=f"{what} flow.{key}",
+            vendor_keys=vendor_keys,
+            field_keys=field_keys,
+            **kwargs,
+        )
+
+    cleaned: dict[str, Any] = {
+        "type": flow_type,
+        "authorize_url": template("authorize_url", https=True),
+        "token_url": template("token_url", https=True),
+        "client_id": template("client_id"),
+        "pkce": flow.get("pkce") is not False,
+        "after_connect": flow.get("after_connect") is True,
+    }
+    secret = template("client_secret", required=False)
+    if secret is not None:
+        cleaned["client_secret"] = secret
+    scopes = require_list(flow.get("scopes"), f"{what} flow.scopes", MAX_FLOW_SCOPES)
+    cleaned["scopes"] = [
+        check_single_line(
+            clean_text(item, what=f"{what} flow.scopes entry", limit=MAX_HINT_LENGTH)
+            or "",
+            what=f"{what} flow.scopes entry",
+        )
+        for item in scopes
+    ]
+    params_raw = flow.get("authorize_params")
+    params: dict[str, str] = {}
+    if params_raw is not None:
+        mapping = require_mapping(params_raw, f"{what} flow.authorize_params")
+        if len(mapping) > MAX_AUTHORIZE_PARAMS:
+            fail(
+                f"{what} flow.authorize_params holds more than "
+                f"{MAX_AUTHORIZE_PARAMS} entries"
+            )
+        for name, value in mapping.items():
+            key = check_identifier(name, what=f"{what} flow.authorize_params key")
+            params[key] = (
+                _template(
+                    value,
+                    what=f"{what} flow.authorize_params.{key}",
+                    vendor_keys=vendor_keys,
+                    field_keys=field_keys,
+                )
+                or ""
+            )
+    cleaned["authorize_params"] = params
+
+    install = template("install_url", required=False, https=True)
+    if install is not None:
+        if scope != "static":
+            fail(f"{what}: an install page is for a static connection")
+        if not cleaned["after_connect"]:
+            fail(
+                f"{what}: an installation-style flow calls after_connect, which "
+                "checks who installed it"
+            )
+        cleaned["install_url"] = install
+
+    revoke = flow.get("revoke")
+    if revoke is not None:
+        if revoke not in REVOKE_METHODS:
+            fail(f"{what} flow: unknown revoke {revoke!r}")
+        cleaned["revoke"] = revoke
+    revoke_url = template("revoke_url", required=False, https=True)
+    if revoke_url is not None:
+        cleaned["revoke_url"] = revoke_url
+    if revoke == "rfc7009" and revoke_url is None:
+        fail(f"{what}: rfc7009 revocation posts to revoke_url, which is missing")
+    return cleaned
+
+
+def _token(
+    raw: Any, *, what: str, field_keys: set[str], vendor_keys: set[str]
+) -> dict[str, Any]:
+    """An access token Initiative mints on demand with a vendor key."""
+    token = require_mapping(raw, f"{what} token")
+    token_type = token.get("type")
+    if token_type not in TOKEN_TYPES:
+        fail(f"{what} token: unknown type {token_type!r}")
+
+    def template(key: str, **kwargs: Any) -> str | None:
+        return _template(
+            token.get(key),
+            what=f"{what} token.{key}",
+            vendor_keys=vendor_keys,
+            field_keys=field_keys,
+            **kwargs,
+        )
+
+    alg = token.get("alg", "RS256")
+    if alg not in JWT_ALGORITHMS:
+        fail(f"{what} token: unknown alg {alg!r}")
+    lifetime = token.get("lifetime", 540)
+    if (
+        isinstance(lifetime, bool)
+        or not isinstance(lifetime, int)
+        or not 1 <= lifetime <= MAX_TOKEN_LIFETIME_SECONDS
+    ):
+        fail(f"{what} token.lifetime must be 1..{MAX_TOKEN_LIFETIME_SECONDS} seconds")
+    return {
+        "type": token_type,
+        "exchange_url": template("exchange_url", https=True),
+        "iss": template("iss"),
+        "key": template("key"),
+        "alg": alg,
+        "lifetime": lifetime,
+    }
+
+
+def _connection(raw: Any, *, vendor_keys: set[str]) -> dict[str, Any]:
     connection = require_mapping(raw, "connection")
     connection_id = check_identifier(connection.get("id"), what="connection id")
     what = f"connection {connection_id!r}"
@@ -515,6 +735,8 @@ def _connection(raw: Any) -> dict[str, Any]:
         )
         if field["key"] in seen:
             fail(f"{what}: two fields share the key {field['key']!r}")
+        if field["key"] in RESERVED_TOKEN_KEYS:
+            fail(f"{what}: {field['key']!r} is where a flow keeps its tokens")
         seen.add(field["key"])
         fields.append(field)
 
@@ -525,30 +747,42 @@ def _connection(raw: Any) -> dict[str, Any]:
         "fields": fields,
     }
 
-    if scope == "static" and not fields:
-        # Nothing for the admin to supply, so nothing this connection could be.
-        fail(f"{what}: a static connection must declare at least one field")
+    flow_raw = connection.get("flow")
+    if flow_raw is None:
+        if scope == "interactive":
+            # A member's own account is authorized at the vendor; there is
+            # nothing for them to type.
+            fail(f"{what}: an interactive connection declares a flow")
+        if not fields:
+            # Nothing for the admin to supply, so nothing this connection could be.
+            fail(f"{what}: a static connection must declare at least one field")
+    else:
+        flow = _flow(
+            flow_raw,
+            what=what,
+            scope=scope,
+            field_keys=seen,
+            vendor_keys=vendor_keys,
+        )
+        for field in fields:
+            if field.get("managed") is not True:
+                fail(
+                    f"{what}: field {field['key']!r} — a connection with a flow "
+                    "holds only managed values"
+                )
+        if fields and not flow["after_connect"]:
+            fail(
+                f"{what}: its managed values come from the after_connect hook, "
+                "which the flow does not call"
+            )
+        cleaned["flow"] = flow
 
-    connect_path = connection.get("connect_path")
-    if scope == "interactive" or connect_path is not None:
-        # Where a person is sent so the app can run the vendor's flow. Required
-        # on an interactive connection, which has no other way to be filled at
-        # all; offered on a static one, where it is the difference between an
-        # admin typing an organization's name into a box and an admin running
-        # the vendor's own install, on the vendor's page, for the whole guild.
-        cleaned["connect_path"] = check_path(connect_path, what=f"{what} connect_path")
-
-    if (
-        scope == "static"
-        and connect_path is not None
-        and not any(field.get("managed") is True for field in fields)
-    ):
-        # The app writing back is the only way a static connection with a flow
-        # is ever satisfied, so one with nothing managed to write into can do
-        # nothing but leave the install unconfigured forever.
-        fail(
-            f"{what}: a static connection with a connect_path must declare a "
-            "managed field for the flow to write into"
+    token_raw = connection.get("token")
+    if token_raw is not None:
+        if scope != "static":
+            fail(f"{what}: a minted token belongs to a static connection")
+        cleaned["token"] = _token(
+            token_raw, what=what, field_keys=seen, vendor_keys=vendor_keys
         )
 
     hint = _access_hint(connection.get("access_hint"), what=what)
@@ -1343,9 +1577,11 @@ def normalize_service_app_definition(definition: Any) -> dict[str, Any]:
     body = require_mapping(definition, "service app definition")
 
     service = _service_block(body.get("service"))
+    vendor = _vendor(body.get("vendor"))
+    vendor_keys = {field["key"] for field in (vendor or {}).get("fields", [])}
 
     connections = [
-        _connection(entry)
+        _connection(entry, vendor_keys=vendor_keys)
         for entry in require_list(
             body.get("connections"), "service app: connections", MAX_CONNECTIONS
         )
@@ -1412,6 +1648,8 @@ def normalize_service_app_definition(definition: Any) -> dict[str, Any]:
     }
     # Empty blocks are left out entirely, so "does this app offer widgets?" has
     # one answer rather than two shapes that mean the same thing.
+    if vendor is not None:
+        cleaned["vendor"] = vendor
     if connections:
         cleaned["connections"] = connections
     if endpoints:

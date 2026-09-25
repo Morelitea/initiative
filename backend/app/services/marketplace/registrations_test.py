@@ -13,6 +13,7 @@ from app.core.config import settings
 from app.core.messages import AppServiceMessages
 from app.models.platform.app_service_registration import AppServiceRegistration
 from app.models.platform.publisher import Publisher
+from app.services.marketplace.vendor_values import load_vendor_values
 from app.services.marketplace import registrations as service
 from app.services.marketplace.registration_lookup import load_registrations
 
@@ -458,6 +459,44 @@ async def test_reconcile_creates_registrations_from_the_mounted_file(
     assert row.allowed_origins == ["https://app.example.com"]
     assert row.mandatory is True
     assert row.listing_uid == LISTING_UID
+
+
+async def test_reconcile_seals_the_vendor_values_it_names(
+    session, tmp_path, monkeypatch
+):
+    """``vendor_env`` names environment variables; their values are sealed into
+    the registration on every pass, so rotating one is changing the variable
+    and restarting."""
+    monkeypatch.setenv("TEST_VENDOR_SECRET", "first-secret")
+    entry = {
+        "public_id": "acme.vendored",
+        "base_url": BASE_URL,
+        "listing_uid": LISTING_UID,
+        "vendor_env": {"client_secret": "TEST_VENDOR_SECRET", "absent": "NOT_SET_X"},
+    }
+    monkeypatch.setattr(
+        settings, "APP_SERVICES_CONFIG", _write_config(tmp_path, [entry])
+    )
+    await service.reconcile_from_config(session)
+    assert await load_vendor_values("acme.vendored") == {
+        "client_secret": "first-secret"
+    }
+
+    monkeypatch.setenv("TEST_VENDOR_SECRET", "rotated-secret")
+    result = await service.reconcile_from_config(session)
+    assert result.updated == 1
+    assert await load_vendor_values("acme.vendored") == {
+        "client_secret": "rotated-secret"
+    }
+    row = (
+        await session.exec(
+            select(AppServiceRegistration).where(
+                AppServiceRegistration.public_id == "acme.vendored"
+            )
+        )
+    ).one()
+    # Sealed, never stored as the variable held it.
+    assert "rotated-secret" not in str(row.vendor_values)
 
 
 async def test_reconcile_reads_the_browser_address_from_the_file(

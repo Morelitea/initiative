@@ -224,6 +224,7 @@ async def apply_version(
     credential is finished only once the write that finished it is durable.
     """
     definition = pending.definition
+    previous = app.definition
     added = set(add_scopes)
     if added - set(app.granted_scopes or ()):
         app.granted_scopes = sorted(set(app.granted_scopes or ()) | added)
@@ -238,11 +239,14 @@ async def apply_version(
     for connection_id in sorted(dropped):
         revocation_service.queue_revocation(
             session,
-            revocation_service.RevocationIntent(
+            revocation_service.intent_for(
                 guild_id=routed_guild_id(session),
                 app_id=app.id,
                 listing_uid=app.listing_uid,
+                definition=previous,
                 connection_id=connection_id,
+                config=(app.config or {}).get(connection_id),
+                secrets=(app.config_secrets or {}).get(connection_id),
                 reason="upgraded",
             ),
         )
@@ -269,6 +273,7 @@ async def apply_version(
                 connection_id=row.connection_id,
                 user_id=row.user_id,
                 reason="upgraded",
+                definition=previous,
             )
     return app
 

@@ -5,7 +5,9 @@ Three ways a registration arrives, and they meet in the same checks:
 * **An operator adds one** through the ``apps.manage`` endpoints.
 * **The deployment declares them** in ``APP_SERVICES_CONFIG``, a file a chart
   mounts, reconciled at boot. Reconciliation touches the database only, so a
-  boot never waits on an app's container.
+  boot never waits on an app's container. An entry's ``vendor_env`` names the
+  environment variables holding its vendor values, which are sealed into the
+  registration on each boot.
 * **The registry brings one** with a verified app listing
   (:mod:`app.services.marketplace.registry_entries`). Its row keeps what the
   registry says about the app; the operator edits only what is theirs on it
@@ -16,9 +18,11 @@ Three ways a registration arrives, and they meet in the same checks:
 Either way the registration states everything about itself: its
 ``public_id``, the ``listing_uid`` of the listing it speaks for, where it
 lives, and its public keys (a pasted key set, a ``jwks_uri`` on its own
-origin, or both). Nothing is fetched from the app to fill any of it in, and
-nothing is secret. Its publisher is the row for its ``public_id`` prefix
-(:mod:`app.services.marketplace.publishers`).
+origin, or both). Nothing is fetched from the app to fill any of it in. Its
+publisher is the row for its ``public_id`` prefix
+(:mod:`app.services.marketplace.publishers`). The one secret it may hold is
+its vendor values (:mod:`app.services.marketplace.vendor_values`), which the
+operator sets on any registration, a registry one included.
 
 One rule the reconciler keeps, about not undoing a person: it never re-enables
 a registration an operator disabled — deactivating an app is the
@@ -62,6 +66,7 @@ from app.services.marketplace.app_keys import (
     PUBLIC_JWK_TYPES,
     jwks_uri_allowed,
 )
+from app.services.marketplace import vendor_values as vendor_values_service
 from app.services.marketplace.publishers import ensure_publisher
 from app.services.marketplace.registration_lookup import (
     invalidate_registrations,
@@ -504,6 +509,7 @@ async def create_registration(
     scope_ceiling: Optional[Iterable[str]] = None,
     mandatory: bool = False,
     enabled: bool = True,
+    vendor_values: Optional[dict[str, Optional[str]]] = None,
     actor_user_id: int | None = None,
 ) -> AppServiceRegistration:
     """Wire an app service up, as stated.
@@ -542,6 +548,8 @@ async def create_registration(
         mandatory=mandatory,
         enabled=enabled,
     )
+    vendor_changed = await _apply_vendor(session, row, vendor_values)
+    await vendor_values_service.sync_required(session, row)
     session.add(row)
     await session.flush()
     await audit_service.record(
@@ -550,14 +558,34 @@ async def create_registration(
         actor_user_id=actor_user_id,
         target_type="app_service_registration",
         target_id=row.id,
-        detail=audit_service.changed_fields(
-            {}, audit_service.snapshot(row, AUDITED_FIELDS)
-        ),
+        detail={
+            **audit_service.changed_fields(
+                {}, audit_service.snapshot(row, AUDITED_FIELDS)
+            ),
+            **({"vendor_values": vendor_changed} if vendor_changed else {}),
+        },
     )
     await session.commit()
     await session.refresh(row)
     invalidate_registrations()
     return row
+
+
+async def _apply_vendor(
+    session: AsyncSession,
+    row: AppServiceRegistration,
+    submitted: Optional[dict[str, Optional[str]]],
+) -> list[str]:
+    """Set the vendor values the form sent, against the fields the listing's
+    manifest declares. Returns the keys that changed, never their values."""
+    if not submitted:
+        return []
+    definitions = await vendor_values_service.listing_definitions(
+        session, [row.listing_uid]
+    )
+    return vendor_values_service.apply_vendor_values(
+        row, submitted, definition=definitions.get(row.listing_uid or "")
+    )
 
 
 async def update_registration(
@@ -573,6 +601,7 @@ async def update_registration(
     scope_ceiling: Optional[Iterable[str]] = None,
     mandatory: Optional[bool] = None,
     enabled: Optional[bool] = None,
+    vendor_values: Optional[dict[str, Optional[str]]] = None,
     actor_user_id: int | None = None,
 ) -> AppServiceRegistration:
     """Edit a registration.
@@ -582,8 +611,8 @@ async def update_registration(
     ``base_url`` moves is checked against the new origin.
 
     A registration the registry brought takes only the operator's fields (the
-    switch, mandatory flag, origins, and a container's location); a change to
-    anything else answers 409.
+    switch, mandatory flag, origins, a container's location, and its vendor
+    values); a change to anything else answers 409.
     """
     row = await get_registration(session, registration_id)
     if row.source == RegistrationSource.REGISTRY:
@@ -642,13 +671,19 @@ async def update_registration(
         row.mandatory = mandatory
     if enabled is not None:
         row.enabled = enabled
+    vendor_changed = await _apply_vendor(session, row, vendor_values)
+    await vendor_values_service.sync_required(session, row)
 
     row.updated_at = _now()
     session.add(row)
     changed = audit_service.changed_fields(
         before, audit_service.snapshot(row, AUDITED_FIELDS)
     )
-    if changed["changed"]:
+    if vendor_changed:
+        # Which values moved, by key. A value is the vendor client's
+        # credential, so none of it reaches the record.
+        changed = {**changed, "vendor_values": vendor_changed}
+    if changed["changed"] or vendor_changed:
         await audit_service.record(
             session,
             event_type=AuditEventType.APP_SERVICE_UPDATED,
@@ -763,8 +798,9 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
 
     Each entry is ``{public_id, listing_uid, base_url}`` and optionally
     ``embed_origin``, ``allowed_origins``, ``jwks``, ``jwks_uri``,
-    ``scope_ceiling`` and ``mandatory``. Database-only: this upserts rows and
-    stops.
+    ``scope_ceiling``, ``mandatory`` and ``vendor_env`` (vendor key →
+    environment variable name, read and sealed on every pass). Database-only:
+    this upserts rows and stops.
 
     An entry naming ``grants`` is read without it, and the pass logs that it
     was: the field is no longer part of a registration, and a file written for
@@ -856,6 +892,10 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
                 mandatory=mandatory,
                 enabled=True,
             )
+            vendor_values_service.apply_vendor_env(
+                fresh, entry.get("vendor_env"), public_id=public_id
+            )
+            await vendor_values_service.sync_required(session, fresh)
             session.add(fresh)
             born.append(fresh)
             created += 1
@@ -867,8 +907,15 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
         # registry brought becomes the operator's: the file is their statement
         # about this deployment, and it wins.
         taken_over = row.source == RegistrationSource.REGISTRY
+        vendor_moved = vendor_values_service.apply_vendor_env(
+            row, entry.get("vendor_env"), public_id=public_id
+        )
+        required_before = list(row.vendor_required or [])
+        await vendor_values_service.sync_required(session, row)
         dirty = (
             taken_over
+            or bool(vendor_moved)
+            or required_before != list(row.vendor_required or [])
             or listing_uid != row.listing_uid
             or base_url != row.base_url
             or embed != row.embed_origin

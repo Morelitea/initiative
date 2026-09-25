@@ -1,7 +1,9 @@
 """Payloads for the app service registry and its publishers.
 
-A registration holds nothing secret: its listing, its addresses and the public
-half of its keys, all of which the owner's screen shows as they are.
+A registration's listing, addresses and the public half of its keys are shown
+as they are. Its vendor values are the one thing it holds that is secret: a
+secret one is written and never read back, and the screen is told only that it
+is set.
 """
 
 from datetime import datetime
@@ -9,7 +11,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import ConfigDict, Field
 
-from app.schemas.base import SanitizedBaseModel
+from app.schemas.base import RawTextStr, SanitizedBaseModel
 
 __all__ = [
     "AppPublisherCreate",
@@ -18,7 +20,21 @@ __all__ = [
     "AppServiceRegistrationCreate",
     "AppServiceRegistrationRead",
     "AppServiceRegistrationUpdate",
+    "AppVendorFieldRead",
 ]
+
+
+class AppVendorFieldRead(SanitizedBaseModel):
+    """One value an operator supplies for the app's vendor client, as the
+    listing's manifest declares it."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    key: str
+    #: ``string``, ``secret`` or ``url``. A secret is write-only.
+    type: str
+    required: bool = False
+    label: Dict[str, str] = {}
 
 
 class AppServiceRegistrationRead(SanitizedBaseModel):
@@ -59,8 +75,20 @@ class AppServiceRegistrationRead(SanitizedBaseModel):
     source: str = "operator"
     #: The container image a registry app runs, pinned by digest.
     image_digest: Optional[str] = None
-    #: Enabled, its publisher enabled, an address, and a key set to verify
-    #: against.
+    #: The values the listing's manifest asks the operator for, in order.
+    vendor_fields: List[AppVendorFieldRead] = []
+    #: The plain values of the non-secret vendor fields that hold one.
+    vendor_values: Dict[str, str] = {}
+    #: Every vendor field that holds a value, secret or not.
+    vendor_set: List[str] = []
+    #: Whether every required vendor value is set.
+    vendor_ready: bool = True
+    #: The two addresses to register with the vendor's client: where it
+    #: returns a person with a code, and where its install page returns them.
+    connection_callback_url: str
+    connection_setup_url: str
+    #: Enabled, its publisher enabled, an address, a key set to verify
+    #: against, and every required vendor value set.
     live: bool
     created_at: datetime
     updated_at: datetime
@@ -91,6 +119,8 @@ class AppServiceRegistrationCreate(SanitizedBaseModel):
     scope_ceiling: Optional[List[str]] = None
     mandatory: bool = False
     enabled: bool = True
+    #: Values for the vendor fields the listing's manifest declares, by key.
+    vendor_values: Optional[Dict[str, Optional[RawTextStr]]] = None
 
 
 class AppServiceRegistrationUpdate(SanitizedBaseModel):
@@ -98,7 +128,9 @@ class AppServiceRegistrationUpdate(SanitizedBaseModel):
 
     An empty ``embed_origin`` clears it, putting both surfaces back on
     ``base_url``. An empty ``jwks_uri`` clears it, and an empty ``jwks``
-    object clears the pasted set.
+    object clears the pasted set. In ``vendor_values`` a key sent empty or
+    null clears that value, and a key left out keeps it, so a secret is kept
+    by not sending it.
     """
 
     listing_uid: Optional[str] = Field(default=None, max_length=14)
@@ -112,6 +144,8 @@ class AppServiceRegistrationUpdate(SanitizedBaseModel):
     scope_ceiling: Optional[List[str]] = None
     mandatory: Optional[bool] = None
     enabled: Optional[bool] = None
+    #: Set or clear vendor values, by key. Allowed on a registry registration.
+    vendor_values: Optional[Dict[str, Optional[RawTextStr]]] = None
 
 
 class AppPublisherRead(SanitizedBaseModel):

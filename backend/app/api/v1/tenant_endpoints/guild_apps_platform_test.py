@@ -52,6 +52,7 @@ from app.testing import (
     create_guild_app,
     marketplace_uid,
     route_session_to_guild,
+    sealed_vendor_values,
 )
 
 
@@ -1319,12 +1320,9 @@ class TestHandoffWithoutASigningKey:
 
 
 class TestConnectLaunch:
-    @pytest.fixture(autouse=True)
-    def signing_key(self, monkeypatch):
-        monkeypatch.setattr(
-            settings, "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM", _SIGNING_KEY_PEM
-        )
-        monkeypatch.setattr(settings, "APP_PLATFORM_SIGNING_KEY_ID", "test-key")
+    """Initiative runs the flow, so what a member is sent to is the vendor's
+    authorization endpoint with this deployment's client, never the app's own
+    address. The whole trip is in ``app_connection_flows_test``."""
 
     CONNECT_DEFINITION = {
         "app_kind": "service",
@@ -1335,18 +1333,35 @@ class TestConnectLaunch:
                 "id": "github",
                 "scope": "interactive",
                 "label": {"en": "GitHub"},
-                "connect_path": "/connect/github",
                 "fields": [
                     {
-                        "key": "access_token",
-                        "type": "secret",
-                        "label": {"en": "Token"},
+                        "key": "login",
+                        "type": "string",
+                        "label": {"en": "Login"},
                         "managed": True,
                     }
                 ],
+                "flow": {
+                    "type": "oauth2",
+                    "authorize_url": "https://github.test/login/oauth/authorize",
+                    "token_url": "https://github.test/login/oauth/access_token",
+                    "client_id": "{vendor.client_id}",
+                    "client_secret": "{vendor.client_secret}",
+                    "after_connect": True,
+                },
             }
         ],
     }
+
+    @pytest.fixture(autouse=True)
+    async def vendor_client(self, session: AsyncSession, registration):
+        await _mark(
+            session,
+            registration,
+            vendor_values=sealed_vendor_values(
+                {"client_id": "client-123", "client_secret": "client-secret-456"}
+            ),
+        )
 
     async def _install(self, session: AsyncSession, actor):
         return await create_guild_app(
@@ -1357,8 +1372,8 @@ class TestConnectLaunch:
             listing_uid=SERVICE_UID,
         )
 
-    async def test_the_url_is_the_registration_plus_the_manifest_path(
-        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    async def test_the_url_is_the_vendors_authorization_endpoint(
+        self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         a = await acting_user(guild_role=GuildRole.superadmin)
         app = await self._install(session, a)
@@ -1369,159 +1384,39 @@ class TestConnectLaunch:
         assert response.status_code == 200, response.text
         body = response.json()
         assert body["connect_url"].startswith(
-            "https://widgetco.example.test/connect/github?"
+            "https://github.test/login/oauth/authorize?"
         )
-        query = parse_qs(urlsplit(body["connect_url"]).query)
-        assert query["connection_ref"] == [body["connection_ref"]]
-        assert query["guild_ref"] == [
-            await ensure_app_guild_ref(guild_id=a.guild.id, app_install_id=app.id)
-        ]
-
-    async def test_the_url_uses_the_browser_address(
-        self, client: AsyncClient, acting_user, session: AsyncSession, registration
-    ):
-        """The member's own browser follows this one, so it is built from the
-        published address rather than the one the server dials."""
-        await _mark(
-            session,
-            registration,
-            base_url="http://widgetco.internal:8200",
-            embed_origin="https://widgetco.example.test",
-        )
-        a = await acting_user(guild_role=GuildRole.superadmin)
-        app = await self._install(session, a)
-
-        body = (
-            await client.post(
-                a.g(f"/apps/{app.id}/connections/github/connect"), headers=a.headers
-            )
-        ).json()
-
-        assert body["connect_url"].startswith(
-            "https://widgetco.example.test/connect/github"
-        )
-
-    async def test_only_the_handle_the_guild_and_the_return_travel(
-        self, client: AsyncClient, acting_user, session: AsyncSession, registration
-    ):
-        """The query string carries the opaque handle, the guild to write back
-        under, and the signed return. No credential of any kind: the app writes
-        its result back with its own installation token."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
-        app = await self._install(session, a)
-
-        body = (
-            await client.post(
-                a.g(f"/apps/{app.id}/connections/github/connect"), headers=a.headers
-            )
-        ).json()
         query = parse_qs(urlsplit(body["connect_url"]).query)
         # Pinned exactly, so anything added to this URL is added deliberately.
-        assert set(query) == {"connection_ref", "guild_ref", "return_token"}
-        for smell in ("secret", "Bearer", "iat_"):
-            assert smell not in body["connect_url"]
-
-    def _return_claims(self, token: str) -> dict:
-        public_key = serialization.load_pem_private_key(
-            _SIGNING_KEY_PEM.encode("ascii"), password=None
-        ).public_key()
-        return jwt.decode(
-            token,
-            public_key,
-            algorithms=["RS256"],
-            audience=f"initiative-app:{SERVICE_ID}",
-            issuer="initiative",
-        )
-
-    async def test_the_return_is_signed_by_the_app_platform_key(
-        self, client: AsyncClient, acting_user, session: AsyncSession, registration
-    ):
-        """The browser carries this, so the app checks it against the key set
-        Initiative publishes before following it — the same key as every other
-        token Initiative signs for the app. It lives five minutes, names the
-        flow it ends, and carries a ``jti``."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
-        app = await self._install(session, a)
-
-        body = (
-            await client.post(
-                a.g(f"/apps/{app.id}/connections/github/connect"), headers=a.headers
-            )
-        ).json()
-        query = parse_qs(urlsplit(body["connect_url"]).query)
-        token = query["return_token"][0]
-
-        assert jwt.get_unverified_header(token)["kid"] == "test-key"
-        claims = self._return_claims(token)
-        assert claims["scope"] == "connect_return"
-        assert claims["exp"] - claims["iat"] == 300
-        assert claims["jti"]
-        assert claims["guild_ref"] == query["guild_ref"][0]
-        assert claims["app_install_id"] == app.id
-        assert claims["connection_id"] == "github"
-        assert claims["connection_ref"] == body["connection_ref"]
-
-    async def test_the_app_is_told_where_to_send_them_back(
-        self, client: AsyncClient, acting_user, session: AsyncSession, registration
-    ):
-        """An app knows a handle and a guild reference, and has never been told
-        what language this person reads. So it does not write the ending: it
-        hands them back here with one word, and Initiative renders the
-        sentence.
-
-        The address is Initiative's own, built from the frontend entry the
-        deployment publishes rather than from anything the app said."""
-        a = await acting_user(guild_role=GuildRole.superadmin)
-        app = await self._install(session, a)
-
-        body = (
-            await client.post(
-                a.g(f"/apps/{app.id}/connections/github/connect"), headers=a.headers
-            )
-        ).json()
-        query = parse_qs(urlsplit(body["connect_url"]).query)
-
-        home = self._return_claims(query["return_token"][0])["return_url"]
-        assert home.startswith(f"{settings.APP_URL.rstrip('/')}/apps/connected?")
-        # Which app and which connection, so the page can say what was being
-        # connected without the app having to put it back on the URL.
-        assert parse_qs(urlsplit(home).query) == {
-            "app": [SERVICE_ID],
-            "connection": ["github"],
+        assert set(query) == {
+            "response_type",
+            "client_id",
+            "redirect_uri",
+            "state",
+            "code_challenge",
+            "code_challenge_method",
         }
-
-    async def test_without_the_platform_key_no_return_is_sent(
-        self,
-        client: AsyncClient,
-        acting_user,
-        session: AsyncSession,
-        registration,
-        monkeypatch,
-    ):
-        """Nothing to sign with, so nothing is offered. The app then says its
-        piece on its own page — the same thing it does for somebody who arrived
-        by a hand-copied link."""
-        monkeypatch.setattr(settings, "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM", None)
-        a = await acting_user(guild_role=GuildRole.superadmin)
-        app = await self._install(session, a)
-
-        body = (
-            await client.post(
-                a.g(f"/apps/{app.id}/connections/github/connect"), headers=a.headers
-            )
-        ).json()
-        query = parse_qs(urlsplit(body["connect_url"]).query)
-
-        assert "return_token" not in query
-        # And the rest of the handoff is untouched: the flow still works, the
-        # ending is just the app's own page.
-        assert query["connection_ref"] == [body["connection_ref"]]
+        assert query["client_id"] == ["client-123"]
+        assert query["redirect_uri"] == [
+            f"{settings.APP_URL.rstrip('/')}/api/v1/app-connections/callback"
+        ]
+        for smell in ("client-secret-456", "Bearer", "iat_"):
+            assert smell not in body["connect_url"]
 
     async def test_an_unregistered_app_sends_nobody_anywhere(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):
         a = await acting_user(guild_role=GuildRole.superadmin)
-        app = await self._install(session, a)
+        app = await create_guild_app(
+            session,
+            a.guild,
+            a.user,
+            definition={
+                **self.CONNECT_DEFINITION,
+                "service": {"public_id": "tests.nowhere", "protocol": 1},
+            },
+            listing_uid=SERVICE_UID,
+        )
 
         response = await client.post(
             a.g(f"/apps/{app.id}/connections/github/connect"), headers=a.headers

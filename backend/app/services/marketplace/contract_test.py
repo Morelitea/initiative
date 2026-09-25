@@ -257,13 +257,23 @@ ACCEPTED = [
     pytest.param(
         _manifest(
             features=["embeds"],
+            vendor={
+                "fields": [
+                    {"key": "client_id", "type": "string", "label": {"en": "Id"}}
+                ]
+            },
             connections=[
                 {
                     "id": "account",
                     "scope": "interactive",
                     "label": {"en": "Your account"},
                     "fields": [],
-                    "connect_path": "/connect/start",
+                    "flow": {
+                        "type": "oauth2",
+                        "authorize_url": "https://vendor.test/authorize",
+                        "token_url": "https://vendor.test/token",
+                        "client_id": "{vendor.client_id}",
+                    },
                 }
             ],
             embeds=[

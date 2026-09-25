@@ -68,6 +68,7 @@ from app.api.v1.platform_endpoints import (
     app_oauth,
     app_platform,
     app_installation,
+    app_connection_callbacks,
     app_services,
     auth,
     auth_providers,
@@ -192,6 +193,12 @@ api_router.include_router(
 # re-emits — on its installation token. The install comes from the token.
 api_router.include_router(
     app_installation.router, prefix="/app-platform", tags=["app-platform"]
+)
+# Where a vendor returns a person during an app connection's flow. The two
+# addresses an operator registers with each vendor client; they act on the
+# flow's sealed state alone.
+api_router.include_router(
+    app_connection_callbacks.router, prefix="/app-connections", tags=["app-platform"]
 )
 api_router.include_router(
     auth_providers.router, prefix="/settings/auth/providers", tags=["auth-providers"]

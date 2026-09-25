@@ -35,6 +35,7 @@ from app.models.platform.marketplace import (
     UID_ALPHABET,
     UID_LENGTH,
 )
+from app.services.marketplace import vendor_values as vendor_values_service
 from app.services.marketplace.definitions import (
     LISTING_KINDS,
     LISTING_SOURCES,
@@ -544,6 +545,12 @@ async def upsert_listing(
         listing.latest_version_id = version.id
     session.add(listing)
     await session.flush()
+    if not version.awaiting_review and kind == "app":
+        # What the latest version requires of the operator is part of whether
+        # a registration speaking for this listing is live.
+        await vendor_values_service.sync_required_for_listing(
+            session, listing.uid, version.definition
+        )
 
     if kind == "app":
         await _publish_bundled_dashboards(
