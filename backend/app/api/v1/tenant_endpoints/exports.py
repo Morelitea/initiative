@@ -316,13 +316,13 @@ _TOOL_ROUTES: dict[Tool, _ToolExportRoute] = {
 
 
 def _tool_route_signature(
-    tool: Tool, spec: _ToolExportRoute, format_choices: tuple[str, ...]
+    tool: Tool, spec: _ToolExportRoute, formats: tuple[str, ...]
 ) -> inspect.Signature:
     """The signature FastAPI reads off a tool's export handler: the request
     context, the selector, the tool's own parameters, then ``format`` and
     ``tz``, in the order the route publishes them."""
     # Built at runtime from the adapter's formats, so OpenAPI carries the enum.
-    format_type: Any = Literal[format_choices]  # ty: ignore[invalid-type-form]
+    format_type: Any = Literal[formats]  # ty: ignore[invalid-type-form]
     return inspect.Signature(
         [
             inspect.Parameter(
@@ -405,7 +405,7 @@ def _mount_tool_export(tool: Tool, spec: _ToolExportRoute) -> None:
     setattr(
         export_tool,
         "__signature__",
-        _tool_route_signature(tool, spec, adapter.format_choices),
+        _tool_route_signature(tool, spec, adapter.formats),
     )
     router.add_api_route(
         f"/{source}",

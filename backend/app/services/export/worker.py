@@ -76,18 +76,6 @@ def _open_read_session(guild_id: int) -> AbstractAsyncContextManager[AsyncSessio
     return cohorts.read_session(guild_id)
 
 
-def _kind_of(_job: ExportJob) -> str:
-    return _RENDER
-
-
-def _start_status(_kind: str) -> str:
-    return ExportJobStatus.running
-
-
-def _slots(_kind: str) -> int:
-    return export_limits.EXPORT_RENDER_SLOTS
-
-
 async def _sweep(
     session: AsyncSession, *, guild_id: int, now: datetime, own: list[int]
 ) -> list[JobOutcome]:
@@ -210,15 +198,12 @@ _jobs: data_jobs.Dispatcher[ExportJob] = data_jobs.Dispatcher(
     queued=ExportJobStatus.queued,
     active=(ExportJobStatus.running,),
     kinds=(_RENDER,),
-    kind_of=_kind_of,
-    start_status=_start_status,
-    slots=_slots,
+    kind_of=lambda _job: _RENDER,
+    start_status=lambda _kind: ExportJobStatus.running,
+    slots=lambda _kind: export_limits.EXPORT_RENDER_SLOTS,
     sweep=_sweep,
     run=_render,
 )
-
-#: The renders this process is running, by ``(guild_id, job_id)``.
-_running = _jobs.running
 
 
 async def process_export_jobs() -> None:
@@ -235,12 +220,6 @@ async def dispatch_export_jobs() -> list[asyncio.Task[None]]:
     slots can take, at most one export per community. Returns the tasks it
     started; each renders, records its outcome and notifies on its own."""
     return await _jobs.dispatch()
-
-
-async def cancel_running_jobs() -> None:
-    """Stop every render this process is running, for shutdown. The sweep
-    queues a stopped render again once its row goes quiet."""
-    await _jobs.cancel_running()
 
 
 async def _execute(

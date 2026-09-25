@@ -41,7 +41,7 @@ from app.services.permissions import EXPORT_ACCESS
 
 class CalendarAdapter(ToolExportAdapter):
     tool = Tool.calendar
-    format_choices = ("ics", "json")
+    formats = ("ics", "json")
 
     async def count(
         self,

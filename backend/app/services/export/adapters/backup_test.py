@@ -59,4 +59,4 @@ def test_report_formats_are_formats_the_tools_adapter_renders():
         offered = set(section.report_formats).union(
             *section.type_report_formats.values()
         )
-        assert offered <= section.adapter.formats, section.key
+        assert offered <= set(section.adapter.formats), section.key

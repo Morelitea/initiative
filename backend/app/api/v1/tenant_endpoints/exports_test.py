@@ -31,7 +31,7 @@ from app.api import deps as api_deps
 from app.core.config import settings
 from app.core.search import SearchEntityType
 from app.core.tools import TOGGLEABLE_TOOLS, Tool, tool_export_source
-from app.models.platform.guild import Guild, GuildRole
+from app.models.platform.guild import Guild, GuildRole, GuildStatus
 from app.models.platform.guild_image import GuildImage, GuildImageVariant
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.document import DocumentType
@@ -53,6 +53,7 @@ from app.testing.factories import (
     create_counter_group,
     create_dashboard,
     create_document,
+    create_export_job,
     create_document_property_value,
     create_guild_app,
     create_initiative,
@@ -1001,22 +1002,24 @@ async def test_gc_expires_the_job_row_and_releases_its_artifact(
     acting_user, session, monkeypatch, storage_fails
 ):
     """Past its expiry, GC drops the artifact and moves the row to ``expired``
-    with no artifact_ref. A storage backend that raises on delete reaches the
-    same row state, with the failure logged, so the pass still completes."""
+    with no artifact_ref, in a community that is not active as in any other.
+    A storage backend that raises on delete reaches the same row state, with
+    the failure logged, so the pass still completes."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     storage = get_guild_storage(a.guild.id)
     key = "exports/424242.pdf"
     storage.write(key, b"%PDF-fake", content_type="application/pdf")
-    job = ExportJob(
-        created_by=a.user.id,
-        source="tasks",
-        template_id="task-table",
-        format="pdf",
+    job = await create_export_job(
+        session,
+        a.guild,
+        a.user,
         status=ExportJobStatus.done,
         artifact_ref=key,
         expires_at=datetime.now(timezone.utc) - timedelta(hours=1),
     )
-    session.add(job)
+    guild = await session.get(Guild, a.guild.id)
+    guild.status = GuildStatus.suspended.value
+    session.add(guild)
     await session.commit()
 
     if storage_fails:
@@ -1046,26 +1049,21 @@ async def test_an_artifact_past_its_expiry_is_not_served(
     key = "exports/515151.pdf"
     storage.write(key, b"%PDF-fake", content_type="application/pdf")
     now = datetime.now(timezone.utc)
-    due = ExportJob(
-        created_by=a.user.id,
-        source="tasks",
-        template_id="task-table",
-        format="pdf",
+    due = await create_export_job(
+        session,
+        a.guild,
+        a.user,
         status=ExportJobStatus.done,
         artifact_ref=key,
         expires_at=now - timedelta(minutes=1),
     )
-    swept = ExportJob(
-        created_by=a.user.id,
-        source="tasks",
-        template_id="task-table",
-        format="pdf",
+    swept = await create_export_job(
+        session,
+        a.guild,
+        a.user,
         status=ExportJobStatus.expired,
-        artifact_ref=None,
         expires_at=now - timedelta(days=1),
     )
-    session.add_all([due, swept])
-    await session.commit()
 
     for job in (due, swept):
         dl = await client.get(a.g(f"/exports/{job.id}/download"), headers=a.headers)

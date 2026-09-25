@@ -146,12 +146,13 @@ async def test_the_bundle_is_one_the_backup_importer_reads(monkeypatch):
     """The whole design rests on this: a Jira import is a restore of something
     this app could have exported, so the applier's own reader has to open what
     the fetch writes without knowing where it came from."""
-    from app.services.import_engine.backup import open_backup_zip, read_manifest
+    from app.services.import_engine.backup import read_manifest
+    from app.services.import_engine.zip_bounds import open_zip
 
     _site(monkeypatch, issues=[_issue("ACME-1", "One"), _issue("ACME-2", "Two")])
     payload, report = await _bundle(monkeypatch)
 
-    archive = open_backup_zip(payload)
+    archive = open_zip(payload)
     manifest = read_manifest(archive)
 
     assert manifest.type == "initiative-backup"
@@ -173,19 +174,21 @@ async def test_the_bundle_is_one_the_backup_importer_reads(monkeypatch):
 async def test_the_bundle_files_into_the_initiative_somebody_chose(monkeypatch):
     """A Jira project belongs in an initiative somebody already runs, not in a
     new one named after somebody else's site. That is what §8.2 was for."""
-    from app.services.import_engine.backup import open_backup_zip, read_manifest
+    from app.services.import_engine.backup import read_manifest
+    from app.services.import_engine.zip_bounds import open_zip
 
     _site(monkeypatch, issues=[_issue("ACME-1", "One")])
     payload, _ = await _bundle(monkeypatch)
 
-    manifest = read_manifest(open_backup_zip(payload))
+    manifest = read_manifest(open_zip(payload))
     assert len(manifest.initiatives) == 1
     assert manifest.initiatives[0].target_initiative_id == 42
 
 
 async def test_the_bundle_names_the_people_it_quotes(monkeypatch):
     """The wizard's people step is rendered from this."""
-    from app.services.import_engine.backup import open_backup_zip, read_manifest
+    from app.services.import_engine.backup import read_manifest
+    from app.services.import_engine.zip_bounds import open_zip
 
     _site(
         monkeypatch,
@@ -197,7 +200,7 @@ async def test_the_bundle_names_the_people_it_quotes(monkeypatch):
     )
     payload, _ = await _bundle(monkeypatch)
 
-    manifest = read_manifest(open_backup_zip(payload))
+    manifest = read_manifest(open_zip(payload))
     # Most-named first, so the row that matters most is at the top.
     assert [p.handle for p in manifest.people] == ["Alice Chen", "Bob Ray"]
 
@@ -235,11 +238,12 @@ async def test_a_narrowing_narrows_rather_than_replaces(monkeypatch):
 async def test_the_board_decides_the_column_order(monkeypatch):
     """The stub board puts Done before To Do; the workflow lists them the
     other way round. The board wins."""
-    from app.services.import_engine.backup import open_backup_zip, read_manifest
+    from app.services.import_engine.backup import read_manifest
+    from app.services.import_engine.zip_bounds import open_zip
 
     _site(monkeypatch, issues=[_issue("ACME-1", "One")])
     payload, _ = await _bundle(monkeypatch)
-    archive = open_backup_zip(payload)
+    archive = open_zip(payload)
     entry = read_manifest(archive).entries[0]
     envelope = json.loads(archive.read(entry.path))
 
@@ -446,7 +450,7 @@ async def test_a_malformed_issue_is_counted_as_skipped(monkeypatch):
 
 
 async def test_the_zip_stays_inside_the_members_bound(monkeypatch):
-    """open_backup_zip refuses an archive with too many members, so the fetch
+    """open_zip refuses an archive with too many members, so the fetch
     must not build one it would then refuse."""
     _site(monkeypatch, issues=[_issue("ACME-1", "One")])
     payload, _ = await _bundle(monkeypatch)
@@ -581,10 +585,11 @@ async def test_the_links_land_in_the_bundle(monkeypatch):
             ),
         ],
     )
-    from app.services.import_engine.backup import open_backup_zip, read_manifest
+    from app.services.import_engine.backup import read_manifest
+    from app.services.import_engine.zip_bounds import open_zip
 
     payload, _report = await _bundle(monkeypatch)
-    archive = open_backup_zip(payload)
+    archive = open_zip(payload)
     manifest = read_manifest(archive)
     envelope = json.loads(archive.read(manifest.entries[0].path))
     assert envelope["tasks"][1]["links"] == [
@@ -698,7 +703,8 @@ def _sprinted(key, *sprint_ids):
 async def test_sprints_ride_in_the_bundle_as_a_calendar_its_tasks_point_at(
     monkeypatch,
 ):
-    from app.services.import_engine.backup import open_backup_zip, read_manifest
+    from app.services.import_engine.backup import read_manifest
+    from app.services.import_engine.zip_bounds import open_zip
 
     _sprint_site(monkeypatch, [_sprinted("ACME-1", 7), _sprinted("ACME-2", 7, 8)])
     payload, report = await _bundle(monkeypatch)
@@ -708,7 +714,7 @@ async def test_sprints_ride_in_the_bundle_as_a_calendar_its_tasks_point_at(
         1,
         0,
     )
-    archive = open_backup_zip(payload)
+    archive = open_zip(payload)
     manifest = read_manifest(archive)
     calendar_entry = next(e for e in manifest.entries if e.tool == "calendar")
     assert manifest.initiatives[0].tools["calendar"] == "included"
@@ -730,7 +736,8 @@ async def test_sprints_ride_in_the_bundle_as_a_calendar_its_tasks_point_at(
 async def test_sprints_blocked_by_the_target_are_counted_and_left_out(monkeypatch):
     """Counted, so the plan can say what is being left behind; and no task is
     pointed at a sprint that will not exist."""
-    from app.services.import_engine.backup import open_backup_zip, read_manifest
+    from app.services.import_engine.backup import read_manifest
+    from app.services.import_engine.zip_bounds import open_zip
 
     _sprint_site(monkeypatch, [_sprinted("ACME-1", 7)])
     payload, report = await _bundle(
@@ -740,9 +747,9 @@ async def test_sprints_blocked_by_the_target_are_counted_and_left_out(monkeypatc
     assert report.sprints == 1
     assert report.sprint_calendars == 0
     assert report.sprints_skipped == "IMPORT_TOOL_DISABLED"
-    manifest = read_manifest(open_backup_zip(payload))
+    manifest = read_manifest(open_zip(payload))
     assert [e.tool for e in manifest.entries] == ["project"]
-    project = json.loads(open_backup_zip(payload).read(manifest.entries[0].path))
+    project = json.loads(open_zip(payload).read(manifest.entries[0].path))
     assert project["tasks"][0]["links"] == []
 
 
@@ -816,9 +823,10 @@ async def test_comments_come_with_their_issue_and_the_rest_are_paged_in(monkeypa
 
     assert len(comment_calls) == 1 and "/issue/ACME-1/comment" in comment_calls[0]
     assert report.comments == 3
-    from app.services.import_engine.backup import open_backup_zip, read_manifest
+    from app.services.import_engine.backup import read_manifest
+    from app.services.import_engine.zip_bounds import open_zip
 
-    archive = open_backup_zip(payload)
+    archive = open_zip(payload)
     manifest = read_manifest(archive)
     envelope = json.loads(archive.read(manifest.entries[0].path))
     assert [c["body"] for c in envelope["tasks"][0]["comments"]] == ["One", "Two"]
@@ -847,9 +855,10 @@ async def test_comments_can_be_left_behind(monkeypatch):
     assert "comment" not in search["json"]["fields"]
     assert report.comments == 0
 
-    from app.services.import_engine.backup import open_backup_zip, read_manifest
+    from app.services.import_engine.backup import read_manifest
+    from app.services.import_engine.zip_bounds import open_zip
 
-    archive = open_backup_zip(payload)
+    archive = open_zip(payload)
     envelope = json.loads(archive.read(read_manifest(archive).entries[0].path))
     assert envelope["tasks"][0]["comments"] == []
 
@@ -907,7 +916,8 @@ def _with_image(key, filename="door.png", att_id="10"):
 async def test_images_ride_in_the_bundle_as_assets_the_task_points_at(monkeypatch):
     """Restored by the ordinary backup apply under a key made here: the
     manifest lists it, the zip holds it, and the task shows it."""
-    from app.services.import_engine.backup import open_backup_zip, read_manifest
+    from app.services.import_engine.backup import read_manifest
+    from app.services.import_engine.zip_bounds import open_zip
 
     calls = _image_site(monkeypatch, [_with_image("ACME-1")])
     payload, report = await _bundle(monkeypatch)
@@ -918,7 +928,7 @@ async def test_images_ride_in_the_bundle_as_assets_the_task_points_at(monkeypatc
     assert download["url"].endswith("/attachment/content/10?redirect=false")
     assert (report.images, report.image_bytes) == (1, len(b"\x89PNG-bytes"))
 
-    archive = open_backup_zip(payload)
+    archive = open_zip(payload)
     manifest = read_manifest(archive)
     (asset,) = manifest.assets
     assert asset.original_filename == "door.png"
@@ -928,13 +938,14 @@ async def test_images_ride_in_the_bundle_as_assets_the_task_points_at(monkeypatc
 
 
 async def test_images_can_be_left_behind(monkeypatch):
-    from app.services.import_engine.backup import open_backup_zip, read_manifest
+    from app.services.import_engine.backup import read_manifest
+    from app.services.import_engine.zip_bounds import open_zip
 
     calls = _image_site(monkeypatch, [_with_image("ACME-1")])
     payload, report = await _bundle(monkeypatch, include_attachments=False)
     assert not [c for c in calls if "/attachment/content/" in c["url"]]
     assert report.images == 0
-    assert read_manifest(open_backup_zip(payload)).assets == []
+    assert read_manifest(open_zip(payload)).assets == []
 
 
 async def test_a_cancel_reaches_a_fetch_inside_one_project(monkeypatch):

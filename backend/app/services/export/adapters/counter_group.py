@@ -58,7 +58,7 @@ def _columns(locale: str) -> list[dict]:
 
 class CounterGroupAdapter(ToolExportAdapter):
     tool = Tool.counter_group
-    format_choices = ("json", "pdf", "csv", "xlsx", "md")
+    formats = ("json", "pdf", "csv", "xlsx", "md")
 
     async def fetch(
         self,

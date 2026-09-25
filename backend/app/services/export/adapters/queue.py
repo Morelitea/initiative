@@ -65,7 +65,7 @@ def _columns(locale: str) -> list[dict]:
 
 class QueueAdapter(ToolExportAdapter):
     tool = Tool.queue
-    format_choices = ("json", "pdf", "csv", "xlsx", "md")
+    formats = ("json", "pdf", "csv", "xlsx", "md")
 
     async def fetch(
         self,

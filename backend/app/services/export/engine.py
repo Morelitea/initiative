@@ -52,7 +52,9 @@ class SourceAdapter(Protocol):
 
     source: str
     template_id: str
-    formats: frozenset[str]
+
+    @property
+    def formats(self) -> tuple[str, ...]: ...
 
     async def count(
         self,

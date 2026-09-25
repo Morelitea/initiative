@@ -96,9 +96,8 @@ class ToolExportAdapter:
     # template. A tool with report formats names its own.
     template_id: str = "data-table"
     #: The formats this tool exports in, in the order its route publishes
-    #: them. ``formats`` is derived from it for membership checks.
-    format_choices: tuple[str, ...] = ("json",)
-    formats: frozenset[str] = frozenset(format_choices)
+    #: them.
+    formats: tuple[str, ...] = ("json",)
     #: What a marketplace listing of this tool shows beside what it installs.
     #: A tool made of content previews with an example the publisher filled in;
     #: a tool made of queries over the community's data previews with sample
@@ -109,7 +108,6 @@ class ToolExportAdapter:
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         cls.source = tool_export_source(cls.tool)
-        cls.formats = frozenset(cls.format_choices)
 
     # -- what a tool states --------------------------------------------------
 

@@ -68,7 +68,7 @@ _FILE_SIZE_ROW_BYTES = 1_048_576
 class DocumentAdapter(ToolExportAdapter):
     tool = Tool.document
     template_id = "document"  # the Lexical PDF template
-    format_choices = tuple(
+    formats = tuple(
         dict.fromkeys(fmt for fmts in _TYPE_FORMATS.values() for fmt in fmts)
     )
 

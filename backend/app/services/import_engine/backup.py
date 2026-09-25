@@ -136,10 +136,6 @@ def _entry_kind(entry: ManifestEntry) -> SearchEntityType | None:
 logger = logging.getLogger(__name__)
 
 
-#: A backup is opened like any zip the engine reads; the name callers know.
-open_backup_zip = open_zip
-
-
 def read_manifest(archive: zipfile.ZipFile, *, fetched: bool = False) -> BackupManifest:
     """The backup's manifest, read up to the JSON cap and checked.
 
@@ -308,192 +304,164 @@ async def apply_backup(
     ``heartbeat`` is called after each asset and each entry, so the job can
     show it is still being applied. ``fetched`` is as for
     :func:`zip_bounds.open_zip`."""
-    archive = await asyncio.to_thread(open_zip, payload, fetched=fetched)
-    try:
-        return await _apply_archive(
-            session,
-            archive=archive,
-            user=user,
-            guild_id=guild_id,
-            include=include,
-            people_map=people_map,
-            exclude_properties=exclude_properties,
-            heartbeat=heartbeat,
-            fetched=fetched,
-        )
-    finally:
-        archive.close()
-
-
-async def _apply_archive(
-    session: AsyncSession,
-    *,
-    archive: zipfile.ZipFile,
-    user: User,
-    guild_id: int,
-    include: dict[str, bool] | None,
-    people_map: Any,
-    exclude_properties: Any,
-    heartbeat: Callable[[], Awaitable[None]] | None,
-    fetched: bool,
-) -> BackupImportResult:
     from app.api.deps import establish_guild_access
     from app.services.import_engine.importers import IMPORTERS
     from app.models.platform.guild import GuildRole
     from app.services.platform import guilds as guilds_service
     from app.services.tenant import initiatives as initiatives_service
 
-    manifest = await asyncio.to_thread(read_manifest, archive, fetched=fetched)
-    max_json_bytes = json_cap(fetched=fetched)
-    result = BackupImportResult()
+    with await asyncio.to_thread(open_zip, payload, fetched=fetched) as archive:
+        manifest = await asyncio.to_thread(read_manifest, archive, fetched=fetched)
+        max_json_bytes = json_cap(fetched=fetched)
+        result = BackupImportResult()
 
-    # Re-verify the seat, held outright, at apply time — enqueue-time
-    # authority can be gone by now, and standing up a new initiative in the
-    # community is the seat's act. It is asked for only when something here
-    # actually creates one: a bundle that applies into initiatives somebody
-    # already runs is gated by the per-tool create permission in those
-    # initiatives instead (§8.2), which is the same gate a lone envelope
-    # passes.
-    if any(mi.target_initiative_id is None for mi in manifest.initiatives):
-        membership = await guilds_service.get_membership(
-            session, guild_id=guild_id, user_id=user.id
+        # Re-verify the seat, held outright, at apply time — enqueue-time
+        # authority can be gone by now, and standing up a new initiative in the
+        # community is the seat's act. It is asked for only when something here
+        # actually creates one: a bundle that applies into initiatives somebody
+        # already runs is gated by the per-tool create permission in those
+        # initiatives instead (§8.2), which is the same gate a lone envelope
+        # passes.
+        if any(mi.target_initiative_id is None for mi in manifest.initiatives):
+            membership = await guilds_service.get_membership(
+                session, guild_id=guild_id, user_id=user.id
+            )
+            if membership is None or membership.role is not GuildRole.superadmin:
+                raise ImportEngineError(
+                    ImportEngineMessages.IMPORT_SUPERADMIN_REQUIRED, status_code=403
+                )
+
+        # Assets first, one chunk: written under their ORIGINAL storage keys so
+        # embedded editor-state image references resolve without rewriting.
+        if manifest.assets:
+            written = await _restore_assets(
+                session, archive, manifest, guild_id, user, result, heartbeat
+            )
+            try:
+                await session.commit()
+            except BaseException:
+                remove_written(guild_id, written)
+                raise
+
+        assets_by_key = {a.storage_key: a for a in manifest.assets}
+        entries_by_initiative: dict[int, list[ManifestEntry]] = {}
+        for entry in manifest.entries:
+            entries_by_initiative.setdefault(entry.initiative_id, []).append(entry)
+
+        since_refresh = 0
+        from app.models.tenant.initiative import Initiative
+
+        # One context for the whole bundle. Its collector matters because an edge
+        # routinely crosses two entries applied by two different importers, so
+        # nothing resolves until the last of them has flushed; its people map is
+        # what the confirm's mapping step recorded, re-checked against real
+        # membership here rather than trusted from the job row.
+        from app.services.import_engine.people import resolve_people_map
+
+        context = ImportContext(
+            people=await resolve_people_map(session, guild_id=guild_id, raw=people_map),
+            excluded_properties=excluded_property_names(exclude_properties),
+            source_url=manifest.source_instance_url,
+            same_community=exported_from_here(
+                manifest.source_instance_url, manifest.guild.id, guild_id=guild_id
+            ),
         )
-        if membership is None or membership.role is not GuildRole.superadmin:
-            raise ImportEngineError(
-                ImportEngineMessages.IMPORT_SUPERADMIN_REQUIRED, status_code=403
+
+        for mi in manifest.initiatives:
+            # System sentinel: user-attributed job, gate passed at enqueue.
+            await establish_guild_access(
+                session, user, guild_id, satisfied_providers=SYSTEM_SATISFIED
+            )
+            entries_here = entries_by_initiative.get(mi.id, [])
+            if mi.target_initiative_id is not None:
+                initiative = await _resolve_target_initiative(
+                    session,
+                    target_initiative_id=mi.target_initiative_id,
+                    entries=entries_here,
+                    user=user,
+                    guild_id=guild_id,
+                    include=include,
+                )
+            else:
+                initiative = await initiatives_service.create_imported_initiative(
+                    session,
+                    guild_id=guild_id,
+                    name=mi.name,
+                    description=mi.description,
+                    color=mi.color,
+                    tool_flags=_manifest_tool_flags(mi.tools),
+                    manager_id=user.id,
+                )
+            result.initiatives.append(
+                {
+                    "source_id": mi.id,
+                    "initiative_id": initiative.id,
+                    "name": initiative.name,
+                }
             )
 
-    # Assets first, one chunk: written under their ORIGINAL storage keys so
-    # embedded editor-state image references resolve without rewriting.
-    if manifest.assets:
-        written = await _restore_assets(
-            session, archive, manifest, guild_id, user, result, heartbeat
-        )
-        try:
+            entries = sorted(
+                entries_here,
+                key=lambda e: (
+                    -1
+                    if e.tool == _STRUCTURAL_TOOL
+                    else _TOOL_ORDER.index(e.tool)
+                    if e.tool in _TOOL_ORDER
+                    else len(_TOOL_ORDER)
+                ),
+            )
+            for entry in entries:
+                since_refresh += 1
+                if since_refresh >= _REFRESH_EVERY:
+                    await session.commit()
+                    await establish_guild_access(
+                        session, user, guild_id, satisfied_providers=SYSTEM_SATISFIED
+                    )
+                    # Re-load the initiative on the refreshed transaction.
+                    initiative = (
+                        await session.exec(
+                            select(Initiative).where(Initiative.id == initiative.id)
+                        )
+                    ).one()
+                    since_refresh = 0
+                outcome = await _apply_entry(
+                    session,
+                    archive=archive,
+                    entry=entry,
+                    initiative=initiative,
+                    user=user,
+                    include=include,
+                    importers=IMPORTERS,
+                    assets_by_key=assets_by_key,
+                    result=result,
+                    context=context,
+                    max_json_bytes=max_json_bytes,
+                )
+                result.entries.append(outcome)
+                bucket = result.per_tool.setdefault(
+                    entry.tool, {"created": 0, "failed": 0, "skipped": 0}
+                )
+                bucket[outcome.status] += 1
+                if heartbeat is not None:
+                    await heartbeat()
             await session.commit()
-        except BaseException:
-            remove_written(guild_id, written)
-            raise
 
-    assets_by_key = {a.storage_key: a for a in manifest.assets}
-    entries_by_initiative: dict[int, list[ManifestEntry]] = {}
-    for entry in manifest.entries:
-        entries_by_initiative.setdefault(entry.initiative_id, []).append(entry)
-
-    since_refresh = 0
-    from app.models.tenant.initiative import Initiative
-
-    # One context for the whole bundle. Its collector matters because an edge
-    # routinely crosses two entries applied by two different importers, so
-    # nothing resolves until the last of them has flushed; its people map is
-    # what the confirm's mapping step recorded, re-checked against real
-    # membership here rather than trusted from the job row.
-    from app.services.import_engine.people import resolve_people_map
-
-    context = ImportContext(
-        people=await resolve_people_map(session, guild_id=guild_id, raw=people_map),
-        excluded_properties=excluded_property_names(exclude_properties),
-        source_url=manifest.source_instance_url,
-        same_community=exported_from_here(
-            manifest.source_instance_url, manifest.guild.id, guild_id=guild_id
-        ),
-    )
-
-    for mi in manifest.initiatives:
-        # System sentinel: user-attributed job, gate passed at enqueue.
+        # Everything is in the database; now the names can become edges.
         await establish_guild_access(
             session, user, guild_id, satisfied_providers=SYSTEM_SATISFIED
         )
-        entries_here = entries_by_initiative.get(mi.id, [])
-        if mi.target_initiative_id is not None:
-            initiative = await _resolve_target_initiative(
-                session,
-                target_initiative_id=mi.target_initiative_id,
-                entries=entries_here,
-                user=user,
-                guild_id=guild_id,
-                include=include,
-            )
-        else:
-            initiative = await initiatives_service.create_imported_initiative(
-                session,
-                guild_id=guild_id,
-                name=mi.name,
-                description=mi.description,
-                color=mi.color,
-                tool_flags=_manifest_tool_flags(mi.tools),
-                manager_id=user.id,
-            )
-        result.initiatives.append(
-            {
-                "source_id": mi.id,
-                "initiative_id": initiative.id,
-                "name": initiative.name,
-            }
-        )
-
-        entries = sorted(
-            entries_here,
-            key=lambda e: (
-                -1
-                if e.tool == _STRUCTURAL_TOOL
-                else _TOOL_ORDER.index(e.tool)
-                if e.tool in _TOOL_ORDER
-                else len(_TOOL_ORDER)
-            ),
-        )
-        for entry in entries:
-            since_refresh += 1
-            if since_refresh >= _REFRESH_EVERY:
-                await session.commit()
-                await establish_guild_access(
-                    session, user, guild_id, satisfied_providers=SYSTEM_SATISFIED
-                )
-                # Re-load the initiative on the refreshed transaction.
-                initiative = (
-                    await session.exec(
-                        select(Initiative).where(Initiative.id == initiative.id)
-                    )
-                ).one()
-                since_refresh = 0
-            outcome = await _apply_entry(
-                session,
-                archive=archive,
-                entry=entry,
-                initiative=initiative,
-                user=user,
-                include=include,
-                importers=IMPORTERS,
-                assets_by_key=assets_by_key,
-                result=result,
-                context=context,
-                max_json_bytes=max_json_bytes,
-            )
-            result.entries.append(outcome)
-            bucket = result.per_tool.setdefault(
-                entry.tool, {"created": 0, "failed": 0, "skipped": 0}
-            )
-            bucket[outcome.status] += 1
-            if heartbeat is not None:
-                await heartbeat()
+        resolution = await context.links.resolve(session, created_by=user.id)
+        result.links_created = resolution.created
+        result.links_unresolved = resolution.unresolved
+        # What a body names is placed on what it became here.
+        await resolve_references(session, context, author_id=user.id)
+        # And a link written in a task to a page that came over in the same
+        # bundle becomes a mention of that page.
+        await resolve_page_links(session, context.links, site_url=context.source_url)
+        await _file_documents_under_pages(session, context)
         await session.commit()
 
-    # Everything is in the database; now the names can become edges.
-    await establish_guild_access(
-        session, user, guild_id, satisfied_providers=SYSTEM_SATISFIED
-    )
-    resolution = await context.links.resolve(session, created_by=user.id)
-    result.links_created = resolution.created
-    result.links_unresolved = resolution.unresolved
-    # What a body names is placed on what it became here.
-    await resolve_references(session, context, author_id=user.id)
-    # And a link written in a task to a page that came over in the same
-    # bundle becomes a mention of that page.
-    await resolve_page_links(session, context.links, site_url=context.source_url)
-    await _file_documents_under_pages(session, context)
-    await session.commit()
-
-    return result
+        return result
 
 
 async def _file_documents_under_pages(
@@ -598,14 +566,11 @@ async def _apply_entry(
     importers: dict,
     assets_by_key: dict[str, Any],
     result: BackupImportResult,
+    max_json_bytes: int,
     context: ImportContext | None = None,
-    max_json_bytes: int | None = None,
 ) -> EntryResult:
     """Apply one manifest entry in its own savepoint and report how it went.
-    Its envelope is read up to ``max_json_bytes`` (the upload cap when not
-    given)."""
-    if max_json_bytes is None:
-        max_json_bytes = json_cap()
+    Its envelope is read up to ``max_json_bytes``."""
     base = {
         "path": entry.path,
         "tool": entry.tool,

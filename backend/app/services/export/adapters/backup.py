@@ -103,7 +103,7 @@ _REFRESH_EVERY = 25
 class InitiativeExportAdapter:
     source = "initiative"
     template_id = "data-table"  # protocol requirement; items override per se
-    formats = frozenset({"zip"})
+    formats = ("zip",)
     always_job = True
     force_zip = True
 

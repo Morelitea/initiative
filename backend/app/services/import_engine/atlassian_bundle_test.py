@@ -6,7 +6,8 @@ from collections import Counter
 import pytest
 
 from app.services.import_engine.atlassian_bundle import BundleWriter, merge_people
-from app.services.import_engine.backup import open_backup_zip, read_manifest
+from app.services.import_engine.backup import read_manifest
+from app.services.import_engine.zip_bounds import open_zip
 from app.services.import_engine.jira_attachments import StoredImage
 
 pytestmark = pytest.mark.unit
@@ -60,7 +61,7 @@ async def test_files_are_written_as_they_arrive_and_listed_when_named():
         await writer.put_asset(picture, b"\x89PNG")
         path = _finish(writer, images=[picture], task_files=[notes])
 
-        archive = open_backup_zip(path)
+        archive = open_zip(path)
         manifest = read_manifest(archive)
         assert [a.storage_key for a in manifest.assets] == ["k1.png", "k2.txt"]
         assert manifest.initiatives[0].target_initiative_id == 9
@@ -103,9 +104,9 @@ def test_a_fetched_bundle_opens_past_the_upload_bounds(monkeypatch):
     monkeypatch.setattr(import_limits, "IMPORT_MAX_ZIP_MEMBERS", 2)
 
     with pytest.raises(ImportEngineError):
-        open_backup_zip(payload)
-    assert len(open_backup_zip(payload, fetched=True).infolist()) == 3
+        open_zip(payload)
+    assert len(open_zip(payload, fetched=True).infolist()) == 3
 
     monkeypatch.setattr(import_limits, "IMPORT_FETCH_MAX_ZIP_MEMBERS", 2)
     with pytest.raises(ImportEngineError):
-        open_backup_zip(payload, fetched=True)
+        open_zip(payload, fetched=True)

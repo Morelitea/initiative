@@ -199,10 +199,6 @@ _jobs: data_jobs.Dispatcher[ImportJob] = data_jobs.Dispatcher(
     run=_run,
 )
 
-#: The jobs this process is running, by ``(guild_id, job_id)``, with which
-#: kind of slot each holds.
-_running = _jobs.running
-
 
 async def process_import_jobs() -> None:
     """Run passes until one starts nothing, waiting for each pass's jobs.
@@ -218,13 +214,6 @@ async def dispatch_import_jobs() -> list[asyncio.Task[None]]:
     slots can take, at most one job per community. Returns the tasks it
     started; each runs, records its outcome and notifies on its own."""
     return await _jobs.dispatch()
-
-
-async def cancel_running_jobs() -> None:
-    """Stop every import this process is running, for shutdown. A stopped
-    fetch is queued again by the sweep; a stopped apply is marked
-    interrupted."""
-    await _jobs.cancel_running()
 
 
 async def _apply(session: AsyncSession, job: ImportJob, *, guild_id: int) -> JobOutcome:

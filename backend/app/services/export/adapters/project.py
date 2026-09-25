@@ -54,7 +54,7 @@ def _columns(locale: str) -> list[dict]:
 class ProjectAdapter(ToolExportAdapter):
     tool = Tool.project
     template_id = "project-report"
-    format_choices = ("json", "pdf", "csv", "xlsx")
+    formats = ("json", "pdf", "csv", "xlsx")
 
     async def count(
         self,

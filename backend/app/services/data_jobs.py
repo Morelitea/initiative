@@ -32,7 +32,7 @@ from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Generic, Protocol, TypeVar
+from typing import Any, Generic, TypeVar
 
 from sqlalchemy import func, text
 from sqlmodel import SQLModel, select
@@ -50,38 +50,16 @@ logger = logging.getLogger(__name__)
 JobOutcome = tuple[int, NotificationType, dict[str, Any]]
 
 JobT = TypeVar("JobT", bound=SQLModel)
-JobT_contra = TypeVar("JobT_contra", bound=SQLModel, contravariant=True)
-
 Heartbeat = Callable[[], Awaitable[None]]
 
+#: ``(session, *, guild_id, now, own)``: deal with one community's quiet rows,
+#: leaving alone ``own``, the ids of the jobs this process is running there.
+#: Returns the notifications to send.
+Sweep = Callable[..., Awaitable[list[JobOutcome]]]
 
-class Sweep(Protocol):
-    """Deal with one community's quiet rows. ``own`` is the ids of the jobs
-    this process is running there, which the sweep leaves alone. Returns the
-    notifications to send."""
-
-    async def __call__(
-        self,
-        session: AsyncSession,
-        *,
-        guild_id: int,
-        now: datetime,
-        own: list[int],
-    ) -> list[JobOutcome]: ...
-
-
-class Runner(Protocol[JobT_contra]):
-    """Run one claimed job to the end and record how it ended. Returns the
-    notification to send, if there is one."""
-
-    async def __call__(
-        self,
-        session: AsyncSession,
-        job: JobT_contra,
-        *,
-        guild_id: int,
-        kind: str,
-    ) -> JobOutcome | None: ...
+#: ``(session, job, *, guild_id, kind)``: run one claimed job to the end and
+#: record how it ended. Returns the notification to send, if there is one.
+Runner = Callable[..., Awaitable[JobOutcome | None]]
 
 
 #: Every dispatcher, for :func:`cancel_running_jobs`.
@@ -111,7 +89,7 @@ class Dispatcher(Generic[JobT]):
     start_status: Callable[[str], str]
     slots: Callable[[str], int]
     sweep: Sweep
-    run: Runner[JobT]
+    run: Runner
     #: The jobs this process is running, by ``(guild_id, job_id)``, with the
     #: kind of slot each holds.
     running: dict[tuple[int, int], tuple[str, asyncio.Task[None]]] = field(

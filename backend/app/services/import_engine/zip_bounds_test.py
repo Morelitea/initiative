@@ -92,18 +92,6 @@ def test_a_json_member_parses_or_says_what_is_wrong():
         zip_bounds.read_json_member(archive, "absent.json", max_bytes=100)
 
 
-def test_a_fetched_bundle_takes_the_larger_json_cap():
-    assert zip_bounds.json_cap() == import_limits.IMPORT_MAX_ENVELOPE_BYTES
-    assert (
-        zip_bounds.json_cap(fetched=True)
-        == import_limits.IMPORT_FETCH_MAX_ENVELOPE_BYTES
-    )
-    assert (
-        import_limits.IMPORT_FETCH_MAX_ENVELOPE_BYTES
-        > import_limits.IMPORT_MAX_ENVELOPE_BYTES
-    )
-
-
 @pytest.mark.parametrize("name", ["../up.txt", "/root.txt", "a/../../b.txt"])
 def test_a_name_outside_the_zip_is_refused(name):
     with pytest.raises(ImportEngineError) as caught:

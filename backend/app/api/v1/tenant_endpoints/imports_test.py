@@ -16,6 +16,7 @@ from app.testing.factories import (
     create_calendar_event,
     create_counter_group,
     create_document,
+    create_import_job,
     create_initiative,
     create_queue,
     create_task,
@@ -381,11 +382,7 @@ async def test_large_envelope_becomes_job_and_worker_applies_it(
     assert "items" not in json.dumps(body)
     assert "payload_ref" not in body
 
-    user_session = await role_session("app_user")
-    monkeypatch.setattr(
-        import_worker, "_open_user_session", lambda _guild_id: user_session
-    )
-    await import_worker.process_import_jobs()
+    await _run_import_worker(monkeypatch, role_session)
 
     status_resp = await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
     job = status_resp.json()
@@ -446,11 +443,7 @@ async def test_worker_fails_closed_on_revoked_permission(
     )
     await session.commit()
 
-    user_session = await role_session("app_user")
-    monkeypatch.setattr(
-        import_worker, "_open_user_session", lambda _guild_id: user_session
-    )
-    await import_worker.process_import_jobs()
+    await _run_import_worker(monkeypatch, role_session)
 
     job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
     assert job["status"] == ImportJobStatus.failed.value
@@ -471,12 +464,11 @@ async def test_stale_running_import_fails_closed_not_reapplied(
 
     monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 0)
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    from app.testing import route_session_to_guild
-
-    await route_session_to_guild(session, a.guild.id)
     stale_time = datetime.now(timezone.utc) - timedelta(minutes=30)
-    job = ImportJob(
-        created_by=a.user.id,
+    job = await create_import_job(
+        session,
+        a.guild,
+        a.user,
         source="initiative-queue",
         params={"initiative_id": a.initiative.id},
         payload_ref="imports/gone.json",
@@ -484,15 +476,8 @@ async def test_stale_running_import_fails_closed_not_reapplied(
         created_at=stale_time,
         updated_at=stale_time,
     )
-    session.add(job)
-    await session.commit()
-    await session.refresh(job)
 
-    user_session = await role_session("app_user")
-    monkeypatch.setattr(
-        import_worker, "_open_user_session", lambda _guild_id: user_session
-    )
-    await import_worker.process_import_jobs()
+    await _run_import_worker(monkeypatch, role_session)
 
     await session.refresh(job)
     assert job.status == ImportJobStatus.failed
@@ -678,6 +663,41 @@ def _queue_entry(initiative_id=1):
     return entry, envelope
 
 
+def _file_entry(key, *, entity_id=1, title="Handout", tags=()):
+    """A manifest entry for a file document whose blob is ``assets/<key>``."""
+    return {
+        "path": f"assets/{key}",
+        "tool": "document",
+        "type": "file",
+        "schema_version": None,
+        "entity_id": entity_id,
+        "title": title,
+        "initiative_id": 1,
+        "tags": list(tags),
+        "properties": [],
+        "asset": f"assets/{key}",
+    }
+
+
+def _asset_record(
+    key,
+    *,
+    size_bytes,
+    content_type="application/pdf",
+    original_filename=None,
+    referenced_by=(),
+):
+    """A manifest's record of one file under ``assets/``."""
+    return {
+        "path": f"assets/{key}",
+        "storage_key": key,
+        "original_filename": original_filename or key,
+        "content_type": content_type,
+        "size_bytes": size_bytes,
+        "referenced_by": list(referenced_by),
+    }
+
+
 async def _upload_backup(client, actor, zip_bytes):
     return await client.post(
         actor.g("/imports/backup"),
@@ -743,29 +763,16 @@ async def test_backup_import_end_to_end_with_assets(
     )
 
     entry, envelope = _queue_entry()
-    file_entry = {
-        "path": "assets/restore-me.pdf",
-        "tool": "document",
-        "type": "file",
-        "schema_version": None,
-        "entity_id": 2,
-        "title": "Handout",
-        "initiative_id": 1,
-        "tags": ["restored"],
-        "properties": [],
-        "asset": "assets/restore-me.pdf",
-    }
+    file_entry = _file_entry("restore-me.pdf", entity_id=2, tags=["restored"])
     manifest = _minimal_manifest(
         entries=[entry, file_entry],
         assets=[
-            {
-                "path": "assets/restore-me.pdf",
-                "storage_key": "restore-me.pdf",
-                "original_filename": "Handout.pdf",
-                "content_type": "application/pdf",
-                "size_bytes": len(payload),
-                "referenced_by": ["initiatives/1-restored/documents/2-handout"],
-            }
+            _asset_record(
+                "restore-me.pdf",
+                size_bytes=len(payload),
+                original_filename="Handout.pdf",
+                referenced_by=["initiatives/1-restored/documents/2-handout"],
+            )
         ],
     )
     zip_bytes = _make_backup_zip(
@@ -1105,14 +1112,11 @@ async def test_backup_quota_exceeded_fails_job(
 
     manifest = _minimal_manifest(
         assets=[
-            {
-                "path": "assets/huge.bin",
-                "storage_key": "huge.bin",
-                "original_filename": "huge.bin",
-                "content_type": "application/octet-stream",
-                "size_bytes": 1_000_000,
-                "referenced_by": [],
-            }
+            _asset_record(
+                "huge.bin",
+                size_bytes=1_000_000,
+                content_type="application/octet-stream",
+            )
         ]
     )
     zip_bytes = _make_backup_zip(manifest, {"assets/huge.bin": b"x" * 1024})
@@ -1200,29 +1204,15 @@ async def test_backup_restores_fresh_assets_into_storage(
         guild_role=GuildRole.superadmin, initiative=True, project=True
     )
     payload = b"%PDF-brand-new-blob"
-    file_entry = {
-        "path": "assets/from-elsewhere.pdf",
-        "tool": "document",
-        "type": "file",
-        "schema_version": None,
-        "entity_id": 1,
-        "title": "Foreign Handout",
-        "initiative_id": 1,
-        "tags": [],
-        "properties": [],
-        "asset": "assets/from-elsewhere.pdf",
-    }
+    file_entry = _file_entry("from-elsewhere.pdf", title="Foreign Handout")
     manifest = _minimal_manifest(
         entries=[file_entry],
         assets=[
-            {
-                "path": "assets/from-elsewhere.pdf",
-                "storage_key": "from-elsewhere.pdf",
-                "original_filename": "Foreign Handout.pdf",
-                "content_type": "application/pdf",
-                "size_bytes": len(payload),
-                "referenced_by": [],
-            }
+            _asset_record(
+                "from-elsewhere.pdf",
+                size_bytes=len(payload),
+                original_filename="Foreign Handout.pdf",
+            )
         ],
     )
     zip_bytes = _make_backup_zip(manifest, {"assets/from-elsewhere.pdf": payload})
@@ -1274,14 +1264,11 @@ async def test_backup_quota_uses_zip_sizes_not_manifest_claims(
     big_blob = b"x" * 50_000  # actual bytes far over the quota
     manifest = _minimal_manifest(
         assets=[
-            {
-                "path": "assets/liar.bin",
-                "storage_key": "liar.bin",
-                "original_filename": "liar.bin",
-                "content_type": "application/octet-stream",
-                "size_bytes": 1,  # understated claim
-                "referenced_by": [],
-            }
+            _asset_record(
+                "liar.bin",
+                size_bytes=1,  # understated claim
+                content_type="application/octet-stream",
+            )
         ]
     )
     zip_bytes = _make_backup_zip(manifest, {"assets/liar.bin": big_blob})
@@ -1377,39 +1364,21 @@ async def test_backup_assets_are_stored_as_what_their_bytes_are(
     pdf = b"%PDF-1.4 handout"
     program = b"MZ\x90\x00" + b"\x00" * 60
 
-    def file_entry(key: str, entity_id: int, title: str) -> dict:
-        return {
-            "path": f"assets/{key}",
-            "tool": "document",
-            "type": "file",
-            "schema_version": None,
-            "entity_id": entity_id,
-            "title": title,
-            "initiative_id": 1,
-            "tags": [],
-            "properties": [],
-            "asset": f"assets/{key}",
-        }
-
-    def asset(key: str, content_type: str, data: bytes) -> dict:
-        return {
-            "path": f"assets/{key}",
-            "storage_key": key,
-            "original_filename": key,
-            "content_type": content_type,
-            "size_bytes": len(data),
-            "referenced_by": [],
-        }
-
     manifest = _minimal_manifest(
         entries=[
-            file_entry("typed-handout.pdf", 1, "Handout"),
-            file_entry("typed-tool.exe", 2, "Tool"),
+            _file_entry("typed-handout.pdf"),
+            _file_entry("typed-tool.exe", entity_id=2, title="Tool"),
         ],
         assets=[
             # Claimed as a page; it is a PDF.
-            asset("typed-handout.pdf", "text/html", pdf),
-            asset("typed-tool.exe", "application/x-msdownload", program),
+            _asset_record(
+                "typed-handout.pdf", size_bytes=len(pdf), content_type="text/html"
+            ),
+            _asset_record(
+                "typed-tool.exe",
+                size_bytes=len(program),
+                content_type="application/x-msdownload",
+            ),
         ],
     )
     job = await _apply_backup(
@@ -1787,16 +1756,7 @@ async def test_backup_attach_to_files_a_document_in_its_wiki(
         "asset": None,
     }
     file_entry = {
-        "path": "assets/field-notes.pdf",
-        "tool": "document",
-        "type": "file",
-        "schema_version": None,
-        "entity_id": 3,
-        "title": "Field notes",
-        "initiative_id": 1,
-        "tags": [],
-        "properties": [],
-        "asset": "assets/field-notes.pdf",
+        **_file_entry("field-notes.pdf", entity_id=3, title="Field notes"),
         "attach_to": {"kind": "wiki", "ref": wiki_path, "page": "rules"},
     }
     manifest = _minimal_manifest(entries=[file_entry, wiki_entry])
@@ -1955,15 +1915,15 @@ async def test_a_stale_fetch_is_re_claimed_not_failed(
 
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     long_ago = datetime.now(timezone.utc) - timedelta(hours=3)
-    job = ImportJob(
-        created_by=a.user.id,
+    job = await create_import_job(
+        session,
+        a.guild,
+        a.user,
         source="atlassian",
         params={"initiative_id": a.initiative.id},
         payload_ref="imports/half-written.json",
         status=ImportJobStatus.fetching,
     )
-    session.add(job)
-    await session.commit()
     # updated_at is stamped on write, so age it afterwards.
     await session.exec(
         ImportJob.__table__.update()
@@ -2056,11 +2016,7 @@ async def test_an_unmatched_author_keeps_their_name_and_no_account(
         a.g(f"/imports/jobs/{job['id']}/confirm"), headers=a.headers, json={}
     )
     assert confirm.status_code == 200, confirm.text
-    user_session = await role_session("app_user")
-    monkeypatch.setattr(
-        import_worker, "_open_user_session", lambda _guild_id: user_session
-    )
-    await import_worker.process_import_jobs()
+    await _run_import_worker(monkeypatch, role_session)
 
     comment = (
         await session.exec(
@@ -2118,11 +2074,7 @@ async def test_mentions_link_to_whoever_the_people_step_names(
         json={"people_map": {"Alice Chen": b.user.id}},
     )
     assert confirm.status_code == 200, confirm.text
-    user_session = await role_session("app_user")
-    monkeypatch.setattr(
-        import_worker, "_open_user_session", lambda _guild_id: user_session
-    )
-    await import_worker.process_import_jobs()
+    await _run_import_worker(monkeypatch, role_session)
 
     imported = (
         await session.exec(select(Task).where(Task.title == "Fit the door"))
@@ -2414,11 +2366,7 @@ async def test_the_people_map_decides_who_an_envelopes_assignee_is(
         },
     )
     assert confirm.status_code == 200, confirm.text
-    user_session = await role_session("app_user")
-    monkeypatch.setattr(
-        import_worker, "_open_user_session", lambda _guild_id: user_session
-    )
-    await import_worker.process_import_jobs()
+    await _run_import_worker(monkeypatch, role_session)
 
     task = (await session.exec(select(Task).where(Task.title == "Fit the door"))).one()
     assignees = (
@@ -4490,16 +4438,15 @@ async def test_confirm_refuses_a_malformed_list_of_unticked_properties(
     client, acting_user, session, bad
 ):
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    job = ImportJob(
-        created_by=a.user.id,
+    job = await create_import_job(
+        session,
+        a.guild,
+        a.user,
         source="atlassian",
         params={},
         status=ImportJobStatus.staged,
         payload_ref="imports/x.zip",
     )
-    session.add(job)
-    await session.commit()
-    await session.refresh(job)
 
     resp = await client.post(
         a.g(f"/imports/jobs/{job.id}/confirm"),
@@ -5699,13 +5646,12 @@ async def test_the_sweep_leaves_a_job_this_process_is_running(
     import asyncio
     from datetime import datetime, timedelta, timezone
 
-    from app.testing import route_session_to_guild
-
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    await route_session_to_guild(session, a.guild.id)
     stale_time = datetime.now(timezone.utc) - timedelta(minutes=30)
-    job = ImportJob(
-        created_by=a.user.id,
+    job = await create_import_job(
+        session,
+        a.guild,
+        a.user,
         source="initiative-queue",
         params={"initiative_id": a.initiative.id},
         payload_ref="imports/elsewhere.json",
@@ -5713,12 +5659,11 @@ async def test_the_sweep_leaves_a_job_this_process_is_running(
         created_at=stale_time,
         updated_at=stale_time,
     )
-    session.add(job)
-    await session.commit()
-    await session.refresh(job)
 
     alive = asyncio.create_task(asyncio.sleep(3600))
-    monkeypatch.setitem(import_worker._running, (a.guild.id, job.id), ("apply", alive))
+    monkeypatch.setitem(
+        import_worker._jobs.running, (a.guild.id, job.id), ("apply", alive)
+    )
     try:
         await import_worker.dispatch_import_jobs()
     finally:
