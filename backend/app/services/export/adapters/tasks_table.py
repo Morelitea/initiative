@@ -12,7 +12,6 @@ an ExportJob row persists, and what the worker replays here at render time.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -23,7 +22,7 @@ from app.core.references import TEXT_REFERENCE, kind_for_trigger
 from app.models.platform.user import User
 from app.models.tenant.task import Task, TaskStatusCategory
 from app.services.export.contract import RenderItem, RenderRequest
-from app.services.export.i18n import et, export_locale, localize_now
+from app.services.export.i18n import et, export_locale
 from app.services.export.markdown import blocks_from_markdown
 from app.core.user_display import display_name
 from app.services.export import limits as export_limits
@@ -118,20 +117,9 @@ class TasksTableAdapter:
             max_rows=export_limits.EXPORT_MAX_ROWS,
         )
         loc = export_locale(user)
-        local_now = localize_now(datetime.now(timezone.utc), params.get("tz"))
-        generated_at = local_now.strftime("%Y-%m-%d %H:%M %Z")
-        # Both attribution fields can be absent (some OAuth-provisioned
-        # accounts carry neither) — never render the literal "None".
-        author = display_name(user) or et("fallback.unknownAuthor", loc)
-        subtitle = " · ".join(
-            [
-                et("summary.tasks", loc, count=len(tasks)),
-                et("generatedBy", loc, date=generated_at, author=author),
-            ]
-        )
         data = {
             "title": et("title.tasks", loc),
-            "subtitle": subtitle,
+            "subtitle": et("summary.tasks", loc, count=len(tasks)),
             "footer": et("footer.tasks", loc),
             "page_of": et("pageOf", loc),
             "columns": _columns(loc),
@@ -165,17 +153,9 @@ class TasksTableAdapter:
             max_rows=export_limits.EXPORT_MAX_ROWS,
         )
         loc = export_locale(user)
-        local_now = localize_now(datetime.now(timezone.utc), params.get("tz"))
-        generated_at = local_now.strftime("%Y-%m-%d %H:%M %Z")
-        author = display_name(user) or et("fallback.unknownAuthor", loc)
         data = {
             "title": et("title.tasks", loc),
-            "subtitle": " · ".join(
-                [
-                    et("summary.tasks", loc, count=len(tasks)),
-                    et("generatedBy", loc, date=generated_at, author=author),
-                ]
-            ),
+            "subtitle": et("summary.tasks", loc, count=len(tasks)),
             "footer": et("footer.tasks", loc),
             "page_of": et("pageOf", loc),
             "empty_message": et("empty.tasks", loc),

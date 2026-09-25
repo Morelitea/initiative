@@ -25,6 +25,7 @@ import re
 import zipfile
 from typing import Any, Callable
 
+from app.services.export.stamp import markdown_stamp, stamp_docx
 from app.services.platform.csv_export import safe_filename_component
 
 # Lexical TextNode format bitmask.
@@ -429,7 +430,7 @@ def render_markdown(data: dict, read_blob: ReadBlob) -> tuple[bytes, str, str | 
 
 
 def _markdown_text(data: dict) -> str:
-    lines: list[str] = []
+    lines = markdown_stamp(data)
     title = str(data.get("title") or "").strip()
     if title:
         lines.append(f"# {title}")
@@ -613,6 +614,7 @@ def render_docx(data: dict, read_blob: ReadBlob) -> bytes:
     from docx.shared import Inches, Pt
 
     document = docx.Document()
+    stamp_docx(document, data)
     title = str(data.get("title") or "").strip()
     if title:
         document.add_heading(title, level=0)

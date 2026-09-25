@@ -164,7 +164,6 @@ def build_document_item(
         data = {
             # Title/footer are the document's own name (user data).
             "title": document.name,
-            "subtitle": et("exported", loc, date=date),
             "footer": document.name,
             "page_of": et("pageOf", loc),
             "stem": stem,

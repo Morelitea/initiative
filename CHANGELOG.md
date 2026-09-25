@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Repeated mentions in a document are one notification** — mentions of you in the same document join one unread notification until you read it, instead of a new email and push each time.
 - **Duplicates keep their sharing and need the create permission** — duplicating a project, document or counter group now shares the copy exactly as the original is shared, as long as it stays in the same initiative, and needs the permission to create one there. A project's copy used to be readable by everyone in the initiative, a document's copy by nobody but you, and a counter group's copy dropped its "all members" sharing.
 - **A project is owned by whoever makes it** — `POST /projects/` no longer takes an `owner_id`. To give a project to someone else, transfer its ownership after creating it.
+- **Export date and author move into the file's properties** — PDF and Markdown exports of documents, wikis, projects, queues, counter groups and task lists no longer print "exported …" or "generated … by …" under the title. Who exported the file and when is kept in the PDF, Word or Excel document properties, and as a hidden comment at the top of a Markdown file. Reports keep their counts, and the download's file name still has the date.
 
 ### Fixed
 

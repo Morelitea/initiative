@@ -31,7 +31,6 @@ from app.services.export.adapters._common import (
 from app.services.export.contract import RenderItem
 from app.services.export.i18n import et, export_locale
 from app.services.permissions import EXPORT_ACCESS
-from app.core.user_display import display_name
 
 # (row key, ``exports`` label key, Typst width hint) — labels resolve to the
 # creator's locale at build time.
@@ -123,27 +122,16 @@ def build_project_item(
             key=envelope_key(Tool.project, name, date),
             data=envelope.model_dump(mode="json"),
         )
-    return RenderItem(
-        key=export_stem(name, date), data=_report_payload(envelope, user, now)
-    )
+    return RenderItem(key=export_stem(name, date), data=_report_payload(envelope, user))
 
 
-def _report_payload(envelope: ProjectExportEnvelope, user: User, now: datetime) -> dict:
+def _report_payload(envelope: ProjectExportEnvelope, user: User) -> dict:
     tasks = [t for t in envelope.tasks if t.archived_at is None]
     loc = export_locale(user)
-    generated_at = now.strftime("%Y-%m-%d %H:%M %Z")
-    # Both attribution fields can be absent (some OAuth-provisioned accounts
-    # carry neither) — never render the literal "None".
-    author = display_name(user) or et("fallback.unknownAuthor", loc)
     return {
         # The project name is user data — never translated.
         "title": envelope.project.name,
-        "subtitle": " · ".join(
-            [
-                et("summary.tasks", loc, count=len(tasks)),
-                et("generatedBy", loc, date=generated_at, author=author),
-            ]
-        ),
+        "subtitle": et("summary.tasks", loc, count=len(tasks)),
         "footer": et("footer.project", loc, name=envelope.project.name),
         "page_of": et("pageOf", loc),
         "description": envelope.project.description or "",

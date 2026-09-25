@@ -19,6 +19,7 @@ from typing import Any
 from openpyxl import Workbook
 
 from app.services.export.contract import RenderItem
+from app.services.export.stamp import markdown_stamp, stamp_workbook
 from app.services.platform.csv_export import build_csv, neutralize_cell
 
 # Sheet titles have a 31-char limit and a forbidden character set in the XLSX
@@ -75,7 +76,7 @@ def render_md(item: RenderItem) -> bytes:
 
 
 def _md_header(item: RenderItem) -> list[str]:
-    lines: list[str] = []
+    lines = markdown_stamp(item.data)
     title = str(item.data.get("title", "")).strip()
     subtitle = str(item.data.get("subtitle", "")).strip()
     if title:
@@ -165,6 +166,7 @@ def render_xlsx(item: RenderItem) -> bytes:
     for row in rows:
         sheet.append([_xlsx_cell(value) for value in row])
     sheet.freeze_panes = "A2"
+    stamp_workbook(workbook, item.data)
     buffer = io.BytesIO()
     workbook.save(buffer)
     return buffer.getvalue()
