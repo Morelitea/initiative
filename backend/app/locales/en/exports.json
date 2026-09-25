@@ -34,8 +34,6 @@
     "counters_one": "{{count}} counter",
     "counters_other": "{{count}} counters"
   },
-  "generatedBy": "generated {{date}} by {{author}}",
-  "exported": "exported {{date}}",
   "round": "round {{round}}",
   "pageOf": "of",
   "status": {
@@ -62,7 +60,6 @@
     "start": "Start"
   },
   "fallback": {
-    "unknownAuthor": "unknown",
     "untitled": "(untitled)"
   }
 }

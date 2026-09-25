@@ -154,7 +154,7 @@ def build_queue_item(
             data=_envelope(queue, items, attachments),
         )
     return RenderItem(
-        key=export_stem(queue.name, date), data=_report_payload(queue, items, user, now)
+        key=export_stem(queue.name, date), data=_report_payload(queue, items, user)
     )
 
 
@@ -206,18 +206,11 @@ def _envelope(
     }
 
 
-def _report_payload(
-    queue: Queue, items: list[QueueItem], user: User, now: datetime
-) -> dict[str, Any]:
+def _report_payload(queue: Queue, items: list[QueueItem], user: User) -> dict[str, Any]:
     loc = export_locale(user)
-    generated_at = now.strftime("%Y-%m-%d %H:%M %Z")
-    # Both attribution fields can be absent (some OAuth-provisioned accounts
-    # carry neither) — never render the literal "None".
-    author = display_name(user) or et("fallback.unknownAuthor", loc)
     parts = [et("summary.items", loc, count=len(items))]
     if queue.is_active:
         parts.append(et("round", loc, round=queue.current_round))
-    parts.append(et("generatedBy", loc, date=generated_at, author=author))
     return {
         # The queue name is user data — never translated.
         "title": queue.name,

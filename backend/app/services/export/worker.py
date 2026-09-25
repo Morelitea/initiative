@@ -258,8 +258,10 @@ async def _execute(
         # Load the guild brand while the routed session is still open (it
         # reads the shared guild row); the icon bytes ride on the request.
         from app.services.export.branding import apply_brand
+        from app.services.export.stamp import stamp_export
 
         request = await apply_brand(request, user_session)
+        request = stamp_export(request, user)
 
     assert job.id is not None
     return await export_engine.render_to_storage(

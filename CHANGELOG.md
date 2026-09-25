@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Notifications go to people who can open what they name** — a mention, reply, comment, reaction, event update or task assignment now reaches someone only if they can open the task, document or calendar it is about. To bring someone into a thread, share the item with them first.
 - **Read notifications are cleared after 30 days** — once read, a notification stays in your list for 30 days. Unread ones stay until you read them.
 - **Repeated mentions in a document are one notification** — mentions of you in the same document join one unread notification until you read it, instead of a new email and push each time.
+- **Export date and author move into the file's properties** — PDF and Markdown exports of documents, wikis, projects, queues, counter groups and task lists no longer print "exported …" or "generated … by …" under the title. Who exported the file and when is kept in the PDF, Word or Excel document properties, and as a hidden comment at the top of a Markdown file. Reports keep their counts, and the download's file name still has the date.
 
 ### Fixed
 

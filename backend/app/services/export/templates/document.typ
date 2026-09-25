@@ -3,6 +3,13 @@
 // Referenced images are staged by the backend under assets/ in the compile
 // root; the payload's image blocks name them by file.
 #let payload = json(bytes(sys.inputs.at("data", default: "{}")))
+
+// Who exported the file and when: document metadata, not printed on the page.
+#let exported = payload.at("exported", default: (:))
+#set document(
+  author: exported.at("by", default: ()),
+  date: if "date" in exported { datetime(..exported.date) } else { auto },
+)
 #let blocks = payload.at("blocks", default: ())
 
 #set page(
@@ -89,8 +96,11 @@
 #let title = payload.at("title", default: "")
 #if title != "" [
   #text(size: 18pt, weight: "bold", title)
-  #v(2pt)
-  #text(size: 9pt, fill: luma(100), payload.at("subtitle", default: ""))
+  #let subtitle = payload.at("subtitle", default: "")
+  #if subtitle != "" [
+    #v(2pt)
+    #text(size: 9pt, fill: luma(100), subtitle)
+  ]
   #v(10pt)
 ]
 
