@@ -29,7 +29,6 @@ import {
   SIDEBAR_TOOLS,
   showsRelations,
   singularOf,
-  TOGGLEABLE_TOOLS,
   TOOL_ICONS,
   TOOL_SETTINGS_SECTIONS,
   TOOLS,
@@ -198,7 +197,7 @@ describe("tool i18n", () => {
       ).toBeTruthy();
     }
     const featureKeys = initiatives as unknown as Record<string, string>;
-    for (const tool of TOGGLEABLE_TOOLS) {
+    for (const tool of TOOLS) {
       const camel = toolCamelPlural(tool);
       expect(
         featureKeys[`${camel}Feature`],
@@ -467,12 +466,10 @@ describe("tool exports", () => {
   });
 
   it("derives the engine endpoint and selector params from the enum", async () => {
-    const { toolExportEndpoint, toolExportIdParam, toolExportIdsParam } = await import(
-      "@/lib/tools"
-    );
+    const { toolExportEndpoint, toolExportIdsParam, toolIdParam } = await import("@/lib/tools");
     expect(toolExportEndpoint(Tool.counter_group)).toBe("/exports/counter-group");
     expect(toolExportEndpoint(Tool.document)).toBe("/exports/document");
-    expect(toolExportIdParam(Tool.queue)).toBe("queue_id");
+    expect(toolIdParam(Tool.queue)).toBe("queue_id");
     expect(toolExportIdsParam(Tool.counter_group)).toBe("counter_group_ids");
   });
 });

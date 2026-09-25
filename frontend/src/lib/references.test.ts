@@ -3,14 +3,12 @@ import { describe, expect, it } from "vitest";
 import { buildInitiative } from "@/__tests__/factories";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { isCreatableFromName, linkableToolTypes } from "@/lib/references";
-import { TOGGLEABLE_TOOLS, toolViewPermission } from "@/lib/tools";
+import { TOOLS, toolViewPermission } from "@/lib/tools";
 
 // Every master switch on, derived from the registry rather than listed: a new
 // toggleable tool is switched on here the day it exists, so the "is the tools"
 // case below keeps meaning what it says.
-const allSwitchesOn = Object.fromEntries(
-  TOGGLEABLE_TOOLS.map((tool) => [toolViewPermission(tool), true])
-);
+const allSwitchesOn = Object.fromEntries(TOOLS.map((tool) => [toolViewPermission(tool), true]));
 
 const enabled = (overrides = {}) => buildInitiative({ ...allSwitchesOn, ...overrides });
 

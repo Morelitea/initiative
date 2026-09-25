@@ -363,7 +363,7 @@ const useDashboardRows = (initiativeId: number, filters: ToolIndexFilters): Tool
  * a page of its own names it here rather than being left out, so a new tool has
  * to state which of the two it is.
  */
-export const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
+const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
   [Tool.project]: { ownPage: "ProjectsPage — board and table views, and its own status filters" },
   [Tool.document]: { ownPage: "DocumentsPage — folders, and a tree beside the list" },
   [Tool.calendar]: { ownPage: "CalendarsPage — a month grid, not a shelf of cards" },

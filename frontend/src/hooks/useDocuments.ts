@@ -30,7 +30,6 @@ import type {
   GenerateDocumentSummaryResponse,
   GetDocumentCountsApiV1CGuildIdDocumentsCountsGetParams,
   ListDocumentsApiV1CGuildIdDocumentsGetParams,
-  ListMyDocumentsApiV1MeDocumentsGetParams,
   ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -100,18 +99,6 @@ export const useSetDocumentCache = () => {
       typeof data === "function" ? data : () => data
     );
   };
-};
-
-// ── Global (cross-guild) queries ────────────────────────────────────────────
-
-export const useGlobalDocuments = (
-  params?: ListMyDocumentsApiV1MeDocumentsGetParams,
-  options?: QueryOpts<DocumentListResponse>
-) => {
-  return useQuery<DocumentListResponse>({
-    ...documents.myListQuery(params),
-    ...options,
-  });
 };
 
 // ── Prefetch helpers ────────────────────────────────────────────────────────
