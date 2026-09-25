@@ -326,19 +326,15 @@ async def delete_wiki(
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
 ) -> None:
-    from app.services.platform import guilds as guilds_service
 
     wiki = await resource_access.load_authorized(
         session, Tool.wiki, wiki_id, current_user, guild_context, require_owner=True
     )
-    retention_days = await guilds_service.get_guild_retention_days(
-        session, guild_context.guild_id
-    )
-    await soft_delete_service.soft_delete_entity(
+    await soft_delete_service.trash(
         session,
         wiki,
+        guild_id=guild_context.guild_id,
         deleted_by_user_id=current_user.id,
-        retention_days=retention_days,
     )
     await session.commit()
 
@@ -699,21 +695,16 @@ async def delete_wiki_page(
 ) -> None:
     """Send a page to the trash. Its children go with it — a section is put
     away whole."""
-    from app.services.platform import guilds as guilds_service
-
     _wiki, page = await _load_page(
         session, wiki_id, page_id, current_user, guild_context, access="write"
     )
-    retention_days = await guilds_service.get_guild_retention_days(
-        session, guild_context.guild_id
-    )
     # Sub-pages go with it through CASCADE_CHILDREN, the same way a comment
     # thread follows its root.
-    await soft_delete_service.soft_delete_entity(
+    await soft_delete_service.trash(
         session,
         page,
+        guild_id=guild_context.guild_id,
         deleted_by_user_id=current_user.id,
-        retention_days=retention_days,
     )
     await session.commit()
 

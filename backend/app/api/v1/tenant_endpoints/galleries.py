@@ -524,8 +524,7 @@ async def delete_gallery(
 ) -> None:
     """Soft-delete a gallery and its pictures. Requires owner permission or
     guild admin."""
-    from app.services.platform import guilds as guilds_service
-    from app.services.tenant.soft_delete import soft_delete_entity
+    from app.services.tenant.soft_delete import trash
 
     gallery = await resource_access.load_authorized(
         session,
@@ -535,14 +534,11 @@ async def delete_gallery(
         guild_context,
         require_owner=True,
     )
-    retention_days = await guilds_service.get_guild_retention_days(
-        session, guild_context.guild_id
-    )
-    await soft_delete_entity(
+    await trash(
         session,
         gallery,
+        guild_id=guild_context.guild_id,
         deleted_by_user_id=current_user.id,
-        retention_days=retention_days,
     )
     await session.commit()
 
@@ -822,20 +818,16 @@ async def delete_gallery_image(
 ) -> None:
     """Send a picture to the trash. Requires write access on the gallery —
     removing a picture is editing the gallery, and it can be restored."""
-    from app.services.platform import guilds as guilds_service
-    from app.services.tenant.soft_delete import soft_delete_entity
+    from app.services.tenant.soft_delete import trash
 
     gallery, image = await _load_image(
         session, gallery_id, image_id, current_user, guild_context, access="write"
     )
-    retention_days = await guilds_service.get_guild_retention_days(
-        session, guild_context.guild_id
-    )
-    await soft_delete_entity(
+    await trash(
         session,
         image,
+        guild_id=guild_context.guild_id,
         deleted_by_user_id=current_user.id,
-        retention_days=retention_days,
     )
     if gallery.cover_image_id == image.id:
         # The list falls back to the newest picture rather than a trashed one.

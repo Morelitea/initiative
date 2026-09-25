@@ -1,9 +1,9 @@
 """Generic soft-delete / restore / hard-purge service.
 
 Single source of truth for the trash lifecycle on every entity that inherits
-``SoftDeleteMixin``. Cascading is explicit (not magical): the
-``CASCADE_CHILDREN`` registry below enumerates which child collections to
-stamp when a parent is soft-deleted, and the inverse on restore.
+``SoftDeleteMixin``. What a trashed row takes with it is read off the foreign
+keys between the soft-deletable tables (``lifecycle_tree.CASCADE_CHILDREN``),
+and restore brings back the same set.
 
 Restore does not ask who should own the entity. Ownership is recorded in
 ``resource_grants`` and never sits with someone who has left the guild, so a
@@ -32,7 +32,7 @@ the doomed documents are also removed.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Iterable, Optional
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -42,52 +42,28 @@ from sqlalchemy import text
 from app.db.frozen import PURGE_GUC
 from app.db.soft_delete_filter import select_including_deleted
 from app.models.tenant._mixins import SoftDeleteMixin
-from app.models.tenant.calendar import Calendar
-from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
-from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.document import Document
-from app.models.tenant.initiative import Initiative
-from app.models.tenant.project import Project
-from app.models.tenant.counter import Counter, CounterGroup
-from app.models.tenant.post import Post
-from app.models.tenant.gallery import Gallery, GalleryImage
-from app.models.tenant.queue import Queue, QueueItem
+from app.models.tenant.gallery import GalleryImage
 from app.models.tenant.task import Task
-from app.models.tenant.wiki import Wiki, WikiPage
+from app.models.tenant.wiki import WikiPage
+from app.services.tenant.lifecycle_tree import (
+    CASCADE_CHILDREN,
+    Level,
+    delete_rows,
+    ids_in,
+    set_columns,
+    subtree_levels,
+)
 
-
-# parent_model -> list of (child_model, fk_column_name)
-# Keep in sync with the "owns" relationships across initiative-scoped tables.
-# Tag is omitted intentionally — tags are guild-level, not nested under any
-# of these parents.
-CASCADE_CHILDREN: dict[type, list[tuple[type, str]]] = {
-    Initiative: [
-        (Project, "initiative_id"),
-        (Document, "initiative_id"),
-        (Queue, "initiative_id"),
-        (Calendar, "initiative_id"),
-        (Dashboard, "initiative_id"),
-        (Post, "initiative_id"),
-        (Gallery, "initiative_id"),
-        (CounterGroup, "initiative_id"),
-        (Wiki, "initiative_id"),
-    ],
-    Project: [(Task, "project_id")],
-    Calendar: [(CalendarEvent, "calendar_id")],
-    Document: [(Comment, "document_id")],
-    Post: [(Comment, "post_id")],
-    Gallery: [(GalleryImage, "gallery_id"), (Comment, "gallery_id")],
-    Task: [(Comment, "task_id")],
-    Queue: [(QueueItem, "queue_id")],
-    CounterGroup: [(Counter, "counter_group_id")],
-    Wiki: [(WikiPage, "wiki_id"), (Comment, "wiki_id")],
-    # A page takes what is filed under it — a section is put away whole, the
-    # same self-cascade a comment thread uses — and the conversation about it,
-    # which is the page's and not the wiki's.
-    WikiPage: [(WikiPage, "parent_page_id"), (Comment, "wiki_page_id")],
-    Comment: [(Comment, "parent_comment_id")],
-}
+__all__ = [
+    "CASCADE_CHILDREN",
+    "hard_purge_entities",
+    "hard_purge_entity",
+    "restore_entity",
+    "soft_delete_entity",
+    "trash",
+]
 
 
 #: Rows that hold a NAME which is unique among their siblings, mapped to the
@@ -179,42 +155,59 @@ def _compute_purge_at(
     return deleted_at + timedelta(days=retention_days)
 
 
-async def _descendant_levels(
+async def _write_level(
     session: AsyncSession,
-    parent: SoftDeleteMixin,
+    level: Level,
+    values: dict[str, object],
     *,
-    match_deleted_at: Optional[datetime],
-) -> list[list[SoftDeleteMixin]]:
-    """Every descendant of ``parent``, grouped by how far down it sits.
+    park: bool = False,
+) -> list[SoftDeleteMixin]:
+    """Write ``values`` onto every row of one level, a statement per table.
 
-    Breadth-first over ``CASCADE_CHILDREN``: level 0 is the direct children,
-    level 1 their children, and so on. The caller walks the levels in whichever
-    direction its write needs — see the ordering note on the two callers below.
-
-    ``match_deleted_at`` picks the set: ``None`` takes the ACTIVE descendants
-    (what a soft-delete stamps), a timestamp takes the ones stamped by that same
-    soft-delete (what a restore brings back), so an independently-trashed child
-    keeps its own ``deleted_at`` either way.
+    A table that holds a name is loaded instead, because each of its rows parks
+    (``park=True``) or later reclaims its own name; those rows are returned for
+    the reclaim. The level is flushed before this returns.
     """
-    levels: list[list[SoftDeleteMixin]] = []
-    frontier: list[SoftDeleteMixin] = [parent]
-    while frontier:
-        level: list[SoftDeleteMixin] = []
-        for node in frontier:
-            for child_model, fk_col in CASCADE_CHILDREN.get(type(node), []):
-                fk = getattr(child_model, fk_col)
-                stmt = select_including_deleted(child_model).where(fk == node.id)
-                if match_deleted_at is None:
-                    stmt = stmt.where(child_model.deleted_at.is_(None))
-                else:
-                    stmt = stmt.where(child_model.deleted_at == match_deleted_at)
-                result = await session.exec(stmt)
-                level.extend(result.all())
-        if not level:
-            break
-        levels.append(level)
-        frontier = level
-    return levels
+    named: list[SoftDeleteMixin] = []
+    for model, ids in level.items():
+        if model not in RELEASED_NAMES:
+            await set_columns(session, model, ids, values)
+            continue
+        rows = (
+            await session.exec(
+                select_including_deleted(model).where(ids_in(model.id, ids))
+            )
+        ).all()
+        for row in rows:
+            for column, value in values.items():
+                setattr(row, column, value)
+            if park:
+                _park_name(row)
+            session.add(row)
+        named.extend(rows)
+    await session.flush()
+    return named
+
+
+async def trash(
+    session: AsyncSession,
+    entity: SoftDeleteMixin,
+    *,
+    guild_id: int,
+    deleted_by_user_id: Optional[int],
+) -> Optional[int]:
+    """Put ``entity`` in the bin under the guild's retention, and return that
+    retention in days (``None``: kept until purged by hand). Caller commits."""
+    from app.services.platform import guilds as guilds_service
+
+    retention_days = await guilds_service.get_guild_retention_days(session, guild_id)
+    await soft_delete_entity(
+        session,
+        entity,
+        deleted_by_user_id=deleted_by_user_id,
+        retention_days=retention_days,
+    )
+    return retention_days
 
 
 async def soft_delete_entity(
@@ -231,31 +224,23 @@ async def soft_delete_entity(
     """
     if entity.deleted_at is not None:
         return
+    await session.flush()
     deleted_at = _utc_now()
-    purge_at = _compute_purge_at(deleted_at, retention_days)
+    values = {
+        "deleted_at": deleted_at,
+        "deleted_by": deleted_by_user_id,
+        "purge_at": _compute_purge_at(deleted_at, retention_days),
+    }
 
     # Deepest first, with a flush per level. A trashed row freezes everything
     # under it at the database, so a child written after its parent was stamped
-    # would be refused — and the unit of work orders UPDATEs by mapper, not by
-    # the order they were added, so the levels are flushed explicitly rather
-    # than assumed. Collected before the entity is stamped, while the walk's own
-    # queries still see an untouched tree.
-    levels = await _descendant_levels(session, entity, match_deleted_at=None)
+    # would be refused. Collected before anything is stamped, while the walk's
+    # own queries still see an untouched tree.
+    levels = await subtree_levels(
+        session, [entity], where=lambda model: model.deleted_at.is_(None)
+    )
     for level in reversed(levels):
-        for child in level:
-            child.deleted_at = deleted_at
-            child.deleted_by = deleted_by_user_id
-            child.purge_at = purge_at
-            _park_name(child)
-            session.add(child)
-        await session.flush()
-
-    entity.deleted_at = deleted_at
-    entity.deleted_by = deleted_by_user_id
-    entity.purge_at = purge_at
-    _park_name(entity)
-    session.add(entity)
-    await session.flush()
+        await _write_level(session, level, values, park=True)
 
 
 async def restore_entity(
@@ -268,97 +253,67 @@ async def restore_entity(
     """
     if entity.deleted_at is None:
         return
+    await session.flush()
 
-    matching_deleted_at = entity.deleted_at
+    matching = entity.deleted_at
     # The mirror of the stamp above: shallowest first, so a child is never
     # written while its parent is still trashed. Collected before anything is
     # cleared, because the set is defined by the timestamp being cleared.
-    levels = await _descendant_levels(
-        session, entity, match_deleted_at=matching_deleted_at
+    levels = await subtree_levels(
+        session, [entity], where=lambda model: model.deleted_at == matching
     )
-
-    entity.deleted_at = None
-    entity.deleted_by = None
-    entity.purge_at = None
-    session.add(entity)
-    await session.flush()
-    await _reclaim_name(session, entity)
-
+    cleared = {"deleted_at": None, "deleted_by": None, "purge_at": None}
     for level in levels:
-        for child in level:
-            child.deleted_at = None
-            child.deleted_by = None
-            child.purge_at = None
-            session.add(child)
-        await session.flush()
-        for child in level:
-            await _reclaim_name(session, child)
+        for row in await _write_level(session, level, cleared):
+            await _reclaim_name(session, row)
 
 
-async def _purge_relationships(
-    session: AsyncSession, doomed: list[SoftDeleteMixin]
-) -> None:
+async def _purge_relationships(session: AsyncSession, doomed: Level) -> None:
     """Drop every edge naming one of these, whichever end it names them on."""
     from app.core.relationships import ENDPOINT_KINDS
-    from app.core.search import SearchEntityType
     from app.services.tenant import relationships
 
     # Derived from the endpoint registry rather than a second list of model
     # classes: a kind that can sit on an edge is a kind whose table is named
     # there, and the model already knows its table.
     kind_by_table = {endpoint.table: kind for kind, endpoint in ENDPOINT_KINDS.items()}
-
-    by_kind: dict[SearchEntityType, list[int]] = {}
-    for row in doomed:
-        kind = kind_by_table.get(getattr(type(row), "__tablename__", ""))
-        if kind is None or getattr(row, "id", None) is None:
-            continue
-        by_kind.setdefault(kind, []).append(row.id)
-
-    for kind, ids in by_kind.items():
-        await relationships.purge_for_entities(session, kind, ids)
+    for model, ids in doomed.items():
+        kind = kind_by_table.get(getattr(model, "__tablename__", ""))
+        if kind is not None and ids:
+            await relationships.purge_for_entities(session, kind, ids)
 
 
-async def _gather_descendants(
-    session: AsyncSession,
-    parent: SoftDeleteMixin,
-) -> list[SoftDeleteMixin]:
-    """Walk CASCADE_CHILDREN in pre-order and return every descendant of
-    ``parent`` (active OR soft-deleted) in dependency order — children
-    before grandchildren. Used by ``hard_purge_entity`` to issue explicit
-    deletes since most FKs in this codebase use ORM cascade (which doesn't
-    fire unless the rows are loaded) rather than DB-level ON DELETE CASCADE.
-    """
-    out: list[SoftDeleteMixin] = []
-    for child_model, fk_col in CASCADE_CHILDREN.get(type(parent), []):
-        fk = getattr(child_model, fk_col)
-        stmt = select_including_deleted(child_model).where(fk == parent.id)
-        result = await session.exec(stmt)
-        for child in result.all():
-            out.append(child)
-            out.extend(await _gather_descendants(session, child))
-    return out
+#: The tables whose rows the purge hooks read, not just their ids.
+_PURGE_LOADS = (Comment, GalleryImage, Task, Document)
 
 
 async def hard_purge_entity(
     session: AsyncSession,
     entity: SoftDeleteMixin,
 ) -> None:
-    """Hard-delete the entity and every descendant.
+    """Hard-delete the entity and every descendant. See ``hard_purge_entities``."""
+    await hard_purge_entities(session, [entity])
+
+
+async def hard_purge_entities(
+    session: AsyncSession,
+    entities: Iterable[SoftDeleteMixin],
+) -> None:
+    """Hard-delete these entities and every descendant.
 
     The caller's ``session`` must be able to clear the RESTRICTIVE FOR DELETE
     policies on these tables — either a routed **guild-admin** RLS session (the
     interactive purge endpoint) or a guild-admin-routed ``app_admin`` session (the
     background auto-purge worker, which has no guild context). The caller is also
-    responsible for locking the target against a concurrent restore and for
+    responsible for locking the targets against a concurrent restore and for
     committing.
 
-    Descendants are walked via the same CASCADE_CHILDREN registry the
-    soft-delete path uses, then deleted in reverse (grandchildren first)
-    so DB-level FK constraints don't fire. For Documents anywhere in the
-    descendant set, upload cleanup runs before the DELETEs so blobs on
-    disk and ``Upload`` rows pinned only by the doomed documents are also
-    removed.
+    Descendants are walked through the same tree the soft-delete path uses,
+    in the bin or not, then deleted a level at a time from the bottom up, one
+    statement per table, so no foreign key is left pointing at a row that went
+    first. For Documents anywhere in the set, upload cleanup runs before the
+    DELETEs so blobs on disk and ``Upload`` rows pinned only by the doomed
+    documents are also removed.
     """
     from app.services.tenant.documents import unresolve_wikilinks_to_document
     from app.services.tenant.attachments import (
@@ -368,6 +323,11 @@ async def hard_purge_entity(
     )
     from app.services.tenant.reactions import purge_comment_reactions
 
+    roots = list(entities)
+    if not roots:
+        return
+    await session.flush()
+
     # Purge is the one lifecycle step that writes frozen content instead of only
     # removing it — the wikilink unresolve below reaches documents that are
     # themselves in the trash. Transaction-local (see app.db.frozen.PURGE_GUC).
@@ -375,35 +335,48 @@ async def hard_purge_entity(
         text("SELECT set_config(:name, 'true', true)").bindparams(name=PURGE_GUC)
     )
 
-    descendants = await _gather_descendants(session, entity)
-    all_doomed: list[SoftDeleteMixin] = [entity, *descendants]
+    levels = await subtree_levels(session, roots)
+    doomed: Level = {}
+    for level in levels:
+        for model, ids in level.items():
+            doomed.setdefault(model, []).extend(ids)
+
+    loaded: dict[type, list] = {}
+    for model in _PURGE_LOADS:
+        if doomed.get(model):
+            loaded[model] = list(
+                (
+                    await session.exec(
+                        select_including_deleted(model).where(
+                            ids_in(model.id, doomed[model])
+                        )
+                    )
+                ).all()
+            )
 
     # Reactions name their target polymorphically, so no foreign key carries
     # them out with the comment. Cleared explicitly, before the row goes.
-    doomed_comments = [c for c in all_doomed if isinstance(c, Comment)]
-    if doomed_comments:
-        await purge_comment_reactions(session, doomed_comments)
+    if loaded.get(Comment):
+        await purge_comment_reactions(session, loaded[Comment])
 
     # A picture's blobs — every version and its thumbnail — go with it, the
     # way a file document's do.
-    doomed_images = [i for i in all_doomed if isinstance(i, GalleryImage)]
-    if doomed_images:
-        await purge_gallery_image_uploads(session, doomed_images)
+    if loaded.get(GalleryImage):
+        await purge_gallery_image_uploads(session, loaded[GalleryImage])
 
     # Pictures pasted into a task's description or a comment go with it,
     # unless something that stays still shows them.
     await purge_pasted_images(
-        session, [row for row in all_doomed if isinstance(row, (Task, Comment))]
+        session, [*loaded.get(Task, ()), *loaded.get(Comment, ())]
     )
 
-    doomed_documents = [d for d in all_doomed if isinstance(d, Document)]
-    if doomed_documents:
-        await purge_document_uploads(session, doomed_documents)
+    if loaded.get(Document):
+        await purge_document_uploads(session, loaded[Document])
         # Links in surviving documents that point at a doomed one are blanked
         # before the row disappears, so they render as unresolved rather than
         # pointing at nothing. Runs before the DELETEs, while the edges naming
         # it are still there to find the documents carrying those links.
-        for doc in doomed_documents:
+        for doc in loaded[Document]:
             await unresolve_wikilinks_to_document(session, deleted_document_id=doc.id)
 
     # Edges name both ends polymorphically, so nothing carries them out with
@@ -411,9 +384,11 @@ async def hard_purge_entity(
     # between two things, and one of them is about to stop existing. Last of
     # the sweeps, because the step above reads the edges pointing at a doomed
     # document to find the documents whose links have to be blanked.
-    await _purge_relationships(session, all_doomed)
+    await _purge_relationships(session, doomed)
+    await session.flush()
 
-    # Reverse so we delete leaves before parents — needed because most FKs
-    # in this codebase don't use DB-level ON DELETE CASCADE.
-    for row in reversed(all_doomed):
-        await session.delete(row)
+    # Leaves before parents: most of the keys between these tables do not
+    # cascade in the database.
+    for level in reversed(levels):
+        for model, ids in level.items():
+            await delete_rows(session, model, ids)

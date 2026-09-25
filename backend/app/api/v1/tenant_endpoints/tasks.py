@@ -2419,18 +2419,14 @@ async def delete_task(
         context=guild_context,
     )
 
-    from app.services.platform import guilds as guilds_service
-    from app.services.tenant.soft_delete import soft_delete_entity
+    from app.services.tenant.soft_delete import trash
 
     project_id = task.project_id
-    retention_days = await guilds_service.get_guild_retention_days(
-        session, guild_context.guild_id
-    )
-    await soft_delete_entity(
+    await trash(
         session,
         task,
+        guild_id=guild_context.guild_id,
         deleted_by_user_id=current_user.id,
-        retention_days=retention_days,
     )
     await _touch_project(session, project_id)
     await session.commit()

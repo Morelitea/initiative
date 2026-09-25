@@ -7,7 +7,7 @@ literal SQL UNION ALL — pragmatic and easier to filter; the spec calls out
 moving to a polymorphic trash index later if it gets slow.
 
 Cascade dedup: children whose parent was cascaded-trashed at the same
-``deleted_at`` are filtered out so the trash table doesn't list 200 tasks
+``deleted_at`` (over the same edges the cascade walks) are filtered out so the trash table doesn't list 200 tasks
 under a deleted project — just the project. Restoring the parent
 resurfaces the children automatically (see ``soft_delete.py``).
 """
@@ -30,22 +30,10 @@ from app.api.deps import (
 )
 from app.core.audit_events import AuditEventType
 from app.core.messages import TrashMessages
-from app.db.soft_delete_filter import select_including_deleted
-from app.models.tenant.calendar import Calendar
-from app.models.tenant.calendar_event import CalendarEvent
+from app.core.tools import TRASH_TARGETS, plural_of
+from app.db.soft_delete_filter import SOFT_DELETE_MODELS, select_including_deleted
 from app.models.tenant.comment import Comment
-from app.models.tenant.counter import Counter, CounterGroup
-from app.models.tenant.dashboard import Dashboard
-from app.models.tenant.post import Post
-from app.models.tenant.gallery import Gallery, GalleryImage
-from app.models.tenant.document import Document
 from app.models.platform.guild import GuildRole
-from app.models.tenant.initiative import Initiative
-from app.models.tenant.project import Project
-from app.models.tenant.queue import Queue, QueueItem
-from app.models.tenant.tag import Tag
-from app.models.tenant.task import Task
-from app.models.tenant.wiki import Wiki, WikiPage
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
 from app.schemas.tenant.trash import (
@@ -59,6 +47,7 @@ from app.services.platform import guilds as guilds_service
 from app.services.tenant import ownership as ownership_service
 from app.core.user_display import display_name
 from app.services.tenant import content_references
+from app.services.tenant.lifecycle_tree import CASCADE_PARENTS
 from app.services.tenant.soft_delete import (
     hard_purge_entity,
     restore_entity,
@@ -71,29 +60,17 @@ router = APIRouter()
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
-# Maps the entity type we expose in the API to the SQLModel class and to the
-# column whose value populates TrashItem.name. Keyed by the wire string (the
-# ``EntityType`` member values), the same way TAG_LINKS is — ``trash_test``
-# asserts the two agree, so a new entity type can't be missed here.
+#: Wire name -> (model, the column that labels its rows). A target's table is
+#: its own plural and its label is the model's ``display_field``, so neither is
+#: written down here; a target with no soft-deletable model behind it fails at
+#: import rather than at request time.
+_BY_TABLE = {model.__tablename__: model for model in SOFT_DELETE_MODELS}
 ENTITY_REGISTRY: dict[str, tuple[type[SQLModel], str]] = {
-    "project": (Project, "name"),
-    "task": (Task, "title"),
-    "document": (Document, "name"),
-    "comment": (Comment, "content"),
-    "initiative": (Initiative, "name"),
-    "tag": (Tag, "name"),
-    "queue": (Queue, "name"),
-    "queue_item": (QueueItem, "label"),
-    "calendar": (Calendar, "name"),
-    "calendar_event": (CalendarEvent, "title"),
-    "dashboard": (Dashboard, "name"),
-    "post": (Post, "name"),
-    "gallery": (Gallery, "name"),
-    "gallery_image": (GalleryImage, "title"),
-    "counter_group": (CounterGroup, "name"),
-    "counter": (Counter, "name"),
-    "wiki": (Wiki, "name"),
-    "wiki_page": (WikiPage, "title"),
+    target: (
+        _BY_TABLE[plural_of(target)],
+        _BY_TABLE[plural_of(target)].display_field(),
+    )
+    for target in TRASH_TARGETS
 }
 
 
@@ -126,38 +103,6 @@ async def _resolve_display_name(
     return display
 
 
-# Per-child-entity dedup specs:  child_model -> [(parent_model, fk_col_on_child)]
-# A child row is omitted from the trash listing if its (fk, deleted_at) matches
-# any trashed (parent.id, parent.deleted_at) — i.e. it was cascaded with the
-# parent and shouldn't appear independently.
-_DEDUP_PARENTS: dict[type[SQLModel], list[tuple[type[SQLModel], str]]] = {
-    Project: [(Initiative, "initiative_id")],
-    Task: [(Project, "project_id")],
-    Document: [(Initiative, "initiative_id")],
-    # Comment also self-references via parent_comment_id (threaded replies).
-    # Without that entry the trash listing shows nested replies independently
-    # and a user could restore a reply whose parent is still trashed,
-    # leaving Reply.parent_comment_id pointing at an invisible row.
-    Comment: [
-        (Task, "task_id"),
-        (Document, "document_id"),
-        (Post, "post_id"),
-        (Gallery, "gallery_id"),
-        (Comment, "parent_comment_id"),
-    ],
-    Queue: [(Initiative, "initiative_id")],
-    QueueItem: [(Queue, "queue_id")],
-    Calendar: [(Initiative, "initiative_id")],
-    CalendarEvent: [(Calendar, "calendar_id")],
-    Dashboard: [(Initiative, "initiative_id")],
-    Post: [(Initiative, "initiative_id")],
-    Gallery: [(Initiative, "initiative_id")],
-    GalleryImage: [(Gallery, "gallery_id")],
-    CounterGroup: [(Initiative, "initiative_id")],
-    Counter: [(CounterGroup, "counter_group_id")],
-}
-
-
 async def _list_trashed_for_model(
     session: AsyncSession,
     model: type[SQLModel],
@@ -169,11 +114,12 @@ async def _list_trashed_for_model(
         stmt = stmt.where(model.deleted_by == only_deleted_by)
 
     # Cascade dedup: exclude children whose parent (any of them) is also
-    # trashed at the same deleted_at. Alias the parent — required when the
+    # trashed at the same deleted_at — they come back with it, and one of them
+    # restored alone would sit under a parent that is still in the bin. Alias the parent — required when the
     # parent is the same table as the child (Comment threaded replies via
     # parent_comment_id), otherwise unaliased ``Comment.id == Comment.parent_comment_id``
     # references the same row in both clauses.
-    for parent_model, fk_col in _DEDUP_PARENTS.get(model, []):
+    for parent_model, fk_col in CASCADE_PARENTS.get(model, []):
         fk = getattr(model, fk_col)
         parent_alias = aliased(parent_model)
         sub = (

@@ -1068,15 +1068,13 @@ async def delete_comment(
     if not (is_author or is_guild_admin or is_initiative_manager):
         raise CommentPermissionError(CommentMessages.AUTHOR_ONLY_DELETE)
 
-    from app.services.platform import guilds as guilds_service
-    from app.services.tenant.soft_delete import soft_delete_entity
+    from app.services.tenant.soft_delete import trash
 
-    retention_days = await guilds_service.get_guild_retention_days(session, guild_id)
-    await soft_delete_entity(
+    await trash(
         session,
         comment,
+        guild_id=guild_id,
         deleted_by_user_id=user.id,
-        retention_days=retention_days,
     )
     # A trashed comment is out of the conversation, so what it alone pointed at
     # is no longer something this thing references.

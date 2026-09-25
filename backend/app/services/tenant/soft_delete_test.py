@@ -697,3 +697,91 @@ async def test_restore_initiative_brings_back_an_archived_documents_comments(
         )
     ).one()
     assert refreshed.deleted_at is None
+
+
+async def test_soft_delete_project_takes_its_own_thread(session: AsyncSession):
+    """A project's conversation is filed under the project, so it goes into the
+    bin with it and comes back with it."""
+    from app.models.tenant.comment import Comment
+    from app.testing.factories import create_comment
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    initiative = await create_initiative(session, guild, user)
+    project = await create_project(session, initiative, user)
+    comment = await create_comment(session, user, project=project)
+    reply = await create_comment(
+        session, user, project=project, parent_comment_id=comment.id
+    )
+
+    await soft_delete_entity(
+        session, project, deleted_by_user_id=user.id, retention_days=30
+    )
+    await session.commit()
+
+    async def stamps() -> set:
+        rows = await session.exec(
+            select_including_deleted(Comment.deleted_at).where(
+                Comment.id.in_([comment.id, reply.id])
+            )
+        )
+        return set(rows.all())
+
+    assert await stamps() == {project.deleted_at}
+
+    await restore_entity(session, project)
+    await session.commit()
+
+    assert await stamps() == {None}
+
+
+async def test_trash_listing_shows_a_trashed_wiki_alone(session: AsyncSession, client):
+    """A wiki in the bin is one entry: its pages, the pages under them and both
+    threads come back with it, so none of them is offered on its own.
+
+    Restoring it puts each page back under the address it had."""
+    from app.models.platform.guild import GuildRole
+    from app.models.tenant.wiki import WikiPage
+    from app.testing.factories import (
+        create_comment,
+        create_guild_membership,
+        create_wiki,
+        create_wiki_page,
+        get_auth_headers,
+    )
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    initiative = await create_initiative(session, guild, user)
+    wiki = await create_wiki(session, initiative, user)
+    page = await create_wiki_page(session, wiki, user, title="Step 1")
+    child = await create_wiki_page(
+        session, wiki, user, title="Step 2", parent_page_id=page.id
+    )
+    await create_comment(session, user, wiki=wiki)
+    await create_comment(session, user, wiki_page=child)
+
+    await soft_delete_entity(
+        session, wiki, deleted_by_user_id=user.id, retention_days=30
+    )
+    await session.commit()
+
+    headers = get_auth_headers(user)
+    response = await client.get(f"/api/v1/c/{guild.id}/trash/", headers=headers)
+    assert response.status_code == 200, response.text
+    listed = {(i["entity_type"], i["entity_id"]) for i in response.json()["items"]}
+    assert listed == {("wiki", wiki.id)}
+
+    response = await client.post(
+        f"/api/v1/c/{guild.id}/trash/wiki/{wiki.id}/restore", headers=headers
+    )
+    assert response.status_code == 200, response.text
+
+    session.expire_all()
+    pages = await session.exec(
+        select_including_deleted(WikiPage.slug, WikiPage.deleted_at).where(
+            WikiPage.wiki_id == wiki.id
+        )
+    )
+    assert sorted(pages.all()) == [("step-1", None), ("step-2", None)]

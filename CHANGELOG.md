@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Comments go to the trash with what they're on** — deleting a project, queue, counter group, calendar or dashboard now moves its comments to the trash with it, and restoring it brings them back. Before, they stayed behind.
+- **A deleted wiki shows once in the trash** — the trash lists a deleted wiki as one item. Before, it also listed each of its pages and comments, and restoring one of those on its own failed.
+- **Faster delete, restore and purge** — deleting, restoring, purging and archiving something large, like an initiative with thousands of tasks, now takes a few database queries instead of one per item inside it.
 - **A search error at startup** — every start logged `search reindex failed for guild_template`. It was harmless, since search in your communities was already up to date, and it no longer appears.
 
 ## [0.72.0] - 2026-09-24

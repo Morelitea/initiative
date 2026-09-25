@@ -9,7 +9,7 @@ CI if a ``SoftDeleteMixin`` subclass ever lands outside ``app/models/tenant/``.
 """
 
 from datetime import datetime
-from typing import TYPE_CHECKING, ClassVar, Optional
+from typing import TYPE_CHECKING, ClassVar, Optional, TypeVar
 
 from sqlalchemy import DateTime, Integer, String, func, select
 from sqlalchemy.orm import column_property
@@ -17,6 +17,8 @@ from sqlmodel import Field, SQLModel
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.core.tools import Tool
+
+_M = TypeVar("_M", bound=SQLModel)
 
 
 class SoftDeleteMixin(SQLModel):
@@ -197,6 +199,19 @@ class CommentsToggleMixin(SQLModel):
     )
 
 
+def _mapped_subclasses(base: type[_M]) -> dict[str, type[_M]]:
+    """Every mapped table model under ``base``, however indirectly, by table."""
+    found: dict[str, type[_M]] = {}
+    stack = list(base.__subclasses__())
+    while stack:
+        cls = stack.pop()
+        stack.extend(cls.__subclasses__())
+        table = getattr(cls, "__tablename__", None)
+        if table and getattr(cls, "__table__", None) is not None:
+            found[str(table)] = cls
+    return found
+
+
 def archive_models() -> list[type[ArchiveMixin]]:
     """Every mapped model carrying :class:`ArchiveMixin`, by table name.
 
@@ -204,14 +219,7 @@ def archive_models() -> list[type[ArchiveMixin]]:
     rather than keeping a list of its own, so a tool that becomes archivable is
     archivable everywhere the moment it declares the mixin.
     """
-    found: dict[str, type[ArchiveMixin]] = {}
-    stack = list(ArchiveMixin.__subclasses__())
-    while stack:
-        cls = stack.pop()
-        stack.extend(cls.__subclasses__())
-        table = getattr(cls, "__tablename__", None)
-        if table and getattr(cls, "__table__", None) is not None:
-            found[str(table)] = cls
+    found = _mapped_subclasses(ArchiveMixin)
     return [found[name] for name in sorted(found)]
 
 
@@ -221,14 +229,7 @@ def created_by_models() -> list[type[CreatedByMixin]]:
     The single source for "which tables record an author" — the completeness
     test reads it, so a new table joins the moment it declares the mixin.
     """
-    found: dict[str, type[CreatedByMixin]] = {}
-    stack = list(CreatedByMixin.__subclasses__())
-    while stack:
-        cls = stack.pop()
-        stack.extend(cls.__subclasses__())
-        table = getattr(cls, "__tablename__", None)
-        if table and getattr(cls, "__table__", None) is not None:
-            found[str(table)] = cls
+    found = _mapped_subclasses(CreatedByMixin)
     return [found[name] for name in sorted(found)]
 
 
@@ -241,15 +242,7 @@ def tool_models() -> dict[str, type[SQLModel]]:
     moment its model exists, which is what keeps those registries from being a
     place a new tool can be forgotten.
     """
-    found: dict[str, type[SQLModel]] = {}
-    stack = list(SoftDeleteMixin.__subclasses__())
-    while stack:
-        cls = stack.pop()
-        stack.extend(cls.__subclasses__())
-        table = getattr(cls, "__tablename__", None)
-        if table and getattr(cls, "__table__", None) is not None:
-            found[str(table)] = cls
-    return found
+    return _mapped_subclasses(SoftDeleteMixin)
 
 
 def attach_access_level(model: type[SQLModel], tool: "Tool") -> None:

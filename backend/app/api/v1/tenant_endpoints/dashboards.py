@@ -493,8 +493,7 @@ async def delete_dashboard(
     guild_context: GuildContextDep,
 ) -> None:
     """Soft-delete a dashboard. Requires owner permission or guild admin."""
-    from app.services.platform import guilds as guilds_service
-    from app.services.tenant.soft_delete import soft_delete_entity
+    from app.services.tenant.soft_delete import trash
 
     dashboard = await resource_access.load_authorized(
         session,
@@ -504,14 +503,11 @@ async def delete_dashboard(
         guild_context,
         require_owner=True,
     )
-    retention_days = await guilds_service.get_guild_retention_days(
-        session, guild_context.guild_id
-    )
-    await soft_delete_entity(
+    await trash(
         session,
         dashboard,
+        guild_id=guild_context.guild_id,
         deleted_by_user_id=current_user.id,
-        retention_days=retention_days,
     )
     await session.commit()
 
