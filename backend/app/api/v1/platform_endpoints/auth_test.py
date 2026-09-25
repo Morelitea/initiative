@@ -1710,7 +1710,7 @@ async def test_oidc_next_returns_browser_to_requested_page(
     )
     assert response.status_code in (302, 307)
     assert response.headers["location"].endswith(
-        "/oidc/callback?next=%2Fg%2F5%2Fprojects%2F3"
+        "/oidc/callback?next=%2Fc%2F5%2Fprojects%2F3"
     )
 
 
