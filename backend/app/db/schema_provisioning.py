@@ -174,9 +174,10 @@ SYSTEM_GUILD_MAINTENANCE_GRANTS: dict[str, tuple[str, ...]] = {
     "galleries": ("SELECT",),
     # A comment can hang off a wiki, and off one of its pages — which is where
     # a wiki's conversation actually happens — so the guard reads both while
-    # the scrub rewrites that comment.
+    # the scrub rewrites that comment. A page's own body carries mention nodes
+    # the way a document's does, so the scrub rewrites pages too.
     "wikis": ("SELECT",),
-    "wiki_pages": ("SELECT",),
+    "wiki_pages": ("SELECT", "UPDATE"),
     "initiatives": ("SELECT",),
     # Content and search-index triggers must still record the scrub. Their
     # writes are column-scoped where possible; DELETE needs a table privilege.

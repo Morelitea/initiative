@@ -8561,20 +8561,13 @@ export interface TagUpdate {
   color?: string | null;
 }
 
-export interface TaggedProjectSummary {
-  id: number;
-  name: string;
-  initiative_id: number;
-  initiative_name: string | null;
-}
-
 /**
- * Response for GET /tags/{id}/entities - all entities with a given tag.
+ * Response for GET /tags/{id}/entities — everything carrying a tag, of
+ * every taggable kind. Each item names itself and the tool it lives in, the
+ * shape a search hit already has.
  */
 export interface TaggedEntitiesResponse {
-  tasks: TaggedTaskSummary[];
-  projects: TaggedProjectSummary[];
-  documents: TaggedDocumentSummary[];
+  items: SearchHit[];
 }
 
 export type TaskCreateRecurrenceStrategy =

@@ -24,6 +24,7 @@ from copy import deepcopy
 from typing import Annotated, Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlmodel import select
 
 from app.db.session import routed_guild_id
 from app.api import resource_access
