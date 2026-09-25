@@ -6,15 +6,15 @@ content or settings grant names its community in ``app.pam_guild_id`` or
 ``app.settings_guild_id``, so the gate found no rule and answered yes. It now
 reads whichever of the three names the community, as the standing does.
 
-Revision ID: 20260925_0397
-Revises: 20260925_0396
+Revision ID: 20260925_0399
+Revises: 20260925_0398
 Create Date: 2026-09-25
 """
 
 from alembic import op
 
-revision = "20260925_0397"
-down_revision = "20260925_0396"
+revision = "20260925_0399"
+down_revision = "20260925_0398"
 branch_labels = None
 depends_on = None
 

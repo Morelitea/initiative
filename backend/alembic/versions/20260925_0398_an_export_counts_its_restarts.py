@@ -4,8 +4,8 @@ An export whose render keeps dying is queued again by the stale sweep each
 time. ``restarts`` counts those, so the sweep fails the job once it has been
 started over too many times rather than queuing it forever.
 
-Revision ID: 20260925_0397
-Revises: 20260925_0396
+Revision ID: 20260925_0398
+Revises: 20260925_0397
 Create Date: 2026-09-25
 """
 
@@ -14,8 +14,8 @@ from alembic import op
 
 from app.db.guild_migrations import run_for_each_guild_schema
 
-revision = "20260925_0397"
-down_revision = "20260925_0396"
+revision = "20260925_0398"
+down_revision = "20260925_0397"
 branch_labels = None
 depends_on = None
 
