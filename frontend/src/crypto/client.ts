@@ -45,17 +45,20 @@ class RatchetUnavailableError extends Error {
  *
  * Three things are needed and any of them can be missing: a worker to run the
  * ratchet in, somewhere to keep the key store, and the browser's own crypto —
- * which is only handed out on a secure origin, so a page served over plain
- * http from anything but localhost has none. That last one is the common one
- * in development, and it looks like a broken feature rather than a wrong
- * address unless it is said out loud.
+ * `subtle` for the key store and `randomUUID` for the names registrations and
+ * messages carry. Both are only handed out on a secure origin, so a page served
+ * over plain http from anything but localhost has neither. That is the common
+ * one in development, and it looks like a broken feature rather than a wrong
+ * address unless it is said out loud. `randomUUID` also arrived later than
+ * `subtle` in some browsers (Safari 15.4), which are told the same.
  */
 export function ratchetSupported(): boolean {
   return (
     typeof Worker !== "undefined" &&
     typeof indexedDB !== "undefined" &&
     typeof crypto !== "undefined" &&
-    crypto.subtle !== undefined
+    crypto.subtle !== undefined &&
+    typeof crypto.randomUUID === "function"
   );
 }
 
@@ -74,6 +77,18 @@ function ensureWorker(): Worker {
     };
   }
   return worker;
+}
+
+/**
+ * Stop the worker and the pickle key it holds, for when the store is wiped. A
+ * call still waiting on it is refused; the next call starts a fresh worker.
+ */
+export function stopRatchet(): void {
+  if (worker === null) return;
+  worker.terminate();
+  worker = null;
+  for (const entry of pending.values()) entry.reject(new Error("the ratchet was stopped"));
+  pending.clear();
 }
 
 function call<T>(method: RatchetMethod, ...args: unknown[]): Promise<T> {

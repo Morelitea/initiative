@@ -1,16 +1,16 @@
 /**
  * The ratchet itself, as it runs inside the worker.
  *
- * Nothing here holds state between calls: every entry point takes the pickles
- * it needs and returns new ones. Those pickles are ciphertext, which is why the
- * main thread may hold them.
+ * Nothing here holds ratchet state between calls: every entry point takes the
+ * pickles it needs and returns new ones. Those pickles are ciphertext, which is
+ * why the main thread may hold them.
  *
  * **The pickle key is fetched here, not passed in.** It is the one secret that
  * opens a pickle, and this module runs inside the worker — so the key is read
  * from the store on this side and never crosses a `postMessage`.
  */
 
-import { pickleKey } from "./store";
+import { pickleKey, whenDropped } from "./store";
 import type {
   AccountCreated,
   Decrypted,
@@ -31,6 +31,30 @@ import init, {
 let ready: Promise<unknown> | null = null;
 
 const isNode = typeof process !== "undefined" && process.versions?.node !== undefined;
+
+/**
+ * The pickle key, unwrapped once per worker rather than on every call. It is
+ * kept only where a wipe of the store in any tab reaches this worker to clear
+ * it; stopping the worker, which signing out does, clears it as well.
+ */
+let unwrapped: Promise<string> | null = null;
+
+const keepable = whenDropped(() => {
+  unwrapped = null;
+});
+
+function key(): Promise<string> {
+  if (!keepable) return pickleKey();
+  if (unwrapped === null) {
+    const reading = pickleKey();
+    unwrapped = reading;
+    // A read that failed is not kept: the next call tries again.
+    reading.catch(() => {
+      if (unwrapped === reading) unwrapped = null;
+    });
+  }
+  return unwrapped;
+}
 
 /**
  * Load the WebAssembly module once per context.
@@ -57,7 +81,7 @@ async function initFromDisk(): Promise<unknown> {
 
 export async function createAccount(): Promise<AccountCreated> {
   await loadRatchet();
-  return create_account(await pickleKey()) as AccountCreated;
+  return create_account(await key()) as AccountCreated;
 }
 
 export async function generateKeys(
@@ -66,7 +90,7 @@ export async function generateKeys(
   withFallback: boolean
 ): Promise<KeysGenerated> {
   await loadRatchet();
-  return generate_keys(pickle, await pickleKey(), count, withFallback) as KeysGenerated;
+  return generate_keys(pickle, await key(), count, withFallback) as KeysGenerated;
 }
 
 export async function createOutboundSession(
@@ -77,7 +101,7 @@ export async function createOutboundSession(
   await loadRatchet();
   return create_outbound_session(
     pickle,
-    await pickleKey(),
+    await key(),
     theirIdentityKey,
     theirOneTimeKey
   ) as OutboundSession;
@@ -91,7 +115,7 @@ export async function createInboundSession(
   await loadRatchet();
   return create_inbound_session(
     pickle,
-    await pickleKey(),
+    await key(),
     theirIdentityKey,
     ciphertext
   ) as InboundSession;
@@ -99,7 +123,7 @@ export async function createInboundSession(
 
 export async function encrypt(sessionPickle: string, plaintext: string): Promise<Encrypted> {
   await loadRatchet();
-  return session_encrypt(sessionPickle, await pickleKey(), plaintext) as Encrypted;
+  return session_encrypt(sessionPickle, await key(), plaintext) as Encrypted;
 }
 
 export async function decrypt(
@@ -108,5 +132,5 @@ export async function decrypt(
   ciphertext: string
 ): Promise<Decrypted> {
   await loadRatchet();
-  return session_decrypt(sessionPickle, await pickleKey(), messageType, ciphertext) as Decrypted;
+  return session_decrypt(sessionPickle, await key(), messageType, ciphertext) as Decrypted;
 }

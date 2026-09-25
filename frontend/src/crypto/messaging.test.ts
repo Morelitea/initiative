@@ -54,7 +54,10 @@ vi.mock("@/api/generated/direct-messages/direct-messages", () => ({
  * exactly the behaviour the collection loop leans on when it tries each device
  * in turn. This reproduces that rule and nothing else.
  */
+const stopRatchet = vi.hoisted(() => vi.fn());
+
 vi.mock("./client", () => ({
+  stopRatchet,
   ratchet: {
     createAccount: async () => ({ pickle: "account", identity_key: "mine", fingerprint_key: "fp" }),
     generateKeys: async (pickle: string, count: number, withFallback: boolean) => ({
@@ -103,10 +106,8 @@ vi.mock("./client", () => ({
 }));
 
 import {
-  acknowledgePeerKeyChange,
   answerHistoryRequest,
   collect,
-  dismissHistoryAskNotice,
   ensureDevice,
   forgetMessagesOnThisDevice,
   HISTORY_ASK_NOTICE_MS,
@@ -202,7 +203,9 @@ beforeEach(async () => {
     ],
   });
   api.listConversations.mockResolvedValue({
-    conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+    conversations: [
+      { id: "conv-1", other_user_id: 7, member_ids: [7], created_at: "2026-09-01T00:00:00Z" },
+    ],
   });
   api.collectQueue.mockResolvedValue({ items: [] });
   api.sendMessages.mockResolvedValue(undefined);
@@ -353,6 +356,11 @@ describe("collecting", () => {
       state: "delivered",
       ids: [stored.id],
     });
+    // One collection reads the account's devices, the conversation list and
+    // the sender's directory once, however many steps inside it need them.
+    expect(api.listDevices).toHaveBeenCalledTimes(1);
+    expect(api.listConversations).toHaveBeenCalledTimes(1);
+    expect(api.readDirectory).toHaveBeenCalledTimes(1);
   });
 
   it("says nothing about a message when receipts are switched off", async () => {
@@ -672,6 +680,51 @@ describe("collecting", () => {
     expect(stored?.receipt).toBeUndefined();
   });
 
+  it("runs one collection at a time across tabs, with one more waiting behind it", async () => {
+    // Web Locks as the browser grants them: one holder per name, the rest in
+    // order, and `ifAvailable` refused while anybody holds or waits.
+    const holders = new Map<string, number>();
+    const tails = new Map<string, Promise<unknown>>();
+    const request = (name: string, ...rest: unknown[]) => {
+      const callback = rest.at(-1) as (lock: object | null) => unknown;
+      const ifAvailable = rest.length === 2 && (rest[0] as LockOptions).ifAvailable;
+      if (ifAvailable && (holders.get(name) ?? 0) > 0) return Promise.resolve(callback(null));
+      holders.set(name, (holders.get(name) ?? 0) + 1);
+      const run = (tails.get(name) ?? Promise.resolve())
+        .then(() => callback({ name }))
+        .finally(() => holders.set(name, (holders.get(name) ?? 1) - 1));
+      tails.set(
+        name,
+        run.catch(() => undefined)
+      );
+      return run;
+    };
+    Object.defineProperty(navigator, "locks", { value: { request }, configurable: true });
+    let running = 0;
+    let most = 0;
+    api.collectQueue.mockImplementation(async () => {
+      running += 1;
+      most = Math.max(most, running);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      running -= 1;
+      return { items: [] };
+    });
+
+    try {
+      const first = collect();
+      await vi.waitFor(() => expect(api.collectQueue).toHaveBeenCalledTimes(1));
+      // Two more while it runs: the second reads the queue after the first, so
+      // nothing that arrived meanwhile waits for another prompt, and the third
+      // has nothing to add.
+      const [, , third] = await Promise.all([first, collect(), collect()]);
+      expect(api.collectQueue).toHaveBeenCalledTimes(2);
+      expect(most).toBe(1);
+      expect(third).toEqual([]);
+    } finally {
+      Reflect.deleteProperty(navigator, "locks");
+    }
+  });
+
   it("leaves a message it cannot read on the server", async () => {
     api.collectQueue.mockResolvedValue({
       items: [queued({ payload: from("a-device-nobody-knows", "unreadable") })],
@@ -909,7 +962,7 @@ describe("history between this account's own devices", () => {
     await collect({ receipts: false });
     expect(await historyAskWaiting()).toMatchObject({ fingerprint: "fp" });
 
-    await dismissHistoryAskNotice();
+    await historyAsk.dismissNotice();
 
     // The same split as the day running out: the notice goes, the question
     // stays. Dismissing is somebody saying they have read it, not somebody
@@ -928,7 +981,7 @@ describe("history between this account's own devices", () => {
     await collect({ receipts: false });
     const asked = sentEnvelopes().find((envelope) => envelope.kind === "history-request");
 
-    await dismissHistoryAskNotice();
+    await historyAsk.dismissNotice();
 
     api.collectQueue.mockResolvedValue({
       items: [
@@ -967,7 +1020,7 @@ describe("history between this account's own devices", () => {
     await collect({ receipts: false });
     await historyAsk.close();
 
-    await dismissHistoryAskNotice();
+    await historyAsk.dismissNotice();
 
     expect(await historyAsk.get()).toBe("closed");
   });
@@ -1645,7 +1698,7 @@ describe("sending", () => {
     );
     expect(api.sendMessages).not.toHaveBeenCalled();
 
-    await acknowledgePeerKeyChange("replacement");
+    await peerKeyChanges.acknowledge("replacement");
     await sendText("conv-1", [7], "verified out of band");
     expect(api.sendMessages).toHaveBeenCalledTimes(1);
   });
@@ -1779,6 +1832,8 @@ describe("signing out", () => {
     expect(await messageLog.get("conv-1")).toEqual([]);
     expect(await deviceId.get()).toBeUndefined();
     expect(await accountPickle.get()).toBeUndefined();
+    // The worker holds the pickle key it unwrapped, so it goes with the store.
+    expect(stopRatchet).toHaveBeenCalled();
   });
 });
 
