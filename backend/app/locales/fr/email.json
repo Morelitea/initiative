@@ -267,6 +267,14 @@
     "fallbackText": "Si ce n'était pas vous, utilisez un code de secours pour redéfinir immédiatement un mot de passe et prévenez les responsables du site.",
     "textBody": "Votre compte n'a plus de mot de passe. Vous vous connectez désormais avec votre clé d'accès ou votre fournisseur d'identité."
   },
+  "passwordChanged": {
+    "subject": "Votre mot de passe a été modifié",
+    "title": "Votre mot de passe a été modifié",
+    "greeting": "Bonjour <strong>{{name}}</strong>,",
+    "body": "Le mot de passe de votre compte vient d'être modifié. Tous les autres appareils connectés à votre compte ont été déconnectés.",
+    "fallbackText": "Si ce n'était pas vous, réinitialisez votre mot de passe immédiatement et prévenez les responsables du site.",
+    "textBody": "Le mot de passe de votre compte vient d'être modifié. Tous les autres appareils connectés à votre compte ont été déconnectés. Si ce n'était pas vous, réinitialisez votre mot de passe immédiatement."
+  },
   "passkey": {
     "greeting": "Bonjour <strong>{{name}}</strong>,",
     "fallbackText": "Si ce n'était pas vous, changez votre mot de passe immédiatement et prévenez les responsables du site.",

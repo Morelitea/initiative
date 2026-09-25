@@ -1,7 +1,8 @@
 """Request-scoped satisfied-auth-provider context.
 
-The credential validators (``get_current_user``, ``get_upload_user``, the
-WebSocket ``authenticate_ws_token``) record here which login providers the
+The credential validator (``app.services.auth.credentials``, which
+``get_current_user``, ``get_upload_user`` and the WebSocket
+``authenticate_ws_token`` all go through) records here which login providers the
 current session credential has satisfied — its token's ``sat`` claim. The
 guild-access gate and every session-routing seam (``establish_guild_access``,
 ``get_guild_session``, ``gather_across_guilds``) read it to feed the guild
@@ -171,10 +172,10 @@ def asked_of_account() -> SecondFactorRequirement | None:
 
 
 #: Whether a personal API key is what authenticated this request. Recorded by
-#: the two validators that accept one, and read where a community's refusal of
-#: them is applied: the guild-access gate and the cross-guild aggregates.
-#: ``False`` for every other credential, which is the answer that reaches the
-#: guild.
+#: the credential validator (``app.services.auth.credentials``), and read where
+#: a community's refusal of them is applied: the guild-access gate and the
+#: cross-guild aggregates. ``False`` for every other credential, which is the
+#: answer that reaches the guild.
 _api_key_credential: contextvars.ContextVar[bool] = contextvars.ContextVar(
     "auth_api_key_credential", default=False
 )
@@ -186,6 +187,24 @@ def set_api_key_credential(value: bool) -> None:
 
 def api_key_credential() -> bool:
     return _api_key_credential.get()
+
+
+#: The one guild a personal API key is limited to, when it is limited to one.
+#: Recorded beside :data:`_api_key_credential` and read by the same two places:
+#: the guild-access gate refuses every other guild, and the cross-guild
+#: aggregates visit only this one. ``None`` for a key limited to no guild and
+#: for every other credential.
+_api_key_guild_id: contextvars.ContextVar[int | None] = contextvars.ContextVar(
+    "auth_api_key_guild_id", default=None
+)
+
+
+def set_api_key_guild_id(value: int | None) -> None:
+    _api_key_guild_id.set(value)
+
+
+def api_key_guild_id() -> int | None:
+    return _api_key_guild_id.get()
 
 
 #: The ``user_tokens`` row that authenticated this request, when the credential
@@ -218,9 +237,9 @@ class SessionCredential:
     that say whether it still stands: the ``auth_sessions`` row its ``sid``
     names, and the ``users.token_version`` it was minted at.
 
-    Recorded by the WebSocket authenticator so a stream registered on the
-    socket can ask again later, after the request that opened it is long gone.
-    ``None`` for every other credential.
+    Recorded by the credential validator for every session JWT. A stream
+    registered on a socket reads it, so it can ask again later, after the
+    request that opened it is long gone. ``None`` for every other credential.
     """
 
     session_id: uuid.UUID

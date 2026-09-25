@@ -267,6 +267,14 @@
     "fallbackText": "Si no has sido tú, usa uno de tus códigos de recuperación para establecer una contraseña de inmediato y avisa a quien gestiona este sitio.",
     "textBody": "Tu cuenta ya no tiene contraseña. Ahora inicias sesión con tu clave de acceso o con tu proveedor de identidad."
   },
+  "passwordChanged": {
+    "subject": "Se ha cambiado tu contraseña",
+    "title": "Se ha cambiado tu contraseña",
+    "greeting": "Hola <strong>{{name}}</strong>:",
+    "body": "Se acaba de cambiar la contraseña de tu cuenta. Se ha cerrado la sesión en todos los demás dispositivos conectados a tu cuenta.",
+    "fallbackText": "Si no has sido tú, restablece tu contraseña de inmediato y avisa a quien gestiona este sitio.",
+    "textBody": "Se acaba de cambiar la contraseña de tu cuenta. Se ha cerrado la sesión en todos los demás dispositivos conectados a tu cuenta. Si no has sido tú, restablece tu contraseña de inmediato."
+  },
   "passkey": {
     "greeting": "Hola <strong>{{name}}</strong>:",
     "fallbackText": "Si no has sido tú, cambia la contraseña de inmediato y avisa a quien gestiona este sitio.",

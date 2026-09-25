@@ -60,7 +60,8 @@ async def member_guild_ids(
 
     A guild that declines personal API keys is excluded when the request is
     carrying one, which is the same twinning: ``/c/{guild_id}`` refuses that
-    caller, so an aggregate cannot be the way its content is read instead."""
+    caller, so an aggregate cannot be the way its content is read instead.
+    A key limited to one guild reaches that guild alone, for the same reason."""
     await set_rls_context(session, user_id=user_id)
     conditions = [
         GuildMembership.user_id == user_id,
@@ -69,6 +70,9 @@ async def member_guild_ids(
     ]
     if auth_context.api_key_credential():
         conditions.append(Guild.allow_api_keys.is_(True))
+    pinned = auth_context.api_key_guild_id()
+    if pinned is not None:
+        conditions.append(GuildMembership.guild_id == pinned)
     rows = await session.exec(
         select(GuildMembership.guild_id)
         .join(Guild, Guild.id == GuildMembership.guild_id)

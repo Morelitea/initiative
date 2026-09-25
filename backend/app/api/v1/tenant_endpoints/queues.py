@@ -913,16 +913,6 @@ async def read_after_write(
 # ---------------------------------------------------------------------------
 
 
-async def _ws_authenticate(token: str, session) -> Optional[User]:
-    """Validate a session JWT or device token and return the user, or None.
-
-    Delegates to the shared ``authenticate_ws_token`` helper so the
-    ``token_version`` revocation check stays in lockstep with the HTTP auth
-    path and the other realtime WebSocket endpoints (SEC-4).
-    """
-    return await authenticate_ws_token(token, session)
-
-
 @router.websocket("/{queue_id}/ws")
 async def websocket_queue(
     websocket: WebSocket,
@@ -965,7 +955,7 @@ async def websocket_queue(
 
     # Authenticate and check access using a short-lived session
     async with request_sessionmaker(guild_id)() as session:
-        user = await _ws_authenticate(token, session)
+        user = await authenticate_ws_token(token, session)
         if not user:
             logger.warning(f"Queue WS: auth failed for queue {queue_id}")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
