@@ -785,3 +785,64 @@ async def test_trash_listing_shows_a_trashed_wiki_alone(session: AsyncSession, c
         )
     )
     assert sorted(pages.all()) == [("step-1", None), ("step-2", None)]
+
+
+async def test_every_tool_takes_its_thread_to_the_trash_and_back(
+    session: AsyncSession, client
+):
+    """Whatever the tool, its conversation is filed under it: trashing it bins
+    the thread, the trash lists only the tool, and restoring it brings the
+    thread back. Runs over the ``Tool`` enum, so a new tool is held to it."""
+    from app.core.tools import Tool
+    from app.models.platform.guild import GuildRole
+    from app.models.tenant.comment import Comment
+    from app.testing.factories import (
+        TOOL_FACTORIES,
+        create_comment,
+        create_guild_membership,
+        get_auth_headers,
+    )
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    initiative = await create_initiative(session, guild, user)
+
+    threads: dict[Tool, tuple[int, int]] = {}
+    for tool in Tool:
+        entity = await TOOL_FACTORIES[tool](session, initiative, user)
+        comment = await create_comment(session, user, **{tool.value: entity})
+        threads[tool] = (entity.id, comment.id)
+        await soft_delete_entity(
+            session, entity, deleted_by_user_id=user.id, retention_days=30
+        )
+        await session.commit()
+
+    async def live_comments() -> set[int]:
+        comment_ids = [comment_id for _, comment_id in threads.values()]
+        rows = await session.exec(
+            select_including_deleted(Comment.id).where(
+                Comment.id.in_(comment_ids), Comment.deleted_at.is_(None)
+            )
+        )
+        return set(rows.all())
+
+    assert await live_comments() == set()
+
+    headers = get_auth_headers(user)
+    response = await client.get(f"/api/v1/c/{guild.id}/trash/", headers=headers)
+    assert response.status_code == 200, response.text
+    listed = {(i["entity_type"], i["entity_id"]) for i in response.json()["items"]}
+    assert listed == {
+        (tool.value, entity_id) for tool, (entity_id, _) in threads.items()
+    }
+
+    for tool, (entity_id, _) in threads.items():
+        response = await client.post(
+            f"/api/v1/c/{guild.id}/trash/{tool.value}/{entity_id}/restore",
+            headers=headers,
+        )
+        assert response.status_code == 200, (tool, response.text)
+
+    session.expire_all()
+    assert await live_comments() == {comment_id for _, comment_id in threads.values()}
