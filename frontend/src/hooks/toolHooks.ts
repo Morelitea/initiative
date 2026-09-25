@@ -66,6 +66,7 @@ import {
   updateDashboardApiV1CGuildIdDashboardsDashboardIdPatch,
 } from "@/api/generated/dashboards/dashboards";
 import {
+  createDocumentApiV1CGuildIdDocumentsPost,
   deleteDocumentApiV1CGuildIdDocumentsDocumentIdDelete,
   getDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGet,
   getGetDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGetQueryKey,
@@ -160,11 +161,12 @@ import {
   setWikiGrantsApiV1CGuildIdWikisWikiIdGrantsPut,
   updateWikiApiV1CGuildIdWikisWikiIdPatch,
 } from "@/api/generated/wikis/wikis";
-import { invalidate, q, type Spec } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import { fetchAllPages } from "@/lib/fetchAllPages";
 import { queryClient } from "@/lib/queryClient";
+import { toolCamelPlural } from "@/lib/tools";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -309,7 +311,7 @@ const detailHook = <TRead>(endpoints: {
 const createHook = <TRead, TCreate>(
   endpoints: {
     create: (guildId: number, data: TCreate) => Promise<TRead>;
-    all: () => Spec;
+    tool: Tool;
   },
   errorKey: string
 ) => {
@@ -317,7 +319,7 @@ const createHook = <TRead, TCreate>(
     useGuildMutation<TRead, TCreate>(
       {
         mutationFn: (guildId, data) => endpoints.create(guildId, data),
-        invalidate: () => invalidate(endpoints.all()),
+        invalidate: () => invalidate(q.toolList(endpoints.tool)),
         errorKey,
       },
       options
@@ -341,8 +343,7 @@ const updateHook = <TRead, TUpdate>(
   endpoints: {
     update: (guildId: number, id: number, data: TUpdate) => Promise<TRead>;
     detailKey: (guildId: number, id: number) => CacheKey;
-    one: (id: number) => Spec;
-    all: () => Spec;
+    tool: Tool;
   },
   errorKey: string,
   { seedsDetailOnUpdate = false }: ToolWriteOptions = {}
@@ -356,7 +357,7 @@ const updateHook = <TRead, TUpdate>(
           if (seedsDetailOnUpdate) {
             queryClient.setQueryData(endpoints.detailKey(guildId, id), updated);
           }
-          return invalidate(endpoints.one(id), endpoints.all());
+          return invalidate(q.tool(endpoints.tool, id));
         },
         errorKey,
       },
@@ -368,7 +369,7 @@ const updateHook = <TRead, TUpdate>(
 const deleteHook = (
   endpoints: {
     remove: (guildId: number, id: number) => Promise<void>;
-    all: () => Spec;
+    tool: Tool;
   },
   errorKey: string
 ) => {
@@ -376,7 +377,7 @@ const deleteHook = (
     useGuildMutation<void, number>(
       {
         mutationFn: (guildId, id) => endpoints.remove(guildId, id),
-        invalidate: () => invalidate(endpoints.all()),
+        invalidate: () => invalidate(q.toolList(endpoints.tool)),
         errorKey,
       },
       options
@@ -387,8 +388,7 @@ const deleteHook = (
 const grantsHook = <TRead>(
   endpoints: {
     setGrants: (guildId: number, id: number, grants: ResourceGrantSchema[]) => Promise<TRead>;
-    one: (id: number) => Spec;
-    all: () => Spec;
+    tool: Tool;
   },
   errorKey: string
 ) => {
@@ -396,7 +396,7 @@ const grantsHook = <TRead>(
     useGuildMutation<TRead, ResourceGrantSchema[]>(
       {
         mutationFn: (guildId, grants) => endpoints.setGrants(guildId, id, grants),
-        invalidate: () => invalidate(endpoints.one(id), endpoints.all()),
+        invalidate: () => invalidate(q.tool(endpoints.tool, id)),
         errorKey,
       },
       options
@@ -417,27 +417,31 @@ interface ToolEndpoints<TRead, TList, TMyList, TCreate, TUpdate, TParams> {
   update: (guildId: number, id: number, data: TUpdate) => Promise<TRead>;
   remove: (guildId: number, id: number) => Promise<void>;
   setGrants: (guildId: number, id: number, grants: ResourceGrantSchema[]) => Promise<TRead>;
-  /** This tool's lists — including the cross-guild `/me` twin, where it has one. */
-  all: () => Spec;
-  /** One row of it. */
-  one: (id: number) => Spec;
+  /** Which tool this is — what its writes make stale follows from it. */
+  tool: Tool;
 }
 
-/** All seven, for a tool whose list and whose four writes are the standard ones. */
+/**
+ * All seven, for a tool whose list and whose four writes are the standard ones.
+ * Their failures read the tool's own `error` string.
+ */
 const makeToolHooks = <TRead, TList, TMyList, TCreate, TUpdate, TParams>(
   endpoints: ToolEndpoints<TRead, TList, TMyList, TCreate, TUpdate, TParams>,
-  errorKey: string,
   options?: ToolWriteOptions
-) => ({
-  ...countsHooks(endpoints),
-  ...listQueries(endpoints),
-  useList: listHook(endpoints),
-  useDetail: detailHook(endpoints),
-  useCreate: createHook(endpoints, errorKey),
-  useUpdate: updateHook(endpoints, errorKey, options),
-  useDelete: deleteHook(endpoints, errorKey),
-  useSetGrants: grantsHook(endpoints, errorKey),
-});
+) => {
+  const errorKey = `${toolCamelPlural(endpoints.tool)}:error`;
+  return {
+    ...countsHooks(endpoints),
+    ...listQueries(endpoints),
+    create: endpoints.create,
+    useList: listHook(endpoints),
+    useDetail: detailHook(endpoints),
+    useCreate: createHook(endpoints, errorKey),
+    useUpdate: updateHook(endpoints, errorKey, options),
+    useDelete: deleteHook(endpoints, errorKey),
+    useSetGrants: grantsHook(endpoints, errorKey),
+  };
+};
 
 // ── One record per tool ──────────────────────────────────────────────────────
 
@@ -454,8 +458,7 @@ const calendarEndpoints = {
   update: updateCalendarApiV1CGuildIdCalendarsCalendarIdPatch,
   remove: deleteCalendarApiV1CGuildIdCalendarsCalendarIdDelete,
   setGrants: setCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPut,
-  all: q.allCalendars,
-  one: q.calendar,
+  tool: Tool.calendar,
 };
 
 const counterGroupEndpoints = {
@@ -472,8 +475,7 @@ const counterGroupEndpoints = {
   update: updateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatch,
   remove: deleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDelete,
   setGrants: setCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPut,
-  all: q.allCounterGroups,
-  one: q.counterGroup,
+  tool: Tool.counter_group,
 };
 
 const dashboardEndpoints = {
@@ -489,8 +491,7 @@ const dashboardEndpoints = {
   update: updateDashboardApiV1CGuildIdDashboardsDashboardIdPatch,
   remove: deleteDashboardApiV1CGuildIdDashboardsDashboardIdDelete,
   setGrants: setDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPut,
-  all: q.allDashboards,
-  one: q.dashboard,
+  tool: Tool.dashboard,
 };
 
 // Documents have no standard list hook (theirs takes filters no other tool has,
@@ -512,13 +513,13 @@ const documentEndpoints = {
   detail: readDocumentApiV1CGuildIdDocumentsDocumentIdGet,
   remove: deleteDocumentApiV1CGuildIdDocumentsDocumentIdDelete,
   setGrants: setDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPut,
-  all: q.allDocuments,
-  one: q.document,
+  tool: Tool.document,
 };
 
 const documentHooks = {
   ...countsHooks(documentEndpoints),
   ...listQueries(documentEndpoints),
+  create: createDocumentApiV1CGuildIdDocumentsPost,
   useDetail: detailHook(documentEndpoints),
   useDelete: deleteHook(documentEndpoints, "documents:bulk.deleteError"),
   useSetGrants: grantsHook(documentEndpoints, "documents:settings.updateAccessError"),
@@ -537,8 +538,7 @@ const galleryEndpoints = {
   update: updateGalleryApiV1CGuildIdGalleriesGalleryIdPatch,
   remove: deleteGalleryApiV1CGuildIdGalleriesGalleryIdDelete,
   setGrants: setGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPut,
-  all: q.allGalleries,
-  one: q.gallery,
+  tool: Tool.gallery,
 };
 
 const postEndpoints = {
@@ -554,8 +554,7 @@ const postEndpoints = {
   update: updatePostApiV1CGuildIdPostsPostIdPatch,
   remove: deletePostApiV1CGuildIdPostsPostIdDelete,
   setGrants: setPostGrantsApiV1CGuildIdPostsPostIdGrantsPut,
-  all: q.allPosts,
-  one: q.post,
+  tool: Tool.post,
 };
 
 // Projects have no standard list hook (theirs is read straight, without
@@ -575,13 +574,13 @@ const projectEndpoints = {
   create: createProjectApiV1CGuildIdProjectsPost,
   remove: deleteProjectApiV1CGuildIdProjectsProjectIdDelete,
   setGrants: setProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPut,
-  all: q.allProjects,
-  one: q.project,
+  tool: Tool.project,
 };
 
 const projectHooks = {
   ...countsHooks(projectEndpoints),
   ...listQueries(projectEndpoints),
+  create: projectEndpoints.create,
   useDetail: detailHook(projectEndpoints),
   useCreate: createHook(projectEndpoints, "projects:createDialog.createError"),
   useDelete: deleteHook(projectEndpoints, "projects:detail.loadError"),
@@ -601,8 +600,7 @@ const queueEndpoints = {
   update: updateQueueApiV1CGuildIdQueuesQueueIdPatch,
   remove: deleteQueueApiV1CGuildIdQueuesQueueIdDelete,
   setGrants: setQueueGrantsApiV1CGuildIdQueuesQueueIdGrantsPut,
-  all: q.allQueues,
-  one: q.queue,
+  tool: Tool.queue,
 };
 
 const wikiEndpoints = {
@@ -618,8 +616,7 @@ const wikiEndpoints = {
   update: updateWikiApiV1CGuildIdWikisWikiIdPatch,
   remove: deleteWikiApiV1CGuildIdWikisWikiIdDelete,
   setGrants: setWikiGrantsApiV1CGuildIdWikisWikiIdGrantsPut,
-  all: q.allWikis,
-  one: q.wiki,
+  tool: Tool.wiki,
 };
 
 /**
@@ -645,6 +642,11 @@ interface ToolQueries {
     queryKey: CacheKey;
     queryFn: () => Promise<ToolListPage>;
   };
+  /** Makes one from a name and its initiative — what `useCreateTool` sends every tool. */
+  create: (
+    guildId: number,
+    data: { name: string; initiative_id: number }
+  ) => Promise<{ id: number }>;
 }
 
 /**
@@ -657,15 +659,11 @@ interface ToolQueries {
 export const TOOL_HOOKS = {
   [Tool.project]: projectHooks,
   [Tool.document]: documentHooks,
-  [Tool.queue]: makeToolHooks(queueEndpoints, "queues:error"),
-  [Tool.counter_group]: makeToolHooks(counterGroupEndpoints, "counterGroups:error"),
-  [Tool.calendar]: makeToolHooks(calendarEndpoints, "calendars:error"),
-  [Tool.dashboard]: makeToolHooks(dashboardEndpoints, "dashboards:error", {
-    seedsDetailOnUpdate: true,
-  }),
-  [Tool.post]: makeToolHooks(postEndpoints, "posts:error", { seedsDetailOnUpdate: true }),
-  [Tool.gallery]: makeToolHooks(galleryEndpoints, "galleries:error", {
-    seedsDetailOnUpdate: true,
-  }),
-  [Tool.wiki]: makeToolHooks(wikiEndpoints, "wikis:error"),
+  [Tool.queue]: makeToolHooks(queueEndpoints),
+  [Tool.counter_group]: makeToolHooks(counterGroupEndpoints),
+  [Tool.calendar]: makeToolHooks(calendarEndpoints),
+  [Tool.dashboard]: makeToolHooks(dashboardEndpoints, { seedsDetailOnUpdate: true }),
+  [Tool.post]: makeToolHooks(postEndpoints, { seedsDetailOnUpdate: true }),
+  [Tool.gallery]: makeToolHooks(galleryEndpoints, { seedsDetailOnUpdate: true }),
+  [Tool.wiki]: makeToolHooks(wikiEndpoints),
 } satisfies Record<Tool, ToolQueries>;

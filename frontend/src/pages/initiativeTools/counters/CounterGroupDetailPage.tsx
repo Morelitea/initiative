@@ -24,6 +24,7 @@ import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { CounterFormDialog } from "@/components/initiativeTools/counters/CounterFormDialog";
 import { type CounterLayout, CounterRow } from "@/components/initiativeTools/counters/CounterRow";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
+import { computeMidpoint } from "@/components/projects/taskOrdering";
 import {
   CardGridSkeleton,
   DetailPageSkeleton,
@@ -54,22 +55,10 @@ import { useRecordRecentView } from "@/hooks/useRecents";
 import { useCounterGroupRealtime } from "@/hooks/useResourceRealtime";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useGuildPath } from "@/lib/guildUrl";
-import { hasWriteAccess } from "@/lib/permissions";
+import { hasOwnerAccess, hasWriteAccess } from "@/lib/permissions";
 import { counterRoute, toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 const layoutStorageKey = (groupId: number) => `counter-group-${groupId}-layout`;
-
-const computeMidpoint = (counters: CounterRead[], targetIndex: number): string => {
-  const before = counters[targetIndex - 1];
-  const after = counters[targetIndex];
-  if (before && after) {
-    const sum = Number(before.position) + Number(after.position);
-    return (sum / 2).toFixed(10);
-  }
-  if (before) return (Number(before.position) + 1).toFixed(10);
-  if (after) return (Number(after.position) - 1).toFixed(10);
-  return "0";
-};
 
 export function CounterGroupDetailPage() {
   const { t } = useTranslation(["counterGroups", "common"]);
@@ -134,7 +123,7 @@ export function CounterGroupDetailPage() {
   }, [viewedGroupId, recordViewMutation.mutate]);
 
   const canWrite = hasWriteAccess(group?.my_permission_level);
-  const canManage = group?.my_permission_level === "owner";
+  const canManage = hasOwnerAccess(group?.my_permission_level);
 
   // Drive the app-wide bottom-nav add button for this route.
   useRegisterPrimaryCreateAction(
@@ -151,9 +140,11 @@ export function CounterGroupDetailPage() {
     if (oldIndex === -1 || newIndex === -1) return;
 
     // Build the list with `active` removed, then compute the midpoint for its new slot.
-    const withoutActive = counters.filter((c) => c.id !== activeId);
+    const withoutActive = counters
+      .filter((c) => c.id !== activeId)
+      .map((c) => ({ position: Number(c.position) }));
     const insertAt = oldIndex < newIndex ? newIndex : newIndex;
-    const newPosition = computeMidpoint(withoutActive, insertAt);
+    const newPosition = computeMidpoint(withoutActive, insertAt).toFixed(10);
 
     updateCounter.mutate({
       counterId: activeId,

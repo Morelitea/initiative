@@ -26,6 +26,7 @@ import { useGuildApps } from "@/hooks/useGuildApps";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useUsers } from "@/hooks/useUsers";
+import { hasOwnerAccess } from "@/lib/permissions";
 import { resolveArtworkUrl } from "@/lib/uploadUrl";
 import { getUserDisplayName, getUserHandle } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
@@ -133,7 +134,7 @@ export const ShareControl = ({
   const mode: "all" | "restricted" = allMembersGrant ? "all" : "restricted";
 
   const userGrants = useMemo(
-    () => grants.filter((g) => g.user_id != null && g.level !== "owner"),
+    () => grants.filter((g) => g.user_id != null && !hasOwnerAccess(g.level)),
     [grants]
   );
   // A role grant cannot mean anything on a guild-level resource: the roles are
@@ -169,11 +170,11 @@ export const ShareControl = ({
   // ── Apps: the owning install, and the ones the seat granted ──────────────
 
   const ownerAppId = useMemo(
-    () => grants.find((g) => g.level === "owner" && g.app_install_id != null)?.app_install_id,
+    () => grants.find((g) => hasOwnerAccess(g.level) && g.app_install_id != null)?.app_install_id,
     [grants]
   );
   const appGrants = useMemo(
-    () => grants.filter((g) => g.app_install_id != null && g.level !== "owner"),
+    () => grants.filter((g) => g.app_install_id != null && !hasOwnerAccess(g.level)),
     [grants]
   );
   // The apps list is only read when a grant names an app the read model did

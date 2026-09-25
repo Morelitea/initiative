@@ -239,6 +239,7 @@
   "QUERY_EXECUTION_FAILED": "La base de données n'a pas pu terminer cette requête — vérifiez s'il y a une division par zéro, une valeur non convertible, ou une fonction recevant un argument du mauvais type.",
   "RATE_LIMITED": "Trop de requêtes. Veuillez patienter un moment et réessayer.",
   "unableToLoadGuilds": "Impossible de charger les communautés.",
+  "unableToSaveGuildOrder": "Impossible d'enregistrer l'ordre des communautés. Actualisation…",
   "TRASH_ITEM_NOT_FOUND": "Cet élément de la corbeille n'est plus disponible.",
   "TRASH_PURGE_REQUIRES_ADMIN": "Seuls les administrateurs de la communauté peuvent supprimer définitivement.",
   "TRASH_UNKNOWN_ENTITY_TYPE": "Type d'élément de la corbeille inconnu.",

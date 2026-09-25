@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { Download } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
@@ -14,11 +14,13 @@ import {
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import {
+  buildEventCalendarEntry,
   buildTaskCalendarEntries,
   type CalendarEntry,
   CalendarView,
   type CalendarViewMode,
   calendarVisibleRange,
+  useCalendarVisibility,
 } from "@/components/calendar";
 import {
   CalendarPanelDropdown,
@@ -35,12 +37,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMyCalendarEntries } from "@/hooks/useCalendarEntries";
 import { useMyCalendars } from "@/hooks/useCalendars";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { toast } from "@/lib/chesterToast";
 import { guildPath, useGuildPath } from "@/lib/guildUrl";
 import { getProjectColor } from "@/lib/projectColor";
 import { PRIORITY_ORDER } from "@/lib/sorting";
-import { getItem, setItem } from "@/lib/storage";
 import { entityRefRoute, toolSettingsRoute } from "@/lib/tools";
 
 const STORAGE_KEY = "initiative-my-calendar-prefs";
@@ -75,43 +77,6 @@ const sanitizeStoredPrefs = (raw: unknown): StoredPrefs => {
       : PREFS_DEFAULTS.priorityFilters,
     guildFilters: Array.isArray(v.guildFilters) ? v.guildFilters : PREFS_DEFAULTS.guildFilters,
   };
-};
-
-// Visibility persists as HIDDEN key sets so new calendars/projects appear
-// checked. Cross-guild, so keys are "guildId:entityId" — per-guild ids
-// collide across guilds.
-interface StoredVisibility {
-  hiddenCalendarKeys: string[];
-  hiddenProjectKeys: string[];
-}
-
-const readStoredVisibility = (): StoredVisibility => {
-  try {
-    const raw = getItem(VISIBILITY_KEY);
-    if (!raw) return { hiddenCalendarKeys: [], hiddenProjectKeys: [] };
-    const parsed = JSON.parse(raw);
-    return {
-      hiddenCalendarKeys: Array.isArray(parsed?.hiddenCalendarKeys)
-        ? parsed.hiddenCalendarKeys
-        : [],
-      hiddenProjectKeys: Array.isArray(parsed?.hiddenProjectKeys) ? parsed.hiddenProjectKeys : [],
-    };
-  } catch {
-    return { hiddenCalendarKeys: [], hiddenProjectKeys: [] };
-  }
-};
-
-const taskProjectKey = (guildId: number | null | undefined, projectId: number): string =>
-  `${guildId ?? 0}:${projectId}`;
-
-const toggleInSet = (prev: ReadonlySet<string>, key: string): Set<string> => {
-  const next = new Set(prev);
-  if (next.has(key)) {
-    next.delete(key);
-  } else {
-    next.add(key);
-  }
-  return next;
 };
 
 export const MyCalendarPage = () => {
@@ -157,43 +122,20 @@ export const MyCalendarPage = () => {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [focusDate, setFocusDate] = useState(() => new Date());
 
+  // Per-calendar / per-project visibility, across every guild.
+  const visibility = useCalendarVisibility(VISIBILITY_KEY);
+
   // Badges the filter button while the panel is closed. Hidden calendars count:
   // the reader has narrowed the grid, and nothing else on screen says so.
-  // (`activeFilterCount` reads the hidden-key sets declared just below.)
-
-  // Per-calendar / per-project visibility (persisted, cross-guild keys).
-  const storedVisibility = useMemo(() => readStoredVisibility(), []);
-  const [hiddenCalendarKeys, setHiddenCalendarKeys] = useState<Set<string>>(
-    () => new Set(storedVisibility.hiddenCalendarKeys)
-  );
-  const [hiddenProjectKeys, setHiddenProjectKeys] = useState<Set<string>>(
-    () => new Set(storedVisibility.hiddenProjectKeys)
-  );
-
   const activeFilterCount =
-    hiddenCalendarKeys.size +
-    hiddenProjectKeys.size +
-    statusFilters.length +
-    priorityFilters.length +
-    guildFilters.length;
+    visibility.hiddenCount + statusFilters.length + priorityFilters.length + guildFilters.length;
 
-  const clearFilters = useCallback(() => {
-    setHiddenCalendarKeys(new Set());
-    setHiddenProjectKeys(new Set());
+  const clearFilters = () => {
+    visibility.clear();
     setStatusFilters([]);
     setPriorityFilters([]);
     setGuildFilters([]);
-  }, [setStatusFilters, setPriorityFilters, setGuildFilters]);
-
-  useEffect(() => {
-    setItem(
-      VISIBILITY_KEY,
-      JSON.stringify({
-        hiddenCalendarKeys: [...hiddenCalendarKeys],
-        hiddenProjectKeys: [...hiddenProjectKeys],
-      })
-    );
-  }, [hiddenCalendarKeys, hiddenProjectKeys]);
+  };
 
   const userTimezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
 
@@ -245,9 +187,10 @@ export const MyCalendarPage = () => {
     guildFilters.length > 0 ? { guild_ids: guildFilters } : undefined
   );
   const calendars = useMemo(() => calendarsQuery.data?.items ?? [], [calendarsQuery.data]);
-  const calendarsByKey = useMemo(() => {
-    const map = new Map<string, (typeof calendars)[number]>();
-    for (const calendar of calendars) map.set(`${calendar.guild_id}:${calendar.id}`, calendar);
+  const calendarColors = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const calendar of calendars)
+      map.set(`${calendar.guild_id}:${calendar.id}`, calendar.color);
     return map;
   }, [calendars]);
 
@@ -267,7 +210,7 @@ export const MyCalendarPage = () => {
     const seen = new Map<string, ProjectTaskCalendar>();
     for (const task of entriesQuery.data?.tasks ?? []) {
       if (task.project_id == null) continue;
-      const key = taskProjectKey(task.guild_id, task.project_id);
+      const key = `${task.guild_id ?? 0}:${task.project_id}`;
       if (seen.has(key)) continue;
       const guildName =
         multiGuild && task.guild_id != null ? guildNamesById.get(task.guild_id) : undefined;
@@ -283,6 +226,7 @@ export const MyCalendarPage = () => {
   }, [entriesQuery.data, guildNamesById, multiGuild]);
 
   // --- Merge tasks + events into calendar entries (visibility-filtered) ---
+  const unread = useUnreadTree();
   const calendarEntries = useMemo<CalendarEntry[]>(() => {
     const entries: CalendarEntry[] = [];
 
@@ -291,10 +235,7 @@ export const MyCalendarPage = () => {
     // meta for cross-guild navigation. Not draggable here (My Calendar has no
     // reschedule handler).
     for (const task of entriesQuery.data?.tasks ?? []) {
-      if (
-        task.project_id != null &&
-        hiddenProjectKeys.has(taskProjectKey(task.guild_id, task.project_id))
-      ) {
+      if (task.project_id != null && visibility.isProjectHidden(task.guild_id, task.project_id)) {
         continue;
       }
       for (const entry of buildTaskCalendarEntries(task, getProjectColor(task.project_id), false)) {
@@ -306,29 +247,18 @@ export const MyCalendarPage = () => {
     }
 
     for (const event of entriesQuery.data?.events ?? []) {
-      const calendarKey = `${event.guild_id}:${event.calendar_id}`;
-      if (hiddenCalendarKeys.has(calendarKey)) continue;
-      const calendar = calendarsByKey.get(calendarKey);
-      entries.push({
-        id: `event-${event.guild_id}-${event.id}`,
-        title: event.title,
-        description: event.description,
-        startAt: event.start_at,
-        endAt: event.end_at,
-        allDay: event.all_day,
-        // Events render in their calendar's stored color.
-        color: calendar?.color ?? "#6366f1",
-        attendees: (event.attendee_previews ?? []).map((att) => ({
-          name: att.name,
-          avatarUrl: att.avatar_url,
-          userId: att.user_id,
-        })),
-        meta: { type: "event", eventId: event.id, guildId: event.guild_id },
-      });
+      if (visibility.isCalendarHidden(event.guild_id, event.calendar_id)) continue;
+      entries.push(
+        buildEventCalendarEntry(
+          event,
+          calendarColors.get(`${event.guild_id}:${event.calendar_id}`),
+          unread.hasSubject(event.guild_id, "calendar_event", event.id)
+        )
+      );
     }
 
     return entries;
-  }, [entriesQuery.data, hiddenCalendarKeys, hiddenProjectKeys, calendarsByKey]);
+  }, [entriesQuery.data, visibility, calendarColors, unread]);
 
   const handleEntryClick = (entry: CalendarEntry) => {
     const meta = entry.meta as
@@ -421,20 +351,16 @@ export const MyCalendarPage = () => {
                 calendars={calendars}
                 projectCalendars={projectCalendars}
                 isCalendarHidden={(calendar) =>
-                  hiddenCalendarKeys.has(`${calendar.guild_id}:${calendar.id}`)
+                  visibility.isCalendarHidden(calendar.guild_id, calendar.id)
                 }
                 isProjectHidden={(project) =>
-                  hiddenProjectKeys.has(taskProjectKey(project.guildId, project.projectId))
+                  visibility.isProjectHidden(project.guildId, project.projectId)
                 }
                 onToggleCalendar={(calendar) =>
-                  setHiddenCalendarKeys((prev) =>
-                    toggleInSet(prev, `${calendar.guild_id}:${calendar.id}`)
-                  )
+                  visibility.toggleCalendar(calendar.guild_id, calendar.id)
                 }
                 onToggleProject={(project) =>
-                  setHiddenProjectKeys((prev) =>
-                    toggleInSet(prev, taskProjectKey(project.guildId, project.projectId))
-                  )
+                  visibility.toggleProject(project.guildId, project.projectId)
                 }
                 calendarLabel={(calendar) => {
                   const guildName = multiGuild ? guildNamesById.get(calendar.guild_id) : undefined;

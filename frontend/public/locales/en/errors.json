@@ -251,6 +251,7 @@
   "QUERY_EXECUTION_FAILED": "The database could not finish this query — check for a division by zero, a value that will not convert, or a function given the wrong kind of argument.",
   "RATE_LIMITED": "Too many requests. Please wait a moment and try again.",
   "unableToLoadGuilds": "Unable to load communities.",
+  "unableToSaveGuildOrder": "Unable to save community order. Refreshing…",
   "TRASH_ITEM_NOT_FOUND": "That trashed item is no longer available.",
   "TRASH_PURGE_REQUIRES_ADMIN": "Only community admins can permanently delete items.",
   "TRASH_UNKNOWN_ENTITY_TYPE": "Unknown trash item type.",

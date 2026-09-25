@@ -268,6 +268,15 @@
     "updateSuccess": "Préférences d'interface mises à jour",
     "updateError": "Impossible de mettre à jour les préférences d'interface",
     "themePreview": "Aperçu du thème",
+    "themeDescriptions": {
+      "kobold": "Le thème classique d'Initiative, aux tons indigo profonds.",
+      "displacer": "Thème pastel apaisant inspiré de Catppuccin (Latte/Macchiato).",
+      "strahd": "Thème gothique sombre aux accents violets (Dracula/Alucard).",
+      "unicorn": "Arc-en-ciel néon sur tout le spectre — haut en couleur et fier de l'être.",
+      "darkKnight": "Thème noir AMOLED aux accents rouge foncé et jaunes.",
+      "orc": "Thème vert terreux aux accents vert vif de peau d'orc. ORC ORC ORC !",
+      "aboleth": "Antre sombre inspiré de Monokai, aux vifs accents bioluminescents."
+    },
     "lightMode": "Clair",
     "darkMode": "Sombre",
     "taskCompletionVisualFeedback": {

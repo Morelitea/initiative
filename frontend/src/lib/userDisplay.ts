@@ -1,4 +1,5 @@
 import type { UserStatus } from "@/api/generated/initiativeAPI.schemas";
+import i18n from "@/i18n";
 import { ANONYMIZED_INITIALS, getInitials } from "@/lib/initials";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 
@@ -63,17 +64,17 @@ export const getUrlHandle = (user: DisplayableUser | null | undefined): string =
  */
 export const getUserDisplayName = (
   user: DisplayableUser | null | undefined,
-  fallback = "User"
+  fallback?: string
 ): string => {
-  if (!user) return fallback;
-  const name = user.full_name?.trim();
+  const name = user?.full_name?.trim();
   if (name) return name;
   const handle = getUserHandle(user);
   if (handle) return handle;
   // Nothing to name them by: an id the caller has not resolved yet, or one
-  // whose account is gone. Either way the caller's placeholder is the honest
-  // answer, and it carries the id, so two of them stay distinguishable.
-  return fallback;
+  // whose account is gone. The placeholder carries the id when there is one,
+  // so two of them stay distinguishable.
+  if (fallback !== undefined) return fallback;
+  return user?.id != null ? i18n.t("common:userWithId", { id: user.id }) : i18n.t("common:user");
 };
 
 /**

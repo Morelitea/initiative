@@ -104,9 +104,7 @@ export const CommentThread = ({
     importedAuthorName ??
     (comment.created_by == null
       ? t("comments:appAuthor")
-      : comment.author
-        ? getUserDisplayName(comment.author, `User #${comment.created_by}`)
-        : `User #${comment.created_by}`);
+      : getUserDisplayName(comment.author ?? { id: comment.created_by }));
   const canDelete = currentUserId === comment.created_by || canModerate;
   const canEdit = currentUserId === comment.created_by;
   const visualDepth = Math.min(depth, MAX_VISUAL_DEPTH);

@@ -96,11 +96,12 @@ export const withAlpha = (colour: string, alpha: number): string => {
   if (normalized.startsWith("rgb")) {
     return normalized.replace("rgb(", "rgba(").replace(")", `, ${alpha})`);
   }
-  if (/^#[0-9a-f]{6}$/i.test(normalized)) {
+  const hex = normalized.replace(/^#([0-9a-f])([0-9a-f])([0-9a-f])$/i, "#$1$1$2$2$3$3");
+  if (/^#[0-9a-f]{6}$/i.test(hex)) {
     const byte = Math.round(Math.max(0, Math.min(1, alpha)) * 255)
       .toString(16)
       .padStart(2, "0");
-    return `${normalized}${byte}`;
+    return `${hex}${byte}`;
   }
   return normalized;
 };

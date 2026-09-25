@@ -1,6 +1,6 @@
 import type { FlatNamespace } from "i18next";
 import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ResourceGrantSchema, Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -25,75 +25,82 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { TOOL_HOOKS } from "@/hooks/toolHooks";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
+import { toolKebabSingular } from "@/lib/tools";
 import type { DialogProps } from "@/types/dialog";
 import type { TranslateFn } from "@/types/i18n";
 import type { MutationOpts } from "@/types/mutation";
 
-/**
- * The create payload shared by the simple initiative-tool create dialogs. Both
- * `QueueCreate` and `CounterGroupCreate` are structurally this shape, so the
- * dialog can build the payload once and hand it to either mutation hook.
- */
-export type ToolCreatePayload = {
+/** The keys a tool spells its create dialog with, in its own namespace. */
+export type CreateToolText = {
+  ns: FlatNamespace;
+  /** Title of the dialog and its submit button. */
+  create: string;
+  /** The line under the title. */
+  createDescription?: string;
+  /** For a namespace whose `descriptionPlaceholder` already says something else. */
+  descriptionPlaceholder?: string;
+};
+
+/** What this dialog sends, whichever tool it makes. */
+type ToolCreatePayload = {
   name: string;
-  description?: string | null;
-  initiative_id: number;
-  grants?: ResourceGrantSchema[];
+  description?: string;
+  initiative_id?: number;
+  grants: ResourceGrantSchema[];
 };
 
 /**
- * The small, concrete bundle that distinguishes one tool's create dialog from
- * another: its i18n namespace/keys, element-id prefix, and create-mutation hook.
+ * The slice of a tool's `TOOL_HOOKS` create hook this dialog drives. Each is
+ * typed with its own tool's schemas, and every one of them takes this payload.
  */
-export interface CreateToolConfig<TRead> {
-  /** The tool being created — drives the picker's creatable-initiative filter. */
-  tool: Tool;
-  /** i18n namespace for this tool's strings (e.g. "queues"). */
-  namespace: FlatNamespace;
-  /** Key for the dialog title and the submit button label. */
-  titleKey: string;
-  /** Key for the dialog description. */
-  descriptionKey: string;
-  /** Prefix for field element ids, e.g. "create-queue" → "create-queue-name". */
-  idPrefix: string;
-  /** The domain create-mutation hook (e.g. `useCreateQueue`). */
-  useCreate: (options: MutationOpts<TRead, ToolCreatePayload>) => {
-    mutate: (payload: ToolCreatePayload) => void;
-    isPending: boolean;
-  };
-}
+type ToolCreateHook = (options: MutationOpts<{ id: number }, ToolCreatePayload>) => {
+  mutate: (payload: ToolCreatePayload) => void;
+  isPending: boolean;
+};
 
-export type CreateToolDialogProps<TRead> = DialogProps & {
+export type CreateToolDialogProps = DialogProps & {
+  tool: Tool;
+  text: CreateToolText;
   /** If provided, the initiative is locked and cannot be changed. */
   initiativeId?: number;
   /** If provided, pre-selects this initiative (but the user can change it). */
   defaultInitiativeId?: number;
+  /** Create one belonging to the guild rather than to any initiative, the way
+   * the calendar app's own calendars do. There is no initiative to pick. */
+  guildScope?: boolean;
+  /** Fields only this tool asks for, shown under the description, and what
+   * they add to what is sent. */
+  extra?: { field: ReactNode; payload: Record<string, unknown> };
   /** Called after successful creation. */
-  onSuccess?: (result: TRead) => void;
-  config: CreateToolConfig<TRead>;
+  onSuccess?: (created: { id: number }) => void;
 };
 
 /**
- * Shared implementation behind the queue and counter-group create dialogs,
- * which were line-for-line twins apart from their i18n keys, element ids, and
- * create-mutation hook. Each tool keeps a thin named wrapper with an unchanged
- * public signature.
+ * Naming a new, empty tool: its name, a description, the initiative it goes
+ * in, and who else may reach it. Every tool made by naming an empty container
+ * is made here, and what differs between them is their strings and the odd
+ * field of their own. Documents, posts and projects start from content or a
+ * template, and keep dialogs of their own.
  */
-export const CreateToolDialog = <TRead,>({
+export const CreateToolDialog = ({
   open,
   onOpenChange,
+  tool,
+  text,
   initiativeId,
   defaultInitiativeId,
+  guildScope = false,
+  extra,
   onSuccess,
-  config,
-}: CreateToolDialogProps<TRead>) => {
-  const { tool, namespace, titleKey, descriptionKey, idPrefix, useCreate } = config;
-  // The namespace and several keys are supplied by config (dynamic per tool), so
-  // use the loose translation signature rather than the statically-typed keys.
-  const { t: translate } = useTranslation(namespace);
+}: CreateToolDialogProps) => {
+  // The namespace and several keys come from the tool, so use the loose
+  // translation signature rather than the statically-typed keys.
+  const { t: translate } = useTranslation(text.ns);
   const t = translate as TranslateFn;
+  const idPrefix = `create-${toolKebabSingular(tool)}`;
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -106,11 +113,13 @@ export const CreateToolDialog = <TRead,>({
   const initiatives = initiativesQuery.data ?? [];
 
   // The picker only offers initiatives the user may actually create this tool
-  // in (server-computed create flags; folds in the tool's master switch).
-  const { creatableInitiatives } = useToolCreateAccess(tool);
+  // in (server-computed create flags; folds in the tool's master switch). A
+  // guild-level one goes into none of them, so the question is not asked.
+  const { creatableInitiatives } = useToolCreateAccess(tool, { enabled: open && !guildScope });
 
-  const effectiveInitiativeId =
-    initiativeId ?? (selectedInitiativeId ? Number(selectedInitiativeId) : null);
+  const effectiveInitiativeId = guildScope
+    ? null
+    : (initiativeId ?? (selectedInitiativeId ? Number(selectedInitiativeId) : null));
 
   const lockedInitiative = initiativeId
     ? (initiatives.find((i) => i.id === initiativeId) ?? null)
@@ -119,8 +128,11 @@ export const CreateToolDialog = <TRead,>({
   // Reset form when dialog closes, set default initiative when dialog opens
   useEffect(() => {
     if (open) {
+      if (guildScope) return;
       if (defaultInitiativeId) {
         setSelectedInitiativeId(String(defaultInitiativeId));
+      } else if (creatableInitiatives.length === 1) {
+        setSelectedInitiativeId(String(creatableInitiatives[0].id));
       }
     } else {
       setName("");
@@ -128,8 +140,11 @@ export const CreateToolDialog = <TRead,>({
       setSelectedInitiativeId(defaultInitiativeId ? String(defaultInitiativeId) : "");
       setGrants([...DEFAULT_GRANTS]);
     }
-  }, [open, defaultInitiativeId]);
+  }, [open, guildScope, defaultInitiativeId, creatableInitiatives]);
 
+  // Every tool but a document has a create hook in the table; each is typed
+  // with its own schemas, which this payload satisfies.
+  const { useCreate } = TOOL_HOOKS[tool] as unknown as { useCreate: ToolCreateHook };
   const createTool = useCreate({
     onSuccess: (result) => {
       onOpenChange(false);
@@ -138,15 +153,18 @@ export const CreateToolDialog = <TRead,>({
   });
 
   const isCreating = createTool.isPending;
-  const canSubmit = !!name.trim() && !!effectiveInitiativeId && !isCreating;
+  const hasTarget = guildScope || !!effectiveInitiativeId;
+  const canSubmit = !!name.trim() && hasTarget && !isCreating;
 
   const handleSubmit = () => {
     const trimmedName = name.trim();
-    if (!trimmedName || !effectiveInitiativeId) return;
+    if (!trimmedName || !hasTarget) return;
     createTool.mutate({
+      ...extra?.payload,
       name: trimmedName,
       description: description.trim() || undefined,
-      initiative_id: effectiveInitiativeId,
+      // Omitted for a guild-level one: no initiative is what makes it one.
+      ...(effectiveInitiativeId ? { initiative_id: effectiveInitiativeId } : {}),
       grants,
     });
   };
@@ -155,8 +173,10 @@ export const CreateToolDialog = <TRead,>({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-screen w-full overflow-y-auto rounded-2xl border bg-card shadow-2xl sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{t(titleKey)}</DialogTitle>
-          <DialogDescription>{t(descriptionKey)}</DialogDescription>
+          <DialogTitle>{t(text.create)}</DialogTitle>
+          {text.createDescription ? (
+            <DialogDescription>{t(text.createDescription)}</DialogDescription>
+          ) : null}
         </DialogHeader>
 
         <div className="space-y-4">
@@ -183,40 +203,44 @@ export const CreateToolDialog = <TRead,>({
               id={`${idPrefix}-description`}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder={t("descriptionPlaceholder")}
+              placeholder={t(text.descriptionPlaceholder ?? "descriptionPlaceholder")}
               rows={3}
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor={`${idPrefix}-initiative`}>{t("initiative")}</Label>
-            {initiativeId ? (
-              <div className="rounded-md border px-3 py-2 text-sm">
-                {lockedInitiative?.name ?? t("selectInitiative")}
-              </div>
-            ) : (
-              <Select
-                value={selectedInitiativeId}
-                onValueChange={(value) => {
-                  setSelectedInitiativeId(value);
-                  // Access grants are initiative-scoped; a new target starts
-                  // over with default access.
-                  setGrants([...DEFAULT_GRANTS]);
-                }}
-              >
-                <SelectTrigger id={`${idPrefix}-initiative`}>
-                  <SelectValue placeholder={t("selectInitiative")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {creatableInitiatives.map((initiative) => (
-                    <SelectItem key={initiative.id} value={String(initiative.id)}>
-                      {initiative.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
+          {extra?.field}
+
+          {guildScope ? null : (
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-initiative`}>{t("initiative")}</Label>
+              {initiativeId ? (
+                <div className="rounded-md border px-3 py-2 text-sm">
+                  {lockedInitiative?.name ?? t("selectInitiative")}
+                </div>
+              ) : (
+                <Select
+                  value={selectedInitiativeId}
+                  onValueChange={(value) => {
+                    setSelectedInitiativeId(value);
+                    // Access grants are initiative-scoped; a new target starts
+                    // over with default access.
+                    setGrants([...DEFAULT_GRANTS]);
+                  }}
+                >
+                  <SelectTrigger id={`${idPrefix}-initiative`}>
+                    <SelectValue placeholder={t("selectInitiative")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {creatableInitiatives.map((initiative) => (
+                      <SelectItem key={initiative.id} value={String(initiative.id)}>
+                        {initiative.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
 
           <CreateAccessSection
             initiativeId={effectiveInitiativeId}
@@ -233,7 +257,7 @@ export const CreateToolDialog = <TRead,>({
                 {t("creating")}
               </>
             ) : (
-              t(titleKey)
+              t(text.create)
             )}
           </Button>
         </DialogFooter>

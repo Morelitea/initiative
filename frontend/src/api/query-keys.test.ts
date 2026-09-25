@@ -8,6 +8,7 @@ import {
   setInvalidationGuild,
 } from "@/api/query-keys";
 import { queryClient } from "@/lib/queryClient";
+import { TOOLS, toolRouteSegment } from "@/lib/tools";
 
 /** Seed a query so it exists in the cache, then report whether it got invalidated. */
 const seed = (key: readonly unknown[]) => {
@@ -46,6 +47,17 @@ describe("query-keys guild scoping", () => {
 
     expect(guildScoped()).toBe(true);
     expect(meAggregate()).toBe(true);
+  });
+
+  it.each(TOOLS)("a %s list reaches its cross-guild /me twin", async (tool) => {
+    const guildList = seed([`/api/v1/c/5/${toolRouteSegment(tool)}/`]);
+    const meList = seed([`/api/v1/me/${toolRouteSegment(tool)}`]);
+
+    setInvalidationGuild(5);
+    await invalidate(q.toolList(tool));
+
+    expect(guildList()).toBe(true);
+    expect(meList()).toBe(true);
   });
 
   it("falls back to plain matching when no active guild is set", async () => {

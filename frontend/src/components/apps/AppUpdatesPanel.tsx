@@ -26,8 +26,7 @@ import { isAxiosError } from "axios";
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import type { GuildAppDetail } from "@/api/appConnections";
-import type { GuildAppUpgradeAsks } from "@/api/generated/initiativeAPI.schemas";
+import type { GuildAppDetail, GuildAppUpgradeAsks } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useDeclineAppUpgrade, useUpgradeApp } from "@/hooks/useGuildAppDetail";

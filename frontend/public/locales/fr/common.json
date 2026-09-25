@@ -1,4 +1,6 @@
 {
+  "user": "Utilisateur",
+  "userWithId": "Utilisateur n° {{id}}",
   "save": "Enregistrer",
   "cancel": "Annuler",
   "delete": "Supprimer",

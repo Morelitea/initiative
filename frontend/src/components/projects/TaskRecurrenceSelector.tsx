@@ -24,6 +24,9 @@ import {
   detectRecurrencePreset,
   ensureMonthlyDefaults,
   ensureYearlyDefaults,
+  getReferenceDate,
+  getWeekdayFromDate,
+  getWeekPosition,
   type RecurrencePreset,
   updateMonthlyDay,
   updateMonthlyWeekday,
@@ -65,17 +68,6 @@ const FREQUENCY_UNIT_KEYS: Record<TaskRecurrenceOutputFrequency, string> = {
   yearly: "recurrence.repeatEveryYears",
 };
 
-const getAnchorDate = (referenceDate?: string | null) => {
-  if (!referenceDate) {
-    return new Date();
-  }
-  const parsed = new Date(referenceDate);
-  if (Number.isNaN(parsed.getTime())) {
-    return new Date();
-  }
-  return parsed;
-};
-
 type TaskRecurrenceSelectorProps = {
   recurrence: TaskRecurrenceOutput | null;
   onChange: (rule: TaskRecurrenceOutput | null) => void;
@@ -108,7 +100,7 @@ export const TaskRecurrenceSelector = ({
   }, [detectedPreset, forceCustomMode, recurrence]);
 
   const preset = forceCustomMode ? "custom" : detectedPreset;
-  const anchorDate = getAnchorDate(referenceDate);
+  const anchorDate = getReferenceDate(referenceDate);
   const showCustomFields = forceCustomMode && recurrence !== null;
 
   const ensureRule = (): TaskRecurrenceOutput => {
@@ -145,7 +137,7 @@ export const TaskRecurrenceSelector = ({
       end_date: rule.end_date,
     };
     if (value === "weekly") {
-      const existing = rule.weekdays.length ? rule.weekdays : [anchorDateToWeekday(anchorDate)];
+      const existing = rule.weekdays.length ? rule.weekdays : [getWeekdayFromDate(anchorDate)];
       next = { ...next, weekdays: existing };
     } else if (value === "monthly") {
       next = ensureMonthlyDefaults({ ...next, weekdays: [] }, referenceDate);
@@ -194,7 +186,7 @@ export const TaskRecurrenceSelector = ({
       onChange(updateMonthlyDay(rule, day));
     } else {
       const weekday = (rule.weekday ??
-        anchorDateToWeekday(anchorDate)) as TaskRecurrenceOutputWeekdaysItem;
+        getWeekdayFromDate(anchorDate)) as TaskRecurrenceOutputWeekdaysItem;
       const position = (rule.weekday_position ?? getWeekPosition(anchorDate)) as TaskWeekPosition;
       onChange(updateMonthlyWeekday(rule, position, weekday));
     }
@@ -347,13 +339,13 @@ export const TaskRecurrenceSelector = ({
           typeof rule.month === "number"
             ? Math.max(1, Math.min(12, rule.month)) - 1
             : referenceDate
-              ? getAnchorDate(referenceDate).getMonth()
+              ? getReferenceDate(referenceDate).getMonth()
               : new Date().getMonth();
         const monthName = t(MONTH_KEYS[monthIndex] as never);
         const day =
           rule.monthly_mode === "day_of_month" && typeof rule.day_of_month === "number"
             ? rule.day_of_month
-            : getAnchorDate(referenceDate).getDate();
+            : getReferenceDate(referenceDate).getDate();
         base =
           interval === 1
             ? t("recurrence.summary.everyYear", { month: monthName, day })
@@ -642,22 +634,4 @@ export const TaskRecurrenceSelector = ({
       ) : null}
     </div>
   );
-};
-
-const anchorDateToWeekday = (date: Date): TaskRecurrenceOutputWeekdaysItem => {
-  // Normalize to midnight local time to get the date's weekday regardless of time
-  const normalized = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const weekday = normalized.getDay();
-  const match = WEEKDAYS.find((item) => item.dateIndex === weekday);
-  return match?.value ?? "monday";
-};
-
-const getWeekPosition = (date: Date): TaskWeekPosition => {
-  const day = date.getDate();
-  const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-  if (day + 7 > daysInMonth) {
-    return "last";
-  }
-  const index = Math.ceil(day / 7);
-  return (["first", "second", "third", "fourth"][index - 1] ?? "last") as TaskWeekPosition;
 };

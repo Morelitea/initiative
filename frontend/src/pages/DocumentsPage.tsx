@@ -62,7 +62,7 @@ import { useTags } from "@/hooks/useTags";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { DOCUMENT_UPLOAD_ACCEPT } from "@/lib/fileUtils";
 import { useGuildPath } from "@/lib/guildUrl";
-import { hasWriteAccess } from "@/lib/permissions";
+import { hasOwnerAccess, hasWriteAccess } from "@/lib/permissions";
 import { resolveCardClick } from "@/lib/selectionRange";
 import { buildTagTree, collectDescendantTagIds, findNodeByPath } from "@/lib/tagTree";
 import { toolDetailRoute } from "@/lib/tools";
@@ -488,7 +488,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
     if (!user || selectedDocuments.length === 0) {
       return false;
     }
-    return selectedDocuments.every((doc) => doc.my_permission_level === "owner");
+    return selectedDocuments.every((doc) => hasOwnerAccess(doc.my_permission_level));
   }, [selectedDocuments, user]);
 
   // Check if user has write access on all selected documents (required for duplicate and bulk edit)

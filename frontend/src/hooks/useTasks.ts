@@ -65,29 +65,26 @@ export const useTask = (taskId: number | null, options?: QueryOpts<TaskRead>) =>
   });
 };
 
+/** The complete task list for `params`: the one key and fetch every reader of it shares. */
+export const tasksQuery = (guildId: number, params: ListTasksApiV1CGuildIdTasksGetParams) => ({
+  queryKey: getListTasksApiV1CGuildIdTasksGetQueryKey(guildId, params),
+  // page_size=0 walks the server's fetch-all windows for the complete set.
+  queryFn: () => fetchAllPages(listTasksApiV1CGuildIdTasksGet, guildId, params),
+});
+
 export const useTasks = (
   params: ListTasksApiV1CGuildIdTasksGetParams,
   options?: QueryOpts<TaskListResponse>
 ) => {
   const guildId = useActiveGuildId();
-  return useQuery<TaskListResponse>({
-    queryKey: getListTasksApiV1CGuildIdTasksGetQueryKey(guildId, params),
-    // page_size=0 walks the server's fetch-all windows for the complete set.
-    queryFn: () => fetchAllPages(listTasksApiV1CGuildIdTasksGet, guildId, params),
-    ...options,
-  });
+  return useQuery<TaskListResponse>({ ...tasksQuery(guildId, params), ...options });
 };
 
 export const usePrefetchTasks = () => {
   const qc = useQueryClient();
   const guildId = useActiveGuildId();
-  return (params: ListTasksApiV1CGuildIdTasksGetParams) => {
-    return qc.prefetchQuery({
-      queryKey: getListTasksApiV1CGuildIdTasksGetQueryKey(guildId, params),
-      queryFn: () => fetchAllPages(listTasksApiV1CGuildIdTasksGet, guildId, params),
-      staleTime: 30_000,
-    });
-  };
+  return (params: ListTasksApiV1CGuildIdTasksGetParams) =>
+    qc.prefetchQuery({ ...tasksQuery(guildId, params), staleTime: 30_000 });
 };
 
 // ── Task Mutations ──────────────────────────────────────────────────────────

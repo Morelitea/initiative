@@ -129,10 +129,7 @@ export const ProjectActivitySidebar = ({
             ) : (
               <ul className="space-y-3">
                 {entries.map((entry) => {
-                  const authorName = getUserDisplayName(
-                    entry.author,
-                    `User #${entry.author?.id ?? "?"}`
-                  );
+                  const authorName = getUserDisplayName(entry.author);
                   return (
                     <li
                       key={entry.comment_id}

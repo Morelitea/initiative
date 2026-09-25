@@ -45,9 +45,13 @@ const mocks = vi.hoisted(() => ({
   server: { isNativePlatform: false },
 }));
 
-vi.mock("@/api/client", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/api/client")>()),
-  apiClient: { get: (...args: unknown[]) => mocks.get(...args) },
+// The bootstrap probe and the provider list, answered by path through one mock.
+vi.mock("@/api/generated/auth/auth", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/api/generated/auth/auth")>()),
+  bootstrapStatusApiV1AuthBootstrapGet: () =>
+    mocks.get("/auth/bootstrap").then((r: { data: unknown }) => r.data),
+  listLoginProvidersApiV1AuthProvidersGet: () =>
+    mocks.get("/auth/providers").then((r: { data: unknown }) => r.data),
 }));
 
 vi.mock("@/hooks/useAuth", async (importOriginal) => ({
@@ -181,7 +185,7 @@ const resetLoginMocks = () => {
   mocks.config = { passwordLoginEnabled: true, passkeyLoginEnabled: true };
   mocks.server = { isNativePlatform: false };
   vi.mocked(Browser.open).mockClear();
-  // The bootstrap probe and the provider list both go through apiClient.get.
+  // The bootstrap probe and the provider list both go through mocks.get.
   // has_users false would send the page to first-run registration instead.
   mocks.get.mockReset().mockResolvedValue({ data: { has_users: true, providers: [] } });
 };

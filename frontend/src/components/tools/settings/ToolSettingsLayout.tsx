@@ -36,7 +36,7 @@ import {
 } from "@/components/tools/settings/ToolSettingsContext";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { extractSubPath, isGuildScopedPath, useGuildPath } from "@/lib/guildUrl";
-import { hasWriteAccess } from "@/lib/permissions";
+import { hasOwnerAccess, hasWriteAccess } from "@/lib/permissions";
 import { matchActiveTab } from "@/lib/tabs";
 import {
   TOOL_SETTINGS_DEFAULT_SECTION,
@@ -111,7 +111,7 @@ export const ToolSettingsLayout = ({
   }
 
   const canManage = hasWriteAccess(entity.my_permission_level);
-  const isOwner = entity.my_permission_level === "owner";
+  const isOwner = hasOwnerAccess(entity.my_permission_level);
 
   const sectionPath = (section: string) =>
     gp(toolSettingsSectionRoute(tool, entity.initiative_id, entity.id, section));

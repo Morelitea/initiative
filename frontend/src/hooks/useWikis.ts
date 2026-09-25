@@ -38,7 +38,6 @@ import type { QueryOpts } from "@/types/query";
 const wikis = TOOL_HOOKS[Tool.wiki];
 export const useWikisList = wikis.useList;
 export const useWiki = wikis.useDetail;
-export const useCreateWiki = wikis.useCreate;
 export const useUpdateWiki = wikis.useUpdate;
 export const useDeleteWiki = wikis.useDelete;
 export const useSetWikiGrants = wikis.useSetGrants;

@@ -68,7 +68,7 @@ import { getHttpStatus } from "@/lib/errorMessage";
 import { formatPeriod } from "@/lib/formatDate";
 import { imageLabel, imageSrc } from "@/lib/galleries";
 import { useGuildPath } from "@/lib/guildUrl";
-import { hasWriteAccess } from "@/lib/permissions";
+import { hasOwnerAccess, hasWriteAccess } from "@/lib/permissions";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 type ViewMode = "masonry" | "grid" | "timeline";
@@ -115,7 +115,7 @@ export function GalleryDetailPage() {
   }, [viewedId, recordViewMutation.mutate]);
 
   const canEdit = hasWriteAccess(gallery?.my_permission_level);
-  const isOwner = gallery?.my_permission_level === "owner";
+  const isOwner = hasOwnerAccess(gallery?.my_permission_level);
 
   // How the wall is looked at — remembered across galleries, because it is a
   // preference about walls rather than about this one.

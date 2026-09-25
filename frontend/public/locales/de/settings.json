@@ -268,6 +268,15 @@
     "updateSuccess": "Oberflächeneinstellungen aktualisiert",
     "updateError": "Oberflächeneinstellungen konnten nicht aktualisiert werden",
     "themePreview": "Designvorschau",
+    "themeDescriptions": {
+      "kobold": "Das klassische Initiative-Design in tiefen Indigotönen.",
+      "displacer": "Beruhigendes Pastelldesign nach dem Vorbild von Catppuccin (Latte/Macchiato).",
+      "strahd": "Dunkles Gothic-Design mit violetten Akzenten (Dracula/Alucard).",
+      "unicorn": "Neon-Regenbogen im ganzen Spektrum – laut und stolz.",
+      "darkKnight": "AMOLED-Schwarz mit dunkelroten und gelben Akzenten.",
+      "orc": "Erdiges Grün mit leuchtend orkhautgrünen Akzenten. ORK ORK ORK!",
+      "aboleth": "Dunkler Unterschlupf nach dem Vorbild von Monokai, mit leuchtenden biolumineszenten Akzenten."
+    },
     "lightMode": "Hell",
     "darkMode": "Dunkel",
     "taskCompletionVisualFeedback": {

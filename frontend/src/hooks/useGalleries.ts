@@ -40,7 +40,6 @@ import type { QueryOpts } from "@/types/query";
 const galleries = TOOL_HOOKS[Tool.gallery];
 export const useGalleriesList = galleries.useList;
 export const useGallery = galleries.useDetail;
-export const useCreateGallery = galleries.useCreate;
 export const useUpdateGallery = galleries.useUpdate;
 export const useDeleteGallery = galleries.useDelete;
 export const useSetGalleryGrants = galleries.useSetGrants;

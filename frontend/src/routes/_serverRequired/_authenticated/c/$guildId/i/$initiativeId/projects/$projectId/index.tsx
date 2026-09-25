@@ -17,12 +17,8 @@ import {
   getListTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGetQueryKey,
   listTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGet,
 } from "@/api/generated/task-statuses/task-statuses";
-import {
-  getListTasksApiV1CGuildIdTasksGetQueryKey,
-  listTasksApiV1CGuildIdTasksGet,
-} from "@/api/generated/tasks/tasks";
+import { tasksQuery } from "@/hooks/useTasks";
 import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
-import { fetchAllPages } from "@/lib/fetchAllPages";
 import { resolvePresetState } from "@/lib/filters/presets";
 import {
   buildTaskListParams,
@@ -122,13 +118,7 @@ export const Route = createFileRoute(
 
         // Deliberately not awaited: re-running the loader on a preset change must
         // not block the navigation on a task refetch.
-        void queryClient.ensureQueryData({
-          queryKey: getListTasksApiV1CGuildIdTasksGetQueryKey(guildId, taskParams),
-          // page_size=0 walks the server's fetch-all windows for the full set
-          // (same queryFn shape as useTasks, which shares this cache key).
-          queryFn: () => fetchAllPages(listTasksApiV1CGuildIdTasksGet, guildId, taskParams),
-          staleTime: 30_000,
-        });
+        void queryClient.ensureQueryData({ ...tasksQuery(guildId, taskParams), staleTime: 30_000 });
       } catch {
         // Silently fail - component will fetch its own data
       }

@@ -13,11 +13,11 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
-import type {
-  LoginProviderEntry,
-  LoginProvidersResponse,
-} from "@/api/generated/initiativeAPI.schemas";
+import {
+  bootstrapStatusApiV1AuthBootstrapGet,
+  listLoginProvidersApiV1AuthProvidersGet,
+} from "@/api/generated/auth/auth";
+import type { LoginProviderEntry } from "@/api/generated/initiativeAPI.schemas";
 import { EmailOtpCard } from "@/components/auth/EmailOtpCard";
 import { PasskeyRelayCard } from "@/components/auth/PasskeyRelayCard";
 import { ProviderMark } from "@/components/auth/ProviderMark";
@@ -147,8 +147,8 @@ export const LoginPage = () => {
   useEffect(() => {
     const fetchProviders = async () => {
       try {
-        const response = await apiClient.get<LoginProvidersResponse>("/auth/providers");
-        setProviders(response.data.providers);
+        const response = await listLoginProvidersApiV1AuthProvidersGet();
+        setProviders(response.providers);
       } catch {
         setProviders([]);
       }
@@ -192,8 +192,8 @@ export const LoginPage = () => {
   useEffect(() => {
     const fetchBootstrapStatus = async () => {
       try {
-        const response = await apiClient.get<{ has_users: boolean }>("/auth/bootstrap");
-        setBootstrapStatus(response.data.has_users ? "ready" : "required");
+        const response = await bootstrapStatusApiV1AuthBootstrapGet();
+        setBootstrapStatus(response.has_users ? "ready" : "required");
       } catch {
         setBootstrapStatus("ready");
       }
