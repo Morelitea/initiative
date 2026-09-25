@@ -157,6 +157,7 @@
   },
   "reactions": {
     "add": "Reaktion hinzufügen",
+    "quick": "Mit {{emoji}} reagieren",
     "chipLabel_one": "{{emoji}}, {{count}} Reaktion",
     "chipLabel_other": "{{emoji}}, {{count}} Reaktionen",
     "countOnly_one": "{{count}} Reaktion",
