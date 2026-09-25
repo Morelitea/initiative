@@ -107,6 +107,9 @@ export interface GuildAppDetail {
   requested_scopes: string[];
   /** The requested scopes this server lets the seat grant. */
   grantable_scopes: string[];
+  /** Public id → name, for each app an `apps:` scope above (or one the pending
+   *  version adds) lets this one use. */
+  app_names?: Record<string, string>;
   admin_only: boolean;
   /** The platform provides this app: no remove, no turning it off. */
   mandatory: boolean;

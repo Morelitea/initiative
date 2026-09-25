@@ -152,7 +152,7 @@ export function InstallAppDialog({ listing, open, onOpenChange }: InstallAppDial
                     />
                     <div className="space-y-0.5">
                       <Label htmlFor={id} className="font-normal">
-                        {scopeSentence(scope, t)}
+                        {scopeSentence(scope, t, listing.app_names)}
                       </Label>
                       {!allowed && (
                         <p className="text-muted-foreground text-xs">

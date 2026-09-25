@@ -18,7 +18,13 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useSetAppScopes } from "@/hooks/useGuildApps";
-import { type ScopeAccess, scopeResourceLabel, toggleScope } from "@/lib/appScopes";
+import {
+  appScopeTarget,
+  type ScopeAccess,
+  scopeResourceLabel,
+  scopeSentence,
+  toggleScope,
+} from "@/lib/appScopes";
 import { toast } from "@/lib/chesterToast";
 
 export interface AppScopesPanelProps {
@@ -35,10 +41,12 @@ interface ResourceRow {
 
 const scopeOf = (resource: string, access: Access) => `${resource}:${access}`;
 
-/** The requested scopes grouped by resource, keeping their order. */
+/** The requested scopes grouped by resource, keeping their order. A scope to
+ * use another app is a row of its own, not a resource. */
 const resourceRows = (requested: string[]): ResourceRow[] => {
   const rows: ResourceRow[] = [];
   for (const scope of requested) {
+    if (appScopeTarget(scope) !== null) continue;
     const [resource, access] = scope.split(":") as [string, Access];
     const row = rows.find((one) => one.resource === resource);
     if (row) row.accesses.push(access);
@@ -77,6 +85,7 @@ export function AppScopesPanel({ app }: AppScopesPanelProps) {
     });
 
   const rows = resourceRows(requested);
+  const appScopes = requested.filter((scope) => appScopeTarget(scope) !== null);
 
   return (
     <section className="space-y-3">
@@ -116,6 +125,28 @@ export function AppScopesPanel({ app }: AppScopesPanelProps) {
             })}
           </li>
         ))}
+        {appScopes.map((scope) => {
+          const allowed = grantable.has(scope);
+          const id = `scope-${app.id}-${scope.replace(":", "-")}`;
+          return (
+            <li key={scope} className="flex flex-wrap items-center gap-2 p-3">
+              <Checkbox
+                id={id}
+                checked={chosen.includes(scope)}
+                disabled={!allowed || setScopes.isPending}
+                onCheckedChange={(state) =>
+                  setChosen(toggleScope(chosen, scope, state === true, grantable))
+                }
+              />
+              <Label htmlFor={id} className="font-normal">
+                {scopeSentence(scope, t, app.app_names)}
+              </Label>
+              {!allowed && (
+                <span className="text-muted-foreground text-xs">{t("apps:scopes.notAllowed")}</span>
+              )}
+            </li>
+          );
+        })}
       </ul>
 
       <div className="flex justify-end">

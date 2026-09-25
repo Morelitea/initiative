@@ -11,6 +11,16 @@ import { TOOLS, toolCamelPlural, toolPlural } from "@/lib/tools";
 
 export type ScopeAccess = "read" | "write";
 
+/** The prefix of the scope that lets an app use another app. */
+export const APP_SCOPE_PREFIX = "apps:";
+
+/** The public id an `apps:` scope names, or null for any other scope. */
+export const appScopeTarget = (scope: string): string | null =>
+  scope.startsWith(APP_SCOPE_PREFIX) ? scope.slice(APP_SCOPE_PREFIX.length) : null;
+
+/** Public id → the name that app goes by, as the server read it. */
+export type AppNames = Readonly<Record<string, string>>;
+
 /** A `t` holding the `apps` and `nav` namespaces, whatever else it holds. */
 export type ScopeT = TFunction<any>;
 
@@ -58,10 +68,15 @@ export const scopeResourceLabel = (resource: string, t: ScopeT): string => {
 
 /**
  * What granting a scope lets the app do, as a plain sentence: "Read and change
- * projects", "See who is in your community". A resource with no sentence of its
- * own is said with its label.
+ * projects", "See who is in your community", "Use GitHub in this community". A
+ * resource with no sentence of its own is said with its label; an app with no
+ * name in `appNames` is said by its public id.
  */
-export const scopeSentence = (scope: string, t: ScopeT): string => {
+export const scopeSentence = (scope: string, t: ScopeT, appNames: AppNames = {}): string => {
+  const target = appScopeTarget(scope);
+  if (target !== null) {
+    return t("apps:scopes.useApp" as never, { name: appNames[target] ?? target });
+  }
   const { resource, access } = parseScope(scope);
   return t(`apps:scopes.sentences.${resource}.${access}` as never, {
     defaultValue: t(`apps:scopes.sentences.fallback.${access}` as never, {

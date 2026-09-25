@@ -114,6 +114,25 @@ describe("AppUpdatesPanel", () => {
     );
   });
 
+  it("says a version asking to use another app names that app", async () => {
+    renderPage(() => (
+      <AppUpdatesPanel
+        app={app({
+          update_version: "1.3.0",
+          app_names: { "acme.github": "GitHub" },
+          pending_update: {
+            version: "1.3.0",
+            added_scopes: ["apps:acme.github"],
+            added_surfaces: [],
+            declined: false,
+          },
+        })}
+      />
+    ));
+
+    expect(await screen.findByText("Use GitHub in this community")).toBeInTheDocument();
+  });
+
   it("declines the version it was shown", async () => {
     renderPage(() => (
       <AppUpdatesPanel

@@ -103,6 +103,24 @@ describe("AppScopesPanel", () => {
     expect([...sent[0]].sort()).toEqual(["comments:read", "projects:read"]);
   });
 
+  it("offers the use of another app as a row of its own", async () => {
+    renderPage(() => (
+      <AppScopesPanel
+        app={app({
+          requested_scopes: ["projects:read", "apps:acme.github"],
+          grantable_scopes: ["projects:read", "apps:acme.github"],
+          app_names: { "acme.github": "GitHub" },
+        })}
+      />
+    ));
+
+    (await screen.findByLabelText("Use GitHub in this community")).click();
+    const save = screen.getByRole("button", { name: "Save" });
+    await waitFor(() => expect(save).toBeEnabled());
+    save.click();
+    await waitFor(() => expect(sent).toEqual([["apps:acme.github"]]));
+  });
+
   it("offers a change alone when the app asks only to change", async () => {
     renderPage(() => (
       <AppScopesPanel

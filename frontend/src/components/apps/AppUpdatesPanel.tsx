@@ -32,7 +32,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useDeclineAppUpgrade, useUpgradeApp } from "@/hooks/useGuildAppDetail";
 import { useUpdateGuildApp } from "@/hooks/useGuildApps";
-import { scopeSentence } from "@/lib/appScopes";
+import { type AppNames, scopeSentence } from "@/lib/appScopes";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { localized } from "@/lib/widgets/widgetMeta";
@@ -95,13 +95,21 @@ export function AppUpdatesPanel({ app }: { app: GuildAppDetail }) {
         )}
       </div>
 
-      {asks && <PendingUpdate appId={app.id} asks={asks} />}
+      {asks && <PendingUpdate appId={app.id} asks={asks} appNames={app.app_names} />}
     </section>
   );
 }
 
 /** "Version X wants to: …", with the seat's accept and decline. */
-function PendingUpdate({ appId, asks }: { appId: number; asks: GuildAppUpgradeAsks }) {
+function PendingUpdate({
+  appId,
+  asks,
+  appNames,
+}: {
+  appId: number;
+  asks: GuildAppUpgradeAsks;
+  appNames?: AppNames;
+}) {
   const { t, i18n } = useTranslation(["apps", "common", "nav"]);
   const upgrade = useUpgradeApp(appId);
   const decline = useDeclineAppUpgrade(appId);
@@ -134,7 +142,7 @@ function PendingUpdate({ appId, asks }: { appId: number; asks: GuildAppUpgradeAs
       <p className="font-medium text-sm">{t("apps:updates.wants", { version: asks.version })}</p>
       <ul className="list-disc space-y-1 pl-5 text-sm">
         {asks.added_scopes.map((scope) => (
-          <li key={scope}>{scopeSentence(scope, t)}</li>
+          <li key={scope}>{scopeSentence(scope, t, appNames)}</li>
         ))}
         {asks.added_surfaces.map((surface) => (
           <li key={surface.id}>
