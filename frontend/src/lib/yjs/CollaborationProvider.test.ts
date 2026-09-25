@@ -11,6 +11,7 @@ import {
 const MSG_SYNC_STEP1 = 0;
 const MSG_SYNC_STEP2 = 1;
 const MSG_UPDATE = 2;
+const MSG_AUTH = 5;
 const MSG_CONTENT = 6;
 
 class FakeWebSocket {
@@ -24,13 +25,15 @@ class FakeWebSocket {
 
   readyState = 1; // OPEN
   binaryType = "";
+  url: string;
   sent: Uint8Array[] = [];
   onopen: (() => void) | null = null;
   onmessage: ((event: { data: ArrayBuffer }) => void) | null = null;
   onclose: ((event: { code: number }) => void) | null = null;
   onerror: (() => void) | null = null;
 
-  constructor() {
+  constructor(url: string) {
+    this.url = url;
     FakeWebSocket.last = this;
   }
 
@@ -40,6 +43,12 @@ class FakeWebSocket {
 
   close() {
     this.readyState = 3;
+  }
+
+  /** The socket goes away the way a network does — no close frame from us. */
+  drop(code = 1006) {
+    this.readyState = FakeWebSocket.CLOSED;
+    this.onclose?.({ code });
   }
 
   /** Frames the socket was sent, by leading message-type byte. */
@@ -62,13 +71,7 @@ const opened: CollaborationProvider[] = [];
 /** A connected provider over a fake socket, with ``doc`` as its state. */
 const connect = (doc: Y.Doc) => {
   counter += 1;
-  const provider = new CollaborationProvider(
-    "ws://test/ws",
-    "room",
-    doc,
-    { auth: { token: "t" } },
-    `/connection-${counter}`
-  );
+  const provider = new CollaborationProvider("ws://test/ws", doc, {}, `/connection-${counter}`);
   opened.push(provider);
   const socket = FakeWebSocket.last as FakeWebSocket;
   socket.onopen?.();
@@ -157,18 +160,17 @@ describe("CollaborationProvider sync handshake", () => {
 });
 
 describe("CollaborationProvider across an outage", () => {
-  /** The socket goes away the way a network does — no close frame from us. */
-  const dropConnection = (socket: FakeWebSocket) => {
-    socket.readyState = FakeWebSocket.CLOSED;
-    socket.onclose?.({ code: 1006 });
-  };
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
 
   it("hands over work done while the connection was gone", () => {
     const doc = new Y.Doc();
     const { provider, socket } = connect(doc);
     socket.deliver(MSG_SYNC_STEP2, Y.encodeStateAsUpdate(new Y.Doc()));
 
-    dropConnection(socket);
+    socket.drop();
     // ...and the writing carries on into the local doc.
     doc.getMap("cells").set("A1", "written with no connection");
 
@@ -189,43 +191,100 @@ describe("CollaborationProvider across an outage", () => {
 
   it("comes back when the network does", () => {
     const { socket } = connect(new Y.Doc());
-    dropConnection(socket);
+    socket.drop();
 
     window.dispatchEvent(new Event("online"));
 
     expect(FakeWebSocket.last).not.toBe(socket);
-    expect((FakeWebSocket.last as FakeWebSocket).framesOfType(MSG_SYNC_STEP1)).toBeDefined();
   });
 
-  it("reports a lost connection as recoverable, and keeps trying", () => {
-    const { provider, socket } = connect(new Y.Doc());
+  it("reports a lost connection as recoverable, once, and keeps trying", async () => {
+    vi.useFakeTimers();
+    const { provider } = connect(new Y.Doc());
     const errors: Error[] = [];
     provider.on("error", (error) => errors.push(error));
 
-    // Exhaust the retry budget.
     for (let i = 0; i < 8; i += 1) {
-      dropConnection(FakeWebSocket.last as FakeWebSocket);
-      provider.connect();
+      const current = FakeWebSocket.last as FakeWebSocket;
+      current.drop();
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(FakeWebSocket.last).not.toBe(current);
     }
 
-    expect(errors.length).toBeGreaterThan(0);
-    expect(errors.every((e) => e instanceof CollaborationError)).toBe(true);
-    expect((errors[0] as CollaborationError).recoverable).toBe(true);
-    // Said once, however long it goes on.
     expect(errors).toHaveLength(1);
-    void socket;
+    expect(errors[0]).toBeInstanceOf(CollaborationError);
+    expect((errors[0] as CollaborationError).recoverable).toBe(true);
   });
 
-  it("reports being refused as final", () => {
-    const { provider, socket } = connect(new Y.Doc());
+  it("reports being refused, again and again, as final", async () => {
+    vi.useFakeTimers();
+    const { provider } = connect(new Y.Doc());
     const errors: Error[] = [];
     provider.on("error", (error) => errors.push(error));
 
-    socket.readyState = FakeWebSocket.CLOSED;
-    socket.onclose?.({ code: 1008 });
+    for (let i = 0; i < 3; i += 1) {
+      (FakeWebSocket.last as FakeWebSocket).drop(1008);
+      await vi.advanceTimersByTimeAsync(30_000);
+    }
 
     expect(errors).toHaveLength(1);
     expect((errors[0] as CollaborationError).recoverable).toBe(false);
+    expect(provider.status).toBe("error");
+  });
+
+  it("comes back as a reader when the room closes it for losing write", async () => {
+    // The room closes a writer who has lost write; the next socket is admitted
+    // at the level they now hold, so one refusal is not the end.
+    vi.useFakeTimers();
+    const { provider, socket } = connect(new Y.Doc());
+    const errors: Error[] = [];
+    provider.on("error", (error) => errors.push(error));
+
+    socket.drop(1008);
+    await vi.advanceTimersByTimeAsync(30_000);
+    const again = FakeWebSocket.last as FakeWebSocket;
+    again.onopen?.();
+
+    expect(again).not.toBe(socket);
+    expect(errors).toHaveLength(0);
+    expect(provider.status).toBe("connected");
+  });
+});
+
+describe("connecting and disconnecting", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("keeps the socket when a disconnect is followed at once by a connect", () => {
+    // React Strict Mode unmounts and remounts the plugin straight away.
+    vi.useFakeTimers();
+    const { provider, socket } = connect(new Y.Doc());
+
+    provider.disconnect();
+    provider.connect();
+    vi.advanceTimersByTime(1000);
+
+    expect(socket.readyState).toBe(FakeWebSocket.OPEN);
+    expect(FakeWebSocket.last).toBe(socket);
+  });
+
+  it("closes the socket when nothing reconnects", () => {
+    vi.useFakeTimers();
+    const { provider, socket } = connect(new Y.Doc());
+
+    provider.disconnect();
+    vi.advanceTimersByTime(1000);
+
+    expect(socket.readyState).toBe(FakeWebSocket.CLOSED);
+    expect(provider.status).toBe("disconnected");
+  });
+
+  it("sends its credential in the first frame, never the address", () => {
+    const { socket } = connect(new Y.Doc());
+
+    expect(socket.sent[0][0]).toBe(MSG_AUTH);
+    expect(socket.url).not.toContain("token");
   });
 });
 
@@ -233,33 +292,29 @@ describe("joining a connection that already exists", () => {
   const url = "ws://test/api/v1/c/1/collaboration/documents/9/collaborate";
 
   it("hands back the provider already serving that address", () => {
-    const provider = getOrCreateProvider(url, "room", new Y.Doc(), { connect: true });
+    const provider = getOrCreateProvider(url, new Y.Doc(), { connect: true });
     opened.push(provider);
 
     expect(getLiveProvider(url)).toBe(provider);
   });
 
   it("hands back nothing once it has been destroyed", () => {
-    const provider = getOrCreateProvider(url, "room", new Y.Doc(), { connect: true });
+    const provider = getOrCreateProvider(url, new Y.Doc(), { connect: true });
     provider.destroy();
 
     expect(getLiveProvider(url)).toBeNull();
   });
 
-  it("does not spend the reconnect budget on handshakes nobody waited for", () => {
-    // A remount destroys the provider mid-handshake. Done enough times, a
-    // counted attempt would exhaust the address's budget and make the next
-    // real connection wait for a window nothing had used.
-    for (let i = 0; i < 12; i += 1) {
-      const provider = getOrCreateProvider(url, "room", new Y.Doc(), { connect: true });
-      (FakeWebSocket.last as FakeWebSocket).readyState = FakeWebSocket.CONNECTING;
-      provider.destroy();
-    }
+  it("reuses the provider for the same doc and replaces it for another", () => {
+    const doc = new Y.Doc();
+    const first = getOrCreateProvider(url, doc, { connect: true });
+    opened.push(first);
 
-    FakeWebSocket.last = null;
-    const provider = getOrCreateProvider(url, "room", new Y.Doc(), { connect: true });
-    opened.push(provider);
+    expect(getOrCreateProvider(url, doc)).toBe(first);
 
-    expect(FakeWebSocket.last).not.toBeNull();
+    const second = getOrCreateProvider(url, new Y.Doc(), { connect: true });
+    opened.push(second);
+    expect(second).not.toBe(first);
+    expect(first.destroyed).toBe(true);
   });
 });

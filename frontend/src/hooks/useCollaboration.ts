@@ -71,13 +71,9 @@ export interface UseCollaborationResult {
   isCollaborating: boolean;
   /** Whether the hook is ready to provide collaboration */
   isReady: boolean;
-  /** Manually connect to the collaboration session */
-  connect: () => void;
   /** Start the connection over with a fresh retry budget — what to call when
    *  the network is back and the socket should stop waiting out its backoff. */
   resume: () => void;
-  /** Manually disconnect from the collaboration session */
-  disconnect: () => void;
   /** Hand the document's room the editor's JSON rendering of it, so the room
    *  writes that and the Yjs state together. No-op when not collaborating —
    *  the caller then saves it over REST instead. */
@@ -91,7 +87,7 @@ export function useCollaboration({
   onError,
   finalContent,
 }: UseCollaborationOptions): UseCollaborationResult {
-  const { token, user } = useAuth();
+  const { user } = useAuth();
   const { activeGuildId } = useGuilds();
 
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
@@ -122,9 +118,9 @@ export function useCollaboration({
   // Check if we have all required values
   const isReady = Boolean(enabled && user && activeGuildId && socketPath);
 
-  // Build the WebSocket URL (memoized to detect changes). The token is sent
-  // via MSG_AUTH message, not URL params; the guild is the /c/{guildId} path
-  // segment.
+  // Build the WebSocket URL (memoized to detect changes). The credential
+  // rides in the socket's first frame, never the URL; the guild is the
+  // /c/{guildId} path segment.
   const wsUrl = useMemo(() => {
     if (!isReady || !activeGuildId) {
       return null;
@@ -132,15 +128,9 @@ export function useCollaboration({
     return buildGuildWsUrl(activeGuildId, `collaboration/${socketPath}`);
   }, [isReady, activeGuildId, socketPath]);
 
-  // Auth params to pass to the provider (sent via MSG_AUTH message)
-  // token may be null for web cookie sessions; backend falls back to session cookie
-  const authParams = useMemo(() => {
-    if (!activeGuildId) return null;
-    return { token: token ?? null };
-  }, [token, activeGuildId]);
-
-  // Clean up provider when URL changes (token refresh, guild change, or a
-  // move to another body entirely).
+  // Clean up provider when URL changes (a guild change, or a move to another
+  // body entirely). A renewed credential is not a change: the socket reads it
+  // as it writes each first frame.
   useEffect(() => {
     if (currentWsUrlRef.current && currentWsUrlRef.current !== wsUrl) {
       providerRef.current?.destroy();
@@ -156,7 +146,7 @@ export function useCollaboration({
 
   // Create the provider factory that Lexical's CollaborationPlugin will call
   const providerFactory = useMemo(() => {
-    if (!wsUrl || !authParams) {
+    if (!wsUrl) {
       return null;
     }
 
@@ -209,13 +199,8 @@ export function useCollaboration({
       }
       yjsDocMap.set(id, doc);
 
-      // Use the factory function to get or create a provider
-      // This ensures we reuse existing providers for the same document
-      // Auth is sent via MSG_AUTH message after connection, not in URL
-      const provider = getOrCreateProvider(wsUrl, id, doc, {
-        connect: true,
-        auth: authParams,
-      });
+      // Reuse the provider already serving this address and doc, or open one.
+      const provider = getOrCreateProvider(wsUrl, doc, { connect: true });
 
       // Ensure provider is connected (handles reconnecting after navigation)
       provider.connect();
@@ -318,7 +303,7 @@ export function useCollaboration({
 
       return provider;
     };
-  }, [wsUrl, authParams]);
+  }, [wsUrl]);
 
   // Reset state when the room changes or collaboration is disabled
   useEffect(() => {
@@ -355,16 +340,8 @@ export function useCollaboration({
     };
   }, []);
 
-  const connect = useCallback(() => {
-    providerRef.current?.connect();
-  }, []);
-
   const resume = useCallback(() => {
     providerRef.current?.resume();
-  }, []);
-
-  const disconnect = useCallback(() => {
-    providerRef.current?.disconnect();
   }, []);
 
   const sendContent = useCallback((content: unknown) => {
@@ -382,9 +359,7 @@ export function useCollaboration({
       collaboratorsReady,
       isCollaborating,
       isReady,
-      connect,
       resume,
-      disconnect,
       sendContent,
     }),
     [
@@ -395,9 +370,7 @@ export function useCollaboration({
       collaboratorsReady,
       isCollaborating,
       isReady,
-      connect,
       resume,
-      disconnect,
       sendContent,
     ]
   );

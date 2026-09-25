@@ -1,14 +1,12 @@
 /**
- * WebSocket provider for Yjs collaboration with our backend.
+ * Yjs collaboration with our backend, in the shape Lexical's
+ * CollaborationPlugin expects (compatible with y-websocket's provider).
  *
- * This provider implements the interface expected by Lexical's CollaborationPlugin,
- * which is compatible with y-websocket's WebsocketProvider.
- *
- * Handles:
- * - WebSocket connection lifecycle
- * - Yjs sync protocol
- * - Awareness (cursor presence)
- * - Automatic reconnection
+ * This is the Yjs protocol only: the sync handshake, updates, awareness and the
+ * room's roster. The connection under it is the shared live socket
+ * (`lib/liveSocket`) every channel uses — first-frame auth, jittered
+ * reconnects, resuming when the network is back, and noticing a socket that
+ * has gone quiet — so none of that is written again here.
  */
 
 import type { Provider, ProviderAwareness, UserState } from "@lexical/yjs";
@@ -16,7 +14,7 @@ import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate } from "y-protoc
 import * as Y from "yjs";
 
 import { getAuthToken } from "@/api/client";
-import { reconnectDelay } from "@/lib/reconnectBackoff";
+import { type LiveSocket, openLiveSocket } from "@/lib/liveSocket";
 
 // Message types matching the backend protocol
 const MSG_SYNC_STEP1 = 0;
@@ -24,7 +22,7 @@ const MSG_SYNC_STEP2 = 1;
 const MSG_UPDATE = 2;
 const MSG_AWARENESS = 3;
 const MSG_AWARENESS_BINARY = 4; // y-protocols awareness encoding
-const MSG_AUTH = 5; // Authentication message (sent first after connect)
+// 5 is the first frame's credential, which the live socket sends.
 const MSG_CONTENT = 6; // The editor's JSON rendering, for the document's content column
 
 /** What ``Y.encodeStateAsUpdate`` produces for a document with nothing in it.
@@ -62,12 +60,11 @@ export class CollaborationError extends Error {
 
 export interface CollaborationProviderOptions {
   connect?: boolean;
-  /** Auth params sent via MSG_AUTH message after connection (not in URL for
-   * security). The guild comes from the user's server-held context. */
-  auth?: {
-    token: string | null;
-  };
 }
+
+/** Closes in a row, without the socket opening in between, before the editor
+ *  is told the connection is lost. The socket keeps trying after that. */
+const LOST_AFTER_CLOSES = 5;
 
 // Typed callback signatures matching Lexical's Provider interface
 type SyncCallback = (isSynced: boolean) => void;
@@ -77,24 +74,10 @@ type ReloadCallback = (doc: Y.Doc) => void;
 type CollaboratorsCallback = (collaborators: CollaboratorInfo[]) => void;
 type ErrorCallback = (error: Error) => void;
 
-/**
- * WebSocket provider implementing Lexical's Provider interface.
- * This allows it to work with Lexical's CollaborationPlugin.
- */
-// Global connection tracking to prevent rapid reconnection loops
+// The provider serving each address, so a remount joins the connection in
+// progress rather than opening a second one.
 const activeProviders = new Map<string, CollaborationProvider>();
-const connectionAttempts = new Map<string, { count: number; lastAttempt: number }>();
-const MAX_ATTEMPTS_PER_MINUTE = 10;
 
-/**
- * Get or create a CollaborationProvider for the given URL.
- * This ensures we only have one active provider per document.
- *
- * Important: We only reuse a provider if the Y.Doc matches. If the doc is different
- * (e.g., after navigation when Lexical creates a fresh yjsDocMap), we create a new provider.
- * This prevents the issue where the editor appears empty because the old provider's
- * Y.Doc doesn't match Lexical's new Y.Doc.
- */
 /**
  * The provider already serving this address, if one is alive.
  *
@@ -109,30 +92,23 @@ export function getLiveProvider(wsUrl: string): CollaborationProvider | null {
   return existing && !existing.destroyed ? existing : null;
 }
 
+/**
+ * The provider for this address and doc. One bound to the same doc is reused
+ * (React Strict Mode); one bound to another doc — Lexical makes a fresh one
+ * after navigation — is replaced, or the editor would show an empty document.
+ */
 export function getOrCreateProvider(
   wsUrl: string,
-  roomName: string,
   doc: Y.Doc,
   options: CollaborationProviderOptions = {}
 ): CollaborationProvider {
-  // Create a connection ID based on the path (without token for consistency)
-  const urlObj = new URL(wsUrl);
-  const connectionId = urlObj.pathname;
-
-  // Check if there's already an active provider with the SAME doc
-  const existingProvider = activeProviders.get(connectionId);
-  if (existingProvider && !existingProvider.destroyed && existingProvider.doc === doc) {
-    // Same doc - reuse provider (React Strict Mode case)
-    return existingProvider;
+  const connectionId = new URL(wsUrl).pathname;
+  const existing = activeProviders.get(connectionId);
+  if (existing && !existing.destroyed && existing.doc === doc) {
+    return existing;
   }
-
-  // Different doc or destroyed provider - clean up old and create new
-  if (existingProvider) {
-    existingProvider.destroy();
-    activeProviders.delete(connectionId);
-  }
-
-  const provider = new CollaborationProvider(wsUrl, roomName, doc, options, connectionId);
+  existing?.destroy();
+  const provider = new CollaborationProvider(wsUrl, doc, options, connectionId);
   activeProviders.set(connectionId, provider);
   return provider;
 }
@@ -145,22 +121,18 @@ export class CollaborationProvider implements Provider {
   // Internal awareness instance
   private _awareness: Awareness;
 
-  private websocket: WebSocket | null = null;
+  private socket: LiveSocket | null = null;
+  private _open = false;
   private wsUrl: string;
-  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: used in constructor and may be useful for future features like multi-room support
-  private roomName: string;
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+  private connectionId: string;
   private disconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   public destroyed = false;
   private _synced = false;
   private _status: string = "disconnected";
-  private shouldConnect: boolean;
-  private connectionId: string;
-  private authParams: { token: string | null } | null = null;
-  /** Set once the retry budget is spent, so the editor is told it is on its
-   *  own exactly once however long the outage runs. */
+  /** Closes since the socket last opened, for telling the editor the
+   *  connection is lost; and whether it has been told, so it is told once
+   *  however long the outage runs. */
+  private closesSinceOpen = 0;
   private lostConnectionReported = false;
 
   // Typed event handlers
@@ -176,18 +148,14 @@ export class CollaborationProvider implements Provider {
 
   constructor(
     wsUrl: string,
-    roomName: string,
     doc: Y.Doc,
     options: CollaborationProviderOptions = {},
     connectionId?: string
   ) {
     this.wsUrl = wsUrl;
-    this.roomName = roomName;
     this.doc = doc;
     this._awareness = new Awareness(doc);
-    this.shouldConnect = options.connect !== false;
     this.connectionId = connectionId || new URL(wsUrl).pathname;
-    this.authParams = options.auth || null;
 
     // Create a ProviderAwareness wrapper that matches Lexical's expected interface
     this.awareness = {
@@ -224,45 +192,25 @@ export class CollaborationProvider implements Provider {
     // Listen for awareness changes
     this._awareness.on("change", this.handleAwarenessChange);
 
-    // A dropped connection is usually a network that went away, and the
-    // browser says when it is back. That is the signal worth acting on: a
-    // retry schedule can only guess at how long an outage runs.
-    if (typeof window !== "undefined") {
-      window.addEventListener("online", this.handleNetworkOnline);
-    }
-
-    // Auto-connect if not disabled
-    if (this.shouldConnect) {
+    if (options.connect !== false) {
       this.connect();
     }
   }
 
   /**
-   * Try again as soon as the network is back, whatever the retry budget did
-   * while it was gone.
-   */
-  private handleNetworkOnline = (): void => {
-    if (this.destroyed || !this.shouldConnect || this.connected) return;
-    this.resume();
-  };
-
-  /**
-   * Start over: a fresh retry budget and an immediate attempt.
-   *
-   * The rate-limit tally is cleared with it — that counter exists to stop a
-   * broken connection spinning, and a network coming back is not that.
+   * Try again now, with a fresh backoff — what to call when the network is
+   * back and the socket should stop waiting out its retry schedule. The
+   * socket also does this by itself on the browser's `online` event.
    */
   resume(): void {
     if (this.destroyed) return;
-    this.reconnectAttempts = 0;
+    this.closesSinceOpen = 0;
     this.lostConnectionReported = false;
-    connectionAttempts.delete(this.connectionId);
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-      this.reconnectTimeout = null;
+    if (this.socket) {
+      this.socket.resume();
+    } else {
+      this.connect();
     }
-    this.shouldConnect = true;
-    this.connect();
   }
 
   /**
@@ -273,10 +221,10 @@ export class CollaborationProvider implements Provider {
   }
 
   /**
-   * Whether the WebSocket is currently connected.
+   * Whether the socket is currently open.
    */
   get connected(): boolean {
-    return this.websocket?.readyState === WebSocket.OPEN;
+    return this._open;
   }
 
   /**
@@ -287,118 +235,59 @@ export class CollaborationProvider implements Provider {
   }
 
   /**
-   * Connect to the collaboration WebSocket.
+   * Open the room's socket, or keep the one already open. Cancels a pending
+   * `disconnect`, which is what React Strict Mode's unmount/remount relies on.
    */
   connect(): void {
     if (this.destroyed) {
       return;
     }
-
-    // Cancel any pending disconnect (React Strict Mode handling)
-    if (this.cancelPendingDisconnect()) {
-      // If we had a pending disconnect and the websocket is still good, just return
-      if (this.websocket) {
-        const state = this.websocket.readyState;
-        if (state === WebSocket.CONNECTING || state === WebSocket.OPEN) {
-          return;
-        }
-      }
+    if (this.disconnectTimeout) {
+      clearTimeout(this.disconnectTimeout);
+      this.disconnectTimeout = null;
     }
-
-    if (this.websocket) {
-      const state = this.websocket.readyState;
-      if (state === WebSocket.CONNECTING || state === WebSocket.OPEN) {
-        return;
-      }
-      // Close stale WebSocket before creating new one
-      this.websocket.close();
-      this.websocket = null;
-    }
-
-    // Rate limiting: prevent rapid reconnection attempts
-    const now = Date.now();
-    const attempts = connectionAttempts.get(this.connectionId) || { count: 0, lastAttempt: 0 };
-    const timeSinceLastAttempt = now - attempts.lastAttempt;
-
-    // Reset counter after 1 minute
-    if (timeSinceLastAttempt > 60000) {
-      attempts.count = 0;
-    }
-
-    // Check if we've exceeded the rate limit
-    if (attempts.count >= MAX_ATTEMPTS_PER_MINUTE) {
-      // Schedule retry after the rate limit window resets
-      const timeUntilReset = 60000 - timeSinceLastAttempt;
-      // Don't check shouldConnect here - if connect() was called, caller wants to connect
-      if (timeUntilReset > 0 && !this.destroyed) {
-        this.emitStatus({ status: "connecting" });
-        this.reconnectTimeout = setTimeout(() => {
-          this.reconnectTimeout = null;
-          this.connect();
-        }, timeUntilReset);
-      } else {
-        this.emitStatus({ status: "disconnected" });
-      }
+    if (this.socket) {
       return;
     }
-
-    // Update attempt tracking
-    attempts.count++;
-    attempts.lastAttempt = now;
-    connectionAttempts.set(this.connectionId, attempts);
-
     this.emitStatus({ status: "connecting" });
-
-    try {
-      this.websocket = new WebSocket(this.wsUrl);
-      this.websocket.binaryType = "arraybuffer";
-
-      this.websocket.onopen = this.handleOpen;
-      this.websocket.onmessage = this.handleMessage;
-      this.websocket.onclose = this.handleClose;
-      this.websocket.onerror = this.handleError;
-    } catch {
-      this.emitStatus({ status: "disconnected" });
-    }
+    this.socket = openLiveSocket({
+      url: this.wsUrl,
+      // Read as each first frame is written: a document stays open across
+      // renewals, and a reconnect presents what is current then. Null is fine
+      // — the server reads the session cookie, which is the web path.
+      auth: () => ({ token: getAuthToken() }),
+      onBytes: this.handleFrame,
+      onStatus: this.handleSocketStatus,
+      onAuthRejected: this.handleRefused,
+    });
   }
 
   /**
-   * Disconnect from the collaboration WebSocket.
-   * Uses a small delay to handle React Strict Mode's unmount/remount cycle.
+   * Close the room's socket, a moment from now: a `connect` in the meantime
+   * (React Strict Mode's remount) keeps it open.
    */
   disconnect(): void {
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-      this.reconnectTimeout = null;
-    }
-
-    // Debounce disconnect to handle React Strict Mode
-    // If connect() is called within 100ms, we'll cancel this disconnect
     if (this.disconnectTimeout) {
       clearTimeout(this.disconnectTimeout);
     }
-
     this.disconnectTimeout = setTimeout(() => {
       this.disconnectTimeout = null;
-      if (this.websocket) {
-        this.websocket.close();
-        this.websocket = null;
-      }
-      this._synced = false;
+      this.closeSocket();
       this.emitStatus({ status: "disconnected" });
     }, 100);
   }
 
-  /**
-   * Cancel any pending disconnect (called when connect() is invoked).
-   */
-  private cancelPendingDisconnect(): boolean {
-    if (this.disconnectTimeout) {
-      clearTimeout(this.disconnectTimeout);
-      this.disconnectTimeout = null;
-      return true;
+  private closeSocket(): void {
+    const socket = this.socket;
+    // Forgotten first, so the close it causes is not read as a dropped
+    // connection to recover from.
+    this.socket = null;
+    this._open = false;
+    socket?.close();
+    if (this._synced) {
+      this._synced = false;
+      this.emitSync(false);
     }
-    return false;
   }
 
   /**
@@ -410,39 +299,14 @@ export class CollaborationProvider implements Provider {
     }
     this.destroyed = true;
 
-    // A socket torn down before it ever opened was not a failed attempt — it
-    // was a provider that stopped being wanted. Counting it would spend the
-    // reconnect budget for this address on connections nothing was waiting
-    // for, and the next real attempt would be made to wait for a window that
-    // nothing had actually used.
-    if (this.websocket && this.websocket.readyState === WebSocket.CONNECTING) {
-      connectionAttempts.delete(this.connectionId);
-    }
-
-    // Remove from global tracking
     if (activeProviders.get(this.connectionId) === this) {
       activeProviders.delete(this.connectionId);
     }
-
-    // Clear any pending timeouts
     if (this.disconnectTimeout) {
       clearTimeout(this.disconnectTimeout);
       this.disconnectTimeout = null;
     }
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-      this.reconnectTimeout = null;
-    }
-
-    // Immediately close WebSocket (no debounce for destroy)
-    if (this.websocket) {
-      this.websocket.close();
-      this.websocket = null;
-    }
-
-    if (typeof window !== "undefined") {
-      window.removeEventListener("online", this.handleNetworkOnline);
-    }
+    this.closeSocket();
 
     this.doc.off("update", this.handleDocUpdate);
     this._awareness.off("change", this.handleAwarenessChange);
@@ -595,28 +459,40 @@ export class CollaborationProvider implements Provider {
     });
   }
 
-  private handleOpen = (): void => {
-    this.reconnectAttempts = 0;
-    this.lostConnectionReported = false;
-
-    // Send authentication message first (required by server). The credential
-    // is read as the frame is written rather than from when the provider was
-    // built — a document stays open across renewals, and every reconnect after
-    // one has to present what is current then.
-    if (this.authParams) {
-      const payload = { token: getAuthToken() ?? this.authParams.token };
-      this.sendMessage(MSG_AUTH, new TextEncoder().encode(JSON.stringify(payload)));
+  private handleSocketStatus = (open: boolean): void => {
+    if (this.socket === null) return;
+    this._open = open;
+    if (open) {
+      this.closesSinceOpen = 0;
+      this.lostConnectionReported = false;
+      this.emitStatus({ status: "connected" });
+      // Ask for what the room has that this doc does not. The room asks the
+      // same of us, so one connect settles both directions.
+      this.sendMessage(MSG_SYNC_STEP1, Y.encodeStateVector(this.doc));
+      return;
     }
-
-    this.emitStatus({ status: "connected" });
-
-    // Request initial sync - send empty state vector to get full state
-    const stateVector = Y.encodeStateVector(this.doc);
-    this.sendMessage(MSG_SYNC_STEP1, stateVector);
+    if (this._synced) {
+      this._synced = false;
+      this.emitSync(false);
+    }
+    // The socket is already trying again. Past a few closes the editor is
+    // told — once — that it is on its own for now; the work done meanwhile
+    // reaches the room through the sync handshake the moment it is back.
+    this.closesSinceOpen += 1;
+    if (this.closesSinceOpen >= LOST_AFTER_CLOSES && !this.lostConnectionReported) {
+      this.lostConnectionReported = true;
+      this.emitError(new CollaborationError("Connection lost. Still trying to reconnect.", true));
+    }
+    this.emitStatus({ status: "connecting" });
   };
 
-  private handleMessage = (event: MessageEvent): void => {
-    const data = new Uint8Array(event.data as ArrayBuffer);
+  /** The room refused this reader repeatedly: final, unlike a lost connection. */
+  private handleRefused = (): void => {
+    this.closeSocket();
+    this.emitError(new CollaborationError("Authentication failed or access denied", false));
+  };
+
+  private handleFrame = (data: Uint8Array): void => {
     if (data.length < 1) return;
 
     const msgType = data[0];
@@ -676,31 +552,6 @@ export class CollaborationProvider implements Provider {
         }
         break;
     }
-  };
-
-  private handleClose = (event: CloseEvent): void => {
-    this.websocket = null;
-    this._synced = false;
-    this.emitSync(false);
-
-    // Code 1008 = Policy Violation (used for auth failures)
-    const wasAuthFailure = event.code === 1008;
-
-    if (wasAuthFailure) {
-      this.emitError(new CollaborationError("Authentication failed or access denied", false));
-    } else if (this.shouldConnect && !this.destroyed) {
-      // Not an auth failure and we should stay connected - try to reconnect
-      this.emitStatus({ status: "disconnected" });
-      this.scheduleReconnect();
-    } else {
-      this.emitStatus({ status: "disconnected" });
-    }
-  };
-
-  private handleError = (): void => {
-    // Don't emit error here - this fires for transient network issues
-    // handleClose will be called next and will either reconnect or emit a fatal error
-    // Only fatal errors (auth failure, max retries) should trigger the error event
   };
 
   private handleDocUpdate = (update: Uint8Array, origin: unknown): void => {
@@ -809,47 +660,9 @@ export class CollaborationProvider implements Provider {
   }
 
   private sendMessage(type: number, payload: Uint8Array): void {
-    if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) {
-      return;
-    }
-
     const message = new Uint8Array(1 + payload.length);
     message[0] = type;
     message.set(payload, 1);
-    this.websocket.send(message);
-  }
-
-  private scheduleReconnect(): void {
-    if (this.destroyed) {
-      return;
-    }
-
-    // Past the budget the editor is told it is on its own — once — and the
-    // provider keeps trying at the slowest interval. An outage that outlasts
-    // the budget is the ordinary case (a tunnel, a sleeping laptop), and the
-    // work done during one reaches the server through the sync handshake the
-    // moment the socket is back. Stopping for good is what leaves it stranded.
-    const budgetSpent = this.reconnectAttempts >= this.maxReconnectAttempts;
-    if (budgetSpent && !this.lostConnectionReported) {
-      this.lostConnectionReported = true;
-      this.emitError(new CollaborationError("Connection lost. Still trying to reconnect.", true));
-    }
-
-    this.reconnectAttempts++;
-    // Jittered like every other socket here, so a server restart does not
-    // bring every open document back in the same instant.
-    const delay = reconnectDelay(
-      budgetSpent ? Number.POSITIVE_INFINITY : this.reconnectAttempts - 1,
-      1000,
-      30000
-    );
-
-    // Emit connecting status while waiting to reconnect
-    this.emitStatus({ status: "connecting" });
-
-    this.reconnectTimeout = setTimeout(() => {
-      this.reconnectTimeout = null;
-      this.connect();
-    }, delay);
+    this.socket?.send(message);
   }
 }

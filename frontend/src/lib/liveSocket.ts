@@ -1,17 +1,18 @@
 /**
  * One authenticated WebSocket, kept open.
  *
- * Every JSON push channel — the per-guild events bus, the personal
- * notification stream and a queue's or counter group's change signal — needs
- * the same connection underneath: authenticate in the first frame, reconnect
- * with jittered backoff, stop for good once the credential has been rejected
- * repeatedly, and notice a socket that has stopped carrying without ever
- * closing. This is the one copy. (The collaboration socket speaks Yjs frames
- * and keeps its own connection, with the same backoff.)
+ * Every push channel — the per-guild events bus, the personal notification
+ * stream, a queue's or counter group's change signal and a document's Yjs
+ * room — needs the same connection underneath: authenticate in the first
+ * frame, reconnect with jittered backoff, try again at once when the network
+ * comes back, stop for good once the credential has been rejected repeatedly,
+ * and notice a socket that has stopped carrying without ever closing. This is
+ * the one copy.
  *
- * What differs between the two channels sits above it — which address, what
- * else rides in the auth frame, and what a frame means — and that is the whole
- * of the options.
+ * What differs between the channels sits above it — which address, what else
+ * rides in the auth frame, and what a frame means — and that is the whole of
+ * the options. A JSON text frame goes to `onFrame`, a binary one to
+ * `onBytes`; the server's heartbeat is a JSON frame on every channel.
  */
 
 import { reconnectDelay } from "@/lib/reconnectBackoff";
@@ -40,6 +41,8 @@ const SILENCE_CHECK_INTERVAL_MS = 15_000;
 export type LiveSocket = {
   /** Send on the socket if one is open; a no-op otherwise. */
   send: (data: Uint8Array<ArrayBuffer>) => void;
+  /** Try again now with a fresh backoff, if no socket is open. */
+  resume: () => void;
   /** Stop reconnecting and close. */
   close: () => void;
 };
@@ -55,8 +58,10 @@ export type LiveSocketOptions = {
    * nothing, having fetched as it mounted.
    */
   auth: (awaySeconds: number | null) => Record<string, unknown>;
-  /** One parsed frame. Malformed frames never reach it. */
-  onFrame: (payload: unknown) => void;
+  /** One parsed JSON frame. Malformed frames never reach it. */
+  onFrame?: (payload: unknown) => void;
+  /** One binary frame, as it arrived. */
+  onBytes?: (data: Uint8Array) => void;
   /** True when a socket opens, false when one closes. */
   onStatus?: (connected: boolean) => void;
   /** The credential was rejected repeatedly; nothing further is attempted. */
@@ -67,6 +72,7 @@ export const openLiveSocket = ({
   url,
   auth,
   onFrame,
+  onBytes,
   onStatus,
   onAuthRejected,
 }: LiveSocketOptions): LiveSocket => {
@@ -131,13 +137,17 @@ export const openLiveSocket = ({
       attempts = 0;
       lastFrameAt = Date.now();
       carriedUntil = lastFrameAt;
+      if (typeof event.data !== "string") {
+        onBytes?.(new Uint8Array(event.data as ArrayBuffer));
+        return;
+      }
       let payload: unknown;
       try {
-        payload = JSON.parse(event.data as string);
+        payload = JSON.parse(event.data);
       } catch {
         return;
       }
-      onFrame(payload);
+      onFrame?.(payload);
     };
 
     next.onerror = () => {
@@ -161,6 +171,26 @@ export const openLiveSocket = ({
     };
   };
 
+  // Start over: a fresh backoff and an attempt now, unless a socket is
+  // already open or opening. What a network coming back calls, since a retry
+  // schedule can only guess at how long an outage runs.
+  const resume = () => {
+    if (!active) {
+      return;
+    }
+    attempts = 0;
+    authFailures = 0;
+    if (reconnectTimer !== null) {
+      window.clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    if (socket && socket.readyState !== WebSocket.CLOSED) {
+      return;
+    }
+    connect();
+  };
+  window.addEventListener("online", resume);
+
   connect();
 
   // A socket that has gone quiet past the server's beat is closed rather than
@@ -181,8 +211,10 @@ export const openLiveSocket = ({
         socket.send(data);
       }
     },
+    resume,
     close: () => {
       active = false;
+      window.removeEventListener("online", resume);
       window.clearInterval(silenceCheck);
       if (reconnectTimer !== null) {
         window.clearTimeout(reconnectTimer);
