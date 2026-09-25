@@ -43,13 +43,17 @@ export function getItem(key: string): string | null {
   return cache.get(key) ?? null;
 }
 
-export function setItem(key: string, value: string): void {
+/**
+ * Reads see the value at once. On native the durable write finishes later;
+ * await the result where the app may be closed before it does.
+ */
+export function setItem(key: string, value: string): Promise<void> {
   if (!isNative()) {
     if (hasLocalStorage) localStorage.setItem(key, value);
-    return;
+    return Promise.resolve();
   }
   cache.set(key, value);
-  void Preferences.set({ key, value });
+  return Preferences.set({ key, value });
 }
 
 /**
@@ -68,13 +72,13 @@ export function setFirstPaintHint(key: string, value: string): void {
   }
 }
 
-export function removeItem(key: string): void {
+export function removeItem(key: string): Promise<void> {
   if (!isNative()) {
     if (hasLocalStorage) localStorage.removeItem(key);
-    return;
+    return Promise.resolve();
   }
   cache.delete(key);
-  void Preferences.remove({ key });
+  return Preferences.remove({ key });
 }
 
 /** Enumerate every stored key. */

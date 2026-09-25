@@ -9,6 +9,7 @@ Tests the auth API endpoints including:
 - Password reset
 """
 
+import secrets
 from datetime import timedelta
 from urllib.parse import parse_qs, urlsplit
 
@@ -37,6 +38,7 @@ from app.models.platform.user_email import UserEmail
 from app.services.auth import addresses
 from app.models.platform.federated_identity_secret import FederatedIdentitySecret
 from app.models.platform.user import User, UserStatus
+from app.services.auth.oidc.flow_state import s256
 from app.services.auth.oidc.provider import OidcClientConfig, OidcProvider
 from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
 from app.testing.captcha import captcha_switched_on
@@ -1867,17 +1869,22 @@ async def test_row_provider_full_login_flow(
 async def test_oidc_callback_rejects_forged_state(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
+    """A forged state is refused, and so is a genuine one presented by a
+    browser other than the one the sign-in began in."""
     await _enable_platform_oidc(session)
     _wire_fake_idp(monkeypatch, FakeIdp())
 
-    response = await client.get(
-        "/api/v1/auth/oidc/callback",
-        params={"code": "code-1", "state": "forged"},
-        follow_redirects=False,
-    )
-    assert response.status_code in (302, 307)
-    assert "invalid_state" in response.headers["location"]
-    assert "session_token" not in response.cookies
+    genuine, _nonce = await _begin_login(client)
+    client.cookies.clear()
+    for state in ("forged", genuine):
+        response = await client.get(
+            "/api/v1/auth/oidc/callback",
+            params={"code": "code-1", "state": state},
+            follow_redirects=False,
+        )
+        assert response.status_code in (302, 307)
+        assert "invalid_state" in response.headers["location"]
+        assert "session_token" not in response.cookies
 
 
 @pytest.mark.integration
@@ -2051,27 +2058,75 @@ async def test_oidc_callback_refuses_deactivated_account(
 
 @pytest.mark.integration
 @pytest.mark.auth
-async def test_oidc_callback_mobile_flow_issues_device_token(
+async def test_oidc_callback_mobile_flow_hands_back_a_code(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
+    """The app's sign-in comes back as a one-time code bound to the challenge
+    it began with. The verifier behind that challenge opens a session that
+    records the provider; any answer spends the code. A begin with no
+    challenge, from an older app, is handed a device token."""
     await _enable_platform_oidc(session)
     idp = FakeIdp()
     _wire_fake_idp(monkeypatch, idp)
+    claims = {
+        "email": "mobile@example.com",
+        "username": "mobile",
+        "email_verified": True,
+    }
 
-    response = await _run_oidc_flow(
+    async def code_for(verifier: str) -> str:
+        response = await _run_oidc_flow(
+            client,
+            idp,
+            id_token_claims=claims,
+            login_params={
+                "mobile": "true",
+                "device_name": "Pixel",
+                "code_challenge": s256(verifier),
+            },
+        )
+        location = response.headers["location"]
+        assert location.startswith("initiative://oidc/callback?")
+        query = parse_qs(urlsplit(location).query)
+        assert set(query) == {"code"}
+        return query["code"][0]
+
+    verifier = secrets.token_urlsafe(48)
+    code = await code_for(verifier)
+    wrong = await client.post(
+        "/api/v1/auth/native/token",
+        json={"code": code, "code_verifier": secrets.token_urlsafe(48)},
+    )
+    assert wrong.status_code == 401
+    spent = await client.post(
+        "/api/v1/auth/native/token", json={"code": code, "code_verifier": verifier}
+    )
+    assert spent.status_code == 401
+
+    code = await code_for(verifier)
+    redeemed = await client.post(
+        "/api/v1/auth/native/token", json={"code": code, "code_verifier": verifier}
+    )
+    assert redeemed.status_code == 200
+    assert redeemed.json()["refresh_token"]
+    provider = (
+        await session.exec(
+            select(AuthProvider).where(AuthProvider.slug == PLATFORM_OIDC_SLUG)
+        )
+    ).one()
+    auth_session = (await session.exec(select(AuthSession))).one()
+    assert auth_session.satisfied_providers == [provider.id]
+    assert auth_session.device_name == "Pixel"
+
+    legacy = await _run_oidc_flow(
         client,
         idp,
-        id_token_claims={
-            "email": "mobile@example.com",
-            "username": "mobile",
-            "email_verified": True,
-        },
+        id_token_claims=claims,
         login_params={"mobile": "true", "device_name": "Pixel"},
     )
-    assert response.status_code in (302, 307)
-    location = response.headers["location"]
-    assert location.startswith("initiative://oidc/callback?")
-    query = {k: v[0] for k, v in parse_qs(urlsplit(location).query).items()}
+    query = {
+        k: v[0] for k, v in parse_qs(urlsplit(legacy.headers["location"]).query).items()
+    }
     assert query["token_type"] == "device_token"
     assert query["token"]
 

@@ -6070,6 +6070,20 @@ export interface MyToolCountsResponse {
   counts: MyToolCountsResponseCounts;
 }
 
+/**
+ * The code a sign-in in the phone's browser came back with, and the PKCE
+ * verifier the app began it with.
+ */
+export interface NativeSignInRedeem {
+  /** @maxLength 4096 */
+  code: string;
+  /**
+   * @minLength 43
+   * @maxLength 128
+   */
+  code_verifier: string;
+}
+
 export type NotificationCategory = (typeof NotificationCategory)[keyof typeof NotificationCategory];
 
 export const NotificationCategory = {
@@ -6565,6 +6579,7 @@ export interface PasskeySignInFinish {
   mobile?: boolean;
   /** @maxLength 255 */
   device_name?: string;
+  code_challenge?: string;
 }
 
 /**
@@ -9654,6 +9669,7 @@ export type ProviderLoginApiV1AuthProviderSlugLoginGetParams = {
   mobile?: boolean;
   device_name?: string;
   next?: string;
+  code_challenge?: string;
 };
 
 export type ProviderCallbackApiV1AuthProviderSlugCallbackGetParams = {

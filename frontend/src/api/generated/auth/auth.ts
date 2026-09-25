@@ -36,6 +36,7 @@ import type {
   FinishPasskeySignUpApiV1AuthRegisterPasskeyFinishPostParams,
   HTTPValidationError,
   LoginProvidersResponse,
+  NativeSignInRedeem,
   PasskeyAuthenticationOptions,
   PasskeyList,
   PasskeyRead,
@@ -1472,6 +1473,109 @@ export const useExchangeDeviceTokenApiV1AuthDeviceTokenExchangePost = <
   );
 };
 /**
+ * Open the session a sign-in in the phone's browser earned.
+ *
+ * The app presents the code the browser handed back and the PKCE verifier it
+ * began the sign-in with, and is given an access token and a refresh token to
+ * keep. The session carries what the sign-in proved, satisfied providers
+ * included.
+ * @summary Redeem Native Sign In
+ */
+export const redeemNativeSignInApiV1AuthNativeTokenPost = (
+  nativeSignInRedeem: BodyType<NativeSignInRedeem>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<Token>(
+    {
+      url: `/api/v1/auth/native/token`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: nativeSignInRedeem,
+      signal,
+    },
+    options
+  );
+};
+
+export const getRedeemNativeSignInApiV1AuthNativeTokenPostMutationKey = () =>
+  ["redeemNativeSignInApiV1AuthNativeTokenPost"] as const;
+
+export const getRedeemNativeSignInApiV1AuthNativeTokenPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof redeemNativeSignInApiV1AuthNativeTokenPost>>,
+    TError,
+    RedeemNativeSignInApiV1AuthNativeTokenPostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof redeemNativeSignInApiV1AuthNativeTokenPost>>,
+  TError,
+  RedeemNativeSignInApiV1AuthNativeTokenPostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getRedeemNativeSignInApiV1AuthNativeTokenPostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof redeemNativeSignInApiV1AuthNativeTokenPost>>,
+    RedeemNativeSignInApiV1AuthNativeTokenPostMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return redeemNativeSignInApiV1AuthNativeTokenPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RedeemNativeSignInApiV1AuthNativeTokenPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof redeemNativeSignInApiV1AuthNativeTokenPost>>
+>;
+export type RedeemNativeSignInApiV1AuthNativeTokenPostMutationBody = BodyType<NativeSignInRedeem>;
+export type RedeemNativeSignInApiV1AuthNativeTokenPostMutationError =
+  ErrorType<HTTPValidationError>;
+export type RedeemNativeSignInApiV1AuthNativeTokenPostMutationVariables = {
+  data: BodyType<NativeSignInRedeem>;
+};
+
+/**
+ * @summary Redeem Native Sign In
+ */
+export const useRedeemNativeSignInApiV1AuthNativeTokenPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof redeemNativeSignInApiV1AuthNativeTokenPost>>,
+      TError,
+      RedeemNativeSignInApiV1AuthNativeTokenPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof redeemNativeSignInApiV1AuthNativeTokenPost>>,
+  TError,
+  RedeemNativeSignInApiV1AuthNativeTokenPostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getRedeemNativeSignInApiV1AuthNativeTokenPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
  * List all device tokens for the current user.
  * @summary List Device Tokens
  */
@@ -2036,6 +2140,9 @@ export function useListGuildLoginProvidersApiV1AuthCGuildIdProvidersGet<
  * Begin the relying-party flow for one operator-global provider. The
  * platform provider's slug is ``oidc``, so the pre-generalization
  * ``/auth/oidc/login`` URL is this same route.
+ *
+ * The app sends ``code_challenge`` (S256) and gets back a one-time code bound
+ * to it; see :mod:`app.services.auth.native_handoff`.
  * @summary Provider Login
  */
 export const providerLoginApiV1AuthProviderSlugLoginGet = (
