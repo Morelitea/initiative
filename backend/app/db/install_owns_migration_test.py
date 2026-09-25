@@ -13,11 +13,9 @@ import importlib.util
 from pathlib import Path
 from types import ModuleType
 
-import pytest
 
 from app.db.app_rls import INSTALL_OWNS_WHAT_IT_CREATES
 
-pytestmark = pytest.mark.unit
 
 _VERSIONS = Path(__file__).resolve().parents[2] / "alembic" / "versions"
 

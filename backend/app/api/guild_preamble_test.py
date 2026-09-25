@@ -20,7 +20,6 @@ Two rules keep it from creeping back:
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-import pytest
 from sqlalchemy import event, text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -44,7 +43,6 @@ def _statements(session: AsyncSession) -> Iterator[list[str]]:
         event.remove(engine, "before_cursor_execute", record)
 
 
-@pytest.mark.database
 async def test_member_preamble_round_trips(session, role_session, acting_user):
     """A member's preamble: the gate's context (its role reset riding in the
     same statement), the gate's one read, the routing's context, and the
@@ -85,7 +83,6 @@ async def test_member_preamble_round_trips(session, role_session, acting_user):
     assert sum("app.current_guild_id" in stmt for stmt in sent) == 3
 
 
-@pytest.mark.database
 async def test_full_access_initiative_reaches_the_guc(
     session, role_session, acting_user
 ):

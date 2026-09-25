@@ -22,7 +22,6 @@ from app.core import config as config_module
 from app.core.security import BILLING_PORTAL_AUDIENCE
 from app.services.platform import billing_claim
 
-pytestmark = pytest.mark.integration
 
 _URL = "https://billing.internal"
 

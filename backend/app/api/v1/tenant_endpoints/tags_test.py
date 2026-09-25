@@ -2,7 +2,6 @@
 endpoint, soft-delete interaction, and the cross-initiative isolation gate.
 """
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel import select
 
@@ -38,7 +37,6 @@ async def _task_tag_ids(session, guild_id: int, task_id: int) -> set[int]:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_any_guild_member_can_manage_the_tag_dictionary(
     client: AsyncClient, acting_user
 ):
@@ -77,7 +75,6 @@ async def test_any_guild_member_can_manage_the_tag_dictionary(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_set_task_tags_replaces_and_dedups(
     client: AsyncClient, acting_user, session
 ):
@@ -101,7 +98,6 @@ async def test_set_task_tags_replaces_and_dedups(
     assert await _task_tag_ids(session, a.guild.id, task.id) == {other.id}
 
 
-@pytest.mark.integration
 async def test_set_tags_rejects_trashed_tag(client: AsyncClient, acting_user, session):
     """A trashed tag id is invalid everywhere — the incident regression: a
     stale client merging a since-trashed tag id must get a clean 400."""
@@ -119,7 +115,6 @@ async def test_set_tags_rejects_trashed_tag(client: AsyncClient, acting_user, se
     assert response.json()["detail"] == "INVALID_TAG_IDS"
 
 
-@pytest.mark.integration
 async def test_set_tags_rejects_other_guilds_tag(
     client: AsyncClient, acting_user, session
 ):
@@ -137,7 +132,6 @@ async def test_set_tags_rejects_other_guilds_tag(
     assert response.json()["detail"] == "INVALID_TAG_IDS"
 
 
-@pytest.mark.integration
 async def test_generic_tool_tags_route_covers_every_tool(
     client: AsyncClient, acting_user, session
 ):
@@ -183,7 +177,6 @@ async def test_generic_tool_tags_route_covers_every_tool(
         assert [t["id"] for t in row["tags"]] == [tag.id], tool
 
 
-@pytest.mark.integration
 async def test_generic_tool_tags_route_rejects_unknown_tool(
     client: AsyncClient, acting_user
 ):
@@ -199,7 +192,6 @@ async def test_generic_tool_tags_route_rejects_unknown_tool(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_bulk_add_and_remove_task_tags(client: AsyncClient, acting_user, session):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     keep = await create_tag(session, a.guild)
@@ -243,7 +235,6 @@ async def test_bulk_add_and_remove_task_tags(client: AsyncClient, acting_user, s
         assert await _task_tag_ids(session, a.guild.id, task.id) == set()
 
 
-@pytest.mark.integration
 async def test_every_tag_target_is_bulk_tagged_and_listed_on_its_tag(
     client: AsyncClient, acting_user, session
 ):
@@ -300,7 +291,6 @@ async def test_every_tag_target_is_bulk_tagged_and_listed_on_its_tag(
     } == {(target, entity.id) for target, entity in targets.items()}
 
 
-@pytest.mark.integration
 async def test_bulk_edit_requires_an_operation(client: AsyncClient, acting_user):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     response = await client.post(
@@ -311,7 +301,6 @@ async def test_bulk_edit_requires_an_operation(client: AsyncClient, acting_user)
     assert response.status_code == 422
 
 
-@pytest.mark.integration
 async def test_bulk_edit_rejects_trashed_tag_atomically(
     client: AsyncClient, acting_user, session
 ):
@@ -335,7 +324,6 @@ async def test_bulk_edit_rejects_trashed_tag_atomically(
     assert await _task_tag_ids(session, a.guild.id, task.id) == set()
 
 
-@pytest.mark.integration
 async def test_bulk_edit_denied_without_project_write(
     client: AsyncClient, acting_user, session
 ):
@@ -369,7 +357,6 @@ async def test_bulk_edit_denied_without_project_write(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_cross_initiative_member_cannot_touch_tags(
     client: AsyncClient, acting_user, session
 ):

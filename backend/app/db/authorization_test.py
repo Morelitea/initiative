@@ -27,7 +27,6 @@ from app.db.authorization import (
 from app.db.schema_provisioning import guild_schema_name
 from app.testing import create_guild
 
-pytestmark = pytest.mark.database
 
 #: ``pg_get_functiondef`` needs the argument types to identify an overload.
 #: These are the only signatures of the six in ``public``; a second overload

@@ -194,7 +194,6 @@ async def _listed(client, a: Actor, surface: Surface, parent, defn_id, value) ->
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 @surfaces
 async def test_put_sets_values(
     client: AsyncClient, session: AsyncSession, acting_user, surface: Surface
@@ -225,7 +224,6 @@ async def test_put_sets_values(
     assert float(values[number.id]) == 7.5
 
 
-@pytest.mark.integration
 @surfaces
 async def test_put_of_nothing_clears_what_was_there(
     client: AsyncClient, session: AsyncSession, acting_user, surface: Surface
@@ -249,7 +247,6 @@ async def test_put_of_nothing_clears_what_was_there(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 @surfaces
 async def test_put_refuses_a_value_the_type_cannot_read(
     client: AsyncClient, session: AsyncSession, acting_user, surface: Surface
@@ -268,7 +265,6 @@ async def test_put_refuses_a_value_the_type_cannot_read(
     assert response.json()["detail"] == "PROPERTY_INVALID_VALUE_FOR_TYPE"
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("type_", "value", "accepted"),
     [
@@ -309,7 +305,6 @@ async def test_put_holds_a_value_to_its_type(
     assert stored == accepted
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("surface", "type_", "value"),
     [
@@ -346,7 +341,6 @@ async def test_put_refuses_an_option_the_definition_lacks(
     assert response.json()["detail"] == "PROPERTY_OPTION_NOT_IN_DEFINITION"
 
 
-@pytest.mark.integration
 @surfaces
 async def test_put_refuses_a_person_outside_the_initiative(
     client: AsyncClient, session: AsyncSession, acting_user, surface: Surface
@@ -375,7 +369,6 @@ async def test_put_refuses_a_person_outside_the_initiative(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 @surfaces
 async def test_put_refuses_a_definition_from_another_initiative(
     client: AsyncClient, session: AsyncSession, acting_user, surface: Surface
@@ -393,7 +386,6 @@ async def test_put_refuses_a_definition_from_another_initiative(
     assert response.json()["detail"] == "PROPERTY_DEFINITION_NOT_FOUND"
 
 
-@pytest.mark.integration
 @surfaces
 async def test_put_on_an_entity_of_another_community_is_not_found(
     client: AsyncClient, session: AsyncSession, acting_user, surface: Surface
@@ -423,7 +415,6 @@ async def test_put_on_an_entity_of_another_community_is_not_found(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 @surfaces
 async def test_list_filters_by_a_text_value(
     client: AsyncClient, session: AsyncSession, acting_user, surface: Surface
@@ -443,7 +434,6 @@ async def test_list_filters_by_a_text_value(
     assert other not in listed
 
 
-@pytest.mark.integration
 @surfaces
 async def test_list_filters_by_a_selected_option(
     client: AsyncClient, session: AsyncSession, acting_user, surface: Surface
@@ -485,7 +475,6 @@ async def test_list_filters_by_a_selected_option(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_moving_a_task_to_another_initiative_drops_its_values(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -510,7 +499,6 @@ async def test_moving_a_task_to_another_initiative_drops_its_values(
     assert await _stored(session, TASKS, task) == []
 
 
-@pytest.mark.integration
 async def test_duplicating_a_task_in_its_project_carries_its_values(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -533,7 +521,6 @@ async def test_duplicating_a_task_in_its_project_carries_its_values(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_list_documents_filters_by_a_number(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -552,7 +539,6 @@ async def test_list_documents_filters_by_a_number(
     assert listed & set(docs) == {docs[1]}
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "property_filters",
     [
@@ -579,7 +565,6 @@ async def test_list_documents_refuses_a_filter_it_cannot_take(
     assert response.json()["detail"] == "QUERY_INVALID_CONDITIONS"
 
 
-@pytest.mark.integration
 async def test_duplicating_a_document_in_place_carries_its_values(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -602,7 +587,6 @@ async def test_duplicating_a_document_in_place_carries_its_values(
     assert [row.property_id for row in rows] == [defn.id]
 
 
-@pytest.mark.integration
 async def test_copying_a_document_to_another_initiative_drops_its_values(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -632,7 +616,6 @@ async def test_copying_a_document_to_another_initiative_drops_its_values(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_attaching_a_property_to_an_event_without_a_value_keeps_a_row(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -650,7 +633,6 @@ async def test_attaching_a_property_to_an_event_without_a_value_keeps_a_row(
     assert len(await _stored(session, EVENTS, event)) == 1
 
 
-@pytest.mark.integration
 async def test_reading_an_event_embeds_its_values(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -669,7 +651,6 @@ async def test_reading_an_event_embeds_its_values(
     assert read.json()["property_values"][0]["value"] == "onboarding"
 
 
-@pytest.mark.integration
 async def test_list_events_is_null_matches_the_unset(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -697,7 +678,6 @@ async def test_list_events_is_null_matches_the_unset(
     assert with_value not in listed
 
 
-@pytest.mark.integration
 async def test_purging_an_initiative_takes_its_event_values_with_it(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

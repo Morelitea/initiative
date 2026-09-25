@@ -29,8 +29,6 @@ from app.services.auth.oidc.flow_state import (
     decode_flow_state,
 )
 
-pytestmark = pytest.mark.unit
-
 
 # --- round-trip ---------------------------------------------------------------
 

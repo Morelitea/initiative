@@ -17,8 +17,6 @@ from app.models.tenant.event_outbox import EventOutbox
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.services.tenant import outbox_poller
 
-pytestmark = pytest.mark.unit
-
 
 #: Stand-ins for what this subscriber calls the guild and the person who wrote.
 #: Minted by the poller before it builds an envelope — these tests are about
@@ -185,7 +183,6 @@ def test_a_batch_is_one_transaction_whole():
     assert envelope["event_id"] == outbox_poller._event_id(subscription.id, 500)
 
 
-@pytest.mark.integration
 async def test_ledger_delivers_each_transaction_once(
     session, role_session, acting_user, monkeypatch
 ):
@@ -235,7 +232,6 @@ async def test_ledger_delivers_each_transaction_once(
     )
 
 
-@pytest.mark.integration
 async def test_a_refused_batch_is_retried_not_lost(
     session, role_session, acting_user, monkeypatch
 ):
@@ -286,7 +282,6 @@ async def test_a_refused_batch_is_retried_not_lost(
     )
 
 
-@pytest.mark.integration
 async def test_repeated_refusals_escalate_the_backoff(
     session, role_session, acting_user, monkeypatch
 ):
@@ -351,7 +346,6 @@ async def test_repeated_refusals_escalate_the_backoff(
     assert intervals[:3] == [float(s) for s in poller._BACKOFF_SECONDS[:3]]
 
 
-@pytest.mark.integration
 async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
     session, role_session, acting_user, monkeypatch
 ):

@@ -8,14 +8,11 @@ can't reach another guild's usage at all (RLS).
 
 from __future__ import annotations
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
 from app.testing import create_upload
-
-pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 
 async def test_storage_usage_sums_guild_bytes(

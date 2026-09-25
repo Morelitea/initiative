@@ -7,13 +7,11 @@ cleaned up, and a stale row alone would not grant access anyway
 (the initiative gate, now the table's own policy).
 """
 
-import pytest
 from httpx import AsyncClient
 
 from app.models.platform.guild import GuildRole
 
 
-@pytest.mark.integration
 async def test_initiative_removal_ends_document_access(
     client: AsyncClient, acting_user
 ):

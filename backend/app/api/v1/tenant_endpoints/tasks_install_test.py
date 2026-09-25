@@ -12,7 +12,6 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-import pytest
 from sqlmodel import select
 
 from app.core.messages import AppMessages, QueryMessages
@@ -34,7 +33,6 @@ from app.testing.app_clients import (
     lift_person_and_guild_ids,
 )
 
-pytestmark = pytest.mark.integration
 
 READ = ["projects:read"]
 WRITE = ["projects:read", "projects:write"]

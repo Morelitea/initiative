@@ -29,7 +29,6 @@ from app.db.system_grants import (
     tier_table_grants,
 )
 
-pytestmark = pytest.mark.unit
 
 _MATRICES = [
     ("app_admin", SHARED_TABLE_SYSTEM_GRANTS),

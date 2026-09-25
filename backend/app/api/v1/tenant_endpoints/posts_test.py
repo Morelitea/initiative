@@ -104,7 +104,6 @@ async def draft_scene(acting_user, session) -> _DraftScene:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_create_post(client: AsyncClient, board: Actor):
     """Posting seeds the author's owner grant plus the default all-members read
     grant — a notice nobody could read is not a notice."""
@@ -127,7 +126,6 @@ async def test_create_post(client: AsyncClient, board: Actor):
     assert body["excerpt"] == "We are upgrading at 9am."
 
 
-@pytest.mark.integration
 async def test_create_requires_feature_enabled(
     client: AsyncClient, acting_user, session
 ):
@@ -148,7 +146,6 @@ async def test_create_requires_feature_enabled(
     assert response.json()["detail"] == "POSTS_NOT_ENABLED"
 
 
-@pytest.mark.integration
 async def test_create_requires_the_create_permission(
     client: AsyncClient, acting_user, board: Actor
 ):
@@ -165,7 +162,6 @@ async def test_create_requires_the_create_permission(
     assert response.json()["detail"] == "POST_CREATE_PERMISSION_REQUIRED"
 
 
-@pytest.mark.integration
 async def test_list_carries_bodies_and_read_matches(
     client: AsyncClient, board: Actor, session
 ):
@@ -191,7 +187,6 @@ async def test_list_carries_bodies_and_read_matches(
     assert detail.json()["body"] == item["body"]
 
 
-@pytest.mark.integration
 async def test_board_pages_in_fives_by_default(
     client: AsyncClient, board: Actor, session
 ):
@@ -210,13 +205,11 @@ async def test_board_pages_in_fives_by_default(
     assert payload["has_next"] is True
 
 
-@pytest.mark.integration
 async def test_a_page_larger_than_the_cap_is_refused(client: AsyncClient, board: Actor):
     response = await client.get(board.g("/posts/?page_size=200"), headers=board.headers)
     assert response.status_code == 422
 
 
-@pytest.mark.integration
 async def test_update_post(client: AsyncClient, board: Actor, session):
     post = await create_post(session, board.initiative, board.user, name="Draft")
 
@@ -231,7 +224,6 @@ async def test_update_post(client: AsyncClient, board: Actor, session):
     assert response.json()["excerpt"] == "Rewritten."
 
 
-@pytest.mark.integration
 async def test_delete_post_requires_owner(
     client: AsyncClient, acting_user, board: Actor, session
 ):
@@ -246,7 +238,6 @@ async def test_delete_post_requires_owner(
     assert allowed.status_code == 204
 
 
-@pytest.mark.integration
 async def test_a_post_not_shared_is_not_listed(
     client: AsyncClient, acting_user, board: Actor, session
 ):
@@ -259,7 +250,6 @@ async def test_a_post_not_shared_is_not_listed(
     assert listing.json()["items"] == []
 
 
-@pytest.mark.integration
 async def test_the_board_carries_each_post_s_comment_count(
     client: AsyncClient, board: Actor, session
 ):
@@ -275,7 +265,6 @@ async def test_the_board_carries_each_post_s_comment_count(
     assert counts == {"Busy": 2, "Quiet": 0}
 
 
-@pytest.mark.integration
 async def test_a_trashed_comment_leaves_the_count(
     client: AsyncClient, board: Actor, session
 ):
@@ -299,7 +288,6 @@ async def test_a_trashed_comment_leaves_the_count(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_board_orders_pins_first_then_newest(
     client: AsyncClient, board: Actor, session
 ):
@@ -329,7 +317,6 @@ async def test_board_orders_pins_first_then_newest(
     assert [p["name"] for p in reordered.json()["items"]] == ["Old", "New"]
 
 
-@pytest.mark.integration
 async def test_a_lapsed_pin_falls_back_into_the_feed(
     client: AsyncClient, board: Actor, session
 ):
@@ -364,7 +351,6 @@ async def test_a_lapsed_pin_falls_back_into_the_feed(
     assert lapsed["pinned_by"] == old.pinned_by
 
 
-@pytest.mark.integration
 async def test_sort_by_opts_out_of_the_board_order(
     client: AsyncClient, board: Actor, session
 ):
@@ -385,7 +371,6 @@ async def test_sort_by_opts_out_of_the_board_order(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_pin_requires_manager_not_write_access(
     client: AsyncClient, acting_user, board: Actor, session
 ):
@@ -409,7 +394,6 @@ async def test_pin_requires_manager_not_write_access(
     assert allowed.json()["pinned_by"] == board.user.id
 
 
-@pytest.mark.integration
 async def test_unpin_clears_the_expiry_with_it(
     client: AsyncClient, board: Actor, session
 ):
@@ -435,7 +419,6 @@ async def test_unpin_clears_the_expiry_with_it(
     assert body["is_pinned"] is False
 
 
-@pytest.mark.integration
 async def test_pin_refuses_an_expiry_already_past(
     client: AsyncClient, board: Actor, session
 ):
@@ -454,7 +437,6 @@ async def test_pin_refuses_an_expiry_already_past(
     assert response.json()["detail"] == "POST_PIN_EXPIRY_IN_PAST"
 
 
-@pytest.mark.integration
 async def test_pin_requires_read_access_before_the_manager_check(
     client: AsyncClient, acting_user, board: Actor, session
 ):
@@ -477,7 +459,6 @@ async def test_pin_requires_read_access_before_the_manager_check(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("length", "status", "detail"),
     [
@@ -505,7 +486,6 @@ async def test_a_notice_is_taken_up_to_the_length_ceiling(
     assert response.json().get("detail") == detail
 
 
-@pytest.mark.integration
 async def test_an_edit_cannot_grow_a_post_past_the_limit(
     client: AsyncClient, board: Actor, session
 ):
@@ -527,7 +507,6 @@ async def test_an_edit_cannot_grow_a_post_past_the_limit(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_a_post_carries_its_reactions(client: AsyncClient, board: Actor, session):
     """Chips ride along with the post, so a board renders them from the one
     list call rather than a request per row."""
@@ -550,7 +529,6 @@ async def test_a_post_carries_its_reactions(client: AsyncClient, board: Actor, s
     assert detail.json()["reactions"] == item["reactions"]
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("shared_with_them", "expected"),
     [(True, {200}), (False, {403, 404})],
@@ -597,7 +575,6 @@ async def _notifications_for(
     return list(result.all())
 
 
-@pytest.mark.integration
 async def test_posting_now_notifies_the_people_it_is_shared_with(
     client: AsyncClient, acting_user, board: Actor, session
 ):
@@ -633,7 +610,6 @@ async def test_posting_now_notifies_the_people_it_is_shared_with(
     )
 
 
-@pytest.mark.integration
 async def test_a_notice_only_notifies_who_it_was_shared_with(
     client: AsyncClient, acting_user, board: Actor, session
 ):
@@ -674,7 +650,6 @@ async def test_a_notice_only_notifies_who_it_was_shared_with(
     )
 
 
-@pytest.mark.integration
 async def test_a_scheduled_notice_is_not_published_and_notifies_nobody(
     client: AsyncClient, acting_user, board: Actor, session
 ):
@@ -703,7 +678,6 @@ async def test_a_scheduled_notice_is_not_published_and_notifies_nobody(
     )
 
 
-@pytest.mark.integration
 async def test_a_schedule_in_the_past_posts_it_now(client: AsyncClient, board: Actor):
     """An instant that has already gone is somebody asking for it now — the
     same thing an omitted schedule means, so it takes the same branch."""
@@ -724,7 +698,6 @@ async def test_a_schedule_in_the_past_posts_it_now(client: AsyncClient, board: A
     assert response.json()["scheduled_for"] is None
 
 
-@pytest.mark.integration
 async def test_a_draft_is_invisible_to_a_reader_but_not_to_its_author(
     client: AsyncClient, draft_scene: _DraftScene
 ):
@@ -743,7 +716,6 @@ async def test_a_draft_is_invisible_to_a_reader_but_not_to_its_author(
     ).status_code == 200
 
 
-@pytest.mark.integration
 async def test_a_draft_is_out_of_the_sidebar_counts(
     client: AsyncClient, draft_scene: _DraftScene, session
 ):
@@ -756,7 +728,6 @@ async def test_a_draft_is_out_of_the_sidebar_counts(
     assert counts.json()["counts"][str(author.initiative.id)] == 1
 
 
-@pytest.mark.integration
 async def test_an_editor_can_see_a_draft(
     client: AsyncClient, draft_scene: _DraftScene, session
 ):
@@ -769,7 +740,6 @@ async def test_an_editor_can_see_a_draft(
     assert [p["id"] for p in listing.json()["items"]] == [draft.id]
 
 
-@pytest.mark.integration
 async def test_clearing_the_schedule_publishes_and_notifies(
     client: AsyncClient, acting_user, board: Actor, session
 ):
@@ -793,7 +763,6 @@ async def test_clearing_the_schedule_publishes_and_notifies(
     )
 
 
-@pytest.mark.integration
 async def test_a_published_notice_cannot_be_rescheduled(
     client: AsyncClient, board: Actor, session
 ):
@@ -814,7 +783,6 @@ async def test_a_published_notice_cannot_be_rescheduled(
     assert response.json()["detail"] == "POST_ALREADY_PUBLISHED"
 
 
-@pytest.mark.integration
 async def test_posting_an_already_posted_notice_now_is_nothing_to_do(
     client: AsyncClient, acting_user, board: Actor, session
 ):
@@ -844,7 +812,6 @@ async def test_posting_an_already_posted_notice_now_is_nothing_to_do(
     )
 
 
-@pytest.mark.integration
 async def test_the_board_dates_a_notice_by_when_it_went_up(
     client: AsyncClient, board: Actor, session
 ):
@@ -875,7 +842,6 @@ async def test_the_board_dates_a_notice_by_when_it_went_up(
     ]
 
 
-@pytest.mark.integration
 async def test_a_draft_is_not_exported(board: Actor, session):
     """An export is a record of what a board has said, and a draft has said
     nothing yet — including to the author it belongs to."""
@@ -890,7 +856,6 @@ async def test_a_draft_is_not_exported(board: Actor, session):
     assert ids == [live.id]
 
 
-@pytest.mark.integration
 async def test_setting_an_expiry_does_not_re_pin(
     client: AsyncClient, board: Actor, session
 ):
@@ -922,7 +887,6 @@ async def test_setting_an_expiry_does_not_re_pin(
     assert second.json()["pin_expires_at"] is not None
 
 
-@pytest.mark.integration
 async def test_re_pinning_a_lapsed_pin_starts_a_new_one(
     client: AsyncClient, board: Actor, session
 ):
@@ -953,7 +917,6 @@ async def test_re_pinning_a_lapsed_pin_starts_a_new_one(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("surface", "door"),
     [
@@ -999,7 +962,6 @@ async def test_a_draft_answers_a_reader_as_if_it_were_not_there(
     assert response.status_code == 404, response.text
 
 
-@pytest.mark.integration
 async def test_a_draft_cannot_be_exported(draft_scene: _DraftScene, role_session):
     """The export seam resolves an id the caller chose, so it asks the same
     question the board does rather than only read access.
@@ -1019,7 +981,6 @@ async def test_a_draft_cannot_be_exported(draft_scene: _DraftScene, role_session
     assert excinfo.value.status_code == 404
 
 
-@pytest.mark.integration
 async def test_its_author_still_reaches_a_draft_everywhere(
     client: AsyncClient, draft_scene: _DraftScene, role_session
 ):
@@ -1049,7 +1010,6 @@ async def test_its_author_still_reaches_a_draft_everywhere(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_a_notice_starts_unread_and_stays_read(
     client: AsyncClient, acting_user, board: Actor, session
 ):
@@ -1069,7 +1029,6 @@ async def test_a_notice_starts_unread_and_stays_read(
     assert [p["is_read"] for p in after.json()["items"]] == [True]
 
 
-@pytest.mark.integration
 async def test_marking_the_same_page_again_changes_nothing(
     client: AsyncClient, acting_user, board: Actor, session
 ):
@@ -1090,7 +1049,6 @@ async def test_marking_the_same_page_again_changes_nothing(
     assert second.json()["marked"] == 0
 
 
-@pytest.mark.integration
 async def test_reading_is_one_persons_business(
     client: AsyncClient, acting_user, board: Actor, session
 ):
@@ -1109,7 +1067,6 @@ async def test_reading_is_one_persons_business(
     assert [p["is_read"] for p in others.json()["items"]] == [False]
 
 
-@pytest.mark.integration
 async def test_marking_unread_puts_it_back(
     client: AsyncClient, acting_user, board: Actor, session
 ):
@@ -1130,7 +1087,6 @@ async def test_marking_unread_puts_it_back(
     assert [p["is_read"] for p in listed.json()["items"]] == [False]
 
 
-@pytest.mark.integration
 async def test_marking_unread_twice_is_not_an_error(
     client: AsyncClient, board: Actor, session
 ):
@@ -1143,7 +1099,6 @@ async def test_marking_unread_twice_is_not_an_error(
     assert response.status_code == 204
 
 
-@pytest.mark.integration
 async def test_the_unread_filter_shows_only_what_is_left(
     client: AsyncClient, acting_user, board: Actor, session
 ):
@@ -1163,7 +1118,6 @@ async def test_the_unread_filter_shows_only_what_is_left(
     assert response.json()["total_count"] == 1
 
 
-@pytest.mark.integration
 async def test_a_reader_cannot_mark_a_notice_they_cannot_see(
     client: AsyncClient, acting_user, board: Actor, session
 ):
@@ -1186,7 +1140,6 @@ async def test_a_reader_cannot_mark_a_notice_they_cannot_see(
     assert response.json()["marked"] == 0
 
 
-@pytest.mark.integration
 async def test_a_draft_is_not_in_the_unread_list(
     client: AsyncClient, draft_scene: _DraftScene
 ):
@@ -1200,7 +1153,6 @@ async def test_a_draft_is_not_in_the_unread_list(
     assert response.json()["items"] == []
 
 
-@pytest.mark.integration
 async def test_a_draft_cannot_be_marked_read(
     client: AsyncClient, draft_scene: _DraftScene
 ):
@@ -1213,7 +1165,6 @@ async def test_a_draft_cannot_be_marked_read(
     assert response.json()["marked"] == 0
 
 
-@pytest.mark.integration
 async def test_a_notice_counts_its_readers(
     client: AsyncClient, acting_user, board: Actor, session
 ):
@@ -1230,7 +1181,6 @@ async def test_a_notice_counts_its_readers(
     assert [p["read_count"] for p in listing.json()["items"]] == [1]
 
 
-@pytest.mark.integration
 async def test_the_roster_says_who_read_it_and_who_has_not(
     client: AsyncClient, acting_user, board: Actor, session
 ):
@@ -1252,7 +1202,6 @@ async def test_the_roster_says_who_read_it_and_who_has_not(
     assert [row["id"] for row in body["unread"]] == [waiting.user.id]
 
 
-@pytest.mark.integration
 async def test_the_roster_waits_only_on_who_it_was_shared_with(
     client: AsyncClient, acting_user, board: Actor
 ):
@@ -1279,7 +1228,6 @@ async def test_the_roster_waits_only_on_who_it_was_shared_with(
     assert [row["id"] for row in body["unread"]] == [named.user.id]
 
 
-@pytest.mark.integration
 async def test_the_author_is_on_neither_list(
     client: AsyncClient, board: Actor, session
 ):
@@ -1294,7 +1242,6 @@ async def test_the_author_is_on_neither_list(
     assert body["unread"] == []
 
 
-@pytest.mark.integration
 async def test_a_notice_is_signed(client: AsyncClient, board: Actor, session):
     """A board shows who said it, the way a comment does — handle, picture and
     what they wear around it, carried with the row rather than fetched per
@@ -1310,7 +1257,6 @@ async def test_a_notice_is_signed(client: AsyncClient, board: Actor, session):
     assert "presence" in author
 
 
-@pytest.mark.integration
 async def test_writing_a_notice_is_not_reading_it(
     client: AsyncClient, board: Actor, session
 ):
@@ -1330,7 +1276,6 @@ async def test_writing_a_notice_is_not_reading_it(
     assert listing.json()["items"][0]["read_count"] == 0
 
 
-@pytest.mark.integration
 async def test_somebody_who_has_left_is_on_neither_side(
     client: AsyncClient, acting_user, board: Actor, session
 ):
@@ -1361,7 +1306,6 @@ async def test_somebody_who_has_left_is_on_neither_side(
     assert roster["unread"] == []
 
 
-@pytest.mark.integration
 async def test_a_guild_admin_can_mark_read_without_a_grant(
     client: AsyncClient, acting_user, session
 ):

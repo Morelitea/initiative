@@ -20,8 +20,6 @@ from app.services.export import worker as export_worker
 from app.services.import_engine import atlassian
 from app.testing import create_export_job, create_task, route_session_to_guild
 
-pytestmark = pytest.mark.integration
-
 
 @pytest.fixture(autouse=True)
 def _tmp_uploads(monkeypatch, tmp_path):
@@ -126,7 +124,6 @@ async def test_a_render_that_lost_its_row_writes_nothing(
     assert await _notices(session, a.user.id, job.id) == 1
 
 
-@pytest.mark.unit
 async def test_a_build_stops_when_its_heartbeat_finds_the_row_taken(monkeypatch):
     """The heartbeat ticks while the adapter builds; one that raises cancels
     the build rather than letting it run on."""

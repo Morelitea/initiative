@@ -15,7 +15,6 @@ from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import patch
 
-import pytest
 from sqlmodel import select
 
 from app.core.audit_events import AuditEventType
@@ -31,7 +30,6 @@ from app.testing.app_clients import (
     lift_person_and_guild_ids,
 )
 
-pytestmark = pytest.mark.integration
 
 _WEBHOOK_HOST = "hooks.example.com"
 _FAKE_INFOS = [

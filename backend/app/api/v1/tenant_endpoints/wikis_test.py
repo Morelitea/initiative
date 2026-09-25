@@ -7,7 +7,6 @@ is shown it) and the **web** (what a page's body names, and what names it
 back).
 """
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -32,7 +31,6 @@ async def _wikis_enabled(session: AsyncSession, initiative) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_create_wiki(client: AsyncClient, acting_user, session):
     """Creating seeds the creator's owner grant plus the default all-members
     read grant."""
@@ -59,7 +57,6 @@ async def test_create_wiki(client: AsyncClient, acting_user, session):
     assert (True, "read") in levels
 
 
-@pytest.mark.integration
 async def test_create_requires_feature_enabled(
     client: AsyncClient, acting_user, session
 ):
@@ -78,7 +75,6 @@ async def test_create_requires_feature_enabled(
     assert response.json()["detail"] == "WIKIS_NOT_ENABLED"
 
 
-@pytest.mark.integration
 async def test_a_member_outside_the_initiative_cannot_see_it(
     client: AsyncClient, acting_user, session
 ):
@@ -99,7 +95,6 @@ async def test_a_member_outside_the_initiative_cannot_see_it(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_create_page_records_its_author_and_slug(
     client: AsyncClient, acting_user, session
 ):
@@ -121,7 +116,6 @@ async def test_create_page_records_its_author_and_slug(
     assert body["slug"] == "the-bar-float"
 
 
-@pytest.mark.integration
 async def test_a_page_starts_as_a_draft(client: AsyncClient, acting_user, session):
     """Nobody writes a page in one keystroke, and the people who only read this
     wiki have no use for an empty one — so it is published when it is ready."""
@@ -147,7 +141,6 @@ async def test_a_page_starts_as_a_draft(client: AsyncClient, acting_user, sessio
     assert published.json()["is_draft"] is False
 
 
-@pytest.mark.integration
 async def test_a_page_starts_with_no_name(client: AsyncClient, acting_user, session):
     """A page is made before it is about anything, so nothing names it for you."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -165,7 +158,6 @@ async def test_a_page_starts_with_no_name(client: AsyncClient, acting_user, sess
     assert body["slug"]
 
 
-@pytest.mark.integration
 async def test_two_pages_with_one_title_get_distinct_slugs(
     client: AsyncClient, acting_user, session
 ):
@@ -186,7 +178,6 @@ async def test_two_pages_with_one_title_get_distinct_slugs(
     assert slugs == ["rules", "rules-2"]
 
 
-@pytest.mark.integration
 async def test_a_name_goes_back_into_circulation_with_the_trash(
     client: AsyncClient, acting_user, session
 ):
@@ -219,7 +210,6 @@ async def test_a_name_goes_back_into_circulation_with_the_trash(
     assert second.json()["slug"] == "step-1"
 
 
-@pytest.mark.integration
 async def test_a_page_can_be_renamed_onto_a_trashed_pages_name(
     client: AsyncClient, acting_user, session
 ):
@@ -251,7 +241,6 @@ async def test_a_page_can_be_renamed_onto_a_trashed_pages_name(
     assert renamed.json()["slug"] == "step-1"
 
 
-@pytest.mark.integration
 async def test_a_restored_page_takes_its_name_back(
     client: AsyncClient, acting_user, session
 ):
@@ -276,7 +265,6 @@ async def test_a_restored_page_takes_its_name_back(
     assert back.json()["slug"] == "step-1"
 
 
-@pytest.mark.integration
 async def test_a_restored_page_comes_back_beside_the_one_that_took_its_name(
     client: AsyncClient, acting_user, session
 ):
@@ -312,7 +300,6 @@ async def test_a_restored_page_comes_back_beside_the_one_that_took_its_name(
     assert held.json()["slug"] == "step-1"
 
 
-@pytest.mark.integration
 async def test_a_wiki_restored_whole_keeps_its_pages_addresses(
     client: AsyncClient, acting_user, session
 ):
@@ -338,7 +325,6 @@ async def test_a_wiki_restored_whole_keeps_its_pages_addresses(
     assert [page["slug"] for page in pages.json()["items"]] == ["step-1", "step-2"]
 
 
-@pytest.mark.integration
 async def test_the_tree_comes_back_in_reading_order(
     client: AsyncClient, acting_user, session
 ):
@@ -359,7 +345,6 @@ async def test_the_tree_comes_back_in_reading_order(
     assert titles == ["Bar", "Float", "Kitchen"]
 
 
-@pytest.mark.integration
 async def test_moving_a_page_renumbers_its_new_siblings(
     client: AsyncClient, acting_user, session
 ):
@@ -384,7 +369,6 @@ async def test_moving_a_page_renumbers_its_new_siblings(
     assert [p["title"] for p in tree.json()["items"]] == ["Third", "First", "Second"]
 
 
-@pytest.mark.integration
 async def test_a_page_from_another_wiki_reads_as_missing(
     client: AsyncClient, acting_user, session
 ):
@@ -404,7 +388,6 @@ async def test_a_page_from_another_wiki_reads_as_missing(
     assert response.json()["detail"] == "WIKI_PAGE_NOT_FOUND"
 
 
-@pytest.mark.integration
 async def test_deleting_a_page_takes_its_sub_pages(
     client: AsyncClient, acting_user, session
 ):
@@ -430,7 +413,6 @@ async def test_deleting_a_page_takes_its_sub_pages(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_a_document_put_in_a_wiki_is_one_of_its_pages(
     client: AsyncClient, acting_user, session
 ):
@@ -450,7 +432,6 @@ async def test_a_document_put_in_a_wiki_is_one_of_its_pages(
     assert rows == {"Written here": "page", document.name: "document"}
 
 
-@pytest.mark.integration
 async def test_a_page_filed_under_another_reads_after_it(
     client: AsyncClient, acting_user, session
 ):
@@ -478,7 +459,6 @@ async def test_a_page_filed_under_another_reads_after_it(
     ]
 
 
-@pytest.mark.integration
 async def test_a_drag_files_a_page_and_places_it_in_one_request(
     client: AsyncClient, acting_user, session
 ):
@@ -509,7 +489,6 @@ async def test_a_drag_files_a_page_and_places_it_in_one_request(
     ]
 
 
-@pytest.mark.integration
 async def test_a_page_cannot_be_filed_under_its_own_descendant(
     client: AsyncClient, acting_user, session
 ):
@@ -532,7 +511,6 @@ async def test_a_page_cannot_be_filed_under_its_own_descendant(
     assert response.json()["detail"] == "WIKI_PAGE_PARENT_DESCENDANT"
 
 
-@pytest.mark.integration
 async def test_a_page_cannot_be_its_own_parent(
     client: AsyncClient, acting_user, session
 ):
@@ -551,7 +529,6 @@ async def test_a_page_cannot_be_its_own_parent(
     assert response.json()["detail"] == "WIKI_PAGE_PARENT_ITSELF"
 
 
-@pytest.mark.integration
 async def test_trashing_a_page_takes_what_is_filed_under_it(
     client: AsyncClient, acting_user, session
 ):
@@ -580,7 +557,6 @@ async def test_trashing_a_page_takes_what_is_filed_under_it(
     assert [row["title"] for row in back.json()["items"]] == ["Rules", "Combat"]
 
 
-@pytest.mark.integration
 async def test_a_document_can_be_moved_among_the_pages(
     client: AsyncClient, acting_user, session
 ):
@@ -618,7 +594,6 @@ async def test_a_document_can_be_moved_among_the_pages(
     ]
 
 
-@pytest.mark.integration
 async def test_a_document_can_be_filed_under_a_page(
     client: AsyncClient, acting_user, session
 ):
@@ -679,7 +654,6 @@ async def test_a_document_can_be_filed_under_a_page(
     assert rows[0]["title"] == "Borrowed" and rows[0]["parent_page_id"] is None
 
 
-@pytest.mark.integration
 async def test_a_document_is_not_filed_under_a_page_of_another_wiki(
     client: AsyncClient, acting_user, session
 ):
@@ -702,7 +676,6 @@ async def test_a_document_is_not_filed_under_a_page_of_another_wiki(
     assert response.json()["detail"] == "WIKI_PAGE_NOT_FOUND"
 
 
-@pytest.mark.integration
 async def test_a_document_under_a_trashed_page_is_drawn_at_the_top(
     client: AsyncClient, acting_user, session
 ):
@@ -734,7 +707,6 @@ async def test_a_document_under_a_trashed_page_is_drawn_at_the_top(
     assert rows[1]["parent_page_id"] == rules.id
 
 
-@pytest.mark.integration
 async def test_a_document_row_says_what_kind_of_document_it_is(
     client: AsyncClient, acting_user, session
 ):
@@ -761,7 +733,6 @@ async def test_a_document_row_says_what_kind_of_document_it_is(
     assert rows["Written here"]["document_type"] is None
 
 
-@pytest.mark.integration
 async def test_a_page_can_be_moved_past_a_document(
     client: AsyncClient, acting_user, session
 ):
@@ -791,7 +762,6 @@ async def test_a_page_can_be_moved_past_a_document(
     ]
 
 
-@pytest.mark.integration
 async def test_a_document_taken_out_gives_up_its_place(
     client: AsyncClient, acting_user, session
 ):
@@ -822,7 +792,6 @@ async def test_a_document_taken_out_gives_up_its_place(
     assert [row["title"] for row in again.json()["items"]] == ["First", "Borrowed"]
 
 
-@pytest.mark.integration
 async def test_a_document_in_a_wiki_is_never_a_draft(
     client: AsyncClient, acting_user, session
 ):
@@ -840,7 +809,6 @@ async def test_a_document_in_a_wiki_is_never_a_draft(
     assert row["is_draft"] is False
 
 
-@pytest.mark.integration
 async def test_taking_a_document_out_leaves_the_document(
     client: AsyncClient, acting_user, session
 ):
@@ -870,7 +838,6 @@ async def test_taking_a_document_out_leaves_the_document(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_a_draft_is_not_in_the_list_a_reader_gets(
     client: AsyncClient, acting_user, session
 ):
@@ -894,7 +861,6 @@ async def test_a_draft_is_not_in_the_list_a_reader_gets(
     assert [p["title"] for p in response.json()["items"]] == ["Finished"]
 
 
-@pytest.mark.integration
 async def test_a_writer_sees_their_own_drafts(
     client: AsyncClient, acting_user, session
 ):
@@ -912,7 +878,6 @@ async def test_a_writer_sees_their_own_drafts(
     assert titles == {"Finished": False, "Half written": True}
 
 
-@pytest.mark.integration
 async def test_a_draft_page_reads_as_missing_to_a_reader(
     client: AsyncClient, acting_user, session
 ):
@@ -951,7 +916,6 @@ async def test_a_draft_page_reads_as_missing_to_a_reader(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_home_page_has_to_be_one_of_this_wikis_pages(
     client: AsyncClient, acting_user, session
 ):
@@ -976,7 +940,6 @@ async def test_home_page_has_to_be_one_of_this_wikis_pages(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_a_page_reports_what_links_to_it(
     client: AsyncClient, acting_user, session
 ):
@@ -1029,7 +992,6 @@ async def test_a_page_reports_what_links_to_it(
     assert incoming[0]["tool_id"] == wiki.id
 
 
-@pytest.mark.integration
 async def test_links_are_empty_for_a_page_nothing_names(
     client: AsyncClient, acting_user, session
 ):
@@ -1051,7 +1013,6 @@ async def test_links_are_empty_for_a_page_nothing_names(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_read_access_cannot_write_a_page(
     client: AsyncClient, acting_user, session
 ):
@@ -1077,7 +1038,6 @@ async def test_read_access_cannot_write_a_page(
     assert response.status_code == 403
 
 
-@pytest.mark.integration
 async def test_an_unshared_wiki_is_invisible_to_a_co_member(
     client: AsyncClient, acting_user, session
 ):

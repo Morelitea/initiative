@@ -17,8 +17,6 @@ from app.db.schema_provisioning import (
 )
 from app.db.session import _render_context_bind_params
 
-pytestmark = pytest.mark.unit
-
 
 def _params(**overrides):
     base = {

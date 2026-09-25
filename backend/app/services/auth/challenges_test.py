@@ -9,7 +9,6 @@ from app.models.platform.auth_challenge import AuthChallenge
 from app.services.auth import challenges
 from app.testing import create_user
 
-pytestmark = pytest.mark.database
 
 FIXED_NOW = datetime(2026, 9, 16, 12, 0, 0, tzinfo=timezone.utc)
 PURPOSE = challenges.ChallengePurpose.sign_in

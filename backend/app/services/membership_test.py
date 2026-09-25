@@ -32,7 +32,6 @@ async def _setup(session: AsyncSession):
     return admin, member, outsider, guild, initiative
 
 
-@pytest.mark.integration
 async def test_guild_role_map_batch(session: AsyncSession):
     admin, member, outsider, guild, _initiative = await _setup(session)
 
@@ -42,7 +41,6 @@ async def test_guild_role_map_batch(session: AsyncSession):
     assert roles == {admin.id: GuildRole.admin, member.id: GuildRole.member}
 
 
-@pytest.mark.integration
 async def test_initiative_scope_clause_legs(session: AsyncSession, reading_as):
     """member / guild-admin / (no standing platform-bypass) legs of the clause.
 
@@ -79,7 +77,6 @@ async def test_initiative_scope_clause_legs(session: AsyncSession, reading_as):
     assert await scoped_ids(platform_operator) == []
 
 
-@pytest.mark.integration
 async def test_initiative_scope_clause_pam_leg(session: AsyncSession, reading_as):
     """A live read grant satisfies the scope clause via initiative_access's
     pam_read leg; the same account with no grant reaches nothing at all.

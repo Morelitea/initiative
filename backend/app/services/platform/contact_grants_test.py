@@ -22,8 +22,6 @@ from app.models.platform.user_dm_settings import DmPolicy
 from app.services.platform import contact_grants as contact_grants_service
 from app.testing import create_guild, create_guild_membership, create_user
 
-pytestmark = pytest.mark.asyncio
-
 
 async def _policy(session, user, policy: DmPolicy) -> None:
     await session.exec(

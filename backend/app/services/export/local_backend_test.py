@@ -9,8 +9,6 @@ from app.services.export.local_backend import (
     resolve_template,
 )
 
-pytestmark = pytest.mark.unit
-
 
 def _request(format: str = "pdf", **data) -> RenderRequest:
     payload = {

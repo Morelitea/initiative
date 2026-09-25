@@ -19,8 +19,6 @@ from app.models.platform.user import UserRole, UserStatus
 from app.testing import create_guild, create_guild_membership, create_user, emitted
 from app.testing.factories import get_auth_headers
 
-pytestmark = pytest.mark.integration
-
 
 async def _notification_types(session: AsyncSession, user_id: int) -> set[str]:
     rows = (

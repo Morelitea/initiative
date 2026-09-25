@@ -2,13 +2,10 @@
 
 import asyncio
 
-import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.services import data_jobs, guild_work
 from app.services.platform import notify_bus, user_stream
-
-pytestmark = pytest.mark.integration
 
 
 async def test_a_wake_reaches_its_drain_once_committed(

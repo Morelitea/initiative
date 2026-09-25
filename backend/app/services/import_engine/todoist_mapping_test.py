@@ -13,7 +13,6 @@ from app.models.tenant.task import TaskPriority, TaskStatusCategory
 from app.schemas.tenant.project_export import ProjectExportEnvelope
 from app.services.import_engine import todoist_mapping as tm
 
-pytestmark = pytest.mark.unit
 
 HEADER = (
     "TYPE,CONTENT,DESCRIPTION,PRIORITY,INDENT,AUTHOR,RESPONSIBLE,DATE,"

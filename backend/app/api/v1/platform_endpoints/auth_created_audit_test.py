@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -23,7 +22,6 @@ from app.core.audit_events import AuditEventType
 from app.testing import emitted
 from app.testing.factories import create_user
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 REGISTERED_EMAIL = "registered-audit@example.com"
 

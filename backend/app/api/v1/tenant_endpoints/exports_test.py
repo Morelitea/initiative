@@ -72,8 +72,6 @@ from app.testing.factories import (
 )
 from app.services.export import limits as export_limits
 
-pytestmark = pytest.mark.integration
-
 
 # ---------------------------------------------------------------------------
 # Asking for an export

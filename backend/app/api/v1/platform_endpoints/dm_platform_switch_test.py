@@ -21,8 +21,6 @@ from app.models.platform.user import UserRole
 from app.services.platform import app_settings as app_settings_service
 from app.testing import create_guild_membership, create_user, get_auth_headers
 
-pytestmark = pytest.mark.asyncio
-
 
 async def _reachable_from_their_communities(session, *user_ids: int) -> None:
     """Put these accounts on the policy that makes co-members contacts.
@@ -52,14 +50,12 @@ async def _set_switch(session, *, enabled: bool) -> None:
 # ------------------------------------------------------------------ config ---
 
 
-@pytest.mark.integration
 async def test_config_reports_messaging_on_by_default(client) -> None:
     """A deployment that upgrades into the switch keeps its messaging."""
     body = (await client.get("/api/v1/config")).json()
     assert body["direct_messages_enabled"] is True
 
 
-@pytest.mark.integration
 async def test_owner_switches_messaging_off_and_back_on(client, session) -> None:
     owner = await create_user(
         session, email="owner-dm-switch@example.com", role=UserRole.owner
@@ -89,7 +85,6 @@ async def test_owner_switches_messaging_off_and_back_on(client, session) -> None
     ] is True
 
 
-@pytest.mark.integration
 async def test_omitting_the_switch_leaves_it_alone(client, session) -> None:
     """The directory is written far more often, and must not carry this with it."""
     owner = await create_user(
@@ -112,7 +107,6 @@ async def test_omitting_the_switch_leaves_it_alone(client, session) -> None:
     assert directory_only.json()["direct_messages_enabled"] is False
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "role",
     [UserRole.member, UserRole.support, UserRole.moderator, UserRole.operator],
@@ -147,7 +141,6 @@ DM_ROUTES = [
 ]
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("method, path, body", DM_ROUTES)
 async def test_every_dm_route_refuses_while_messaging_is_off(
     client, session, acting_user, method: str, path: str, body
@@ -161,7 +154,6 @@ async def test_every_dm_route_refuses_while_messaging_is_off(
     assert response.json()["detail"] == "DM_DISABLED_FOR_PLATFORM"
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("method, path, body", DM_ROUTES)
 async def test_every_dm_route_answers_again_once_it_is_back_on(
     client, session, acting_user, method: str, path: str, body
@@ -175,7 +167,6 @@ async def test_every_dm_route_answers_again_once_it_is_back_on(
     assert response.status_code != 403, f"{method} {path}: {response.text}"
 
 
-@pytest.mark.integration
 async def test_an_accepted_channel_survives_the_switch(
     client, session, acting_user
 ) -> None:
@@ -209,7 +200,6 @@ async def test_an_accepted_channel_survives_the_switch(
 # ---------------------------------------------------------------- contacts ---
 
 
-@pytest.mark.integration
 async def test_contacts_list_nobody_while_messaging_is_off(
     client, session, acting_user
 ) -> None:

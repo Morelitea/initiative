@@ -1,6 +1,5 @@
 """Every request is named, and says so on the way out."""
 
-import pytest
 from httpx import AsyncClient
 from prometheus_client import REGISTRY
 
@@ -14,7 +13,6 @@ from app.core.request_audit import (
 )
 from app.testing import emitted
 
-pytestmark = pytest.mark.integration
 
 VERSION = "/api/v1/version"
 SIGN_IN = "/api/v1/auth/token"
@@ -122,7 +120,6 @@ def _ws_scope() -> dict:
     }
 
 
-@pytest.mark.unit
 async def test_a_socket_is_named_for_as_long_as_it_is_open():
     """A socket has no response to carry an id back on, but every line it
     writes still says which session wrote it."""
@@ -175,7 +172,6 @@ async def test_a_request_is_counted_by_the_route_it_matched(client: AsyncClient)
     )
 
 
-@pytest.mark.unit
 async def test_an_open_socket_is_counted_until_it_closes():
     seen = {}
 
@@ -189,14 +185,12 @@ async def test_an_open_socket_is_counted_until_it_closes():
     assert REGISTRY.get_sample_value("initiative_websocket_connections") == before
 
 
-@pytest.mark.unit
 def test_an_unknown_method_is_labelled_other():
     assert metrics.method_label("GET") == "GET"
     assert metrics.method_label("BREW") == "other"
     assert metrics.method_label(None) == "other"
 
 
-@pytest.mark.unit
 async def test_a_grantees_first_edit_is_written_down(capfd):
     """One line per session: that they edited it is the fact worth having."""
     recorded = {}
@@ -223,7 +217,6 @@ async def test_a_grantees_first_edit_is_written_down(capfd):
     assert line["context"]["source_ip"] == "203.0.113.7"
 
 
-@pytest.mark.unit
 async def test_a_members_own_editing_is_not_written_down(capfd):
     """This records privileged access. A member editing their community's own
     document is ordinary work."""
@@ -242,7 +235,6 @@ async def test_a_members_own_editing_is_not_written_down(capfd):
     assert recorded["lines"] == []
 
 
-@pytest.mark.unit
 async def test_an_edit_outside_any_session_records_nothing():
     assert (
         record_privileged_edit(

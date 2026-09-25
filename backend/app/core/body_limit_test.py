@@ -19,8 +19,6 @@ from app.services.import_engine import limits as import_limits
 from app.services.marketplace import listing_assets, tool_listings
 from app.services.tenant import attachments, galleries
 
-pytestmark = pytest.mark.unit
-
 
 def _limit(path: str) -> int | None:
     for pattern, limit, _code in _RULES:

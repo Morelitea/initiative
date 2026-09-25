@@ -43,7 +43,6 @@ class _Resp:
         return {"message": {"content": "generated text"}}
 
 
-@pytest.mark.unit
 async def test_custom_private_base_url_rejected(monkeypatch):
     """A custom connection is always public (allow_private=False), so the pinned
     egress refuses a private target — no member/guild path reaches a private
@@ -59,7 +58,6 @@ async def test_custom_private_base_url_rejected(monkeypatch):
     assert str(exc.value) == "AI_INVALID_BASE_URL"
 
 
-@pytest.mark.unit
 async def test_ollama_private_permitted_and_pinned(monkeypatch):
     """An operator Ollama connection (allow_private=True) reaches a private host,
     and the request goes through the pinned egress with allow_private threaded
@@ -87,7 +85,6 @@ async def test_ollama_private_permitted_and_pinned(monkeypatch):
     assert captured["url"].endswith("/api/chat")
 
 
-@pytest.mark.unit
 async def test_ollama_generation_does_not_allow_private_for_guild_scope(monkeypatch):
     """A guild-scoped Ollama connection (allow_private=False) cannot reach a
     private host — the pinned egress refuses it."""

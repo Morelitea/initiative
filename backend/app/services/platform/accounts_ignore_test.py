@@ -5,15 +5,12 @@ about ``accounts.load`` and one fan-out that goes through it end to end. The
 seam is what makes the other five fan-outs true without a rule each.
 """
 
-import pytest
 from sqlmodel import select
 
 from app.models.platform.notification import Notification, NotificationType
 from app.models.platform.user_ignore import UserIgnore
 from app.services.platform import accounts as accounts_service
 from app.testing import create_resource_grant, create_user
-
-pytestmark = pytest.mark.asyncio
 
 
 def _mentions(rows: list[Notification]) -> list[Notification]:

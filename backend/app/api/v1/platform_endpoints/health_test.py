@@ -20,7 +20,6 @@ def request_engine_on_the_test_database(engine, monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr(db_session, "engine", engine)
 
 
-@pytest.mark.integration
 async def test_healthz_answers_without_touching_anything(client: AsyncClient):
     """Liveness is about this process only, so it answers the same whether or
     not its dependencies are reachable."""
@@ -29,7 +28,6 @@ async def test_healthz_answers_without_touching_anything(client: AsyncClient):
     assert resp.json() == {"status": "ok"}
 
 
-@pytest.mark.integration
 async def test_readyz_reports_every_dependency(client: AsyncClient):
     """Readiness names each dependency it pinged. The three engines are
     reachable under test, so the verdict is never ``unavailable``."""
@@ -42,7 +40,6 @@ async def test_readyz_reports_every_dependency(client: AsyncClient):
     assert body["status"] in {"ok", "degraded"}
 
 
-@pytest.mark.integration
 def test_a_read_replica_is_reported_and_does_not_decide(monkeypatch):
     assert "database_query" not in health.declared_checks()
 
@@ -70,7 +67,6 @@ async def test_readyz_is_503_when_a_database_is_unreachable(
     assert body["checks"]["database"] == "error"
 
 
-@pytest.mark.integration
 async def test_readyz_stays_in_rotation_when_only_a_reported_check_fails(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ):
@@ -88,7 +84,6 @@ async def test_readyz_stays_in_rotation_when_only_a_reported_check_fails(
     assert resp.json()["status"] == "degraded"
 
 
-@pytest.mark.integration
 async def test_readyz_reports_a_hung_dependency_rather_than_hanging(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ):
@@ -112,7 +107,6 @@ async def test_readyz_reports_a_hung_dependency_rather_than_hanging(
     assert resp.json()["checks"]["storage"] == "error"
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("path", ["/api/v1/healthz", "/api/v1/readyz"])
 async def test_probes_are_not_rate_limited(
     client: AsyncClient, rate_limit_of_one_per_minute, path: str
@@ -127,7 +121,6 @@ async def test_probes_are_not_rate_limited(
     assert first.status_code == 200 and second.status_code == 200, second.text
 
 
-@pytest.mark.integration
 async def test_probes_stay_out_of_the_api_schema(client: AsyncClient):
     """Infrastructure routes, with no client generated for them."""
     resp = await client.get("/api/v1/openapi.json")
@@ -140,7 +133,6 @@ async def test_probes_stay_out_of_the_api_schema(client: AsyncClient):
 METRICS = "/api/v1/metrics"
 
 
-@pytest.mark.integration
 async def test_metrics_is_not_there_until_a_token_is_set(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ):
@@ -149,7 +141,6 @@ async def test_metrics_is_not_there_until_a_token_is_set(
     assert resp.status_code == 404
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "authorization", [None, "Bearer wrong", "Basic c2NyYXBlOnM=", "s3cret-token"]
 )
@@ -163,7 +154,6 @@ async def test_metrics_wants_the_token_as_a_bearer(
     assert resp.headers["www-authenticate"] == "Bearer"
 
 
-@pytest.mark.integration
 async def test_metrics_answers_a_scrape_presenting_the_token(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ):

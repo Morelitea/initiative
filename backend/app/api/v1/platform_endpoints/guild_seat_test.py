@@ -18,8 +18,6 @@ from app.testing.factories import (
 )
 from app.testing import route_as
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
-
 
 async def test_whoever_makes_a_community_holds_its_seat(
     client: AsyncClient, session: AsyncSession

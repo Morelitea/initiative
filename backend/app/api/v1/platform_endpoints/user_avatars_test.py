@@ -46,7 +46,6 @@ async def _upload(client: AsyncClient, headers: dict, data: bytes | None = None)
     )
 
 
-@pytest.mark.integration
 async def test_upload_stores_the_picture_and_names_it_on_the_user(
     client: AsyncClient, session: AsyncSession
 ):
@@ -62,7 +61,6 @@ async def test_upload_stores_the_picture_and_names_it_on_the_user(
     assert "avatar_base64" not in body
 
 
-@pytest.mark.integration
 async def test_anyone_may_fetch_a_picture_without_a_session(
     client: AsyncClient, session: AsyncSession
 ):
@@ -82,7 +80,6 @@ async def test_anyone_may_fetch_a_picture_without_a_session(
     assert response.content == png(256, 256)
 
 
-@pytest.mark.integration
 async def test_a_stale_digest_is_not_served_the_current_picture(
     client: AsyncClient, session: AsyncSession
 ):
@@ -98,7 +95,6 @@ async def test_a_stale_digest_is_not_served_the_current_picture(
     assert response.status_code == 404
 
 
-@pytest.mark.integration
 async def test_removing_a_picture_makes_its_url_stop_working(
     client: AsyncClient, session: AsyncSession
 ):
@@ -116,7 +112,6 @@ async def test_removing_a_picture_makes_its_url_stop_working(
     ).status_code == 404
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "data,filename",
     [
@@ -145,7 +140,6 @@ async def test_refused_uploads(
     ).first() is None
 
 
-@pytest.mark.integration
 async def test_a_moderator_takes_a_picture_down_and_the_owner_is_told(
     client: AsyncClient, session: AsyncSession
 ):
@@ -167,7 +161,6 @@ async def test_a_moderator_takes_a_picture_down_and_the_owner_is_told(
     assert [n.type for n in notifications] == [NotificationType.avatar_removed]
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("role", [UserRole.member, UserRole.support])
 async def test_below_moderator_cannot_take_a_picture_down(
     client: AsyncClient, session: AsyncSession, role: UserRole
@@ -186,7 +179,6 @@ async def test_below_moderator_cannot_take_a_picture_down(
     ).first() is not None
 
 
-@pytest.mark.integration
 async def test_a_read_payload_url_cannot_be_written_back_as_an_external_one(
     client: AsyncClient, session: AsyncSession
 ):
@@ -204,7 +196,6 @@ async def test_a_read_payload_url_cannot_be_written_back_as_an_external_one(
     assert response.status_code == 400
 
 
-@pytest.mark.integration
 async def test_setting_an_external_picture_drops_the_uploaded_one(
     client: AsyncClient, session: AsyncSession
 ):
@@ -227,7 +218,6 @@ async def test_setting_an_external_picture_drops_the_uploaded_one(
 # --- the row policies, exercised under the real privilege boundary -----------
 
 
-@pytest.mark.integration
 async def test_the_request_path_cannot_write_someone_elses_picture(
     client: AsyncClient, session: AsyncSession, role_session
 ):
@@ -260,7 +250,6 @@ async def test_the_request_path_cannot_write_someone_elses_picture(
     ).first() is not None
 
 
-@pytest.mark.integration
 async def test_the_request_path_may_read_any_picture(
     client: AsyncClient, session: AsyncSession, role_session
 ):
@@ -282,7 +271,6 @@ async def test_the_request_path_may_read_any_picture(
     assert found is not None
 
 
-@pytest.mark.integration
 async def test_deleting_a_user_takes_their_picture_with_them(
     client: AsyncClient, session: AsyncSession
 ):
@@ -299,7 +287,6 @@ async def test_deleting_a_user_takes_their_picture_with_them(
     ).first() is None
 
 
-@pytest.mark.integration
 async def test_anonymizing_a_user_leaves_no_face(
     client: AsyncClient, session: AsyncSession
 ):
@@ -321,7 +308,6 @@ async def test_anonymizing_a_user_leaves_no_face(
 # --- the three things a review caught -----------------------------------------
 
 
-@pytest.mark.integration
 async def test_storing_does_not_depend_on_what_the_read_saw(
     session: AsyncSession, monkeypatch
 ):
@@ -360,7 +346,6 @@ async def test_storing_does_not_depend_on_what_the_read_saw(
     assert rows[0].content_type == "image/jpeg"
 
 
-@pytest.mark.integration
 async def test_a_stored_picture_is_named_on_the_user_row(
     client: AsyncClient, session: AsyncSession
 ):
@@ -381,7 +366,6 @@ async def test_a_stored_picture_is_named_on_the_user_row(
     assert (await client.get(stored.avatar_url)).status_code == 200
 
 
-@pytest.mark.integration
 async def test_a_takedown_and_its_notice_are_one_write(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):

@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
@@ -25,8 +24,6 @@ from app.testing import (
     create_tag,
     create_task,
 )
-
-pytestmark = pytest.mark.integration
 
 
 #: A socket belonging to nobody in particular. Rooms are otherwise recomputed
@@ -313,7 +310,6 @@ async def test_a_steady_bus_names_the_ids(session, acting_user):
         assert all(not frame.get("more") for frame in watcher.socket.sent)
 
 
-@pytest.mark.unit
 async def test_an_unreadable_hint_is_dropped() -> None:
     """Nothing on the bus is load-bearing enough to raise over."""
     await room_sink.deliver("not-a-schema")
@@ -321,7 +317,6 @@ async def test_an_unreadable_hint_is_dropped() -> None:
     await room_sink.deliver("guild_1:not-a-txn")
 
 
-@pytest.mark.unit
 def test_a_transaction_too_large_to_name_says_so_instead() -> None:
     """A bulk write would otherwise send every id it touched to every socket."""
     rows = [
@@ -343,7 +338,6 @@ def test_a_transaction_too_large_to_name_says_so_instead() -> None:
     assert frame == {"changes": [], "more": True}
 
 
-@pytest.mark.unit
 def test_one_row_written_repeatedly_is_one_change() -> None:
     rows = [
         EventOutbox(

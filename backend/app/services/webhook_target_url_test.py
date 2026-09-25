@@ -20,13 +20,11 @@ from app.services.webhook_target_url import (
 )
 
 
-@pytest.mark.unit
 def test_accepts_public_https_literal():
     """An IPv4 literal in public unicast space is fine."""
     assert_target_url_is_public("https://93.184.216.34/hook")
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "url",
     [
@@ -40,7 +38,6 @@ def test_rejects_loopback(url: str):
         assert_target_url_is_public(url)
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "url",
     [
@@ -55,13 +52,11 @@ def test_rejects_rfc1918_and_ula(url: str):
         assert_target_url_is_public(url)
 
 
-@pytest.mark.unit
 def test_rejects_link_local():
     with pytest.raises(WebhookTargetUrlPrivateError):
         assert_target_url_is_public("https://169.254.169.254/latest/meta-data/")
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "url",
     [
@@ -75,7 +70,6 @@ def test_rejects_ipv4_mapped_ipv6(url: str):
         assert_target_url_is_public(url)
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "url",
     [
@@ -92,13 +86,11 @@ def test_rejects_non_https_schemes(url: str):
         assert_target_url_is_public(url)
 
 
-@pytest.mark.unit
 def test_rejects_missing_hostname():
     with pytest.raises(WebhookTargetUrlError):
         assert_target_url_is_public("https:///hook")
 
 
-@pytest.mark.unit
 def test_rejects_when_hostname_resolves_to_private():
     """A public-looking hostname that resolves to a private address is
     rejected."""
@@ -110,7 +102,6 @@ def test_rejects_when_hostname_resolves_to_private():
             assert_target_url_is_public("https://internal.example.com/hook")
 
 
-@pytest.mark.unit
 def test_rejects_when_any_resolved_address_is_private():
     """If any resolved address is non-public, the whole host is rejected."""
     fake_infos = [
@@ -124,7 +115,6 @@ def test_rejects_when_any_resolved_address_is_private():
             assert_target_url_is_public("https://mixed.example.com/hook")
 
 
-@pytest.mark.unit
 def test_resolve_returns_validated_addresses():
     """The resolver returns the approved addresses so a caller can connect
     to the exact address that was checked."""
@@ -141,25 +131,21 @@ def test_resolve_returns_validated_addresses():
     assert target.pinned_ip == "93.184.216.34"
 
 
-@pytest.mark.unit
 def test_literal_public_is_its_own_validated_address():
     target = resolve_validated_target("https://93.184.216.34/hook")
     assert target.pinned_ip == "93.184.216.34"
     assert target.hostname == "93.184.216.34"
 
 
-@pytest.mark.unit
 async def test_async_variant_accepts_public_literal():
     await assert_target_url_is_public_async("https://93.184.216.34/hook")
 
 
-@pytest.mark.unit
 async def test_async_variant_rejects_private_literal():
     with pytest.raises(WebhookTargetUrlPrivateError):
         await assert_target_url_is_public_async("https://10.0.0.1/hook")
 
 
-@pytest.mark.unit
 async def test_async_variant_resolves_off_the_event_loop():
     """The async variant hands DNS resolution to a thread."""
     fake_infos = [(2, 0, 0, "", ("93.184.216.34", 0))]
@@ -180,7 +166,6 @@ def _enable_dev_flag(monkeypatch):
     monkeypatch.setattr(config_module.settings, "WEBHOOK_ALLOW_PRIVATE_TARGETS", True)
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "url",
     [
@@ -197,7 +182,6 @@ def test_dev_flag_allows_local_targets(monkeypatch, url: str):
     assert_target_url_is_public(url)
 
 
-@pytest.mark.unit
 def test_http_to_private_flag_off_is_invalid_scheme():
     """Flag off: http is rejected on the scheme (invalid) before the
     address is considered. The endpoint maps this to a different error
@@ -207,7 +191,6 @@ def test_http_to_private_flag_off_is_invalid_scheme():
     assert type(exc_info.value) is WebhookTargetUrlError
 
 
-@pytest.mark.unit
 def test_https_to_private_flag_off_is_private():
     """Flag off: https to a private address is rejected as private (the
     scheme is fine, the address is not)."""
@@ -215,7 +198,6 @@ def test_https_to_private_flag_off_is_private():
         assert_target_url_is_public("https://10.0.0.1/hook")
 
 
-@pytest.mark.unit
 def test_dev_flag_still_rejects_http_to_public(monkeypatch):
     """The dev flag's scope is local/private targets; plain http to a
     public host stays rejected even with it on."""
@@ -228,7 +210,6 @@ def test_dev_flag_still_rejects_http_to_public(monkeypatch):
             assert_target_url_is_public("http://hooks.example.com/in")
 
 
-@pytest.mark.unit
 def test_dev_flag_rejects_http_to_mixed_public_private(monkeypatch):
     """Dev flag on: a host resolving to both public and private addresses
     over http is rejected — http is only allowed when no resolved address
@@ -245,7 +226,6 @@ def test_dev_flag_rejects_http_to_mixed_public_private(monkeypatch):
             assert_target_url_is_public("http://mixed.example.com/hook")
 
 
-@pytest.mark.unit
 def test_dev_flag_allows_https_to_mixed(monkeypatch):
     """Dev flag on: https to a mixed public/private set is fine — the
     scheme guarantees encryption regardless of which address is used."""

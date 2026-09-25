@@ -19,9 +19,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-import pytest
-
-pytestmark = pytest.mark.unit
 
 _VERSIONS = Path(__file__).resolve().parents[2] / "alembic" / "versions"
 

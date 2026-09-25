@@ -7,7 +7,6 @@ tasks created by the current user across all guilds they belong to.
 
 import json
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy import update
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -72,7 +71,6 @@ async def _setup_guild_with_project(session, user, *, guild_name="Test Guild"):
     return guild, initiative, project
 
 
-@pytest.mark.integration
 async def test_create_task_sets_created_by(client: AsyncClient, session: AsyncSession):
     """Creating a task via the API should populate created_by."""
     user = await create_user(session, email="creator@example.com")
@@ -98,7 +96,6 @@ async def test_create_task_sets_created_by(client: AsyncClient, session: AsyncSe
     assert data["created_by"] == user.id
 
 
-@pytest.mark.integration
 async def test_list_global_created_tasks(client: AsyncClient, session: AsyncSession):
     """GET /me/tasks/created should return tasks created by the current user."""
     creator = await create_user(session, email="creator@example.com")
@@ -118,7 +115,6 @@ async def test_list_global_created_tasks(client: AsyncClient, session: AsyncSess
     assert data["total_count"] >= 2
 
 
-@pytest.mark.integration
 async def test_list_global_created_tasks_excludes_others(
     client: AsyncClient, session: AsyncSession
 ):
@@ -140,7 +136,6 @@ async def test_list_global_created_tasks_excludes_others(
     assert other_task.id not in task_ids
 
 
-@pytest.mark.integration
 async def test_list_global_created_tasks_excludes_null_created_by(
     client: AsyncClient, session: AsyncSession
 ):
@@ -161,7 +156,6 @@ async def test_list_global_created_tasks_excludes_null_created_by(
     assert legacy_task.id not in task_ids
 
 
-@pytest.mark.integration
 async def test_list_global_created_tasks_priority_filter(
     client: AsyncClient, session: AsyncSession
 ):
@@ -192,7 +186,6 @@ async def test_list_global_created_tasks_priority_filter(
     assert low_task.id not in task_ids
 
 
-@pytest.mark.integration
 async def test_list_global_created_tasks_guild_filter(
     client: AsyncClient, session: AsyncSession
 ):
@@ -233,7 +226,6 @@ async def test_list_global_created_tasks_guild_filter(
     assert (guild2.id, task2.id) not in found
 
 
-@pytest.mark.integration
 async def test_list_global_created_tasks_pagination(
     client: AsyncClient, session: AsyncSession
 ):

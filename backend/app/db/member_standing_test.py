@@ -121,7 +121,6 @@ async def _refused(role_session, installed, user_id, scopes, **kwargs) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_a_member_token_stands_as_the_member_within_the_install(
     session, acting_user, role_session
 ):
@@ -171,7 +170,6 @@ async def test_a_member_token_stands_as_the_member_within_the_install(
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_no_live_consent_is_not_live(session, acting_user, role_session):
     installed = await install_app(
         session, acting_user, role_session, granted=["documents:read"]
@@ -191,7 +189,6 @@ async def test_no_live_consent_is_not_live(session, acting_user, role_session):
     )
 
 
-@pytest.mark.integration
 async def test_read_consent_on_a_write_request_reads_and_cannot_write(
     session, acting_user, role_session
 ):
@@ -226,7 +223,6 @@ async def test_read_consent_on_a_write_request_reads_and_cannot_write(
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_what_is_shared_with_the_member_reaches_the_token(
     session, acting_user, role_session
 ):
@@ -254,7 +250,6 @@ async def test_what_is_shared_with_the_member_reaches_the_token(
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_a_consent_bound_to_an_initiative_needs_a_token_narrowed_to_it(
     session, acting_user, role_session
 ):
@@ -278,7 +273,6 @@ async def test_a_consent_bound_to_an_initiative_needs_a_token_narrowed_to_it(
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_a_guild_admins_member_token_administers_nothing(
     session, acting_user, role_session
 ):
@@ -326,7 +320,6 @@ async def test_a_guild_admins_member_token_administers_nothing(
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_the_member_leaving_or_revoking_ends_what_the_token_reaches(
     session, acting_user, role_session
 ):
@@ -372,7 +365,6 @@ async def test_the_member_leaving_or_revoking_ends_what_the_token_reaches(
     await _refused(role_session, installed, member.user.id, ["documents:read"])
 
 
-@pytest.mark.integration
 async def test_an_account_that_is_not_active_is_not_live(
     session, acting_user, role_session
 ):
@@ -390,7 +382,6 @@ async def test_an_account_that_is_not_active_is_not_live(
     await _refused(role_session, installed, member.user.id, ["documents:read"])
 
 
-@pytest.mark.integration
 async def test_an_installation_token_stands_as_it_did(
     session, acting_user, role_session
 ):
@@ -418,7 +409,6 @@ async def test_an_installation_token_stands_as_it_did(
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_a_member_token_is_two_statements(session, acting_user, role_session):
     installed = await install_app(
         session, acting_user, role_session, granted=["documents:read"]
@@ -452,7 +442,6 @@ async def test_a_member_token_is_two_statements(session, acting_user, role_sessi
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_a_new_transaction_replays_the_member(session, acting_user, role_session):
     installed = await install_app(
         session, acting_user, role_session, granted=["documents:read"]
@@ -486,7 +475,6 @@ async def test_a_new_transaction_replays_the_member(session, acting_user, role_s
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_what_a_member_token_creates_is_owned_by_the_member(
     session, acting_user, role_session
 ):
@@ -524,7 +512,6 @@ async def test_what_a_member_token_creates_is_owned_by_the_member(
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_a_member_token_writes_no_owner_row_itself(
     session, acting_user, role_session
 ):

@@ -32,8 +32,6 @@ from app.testing import (
     route_as,
 )
 
-pytestmark = pytest.mark.database
-
 
 @pytest.fixture
 async def workspace(session):

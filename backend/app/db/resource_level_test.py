@@ -46,7 +46,6 @@ WRITE = ResourceAccessLevel.write.value
 READ = ResourceAccessLevel.read.value
 
 
-@pytest.mark.unit
 def test_the_two_bodies_share_every_leg():
     assert FULL_ACCESS in RESOURCE_LEVEL
     assert FULL_ACCESS in RESOURCE_ACCESS
@@ -54,7 +53,6 @@ def test_the_two_bodies_share_every_leg():
     assert GRANT_REACHES_READER in RESOURCE_ACCESS
 
 
-@pytest.mark.unit
 def test_the_highest_rung_is_spelled_from_the_ladder():
     assert _highest_rung_case() == (
         "WHEN bool_or(g.level = 'owner') THEN 'owner'\n"
@@ -170,7 +168,6 @@ async def _apply_grant(session, a, shape, subject):
     await session.commit()
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("shape", GRANTS)
 @pytest.mark.parametrize("standing", STANDINGS)
 async def test_the_level_the_gate_and_the_column_agree(
@@ -211,7 +208,6 @@ async def test_the_level_the_gate_and_the_column_agree(
         assert row.access_level == level
 
 
-@pytest.mark.integration
 async def test_a_reader_outside_the_initiative_is_answered_by_the_policy(
     session, acting_user, role_session
 ):

@@ -7,15 +7,12 @@ seeder, and each one applies the operator's default rather than the column
 default.
 """
 
-import pytest
 from sqlalchemy import text
 from sqlmodel import select
 
 from app.models.platform.user_dm_settings import DmPolicy, UserDmSettings
 from app.services.platform import dm_settings as dm_settings_service
 from app.testing import create_user
-
-pytestmark = pytest.mark.asyncio
 
 
 async def _set_default(session, policy: DmPolicy) -> None:

@@ -12,7 +12,6 @@ from app.testing import create_user
 EVIL_NAME = '<a href="https://phish.example">Reset your password</a>'
 
 
-@pytest.mark.integration
 async def test_mention_email_escapes_malicious_display_name(session, monkeypatch):
     """A mention email whose actor display name contains markup must show the
     literal text in the HTML part (no live phishing link inside the trusted,
@@ -66,7 +65,6 @@ async def test_mention_email_escapes_malicious_display_name(session, monkeypatch
     assert captured["subject"] == "You were mentioned in Plans"
 
 
-@pytest.mark.unit
 def test_strip_html_unescapes_entities():
     # The plain-text alternative is derived from the escaped HTML fragment, so
     # tags are stripped first and entities decoded back to literal text.
@@ -76,7 +74,6 @@ def test_strip_html_unescapes_entities():
     )
 
 
-@pytest.mark.integration
 async def test_join_request_email_renders_and_escapes_the_note(session, monkeypatch):
     """The manager's copy resolves from the `initiativeJoinRequest` block and
     neutralizes the requester's free-text note in the HTML part.
@@ -139,7 +136,6 @@ async def test_join_request_email_renders_and_escapes_the_note(session, monkeypa
     assert EVIL_NAME in captured["text_body"]
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("event", "subject"),
     [
@@ -180,7 +176,6 @@ async def test_join_request_outcome_emails_render(
     assert "They wrote" not in captured["html_body"]
 
 
-@pytest.mark.integration
 async def test_the_hold_letter_names_the_deletion_day_when_there_is_one(
     session, monkeypatch
 ):

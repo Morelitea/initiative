@@ -21,8 +21,6 @@ from app.testing.factories import (
     get_auth_headers,
 )
 
-pytestmark = pytest.mark.integration
-
 
 def _where(row) -> tuple:
     return (

@@ -95,7 +95,6 @@ def ws_sessions(monkeypatch, engine):
     )
 
 
-@pytest.mark.integration
 async def test_a_valid_token_joins_and_then_leaves_the_registry(
     session, stream, ws_sessions
 ) -> None:
@@ -113,7 +112,6 @@ async def test_a_valid_token_joins_and_then_leaves_the_registry(
     assert len(stream._sockets.get(user.id, ())) == 0
 
 
-@pytest.mark.integration
 async def test_the_socket_is_registered_while_the_loop_runs(
     session, stream, ws_sessions, monkeypatch
 ) -> None:
@@ -140,7 +138,6 @@ async def test_the_socket_is_registered_while_the_loop_runs(
     assert counted == [1]
 
 
-@pytest.mark.integration
 async def test_a_session_cookie_stands_in_for_a_null_token(
     session, stream, ws_sessions, monkeypatch
 ) -> None:
@@ -170,7 +167,6 @@ async def test_a_session_cookie_stands_in_for_a_null_token(
     assert counted == [1]
 
 
-@pytest.mark.integration
 async def test_an_active_frame_marks_its_person_present(
     session, stream, ws_sessions, monkeypatch
 ) -> None:
@@ -192,7 +188,6 @@ async def test_an_active_frame_marks_its_person_present(
     assert websocket.closed_with is None
 
 
-@pytest.mark.integration
 async def test_an_invalid_token_is_refused(session, stream, ws_sessions) -> None:
     websocket = FakeWebSocket([_auth_frame(b'{"token": "not-a-token"}')])
 
@@ -201,7 +196,6 @@ async def test_an_invalid_token_is_refused(session, stream, ws_sessions) -> None
     assert websocket.closed_with == WS_POLICY_VIOLATION
 
 
-@pytest.mark.integration
 async def test_a_revoked_token_is_refused(session, stream, ws_sessions) -> None:
     """Logout / password change revoke by bumping ``token_version``; the socket
     must honour that the same way the REST path does."""
@@ -219,7 +213,6 @@ async def test_a_revoked_token_is_refused(session, stream, ws_sessions) -> None:
     assert len(stream._sockets.get(user.id, ())) == 0
 
 
-@pytest.mark.unit
 async def test_a_first_frame_that_is_not_msg_auth_is_refused(stream) -> None:
     websocket = FakeWebSocket([bytes([0]) + b"{}"])
 
@@ -228,7 +221,6 @@ async def test_a_first_frame_that_is_not_msg_auth_is_refused(stream) -> None:
     assert websocket.closed_with == WS_POLICY_VIOLATION
 
 
-@pytest.mark.unit
 async def test_a_malformed_auth_payload_is_refused(stream) -> None:
     websocket = FakeWebSocket([_auth_frame(b"not json")])
 
@@ -237,7 +229,6 @@ async def test_a_malformed_auth_payload_is_refused(stream) -> None:
     assert websocket.closed_with == WS_POLICY_VIOLATION
 
 
-@pytest.mark.unit
 async def test_no_token_and_no_cookie_is_refused(stream) -> None:
     websocket = FakeWebSocket([_auth_frame(b'{"token": null}')])
 
@@ -246,7 +237,6 @@ async def test_no_token_and_no_cookie_is_refused(stream) -> None:
     assert websocket.closed_with == WS_POLICY_VIOLATION
 
 
-@pytest.mark.unit
 async def test_a_socket_that_never_sends_its_first_frame_is_closed(
     stream, monkeypatch
 ) -> None:
@@ -266,7 +256,6 @@ async def test_a_socket_that_never_sends_its_first_frame_is_closed(
     assert websocket.sent == []
 
 
-@pytest.mark.unit
 async def test_hanging_up_before_authenticating_registers_nothing(stream) -> None:
     websocket = FakeWebSocket([])
 
@@ -276,7 +265,6 @@ async def test_hanging_up_before_authenticating_registers_nothing(stream) -> Non
     assert websocket.closed_with is None
 
 
-@pytest.mark.integration
 async def test_the_socket_closes_when_its_sign_in_ends(
     session, stream, ws_sessions, monkeypatch
 ) -> None:

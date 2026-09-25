@@ -38,7 +38,6 @@ from app.testing.factories import (
     get_auth_headers,
 )
 
-pytestmark = pytest.mark.integration
 
 PASSWORD = "testpassword123"
 
@@ -551,7 +550,6 @@ async def test_the_purge_leaves_live_communities_alone(session: AsyncSession):
         ).one_or_none() is not None
 
 
-@pytest.mark.integration
 async def test_deleting_a_community_writes_to_the_seat_that_could_restore_it(session):
     """The superadmin seat hears. An ordinary admin cannot ask for a restore,
     and members learn from it leaving their lists."""
@@ -579,7 +577,6 @@ async def test_deleting_a_community_writes_to_the_seat_that_could_restore_it(ses
     assert notice.recipients == ["gd-seat@example.com"]
 
 
-@pytest.mark.integration
 async def test_the_notice_is_gathered_before_the_roster_goes(session):
     """A community of one loses its roster on the way out, so the person to
     tell has to be read while they are still in it."""

@@ -8,14 +8,12 @@ let the holder seat somebody from inside the community, or delete it from its
 own settings — either of which clears the account's deletion blocker.
 """
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import Guild, GuildMembership, GuildRole, GuildStatus
 
-pytestmark = pytest.mark.integration
 
 BREAK_GLASS = "/api/v1/access-grants/break-glass"
 PASSWORD = "testpassword123"

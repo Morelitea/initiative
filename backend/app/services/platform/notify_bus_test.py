@@ -38,7 +38,6 @@ def _wire_frame(origin: str, user_id: int, action: str = "membership") -> str:
     )
 
 
-@pytest.mark.unit
 async def test_a_frame_from_another_worker_reaches_our_sockets(
     captured_stream,
 ) -> None:
@@ -51,7 +50,6 @@ async def test_a_frame_from_another_worker_reaches_our_sockets(
     assert tab.sent[0]["resource"] == "account"
 
 
-@pytest.mark.unit
 async def test_our_own_echo_is_not_delivered_twice(captured_stream) -> None:
     """We deliver locally before publishing, so the echo is already spent."""
     tab = FakeWebSocket()
@@ -62,7 +60,6 @@ async def test_our_own_echo_is_not_delivered_twice(captured_stream) -> None:
     assert tab.sent == []
 
 
-@pytest.mark.unit
 async def test_an_unreadable_frame_is_dropped_not_raised(captured_stream) -> None:
     """Anything on the channel that is not ours must not take the reader down."""
     tab = FakeWebSocket()
@@ -74,7 +71,6 @@ async def test_an_unreadable_frame_is_dropped_not_raised(captured_stream) -> Non
     assert tab.sent == []
 
 
-@pytest.mark.unit
 async def test_local_delivery_survives_a_bus_that_is_down(
     captured_stream, monkeypatch
 ) -> None:
@@ -96,7 +92,6 @@ async def test_local_delivery_survives_a_bus_that_is_down(
     assert len(tab.sent) == 1
 
 
-@pytest.mark.unit
 async def test_a_published_frame_is_offered_to_the_other_workers(
     captured_stream, monkeypatch
 ) -> None:
@@ -117,7 +112,6 @@ async def test_a_published_frame_is_offered_to_the_other_workers(
     assert envelope["frame"]["ids"] == {}
 
 
-@pytest.mark.unit
 def test_the_listen_address_is_a_libpq_dsn(monkeypatch) -> None:
     """asyncpg is handed a plain postgresql:// URL, not SQLAlchemy's spelling."""
     monkeypatch.setattr(
@@ -128,7 +122,6 @@ def test_the_listen_address_is_a_libpq_dsn(monkeypatch) -> None:
     assert notify_bus._dsn() == "postgresql://someone:secret@db:5432/initiative"
 
 
-@pytest.mark.unit
 def test_the_listen_address_defaults_to_the_database(monkeypatch) -> None:
     """Unset is the ordinary case: an app talking to Postgres directly."""
     monkeypatch.setattr(settings, "DATABASE_URL_LISTEN", None)
@@ -138,7 +131,6 @@ def test_the_listen_address_defaults_to_the_database(monkeypatch) -> None:
     assert notify_bus._dsn() == "postgresql://a:b@localhost:5432/x"
 
 
-@pytest.mark.unit
 async def test_notify_refuses_when_there_is_no_connection() -> None:
     """The caller treats this as 'no cross-process delivery', never a failure."""
     bus = notify_bus.NotifyBus()
@@ -156,7 +148,6 @@ async def test_notify_refuses_when_there_is_no_connection() -> None:
 # past with nobody listening. Coming up is the only notice of either.
 
 
-@pytest.mark.unit
 async def test_subscribers_are_told_when_the_bus_comes_up() -> None:
     bus = notify_bus.NotifyBus()
     calls: list[str] = []
@@ -170,7 +161,6 @@ async def test_subscribers_are_told_when_the_bus_comes_up() -> None:
     assert calls == ["up"]
 
 
-@pytest.mark.unit
 async def test_one_subscriber_failing_does_not_silence_the_rest() -> None:
     """A subscriber's own catch-up is its business; the bus is up either way."""
     bus = notify_bus.NotifyBus()
@@ -193,7 +183,6 @@ async def _noop() -> None:
     return None
 
 
-@pytest.mark.unit
 async def test_a_refused_frame_is_sent_when_the_bus_returns(monkeypatch) -> None:
     """The far side is waiting on a signal that was dropped, not delayed."""
     user_stream._pending_remote.clear()
@@ -217,7 +206,6 @@ async def test_a_refused_frame_is_sent_when_the_bus_returns(monkeypatch) -> None
     assert user_stream._pending_remote == {}
 
 
-@pytest.mark.unit
 async def test_repeat_frames_for_one_reader_collapse(monkeypatch) -> None:
     """They carry no content, so "your inbox changed" twice is once."""
     user_stream._pending_remote.clear()
@@ -233,7 +221,6 @@ async def test_repeat_frames_for_one_reader_collapse(monkeypatch) -> None:
     user_stream._pending_remote.clear()
 
 
-@pytest.mark.unit
 async def test_this_process_own_sockets_are_told_to_re_read(monkeypatch) -> None:
     """It heard nothing while it was away and cannot know what, so it says so."""
     user_stream._pending_remote.clear()
@@ -248,7 +235,6 @@ async def test_this_process_own_sockets_are_told_to_re_read(monkeypatch) -> None
     assert tab.sent[0]["ids"] == {}
 
 
-@pytest.mark.unit
 async def test_more_refused_than_can_be_held_tells_everybody(monkeypatch) -> None:
     """Past the bound the frames were never kept, so whose they were cannot be
     said — and a reader on another worker has no timer behind it any more."""
@@ -279,7 +265,6 @@ async def test_more_refused_than_can_be_held_tells_everybody(monkeypatch) -> Non
     user_stream._pending_remote.clear()
 
 
-@pytest.mark.unit
 async def test_a_frame_for_everybody_reaches_every_socket_here(monkeypatch) -> None:
     stream = user_stream.UserStream()
     monkeypatch.setattr(user_stream, "stream", stream)
@@ -303,7 +288,6 @@ async def test_a_frame_for_everybody_reaches_every_socket_here(monkeypatch) -> N
     assert len(second.sent) == 1
 
 
-@pytest.mark.unit
 async def test_the_mark_stands_until_the_broad_frame_goes(monkeypatch) -> None:
     """A bus that fails again while this is recovering must not consume it.
 

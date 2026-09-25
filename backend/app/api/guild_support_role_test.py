@@ -12,7 +12,6 @@ Covers:
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -32,7 +31,6 @@ from app.testing import (
     get_auth_headers,
 )
 
-pytestmark = pytest.mark.integration
 
 AI_SETTINGS = "/ai/connections"
 

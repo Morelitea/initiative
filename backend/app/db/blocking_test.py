@@ -12,7 +12,6 @@ request failing at runtime.
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -37,7 +36,6 @@ from app.testing.schema_harness import route_session_to_guild
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
 def test_every_rule_names_columns_that_exist():
     tables = {
         key.split(".")[-1]: table for key, table in SQLModel.metadata.tables.items()
@@ -48,14 +46,12 @@ def test_every_rule_names_columns_that_exist():
         assert open_expr(table_name, tables[table_name]) is not None
 
 
-@pytest.mark.unit
 def test_every_blocking_kind_is_something_an_edge_may_name():
     """A rule for a kind no relationship can reach would never be consulted."""
     for kind, _table, _expr in blocking_kinds():
         assert SearchEntityType(kind) in ENDPOINT_KINDS
 
 
-@pytest.mark.unit
 def test_a_kind_with_no_rule_has_no_opinion():
     tables = {
         key.split(".")[-1]: table for key, table in SQLModel.metadata.tables.items()
@@ -79,7 +75,6 @@ async def _is_open(
     return found[entity_id].is_open
 
 
-@pytest.mark.integration
 async def test_a_task_is_open_until_it_is_done(session: AsyncSession, acting_user):
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     todo = await create_task(
@@ -94,7 +89,6 @@ async def test_a_task_is_open_until_it_is_done(session: AsyncSession, acting_use
     assert await _is_open(session, SearchEntityType.task, done.id, a.user.id) is False
 
 
-@pytest.mark.integration
 async def test_an_event_blocks_until_it_has_passed(session: AsyncSession, acting_user):
     a = await acting_user(guild_role=GuildRole.member, initiative=True)
     calendar = await create_calendar(session, a.initiative, a.user)
@@ -125,7 +119,6 @@ async def test_an_event_blocks_until_it_has_passed(session: AsyncSession, acting
     )
 
 
-@pytest.mark.integration
 async def test_a_recurring_event_has_no_opinion(session: AsyncSession, acting_user):
     """It has no last occurrence for an end date to be the end of. NULL rather
     than "finished", so a surface that dims a dealt-with blocker does not strike
@@ -149,7 +142,6 @@ async def test_a_recurring_event_has_no_opinion(session: AsyncSession, acting_us
     )
 
 
-@pytest.mark.integration
 async def test_a_counter_blocks_until_it_reaches_its_target(
     session: AsyncSession, acting_user
 ):
@@ -168,7 +160,6 @@ async def test_a_counter_blocks_until_it_reaches_its_target(
     )
 
 
-@pytest.mark.integration
 async def test_a_counter_with_no_target_has_no_finish_line(
     session: AsyncSession, acting_user
 ):
@@ -182,7 +173,6 @@ async def test_a_counter_with_no_target_has_no_finish_line(
     )
 
 
-@pytest.mark.integration
 async def test_a_project_is_open_until_its_work_is_done(
     session: AsyncSession, acting_user
 ):
@@ -196,7 +186,6 @@ async def test_a_project_is_open_until_its_work_is_done(
     )
 
 
-@pytest.mark.integration
 async def test_a_project_closes_when_every_task_is_done(
     session: AsyncSession, acting_user
 ):
@@ -211,7 +200,6 @@ async def test_a_project_closes_when_every_task_is_done(
     )
 
 
-@pytest.mark.integration
 async def test_an_empty_project_has_not_finished(session: AsyncSession, acting_user):
     """ "All of them are done" is vacuously true of no tasks at all, and a
     project nobody has filled in is the one thing it certainly is not."""
@@ -224,7 +212,6 @@ async def test_an_empty_project_has_not_finished(session: AsyncSession, acting_u
     )
 
 
-@pytest.mark.integration
 async def test_an_archived_task_neither_holds_a_project_open_nor_closes_it(
     session: AsyncSession, acting_user
 ):
@@ -250,7 +237,6 @@ async def test_an_archived_task_neither_holds_a_project_open_nor_closes_it(
     assert done.completed_at is not None
 
 
-@pytest.mark.integration
 async def test_a_document_never_answers(session: AsyncSession, acting_user):
     """Nothing on a document says when it stops holding something up."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True)

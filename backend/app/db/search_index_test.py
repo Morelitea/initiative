@@ -10,7 +10,6 @@ against the rendering code.
 
 from __future__ import annotations
 
-import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
@@ -41,8 +40,6 @@ from app.testing import (
     route_system,
 )
 
-pytestmark = pytest.mark.integration
-
 
 async def _entries(
     session: AsyncSession,
@@ -66,7 +63,6 @@ async def _entries(
 # --- registry -------------------------------------------------------------
 
 
-@pytest.mark.unit
 def test_every_initiative_scoped_table_is_placed():
     """A new content table is searchable or says why not — never silently
     absent, which would ship a tool no one can find."""
@@ -81,18 +77,15 @@ def test_every_initiative_scoped_table_is_placed():
     )
 
 
-@pytest.mark.unit
 def test_a_table_is_not_placed_twice():
     assert not (set(SEARCH_SOURCES) & set(NOT_SEARCHABLE))
 
 
-@pytest.mark.unit
 def test_entity_types_are_unique():
     values = [s.entity_type for s in SEARCH_SOURCES.values()]
     assert len(values) == len(set(values))
 
 
-@pytest.mark.unit
 def test_update_trigger_carries_a_when_clause():
     """The clause is the write-path design: an update touching none of the
     indexed columns never enters the function."""
@@ -105,7 +98,6 @@ def test_update_trigger_carries_a_when_clause():
     assert "WHEN (" not in ins
 
 
-@pytest.mark.unit
 def test_comments_are_the_one_source_a_caller_has_to_ask_for():
     """Everything else answers a query that names no types. Comments are the
     highest-volume table in a busy guild, so reaching them is a decision."""
@@ -114,14 +106,12 @@ def test_comments_are_the_one_source_a_caller_has_to_ask_for():
     }
 
 
-@pytest.mark.unit
 def test_the_enum_and_the_registry_name_the_same_set():
     """Neither can grow a member alone: the enum is what the API accepts, the
     registry is what is actually indexed."""
     assert set(entity_types()) == set(SearchEntityType)
 
 
-@pytest.mark.unit
 def test_every_tool_is_searchable_under_its_own_name():
     """A tool's rows are indexed under the tool's own name, which is what lets
     the enum derive from ``Tool`` instead of restating it."""
@@ -336,7 +326,6 @@ async def test_a_guild_level_tag_is_visible_to_any_member(
     assert [r.title for r in rows] == ["urgent"]
 
 
-@pytest.mark.unit
 def test_each_source_gates_on_a_column_that_points_at_its_tool():
     """The declared sharing identity has to name the resource that governs the
     row — a task by its project, a calendar event by its calendar.

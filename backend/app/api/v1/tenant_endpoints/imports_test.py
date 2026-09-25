@@ -1508,7 +1508,6 @@ def _post_envelope(**overrides) -> dict:
     }
 
 
-@pytest.mark.integration
 async def test_importing_a_post_over_the_body_limit_is_refused(
     client, acting_user, session
 ):
@@ -1531,7 +1530,6 @@ async def test_importing_a_post_over_the_body_limit_is_refused(
     assert response.status_code == 400
 
 
-@pytest.mark.integration
 async def test_importing_a_structurally_oversized_body_is_refused(
     client, acting_user, session
 ):
@@ -1557,7 +1555,6 @@ async def test_importing_a_structurally_oversized_body_is_refused(
     assert response.status_code == 400
 
 
-@pytest.mark.integration
 async def test_importing_a_long_headline_trims_rather_than_fails(
     client, acting_user, session
 ):

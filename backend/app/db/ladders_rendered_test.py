@@ -29,7 +29,6 @@ from app.testing import (
 )
 
 
-@pytest.mark.unit
 def test_a_value_list_is_spelled_from_the_enum():
     assert sql_values(r.value for r in (GuildRole.admin, GuildRole.superadmin)) == (
         "'admin', 'superadmin'"
@@ -37,7 +36,6 @@ def test_a_value_list_is_spelled_from_the_enum():
     assert sql_values(level.value for level in WRITE_LEVELS) == "'write', 'owner'"
 
 
-@pytest.mark.unit
 def test_the_sharing_ladder_reaches_downward():
     assert RESOURCE_LEVEL_LADDER == (
         ResourceAccessLevel.read,
@@ -51,7 +49,6 @@ def test_the_sharing_ladder_reaches_downward():
     assert WRITE_LEVELS == (ResourceAccessLevel.write, ResourceAccessLevel.owner)
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("rung", sorted(GUILD_STORED_ROLES, key=lambda r: r.value))
 async def test_the_standing_reads_the_admin_fact_off_the_ladder(
     acting_user, role_session, rung
@@ -63,7 +60,6 @@ async def test_the_standing_reads_the_admin_fact_off_the_ladder(
     assert context.seat is rung.reaches(GuildRole.superadmin)
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("level", list(SettingsLevel))
 async def test_the_settings_rung_reads_the_grant_off_the_ladder(
     session, acting_user, role_session, level
@@ -83,7 +79,6 @@ async def test_the_settings_rung_reads_the_grant_off_the_ladder(
     assert context.seat is (level is SettingsLevel.superadmin)
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("level", list(RESOURCE_LEVEL_LADDER))
 async def test_the_write_leg_reads_the_sharing_ladder(
     session, acting_user, role_session, level

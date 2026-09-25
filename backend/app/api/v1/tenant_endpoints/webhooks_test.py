@@ -19,11 +19,8 @@ import socket
 from contextlib import contextmanager
 from unittest.mock import patch
 
-import pytest
 
 from app.models.platform.guild import GuildRole
-
-pytestmark = pytest.mark.integration
 
 
 _WEBHOOK_HOST = "hooks.example.com"

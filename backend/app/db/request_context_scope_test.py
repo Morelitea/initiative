@@ -15,7 +15,6 @@ checks are the same rule applied to the source, so it reads as the wrong line.
 import re
 from pathlib import Path
 
-import pytest
 
 BACKEND = Path(__file__).resolve().parents[2]
 
@@ -41,7 +40,6 @@ def _offenders(path: Path) -> list[str]:
     ]
 
 
-@pytest.mark.unit
 def test_no_endpoint_sets_connection_scoped_state():
     """Every endpoint answers on a pooled engine, so none of them may.
 
@@ -60,7 +58,6 @@ def test_no_endpoint_sets_connection_scoped_state():
     )
 
 
-@pytest.mark.unit
 def test_no_pooled_test_session_sets_connection_scoped_state():
     """``role_session`` hands out the real login roles, on the pooled engines.
 

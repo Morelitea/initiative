@@ -15,7 +15,6 @@ from app.core.password_policy import (
 from app.services import hibp
 
 
-@pytest.mark.unit
 class TestValidateNewPassword:
     async def test_accepts_password_at_minimum_length(self, monkeypatch):
         # HIBP is already disabled by the autouse fixture in conftest,
@@ -73,7 +72,6 @@ class TestValidateNewPassword:
         assert called is False
 
 
-@pytest.mark.unit
 class TestEnforcePasswordPolicy:
     async def test_raises_http_422_on_policy_failure(self):
         with pytest.raises(HTTPException) as excinfo:

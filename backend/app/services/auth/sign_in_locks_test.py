@@ -10,7 +10,6 @@ from app.services.auth import sign_in_locks
 from app.services.auth.sign_in_locks import Outcome
 from app.testing import create_user
 
-pytestmark = pytest.mark.database
 
 START = datetime(2026, 9, 24, 12, 0, 0, tzinfo=timezone.utc)
 

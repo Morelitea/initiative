@@ -57,8 +57,6 @@ def hosted(monkeypatch):
     monkeypatch.setattr(legal_service, "get_index", _index)
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_registering_on_a_hosted_deployment_records_the_agreement(
     client: AsyncClient, session: AsyncSession, hosted
 ):
@@ -80,8 +78,6 @@ async def test_registering_on_a_hosted_deployment_records_the_agreement(
     ]
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_registering_on_a_self_hosted_deployment_records_nothing(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -101,7 +97,6 @@ async def test_registering_on_a_self_hosted_deployment_records_nothing(
     assert await _rows(session, response.json()["id"]) == []
 
 
-@pytest.mark.integration
 async def test_an_account_that_signed_up_is_never_asked_again(
     client: AsyncClient, session: AsyncSession, hosted
 ):
@@ -121,7 +116,6 @@ async def test_an_account_that_signed_up_is_never_asked_again(
     assert await legal_service.acceptance_outstanding(session, user=user) is False
 
 
-@pytest.mark.integration
 async def test_an_account_that_met_no_form_is_asked(
     client: AsyncClient, acting_user, hosted
 ):
@@ -135,7 +129,6 @@ async def test_an_account_that_met_no_form_is_asked(
     assert me.json()["legal_acceptance_required"] is True
 
 
-@pytest.mark.integration
 async def test_nobody_is_asked_on_a_deployment_with_no_terms(
     client: AsyncClient, acting_user, monkeypatch
 ):
@@ -147,7 +140,6 @@ async def test_nobody_is_asked_on_a_deployment_with_no_terms(
     assert me.json()["legal_acceptance_required"] is False
 
 
-@pytest.mark.integration
 async def test_accepting_settles_it(
     client: AsyncClient, session: AsyncSession, acting_user, hosted
 ):
@@ -169,7 +161,6 @@ async def test_accepting_settles_it(
     assert me.json()["legal_acceptance_required"] is False
 
 
-@pytest.mark.integration
 async def test_accepting_twice_does_not_write_it_twice(
     client: AsyncClient, session: AsyncSession, acting_user, hosted
 ):
@@ -184,7 +175,6 @@ async def test_accepting_twice_does_not_write_it_twice(
     assert [r.document for r in rows] == ["terms", "privacy"]
 
 
-@pytest.mark.integration
 async def test_there_is_nothing_to_accept_on_a_self_hosted_deployment(
     client: AsyncClient, acting_user, monkeypatch
 ):
@@ -199,7 +189,6 @@ async def test_there_is_nothing_to_accept_on_a_self_hosted_deployment(
     assert response.json()["detail"] == LegalMessages.NOT_CONFIGURED
 
 
-@pytest.mark.integration
 async def test_a_consent_record_is_one_account_s_own(
     client: AsyncClient, acting_user, role_session, hosted
 ):

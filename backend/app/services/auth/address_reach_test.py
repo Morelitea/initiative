@@ -7,7 +7,6 @@ about the whole set now, and both fall back to what ``users`` carries.
 
 from __future__ import annotations
 
-import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -15,8 +14,6 @@ from app.core.encryption import hash_email
 from app.models.platform.user_email import UserEmail
 from app.services.auth import addresses
 from app.testing.factories import create_user
-
-pytestmark = [pytest.mark.auth]
 
 
 async def _second_address(
@@ -34,7 +31,6 @@ async def _second_address(
     return row
 
 
-@pytest.mark.unit
 async def test_account_mail_reaches_every_proven_address(session: AsyncSession):
     user = await create_user(session, email="primary@example.com")
     user_id = user.id
@@ -45,7 +41,6 @@ async def test_account_mail_reaches_every_proven_address(session: AsyncSession):
     assert reach == ["primary@example.com", "work@example.com"]
 
 
-@pytest.mark.unit
 async def test_account_mail_skips_an_unproven_address(session: AsyncSession):
     user = await create_user(session, email="primary2@example.com")
     user_id = user.id
@@ -56,7 +51,6 @@ async def test_account_mail_skips_an_unproven_address(session: AsyncSession):
     ]
 
 
-@pytest.mark.unit
 async def test_account_mail_reaches_an_address_nobody_confirmed(
     session: AsyncSession,
 ):
@@ -73,7 +67,6 @@ async def test_account_mail_reaches_an_address_nobody_confirmed(
     ]
 
 
-@pytest.mark.unit
 async def test_account_mail_reaches_nobody_without_an_address(
     session: AsyncSession,
 ):
@@ -90,7 +83,6 @@ async def test_account_mail_reaches_nobody_without_an_address(
     assert await addresses.proven_addresses(session, user_id=user_id) == []
 
 
-@pytest.mark.unit
 async def test_an_account_holds_the_address_an_invite_names(session: AsyncSession):
     user = await create_user(session, email="me@example.com")
     stranger = await create_user(session, email="stranger@example.com")
@@ -104,7 +96,6 @@ async def test_an_account_holds_the_address_an_invite_names(session: AsyncSessio
         )
 
 
-@pytest.mark.unit
 async def test_an_unproven_claim_is_not_holding_the_address(session: AsyncSession):
     """An invite is for the person who holds the address, and a claim in
     progress is not holding it."""
@@ -117,7 +108,6 @@ async def test_an_unproven_claim_is_not_holding_the_address(session: AsyncSessio
     )
 
 
-@pytest.mark.unit
 async def test_erasure_knows_every_address_to_scrub(session: AsyncSession):
     """Including the unproven ones: a claim is still a recorded address, and an
     invite bound to one keeps the same trace."""
@@ -133,7 +123,6 @@ async def test_erasure_knows_every_address_to_scrub(session: AsyncSession):
     }
 
 
-@pytest.mark.integration
 async def test_a_reset_is_written_to_every_address_the_account_holds(
     client, session: AsyncSession, monkeypatch
 ):

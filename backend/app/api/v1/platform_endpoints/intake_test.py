@@ -27,8 +27,6 @@ from app.testing import (
 )
 from app.models.platform.guild import Guild, GuildRole
 
-pytestmark = pytest.mark.integration
-
 
 @pytest.fixture
 async def owner(session, acting_user):

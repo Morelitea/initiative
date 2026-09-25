@@ -3,8 +3,6 @@ from pydantic import ValidationError
 
 from app.schemas.platform.settings import PushSettingsUpdate
 
-pytestmark = pytest.mark.unit
-
 
 def test_push_settings_take_a_service_account_object():
     payload = PushSettingsUpdate(service_account_json='{"type": "service_account"}')

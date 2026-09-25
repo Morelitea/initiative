@@ -3,14 +3,11 @@
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-import pytest
 
 from app.db import cohorts
 from app.models.platform.guild import GuildStatus
 from app.services.guild_sweeps import Scope, Visit, each_guild
 from app.testing.factories import create_guild
-
-pytestmark = pytest.mark.integration
 
 
 async def test_each_scope_is_visited_on_its_communitys_cohort(session: AsyncSession):

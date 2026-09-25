@@ -13,7 +13,6 @@ from app.core.audit_events import AuditEventType
 from app.models.platform.guild import Guild, GuildRole
 from app.testing import Actor, create_guild, emitted
 
-pytestmark = pytest.mark.integration
 
 BREAK_GLASS = "/api/v1/access-grants/break-glass"
 PAM = AuditEventType.PAM_REQUEST

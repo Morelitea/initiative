@@ -263,7 +263,6 @@ def _nodes(published: dict) -> list[tuple[str, dict]]:
     ]
 
 
-@pytest.mark.unit
 def test_every_declared_field_survives_a_publish(published):
     """A field the contract declares that nothing here reads is a restriction an
     author asked for and this build would discard without saying so."""
@@ -274,7 +273,6 @@ def test_every_declared_field_survives_a_publish(published):
         assert not missing, f"{owner} lost {missing}"
 
 
-@pytest.mark.unit
 def test_nothing_is_stored_that_the_contract_does_not_declare(published):
     """The other direction: a key this build writes but the contract does not
     name is one no author can discover, and no schema describes."""
@@ -285,7 +283,6 @@ def test_nothing_is_stored_that_the_contract_does_not_declare(published):
         assert not set(node) - declared, f"{owner} carries undeclared keys"
 
 
-@pytest.mark.unit
 def test_every_service_field_survives_a_publish(published):
     """``service`` is written inline rather than as a named object, so the
     inventory above does not reach it; its fields are measured here."""
@@ -298,7 +295,6 @@ def test_every_service_field_survives_a_publish(published):
     ]
 
 
-@pytest.mark.unit
 def test_the_maximal_manifest_really_is_maximal(published):
     """The two tests above pass trivially if the fixture stopped covering
     something, so the fixture itself is checked: every object the contract
@@ -308,7 +304,6 @@ def test_the_maximal_manifest_really_is_maximal(published):
     assert with_fields - reached == set()
 
 
-@pytest.mark.unit
 def test_an_emitting_endpoint_keeps_what_describes_it(published):
     """An emission is the one endpoint chosen without ever being called, so the
     fields that describe it must survive even though the caller-side ones are
@@ -330,7 +325,6 @@ def test_an_emitting_endpoint_keeps_what_describes_it(published):
 # --- values a stored column depends on --------------------------------------
 
 
-@pytest.mark.unit
 def test_the_uid_shape_matches_the_contract():
     """The uid's length and alphabet are the contract's, and they are also a
     column width.
@@ -349,7 +343,6 @@ def test_the_uid_shape_matches_the_contract():
 # --- what the registrar reports -------------------------------------------
 
 
-@pytest.mark.unit
 def test_a_term_the_contract_does_not_name_is_reported():
     """The whole point of the report: a newer app's extra terms are named."""
     served = maximal_manifest()
@@ -358,7 +351,6 @@ def test_a_term_the_contract_does_not_name_is_reported():
     assert contract.discarded_terms(served) == ["endpoints.0.retries", "rate_limit"]
 
 
-@pytest.mark.unit
 def test_a_term_nested_in_an_inline_object_is_reported():
     """Not every object a manifest carries is a named definition — `service`,
     `layout`, `grid` and `binding` are written inline — and a term added inside
@@ -383,7 +375,6 @@ def test_a_term_nested_in_an_inline_object_is_reported():
     ]
 
 
-@pytest.mark.unit
 def test_an_object_the_contract_leaves_open_reports_nothing():
     """A widget's `meta` and `sample_data` are opaque to the contract, and a
     binding's `params` are named by the author. Keys inside them are nobody's
@@ -396,7 +387,6 @@ def test_an_object_the_contract_leaves_open_reports_nothing():
     assert contract.discarded_terms(served) == []
 
 
-@pytest.mark.unit
 def test_a_manifest_this_build_fully_understands_reports_nothing():
     """The ordinary case. A report on an app written against this contract
     would be a false alarm on every verification."""
@@ -406,7 +396,6 @@ def test_a_manifest_this_build_fully_understands_reports_nothing():
 # --- what only the app can know --------------------------------------------
 
 
-@pytest.mark.unit
 def test_an_identity_must_name_single_returns_of_its_own_endpoint():
     """Nothing downstream refuses a bad address — it resolves to nothing, and a
     fire somebody was waiting on is dropped without a word. So it is refused
@@ -428,7 +417,6 @@ def test_an_identity_must_name_single_returns_of_its_own_endpoint():
         )
 
 
-@pytest.mark.unit
 def test_a_read_endpoint_has_no_identity():
     """It touched nothing, so there is nothing for it to address."""
     from app.services.marketplace.manifest_values import ListingDefinitionError

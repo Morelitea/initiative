@@ -12,8 +12,6 @@ import pytest
 from app.db.jti_blocklist import purge_expired_jtis
 from app.models.platform.billing import BillingJti
 
-pytestmark = pytest.mark.unit
-
 
 class _FakeSession:
     """Minimal async-session stand-in: exec fails, rollback is observable."""

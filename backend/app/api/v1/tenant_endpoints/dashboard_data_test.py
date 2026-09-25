@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
 
 from app.core.messages import QueryMessages
 from app.models.platform.guild import GuildRole
@@ -19,8 +18,6 @@ from app.models.tenant.task import TaskStatusCategory
 from app.services.query import executor
 from app.services.tenant.published_views_test import dashboard_body, dashboards_on
 from app.testing import create_project, create_task
-
-pytestmark = pytest.mark.integration
 
 
 async def _canvas(client, actor, *statements: str) -> int:

@@ -19,8 +19,6 @@ from sqlalchemy.exc import DBAPIError
 from app.db.schema_provisioning import platform_role_name
 from app.testing import as_role, create_user
 
-pytestmark = [pytest.mark.integration, pytest.mark.database]
-
 
 async def _make_session_row(session, user_id: int, token: str) -> None:
     await session.exec(

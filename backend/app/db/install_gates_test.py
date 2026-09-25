@@ -92,7 +92,6 @@ def _read_asks_the_install(policies, table: str, seen: frozenset[str] = frozense
     )
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize("command", ["SELECT", "INSERT", "UPDATE", "DELETE"])
 def test_every_table_an_app_reaches_asks_the_install(command):
     """Each command on each table the app role is granted carries the leg in
@@ -111,7 +110,6 @@ def test_every_table_an_app_reaches_asks_the_install(command):
     assert missing == [], f"{command} asks nothing of an install on {missing}"
 
 
-@pytest.mark.unit
 def test_the_refused_tables_refuse_every_command():
     policies = _policies()
     for table in sorted(APP_REFUSED_TABLES):
@@ -120,7 +118,6 @@ def test_the_refused_tables_refuse_every_command():
             assert _asks_the_install(policies, table, command), (table, command)
 
 
-@pytest.mark.unit
 def test_the_app_policies_are_restrictive():
     """They narrow what the table's own policies admit, and admit nothing."""
     found: dict[str, set[str]] = {}
@@ -166,7 +163,6 @@ async def _rename(s, document_id: int, name: str) -> int:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_a_document_is_read_with_read_and_changed_with_write(
     session, acting_user, role_session
 ):
@@ -205,7 +201,6 @@ async def test_a_document_is_read_with_read_and_changed_with_write(
     await person.rollback()
 
 
-@pytest.mark.integration
 async def test_a_private_document_is_the_installs_once_a_grant_names_it(
     session, acting_user, role_session
 ):
@@ -228,7 +223,6 @@ async def test_a_private_document_is_the_installs_once_a_grant_names_it(
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_creating_asks_the_scope_of_what_is_created(
     session, acting_user, role_session
 ):
@@ -268,7 +262,6 @@ async def test_creating_asks_the_scope_of_what_is_created(
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_a_person_creating_a_document_gets_no_install_grant(
     session, acting_user, role_session
 ):
@@ -295,7 +288,6 @@ async def test_a_person_creating_a_document_gets_no_install_grant(
     await person.rollback()
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("target", ["owned", "unowned", "its_own", "for_a_person"])
 async def test_an_install_writes_no_grant_itself(
     session, acting_user, role_session, target
@@ -354,7 +346,6 @@ async def test_an_install_writes_no_grant_itself(
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_a_narrowed_token_reaches_nothing_of_the_community_as_a_whole(
     session, acting_user, role_session
 ):
@@ -387,7 +378,6 @@ async def test_a_narrowed_token_reaches_nothing_of_the_community_as_a_whole(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_comments_ask_the_comments_scope(session, acting_user, role_session):
     install = await _install(
         session,
@@ -427,7 +417,6 @@ async def test_comments_ask_the_comments_scope(session, acting_user, role_sessio
     await person.rollback()
 
 
-@pytest.mark.integration
 async def test_tags_ask_the_tags_scope(session, acting_user, role_session):
     install = await _install(
         session,
@@ -464,7 +453,6 @@ async def test_tags_ask_the_tags_scope(session, acting_user, role_session):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_the_roster_is_read_with_members_read_and_never_written(
     session, acting_user, role_session
 ):
@@ -505,7 +493,6 @@ async def _subscription(session, install, *, app_install_id, url: str) -> None:
     await session.commit()
 
 
-@pytest.mark.integration
 async def test_an_install_sees_only_its_own_subscriptions(
     session, acting_user, role_session
 ):
@@ -531,7 +518,6 @@ async def test_an_install_sees_only_its_own_subscriptions(
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_every_tool_table_writes_an_installs_owner_row(session, acting_user):
     """The trigger list is stated in its migration; the catalog is what a new
     tool has to match."""

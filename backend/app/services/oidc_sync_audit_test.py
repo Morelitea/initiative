@@ -8,7 +8,6 @@ the session carries no account while it is inside a guild's schema.
 
 from __future__ import annotations
 
-import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -32,8 +31,6 @@ from app.testing.factories import (
     create_initiative,
     create_user,
 )
-
-pytestmark = pytest.mark.integration
 
 
 def _where(row) -> tuple:

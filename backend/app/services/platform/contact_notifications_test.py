@@ -20,8 +20,6 @@ from app.models.platform.user_dm_settings import DmPolicy
 from app.models.platform.user_ignore import UserIgnore
 from app.testing import push_switched_on, set_notification_prefs
 
-pytestmark = pytest.mark.asyncio
-
 
 @pytest.fixture(autouse=True)
 def fcm_configured():

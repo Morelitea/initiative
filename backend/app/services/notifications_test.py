@@ -9,7 +9,6 @@ from datetime import datetime, timedelta, timezone
 
 import re
 
-import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -144,7 +143,6 @@ def _unsaved_user(tz: str) -> User:
     )
 
 
-@pytest.mark.unit
 def test_format_event_when_localizes_to_recipient_timezone():
     """A timed event renders in the recipient's IANA timezone with its abbrev."""
     event = _unsaved_event(
@@ -160,7 +158,6 @@ def test_format_event_when_localizes_to_recipient_timezone():
     assert event_when(event, utc_user) == "Wed, Jul 1, 2026 at 9:30 PM UTC"
 
 
-@pytest.mark.unit
 def test_format_event_when_all_day_omits_time_and_zone():
     """All-day events show just the date, regardless of recipient timezone."""
     event = _unsaved_event(
@@ -172,7 +169,6 @@ def test_format_event_when_all_day_omits_time_and_zone():
     assert event_when(event, _unsaved_user("Asia/Tokyo")) == "Wed, Jul 1, 2026"
 
 
-@pytest.mark.unit
 def test_format_event_when_falls_back_on_bad_timezone():
     """An unrecognized timezone string falls back to UTC instead of raising."""
     event = _unsaved_event(
@@ -186,7 +182,6 @@ def test_format_event_when_falls_back_on_bad_timezone():
     )
 
 
-@pytest.mark.integration
 async def test_event_reminder_fires_once_within_lead_window(
     session: AsyncSession,
 ):
@@ -224,7 +219,6 @@ async def test_event_reminder_fires_once_within_lead_window(
     assert len(list(dispatches.all())) == 1
 
 
-@pytest.mark.integration
 async def test_event_reminder_skipped_when_lead_time_off(session: AsyncSession):
     creator = await create_user(session, email="organizer2@example.com")
     attendee = await create_user(session, email="attendee2@example.com")
@@ -249,7 +243,6 @@ async def test_event_reminder_skipped_when_lead_time_off(session: AsyncSession):
     assert await _reminders_for(session, attendee.id) == []
 
 
-@pytest.mark.integration
 async def test_event_reminder_not_due_when_outside_lead_window(session: AsyncSession):
     creator = await create_user(session, email="organizer3@example.com")
     attendee = await create_user(
@@ -272,7 +265,6 @@ async def test_event_reminder_not_due_when_outside_lead_window(session: AsyncSes
     assert await _reminders_for(session, attendee.id) == []
 
 
-@pytest.mark.integration
 async def test_event_reminder_at_time_of_event_fires_at_start(session: AsyncSession):
     creator = await create_user(session, email="organizer5@example.com")
     attendee = await create_user(
@@ -295,7 +287,6 @@ async def test_event_reminder_at_time_of_event_fires_at_start(session: AsyncSess
     assert len(await _reminders_for(session, attendee.id)) == 1
 
 
-@pytest.mark.integration
 async def test_event_reminder_skips_declined_attendees(session: AsyncSession):
     creator = await create_user(session, email="organizer4@example.com")
     attendee = await create_user(
@@ -317,7 +308,6 @@ async def test_event_reminder_skips_declined_attendees(session: AsyncSession):
     assert await _reminders_for(session, attendee.id) == []
 
 
-@pytest.mark.integration
 async def test_a_community_notice_carries_its_guild(
     session: AsyncSession,
 ):
@@ -416,7 +406,6 @@ def _titles(body: str) -> set[str]:
     return set(re.findall(r"<strong>([^<]+)</strong>", body))
 
 
-@pytest.mark.integration
 async def test_overdue_digest_gathers_tasks_across_user_guilds(
     session: AsyncSession, monkeypatch
 ):
@@ -476,7 +465,6 @@ def _capture_push(monkeypatch) -> list[dict]:
     return sent
 
 
-@pytest.mark.integration
 async def test_overdue_digest_pushes_alongside_email(
     session: AsyncSession, monkeypatch
 ):
@@ -515,7 +503,6 @@ async def test_overdue_digest_pushes_alongside_email(
     assert "guild_id" not in push["data"]
 
 
-@pytest.mark.integration
 async def test_overdue_digest_pushes_when_email_opted_out(
     session: AsyncSession, monkeypatch
 ):
@@ -561,7 +548,6 @@ async def test_overdue_digest_pushes_when_email_opted_out(
     assert refreshed.last_overdue_notification_at is not None
 
 
-@pytest.mark.integration
 async def test_overdue_digest_skips_push_when_opted_out(
     session: AsyncSession, monkeypatch
 ):
@@ -595,7 +581,6 @@ async def test_overdue_digest_skips_push_when_opted_out(
     assert pushes == []
 
 
-@pytest.mark.integration
 async def test_overdue_digest_skips_template_projects(
     session: AsyncSession, monkeypatch
 ):
@@ -628,7 +613,6 @@ async def test_overdue_digest_skips_template_projects(
     assert "Template overdue" not in pushes[0]["body"]
 
 
-@pytest.mark.integration
 async def test_overdue_digest_skips_archived_projects_and_tasks(
     session: AsyncSession, monkeypatch
 ):
@@ -714,7 +698,6 @@ async def _assignment_item_in_new_guild(
     return guild
 
 
-@pytest.mark.integration
 async def test_assignment_digest_gathers_items_across_user_guilds(
     session: AsyncSession, monkeypatch
 ):
@@ -760,7 +743,6 @@ async def test_assignment_digest_gathers_items_across_user_guilds(
         assert pending == [], f"guild {guild_id} items not marked processed"
 
 
-@pytest.mark.integration
 async def test_assignment_digest_waits_for_the_flurry_to_end(
     session: AsyncSession, monkeypatch
 ):
@@ -808,7 +790,6 @@ async def test_assignment_digest_waits_for_the_flurry_to_end(
     assert sent == [2]
 
 
-@pytest.mark.integration
 async def test_assignment_digest_caps_a_steady_trickle(
     session: AsyncSession, monkeypatch
 ):
@@ -837,7 +818,6 @@ async def test_assignment_digest_caps_a_steady_trickle(
     assert sent == [1]
 
 
-@pytest.mark.integration
 async def test_assignment_digest_sends_both_channels_together(
     session: AsyncSession, monkeypatch
 ):
@@ -871,7 +851,6 @@ async def test_assignment_digest_sends_both_channels_together(
     assert "guild_id" not in pushes[0]["data"]
 
 
-@pytest.mark.integration
 async def test_assignment_digest_of_one_deep_links_to_the_task(
     session: AsyncSession, monkeypatch
 ):
@@ -898,7 +877,6 @@ async def test_assignment_digest_of_one_deep_links_to_the_task(
     assert pushes[0]["data"]["target_path"].startswith("/go/task/")
 
 
-@pytest.mark.integration
 async def test_assignment_digest_pushes_when_email_opted_out(
     session: AsyncSession, monkeypatch
 ):
@@ -929,7 +907,6 @@ async def test_assignment_digest_pushes_when_email_opted_out(
     assert len(pushes) == 1
 
 
-@pytest.mark.integration
 async def test_assignment_digest_honours_a_preference_changed_mid_pass(
     session: AsyncSession, monkeypatch
 ):
@@ -965,7 +942,6 @@ async def test_assignment_digest_honours_a_preference_changed_mid_pass(
     assert len(pushes) == 1  # push is still on, and still delivers
 
 
-@pytest.mark.integration
 async def test_assignment_gc_drops_items_past_retention(session: AsyncSession):
     """Digest items accumulated forever — nothing ever deleted them. The sweep
     clears anything past the retention window, sent or not, so an orphaned
@@ -995,7 +971,6 @@ async def test_assignment_gc_drops_items_past_retention(session: AsyncSession):
     assert await _row_count() == 0
 
 
-@pytest.mark.integration
 async def test_event_reminders_fire_across_a_users_guilds(session: AsyncSession):
     """A user attending due events in several guilds must get a reminder in each.
     Under schema-per-guild the events live in different schemas, so the old
@@ -1074,7 +1049,6 @@ async def _reaction_item_in_new_guild(
     return guild
 
 
-@pytest.mark.integration
 async def test_reaction_digest_gathers_across_guilds_and_marks_processed(
     session: AsyncSession, monkeypatch
 ):
@@ -1119,7 +1093,6 @@ async def test_reaction_digest_gathers_across_guilds_and_marks_processed(
         assert pending == [], f"guild {guild_id} items not marked processed"
 
 
-@pytest.mark.integration
 async def test_reaction_digest_waits_for_the_flurry_to_end(
     session: AsyncSession, monkeypatch
 ):
@@ -1162,7 +1135,6 @@ async def test_reaction_digest_waits_for_the_flurry_to_end(
     assert sent == [2]
 
 
-@pytest.mark.integration
 async def test_reaction_digest_respects_the_opt_out(session: AsyncSession, monkeypatch):
     """The reaction gate is its own: switching reactions off must not need the
     mention or assignment preferences touched, and must not silence them."""
@@ -1196,7 +1168,6 @@ async def test_reaction_digest_respects_the_opt_out(session: AsyncSession, monke
     assert pushes == []
 
 
-@pytest.mark.unit
 class TestReactionBellRollup:
     """The payload arithmetic behind the rolled-up bell line, including what it
     makes of a line written before reactions rolled up at all."""
@@ -1335,7 +1306,6 @@ class TestReactionBellRollup:
         )
 
 
-@pytest.mark.integration
 async def test_withdrawal_keeps_a_reactor_whose_other_gesture_rolled_off(
     session: AsyncSession,
 ):
@@ -1394,7 +1364,6 @@ async def test_withdrawal_keeps_a_reactor_whose_other_gesture_rolled_off(
     assert line.data["reactor_count"] == 25
 
 
-@pytest.mark.integration
 async def test_two_passes_at_once_send_one_digest(session: AsyncSession, monkeypatch):
     """Items are taken by the statement that reads them, so two passes sweeping
     at the same moment send one digest between them."""

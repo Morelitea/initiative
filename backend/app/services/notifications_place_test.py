@@ -24,7 +24,6 @@ async def _only(session: AsyncSession, user_id: int) -> Notification:
     return rows[0][0] if isinstance(rows[0], tuple) else rows[0]
 
 
-@pytest.mark.unit
 def test_the_place_is_read_off_the_payload():
     """An explicit tool wins over the entity type — they differ for a task
     comment, whose entity is the task and whose tool is the project list it
@@ -66,7 +65,6 @@ def test_the_place_is_read_off_the_payload():
     assert user_notifications._place({}) == nowhere
 
 
-@pytest.mark.integration
 async def test_a_notification_with_no_initiative_still_names_its_community(
     session: AsyncSession,
 ):
@@ -116,7 +114,6 @@ async def _thing(session: AsyncSession, kind: str, initiative, creator):
     return await create_wiki_page(session, wiki, creator), Tool.wiki, wiki.id
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("kind", ["task", "document", "calendar_event", "wiki_page"])
 async def test_a_notice_is_placed_by_what_it_is_about(session: AsyncSession, kind: str):
     """Every notice records where it sits all the way down — the initiative, the

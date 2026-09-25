@@ -9,7 +9,6 @@ last swept for.
 
 from __future__ import annotations
 
-import pytest
 from sqlalchemy import text
 from sqlmodel import select
 
@@ -20,8 +19,6 @@ from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.tenant.search_entry import SearchEntry
 from app.testing import create_project, create_tag, create_task
-
-pytestmark = pytest.mark.integration
 
 
 async def _entries(session, guild_id: int, entity_type: str) -> list[SearchEntry]:
@@ -136,7 +133,6 @@ async def test_the_marker_records_the_generation(session, acting_user):
     assert marker == search_generation()
 
 
-@pytest.mark.unit
 def test_every_reindex_statement_locks_the_rows_it_rewrites():
     """The sweep reads a row's text and replaces that row's entries.
 

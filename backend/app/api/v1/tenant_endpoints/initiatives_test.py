@@ -190,7 +190,6 @@ def _capture_join_request_emails(monkeypatch) -> list[dict]:
     return sent
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "caller_role",
     [GuildRole.admin, GuildRole.member],
@@ -215,7 +214,6 @@ async def test_the_default_listing_is_the_callers_own_memberships(
     assert "Theirs" not in listed
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("caller_role", "status_code"),
     [(GuildRole.admin, 200), (GuildRole.member, 403)],
@@ -245,7 +243,6 @@ async def test_guild_scope_lists_the_whole_guild_for_admins_only(
         assert response.json()["detail"] == GuildMessages.GUILD_ADMIN_REQUIRED
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("caller", "status_code"),
     [("grantee", 200), ("outsider", 403)],
@@ -292,7 +289,6 @@ async def test_reading_an_initiative_by_id_answers_each_caller(
     assert "project_manager" in {role["name"] for role in roles.json()}
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("tier", "level"),
     [("support", "read"), ("operator", "read_write")],
@@ -320,7 +316,6 @@ async def test_a_live_grant_lists_the_whole_guild_it_reaches(
     assert "Apollo" in {entry["name"] for entry in response.json()}
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("verb", "caller", "target", "status_code", "detail"),
     [
@@ -389,7 +384,6 @@ async def test_initiative_crud_answers_each_caller(
         assert response.json()["detail"] == detail
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("asked_for", "expected_policy"),
     [({}, "private"), ({"join_policy": "open"}, "open")],
@@ -425,7 +419,6 @@ async def test_creating_an_initiative_records_what_it_was_given(
     assert data["join_policy"] == expected_policy
 
 
-@pytest.mark.integration
 async def test_create_initiative_makes_creator_manager(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -446,7 +439,6 @@ async def test_create_initiative_makes_creator_manager(
     assert data["members"][0]["role_name"] == "moderator"
 
 
-@pytest.mark.integration
 async def test_updating_an_initiative_records_the_new_name_and_description(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -465,7 +457,6 @@ async def test_updating_an_initiative_records_the_new_name_and_description(
     assert data["description"] == "Updated description"
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("verb", ["create", "update"], ids=["creating", "renaming"])
 async def test_an_initiative_name_is_taken_only_once(
     client: AsyncClient, session: AsyncSession, acting_user, verb: str
@@ -497,7 +488,6 @@ async def test_an_initiative_name_is_taken_only_once(
 # ── Archive ──────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.integration
 async def test_archiving_an_initiative_round_trips_and_keeps_it_listed(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -539,7 +529,6 @@ async def test_archiving_an_initiative_round_trips_and_keeps_it_listed(
     assert unarchive.json()["archived_at"] is None
 
 
-@pytest.mark.integration
 async def test_search_initiative_members_slim_and_filtered(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -627,7 +616,6 @@ async def test_search_initiative_members_slim_and_filtered(
     assert response.json()["total_count"] == 0
 
 
-@pytest.mark.integration
 async def test_search_initiative_members_filters_by_user_id(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -665,7 +653,6 @@ async def test_search_initiative_members_filters_by_user_id(
     assert [item["username"] for item in body["items"]] == ["alice-ids"]
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("endpoint", "caller", "status_code"),
     [
@@ -722,7 +709,6 @@ async def test_the_roster_answers_its_members_and_a_guild_admin(
     assert all("email" not in row for row in rows)
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("caller", "status_code", "detail"),
     [
@@ -758,7 +744,6 @@ async def test_adding_a_member_takes_manager_standing(
         assert response.json()["detail"] == detail
 
 
-@pytest.mark.integration
 async def test_add_user_not_in_guild_fails(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -779,7 +764,6 @@ async def test_add_user_not_in_guild_fails(
     assert response.json()["detail"] == "USER_NOT_IN_GUILD"
 
 
-@pytest.mark.integration
 async def test_update_initiative_member_role(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -816,7 +800,6 @@ async def test_update_initiative_member_role(
     assert member_roles[member.user.id] == "project_manager"
 
 
-@pytest.mark.integration
 async def test_member_roster_reports_a_custom_role_as_itself(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -852,7 +835,6 @@ async def test_member_roster_reports_a_custom_role_as_itself(
     assert row["is_manager"] is True
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("inviter", "asked_role", "expected_role"),
     [
@@ -914,7 +896,6 @@ async def test_inviting_a_guild_admin_lands_them_on_a_manager_role(
     assert roles[target.user.id] == expected_role
 
 
-@pytest.mark.integration
 async def test_promotion_to_guild_admin_lifts_existing_initiative_roles(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -954,7 +935,6 @@ async def test_promotion_to_guild_admin_lifts_existing_initiative_roles(
     assert role is not None and role.is_manager
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("who", ["a member", "the last manager"])
 async def test_removing_a_membership_ends_it(
     client: AsyncClient, session: AsyncSession, acting_user, who: str
@@ -996,7 +976,6 @@ async def test_removing_a_membership_ends_it(
     )
 
 
-@pytest.mark.integration
 async def test_cannot_demote_last_manager(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1025,7 +1004,6 @@ async def test_cannot_demote_last_manager(
     assert response.json()["detail"] == "INITIATIVE_MUST_HAVE_PM"
 
 
-@pytest.mark.integration
 async def test_initiative_guild_isolation(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1071,7 +1049,6 @@ async def test_initiative_guild_isolation(
 # ============================================================================
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "caller_role",
     [GuildRole.member, GuildRole.admin],
@@ -1123,7 +1100,6 @@ async def test_directory_lists_only_joinable_initiatives(
     assert listed["Anyone"]["join_policy"] == "open"
 
 
-@pytest.mark.integration
 async def test_directory_reports_the_callers_own_state(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1166,7 +1142,6 @@ async def test_directory_reports_the_callers_own_state(
     assert entries[1]["has_pending_request"] is False
 
 
-@pytest.mark.integration
 async def test_directory_rejects_non_guild_member(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1208,7 +1183,6 @@ async def _joiner(acting_user, session: AsyncSession, kind: str, owner, initiati
     return grantee
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("policy", "caller", "status_code", "outcome"),
     [
@@ -1268,7 +1242,6 @@ async def test_self_join_answers_each_policy_and_caller(
     assert rows[0]["oidc_managed"] is False
 
 
-@pytest.mark.integration
 async def test_self_join_absorbs_a_lost_insert_race(
     session: AsyncSession, acting_user, monkeypatch
 ):
@@ -1321,7 +1294,6 @@ async def test_self_join_absorbs_a_lost_insert_race(
     assert len(rows) == 1
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("policy", "auto_join", "caller", "patch", "status_code", "expected"),
     [
@@ -1420,7 +1392,6 @@ async def test_the_join_settings_answer_each_caller_and_pairing(
 # ============================================================================
 
 
-@pytest.mark.integration
 async def test_join_request_created_on_request_policy(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1453,7 +1424,6 @@ async def test_join_request_created_on_request_policy(
     ) is None
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("policy", "caller", "knocked_first", "status_code", "detail"),
     [
@@ -1518,7 +1488,6 @@ async def test_knocking_answers_each_policy_and_caller(
     assert response.json()["detail"] == detail
 
 
-@pytest.mark.integration
 async def test_denied_requester_may_ask_again(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1553,7 +1522,6 @@ async def test_denied_requester_may_ask_again(
     assert again.json()["prior_denials"] == 1
 
 
-@pytest.mark.integration
 async def test_join_request_absorbs_a_lost_insert_race(
     session: AsyncSession, acting_user, monkeypatch
 ):
@@ -1604,7 +1572,6 @@ async def test_join_request_absorbs_a_lost_insert_race(
     assert len(rows) == 1
 
 
-@pytest.mark.integration
 async def test_the_pending_queue_carries_what_the_decision_needs(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1659,7 +1626,6 @@ async def test_the_pending_queue_carries_what_the_decision_needs(
     assert [row["status"] for row in history.json()] == ["denied"]
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("caller", "path", "status_code", "expected"),
     [
@@ -1719,7 +1685,6 @@ async def test_the_join_queue_answers_each_caller(
     )
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("way_in", "policy"), [("join", "open"), ("approval", "request")]
 )
@@ -1783,7 +1748,6 @@ async def test_joining_flips_content_visibility(
     assert after.json()["name"] == "Shared work"
 
 
-@pytest.mark.integration
 async def test_approving_an_already_resolved_request_conflicts(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1805,7 +1769,6 @@ async def test_approving_an_already_resolved_request_conflicts(
     assert again.json()["detail"] == "INITIATIVE_JOIN_REQUEST_ALREADY_RESOLVED"
 
 
-@pytest.mark.integration
 async def test_resolving_a_request_someone_else_answered_conflicts(
     session: AsyncSession, acting_user
 ):
@@ -1852,7 +1815,6 @@ async def test_resolving_a_request_someone_else_answered_conflicts(
     )
 
 
-@pytest.mark.integration
 async def test_approving_when_already_a_member_succeeds(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1895,7 +1857,6 @@ async def test_approving_when_already_a_member_succeeds(
     assert len(rows) == 1
 
 
-@pytest.mark.integration
 async def test_deny_resolves_without_membership(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1934,7 +1895,6 @@ async def test_deny_resolves_without_membership(
     assert still_hidden.status_code == 404
 
 
-@pytest.mark.integration
 async def test_resolving_a_request_from_another_initiative_is_not_found(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1984,7 +1944,6 @@ async def _resolver(acting_user, session: AsyncSession, kind: str, owner, initia
     return holder
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("action", ["approve", "deny"])
 @pytest.mark.parametrize(
     ("caller", "detail"),
@@ -2030,7 +1989,6 @@ async def test_answering_a_join_request_takes_manager_standing(
     ) is None
 
 
-@pytest.mark.integration
 async def test_a_knock_reaches_the_managers_on_both_channels(
     client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
 ):
@@ -2101,7 +2059,6 @@ async def test_a_knock_reaches_the_managers_on_both_channels(
     assert bystander.user.id not in {m["recipient_id"] for m in sent}
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("action", "expected_type", "subject"),
     [
@@ -2159,7 +2116,6 @@ async def test_a_resolution_reaches_the_requester_on_both_channels(
     assert f"guild_id={manager.guild.id}" in sent[0]["link"]
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("viewer", "expected_count"),
     [
@@ -2223,7 +2179,6 @@ async def test_directory_badges_the_queue_for_whoever_could_answer_it(
     assert entry["has_pending_request"] is (viewer == "the requester")
 
 
-@pytest.mark.integration
 async def test_a_knock_writes_its_mail_down(
     client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
 ):
@@ -2253,7 +2208,6 @@ async def test_a_knock_writes_its_mail_down(
     assert await _pending_mail_for(session, manager.user.id) == 1
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "reason", ["the manager switched approvals off", "no SMTP configured"]
 )
@@ -2306,7 +2260,6 @@ async def test_a_knock_lands_even_when_no_mail_goes_out(
     )
 
 
-@pytest.mark.integration
 async def test_initiative_member_search_finds_a_misspelled_name(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

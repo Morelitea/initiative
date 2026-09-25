@@ -42,7 +42,6 @@ from app.testing import (
 )
 from app.testing.app_clients import CLIENT, InstalledApp, install_app
 
-pytestmark = pytest.mark.integration
 
 TARGET = "tests.github"
 TARGET_UID = "TESTGTHB000001"

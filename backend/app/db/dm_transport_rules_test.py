@@ -31,8 +31,6 @@ from app.models.platform.user_dm_settings import DmPolicy, UserDmSettings
 from app.models.platform.user_ignore import UserIgnore
 from app.testing import create_user
 
-pytestmark = pytest.mark.asyncio
-
 
 async def _policy(session: AsyncSession, user: User, policy: DmPolicy) -> None:
     row = await session.get(UserDmSettings, user.id)

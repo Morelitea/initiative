@@ -35,8 +35,6 @@ from app.services.marketplace.definitions import (
 from app.services.marketplace.manifest_values import IDENTIFIER_CHARS
 from app.services.marketplace.service_apps import EMBED_CAPABILITIES
 
-pytestmark = pytest.mark.unit
-
 
 def _label(text: str = "A label") -> dict[str, str]:
     return {"en": text}
@@ -1354,7 +1352,6 @@ class TestWhereAParametersValuesComeFrom:
             )
 
 
-@pytest.mark.unit
 class TestListingAudience:
     """Who a listing installs to, and what follows from it."""
 

@@ -13,7 +13,6 @@ honest:
   rows come from one declaration, and this is what keeps them there.
 """
 
-import pytest
 from sqlalchemy import text
 
 from app.core.reactions import ReactionTarget
@@ -71,7 +70,6 @@ _MANAGED_POLICIES = frozenset(
 )
 
 
-@pytest.mark.database
 async def test_a_provisioned_schema_holds_its_own_authorization_functions(engine):
     """The functions a schema's policies call live in that schema, and no
     policy in it binds a function anywhere else. The legacy
@@ -132,7 +130,6 @@ async def test_a_provisioned_schema_holds_its_own_authorization_functions(engine
     assert legacy == 0, "is_initiative_member still exists (see migration 0111)"
 
 
-@pytest.mark.database
 async def test_every_initiative_scoped_table_has_policies(engine):
     """Provision a real guild schema and verify the policy invariant per table."""
     schema = guild_schema_name(_GID_POLICIES)
@@ -186,7 +183,6 @@ async def test_every_initiative_scoped_table_has_policies(engine):
             await drop_guild_schema(conn, _GID_POLICIES)
 
 
-@pytest.mark.database
 async def test_managed_tables_are_written_by_their_managers(engine):
     """Every ``MANAGED_TABLES`` table gets FORCE RLS, an open read and the
     three ``managed_*`` write policies in a freshly provisioned schema; the
@@ -230,7 +226,6 @@ async def test_managed_tables_are_written_by_their_managers(engine):
             await drop_guild_schema(conn, gid)
 
 
-@pytest.mark.database
 async def test_own_row_tables_have_policies(engine):
     """Every ``OWN_ROW_TABLES`` table gets FORCE RLS + the four ``own_row_*``
     policies in a freshly provisioned schema — the row gate that keeps one
@@ -284,7 +279,6 @@ async def test_own_row_tables_have_policies(engine):
             await drop_guild_schema(conn, _GID_OWN_ROW)
 
 
-@pytest.mark.database
 async def test_seat_and_ledger_tables_have_policies(engine):
     """Every ``SEAT_TABLES`` table gets FORCE RLS + the four ``seat_*``
     policies, and every ``LEDGER_TABLES`` table the four ``ledger_*``, in a
@@ -328,7 +322,6 @@ async def test_seat_and_ledger_tables_have_policies(engine):
             await drop_guild_schema(conn, gid)
 
 
-@pytest.mark.database
 async def test_soft_delete_tables_have_admin_only_purge_policy(engine):
     """Hard delete is admin-only at the DB layer: EVERY soft-delete table carries a
     RESTRICTIVE FOR DELETE ``soft_delete_admin_purge`` policy in a freshly
@@ -554,7 +547,6 @@ _QUERY_TRASH_QUAL = (
 )
 
 
-@pytest.mark.database
 async def test_soft_delete_tables_keep_the_trash_out_of_reader_written_sql(engine):
     """Every soft-delete table carries ``query_excludes_trash`` in a freshly
     provisioned schema — RESTRICTIVE, FOR SELECT, and saying the same thing.

@@ -29,7 +29,6 @@ from app.services.platform import guilds as guilds_service
 from app.services.platform.identity_refs import existing_ref
 from app.testing import create_guild, create_user, route_session_to_guild
 
-pytestmark = pytest.mark.integration
 
 _SECRET = "ping-test-secret"
 

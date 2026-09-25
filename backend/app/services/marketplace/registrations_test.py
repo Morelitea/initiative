@@ -17,7 +17,6 @@ from app.services.marketplace.vendor_values import load_vendor_values
 from app.services.marketplace import registrations as service
 from app.services.marketplace.registration_lookup import load_registrations
 
-pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 #: Where the deployment calls the app.
 BASE_URL = "http://127.0.0.1:9100"

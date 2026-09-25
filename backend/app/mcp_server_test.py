@@ -9,7 +9,6 @@ edge, and nothing destructive, bulk, AI-generating, sharing, or property/tag.
 
 import json
 
-import pytest
 from fastmcp.tools.base import ToolResult
 from mcp.types import TextContent
 
@@ -119,7 +118,6 @@ def _operation(name: str) -> str:
     return name.split("_api_v1_", 1)[0]
 
 
-@pytest.mark.unit
 async def test_mcp_tools_are_curated():
     tools = await build_mcp_server(app).list_tools()
     names = [t.name.lower() for t in tools]
@@ -166,7 +164,6 @@ async def test_mcp_tools_are_curated():
     assert not [n for n in names if "join_request" in n]
 
 
-@pytest.mark.unit
 async def test_the_tool_reads_stop_short_of_these():
     """What riding in on a tag would have brought, and why each stays out.
 
@@ -189,7 +186,6 @@ async def test_the_tool_reads_stop_short_of_these():
     assert any("run_widget_query" in n for n in names)
 
 
-@pytest.mark.unit
 async def test_comment_reads_are_exposed():
     """The two reads that pair with the comment write, and only those.
 
@@ -207,7 +203,6 @@ async def test_comment_reads_are_exposed():
     assert "search_mentionables" not in names
 
 
-@pytest.mark.unit
 async def test_search_is_exposed_without_the_picker_routes():
     """The general search, and only it, out of the search router's three GETs.
 
@@ -225,7 +220,6 @@ async def test_search_is_exposed_without_the_picker_routes():
     assert "suggest_guild" not in names
 
 
-@pytest.mark.unit
 async def test_relationship_tools_are_read_and_draw_one():
     """List one thing's edges and draw one, and nothing that unwires them.
 
@@ -245,7 +239,6 @@ async def test_relationship_tools_are_read_and_draw_one():
     assert "remove_relationship" not in names
 
 
-@pytest.mark.unit
 async def test_mcp_write_tools_are_the_curated_safe_set():
     # Lowercase consistently so a differently-cased operationId can't dodge the
     # write-prefix check.
@@ -264,7 +257,6 @@ async def test_mcp_write_tools_are_the_curated_safe_set():
         assert f"update_{tool.value}" in writes, f"no MCP tool edits {tool.value}"
 
 
-@pytest.mark.unit
 async def test_the_tool_writes_stop_short_of_these():
     """What create-and-edit deliberately doesn't reach.
 
@@ -300,7 +292,6 @@ async def test_the_tool_writes_stop_short_of_these():
     assert "update_task_status" not in writes
 
 
-@pytest.mark.unit
 def test_redact_base64_nulls_suffixed_keys_recursively():
     payload = {
         "title": "t",
@@ -324,7 +315,6 @@ def test_redact_base64_nulls_suffixed_keys_recursively():
     assert payload["guild"]["avatar_base64"] == "AAAA"
 
 
-@pytest.mark.unit
 async def test_base64_filter_middleware_redacts_content_and_structured():
     payload = {"guild": {"avatar_base64": "AAAA", "name": "g"}}
     result = ToolResult(
@@ -343,7 +333,6 @@ async def test_base64_filter_middleware_redacts_content_and_structured():
     }
 
 
-@pytest.mark.unit
 async def test_list_tools_expose_conditions_and_sorting_as_json_strings():
     # main._inject_query_schemas retypes these to arrays for the REST/Orval
     # surface; the MCP tool must present them as JSON strings instead, or the
@@ -364,7 +353,6 @@ async def test_list_tools_expose_conditions_and_sorting_as_json_strings():
     assert seen, "expected at least one tool exposing conditions/sorting"
 
 
-@pytest.mark.unit
 async def test_base64_filter_middleware_passes_through_non_json_text():
     result = ToolResult(content=[TextContent(type="text", text="plain not json")])
 

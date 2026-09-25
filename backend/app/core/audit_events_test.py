@@ -1,10 +1,6 @@
 """The registry drives every surface, so the two halves have to agree."""
 
-import pytest
-
 from app.core.audit_events import AUDIT_EVENT_META, AuditEventType
-
-pytestmark = pytest.mark.unit
 
 
 def test_every_event_has_metadata():

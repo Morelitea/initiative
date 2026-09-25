@@ -23,7 +23,6 @@ def _reset_cache():
     captcha_config.reset_for_tests()
 
 
-@pytest.mark.unit
 def test_current_config_falls_back_to_env_before_load(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -41,7 +40,6 @@ def test_current_config_falls_back_to_env_before_load(
     assert captcha_service.is_configured(cfg) is True
 
 
-@pytest.mark.unit
 def test_unknown_provider_is_not_configured() -> None:
     """A provider we have no verify URL for cannot be enforced — it would 500 on
     a dictionary lookup instead of rejecting a token."""
@@ -51,7 +49,6 @@ def test_unknown_provider_is_not_configured() -> None:
     assert captcha_service.is_configured(cfg) is False
 
 
-@pytest.mark.unit
 def test_secret_without_site_key_is_not_configured() -> None:
     """The server could verify without a site key, but the SPA could not render a
     widget — so enforcement would reject every registration it received."""
@@ -61,7 +58,6 @@ def test_secret_without_site_key_is_not_configured() -> None:
     assert captcha_service.is_configured(cfg) is False
 
 
-@pytest.mark.integration
 async def test_refresh_loads_db_over_env(
     session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
@@ -92,7 +88,6 @@ async def test_refresh_loads_db_over_env(
     assert captcha_service.is_configured(cfg) is True
 
 
-@pytest.mark.integration
 async def test_secret_is_kept_when_not_sent(session: AsyncSession) -> None:
     """Editing the site key without re-typing the secret keeps the secret.
 
@@ -121,7 +116,6 @@ async def test_secret_is_kept_when_not_sent(session: AsyncSession) -> None:
     assert cfg.secret_key == "keep-me"
 
 
-@pytest.mark.integration
 async def test_secret_is_cleared_when_sent_empty(session: AsyncSession) -> None:
     """An explicit empty secret clears it, and enforcement stops with it."""
     await app_settings_service.update_captcha_settings(

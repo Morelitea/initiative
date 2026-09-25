@@ -3,7 +3,6 @@ way in."""
 
 import copy
 
-import pytest
 
 from app.core.references import references_in_body, references_in_text
 from app.services.import_engine.references import (
@@ -15,8 +14,6 @@ from app.services.import_engine.references import (
     place_editor_references,
     place_markdown_references,
 )
-
-pytestmark = pytest.mark.unit
 
 
 def _editor(*inline: dict) -> dict:

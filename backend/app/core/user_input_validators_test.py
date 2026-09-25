@@ -2,8 +2,6 @@ import pytest
 
 from app.core.user_input_validators import NEXT_PATH_MAX_LENGTH, is_safe_next_path
 
-pytestmark = pytest.mark.unit
-
 
 @pytest.mark.parametrize(
     "value",

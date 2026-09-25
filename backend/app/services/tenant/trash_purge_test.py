@@ -6,7 +6,6 @@ cascade pass already queued for deletion, so we don't double-purge them.
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -24,9 +23,6 @@ from app.testing.factories import (
     create_task,
     create_user,
 )
-
-
-pytestmark = pytest.mark.integration
 
 
 async def test_auto_purge_does_not_double_purge_cascaded_descendants(

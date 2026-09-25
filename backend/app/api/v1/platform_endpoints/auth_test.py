@@ -61,8 +61,6 @@ from app.testing.oidc import (
 )
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_bootstrap_status_no_users(client: AsyncClient):
     """Test bootstrap status when no users exist."""
     response = await client.get("/api/v1/auth/bootstrap")
@@ -73,8 +71,6 @@ async def test_bootstrap_status_no_users(client: AsyncClient):
     assert "public_registration_enabled" in data
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_bootstrap_status_with_users(client: AsyncClient, session: AsyncSession):
     """Test bootstrap status when users exist."""
     await create_user(session)
@@ -87,8 +83,6 @@ async def test_bootstrap_status_with_users(client: AsyncClient, session: AsyncSe
     assert "public_registration_enabled" in data
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_register_first_user(client: AsyncClient):
     """Test that first registered user becomes owner and gets a guild."""
     user_data = {
@@ -108,8 +102,6 @@ async def test_register_first_user(client: AsyncClient):
     assert data["role"] == "owner"  # First user bootstraps as owner
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_register_with_invite_blocked_when_guild_full(
     client: AsyncClient, session: AsyncSession
 ):
@@ -144,8 +136,6 @@ async def test_register_with_invite_blocked_when_guild_full(
     assert response.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_register_duplicate_email(client: AsyncClient, session: AsyncSession):
     """Test that registration fails for duplicate email."""
     await create_user(session, email="existing@example.com")
@@ -163,8 +153,6 @@ async def test_register_duplicate_email(client: AsyncClient, session: AsyncSessi
     assert response.json()["detail"] == "EMAIL_ALREADY_REGISTERED"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_closed_registration_says_nothing_about_the_address(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -192,8 +180,6 @@ async def test_closed_registration_says_nothing_about_the_address(
     assert answers == [(403, "REGISTRATION_REQUIRES_INVITE")] * 2
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_register_normalizes_email(client: AsyncClient):
     """Test that email is normalized during registration."""
     user_data = {
@@ -210,8 +196,6 @@ async def test_register_normalizes_email(client: AsyncClient):
     assert data["email"] == "test@example.com"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_register_persists_browser_timezone(
     client: AsyncClient, session: AsyncSession
 ):
@@ -241,8 +225,6 @@ async def test_register_persists_browser_timezone(
     assert user.timezone == "America/Los_Angeles"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_register_rejects_invalid_timezone(client: AsyncClient):
     """Bogus IANA names from a hand-crafted request are rejected with the
     same error code the self-update path uses, so the SPA's existing
@@ -261,8 +243,6 @@ async def test_register_rejects_invalid_timezone(client: AsyncClient):
     assert response.json()["detail"] == "USER_INVALID_TIMEZONE"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_register_without_timezone_keeps_utc_default(
     client: AsyncClient, session: AsyncSession
 ):
@@ -293,8 +273,6 @@ async def test_register_without_timezone_keeps_utc_default(
 # --- Captcha gate ----------------------------------------------------
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_register_requires_captcha_token_when_configured(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -318,8 +296,6 @@ async def test_register_requires_captcha_token_when_configured(
     assert response.json()["detail"] == "CAPTCHA_REQUIRED"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_register_skips_captcha_for_bootstrap_first_user(
     client: AsyncClient, monkeypatch
 ):
@@ -339,8 +315,6 @@ async def test_register_skips_captcha_for_bootstrap_first_user(
     assert response.status_code == 201
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_register_no_captcha_required_when_provider_unset(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -365,8 +339,6 @@ async def test_register_no_captcha_required_when_provider_unset(
     assert response.status_code == 201
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_register_with_valid_captcha_token_succeeds(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -396,8 +368,6 @@ async def test_register_with_valid_captcha_token_succeeds(
     assert response.status_code == 201
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_login_success(client: AsyncClient, session: AsyncSession):
     """Test successful login returns access token."""
     # Create user with known password
@@ -427,8 +397,6 @@ async def test_login_success(client: AsyncClient, session: AsyncSession):
     assert len(data["access_token"]) > 0
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_login_wrong_password(client: AsyncClient, session: AsyncSession):
     """Test that login fails with wrong password."""
     password = "correct_password"
@@ -646,8 +614,6 @@ async def test_login_refused_for_account_without_password(
     assert response.json()["detail"] == "INCORRECT_CREDENTIALS"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_login_inactive_user(client: AsyncClient, session: AsyncSession):
     """Test that inactive users cannot login."""
     password = "testpassword"
@@ -672,8 +638,6 @@ async def test_login_inactive_user(client: AsyncClient, session: AsyncSession):
     assert "inactive" in response.json()["detail"].lower()
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_login_unverified_email(client: AsyncClient, session: AsyncSession):
     """Test that users with unverified emails cannot login."""
     password = "testpassword"
@@ -698,8 +662,6 @@ async def test_login_unverified_email(client: AsyncClient, session: AsyncSession
     assert response.json()["detail"] == "EMAIL_NOT_VERIFIED"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_login_nonexistent_user(client: AsyncClient):
     """Test that login fails for nonexistent user."""
     response = await client.post(
@@ -714,8 +676,6 @@ async def test_login_nonexistent_user(client: AsyncClient):
     assert "incorrect" in response.json()["detail"].lower()
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_login_email_case_insensitive(client: AsyncClient, session: AsyncSession):
     """Test that login email is case-insensitive."""
     password = "testpassword"
@@ -742,8 +702,6 @@ async def test_login_email_case_insensitive(client: AsyncClient, session: AsyncS
     assert "access_token" in data
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_login_rehashes_legacy_bcrypt_password(
     client: AsyncClient, session: AsyncSession
 ):
@@ -789,8 +747,6 @@ async def test_login_rehashes_legacy_bcrypt_password(
     assert response.status_code == 200
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_malformed_jwt_returns_401(client: AsyncClient):
     """A garbage bearer token should be rejected as 401 Unauthorized with
     a WWW-Authenticate challenge, not 403. The SPA's 401 interceptor
@@ -803,8 +759,6 @@ async def test_malformed_jwt_returns_401(client: AsyncClient):
     assert response.headers.get("WWW-Authenticate") == "Bearer"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_expired_jwt_returns_401(client: AsyncClient, session: AsyncSession):
     """An expired JWT (the common case when the access token lifetime
     elapses mid-session) must return 401, not 403. Regression guard
@@ -820,8 +774,6 @@ async def test_expired_jwt_returns_401(client: AsyncClient, session: AsyncSessio
     assert response.headers.get("WWW-Authenticate") == "Bearer"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_stale_token_version_returns_401(
     client: AsyncClient, session: AsyncSession
 ):
@@ -843,8 +795,6 @@ async def test_stale_token_version_returns_401(
     assert response.status_code == 401
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_new_access_token_authenticates(
     client: AsyncClient, session: AsyncSession
 ):
@@ -862,8 +812,6 @@ async def test_new_access_token_authenticates(
     assert response.json()["id"] == user.id
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_new_access_token_stale_version_returns_401(
     client: AsyncClient, session: AsyncSession
 ):
@@ -882,8 +830,6 @@ async def test_new_access_token_stale_version_returns_401(
     assert response.status_code == 401
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_scoped_upload_token_rejected_on_session_path(
     client: AsyncClient, session: AsyncSession
 ):
@@ -899,8 +845,6 @@ async def test_scoped_upload_token_rejected_on_session_path(
     assert response.status_code == 401
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_upload_token_copies_session_satisfied_providers(
     client: AsyncClient, session: AsyncSession
 ):
@@ -939,8 +883,6 @@ async def test_upload_token_copies_session_satisfied_providers(
     assert asserted == {}
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_logout_leaves_the_account_signed_in_elsewhere(
     client: AsyncClient, session: AsyncSession
 ):
@@ -967,8 +909,6 @@ async def test_logout_leaves_the_account_signed_in_elsewhere(
     assert elsewhere.status_code == 200
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_logout_revokes_only_the_signing_out_session(
     client: AsyncClient, session: AsyncSession
 ):
@@ -994,8 +934,6 @@ async def test_logout_revokes_only_the_signing_out_session(
     assert (await client.post("/api/v1/auth/refresh")).status_code == 401
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_logout_revokes_the_refresh_token_presented_in_the_body(
     client: AsyncClient, session: AsyncSession
 ):
@@ -1021,8 +959,6 @@ async def test_logout_revokes_the_refresh_token_presented_in_the_body(
     assert (await client.post("/api/v1/auth/refresh")).status_code == 401
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_logout_consumes_only_the_device_token_it_came_in_on(
     client: AsyncClient, session: AsyncSession
 ):
@@ -1057,8 +993,6 @@ async def test_logout_consumes_only_the_device_token_it_came_in_on(
     assert still_live.status_code == 200
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_logout_ignores_a_refresh_token_belonging_to_someone_else(
     client: AsyncClient, session: AsyncSession
 ):
@@ -1080,8 +1014,6 @@ async def test_logout_ignores_a_refresh_token_belonging_to_someone_else(
     assert (await client.post("/api/v1/auth/refresh")).status_code == 200
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_logout_clears_session_cookie(client: AsyncClient, session: AsyncSession):
     """The logout response must set an expired session_token cookie so
     browsers using HttpOnly cookie auth (the web default) actually
@@ -1189,8 +1121,6 @@ async def _federated_identities(session: AsyncSession) -> list[FederatedIdentity
     return list((await session.exec(select(FederatedIdentity))).all())
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_oidc_login_requires_configured_platform_posture(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -1206,8 +1136,6 @@ async def test_oidc_login_requires_configured_platform_posture(
     assert response.status_code in (302, 307)
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_oidc_callback_gated_like_login(
     client: AsyncClient, session: AsyncSession
 ):
@@ -1221,8 +1149,6 @@ async def test_oidc_callback_gated_like_login(
     assert response.status_code == 404
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_oidc_login_redirects_to_idp_with_pkce(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -1241,8 +1167,6 @@ async def test_oidc_login_redirects_to_idp_with_pkce(
     assert query["state"]
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_oidc_login_rejects_non_https_authorization_endpoint(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -1259,8 +1183,6 @@ async def test_oidc_login_rejects_non_https_authorization_endpoint(
     assert response.json()["detail"] == "OIDC_METADATA_INCOMPLETE"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_oidc_login_rejects_incomplete_discovery(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -1274,8 +1196,6 @@ async def test_oidc_login_rejects_incomplete_discovery(
     assert response.json()["detail"] == "OIDC_METADATA_INCOMPLETE"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_oidc_callback_provisions_new_user_and_sets_cookie(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -1320,8 +1240,6 @@ async def test_oidc_callback_provisions_new_user_and_sets_cookie(
     assert decrypt_token(secret.refresh_token_encrypted) == "rt-1"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_oidc_callback_establishes_refresh_session(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -1374,8 +1292,6 @@ async def test_oidc_callback_establishes_refresh_session(
     assert claims["sat"] == [provider.id]
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_an_oidc_sign_in_keeps_what_the_idp_said_about_it(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -1438,8 +1354,6 @@ async def test_an_oidc_sign_in_keeps_what_the_idp_said_about_it(
     assert claims["satd"] == auth_session.provider_auth
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_a_provider_whose_word_counts_contributes_its_factor(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -1484,8 +1398,6 @@ async def test_a_provider_whose_word_counts_contributes_its_factor(
     assert auth_session.amr == ["mfa", f"oidc:{PLATFORM_OIDC_SLUG}", "pwd"]
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_the_platform_provider_asserts_a_platform_identity(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -1539,8 +1451,6 @@ async def test_the_platform_provider_asserts_a_platform_identity(
     assert claim.provider_id == provider_id
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_a_silent_idp_leaves_the_token_the_shape_it_always_had(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -1581,8 +1491,6 @@ async def test_a_silent_idp_leaves_the_token_the_shape_it_always_had(
     assert "satd" not in claims
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_an_oidc_callback_that_cannot_open_a_session_says_so(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -1624,8 +1532,6 @@ async def test_an_oidc_callback_that_cannot_open_a_session_says_so(
     assert rows == []
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_oidc_refresh_cookie_rotates_into_access_token(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -1658,8 +1564,6 @@ async def test_oidc_refresh_cookie_rotates_into_access_token(
     assert me.json()["email"] == "sso-rotate@example.com"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_provider_login_unknown_or_unready_slug_is_404(
     client: AsyncClient, session: AsyncSession
 ):
@@ -1677,8 +1581,6 @@ async def test_provider_login_unknown_or_unready_slug_is_404(
         assert response.json()["detail"] == "OIDC_NOT_ENABLED"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_login_providers_listing(client: AsyncClient, session: AsyncSession):
     """/auth/providers lists the platform provider plus login-ready registry
     rows — and only those."""
@@ -1703,8 +1605,6 @@ async def test_login_providers_listing(client: AsyncClient, session: AsyncSessio
     assert providers[1]["id"] == corp_row.id
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_login_providers_listed_when_configured(
     client: AsyncClient, session: AsyncSession
 ):
@@ -1720,8 +1620,6 @@ async def test_login_providers_listed_when_configured(
     assert {"oidc", "corp"} <= slugs
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_oidc_next_returns_browser_to_requested_page(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -1748,8 +1646,6 @@ async def test_oidc_next_returns_browser_to_requested_page(
     )
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_oidc_next_rejects_non_relative_paths(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -1784,8 +1680,6 @@ async def test_oidc_next_rejects_non_relative_paths(
     assert response.headers["location"].endswith("/oidc/callback")
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_state_from_one_provider_rejected_by_another(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -1806,8 +1700,6 @@ async def test_state_from_one_provider_rejected_by_another(
     assert "session_token" not in response.cookies
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_row_provider_full_login_flow(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -1867,8 +1759,6 @@ async def test_row_provider_full_login_flow(
     assert auth_session.satisfied_providers == [row.id]
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_oidc_callback_rejects_forged_state(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -1890,8 +1780,6 @@ async def test_oidc_callback_rejects_forged_state(
         assert "session_token" not in response.cookies
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_oidc_callback_rejects_id_token_signed_by_wrong_key(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -1908,8 +1796,6 @@ async def test_oidc_callback_rejects_id_token_signed_by_wrong_key(
     assert await _federated_identities(session) == []
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 @pytest.mark.parametrize(
     ("public_registration_enabled", "guild_creation_disabled"),
     [(False, False), (True, True)],
@@ -1949,8 +1835,6 @@ async def test_oidc_callback_blocks_new_user_when_registration_disabled(
     ).one_or_none() is None
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 @pytest.mark.parametrize(
     "verified_claim",
     [
@@ -1995,8 +1879,6 @@ async def test_oidc_callback_refuses_existing_account_when_email_unverified(
     assert existing.full_name == "Victim"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_oidc_callback_links_existing_account_when_email_verified(
     client: AsyncClient,
     session: AsyncSession,
@@ -2038,8 +1920,6 @@ async def test_oidc_callback_links_existing_account_when_email_verified(
     assert len(await _federated_identities(session)) == 1
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_oidc_callback_refuses_deactivated_account(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -2059,8 +1939,6 @@ async def test_oidc_callback_refuses_deactivated_account(
     assert await _federated_identities(session) == []
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_oidc_callback_mobile_flow_hands_back_a_code(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -2156,8 +2034,6 @@ async def test_oidc_callback_mobile_flow_hands_back_a_code(
     assert await legacy_redirect() == {"error": "NATIVE_APP_UPDATE_REQUIRED"}
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_oidc_callback_enriches_missing_email_from_userinfo(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -2187,8 +2063,6 @@ async def test_oidc_callback_enriches_missing_email_from_userinfo(
     assert user.full_name == "Info User"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_oidc_callback_ignores_userinfo_with_mismatched_sub(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -2222,8 +2096,6 @@ async def test_oidc_callback_ignores_userinfo_with_mismatched_sub(
 # --- Password policy -------------------------------------------------
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_register_rejects_password_shorter_than_minimum(client: AsyncClient):
     """11-char passwords (the previous loose default in our own tests)
     must now be rejected. Locks down the new NIST-aligned 12-char floor."""
@@ -2240,8 +2112,6 @@ async def test_register_rejects_password_shorter_than_minimum(client: AsyncClien
     assert response.json()["detail"] == "PASSWORD_TOO_SHORT"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_register_rejects_breached_password(client: AsyncClient, monkeypatch):
     """A password that passes the length floor but appears in HIBP must
     be rejected with the BREACHED code, not silently accepted."""
@@ -2265,8 +2135,6 @@ async def test_register_rejects_breached_password(client: AsyncClient, monkeypat
     assert response.json()["detail"] == "PASSWORD_BREACHED"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_register_accepts_compliant_password(client: AsyncClient):
     """Sanity check: a 12+ char password with HIBP disabled (default in
     tests) succeeds, so the policy gate isn't accidentally rejecting
@@ -2283,8 +2151,6 @@ async def test_register_accepts_compliant_password(client: AsyncClient):
     assert response.status_code == 201
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_login_grandfathers_existing_short_password(
     client: AsyncClient, session: AsyncSession
 ):
@@ -2309,8 +2175,6 @@ async def test_login_grandfathers_existing_short_password(
     assert "access_token" in response.json()
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_password_reset_rejects_short_password(
     client: AsyncClient, session: AsyncSession
 ):
@@ -2348,8 +2212,6 @@ async def test_password_reset_rejects_short_password(
     assert fresh.consumed_at is None
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_password_reset_revokes_sessions_and_device_tokens(
     client: AsyncClient, session: AsyncSession
 ):
@@ -2403,8 +2265,6 @@ async def test_password_reset_revokes_sessions_and_device_tokens(
     assert token_row.consumed_at is not None
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_password_reset_tells_the_account(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -2435,8 +2295,6 @@ async def test_password_reset_tells_the_account(
     assert told == [user_id]
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_register_rolls_back_when_guild_seed_fails(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -2511,8 +2369,6 @@ async def _login(client: AsyncClient, email: str, password: str):
     )
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_login_sets_refresh_cookie(client: AsyncClient, session: AsyncSession):
     """Login additively issues a rotating refresh cookie (the legacy session
     cookie is still set too — this is additive-first)."""
@@ -2524,8 +2380,6 @@ async def test_login_sets_refresh_cookie(client: AsyncClient, session: AsyncSess
     assert resp.cookies.get("session_token")  # legacy cookie unchanged
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_login_issues_session_access_token(
     client: AsyncClient, session: AsyncSession
 ):
@@ -2554,8 +2408,6 @@ async def test_login_issues_session_access_token(
     ), set_cookies
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_a_login_that_cannot_open_a_session_is_refused(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -2576,8 +2428,6 @@ async def test_a_login_that_cannot_open_a_session_is_refused(
     assert SESSION_COOKIE_NAME not in resp.cookies
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_refresh_rotates_and_new_token_authenticates(
     client: AsyncClient, session: AsyncSession
 ):
@@ -2598,8 +2448,6 @@ async def test_refresh_rotates_and_new_token_authenticates(
     assert me.json()["email"] == "rot@example.com"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_a_refresh_that_cannot_finish_leaves_the_cookie_usable(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
@@ -2631,16 +2479,12 @@ async def test_a_refresh_that_cannot_finish_leaves_the_cookie_usable(
     assert retry.cookies.get("refresh_token") != presented
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_refresh_without_cookie_returns_401(client: AsyncClient):
     resp = await client.post("/api/v1/auth/refresh")
     assert resp.status_code == 401
     assert resp.json()["detail"] == "NOT_AUTHENTICATED"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_refresh_with_invalid_cookie_returns_401(client: AsyncClient):
     client.cookies.set("refresh_token", "not-a-real-token", path="/api/v1/auth")
     resp = await client.post("/api/v1/auth/refresh")
@@ -2655,8 +2499,6 @@ async def test_refresh_with_invalid_cookie_returns_401(client: AsyncClient):
     )
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_reused_refresh_token_returns_401(
     client: AsyncClient, session: AsyncSession
 ):
@@ -2678,8 +2520,6 @@ async def test_reused_refresh_token_returns_401(
     assert replay.json()["detail"] == "INVALID_REFRESH_TOKEN"
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_logout_revokes_refresh_session(
     client: AsyncClient, session: AsyncSession
 ):
@@ -2699,8 +2539,6 @@ async def test_logout_revokes_refresh_session(
     assert resp.status_code == 401
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_logout_with_an_expired_access_token_still_ends_the_session(
     client: AsyncClient, session: AsyncSession
 ):
@@ -2723,8 +2561,6 @@ async def test_logout_with_an_expired_access_token_still_ends_the_session(
     assert (await client.post("/api/v1/auth/refresh")).status_code == 401
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_logout_with_no_access_token_ends_only_the_presented_session(
     client: AsyncClient, session: AsyncSession
 ):
@@ -2751,8 +2587,6 @@ async def test_logout_with_no_access_token_ends_only_the_presented_session(
     assert (await client.post("/api/v1/auth/refresh")).status_code == 200
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_password_change_revokes_refresh_session(
     client: AsyncClient, session: AsyncSession
 ):
@@ -2834,8 +2668,6 @@ async def test_password_reset_records_when_the_password_was_set(
     assert refreshed.password_set_at is not None
 
 
-@pytest.mark.integration
-@pytest.mark.auth
 async def test_upload_token_carries_the_second_factor(
     client: AsyncClient, session: AsyncSession
 ):

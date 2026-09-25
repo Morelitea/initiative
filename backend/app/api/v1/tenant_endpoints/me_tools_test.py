@@ -77,7 +77,6 @@ async def _create(client, actor, tool: Tool, name: str) -> dict:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 @per_tool
 async def test_the_list_answers_with_what_reaches_the_caller(
     client: AsyncClient, acting_user, tool: Tool
@@ -95,7 +94,6 @@ async def test_the_list_answers_with_what_reaches_the_caller(
     assert data["total_count"] >= 1
 
 
-@pytest.mark.integration
 @per_tool
 async def test_a_guild_the_caller_is_not_in_contributes_nothing(
     client: AsyncClient, acting_user, tool: Tool
@@ -112,7 +110,6 @@ async def test_a_guild_the_caller_is_not_in_contributes_nothing(
     assert (stranger.guild.id, theirs["id"]) not in _keyed(response)
 
 
-@pytest.mark.integration
 @per_tool
 async def test_created_by_me_keeps_only_what_the_caller_wrote(
     client: AsyncClient, acting_user, tool: Tool
@@ -137,7 +134,6 @@ async def test_created_by_me_keeps_only_what_the_caller_wrote(
     assert theirs["id"] not in {item["id"] for item in mine.json()["items"]}
 
 
-@pytest.mark.integration
 @per_tool
 async def test_guild_ids_narrows_the_merge(
     client: AsyncClient, session: AsyncSession, acting_user, tool: Tool
@@ -174,7 +170,6 @@ async def test_guild_ids_narrows_the_merge(
     assert (guild2.id, row2["id"]) not in _keyed(narrowed)
 
 
-@pytest.mark.integration
 @per_tool
 async def test_search_narrows_by_name(client: AsyncClient, acting_user, tool: Tool):
     """The filter box reads the same index the search page does."""
@@ -191,7 +186,6 @@ async def test_search_narrows_by_name(client: AsyncClient, acting_user, tool: To
     assert beta["id"] not in found
 
 
-@pytest.mark.integration
 @per_tool
 async def test_pagination_walks_the_merged_list(
     client: AsyncClient, acting_user, tool: Tool
@@ -214,7 +208,6 @@ async def test_pagination_walks_the_merged_list(
     assert second.json()["has_next"] is False
 
 
-@pytest.mark.integration
 @per_tool
 async def test_the_initiatives_switch_takes_a_row_off_the_list(
     client: AsyncClient, acting_user, tool: Tool
@@ -236,7 +229,6 @@ async def test_the_initiatives_switch_takes_a_row_off_the_list(
     assert row["id"] not in {item["id"] for item in response.json()["items"]}
 
 
-@pytest.mark.integration
 async def test_a_co_member_reads_what_was_shared_with_the_initiative(
     client: AsyncClient, acting_user
 ):
@@ -262,7 +254,6 @@ async def test_a_co_member_reads_what_was_shared_with_the_initiative(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_my_projects_excludes_archived(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -282,7 +273,6 @@ async def test_my_projects_excludes_archived(
     assert archived.id not in project_ids
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "tool",
     [t for t in Tool if "is_template" in tool_model(t).model_fields],
@@ -307,7 +297,6 @@ async def test_my_tools_exclude_templates(
     assert template.id not in ids
 
 
-@pytest.mark.integration
 async def test_my_projects_follows_grants_not_guild_admin_standing(
     client: AsyncClient, session: AsyncSession
 ):
@@ -342,7 +331,6 @@ async def test_my_projects_follows_grants_not_guild_admin_standing(
     assert unshared.id not in project_ids
 
 
-@pytest.mark.integration
 async def test_an_initiative_listing_still_answers_a_guild_admin_in_full(
     client: AsyncClient, session: AsyncSession
 ):
@@ -379,7 +367,6 @@ async def test_an_initiative_listing_still_answers_a_guild_admin_in_full(
     assert unshared.id in {p["id"] for p in within.json()["items"]}
 
 
-@pytest.mark.integration
 async def test_my_calendars_carry_a_guild_calendar(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -401,7 +388,6 @@ async def test_my_calendars_carry_a_guild_calendar(
     assert next(c for c in items if c["id"] == calendar.id)["initiative_id"] is None
 
 
-@pytest.mark.integration
 async def test_my_calendars_merge_across_guilds_and_apply_sharing(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -443,7 +429,6 @@ async def test_my_calendars_merge_across_guilds_and_apply_sharing(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_my_tool_counts(client: AsyncClient, acting_user):
     """Every tool is answered for, with a zero where the caller has none."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -464,7 +449,6 @@ async def test_my_tool_counts(client: AsyncClient, acting_user):
     assert set(counts) == {tool.value for tool in Tool}
 
 
-@pytest.mark.integration
 async def test_my_tool_counts_created_by_me(client: AsyncClient, acting_user):
     """The counts follow the view the page is in."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)

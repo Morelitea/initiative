@@ -32,7 +32,6 @@ from app.testing.factories import (
     get_auth_token,
 )
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 ME_URL = "/api/v1/users/me"
 GUILDS_URL = "/api/v1/communities/"

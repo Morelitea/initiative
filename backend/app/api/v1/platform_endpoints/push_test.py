@@ -8,7 +8,6 @@ endpoints ran as the de-granted bare login role and failed with
 
 from __future__ import annotations
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -16,7 +15,6 @@ from app.services.platform import push_tokens as push_tokens_service
 from app.testing.factories import create_user, get_auth_headers
 
 
-@pytest.mark.integration
 async def test_register_and_unregister_push_token(
     client: AsyncClient, session: AsyncSession
 ):
@@ -41,7 +39,6 @@ async def test_register_and_unregister_push_token(
     assert unregister.json() == {"status": "unregistered"}
 
 
-@pytest.mark.integration
 async def test_unregister_cannot_delete_other_users_token(
     client: AsyncClient, session: AsyncSession
 ):

@@ -40,7 +40,6 @@ def _stage_upload(guild_id: int, filename: str, content: bytes = b"hello") -> No
     get_guild_storage(guild_id).write(filename, content)
 
 
-@pytest.mark.integration
 async def test_upload_unauthenticated_returns_401(client: AsyncClient) -> None:
     """GET /uploads/<file> without any auth token returns 401."""
     uploads_dir = _uploads_dir()
@@ -53,7 +52,6 @@ async def test_upload_unauthenticated_returns_401(client: AsyncClient) -> None:
         test_file.unlink(missing_ok=True)
 
 
-@pytest.mark.integration
 async def test_upload_accessible_with_auth_header(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -81,7 +79,6 @@ async def test_upload_accessible_with_auth_header(
     assert response.status_code == 200
 
 
-@pytest.mark.integration
 async def test_a_served_upload_is_cacheable_but_not_indefinitely(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -123,7 +120,6 @@ async def test_a_served_upload_is_cacheable_but_not_indefinitely(
     assert UPLOAD_CACHE_SECONDS <= 3600
 
 
-@pytest.mark.integration
 async def test_upload_session_jwt_rejected_in_query_param(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -143,7 +139,6 @@ async def test_upload_session_jwt_rejected_in_query_param(
         test_file.unlink(missing_ok=True)
 
 
-@pytest.mark.integration
 async def test_upload_accessible_with_scoped_upload_token(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -172,7 +167,6 @@ async def test_upload_accessible_with_scoped_upload_token(
     assert response.status_code == 200
 
 
-@pytest.mark.integration
 async def test_scoped_upload_token_rejected_as_general_api_credential(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -185,7 +179,6 @@ async def test_scoped_upload_token_rejected_as_general_api_credential(
     assert response.status_code == 401
 
 
-@pytest.mark.integration
 async def test_issue_upload_token_endpoint(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -220,14 +213,12 @@ async def test_issue_upload_token_endpoint(
     assert response.status_code == 200
 
 
-@pytest.mark.integration
 async def test_issue_upload_token_requires_auth(client: AsyncClient) -> None:
     """The mint endpoint itself requires an authenticated session. SEC-12."""
     response = await client.post("/api/v1/auth/upload-token")
     assert response.status_code == 401
 
 
-@pytest.mark.integration
 async def test_upload_missing_file_returns_404(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -238,7 +229,6 @@ async def test_upload_missing_file_returns_404(
     assert response.status_code == 404
 
 
-@pytest.mark.integration
 async def test_upload_path_traversal_rejected(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -252,7 +242,6 @@ async def test_upload_path_traversal_rejected(
     assert response.status_code in (404, 422)
 
 
-@pytest.mark.integration
 async def test_upload_guild_member_can_access_file(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -280,7 +269,6 @@ async def test_upload_guild_member_can_access_file(
     assert response.status_code == 200
 
 
-@pytest.mark.integration
 async def test_upload_non_member_cannot_access_file(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -319,7 +307,6 @@ async def test_upload_non_member_cannot_access_file(
         test_file.unlink(missing_ok=True)
 
 
-@pytest.mark.integration
 async def test_upload_without_db_record_returns_404(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -345,7 +332,6 @@ async def test_upload_without_db_record_returns_404(
         test_file.unlink(missing_ok=True)
 
 
-@pytest.mark.integration
 async def test_security_headers_on_api_response(client: AsyncClient):
     """Every API response must carry baseline security headers."""
     response = await client.get("/api/v1/auth/bootstrap")
@@ -355,7 +341,6 @@ async def test_security_headers_on_api_response(client: AsyncClient):
     assert response.headers.get("referrer-policy") == "strict-origin-when-cross-origin"
 
 
-@pytest.mark.integration
 async def test_upload_row_in_guild_schema_is_served(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -411,7 +396,6 @@ async def test_upload_row_in_guild_schema_is_served(
     assert response.status_code == 404
 
 
-@pytest.mark.integration
 async def test_app_admin_needs_set_role_for_guild_schema(session, role_session):
     """Regression for the uploads 500 (schema-per-guild grant boundary).
 
@@ -461,7 +445,6 @@ async def test_app_admin_needs_set_role_for_guild_schema(session, role_session):
     assert row is not None
 
 
-@pytest.mark.integration
 async def test_upload_suspended_guild_member_404_grant_still_served(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -519,7 +502,6 @@ async def test_upload_suspended_guild_member_404_grant_still_served(
     assert resp.status_code == 200, resp.text
 
 
-@pytest.mark.integration
 async def test_a_served_upload_is_typed_from_its_row(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -559,7 +541,6 @@ async def test_a_served_upload_is_typed_from_its_row(
     assert response.headers["x-content-type-options"] == "nosniff"
 
 
-@pytest.mark.integration
 async def test_a_served_raster_stays_inline(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -590,7 +571,6 @@ async def test_a_served_raster_stays_inline(
     assert "content-disposition" not in response.headers
 
 
-@pytest.mark.integration
 async def test_a_row_without_a_recorded_type_falls_back_to_its_name(
     client: AsyncClient, session: AsyncSession
 ) -> None:

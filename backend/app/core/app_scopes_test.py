@@ -22,8 +22,6 @@ from app.core.app_scopes import (
 )
 from app.core.tools import Tool
 
-pytestmark = pytest.mark.unit
-
 
 def test_a_tool_scope_parses_to_its_tool():
     resource, access = parse_scope("counter_groups:write")

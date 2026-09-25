@@ -8,7 +8,6 @@ enum in ``tool_views_test.py``.
 
 import asyncio
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -22,7 +21,6 @@ from app.testing import (
 )
 
 
-@pytest.mark.integration
 async def test_recents_mixed_ordering(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -47,7 +45,6 @@ async def test_recents_mixed_ordering(
     assert items[1]["entity_id"] == project.id
 
 
-@pytest.mark.integration
 async def test_recents_are_cross_guild_names_only(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -89,7 +86,6 @@ async def test_recents_are_cross_guild_names_only(
     assert r.json() == []
 
 
-@pytest.mark.integration
 async def test_recent_tabs_limit_caps_list_and_prune(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -121,7 +117,6 @@ async def test_recent_tabs_limit_caps_list_and_prune(
     assert [i["entity_id"] for i in items] == [projects[3].id, projects[2].id]
 
 
-@pytest.mark.integration
 async def test_recent_tabs_limit_rejects_out_of_range(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -138,7 +133,6 @@ async def test_recent_tabs_limit_rejects_out_of_range(
     assert r.status_code == 422
 
 
-@pytest.mark.integration
 async def test_clear_recent_is_guild_addressed(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -163,7 +157,6 @@ async def test_clear_recent_is_guild_addressed(
     assert r.json() == []
 
 
-@pytest.mark.integration
 async def test_recent_guild_level_calendar_has_no_initiative(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

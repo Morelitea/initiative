@@ -118,7 +118,6 @@ def test_an_unknown_scope_fails_where_the_route_is_written():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_an_installation_token_reads_through_the_routed_session(
     client, session, acting_user, role_session
 ):
@@ -136,7 +135,6 @@ async def test_an_installation_token_reads_through_the_routed_session(
     assert response.json() == {"actor": "install", "documents": ["Shared"]}
 
 
-@pytest.mark.integration
 async def test_the_guild_comes_from_the_token_not_the_path(
     client, session, acting_user, role_session
 ):
@@ -154,7 +152,6 @@ async def test_the_guild_comes_from_the_token_not_the_path(
     assert response.json()["documents"] == ["Shared"]
 
 
-@pytest.mark.integration
 async def test_write_covers_read(client, session, acting_user, role_session):
     installed = await install_app(
         session, acting_user, role_session, granted=["documents:write"]
@@ -169,7 +166,6 @@ async def test_write_covers_read(client, session, acting_user, role_session):
     assert response.status_code == 200, response.text
 
 
-@pytest.mark.integration
 async def test_a_token_without_the_scope_is_forbidden(
     client, session, acting_user, role_session
 ):
@@ -189,7 +185,6 @@ async def test_a_token_without_the_scope_is_forbidden(
     assert response.json()["detail"] == AppMessages.SCOPE_REQUIRED
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("shape", ["tampered", "expired", "app-token", "not-live"])
 async def test_a_token_that_is_not_a_live_install_is_unauthorized(
     client, session, acting_user, role_session, shape
@@ -222,7 +217,6 @@ async def test_a_token_that_is_not_a_live_install_is_unauthorized(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_a_person_passes_through_unchanged(client, session, acting_user):
     a = await acting_user(guild_role=GuildRole.member, initiative=True)
     await create_document(session, a.initiative, a.user, name="Mine")
@@ -233,7 +227,6 @@ async def test_a_person_passes_through_unchanged(client, session, acting_user):
     assert response.json() == {"actor": "person", "documents": ["Mine"]}
 
 
-@pytest.mark.integration
 async def test_a_person_route_refuses_an_installation_token(
     client, session, acting_user, role_session
 ):
@@ -255,7 +248,6 @@ async def test_a_person_route_refuses_an_installation_token(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_an_install_request_spends_two_statements_before_its_handler(
     session, acting_user, role_session
 ):

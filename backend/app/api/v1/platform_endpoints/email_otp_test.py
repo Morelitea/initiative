@@ -1,13 +1,11 @@
 """Signing in with a one-time code sent to an address."""
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.security import decode_session_token
 from app.testing import captcha_switched_on, create_user
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 SEND_URL = "/api/v1/auth/email-otp/send"
 VERIFY_URL = "/api/v1/auth/email-otp/verify"

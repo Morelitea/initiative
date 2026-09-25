@@ -8,8 +8,6 @@ from app.core.messages import ExportMessages
 from app.services.export.adapters.backup import _SECTIONS, _validate_params
 from app.services.export.engine import ExportError
 
-pytestmark = pytest.mark.unit
-
 
 def _report(formats: dict[str, Any]) -> dict[str, Any]:
     return {"mode": "report", "formats": formats}

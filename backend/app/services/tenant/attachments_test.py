@@ -27,7 +27,6 @@ class _CountingUpload:
         return self._body[:size]
 
 
-@pytest.mark.unit
 async def test_read_upload_bounded_returns_bytes_within_limit() -> None:
     upload = _CountingUpload(b"hello")
     result = await read_upload_bounded(upload, max_size=10)  # type: ignore[arg-type]
@@ -36,14 +35,12 @@ async def test_read_upload_bounded_returns_bytes_within_limit() -> None:
     assert upload.requested == 11
 
 
-@pytest.mark.unit
 async def test_read_upload_bounded_accepts_exactly_at_limit() -> None:
     upload = _CountingUpload(b"abcdef")
     result = await read_upload_bounded(upload, max_size=6)  # type: ignore[arg-type]
     assert result == b"abcdef"
 
 
-@pytest.mark.unit
 async def test_read_upload_bounded_rejects_over_limit() -> None:
     upload = _CountingUpload(b"abcdefg")  # 7 bytes, cap is 6
     with pytest.raises(FileTooLargeError) as exc:
@@ -53,7 +50,6 @@ async def test_read_upload_bounded_rejects_over_limit() -> None:
     assert upload.requested == 7
 
 
-@pytest.mark.unit
 async def test_read_upload_bounded_works_with_real_uploadfile() -> None:
     import io
 
@@ -62,7 +58,6 @@ async def test_read_upload_bounded_works_with_real_uploadfile() -> None:
         await read_upload_bounded(upload, max_size=50)
 
 
-@pytest.mark.unit
 def test_a_description_s_pictures_are_read_out_of_its_markdown():
     from app.services.tenant.attachments import upload_urls_in_markdown
 
@@ -96,7 +91,6 @@ class _RecordingSession:
         self.added.append(row)
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     ("content_type", "written_as"),
     [("image/png", "image/png"), (None, "application/octet-stream")],
@@ -134,7 +128,6 @@ async def test_store_upload_writes_the_bytes_and_records_them(
     assert row.content_hash == attachments.compute_content_hash(b"bytes")
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     ("extension", "prefix", "shape"),
     [

@@ -70,7 +70,6 @@ async def _publish(session, author, **overrides):
     return announcement
 
 
-@pytest.mark.integration
 async def test_a_published_announcement_reaches_a_plain_member(session):
     author = await create_user(session, role=UserRole.owner)
     reader = await create_user(session)
@@ -83,7 +82,6 @@ async def test_a_published_announcement_reaches_a_plain_member(session):
     assert items[0].is_builtin is False
 
 
-@pytest.mark.integration
 async def test_a_draft_and_a_scheduled_notice_reach_nobody(session):
     author = await create_user(session, role=UserRole.owner)
     reader = await create_user(session)
@@ -98,7 +96,6 @@ async def test_a_draft_and_a_scheduled_notice_reach_nobody(session):
     assert await service.list_for_user(session, user=reader) == []
 
 
-@pytest.mark.integration
 async def test_an_expired_notice_stops_being_shown_anywhere(session):
     """An end date retires a notice from the archive as well as the queue."""
     author = await create_user(session, role=UserRole.owner)
@@ -116,7 +113,6 @@ async def test_an_expired_notice_stops_being_shown_anywhere(session):
     )
 
 
-@pytest.mark.integration
 async def test_a_platform_rung_filters_the_audience(session):
     author = await create_user(session, role=UserRole.owner)
     member = await create_user(session, role=UserRole.member)
@@ -127,7 +123,6 @@ async def test_a_platform_rung_filters_the_audience(session):
     assert len(await service.list_for_user(session, user=operator)) == 1
 
 
-@pytest.mark.integration
 async def test_guild_admins_only_needs_an_admin_membership_somewhere(session):
     author = await create_user(session, role=UserRole.owner)
     plain = await create_user(session)
@@ -146,7 +141,6 @@ async def test_guild_admins_only_needs_an_admin_membership_somewhere(session):
     assert len(await service.list_for_user(session, user=admin)) == 1
 
 
-@pytest.mark.integration
 async def test_a_notice_for_existing_accounts_skips_the_ones_made_since(session):
     """A breaking change is about a transition somebody has to have made."""
     author = await create_user(session, role=UserRole.owner)
@@ -171,7 +165,6 @@ async def test_a_notice_for_existing_accounts_skips_the_ones_made_since(session)
     assert await service.list_for_user(session, user=arrived_since) == []
 
 
-@pytest.mark.integration
 async def test_a_notice_for_new_accounts_is_the_other_way_round(session):
     """The same line, read from the other side: an onboarding tip."""
     author = await create_user(session, role=UserRole.owner)
@@ -196,7 +189,6 @@ async def test_a_notice_for_new_accounts_is_the_other_way_round(session):
     assert len(await service.list_for_user(session, user=arrived_since)) == 1
 
 
-@pytest.mark.integration
 async def test_everyone_is_still_everyone(session):
     author = await create_user(session, role=UserRole.owner)
     reader = await create_user(session)
@@ -208,7 +200,6 @@ async def test_everyone_is_still_everyone(session):
     assert len(await service.list_for_user(session, user=reader)) == 1
 
 
-@pytest.mark.integration
 async def test_a_builtin_with_a_floor_skips_a_fresh_install(session, monkeypatch):
     """No previous version is the answer, not a missing one."""
     reader = await create_user(session)
@@ -232,7 +223,6 @@ async def test_a_builtin_with_a_floor_skips_a_fresh_install(session, monkeypatch
     assert len(await service.list_for_user(session, user=reader)) == 1
 
 
-@pytest.mark.integration
 async def test_a_builtin_with_a_floor_skips_a_deployment_already_past_it(
     session, monkeypatch
 ):
@@ -254,7 +244,6 @@ async def test_a_builtin_with_a_floor_skips_a_deployment_already_past_it(
     assert await service.list_for_user(session, user=reader) == []
 
 
-@pytest.mark.integration
 async def test_the_version_pair_only_moves_when_the_version_does(session):
     assert (
         await app_settings_service.record_running_version(session, version="0.64.0")
@@ -271,7 +260,6 @@ async def test_the_version_pair_only_moves_when_the_version_does(session):
     assert await app_settings_service.previous_running_version(session) == "0.64.0"
 
 
-@pytest.mark.integration
 async def test_a_dismissal_takes_it_out_of_the_queue_and_a_sighting_does_not(session):
     author = await create_user(session, role=UserRole.owner)
     reader = await create_user(session)
@@ -293,7 +281,6 @@ async def test_a_dismissal_takes_it_out_of_the_queue_and_a_sighting_does_not(ses
     assert with_dismissed[0].dismissed_at is not None
 
 
-@pytest.mark.integration
 async def test_a_notice_can_ask_to_be_dismissed_more_than_once(session):
     """Three dismissals means three: it comes back until the third."""
     author = await create_user(session, role=UserRole.owner)
@@ -315,7 +302,6 @@ async def test_a_notice_can_ask_to_be_dismissed_more_than_once(session):
     assert await service.list_for_user(session, user=reader) == []
 
 
-@pytest.mark.integration
 async def test_two_tabs_dismissing_at_once_do_not_collide(session, engine):
     """Two connections, neither aware of the other, both dismissing.
 
@@ -344,7 +330,6 @@ async def test_two_tabs_dismissing_at_once_do_not_collide(session, engine):
     assert await service.list_for_user(session, user=reader) == []
 
 
-@pytest.mark.integration
 async def test_dismissals_stop_counting_at_what_was_asked_for(session):
     """A client that keeps posting cannot run the counter away."""
     author = await create_user(session, role=UserRole.owner)
@@ -362,7 +347,6 @@ async def test_dismissals_stop_counting_at_what_was_asked_for(session):
     assert receipt.dismiss_count == 2
 
 
-@pytest.mark.integration
 async def test_a_route_triggered_notice_is_returned_with_its_pattern(session):
     """The server hands the pattern over; the client decides when to show it."""
     author = await create_user(session, role=UserRole.owner)
@@ -374,13 +358,11 @@ async def test_a_route_triggered_notice_is_returned_with_its_pattern(session):
     assert [item.trigger_route for item in items] == ["/c/*/i/*/projects/**"]
 
 
-@pytest.mark.integration
 async def test_a_trigger_route_has_to_look_like_a_path(session):
     with pytest.raises(ValidationError):
         _write(trigger_route="https://elsewhere.example/x")
 
 
-@pytest.mark.integration
 async def test_a_dismissal_is_not_undone_by_seeing_it_again(session):
     author = await create_user(session, role=UserRole.owner)
     reader = await create_user(session)
@@ -401,7 +383,6 @@ async def test_a_dismissal_is_not_undone_by_seeing_it_again(session):
     assert receipt.dismissed_at == dismissed_at
 
 
-@pytest.mark.integration
 async def test_a_builtin_notice_is_merged_in_and_can_be_dismissed(session, monkeypatch):
     reader = await create_user(session)
     builtin = BuiltinAnnouncement(
@@ -427,13 +408,11 @@ async def test_a_builtin_notice_is_merged_in_and_can_be_dismissed(session, monke
     assert await service.list_for_user(session, user=reader) == []
 
 
-@pytest.mark.integration
 async def test_a_receipt_key_that_names_nothing_is_refused(session):
     assert await service.announcement_exists(session, key="db:999999") is False
     assert await service.announcement_exists(session, key="builtin:nope") is False
 
 
-@pytest.mark.integration
 async def test_deleting_an_announcement_takes_its_receipts_with_it(session):
     author = await create_user(session, role=UserRole.owner)
     reader = await create_user(session)
@@ -449,7 +428,6 @@ async def test_deleting_an_announcement_takes_its_receipts_with_it(session):
     assert await session.get(AnnouncementReadReceipt, (reader.id, key)) is None
 
 
-@pytest.mark.integration
 async def test_update_clears_a_publication_date_only_when_told_to(session):
     author = await create_user(session, role=UserRole.owner)
     announcement = await _publish(session, author)
@@ -472,7 +450,6 @@ async def test_update_clears_a_publication_date_only_when_told_to(session):
     assert announcement.published_at is None
 
 
-@pytest.mark.integration
 async def test_storing_the_same_picture_twice_keeps_one_copy(session):
     data = _png(padding=32)
 
@@ -484,13 +461,11 @@ async def test_storing_the_same_picture_twice_keeps_one_copy(session):
     assert first.width == 8
 
 
-@pytest.mark.integration
 async def test_a_file_that_is_not_an_image_is_refused(session):
     with pytest.raises(service.AnnouncementImageError):
         await service.store_image(session, data=b"not an image at all, really")
 
 
-@pytest.mark.integration
 async def test_the_pruner_keeps_referenced_pictures_and_drops_the_rest(session):
     used = await service.store_image(session, data=_png(padding=1))
     orphan = await service.store_image(session, data=_png(padding=2))
@@ -522,7 +497,6 @@ async def test_the_pruner_keeps_referenced_pictures_and_drops_the_rest(session):
     assert await session.get(AnnouncementImage, orphan.sha256) is None
 
 
-@pytest.mark.integration
 async def test_re_uploading_an_old_orphan_survives_the_next_sweep(session):
     """Re-using a screenshot is somebody wanting it again, not an orphan.
 
@@ -543,7 +517,6 @@ async def test_re_uploading_an_old_orphan_survives_the_next_sweep(session):
     assert await session.get(AnnouncementImage, again.sha256) is not None
 
 
-@pytest.mark.integration
 async def test_the_janitor_sweeps_what_no_write_would_have(session):
     """An editor that uploaded and was closed leaves bytes no save will reach."""
     abandoned = await service.store_image(session, data=_png(padding=9))
@@ -559,7 +532,6 @@ async def test_the_janitor_sweeps_what_no_write_would_have(session):
     assert await session.get(AnnouncementImage, abandoned.sha256) is None
 
 
-@pytest.mark.integration
 async def test_the_pruner_leaves_a_freshly_uploaded_picture_alone(session):
     image = await service.store_image(session, data=_png(padding=3))
     await session.commit()

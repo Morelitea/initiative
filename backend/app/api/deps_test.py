@@ -1,12 +1,9 @@
 """The dependencies a route resolves before it runs."""
 
-import pytest
 from starlette.requests import Request
 
 from app.api.deps import get_active_user_exempt_from_factor
 from app.models.platform.user import User, UserStatus
-
-pytestmark = [pytest.mark.unit, pytest.mark.auth]
 
 
 def _request() -> Request:

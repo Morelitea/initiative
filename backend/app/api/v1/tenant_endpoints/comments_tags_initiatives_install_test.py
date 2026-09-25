@@ -36,8 +36,6 @@ from app.testing.app_clients import (
     share_with_members,
 )
 
-pytestmark = pytest.mark.integration
-
 
 async def _open_documents(session: Any, installed: Any) -> tuple[Any, Any]:
     """A document open to A's members and one open to B's, both the seat's."""

@@ -8,7 +8,6 @@ would return for the same actor, never more.
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -47,7 +46,6 @@ async def _enable_events(session: AsyncSession, initiative, creator):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_guild_entries_unions_events_and_task_markers(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -76,7 +74,6 @@ async def test_guild_entries_unions_events_and_task_markers(
     assert {t["id"] for t in body["tasks"]} == {task.id}
 
 
-@pytest.mark.integration
 async def test_guild_entries_include_flags_skip_legs(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -104,7 +101,6 @@ async def test_guild_entries_include_flags_skip_legs(
     assert only_events.json()["tasks"] == []
 
 
-@pytest.mark.integration
 async def test_guild_entries_hidden_from_non_member(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -134,7 +130,6 @@ async def test_guild_entries_hidden_from_non_member(
     assert task.id not in {t["id"] for t in body["tasks"]}
 
 
-@pytest.mark.integration
 async def test_guild_entries_leave_out_an_initiative_the_reader_is_not_in(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -167,7 +162,6 @@ async def test_guild_entries_leave_out_an_initiative_the_reader_is_not_in(
     assert task.id not in {t["id"] for t in body["tasks"]}
 
 
-@pytest.mark.integration
 async def test_guild_entries_windows_tasks_by_params(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -216,7 +210,6 @@ async def _guild_with_project(session, user, *, name):
     return guild, initiative, project, calendar
 
 
-@pytest.mark.integration
 async def test_guild_scope_returns_every_guild_calendar_s_events(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -254,7 +247,6 @@ async def test_guild_scope_returns_every_guild_calendar_s_events(
     assert sorted(e["title"] for e in response.json()["events"]) == sorted(titles)
 
 
-@pytest.mark.integration
 async def test_me_entries_aggregate_across_guilds(
     client: AsyncClient, session: AsyncSession
 ):
@@ -299,7 +291,6 @@ async def test_me_entries_aggregate_across_guilds(
     assert (g2.id, event2.id) not in narrowed_event_keys
 
 
-@pytest.mark.integration
 async def test_me_entries_windows_tasks_by_params(
     client: AsyncClient, session: AsyncSession
 ):

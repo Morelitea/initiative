@@ -21,8 +21,6 @@ from app.testing import (
     create_user,
 )
 
-pytestmark = pytest.mark.integration
-
 
 async def _ask(client, actor, guild_id, **body):
     payload = {"subject": "Cannot open a project", "body": "It spins forever."}

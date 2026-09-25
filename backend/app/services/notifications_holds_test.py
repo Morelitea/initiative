@@ -45,12 +45,10 @@ def _paused_until(moment: datetime, *, since: datetime | None = None) -> dict:
 # --- what is holding, and when it lifts --------------------------------------
 
 
-@pytest.mark.unit
 def test_nothing_holds_by_default():
     assert notification_prefs.holds_in_force({}, tz_name="UTC", now=_at(12)) == []
 
 
-@pytest.mark.unit
 def test_a_running_pause_holds_until_its_end():
     prefs = _paused_until(_at(9, day=20))
     holds = notification_prefs.holds_in_force(prefs, tz_name="UTC", now=_at(12))
@@ -58,13 +56,11 @@ def test_a_running_pause_holds_until_its_end():
     assert holds[0].lifts_at == _at(9, day=20)
 
 
-@pytest.mark.unit
 def test_a_lapsed_pause_holds_nothing():
     prefs = _paused_until(_at(9, day=8))
     assert notification_prefs.holds_in_force(prefs, tz_name="UTC", now=_at(12)) == []
 
 
-@pytest.mark.unit
 def test_a_pause_booked_for_next_week_holds_nothing_yet():
     """Booking a holiday is not the same as being on it."""
     prefs = {
@@ -83,7 +79,6 @@ def test_a_pause_booked_for_next_week_holds_nothing_yet():
     )
 
 
-@pytest.mark.unit
 def test_a_pause_booked_for_next_week_holds_once_it_starts():
     prefs = {
         "pause": {
@@ -96,7 +91,6 @@ def test_a_pause_booked_for_next_week_holds_once_it_starts():
     assert holds[0].lifts_at == _at(9, day=30)
 
 
-@pytest.mark.unit
 def test_mail_timed_to_land_inside_a_booked_pause_waits_for_the_end():
     """The hold is not in force when the message is written, so nothing above
     catches it — but arriving in the middle of somebody's holiday is exactly
@@ -117,7 +111,6 @@ def test_mail_timed_to_land_inside_a_booked_pause_waits_for_the_end():
     assert due == _at(9, day=30)
 
 
-@pytest.mark.unit
 def test_mail_due_before_a_booked_pause_still_goes():
     prefs = {
         "pause": {
@@ -134,7 +127,6 @@ def test_mail_due_before_a_booked_pause_still_goes():
     )
 
 
-@pytest.mark.unit
 def test_a_window_closing_before_a_booked_pause_starts_is_still_reported():
     """A pause suppresses the nightly summary only while it is actually on."""
     prefs = {
@@ -149,14 +141,12 @@ def test_a_window_closing_before_a_booked_pause_starts_is_still_reported():
     assert lift.kind is HoldKind.quiet_hours
 
 
-@pytest.mark.unit
 def test_the_nightly_window_holds_until_it_closes():
     holds = notification_prefs.holds_in_force(NIGHT, tz_name="UTC", now=_at(23))
     assert [hold.kind for hold in holds] == [HoldKind.quiet_hours]
     assert holds[0].lifts_at == _at(7, day=10)
 
 
-@pytest.mark.unit
 def test_being_at_the_keyboard_holds_for_the_idle_window():
     seen = _at(12) - timedelta(minutes=3)
     holds = notification_prefs.holds_in_force(
@@ -166,7 +156,6 @@ def test_being_at_the_keyboard_holds_for_the_idle_window():
     assert holds[0].lifts_at == seen + notification_prefs.PRESENT_WITHIN
 
 
-@pytest.mark.unit
 def test_having_been_away_a_while_holds_nothing():
     assert (
         notification_prefs.holds_in_force(
@@ -176,7 +165,6 @@ def test_having_been_away_a_while_holds_nothing():
     )
 
 
-@pytest.mark.unit
 def test_never_seen_reads_as_away():
     """Not knowing where somebody is delivers rather than holds."""
     assert (
@@ -187,7 +175,6 @@ def test_never_seen_reads_as_away():
     )
 
 
-@pytest.mark.unit
 def test_the_presence_hold_can_be_switched_off():
     prefs = {"away": {"respect": False}}
     assert (
@@ -201,7 +188,6 @@ def test_the_presence_hold_can_be_switched_off():
     )
 
 
-@pytest.mark.unit
 def test_a_stamp_from_the_future_holds_for_the_ordinary_window():
     """Two clocks disagreeing must not hold somebody's mail indefinitely."""
     holds = notification_prefs.holds_in_force(
@@ -213,7 +199,6 @@ def test_a_stamp_from_the_future_holds_for_the_ordinary_window():
 # --- what each channel does about them ---------------------------------------
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "prefs,extra",
     [
@@ -234,7 +219,6 @@ def test_push_is_refused_while_anything_holds(prefs, extra):
     )
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "prefs,extra",
     [
@@ -255,7 +239,6 @@ def test_the_bell_collects_through_every_hold(prefs, extra):
     )
 
 
-@pytest.mark.unit
 def test_email_is_deferred_to_the_latest_lift_not_refused():
     """Two holds at once compose: the later one decides."""
     prefs = {**NIGHT, **_paused_until(_at(9, day=20))}
@@ -265,7 +248,6 @@ def test_email_is_deferred_to_the_latest_lift_not_refused():
     assert due == _at(9, day=20)
 
 
-@pytest.mark.unit
 def test_the_presence_hold_is_never_renewed():
     """Computed once, at ten minutes — not deferred again for as long as
     somebody keeps working, which would be an off switch by another name."""
@@ -276,7 +258,6 @@ def test_the_presence_hold_is_never_renewed():
     assert due - _at(12) <= notification_prefs.PRESENT_WITHIN
 
 
-@pytest.mark.unit
 def test_a_pause_holds_even_a_direct_mention():
     """Standing down means standing down. A hold you have to keep checking is
     not one."""
@@ -297,12 +278,10 @@ def test_a_pause_holds_even_a_direct_mention():
 # --- which hold lifted -------------------------------------------------------
 
 
-@pytest.mark.unit
 def test_a_window_still_running_has_nothing_to_summarise():
     assert notification_prefs.last_lift(NIGHT, tz_name="UTC", now=_at(23)) is None
 
 
-@pytest.mark.unit
 def test_the_window_that_just_closed_is_found():
     lift = notification_prefs.last_lift(NIGHT, tz_name="UTC", now=_at(8))
     assert lift is not None
@@ -312,13 +291,11 @@ def test_the_window_that_just_closed_is_found():
     assert lift.opened == _at(22, day=8)
 
 
-@pytest.mark.unit
 def test_a_long_past_window_is_not_summarised():
     """A "while you were away" about the night before last is noise."""
     assert notification_prefs.last_lift(NIGHT, tz_name="UTC", now=_at(20)) is None
 
 
-@pytest.mark.unit
 def test_a_pause_reports_the_whole_stretch_it_covered():
     since = _at(9, day=1)
     lift = notification_prefs.last_lift(
@@ -329,7 +306,6 @@ def test_a_pause_reports_the_whole_stretch_it_covered():
     assert (lift.opened, lift.closed) == (since, _at(7))
 
 
-@pytest.mark.unit
 def test_a_window_closing_inside_a_pause_is_not_reported_on_its_own():
     """The pause is the outer hold and will report the whole stretch."""
     prefs = {**NIGHT, **_paused_until(_at(9, day=20))}
@@ -339,7 +315,6 @@ def test_a_window_closing_inside_a_pause_is_not_reported_on_its_own():
 # --- what arrives when one lifts ---------------------------------------------
 
 
-@pytest.mark.integration
 async def test_the_summary_counts_what_happened_and_goes_once(session: AsyncSession):
     user = await create_user(session, email="hold-summary@example.com", timezone="UTC")
     guild = await create_guild(session, creator=user)
@@ -371,7 +346,6 @@ async def test_the_summary_counts_what_happened_and_goes_once(session: AsyncSess
         assert push.await_count == 0
 
 
-@pytest.mark.integration
 async def test_a_quiet_night_is_not_reported(session: AsyncSession):
     user = await create_user(session, email="hold-quiet@example.com", timezone="UTC")
     await create_guild(session, creator=user)
@@ -385,7 +359,6 @@ async def test_a_quiet_night_is_not_reported(session: AsyncSession):
         assert push.await_count == 0
 
 
-@pytest.mark.integration
 async def test_a_lifted_pause_is_cleared_from_the_document(session: AsyncSession):
     """So the settings page stops showing a stand-down that has ended, and the
     document stays sparse."""

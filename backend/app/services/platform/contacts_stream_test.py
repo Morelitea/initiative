@@ -20,8 +20,6 @@ from app.services.platform.user_stream import UserStream
 from app.testing import create_user
 from sqlalchemy import text
 
-pytestmark = pytest.mark.asyncio
-
 
 class FakeWebSocket:
     def __init__(self) -> None:

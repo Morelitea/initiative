@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
@@ -25,8 +24,6 @@ from app.testing.factories import (
     create_project,
     create_user,
 )
-
-pytestmark = pytest.mark.integration
 
 
 async def _expired_initiative(session: AsyncSession, guild, user, **overrides):

@@ -1,6 +1,5 @@
 """Which ways in the deployment permits."""
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -17,7 +16,6 @@ from app.testing import (
     get_auth_headers,
 )
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 METHODS_URL = "/api/v1/settings/auth/methods"
 READ_URL = "/api/v1/settings/auth/platform"

@@ -26,7 +26,6 @@ from app.services.query import (
     run,
 )
 
-pytestmark = pytest.mark.database
 
 _GID = 990_200
 

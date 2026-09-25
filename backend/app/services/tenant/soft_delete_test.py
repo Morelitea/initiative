@@ -5,7 +5,6 @@ the needs-reassignment branch, and the upload-preservation invariants for
 file-type and native documents.
 """
 
-import pytest
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -26,9 +25,6 @@ from app.testing.factories import (
     create_project,
     create_user,
 )
-
-
-pytestmark = pytest.mark.integration
 
 
 async def _create_task(

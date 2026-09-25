@@ -11,7 +11,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-import pytest
 from sqlmodel import select
 
 from app.core.messages import AppMessages, CalendarMessages
@@ -36,9 +35,6 @@ from app.testing.app_clients import (
     install_headers,
     lift_person_and_guild_ids,
 )
-
-
-pytestmark = pytest.mark.integration
 
 
 def _window() -> dict[str, str]:

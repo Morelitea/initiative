@@ -29,7 +29,6 @@ from app.models.platform.identity_ref import IdentityEntity
 from app.schemas.platform.user import AppMemberRead, UserPublic
 from app.services.platform.user_avatars import avatar_url
 
-pytestmark = pytest.mark.unit
 
 _GUILD = 7
 _INSTALL = 3

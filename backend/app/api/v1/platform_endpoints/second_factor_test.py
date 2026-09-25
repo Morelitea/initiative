@@ -3,7 +3,6 @@
 from datetime import datetime, timedelta, timezone
 
 import pyotp
-import pytest
 from httpx import AsyncClient, Response
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -12,7 +11,6 @@ from app.models.platform.user import User, UserStatus
 from app.services.auth import totp as totp_service
 from app.testing import create_user, get_auth_headers, get_auth_token
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 PASSWORD = "correct-horse-battery-staple"
 

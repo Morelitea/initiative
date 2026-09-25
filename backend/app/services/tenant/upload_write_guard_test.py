@@ -24,9 +24,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-import pytest
-
-pytestmark = pytest.mark.unit
 
 _APP_DIR = Path(__file__).resolve().parents[2]
 _BACKEND_DIR = _APP_DIR.parent

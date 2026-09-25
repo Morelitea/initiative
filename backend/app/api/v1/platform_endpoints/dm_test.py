@@ -5,7 +5,6 @@ that the permission endpoint answers identically whether or not the target
 ignores the caller, and that the ignore list never answers the other direction.
 """
 
-import pytest
 from sqlalchemy import text
 
 from app.models.platform.guild import GuildRole
@@ -15,8 +14,6 @@ from app.testing import (
     create_guild,
     create_user,
 )
-
-pytestmark = pytest.mark.asyncio
 
 
 async def _set_policy(session, user, policy: DmPolicy) -> None:

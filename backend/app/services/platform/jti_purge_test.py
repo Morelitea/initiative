@@ -11,15 +11,12 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
 
 from app.core import config as config_module
 from app.models.platform.app_assertion_jti import AppAssertionJti
 from app.models.platform.billing import BillingJti
 from app.services.platform import jti_purge
 from app.services.platform.jti_purge import process_jti_blocklist_purges
-
-pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 
 def _configure(monkeypatch, *, billing: bool, app_platform: bool) -> None:

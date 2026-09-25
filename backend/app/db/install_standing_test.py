@@ -134,7 +134,6 @@ _ALL_KEYS = {key.value for key in PermissionKey}
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_the_standing_is_what_the_rows_say(session, acting_user, role_session):
     install = await _install(
         session,
@@ -205,7 +204,6 @@ async def test_the_standing_is_what_the_rows_say(session, acting_user, role_sess
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_a_narrowed_token_stands_in_one_initiative(
     session, acting_user, role_session
 ):
@@ -223,7 +221,6 @@ async def test_a_narrowed_token_stands_in_one_initiative(
     await s.rollback()
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "granted,token,read,write",
     [
@@ -294,7 +291,6 @@ async def _set_guild_status(session, install: _Install, status: GuildStatus) -> 
     await session.commit()
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "reason",
     [
@@ -360,7 +356,6 @@ async def test_an_install_that_may_not_act_is_refused(
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_a_read_only_community_writes_nothing(session, acting_user, role_session):
     install = await _install(
         session, acting_user, role_session, granted=["documents:write"]
@@ -374,7 +369,6 @@ async def test_a_read_only_community_writes_nothing(session, acting_user, role_s
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_a_community_that_is_gone_is_refused(session, role_session):
     """No role to assume is the same refusal as an install that may not act,
     and it leaves the session unrouted."""
@@ -393,7 +387,6 @@ async def test_a_community_that_is_gone_is_refused(session, role_session):
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_an_unknown_scope_is_refused(session, acting_user, role_session):
     install = await _install(
         session, acting_user, role_session, granted=["documents:read"]
@@ -414,7 +407,6 @@ async def test_an_unknown_scope_is_refused(session, acting_user, role_session):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_the_gates_answer_for_an_install(session, acting_user, role_session):
     """Placement is gate 2, the role keys its scopes give are gate 3, and a
     share with every member of an initiative it is placed in is gate 4. A
@@ -446,7 +438,6 @@ async def test_the_gates_answer_for_an_install(session, acting_user, role_sessio
     await narrowed.rollback()
 
 
-@pytest.mark.integration
 async def test_an_install_without_a_tool_scope_reads_none_of_it(
     session, acting_user, role_session
 ):
@@ -461,7 +452,6 @@ async def test_an_install_without_a_tool_scope_reads_none_of_it(
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_the_app_role_cannot_read_the_communitys_settings(
     session, acting_user, role_session
 ):
@@ -484,7 +474,6 @@ async def test_the_app_role_cannot_read_the_communitys_settings(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_the_seam_is_two_statements(session, acting_user, role_session):
     install = await _install(
         session, acting_user, role_session, granted=["documents:read"]
@@ -512,7 +501,6 @@ async def test_the_seam_is_two_statements(session, acting_user, role_session):
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_a_new_transaction_replays_the_install(
     session, acting_user, role_session
 ):
@@ -549,7 +537,6 @@ async def test_a_new_transaction_replays_the_install(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "table,readable",
     [
@@ -637,7 +624,6 @@ async def _sector_refs(session, install: _Install) -> dict[str, str]:
     return refs
 
 
-@pytest.mark.integration
 async def test_the_standing_resolves_only_the_install_s_own_references(
     session, acting_user, role_session
 ):
@@ -670,7 +656,6 @@ async def test_the_standing_resolves_only_the_install_s_own_references(
     await s.rollback()
 
 
-@pytest.mark.integration
 async def test_the_install_role_reads_and_mints_in_its_own_sector_only(
     session, acting_user, role_session
 ):
@@ -742,7 +727,6 @@ def _pending(**overrides) -> InstallContext:
     return InstallContext(**fields)
 
 
-@pytest.mark.unit
 def test_an_install_routing_is_its_own_shape():
     shape = classify(
         guild_id=3,
@@ -754,7 +738,6 @@ def test_an_install_routing_is_its_own_shape():
     assert isinstance(shape, InstallScoped)
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "kwargs",
     [
@@ -780,7 +763,6 @@ def test_an_install_routing_refuses_what_is_not_its_own(kwargs):
         classify(**kwargs)
 
 
-@pytest.mark.unit
 def test_an_install_context_never_routes_as_a_sweep():
     """A community routing with nobody behind it is a system sweep; carrying an
     install's context without its install id is refused rather than read as

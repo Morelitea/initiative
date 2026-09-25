@@ -7,7 +7,6 @@ assertion (the app-layer ``membership.py`` clause can't paper over it). Proves t
 initiative-membership for non-admin guild roles.
 """
 
-import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -24,7 +23,6 @@ from app.testing import (
 )
 
 
-@pytest.mark.integration
 async def test_non_admin_member_sees_only_their_initiatives_content(
     session: AsyncSession, reading_as
 ):

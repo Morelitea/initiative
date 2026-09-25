@@ -39,7 +39,6 @@ import secrets
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
-import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -73,8 +72,6 @@ from app.testing.factories import (
     create_user,
 )
 from app.testing.schema_harness import route_session_to_guild
-
-pytestmark = [pytest.mark.integration, pytest.mark.service]
 
 
 def _service_definition() -> dict:

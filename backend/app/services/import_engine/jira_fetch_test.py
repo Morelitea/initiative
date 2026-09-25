@@ -21,8 +21,6 @@ from app.services.import_engine.atlassian_bundle import BundleWriter
 from app.services.import_engine.contract import ImportEngineError
 from app.services.import_engine import limits as import_limits
 
-pytestmark = pytest.mark.unit
-
 
 @pytest.fixture(autouse=True)
 def _no_waiting(monkeypatch):

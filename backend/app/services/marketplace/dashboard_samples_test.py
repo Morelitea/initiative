@@ -16,8 +16,6 @@ from app.services.marketplace.tool_listings import (
     normalize_tool_listing,
 )
 
-pytestmark = pytest.mark.unit
-
 
 def _listing(*widgets: dict) -> dict:
     return normalize_tool_listing(Tool.dashboard, {"widgets": list(widgets)})

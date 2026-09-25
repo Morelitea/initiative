@@ -30,7 +30,6 @@ async def _entity(session: AsyncSession, actor, tool: Tool):
     return await create_tool_entity(session, tool, actor.initiative, actor.user)
 
 
-@pytest.mark.integration
 @TOOLS
 async def test_recording_a_view_puts_the_tool_in_the_tabs_bar(
     client: AsyncClient, session: AsyncSession, acting_user, tool: Tool
@@ -54,7 +53,6 @@ async def test_recording_a_view_puts_the_tool_in_the_tabs_bar(
     ]
 
 
-@pytest.mark.integration
 @TOOLS
 async def test_clearing_a_view_forgets_it(
     client: AsyncClient, session: AsyncSession, acting_user, tool: Tool
@@ -76,7 +74,6 @@ async def test_clearing_a_view_forgets_it(
     assert (await client.delete(path, headers=a.headers)).status_code == 204
 
 
-@pytest.mark.integration
 @TOOLS
 async def test_someone_outside_the_initiative_gets_the_tools_not_found(
     client: AsyncClient, session: AsyncSession, acting_user, tool: Tool

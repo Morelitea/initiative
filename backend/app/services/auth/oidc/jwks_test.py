@@ -23,7 +23,6 @@ from jwt.algorithms import RSAAlgorithm
 from app.services.auth.oidc.id_token import verify_id_token
 from app.services.auth.oidc.jwks import JwksResolver, JwksResolutionError
 
-pytestmark = pytest.mark.unit
 
 JWKS_URI = "https://idp.example.com/jwks"
 ISSUER = "https://idp.example.com"

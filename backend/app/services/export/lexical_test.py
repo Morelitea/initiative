@@ -3,7 +3,6 @@
 import io
 import zipfile
 
-import pytest
 
 from app.services.export.lexical import (
     blocks_from_editor_state,
@@ -11,7 +10,6 @@ from app.services.export.lexical import (
     render_markdown,
 )
 
-pytestmark = pytest.mark.unit
 
 GUILD = 7
 

@@ -44,8 +44,6 @@ from app.testing import (
     get_auth_headers,
 )
 
-pytestmark = pytest.mark.integration
-
 
 def test_billing_settings_default_off():
     """The self-host default: every billing credential/URL is unset."""

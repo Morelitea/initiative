@@ -10,8 +10,6 @@ from app.services.import_engine.backup import read_manifest
 from app.services.import_engine.zip_bounds import open_zip
 from app.services.import_engine.jira_attachments import StoredImage
 
-pytestmark = pytest.mark.unit
-
 
 def test_somebody_in_both_products_is_asked_about_once():
     people = merge_people(

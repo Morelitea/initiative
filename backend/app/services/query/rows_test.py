@@ -14,7 +14,6 @@ from app.services.fields.spec import FieldType
 from app.services.query.resolve import QueryError
 from app.services.query.rows import RowColumn, evaluate, plan
 
-pytestmark = pytest.mark.unit
 
 READS = (
     RowColumn("shop", FieldType.text),

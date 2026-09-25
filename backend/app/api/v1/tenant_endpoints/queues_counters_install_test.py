@@ -12,7 +12,6 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
-import pytest
 from sqlmodel import select
 
 from app.core.messages import AppMessages
@@ -36,9 +35,6 @@ from app.testing.app_clients import (
     install_headers,
     lift_person_and_guild_ids,
 )
-
-
-pytestmark = pytest.mark.integration
 
 
 async def _switch_on(session: Any, *initiatives: Any) -> None:

@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import pathlib
 
-import pytest
 
 from app.core.builtin_announcements import BUILTIN_ANNOUNCEMENTS, builtin_by_key
 from app.core.version import compare_versions
@@ -26,20 +25,17 @@ _ASSET_ROOT = pathlib.Path(__file__).resolve().parents[3] / "frontend" / "public
 _ASSET_URL_PREFIX = "/announcement-images/"
 
 
-@pytest.mark.unit
 def test_slugs_are_unique():
     slugs = [announcement.slug for announcement in BUILTIN_ANNOUNCEMENTS]
     assert len(slugs) == len(set(slugs))
 
 
-@pytest.mark.unit
 def test_every_entry_is_findable_by_its_key():
     for announcement in BUILTIN_ANNOUNCEMENTS:
         assert builtin_by_key(announcement.key) is announcement
     assert builtin_by_key("builtin:nothing-by-that-name") is None
 
 
-@pytest.mark.unit
 def test_every_entry_says_something():
     for announcement in BUILTIN_ANNOUNCEMENTS:
         assert announcement.title.strip()
@@ -50,7 +46,6 @@ def test_every_entry_says_something():
             assert not section.is_empty(), announcement.slug
 
 
-@pytest.mark.unit
 def test_every_picture_is_actually_shipped():
     """A builtin cannot upload its screenshots, so they have to be in the repo."""
     for announcement in BUILTIN_ANNOUNCEMENTS:
@@ -63,7 +58,6 @@ def test_every_picture_is_actually_shipped():
             assert section.image_alt, f"{announcement.slug}: {url} has no alt text"
 
 
-@pytest.mark.unit
 def test_every_upgrade_floor_reads_as_a_version():
     """A floor that does not parse silently becomes 0.0.0 and tells nobody."""
     for announcement in BUILTIN_ANNOUNCEMENTS:
@@ -73,7 +67,6 @@ def test_every_upgrade_floor_reads_as_a_version():
         assert compare_versions(floor, "0.0.0") > 0, announcement.slug
 
 
-@pytest.mark.unit
 def test_no_entry_points_at_the_upload_endpoint():
     """Uploads belong to authored notices; a builtin predates any database."""
     for announcement in BUILTIN_ANNOUNCEMENTS:
@@ -81,7 +74,6 @@ def test_no_entry_points_at_the_upload_endpoint():
             assert not (section.image_url or "").startswith(IMAGE_PATH_PREFIX)
 
 
-@pytest.mark.unit
 def test_a_page_break_never_opens_the_notice():
     """The first section starts page one; a break on it would mean nothing."""
     for announcement in BUILTIN_ANNOUNCEMENTS:

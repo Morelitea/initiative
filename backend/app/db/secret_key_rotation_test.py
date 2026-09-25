@@ -98,8 +98,6 @@ async def test_maybe_rotate_at_startup_is_noop_when_unset(monkeypatch):
 
 # ── end-to-end against real tables ───────────────────────────────────────────
 
-pytestmark = pytest.mark.database
-
 
 async def _insert_user(conn, email: str, *, key: str) -> int:
     """An account and the address row that carries its address."""

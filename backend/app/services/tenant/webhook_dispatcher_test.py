@@ -15,7 +15,6 @@ import json
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
-import pytest
 
 from app.testing.schema_harness import route_session_to_guild
 from app.models.tenant.webhook_subscription import WebhookSubscription
@@ -32,7 +31,6 @@ def _verify_signature(secret: str, timestamp: str, body: bytes, signature: str) 
     return hmac.compare_digest(f"sha256={expected.hexdigest()}", signature)
 
 
-@pytest.mark.unit
 def test_sign_is_deterministic_for_same_inputs():
     """Two signatures over the same (secret, timestamp, body) must
     match — load-bearing for the receiver's verification."""
@@ -42,7 +40,6 @@ def test_sign_is_deterministic_for_same_inputs():
     assert sig1.startswith("sha256=")
 
 
-@pytest.mark.unit
 def test_sign_differs_when_body_changes():
     """Even a single-byte body change must produce a different signature.
     If this fails, an attacker could replay a captured envelope with
@@ -52,7 +49,6 @@ def test_sign_differs_when_body_changes():
     assert sig1 != sig2
 
 
-@pytest.mark.unit
 def test_sign_differs_when_timestamp_changes():
     """Timestamp is part of the signed input so a valid (body, sig) pair
     captured at T can't be re-presented at T+ seconds later — the
@@ -63,7 +59,6 @@ def test_sign_differs_when_timestamp_changes():
     assert sig1 != sig2
 
 
-@pytest.mark.unit
 def test_sign_round_trips_through_verifier():
     """Signing then verifying must succeed for the same inputs."""
     secret = "shared-with-receiver"
@@ -74,7 +69,6 @@ def test_sign_round_trips_through_verifier():
     assert _verify_signature(secret, timestamp, body, sig)
 
 
-@pytest.mark.unit
 def test_verifier_rejects_wrong_secret():
     """A receiver with the wrong secret must NOT verify successfully —
     that's the entire point of HMAC."""
@@ -118,7 +112,6 @@ async def _make_subscription(
     return sub
 
 
-@pytest.mark.integration
 async def test_dispatch_skips_when_no_subscribers(session):
     """No subscriptions, no work — and crucially no errors."""
     from app.testing import route_session_to_guild
@@ -141,7 +134,6 @@ async def test_dispatch_skips_when_no_subscribers(session):
         assert mock_deliver.await_count == 0
 
 
-@pytest.mark.integration
 async def test_dispatch_matches_only_active_subscriptions(session):
     """Inactive subscriptions must NOT receive deliveries."""
     from app.testing.factories import create_guild, create_user
@@ -182,7 +174,6 @@ async def test_dispatch_matches_only_active_subscriptions(session):
     assert delivered_to == ["https://active.example.com/hook"]
 
 
-@pytest.mark.integration
 async def test_dispatch_filters_by_event_type(session):
     """A sub for task.updated must NOT receive task.created events."""
     from app.testing.factories import create_guild, create_user
@@ -209,7 +200,6 @@ async def test_dispatch_filters_by_event_type(session):
         assert mock_deliver.await_count == 0
 
 
-@pytest.mark.integration
 async def test_dispatch_initiative_scope_matches_correctly(session):
     """An initiative-scoped subscription receives events in its
     initiative; a guild-scoped one (initiative_id NULL) gets ALL guild
@@ -268,7 +258,6 @@ async def test_dispatch_initiative_scope_matches_correctly(session):
     ]
 
 
-@pytest.mark.integration
 async def test_each_subscription_gets_unique_event_id(session):
     """A single dispatch fan-out must give each subscriber its own
     ``event_id``. If they all shared one, a receiver dedup-ing on the
@@ -312,7 +301,6 @@ async def test_each_subscription_gets_unique_event_id(session):
     assert len(set(seen_event_ids)) == 2, "event_id must differ per delivery"
 
 
-@pytest.mark.integration
 async def test_dispatch_does_not_cross_guilds(session):
     """A subscription in guild B must NOT receive events in guild A —
     tenant isolation, the most load-bearing property."""
@@ -344,7 +332,6 @@ async def test_dispatch_does_not_cross_guilds(session):
         assert mock_deliver.await_count == 0
 
 
-@pytest.mark.integration
 async def test_dispatch_delivers_to_a_matching_subscription(session):
     """The baseline: a matching subscription is delivered to."""
     from app.testing.factories import create_guild, create_user
@@ -376,7 +363,6 @@ async def test_dispatch_delivers_to_a_matching_subscription(session):
     assert delivered_to == ["https://configured.example.com/hook"]
 
 
-@pytest.mark.integration
 async def test_an_install_that_is_gone_is_delivered_to_by_nobody(session):
     """Uninstalling switches an app's subscriptions off, which is what stops
     deliveries promptly. This is what makes it true anyway.

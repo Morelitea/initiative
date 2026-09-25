@@ -23,8 +23,6 @@ from app.testing.factories import (
 )
 from app.testing.schema_harness import route_session_to_guild
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
-
 
 async def _request_and_approve(client, *, requester, approver, guild, rung):
     asked = await client.post(
@@ -355,7 +353,6 @@ async def test_one_request_can_ask_for_both(client: AsyncClient, session: AsyncS
     assert asked == {("content", "read_write"), ("settings", "admin")}
 
 
-@pytest.mark.unit
 def test_every_level_has_its_own_label():
     """A level with no label of its own reads as somebody else's.
 

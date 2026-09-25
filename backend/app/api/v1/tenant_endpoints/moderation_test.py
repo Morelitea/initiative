@@ -31,8 +31,6 @@ from app.testing import (
     get_auth_headers,
 )
 
-pytestmark = pytest.mark.integration
-
 
 async def _report(client: AsyncClient, actor, **body) -> Response:
     return await client.post("/api/v1/me/reports", json=body, headers=actor.headers)

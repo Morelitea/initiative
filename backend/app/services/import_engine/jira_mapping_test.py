@@ -12,8 +12,6 @@ import pytest
 from app.models.tenant.task import TaskPriority, TaskStatusCategory
 from app.services.import_engine import jira_mapping as jm
 
-pytestmark = pytest.mark.unit
-
 
 def _status(name, category_key, status_id=None):
     out = {"name": name, "statusCategory": {"key": category_key}}
