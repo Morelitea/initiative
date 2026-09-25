@@ -12,7 +12,6 @@ on:
         default: ''
 
 env:
-  REGISTRY: docker.io
   IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/initiative
 
 jobs:
@@ -22,11 +21,27 @@ jobs:
       contents: read
     outputs:
       build_android: ${{ steps.decide.outputs.build_android }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          if [[ -n "${{ inputs.version }}" ]]; then
+            VERSION="${{ inputs.version }}"
+            echo "Version from input: $VERSION"
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+            echo "Version from tag: $VERSION"
+          else
+            VERSION=$(cat VERSION)
+            echo "Version from file: $VERSION"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Decide whether to build the native app
         id: decide
@@ -73,32 +88,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Extract version from tag
-        id: version
-        run: |
-          if [[ -n "${{ inputs.version }}" ]]; then
-            VERSION="${{ inputs.version }}"
-          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/v}
-          else
-            VERSION=$(cat VERSION)
-          fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Version: $VERSION"
-
-      - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: '24'
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        with:
-          package_json_file: frontend/package.json
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-frontend
 
       - name: Build frontend for Capacitor
         working-directory: frontend
@@ -196,7 +186,7 @@ jobs:
       # which file happens to be on disk.
       - name: Stage the APK for upload
         env:
-          VERSION: ${{ steps.version.outputs.version }}
+          VERSION: ${{ needs.decide.outputs.version }}
         run: |
           set -euo pipefail
           release_dir=frontend/android/app/build/outputs/apk/release
@@ -217,164 +207,34 @@ jobs:
           name: android-apk
           path: artifacts/*.apk
 
-  build-docker-public:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: linux/amd64
-            runner: ubuntu-latest
-          - platform: linux/arm64
-            runner: ubuntu-24.04-arm
-    runs-on: ${{ matrix.runner }}
-    # Holds OTA_SIGNING_KEY, the key the app's updates are signed with.
-    environment: ota-release
+  docker-public:
+    needs: decide
     permissions:
       contents: read
-
-    steps:
-      - name: Prepare platform pair
-        run: |
-          platform=${{ matrix.platform }}
-          echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV
-
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Check for required secrets
-        run: |
-          if [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ] || [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
-            echo "::error::Required secrets DOCKERHUB_USERNAME and DOCKERHUB_TOKEN are not set"
-            echo "::error::Please configure these secrets in your repository settings"
-            echo "::error::See .github/DOCKER_SETUP.md for instructions"
-            exit 1
-          fi
-          echo "Required secrets are configured"
-
-      - name: Extract version from tag
-        id: version
-        run: |
-          if [[ -n "${{ inputs.version }}" ]]; then
-            VERSION="${{ inputs.version }}"
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
-            echo "Version from input: $VERSION"
-          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/v}
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
-            echo "Version from tag: $VERSION"
-          else
-            VERSION=$(cat VERSION)
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
-            echo "Version from file: $VERSION"
-          fi
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Extract metadata (labels) for Docker
-        id: meta
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
-        with:
-          images: ${{ env.IMAGE_NAME }}
-
-      - name: Require the app update signing key
-        env:
-          OTA_SIGNING_KEY: ${{ secrets.OTA_SIGNING_KEY }}
-        run: |
-          if [ -z "$OTA_SIGNING_KEY" ]; then
-            echo "::error::OTA_SIGNING_KEY is not set in the ota-release environment; a release image must carry a signed app update."
-            exit 1
-          fi
-
-      - name: Build and push by digest
-        id: build
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
-          context: .
-          file: ./Dockerfile
-          platforms: ${{ matrix.platform }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            VERSION=${{ steps.version.outputs.version }}
-            VITE_API_URL=/api/v1
-          secrets: |
-            ota_signing_key=${{ secrets.OTA_SIGNING_KEY }}
-          outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
-          cache-from: type=gha,scope=docker-build-${{ env.PLATFORM_PAIR }}
-          cache-to: type=gha,scope=docker-build-${{ env.PLATFORM_PAIR }},mode=max
-
-      - name: Export digest
-        run: |
-          mkdir -p ${{ runner.temp }}/digests
-          digest="${{ steps.build.outputs.digest }}"
-          touch "${{ runner.temp }}/digests/${digest#sha256:}"
-
-      - name: Upload digest
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: digests-release-${{ env.PLATFORM_PAIR }}
-          path: ${{ runner.temp }}/digests/*
-          if-no-files-found: error
-          retention-days: 1
-
-  merge-docker-public:
-    needs: build-docker-public
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Download digests
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          path: ${{ runner.temp }}/digests
-          pattern: digests-release-*
-          merge-multiple: true
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Extract metadata (tags) for Docker
-        id: meta
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
-        with:
-          images: ${{ env.IMAGE_NAME }}
-          tags: |
-            type=semver,pattern={{version}}${{ inputs.version && format(',value=v{0}', inputs.version) || '' }}
-            type=semver,pattern={{major}}.{{minor}}${{ inputs.version && format(',value=v{0}', inputs.version) || '' }}
-            type=semver,pattern={{major}}${{ inputs.version && format(',value=v{0}', inputs.version) || '' }}
-            type=raw,value=latest
-
-      - name: Create and push manifest
-        working-directory: ${{ runner.temp }}/digests
-        run: |
-          docker buildx imagetools create \
-            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf '${{ env.IMAGE_NAME }}@sha256:%s ' *)
-
-      - name: Inspect image
-        if: steps.meta.outputs.version != ''
-        run: |
-          docker buildx imagetools inspect ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+    uses: ./.github/workflows/docker-image.yml
+    with:
+      name: release
+      labels: true
+      signed: true
+      build-args: |
+        VERSION=${{ needs.decide.outputs.version }}
+        VITE_API_URL=/api/v1
+      tags: |
+        type=semver,pattern={{version}}${{ inputs.version && format(',value=v{0}', inputs.version) || '' }}
+        type=semver,pattern={{major}}.{{minor}}${{ inputs.version && format(',value=v{0}', inputs.version) || '' }}
+        type=semver,pattern={{major}}${{ inputs.version && format(',value=v{0}', inputs.version) || '' }}
+        type=raw,value=latest
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
   release:
-    needs: [decide, build-android, merge-docker-public]
+    needs: [decide, build-android, docker-public]
     # Run even when build-android was *skipped* (web-only release). Only the Docker manifest
     # must have succeeded; the APK is attached opportunistically below. But a build-android
     # *failure* on a native-change release is a hard error — publishing then would advertise
     # "updates over the air" while the bumped minNativeVersion blocks OTA and no new APK exists.
-    if: always() && needs.merge-docker-public.result == 'success' && needs.build-android.result != 'failure'
+    if: always() && needs.docker-public.result == 'success' && needs.build-android.result != 'failure'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -403,18 +263,6 @@ jobs:
           name: android-apk
           path: artifacts
 
-      - name: Extract version from tag
-        id: version
-        run: |
-          if [[ -n "${{ inputs.version }}" ]]; then
-            VERSION="${{ inputs.version }}"
-          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/v}
-          else
-            VERSION=$(cat VERSION)
-          fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
       - name: Extract changelog for version
         id: changelog
         if: startsWith(github.ref, 'refs/tags/')
@@ -423,7 +271,7 @@ jobs:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           APK_BUILT: ${{ needs.build-android.result == 'success' }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
+          VERSION="${{ needs.decide.outputs.version }}"
           echo "Extracting changelog for version $VERSION"
 
           # Extract the section for this version from CHANGELOG.md
@@ -492,4 +340,4 @@ jobs:
         uses: tsickert/discord-webhook@b217a69502f52803de774ded2b1ab7c282e99645 # v7.0.0
         with:
           webhook-url: ${{ secrets.WEBHOOK_URL }}
-          content: ":tada: Initiative ${{ steps.version.outputs.version }} has been published! Download the apk from the [GitHub Release](${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}) or pull the Docker image with tag `${{ steps.version.outputs.version }}` from Docker Hub."
+          content: ":tada: Initiative ${{ needs.decide.outputs.version }} has been published! Download the apk from the [GitHub Release](${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}) or pull the Docker image with tag `${{ needs.decide.outputs.version }}` from Docker Hub."

@@ -17,9 +17,16 @@ if [[ -n "$SPEC_PATH" ]]; then
   echo "Using provided OpenAPI spec: $SPEC_PATH"
   cp "$SPEC_PATH" "${FRONTEND_DIR}/openapi.json"
 else
+  # This checkout's backend port — a linked worktree's is not 8000. Sourced
+  # only here: a --from-spec run (CI) needs no port and no port registry.
+  set +u
+  . "${FRONTEND_DIR}/../scripts/dev-ports.sh"
+  set -u
+  # dev-ports.sh has already said why if it could not resolve them.
+  [ -n "${DEV_BACKEND_PORT:-}" ] || exit 1
   # Not a browser: this needs an absolute address, so it reads the proxy
   # target rather than VITE_API_URL, which the SPA takes relative.
-  API_URL="${VITE_DEV_PROXY_TARGET:-http://localhost:8000}/api/v1"
+  API_URL="${VITE_DEV_PROXY_TARGET}/api/v1"
   echo "Fetching OpenAPI spec from ${API_URL}/openapi.json..."
   # The backend takes several seconds to boot (migrations + guild backfill +
   # seeding), and editor tasks often start it in parallel with this script —
@@ -44,6 +51,6 @@ fi
 echo "Generating TypeScript types and React Query hooks..."
 cd "$FRONTEND_DIR"
 pnpm orval
-pnpm biome format src/api/generated --write
+pnpm format:api
 
 echo "Done! Generated files in src/api/generated/"
