@@ -64,7 +64,10 @@ export function InstallAppDialog({ listing, open, onOpenChange }: InstallAppDial
 
   const requested = listing.requested_scopes ?? [];
   const grantable = new Set(listing.grantable_scopes ?? []);
-  const placeable = listing.has_initiative_surfaces ?? false;
+  const hasPage = listing.has_initiative_surfaces ?? false;
+  // An app reaches content only in the initiatives it is placed in, so one
+  // that asks for any access is placed too, whether or not it has a page.
+  const placeable = hasPage || requested.length > 0;
 
   const [name, setName] = useState(listing.name);
   // Every scope the server allows starts ticked; the seat unticks.
@@ -83,7 +86,7 @@ export function InstallAppDialog({ listing, open, onOpenChange }: InstallAppDial
         name: name.trim() || listing.name,
         granted_scopes: scopes,
         placements: !placeable ? [] : where === "all" ? "all" : picked,
-        role_kinds: roles,
+        role_kinds: hasPage ? roles : [],
       },
       {
         onSuccess: (app) => {
@@ -170,7 +173,11 @@ export function InstallAppDialog({ listing, open, onOpenChange }: InstallAppDial
               <h3 id="install-app-where" className="font-medium text-sm">
                 {t("apps:install.whereTitle")}
               </h3>
-              <p className="text-muted-foreground text-xs">{t("apps:install.whereDescription")}</p>
+              <p className="text-muted-foreground text-xs">
+                {t(
+                  hasPage ? "apps:install.whereDescription" : "apps:install.whereDescriptionNoPage"
+                )}
+              </p>
             </div>
             <RadioGroup
               value={where}
@@ -194,7 +201,7 @@ export function InstallAppDialog({ listing, open, onOpenChange }: InstallAppDial
           </section>
         )}
 
-        {placeable && (
+        {hasPage && (
           <section className="space-y-2" aria-labelledby="install-app-who">
             <div>
               <h3 id="install-app-who" className="font-medium text-sm">

@@ -5,7 +5,7 @@
   "error": "Un problème est survenu avec cette application.",
   "manage": {
     "title": "Applications",
-    "description": "Les applications ajoutent quelque chose que toute la communauté partage. Seuls les administrateurs de la communauté peuvent en ajouter ou en retirer.",
+    "description": "Les applications ajoutent quelque chose que toute la communauté partage. Seul le superadmin de la communauté peut en ajouter ou en retirer.",
     "empty": "Aucune application installée pour l'instant.",
     "browse": "Parcourir les applications",
     "installed": "Ajoutée le {{date}}",
@@ -47,12 +47,13 @@
     "name": "Nom",
     "action": "Ajouter à la communauté",
     "done": "{{name}} ajoutée.",
-    "adminOnly": "Demandez à un administrateur de communauté d'ajouter cette application.",
+    "adminOnly": "Demandez au superadmin de votre communauté d'ajouter cette application.",
     "unknownState": "Impossible de vérifier si cette application est déjà ajoutée.",
     "reachTitle": "Ce à quoi elle a accès",
     "reachNone": "Cette application ne demande aucun accès au contenu de votre communauté.",
-    "whereTitle": "Où elle apparaît",
-    "whereDescription": "Cette application propose une page à l'intérieur des initiatives.",
+    "whereTitle": "Où elle travaille",
+    "whereDescription": "Elle affiche sa page, et lit et modifie le contenu, uniquement dans les initiatives que vous choisissez.",
+    "whereDescriptionNoPage": "Elle lit et modifie le contenu uniquement dans les initiatives que vous choisissez.",
     "whoTitle": "Qui peut l'y ouvrir",
     "roles": {
       "moderator": "Modérateurs",
@@ -155,7 +156,7 @@
     "description": "Configurez la connexion de cette application.",
     "open": "Paramètres de {{name}}",
     "adminTitle": "Paramètres de la communauté",
-    "adminDescription": "Ce que la communauté gère pour cette application. Visible uniquement par les administrateurs de la communauté."
+    "adminDescription": "Ce que la communauté gère pour cette application. Visible uniquement par le superadmin."
   },
   "embed": {
     "connecting": "Connexion…",
@@ -169,11 +170,12 @@
   },
   "browse": "Parcourir la boutique d'applications",
   "placement": {
-    "title": "Où cette application apparaît",
-    "description": "Cette application propose une page à l'intérieur des initiatives. Choisissez dans lesquelles elle apparaît.",
+    "title": "Où cette application travaille",
+    "description": "Cette application affiche sa page, et lit et modifie le contenu, uniquement dans les initiatives que vous choisissez.",
+    "descriptionNoPage": "Cette application lit et modifie le contenu uniquement dans les initiatives que vous choisissez.",
     "all": "Toutes les initiatives actuelles",
     "some": "Uniquement les initiatives que je choisis",
-    "none": "Aucune initiative choisie : cette application n'apparaît qu'à l'échelle de la communauté.",
+    "none": "Aucune initiative choisie : cette application n'atteint rien à l'intérieur des initiatives.",
     "roles": {
       "open": "Qui peut l'ouvrir dans {{name}}",
       "title": "Qui peut l'ouvrir ici",

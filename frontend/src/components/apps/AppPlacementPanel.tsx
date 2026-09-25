@@ -28,6 +28,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useSetAppPlacementRoles, useUpdateGuildApp } from "@/hooks/useGuildApps";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { useInitiatives } from "@/hooks/useInitiatives";
+import { declaredEmbeds } from "@/lib/appSurfaces";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 
@@ -62,6 +63,8 @@ export function AppPlacementPanel({ app }: AppPlacementPanelProps) {
   const outstanding = useRef(0);
 
   const roster = initiatives.data ?? [];
+  // Roles decide who opens the app's page, so only an app with one has them.
+  const hasPage = declaredEmbeds(app.definition, "initiative").length > 0;
   // The roles each stored placement allows, by initiative.
   const placedRoles = new Map(
     (app.placements ?? []).map((one) => [one.initiative_id, one.role_ids] as const)
@@ -120,7 +123,9 @@ export function AppPlacementPanel({ app }: AppPlacementPanelProps) {
     <section className="space-y-3">
       <div>
         <h3 className="font-medium text-sm">{t("apps:placement.title")}</h3>
-        <p className="text-muted-foreground text-sm">{t("apps:placement.description")}</p>
+        <p className="text-muted-foreground text-sm">
+          {t(hasPage ? "apps:placement.description" : "apps:placement.descriptionNoPage")}
+        </p>
       </div>
 
       <RadioGroup value={mode} onValueChange={choose} className="space-y-2">
@@ -138,7 +143,7 @@ export function AppPlacementPanel({ app }: AppPlacementPanelProps) {
         </div>
       </RadioGroup>
 
-      {mode === "all" && placedRoles.size > 0 && (
+      {mode === "all" && hasPage && placedRoles.size > 0 && (
         <div className="space-y-2 border-l pl-4">
           {roster
             .filter((initiative) => placedRoles.has(initiative.id))
@@ -178,7 +183,7 @@ export function AppPlacementPanel({ app }: AppPlacementPanelProps) {
                   {initiative.name}
                 </Label>
                 {/* Only a placement the server holds has roles to choose. */}
-                {chosen.includes(initiative.id) && placedRoles.has(initiative.id) && (
+                {hasPage && chosen.includes(initiative.id) && placedRoles.has(initiative.id) && (
                   <PlacementRoles
                     appId={app.id}
                     initiativeId={initiative.id}

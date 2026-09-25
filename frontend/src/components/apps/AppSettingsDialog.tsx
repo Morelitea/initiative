@@ -61,8 +61,13 @@ export function AppSettingsDialog({
   const detail = useGuildAppDetail(appId);
   const app = detail.data;
 
+  // Placement is where the app has a page and where it may reach content, so
+  // an app with either has one to choose.
   const showsPlacement =
-    isGuildAdmin && !!app && declaredEmbeds(app.definition, "initiative").length > 0;
+    isGuildAdmin &&
+    !!app &&
+    (declaredEmbeds(app.definition, "initiative").length > 0 ||
+      (app.requested_scopes ?? []).length > 0);
   // Install management, which the seat holds — not the manifest's
   // admin-visible surfaces above, which ask whether you administer the
   // community and are a different question.
