@@ -4,8 +4,8 @@
 to when this deployment first booted with it, so a grace period runs from the
 deployment's own upgrade.
 
-Revision ID: 20260925_0394
-Revises: 20260925_0393
+Revision ID: 20260925_0395
+Revises: 20260925_0394
 Create Date: 2026-09-25
 """
 
@@ -13,8 +13,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision = "20260925_0394"
-down_revision = "20260925_0393"
+revision = "20260925_0395"
+down_revision = "20260925_0394"
 branch_labels = None
 depends_on = None
 
