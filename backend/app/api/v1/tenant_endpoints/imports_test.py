@@ -3316,10 +3316,10 @@ async def test_a_mapping_naming_a_non_member_is_dropped(
 
     from app.models.tenant.comment import Comment
 
+    outsider = await acting_user(guild_role=GuildRole.member)
     a = await acting_user(
         guild_role=GuildRole.superadmin, initiative=True, project=True
     )
-    outsider = await acting_user(guild_role=GuildRole.member)
 
     envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
     entry = {
