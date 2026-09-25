@@ -1,58 +1,55 @@
 import { describe, expect, it } from "vitest";
 
-import { SAFETY_CODE_LENGTH, safetyCode } from "./safetyCode";
+import { accountSafetyNumber, DEVICE_CODE_LENGTH, deviceCode } from "./safetyCode";
 
-/** A real Ed25519 key, as the directory writes one. */
-const KEY = "C35J1oMcLovDN1JgJEHVuok+7W313W52YY6oaGnw2m8=";
+/** Real Ed25519 and Curve25519 keys, as the directory writes them. */
+const KEYS = {
+  fingerprintKey: "C35J1oMcLovDN1JgJEHVuok+7W313W52YY6oaGnw2m8=",
+  identityKey: "zuFDxA+kaChnPNa1QI59q0xuKG+kAI21A/AGDod1RPM=",
+};
+const SWAPPED = { fingerprintKey: KEYS.identityKey, identityKey: KEYS.fingerprintKey };
 
-describe("a device key as pictures", () => {
-  it("draws the same code for the same key, on both screens", () => {
-    expect(safetyCode(KEY)).toEqual(safetyCode(KEY));
-    expect(safetyCode(KEY)).toHaveLength(SAFETY_CODE_LENGTH);
-  });
-
-  it("walks the key the way the other end will", () => {
-    // A fixed vector: the pictures are six-bit groups read off the front of the
-    // decoded key, most significant bit first. Two implementations that walk it
-    // differently agree on nothing, and this is what says which walk is ours.
-    expect(safetyCode(KEY).map((entry) => entry.name)).toEqual([
-      "lion",
-      "trophy",
-      "guitar",
-      "rooster",
-      "aeroplane",
+describe("a device as pictures", () => {
+  it("walks the stretched digest the way the other end will", async () => {
+    // Fixed vectors, worked out independently of this code: two
+    // implementations that stretch or walk it differently agree on nothing,
+    // and this is what says which way is ours.
+    const code = await deviceCode(7, KEYS);
+    expect(code).toHaveLength(DEVICE_CODE_LENGTH);
+    expect(code.map((entry) => entry.name)).toEqual([
+      "hourglass",
+      "pizza",
+      "key",
+      "lightBulb",
       "gift",
+      "book",
+      "heart",
+      "mushroom",
+      "anchor",
+      "umbrella",
+    ]);
+    // The account is part of it: the same keys listed under somebody else draw
+    // a different code.
+    expect((await deviceCode(8, KEYS)).map((entry) => entry.name)).toEqual([
+      "book",
+      "lion",
+      "cat",
+      "aeroplane",
+      "butterfly",
+      "rabbit",
+      "moon",
+      "hammer",
+      "butterfly",
+      "dog",
     ]);
   });
+});
 
-  it("draws a different code for a different key", () => {
-    const other = "zuFDxA+kaChnPNa1QI59q0xuKG+kAI21A/AGDod1RPM=";
-    expect(safetyCode(other)).not.toEqual(safetyCode(KEY));
-  });
-
-  it("is decided by the front of the key, so a swapped key looks wrong at once", () => {
-    // The same key with its first character changed. Six pictures cannot cover
-    // all 32 bytes, so what matters is where they are read from: whoever is
-    // comparing reads left to right, and a key that differs at the front should
-    // be wrong in the first picture rather than the last.
-    const early = "D35J1oMcLovDN1JgJEHVuok+7W313W52YY6oaGnw2m8=";
-    expect(safetyCode(early)[0]).not.toEqual(safetyCode(KEY)[0]);
-  });
-
-  it("names every picture it draws", () => {
-    for (const entry of safetyCode(KEY)) {
-      expect(entry.emoji).toBeTruthy();
-      expect(entry.name).toMatch(/^[a-zA-Z]+$/);
-    }
-  });
-
-  it("draws a code for a key that is not base64 rather than none at all", () => {
-    // Nothing writes one — but a code that cannot be drawn is a comparison
-    // nobody can make, which is worse than one drawn from the characters.
-    expect(safetyCode("not a key")).toHaveLength(SAFETY_CODE_LENGTH);
-  });
-
-  it("has nothing to draw for an empty key", () => {
-    expect(safetyCode("")).toEqual([]);
+describe("an account's half of a safety number", () => {
+  it("is thirty digits over every device, whatever order they are listed in", async () => {
+    expect(await accountSafetyNumber(7, [KEYS])).toBe("270021118579113435432062759977");
+    const both = "543177903823045855530299665291";
+    expect(await accountSafetyNumber(7, [SWAPPED, KEYS])).toBe(both);
+    expect(await accountSafetyNumber(7, [KEYS, SWAPPED])).toBe(both);
   });
 });

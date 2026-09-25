@@ -1823,6 +1823,10 @@
     "notOffered": "Diese Seite bietet keine Passkeys an. Die vorhandenen bleiben erhalten.",
     "error": "Das hat nicht geklappt. Versuche es erneut."
   },
+  "messagesDevice": {
+    "title": "Code dieses Geräts für Nachrichten",
+    "description": "Wenn du ein neues Gerät bestätigst oder dich mit jemandem vergleichst, dem du schreibst, ist das der Code, den dieses Gerät zeigt."
+  },
   "providerDefaults": {
     "title": "Was eine Community erbt",
     "description": "Antwortet einmal für einen Anbieter, und jede Community erbt diese Antwort, bis sie eine eigene gibt. Nützlich, wenn diese Installation eine Organisation ist: ein Anbieter, ein Mandant, Communities als ihre Teams.",

@@ -99,24 +99,35 @@
     "today": "Heute",
     "yesterday": "Gestern"
   },
-  "historyRequest": {
-    "title": "Eines deiner Geräte fragt nach deinen Nachrichten",
-    "body": "{{device}} hat sich angemeldet und hat keinen eigenen Verlauf. Die Nachrichten dieses Geräts senden? Prüfe, ob es dieselben Bilder in derselben Reihenfolge anzeigt.",
+  "newDevice": {
+    "title": "Neues Gerät angemeldet",
+    "body": "{{device}} hat sich bei deinem Konto angemeldet. Ist das deins? Es sollte diese Bilder in derselben Reihenfolge anzeigen.",
     "unknownDevice": "Ein Gerät",
-    "codeLabel": "Gerätecode",
-    "approve": "Meine Nachrichten senden",
-    "decline": "Jetzt nicht"
+    "sendHistory": "Meinen Nachrichtenverlauf senden",
+    "confirm": "Ja, das ist meins",
+    "remove": "Nein, entfernen",
+    "error": "Deine Antwort konnte nicht gespeichert werden. Versuche es erneut."
+  },
+  "deviceCode": {
+    "label": "Gerätecode"
   },
   "historyAsk": {
-    "title": "Warten auf deine Nachrichten",
-    "body": "Dieses Gerät hat deine anderen Geräte nach den Nachrichten gefragt, die du schon hattest. Öffne eines davon und bestätige es dort – das sind die Bilder, die es dir zeigen wird.",
+    "title": "Bestätige dieses Gerät auf einem deiner anderen",
+    "body": "Öffne Nachrichten auf einem Gerät, das du bereits nutzt, und bestätige dieses dort. Es zeigt dir diese Bilder. Dein Nachrichtenverlauf kommt an, sobald du das getan hast.",
     "dismiss": "Ausblenden",
-    "dismissNote": "Das Ausblenden verbirgt nur diesen Hinweis. Deine Nachrichten kommen weiterhin an, wenn du auf deinem anderen Gerät zustimmst."
+    "dismissNote": "Das Ausblenden verbirgt nur diesen Hinweis. Deine Nachrichten kommen trotzdem an, sobald du dieses Gerät auf deinem anderen bestätigst."
   },
   "peerKeyChange": {
-    "title": "In dieser Unterhaltung hat sich ein Geräteschlüssel geändert",
-    "body": "{{name}} verwendet jetzt einen anderen Schlüssel auf einem Gerät, an das du bereits geschrieben hast. Meist bedeutet das, dass die Person ein Gerät ersetzt oder neu eingerichtet hat. Es kann auch bedeuten, dass jemand anderes in ihrem Namen ein Gerät registriert hat. Vergleiche diese Bilder mit ihr auf einem anderen Weg als hier, bevor du etwas Vertrauliches sendest.",
-    "acknowledge": "Ich habe das geprüft"
+    "title": "Die Geräte von {{name}} haben sich geändert",
+    "body": "Meist bedeutet das, dass die Person ein Gerät hinzugefügt, ersetzt oder neu eingerichtet hat. Es kann auch bedeuten, dass jemand anderes in ihrem Namen ein Gerät hinzugefügt hat. Vergleiche eure Sicherheitsnummer auf einem anderen Weg als hier, bevor du etwas Vertrauliches sendest.",
+    "compare": "Sicherheitsnummer vergleichen"
+  },
+  "safetyNumber": {
+    "title": "Sicherheitsnummer mit {{name}}",
+    "description": "Lies diese Zahlen mit {{name}} persönlich oder in einem Anruf ab. Wenn beide Bildschirme dieselben Zahlen zeigen, erreichen eure Nachrichten nur die Geräte, die ihr beide erwartet.",
+    "you": "Du",
+    "matches": "Sie stimmen überein",
+    "verified": "Du hast diese Nummer mit {{name}} verglichen."
   },
   "safetyEmoji": {
     "dog": "Hund",

@@ -1,23 +1,25 @@
 /**
  * History between this account's own devices: a new device asks its elders
- * once, a person on one of them says yes or no, and the approved one is sent
- * every thread this device holds.
+ * once, and each sends every thread it holds if the person said so when they
+ * confirmed the new device there.
  */
 
-import type { DmDeviceRead } from "@/api/generated/initiativeAPI.schemas";
+import { removeDeviceApiV1MeDmDevicesDeviceIdDelete as removeDevice } from "@/api/generated/direct-messages/direct-messages";
 
-import { type Context, ensureDeviceContext } from "./device";
+import type { Context } from "./device";
 import { type Envelope, newMessageId, sendTransfer } from "./envelope";
 import { deliver } from "./send";
 import {
   approvedDevices,
   type HistoryProgress,
-  type HistoryRequest,
   historyAsk,
   historyProgress,
   messageLog,
+  type PeerKeyChange,
+  peerKeyChanges,
   pendingHistoryRequest,
 } from "./store";
+import type { TrustedDevice } from "./trust";
 
 /**
  * Hand one envelope to one device of this account's own.
@@ -30,12 +32,14 @@ import {
 function sendToOwnDevice(
   ctx: Context,
   carrierId: string,
-  device: DmDeviceRead,
+  device: TrustedDevice,
   envelope: Envelope,
   wake = false
 ): Promise<boolean> {
-  const destination = { id: device.id, identityKey: device.identity_key, origin: "self" as const };
-  return deliver(ctx, carrierId, [destination], [], envelope, { silent: true, wake });
+  return deliver(ctx, carrierId, [{ ...device, origin: "self" }], [], envelope, {
+    silent: true,
+    wake,
+  });
 }
 
 /** A conversation any own-device traffic can travel inside. */
@@ -50,9 +54,9 @@ const carrierConversation = async (ctx: Context) => (await ctx.conversations())[
  * registered in the same instant still order one before the other rather than
  * each deciding it is the junior one.
  */
-const precedes = (a: DmDeviceRead, b: DmDeviceRead): boolean => {
-  const at = Date.parse(a.created_at);
-  const bt = Date.parse(b.created_at);
+const precedes = (a: TrustedDevice, b: TrustedDevice): boolean => {
+  const at = Date.parse(a.createdAt ?? "");
+  const bt = Date.parse(b.createdAt ?? "");
   if (!Number.isNaN(at) && !Number.isNaN(bt) && at !== bt) return at < bt;
   return a.id < b.id;
 };
@@ -66,7 +70,8 @@ const precedes = (a: DmDeviceRead, b: DmDeviceRead): boolean => {
  * it asks only devices that came before it: history runs forwards, and when
  * both ends think they are eligible this is what settles the direction. A
  * device with nobody before it is the account's origin, so its question is
- * closed here.
+ * closed here. Only devices this one has confirmed are asked, and only those
+ * it asked can answer.
  *
  * Eligibility survives a failed attempt: a message collected between two
  * attempts says nothing about whether the older ones are here.
@@ -83,9 +88,9 @@ export async function requestHistory(ctx: Context): Promise<boolean> {
     }
     await historyAsk.eligible();
   }
-  const me = ctx.ownDevices.find((device) => device.id === ctx.device);
+  const me = ctx.own.devices.find((device) => device.id === ctx.device);
   if (!me) return false;
-  const elders = ctx.ownDevices.filter(
+  const elders = ctx.own.devices.filter(
     (device) => device.id !== ctx.device && precedes(device, me)
   );
   if (elders.length === 0) {
@@ -100,7 +105,7 @@ export async function requestHistory(ctx: Context): Promise<boolean> {
   if (carrier === null) return false;
 
   const requestId = newMessageId();
-  let asked = false;
+  const asked: string[] = [];
   for (const device of elders) {
     const sent = await sendToOwnDevice(
       ctx,
@@ -111,19 +116,19 @@ export async function requestHistory(ctx: Context): Promise<boolean> {
         kind: "history-request",
         requestId,
         deviceId: ctx.device,
-        fingerprint: me.fingerprint_key,
+        fingerprint: me.fingerprintKey,
       },
       // The one ask that has to reach a device nobody is looking at.
       true
     );
-    asked = asked || sent;
+    if (sent) asked.push(device.id);
   }
   // Written down once it is on its way rather than once it is answered: the
   // queue holds it until the far device wakes, and a device that asks on every
-  // collection raises the same dialog until somebody stops reading it. The id
-  // is what an answer is matched against.
-  if (asked) await historyAsk.open(requestId, me.fingerprint_key);
-  return asked;
+  // collection raises the same prompt until somebody stops reading it. The id
+  // and the devices it went to are what an answer is matched against.
+  if (asked.length > 0) await historyAsk.open(requestId, asked);
+  return asked.length > 0;
 }
 
 /**
@@ -131,34 +136,29 @@ export async function requestHistory(ctx: Context): Promise<boolean> {
  *
  * A day: long enough to cover going to fetch the other device, or leaving it
  * until the evening, and short enough that a laptop nobody ever went and
- * approved is not still being told about it a week later.
+ * confirmed is not still being told about it a week later.
  */
 export const HISTORY_ASK_NOTICE_MS = 24 * 60 * 60 * 1000;
 
-/** This device's own code, and the moment the notice about it stops. */
+/** The moment the notice about an unanswered ask stops. */
 export interface HistoryAskWaiting {
-  fingerprint: string;
   /** Epoch milliseconds. */
   expiresAt: number;
 }
 
 /**
- * This device's own code, while it is waiting to be sent its history.
- *
- * What the screen being asked about shows, so the person holding both has two
- * codes to compare rather than one to take on trust. Read locally: it is this
- * device's own key, written down when it asked.
+ * Whether this device is waiting for another of this account's to confirm it
+ * and send its history.
  *
  * The notice gives up after a day; the question does not. Nothing expires a
- * queued request, so a device opened next week still delivers it, still shows
- * the dialog, and its answer still lands here — the ask stays open and the
- * transfer arrives whether or not there was anything on screen about it. What
- * stops after a day is telling somebody to go and do a thing they have had a
- * day to do.
+ * queued request, so a device opened next week still delivers it and its
+ * answer still lands here — the ask stays open and the transfer arrives
+ * whether or not there was anything on screen about it. What stops after a
+ * day is telling somebody to go and do a thing they have had a day to do.
  */
 export async function historyAskWaiting(): Promise<HistoryAskWaiting | undefined> {
   const ask = await historyAsk.get();
-  if (typeof ask !== "object" || !ask.fingerprint || !ask.at) return undefined;
+  if (typeof ask !== "object" || !ask.at) return undefined;
   // Put away by hand. The day is an outside limit on a notice nobody dealt
   // with, not the only way to be rid of one.
   if (ask.dismissed) return undefined;
@@ -168,45 +168,32 @@ export async function historyAskWaiting(): Promise<HistoryAskWaiting | undefined
   if (expiresAt <= Date.now()) return undefined;
   // When it stops, so the screen showing it can take it down on its own rather
   // than at whatever unrelated moment something next happens to ask again.
-  return { fingerprint: ask.fingerprint, expiresAt };
+  return { expiresAt };
 }
 
 /**
- * The request waiting on this device, if the person has not answered it.
+ * Answer the prompt about a new device of this account's.
  *
- * A device already approved is not asked about again — that is what approving a
- * device rather than a request means — so its request is not returned here and
- * is served instead.
+ * Yes lets it be addressed and read from, and, with `sendHistory`, approves it
+ * for this device's history, which is sent once it asks. No withdraws it from
+ * the account; the prompt clears once the server has done so.
  */
-export async function historyRequestToAnswer(): Promise<HistoryRequest | undefined> {
-  const pending = await pendingHistoryRequest.get();
-  if (!pending) return undefined;
-  if (await approvedDevices.holds(pending.deviceId, pending.fingerprint)) return undefined;
-  return pending;
-}
-
-/** Say yes or no to the device waiting on an answer. */
-export async function answerHistoryRequest(approve: boolean): Promise<void> {
-  const pending = await pendingHistoryRequest.get();
-  if (!pending) return;
-  if (approve) {
-    await approvedDevices.approve(pending.deviceId, pending.fingerprint);
-    return;
+export async function answerNewDevice(
+  change: PeerKeyChange,
+  { mine, sendHistory }: { mine: boolean; sendHistory: boolean }
+): Promise<void> {
+  if (!mine) {
+    await removeDevice(change.deviceId);
+  } else {
+    await approvedDevices.decide(change.deviceId, change.now.fingerprint, sendHistory);
   }
-  await pendingHistoryRequest.clear();
-  const ctx = await ensureDeviceContext();
-  const carrier = await carrierConversation(ctx);
-  const device = ctx.ownDevices.find((entry) => entry.id === pending.deviceId);
-  if (carrier === null || !device) return;
-  await sendToOwnDevice(ctx, carrier, device, {
-    v: 1,
-    kind: "history-declined",
-    requestId: pending.requestId,
-  });
+  await peerKeyChanges.acknowledge([change.deviceId]);
 }
 
 /**
- * Send this device's history to one that has been approved for it.
+ * Answer a history request from a confirmed device of this account's: send it
+ * this device's history where the person approved that, and a no where they
+ * did not, so the far device stops waiting.
  *
  * Resumable from this side, which is the side that stops: a tab closed
  * mid-transfer picks up at the conversation it had reached, and what was
@@ -216,13 +203,37 @@ export async function answerHistoryRequest(approve: boolean): Promise<void> {
 export async function serveHistory(ctx: Context): Promise<void> {
   const pending = await pendingHistoryRequest.get();
   if (!pending) return;
-  if (!(await approvedDevices.holds(pending.deviceId, pending.fingerprint))) return;
 
-  const device = ctx.ownDevices.find((entry) => entry.id === pending.deviceId);
+  // Waiting on the person's answer about this device.
+  if (ctx.own.held.some((entry) => entry.id === pending.deviceId)) return;
+  const device = ctx.own.devices.find((entry) => entry.id === pending.deviceId);
   const carrier = await carrierConversation(ctx);
-  if (!device || carrier === null || device.fingerprint_key !== pending.fingerprint) {
-    // The device it was approved for is gone, or is not the one it was
-    // approved as. Neither is a thing to keep trying.
+  if (!device || carrier === null || device.fingerprintKey !== pending.fingerprint) {
+    // The device it came from is gone, or is not the one it was confirmed
+    // as. Neither is a thing to keep trying.
+    await pendingHistoryRequest.clear();
+    return;
+  }
+  const decision = await approvedDevices.decision(pending.deviceId, pending.fingerprint);
+  if (decision === undefined) {
+    // A device this browser already trusted, which nobody has been asked about
+    // yet: the same question a new device gets, with its request waiting.
+    await peerKeyChanges.raise({
+      userId: ctx.self,
+      deviceId: device.id,
+      now: { fingerprint: device.fingerprintKey, identityKey: device.identityKey },
+      at: new Date().toISOString(),
+      label: device.label,
+      asked: true,
+    });
+    return;
+  }
+  if (!decision) {
+    await sendToOwnDevice(ctx, carrier, device, {
+      v: 1,
+      kind: "history-declined",
+      requestId: pending.requestId,
+    });
     await pendingHistoryRequest.clear();
     return;
   }

@@ -1823,6 +1823,10 @@
     "notOffered": "Ce site ne propose pas de clés d'accès. Celles que vous avez sont conservées.",
     "error": "Cela n'a pas fonctionné. Réessayez."
   },
+  "messagesDevice": {
+    "title": "Code de cet appareil pour les messages",
+    "description": "Quand tu confirmes un nouvel appareil ou que tu compares avec quelqu'un à qui tu écris, c'est le code qu'affiche cet appareil."
+  },
   "providerDefaults": {
     "title": "Ce dont hérite une communauté",
     "description": "Répondez une fois pour un fournisseur et chaque communauté hérite de cette réponse jusqu'à ce qu'elle donne la sienne. Utile lorsque ce déploiement est une seule organisation : un fournisseur, un locataire, et des communautés qui sont ses équipes.",

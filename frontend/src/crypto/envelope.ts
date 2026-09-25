@@ -10,8 +10,6 @@
  * taken from, and what it changes on this device.
  */
 
-import type { DmDeviceRead } from "@/api/generated/initiativeAPI.schemas";
-
 import {
   historyAsk,
   messageLog,
@@ -21,6 +19,7 @@ import {
   type StoredMessage,
   threadCatchUp,
 } from "./store";
+import type { TrustedDevice } from "./trust";
 
 /** One message out of the ratchet, and what its session says about who sent it. */
 export interface Arrival {
@@ -30,11 +29,14 @@ export interface Arrival {
   /** Whether it came on a session with one of this account's own devices. */
   mine: boolean;
   author?: number;
+  /** The device its session is with, where the session recorded it. */
+  device?: string;
 }
 
 /** What one collection gathers from the envelopes it reads. */
 export interface Batch {
-  ownDevices: DmDeviceRead[];
+  /** This account's confirmed devices. */
+  own: TrustedDevice[];
   /** Their messages that reached this device, per conversation, to report. */
   landed: Map<string, string[]>;
   /** Members who have just joined a group and asked for its thread. */
@@ -79,10 +81,55 @@ const isStringArray = (value: unknown): value is string[] =>
 /** Which side of the log an action on a message already said comes from. */
 const sideOf = (arrival: Arrival) => (arrival.mine ? "mine" : "theirs");
 
-/** The request an answer names, if it is the one this device asked. */
-const answersAsk = async (requestId: string): Promise<boolean> => {
+/**
+ * Whether an answer is to the ask this device made: it names that request, and
+ * came from a confirmed device of this account's that the ask went to.
+ */
+const answersAsk = async (
+  requestId: string,
+  { device }: Arrival,
+  { own }: Batch
+): Promise<boolean> => {
   const ask = await historyAsk.get();
-  return typeof ask === "object" && ask.requestId === requestId;
+  return (
+    typeof ask === "object" &&
+    ask.requestId === requestId &&
+    device !== undefined &&
+    (ask.asked ?? []).includes(device) &&
+    own.some((entry) => entry.id === device)
+  );
+};
+
+const optional = <T>(value: unknown, is: (value: unknown) => value is T): T | undefined =>
+  is(value) ? value : undefined;
+const isString = (value: unknown): value is string => typeof value === "string";
+const isNumber = (value: unknown): value is number => typeof value === "number";
+
+/**
+ * One entry of a group's thread, relayed by the member who wrote it.
+ *
+ * A member sends only what they said, so every entry is theirs: it is filed
+ * under the session's account, and one naming anybody else is dropped. Their
+ * receipts and the reactions on it are their own record and stay with them;
+ * edits and removals are part of the message and come with it.
+ */
+const relayed = (entry: StoredMessage, author: number): StoredMessage | null => {
+  if (entry.author !== undefined && entry.author !== author) return null;
+  const replyTo = optional(entry.replyTo, isString);
+  const editedAt = optional(entry.editedAt, isString);
+  const rev = optional(entry.rev, isNumber);
+  const removedAt = optional(entry.removedAt, isString);
+  return {
+    id: entry.id,
+    at: entry.at,
+    body: entry.body,
+    mine: false,
+    author,
+    ...(replyTo !== undefined ? { replyTo } : {}),
+    ...(editedAt !== undefined ? { editedAt } : {}),
+    ...(rev !== undefined ? { rev } : {}),
+    ...(removedAt !== undefined ? { removedAt } : {}),
+  };
 };
 
 export const KINDS = {
@@ -205,17 +252,16 @@ export const KINDS = {
         ? { requestId: raw.requestId, deviceId: raw.deviceId, fingerprint: raw.fingerprint }
         : null,
     from: "self",
-    // Written down for a person to answer. The fingerprint in the request is a
-    // convenience for the person comparing two screens; what is checked is the
-    // directory's own entry for that device id.
-    handle: async (envelope, _arrival, { ownDevices }) => {
-      const device = ownDevices.find((entry) => entry.id === envelope.deviceId);
-      if (!device || device.fingerprint_key !== envelope.fingerprint) return undefined;
+    // Written down to be served, or declined, after the queue is drained, as
+    // the person answered when they confirmed the device. Only from a
+    // confirmed device, by its own directory entry.
+    handle: async (envelope, _arrival, { own }) => {
+      const device = own.find((entry) => entry.id === envelope.deviceId);
+      if (!device || device.fingerprintKey !== envelope.fingerprint) return undefined;
       await pendingHistoryRequest.set({
         requestId: envelope.requestId,
         deviceId: device.id,
-        label: device.label,
-        fingerprint: device.fingerprint_key,
+        fingerprint: device.fingerprintKey,
         at: new Date().toISOString(),
       });
       return undefined;
@@ -241,8 +287,8 @@ export const KINDS = {
         : null,
     from: "self",
     // Taken only as the answer to the question this device asked.
-    handle: async (envelope) => {
-      if (!(await answersAsk(envelope.requestId))) return undefined;
+    handle: async (envelope, arrival, batch) => {
+      if (!(await answersAsk(envelope.requestId, arrival, batch))) return undefined;
       const added = await messageLog.merge(envelope.conversationId, envelope.messages);
       if (envelope.last) await historyAsk.close();
       return added > 0 ? envelope.conversationId : undefined;
@@ -254,8 +300,8 @@ export const KINDS = {
     from: "self",
     // Answered, and the answer was no. Asking again is a person's decision
     // rather than something to retry into.
-    handle: async ({ requestId }) => {
-      if (await answersAsk(requestId)) await historyAsk.close();
+    handle: async ({ requestId }, arrival, batch) => {
+      if (await answersAsk(requestId, arrival, batch)) await historyAsk.close();
       return undefined;
     },
   }),
@@ -290,18 +336,16 @@ export const KINDS = {
           }
         : null,
     from: "other",
+    // Taken only as the answer to the ask this device made, and only from a
+    // session that says whose it is.
     handle: async (envelope, { conversationId, author }) => {
-      // Taken only as the answer to the ask this device made.
-      if ((await threadCatchUp.get(conversationId))?.requestId !== envelope.requestId) {
-        return undefined;
-      }
-      // An entry with no author is one the sender wrote: a log does not name
-      // the person keeping it, and the session says which account that is.
-      const said = envelope.messages.map((message) =>
-        message.author === undefined && author !== undefined ? { ...message, author } : message
-      );
+      const ask = await threadCatchUp.get(conversationId);
+      if (author === undefined || ask?.requestId !== envelope.requestId) return undefined;
+      const said = envelope.messages
+        .map((message) => relayed(message, author))
+        .filter((message): message is StoredMessage => message !== null);
       const added = await messageLog.merge(conversationId, said);
-      if (envelope.last) await threadCatchUp.clear(conversationId);
+      if (envelope.last) await threadCatchUp.answered(conversationId, author);
       return added > 0 ? conversationId : undefined;
     },
   }),

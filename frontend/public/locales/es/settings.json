@@ -1823,6 +1823,10 @@
     "notOffered": "Este sitio no ofrece claves de acceso. Las que ya tienes se conservan.",
     "error": "No ha funcionado. Inténtalo de nuevo."
   },
+  "messagesDevice": {
+    "title": "Código de este dispositivo para mensajes",
+    "description": "Cuando confirmas un dispositivo nuevo o comparas con alguien a quien escribes, este es el código que muestra este dispositivo."
+  },
   "providerDefaults": {
     "title": "Lo que hereda una comunidad",
     "description": "Responded una vez por proveedor y cada comunidad heredará esa respuesta hasta que dé la suya. Útil cuando esta instalación es una sola organización: un proveedor, un inquilino y comunidades que son sus equipos.",

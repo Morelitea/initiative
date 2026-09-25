@@ -99,24 +99,35 @@
     "today": "Hoy",
     "yesterday": "Ayer"
   },
-  "historyRequest": {
-    "title": "Uno de tus dispositivos pide tus mensajes",
-    "body": "{{device}} ha iniciado sesión y no tiene historial propio. ¿Enviarle los mensajes de este dispositivo? Comprueba que muestra las mismas imágenes, en el mismo orden.",
+  "newDevice": {
+    "title": "Se ha iniciado sesión en un dispositivo nuevo",
+    "body": "{{device}} ha iniciado sesión en tu cuenta. ¿Es tuyo? Debería mostrar estas imágenes, en el mismo orden.",
     "unknownDevice": "Un dispositivo",
-    "codeLabel": "Código del dispositivo",
-    "approve": "Enviar mis mensajes",
-    "decline": "Ahora no"
+    "sendHistory": "Enviarle mi historial de mensajes",
+    "confirm": "Sí, es mío",
+    "remove": "No, quitarlo",
+    "error": "No se pudo guardar tu respuesta. Inténtalo de nuevo."
+  },
+  "deviceCode": {
+    "label": "Código del dispositivo"
   },
   "historyAsk": {
-    "title": "Esperando tus mensajes",
-    "body": "Este dispositivo ha pedido a tus otros dispositivos los mensajes que ya tenías. Abre uno de ellos y apruébalo allí: estas son las imágenes que te mostrará.",
+    "title": "Confirma este dispositivo en otro de los tuyos",
+    "body": "Abre Mensajes en un dispositivo que ya uses y confirma este allí. Te mostrará estas imágenes. Tu historial de mensajes llegará en cuanto lo hagas.",
     "dismiss": "Descartar",
-    "dismissNote": "Descartarlo solo lo oculta. Tus mensajes seguirán llegando si lo apruebas en tu otro dispositivo."
+    "dismissNote": "Descartarlo solo lo oculta. Tus mensajes seguirán llegando en cuanto confirmes este dispositivo en el otro."
   },
   "peerKeyChange": {
-    "title": "Ha cambiado la clave de un dispositivo en esta conversación",
-    "body": "{{name}} usa ahora una clave distinta en un dispositivo al que ya habías escrito. Normalmente significa que ha sustituido o reinstalado un dispositivo. También puede significar que otra persona ha registrado un dispositivo en su nombre. Comprueba estas imágenes con esa persona por un medio distinto a este antes de enviar nada privado.",
-    "acknowledge": "Lo he comprobado"
+    "title": "Los dispositivos de {{name}} han cambiado",
+    "body": "Normalmente significa que ha añadido, sustituido o reinstalado un dispositivo. También puede significar que otra persona ha añadido un dispositivo en su nombre. Compara vuestro número de seguridad por un medio distinto a este antes de enviar nada privado.",
+    "compare": "Comparar número de seguridad"
+  },
+  "safetyNumber": {
+    "title": "Número de seguridad con {{name}}",
+    "description": "Lee estos números con {{name}} en persona o en una llamada. Si las dos pantallas muestran los mismos números, vuestros mensajes solo llegan a los dispositivos que ambos esperáis.",
+    "you": "Tú",
+    "matches": "Coinciden",
+    "verified": "Has comparado este número con {{name}}."
   },
   "safetyEmoji": {
     "dog": "Perro",

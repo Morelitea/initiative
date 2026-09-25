@@ -351,6 +351,31 @@ export const deviceId = {
 };
 
 /**
+ * The account this browser's device belongs to. A device signs its keys as
+ * this account's, and the account's own devices are checked against it.
+ */
+export const deviceOwner = {
+  get: () => read<number>("device-owner"),
+  set: (userId: number) => write("device-owner", userId),
+};
+
+/**
+ * When this browser first checked device signatures, in epoch milliseconds.
+ *
+ * A device registered before signing existed carries none until its owner next
+ * opens the app. The grace for those is counted from here, so it is the same
+ * window for every device this browser meets.
+ */
+export const signingSince = {
+  mark: async (): Promise<number> =>
+    (
+      await update<number>("signing-since", (current) =>
+        current === undefined ? Date.now() : undefined
+      )
+    ).value as number,
+};
+
+/**
  * The last message this device has looked at, per conversation, by its id.
  *
  * Kept here rather than on the server for the same reason the log is: nobody
@@ -689,29 +714,47 @@ export const messageLog = {
 };
 
 /**
- * The devices this one has agreed to send its history to.
+ * The devices this one has agreed to send its history to, when the person
+ * confirmed them.
  *
  * Kept against the fingerprint each had when it was approved, so an entry in
  * the directory whose key has changed since is a different device wearing a
- * familiar name and is asked about again. A device id belongs to one
- * registration — signing out withdraws it — so an approval cannot outlive the
- * device that earned it.
+ * familiar name. A device id belongs to one registration — signing out
+ * withdraws it — so an approval cannot outlive the device that earned it.
  */
+/**
+ * What the person said about sending each of their own devices this device's
+ * history, keyed by device and bound to its fingerprint. A plain fingerprint is
+ * a yes recorded before a no could be.
+ */
+type HistoryDecision = string | { fingerprint: string; send: boolean };
+
+const historyDecision = async (deviceId: string, fingerprint: string) => {
+  const decision = (await read<Record<string, HistoryDecision>>("history-approved"))?.[deviceId];
+  if (typeof decision === "string") return decision === fingerprint ? true : undefined;
+  return decision?.fingerprint === fingerprint ? decision.send : undefined;
+};
+
 export const approvedDevices = {
-  all: async (): Promise<Record<string, string>> =>
-    (await read<Record<string, string>>("history-approved")) ?? {},
-  holds: async (deviceId: string, fingerprint: string): Promise<boolean> =>
-    (await read<Record<string, string>>("history-approved"))?.[deviceId] === fingerprint,
-  approve: async (deviceId: string, fingerprint: string): Promise<void> => {
-    await update<Record<string, string>>("history-approved", (existing) => ({
+  /** Yes, no, or `undefined` where the person has not been asked. */
+  decision: historyDecision,
+  decide: async (deviceId: string, fingerprint: string, send: boolean): Promise<void> => {
+    await update<Record<string, HistoryDecision>>("history-approved", (existing) => ({
       ...(existing ?? {}),
-      [deviceId]: fingerprint,
+      [deviceId]: { fingerprint, send },
     }));
   },
 };
 
+/** A device's two public keys: the one it signs with and the one sessions start from. */
+export interface DeviceKeys {
+  fingerprint: string;
+  identityKey: string;
+}
+
 /**
- * The device keys this browser has seen for each conversation partner.
+ * The device keys this browser has seen for each conversation partner, and for
+ * this account's own devices.
  *
  * The directory is served by the platform, so a key it returns is remembered
  * here rather than trusted afresh on every read.
@@ -728,13 +771,20 @@ export const approvedDevices = {
 export interface PeerKeyChange {
   userId: number;
   deviceId: string;
+  /** What this browser held for the device before. Absent for a new device. */
+  was?: DeviceKeys;
   /** What the directory returned now. */
-  now: string;
+  now: DeviceKeys;
   at: string;
+  /** The device's own name for itself, for one of this account's own. */
+  label?: string | null;
+  /** One of this account's own that has something waiting for this device. */
+  asked?: true;
 }
 
 const PEER_KEYS_PREFIX = "peer-keys:";
 const PEER_CHANGES = "peer-key-changes";
+const VERIFIED_PAIRS = "verified-pairs";
 
 interface RememberedPeerKey {
   fingerprint: string;
@@ -773,7 +823,8 @@ export const peerDeviceKeys = {
     seen: {
       deviceId: string;
       fingerprint: string;
-      identityKey?: string;
+      identityKey: string;
+      label?: string | null;
       previouslyAddressed?: boolean;
     }[]
   ): Promise<PeerKeyChange[]> => {
@@ -786,22 +837,31 @@ export const peerDeviceKeys = {
         const known = existing ?? {};
         const hasBaseline = Object.keys(known).length > 0;
         const next = { ...known };
-        for (const { deviceId, fingerprint, identityKey, previouslyAddressed } of seen) {
+        for (const { deviceId, fingerprint, identityKey, label, previouslyAddressed } of seen) {
           const stored = known[deviceId];
           const knownKey = stored === undefined ? undefined : rememberedPeerKey(stored);
           const keyChanged =
             knownKey !== undefined &&
             (knownKey.fingerprint !== fingerprint || knownKey.identityKey !== identityKey);
           if (keyChanged || (stored === undefined && (hasBaseline || previouslyAddressed))) {
-            changes.push({ userId, deviceId, now: fingerprint, at });
+            changes.push({
+              userId,
+              deviceId,
+              ...(knownKey?.identityKey
+                ? { was: { fingerprint: knownKey.fingerprint, identityKey: knownKey.identityKey } }
+                : {}),
+              now: { fingerprint, identityKey },
+              at,
+              ...(label !== undefined ? { label } : {}),
+            });
           }
-          next[deviceId] = { fingerprint, ...(identityKey ? { identityKey } : {}) };
+          next[deviceId] = { fingerprint, identityKey };
         }
         // Devices that stopped being listed are left in place, so a device that
         // disappears and comes back with a different key is still a change
         // rather than a first sighting.
         if (changes.length === 0) return { a: next };
-        // One entry per device, the same rule `peerKeyChanges.add` applies.
+        // One entry per device, the latest finding standing for it.
         const byDevice = new Map((heldNow ?? []).map((change) => [change.deviceId, change]));
         for (const change of changes) byDevice.set(change.deviceId, change);
         return { a: next, b: [...byDevice.values()] };
@@ -822,36 +882,61 @@ export const peerDeviceKeys = {
  */
 export const peerKeyChanges = {
   all: async (): Promise<PeerKeyChange[]> => (await read<PeerKeyChange[]>(PEER_CHANGES)) ?? [],
-  add: async (changes: PeerKeyChange[]): Promise<void> => {
-    if (changes.length === 0) return;
-    await update<PeerKeyChange[]>(PEER_CHANGES, (existing) => {
-      const held = existing ?? [];
-      // One entry per device. A directory answering differently on every read
-      // would otherwise fill this with the same finding repeatedly, and a list
-      // nobody can get to the bottom of is a list nobody reads.
-      const byDevice = new Map(held.map((change) => [change.deviceId, change]));
-      for (const change of changes) byDevice.set(change.deviceId, change);
-      return [...byDevice.values()];
-    });
+  /** Put a device in front of the person, whether or not its keys changed. */
+  raise: async (change: PeerKeyChange): Promise<void> => {
+    await update<PeerKeyChange[]>(PEER_CHANGES, (existing) => [
+      ...(existing ?? []).filter((held) => held.deviceId !== change.deviceId),
+      change,
+    ]);
   },
-  /** The person has seen it. The key is already remembered; this clears the notice. */
-  acknowledge: async (deviceId: string): Promise<void> => {
+  /** Note the held devices of this account's own that have something waiting here. */
+  markAsked: async (deviceIds: string[]): Promise<void> => {
+    if (deviceIds.length === 0) return;
     await update<PeerKeyChange[]>(PEER_CHANGES, (existing) =>
-      (existing ?? []).filter((change) => change.deviceId !== deviceId)
+      existing?.map((change) =>
+        deviceIds.includes(change.deviceId) ? { ...change, asked: true as const } : change
+      )
+    );
+  },
+  /**
+   * The person has dealt with these devices: the keys are already remembered,
+   * and this clears their holds. A compared safety number is recorded with it,
+   * in the same transaction, so the two never disagree about what was checked.
+   */
+  acknowledge: async (
+    deviceIds: string[],
+    pair?: { userId: number; number: string }
+  ): Promise<void> => {
+    await updatePair<PeerKeyChange[], Record<number, string>>(
+      PEER_CHANGES,
+      VERIFIED_PAIRS,
+      (held, verified) => ({
+        a: (held ?? []).filter((change) => !deviceIds.includes(change.deviceId)),
+        b: pair ? { ...verified, [pair.userId]: pair.number } : undefined,
+      })
     );
   },
 };
 
 /**
- * A request this device has been asked to answer, and has not yet.
+ * The safety number last compared with each person, by their user id. A pair
+ * reads as verified while their number still matches it; any change to their
+ * devices changes the number.
+ */
+export const verifiedPairs = {
+  get: async (userId: number): Promise<string | undefined> =>
+    (await read<Record<number, string>>(VERIFIED_PAIRS))?.[userId],
+};
+
+/**
+ * A history request from a confirmed device of this account's, waiting to be
+ * served or declined as the person answered when they confirmed it.
  *
- * One at a time: a second device asking while the first is waiting replaces it,
- * because a queue of these is a queue of dialogs nobody reads.
+ * One at a time: a second device asking while the first is waiting replaces it.
  */
 export interface HistoryRequest {
   requestId: string;
   deviceId: string;
-  label: string | null;
   fingerprint: string;
   at: string;
 }
@@ -890,11 +975,9 @@ export const historyProgress = {
  * settled — by a transfer finishing, or by a device saying no — and is what
  * tells later arrivals they answer nothing that was asked.
  *
- * This device's own fingerprint is kept alongside, so the screen that is
- * waiting can show the code the other screen is about to ask about without a
- * round trip to the directory to be told what it already sent. `at` is when it
- * was asked, which is what lets the notice about it stop being shown long
- * before the question itself stops being worth answering.
+ * `asked` names the devices it went to, which are the only ones an answer is
+ * taken from. `at` is when it was asked, which is what lets the notice about it
+ * stop being shown long before the question itself stops being worth answering.
  *
  * `"eligible"` is a device that arrived empty and has not got its question out
  * yet. It is written at registration rather than worked out later, because the
@@ -903,15 +986,15 @@ export const historyProgress = {
  * says nothing about which of the two this is.
  */
 export type HistoryAsk =
-  | { requestId: string; fingerprint?: string; at?: string; dismissed?: true }
+  | { requestId: string; asked?: string[]; at?: string; dismissed?: true }
   | "eligible"
   | "closed";
 
 export const historyAsk = {
   get: () => read<HistoryAsk>("history-ask"),
   eligible: () => write("history-ask", "eligible"),
-  open: (requestId: string, fingerprint: string) =>
-    write("history-ask", { requestId, fingerprint, at: new Date().toISOString() }),
+  open: (requestId: string, asked: string[]) =>
+    write("history-ask", { requestId, asked, at: new Date().toISOString() }),
   close: () => write("history-ask", "closed"),
   /**
    * Take the notice down without answering the question.
@@ -941,9 +1024,9 @@ export const historyAsk = {
 export interface ThreadCatchUp {
   /** What an arriving transfer is matched against. */
   requestId: string;
-  /** How many members have been asked, which is also the next one to ask. */
-  asked: number;
-  /** When the outstanding ask went out, so a silent one can be moved on from. */
+  /** The members still sending, once asked. Absent until the ask goes out. */
+  waiting?: number[];
+  /** When the ask went out, so a member who never answers is closed after a while. */
   at: string;
 }
 
@@ -973,6 +1056,17 @@ export const threadCatchUp = {
     await update<Record<string, ThreadCatchUp>>("thread-catch-ups", (current) => {
       if (!current || !(conversationId in current)) return undefined;
       const { [conversationId]: _gone, ...rest } = current;
+      return rest;
+    });
+  },
+  /** One member has sent all of theirs; the ask closes with the last of them. */
+  answered: async (conversationId: string, userId: number): Promise<void> => {
+    await update<Record<string, ThreadCatchUp>>("thread-catch-ups", (current) => {
+      const state = current?.[conversationId];
+      if (!current || !state) return undefined;
+      const waiting = (state.waiting ?? []).filter((member) => member !== userId);
+      if (waiting.length > 0) return { ...current, [conversationId]: { ...state, waiting } };
+      const { [conversationId]: _done, ...rest } = current;
       return rest;
     });
   },
@@ -1048,6 +1142,15 @@ export const sessionOrigin = {
 export const sessionAuthor = {
   get: (id: string) => read<number>("session-author:" + id),
   set: (id: string, userId: number) => write("session-author:" + id, userId),
+};
+
+/**
+ * Which device is on the other end of a session, recorded when it is opened.
+ * Absent on sessions opened before this was recorded.
+ */
+export const sessionDevice = {
+  get: (id: string) => read<string>("session-device:" + id),
+  set: (id: string, deviceId: string) => write("session-device:" + id, deviceId),
 };
 
 /**

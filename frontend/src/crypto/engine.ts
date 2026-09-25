@@ -18,14 +18,18 @@ import type {
   InboundSession,
   KeysGenerated,
   OutboundSession,
+  PreKeyInspected,
 } from "./types";
 import init, {
   create_account,
   create_inbound_session,
   create_outbound_session,
   generate_keys,
+  inspect_prekey,
   session_decrypt,
   session_encrypt,
+  sign_device,
+  verify_device,
 } from "./wasm/initiative_ratchet.js";
 
 let ready: Promise<unknown> | null = null;
@@ -93,18 +97,48 @@ export async function generateKeys(
   return generate_keys(pickle, await key(), count, withFallback) as KeysGenerated;
 }
 
+export async function signDevice(pickle: string, userId: number): Promise<string> {
+  await loadRatchet();
+  return sign_device(pickle, await key(), userId);
+}
+
+export async function verifyDevice(
+  userId: number,
+  identityKey: string,
+  fingerprintKey: string,
+  signature: string
+): Promise<boolean> {
+  await loadRatchet();
+  return verify_device(userId, identityKey, fingerprintKey, signature);
+}
+
+/**
+ * Open a session with a device. A signed one-time key is checked against the
+ * fingerprint key inside the ratchet; `null` is for a device that signs nothing.
+ */
 export async function createOutboundSession(
   pickle: string,
   theirIdentityKey: string,
-  theirOneTimeKey: string
+  theirFingerprintKey: string,
+  theirOneTimeKey: string,
+  oneTimeKeySignature: string | null,
+  fallback: boolean
 ): Promise<OutboundSession> {
   await loadRatchet();
   return create_outbound_session(
     pickle,
     await key(),
     theirIdentityKey,
-    theirOneTimeKey
+    theirFingerprintKey,
+    theirOneTimeKey,
+    oneTimeKeySignature,
+    fallback
   ) as OutboundSession;
+}
+
+export async function inspectPreKey(ciphertext: string): Promise<PreKeyInspected> {
+  await loadRatchet();
+  return inspect_prekey(ciphertext) as PreKeyInspected;
 }
 
 export async function createInboundSession(

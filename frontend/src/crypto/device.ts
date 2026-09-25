@@ -8,20 +8,24 @@ import {
   listDevicesApiV1MeDmDevicesGet as listDevices,
   registerDeviceApiV1MeDmDevicesPost as registerDevice,
   removeDeviceApiV1MeDmDevicesDeviceIdDelete as removeDevice,
+  signDeviceApiV1MeDmDevicesDeviceIdSignaturePut as signDevice,
   topUpKeysApiV1MeDmOneTimeKeysPost as topUpKeys,
 } from "@/api/generated/direct-messages/direct-messages";
 import type { DmConversationRead, DmDeviceRead } from "@/api/generated/initiativeAPI.schemas";
+import { readUsersMeApiV1UsersMeGet as readMe } from "@/api/generated/users/users";
 
 import { ratchet, stopRatchet } from "./client";
+import type { CodeKeys } from "./safetyCode";
 import { withAccount } from "./sessions";
 import {
   deviceClaim,
+  deviceOwner,
   forgetDevice,
   historyAsk,
   messageLog,
   deviceId as storedDeviceId,
 } from "./store";
-import { type PeerDirectory, readPeerDirectory } from "./trust";
+import { ingestDirectory, type PeerDirectory, readPeerDirectory } from "./trust";
 
 /** How many prekeys a device keeps published. */
 const KEY_POOL = 50;
@@ -35,34 +39,49 @@ const KEY_LOW_WATER = 15;
  * A collection builds one and hands it to everything it does, so one
  * collection reads the account's devices, the conversation list and each
  * member's directory once; a message somebody sends builds its own. `device`
- * is this browser's, and `ownDevices` the whole account's, this one included.
+ * is this browser's, `self` the account it belongs to, and `own` the account's
+ * devices through the trust seam, this one included.
  */
 export interface Context {
+  self: number;
   device: string;
-  ownDevices: DmDeviceRead[];
+  own: PeerDirectory;
   conversations: () => Promise<DmConversationRead[]>;
   /** A directory that cannot be read reads as nobody there, for that member only. */
   directory: (userId: number) => Promise<PeerDirectory>;
 }
 
-function contextFor(device: string, ownDevices: DmDeviceRead[]): Context {
+async function contextFor(self: number, device: string, listed: DmDeviceRead[]): Promise<Context> {
   let conversations: Promise<DmConversationRead[]> | undefined;
   const directories = new Map<number, Promise<PeerDirectory>>();
   return {
+    self,
     device,
-    ownDevices,
+    own: await ingestDirectory(
+      self,
+      listed.map(({ id, ...entry }) => ({ ...entry, device_id: id }))
+    ),
     conversations: () =>
-      (conversations ??= listConversations().then((listed) => listed.conversations)),
+      (conversations ??= listConversations().then((response) => response.conversations)),
     directory: (userId) => {
       if (!directories.has(userId)) {
         directories.set(
           userId,
-          readPeerDirectory(userId).catch(() => ({ devices: [], withheld: 0 }))
+          readPeerDirectory(userId).catch(() => ({ devices: [], held: [] }))
         );
       }
       return directories.get(userId) as Promise<PeerDirectory>;
     },
   };
+}
+
+/** The account this browser's device belongs to, asked of the server once. */
+async function owner(): Promise<number> {
+  const stored = await deviceOwner.get();
+  if (stored !== undefined) return stored;
+  const { id } = await readMe();
+  await deviceOwner.set(id);
+  return id;
 }
 
 /**
@@ -92,6 +111,31 @@ async function replenish(deviceId: string, held: number): Promise<void> {
 }
 
 /**
+ * Sign a device registered before signing, and replace the keys it published
+ * with signed ones. The server takes this once; a device it refuses, or a
+ * request that fails, is tried again on the next visit.
+ */
+async function signItself(self: number, device: string): Promise<DmDeviceRead[] | null> {
+  try {
+    const signed = await withAccount(async (pickle) => {
+      const keys = await ratchet.generateKeys(pickle, KEY_POOL, true);
+      const signature = await ratchet.signDevice(keys.pickle, self);
+      return { next: keys.pickle, value: { keys, signature } };
+    });
+    if (signed === null || signed.keys.fallback_key === null) return null;
+    // The account is written before the keys are published, as a top-up is.
+    const response = await signDevice(device, {
+      signature: signed.signature,
+      fallback_key: signed.keys.fallback_key,
+      one_time_keys: signed.keys.one_time_keys,
+    });
+    return response.devices;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * This browser's device, and the account's other devices alongside it.
  *
  * The two are read together because every caller needs both, and the device
@@ -105,8 +149,12 @@ export async function ensureDeviceContext(): Promise<Context> {
     const devices = (await listDevices()).devices;
     const known = devices.find((device) => device.id === existing);
     if (known) {
+      const self = await owner();
+      if (!known.signature) {
+        return contextFor(self, existing, (await signItself(self, existing)) ?? devices);
+      }
       await replenish(existing, known.one_time_key_count);
-      return contextFor(existing, devices);
+      return contextFor(self, existing, devices);
     }
     // The dead device is named, so only a claim still recording it reopens: a
     // second tab reaching the same conclusion waits for the first instead.
@@ -121,10 +169,13 @@ export async function ensureDeviceContext(): Promise<Context> {
   const turn = await deviceClaim.take();
   if (turn === null) {
     const id = await waitForRegistration(existing);
-    return contextFor(id, (await listDevices()).devices);
+    return contextFor(await owner(), id, (await listDevices()).devices);
   }
 
   try {
+    // Asked afresh: a new registration may be a different account signing in.
+    const { id: self } = await readMe();
+    await deviceOwner.set(self);
     const account = await ratchet.createAccount();
     const keys = await ratchet.generateKeys(account.pickle, KEY_POOL, true);
     if (keys.fallback_key === null) {
@@ -133,19 +184,21 @@ export async function ensureDeviceContext(): Promise<Context> {
     const response = await registerDevice({
       identity_key: account.identity_key,
       fingerprint_key: account.fingerprint_key,
+      signature: await ratchet.signDevice(keys.pickle, self),
       fallback_key: keys.fallback_key,
       one_time_keys: keys.one_time_keys,
     });
-    const created = response.devices[response.devices.length - 1];
+    const created = response.device_id;
+    if (!created) throw new Error("the server named no device");
     // The keys, the id and the claim in one write, and only while this is
     // still this tab's turn.
-    if (!(await deviceClaim.settle(turn, created.id, keys.pickle))) {
+    if (!(await deviceClaim.settle(turn, created, keys.pickle))) {
       // Registration outran the claim and another tab took over. Its device is
       // the one this browser holds keys for, so the one just registered is
       // withdrawn rather than left collecting messages nothing can open.
-      await removeDevice(created.id).catch(() => undefined);
+      await removeDevice(created).catch(() => undefined);
       const id = await waitForRegistration(existing);
-      return contextFor(id, (await listDevices()).devices);
+      return contextFor(self, id, (await listDevices()).devices);
     }
     // Whether this device may ask the account for its history is settled here,
     // on the one fact that can settle it: what this browser held at the moment
@@ -158,7 +211,7 @@ export async function ensureDeviceContext(): Promise<Context> {
     } else {
       await historyAsk.eligible();
     }
-    return contextFor(created.id, response.devices);
+    return contextFor(self, created, response.devices);
   } catch (error) {
     // Hand the turn back, or the next attempt waits out the stale window for
     // a tab that has already given up.
@@ -180,6 +233,16 @@ export async function ensureDevice(): Promise<string> {
 /** Whether this browser has already been set up, without setting it up. */
 export async function registeredDevice(): Promise<string | undefined> {
   return storedDeviceId.get();
+}
+
+/** This browser's device keys and account, for showing its code; `null` where it is not set up. */
+export async function thisDevice(): Promise<({ userId: number } & CodeKeys) | null> {
+  if (!(await storedDeviceId.get())) return null;
+  const ctx = await ensureDeviceContext();
+  const me = ctx.own.devices.find((device) => device.id === ctx.device);
+  return me
+    ? { userId: ctx.self, fingerprintKey: me.fingerprintKey, identityKey: me.identityKey }
+    : null;
 }
 
 /**

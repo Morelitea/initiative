@@ -4,9 +4,11 @@
  * the types are asserted once rather than at every call site.
  */
 
+/** A published key, signed by the device that published it. */
 export interface PublishedKey {
   key_id: string;
   public_key: string;
+  signature: string;
 }
 
 export interface AccountCreated {
@@ -24,6 +26,12 @@ export interface KeysGenerated {
 export interface OutboundSession {
   session_pickle: string;
   session_id: string;
+}
+
+/** Which session a pre-key message opens, and the identity that sent it. */
+export interface PreKeyInspected {
+  session_id: string;
+  identity_key: string;
 }
 
 export interface InboundSession {

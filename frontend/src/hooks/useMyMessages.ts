@@ -25,26 +25,30 @@ import {
   markConversationReadApiV1MeDmConversationsConversationIdReadPost as reportThreadRead,
 } from "@/api/generated/direct-messages/direct-messages";
 import { invalidate, q } from "@/api/query-keys";
-import type { StoredMessage } from "@/crypto/messaging";
+import type { PeerKeyChange, SafetyNumber, StoredMessage } from "@/crypto/messaging";
 import {
-  answerHistoryRequest,
+  acknowledgeSafetyNumber,
+  answerNewDevice,
   collect,
   ensureDevice,
+  ensureDeviceContext,
   historyAsk,
   historyAskWaiting,
-  historyRequestToAnswer,
   markRead,
   messageLog,
-  peerKeyChanges,
+  ownDeviceWaiting,
+  pairSafetyNumber,
   peerKeyChangesWaiting,
   registeredDevice,
   sendEdit,
   sendReaction,
   sendRemove,
   sendText,
+  thisDevice,
   unreadIn,
   wantThreadHistory,
 } from "@/crypto/messaging";
+import { type CodeKeys, deviceCode } from "@/crypto/safetyCode";
 import {
   useDirectMessagesEnabled,
   useDmSettings,
@@ -68,11 +72,15 @@ export const messageKeys = {
   // Keyed on the conversations it counts, so a new one is a new question
   // rather than a stale answer waiting for something to invalidate it.
   unread: (conversationIds: string[]) => ["dm", "unread", conversationIds.join(",")] as const,
-  /** Another device asking this one for history, read out of the local store. */
-  historyRequest: ["dm", "history-request"] as const,
-  /** This device's own outstanding ask, and the code it is showing for it. */
+  /** A new device of this account's waiting to be confirmed, read out of the local store. */
+  ownDevice: ["dm", "own-device"] as const,
+  /** This device's own outstanding ask for its history. */
   historyAsk: ["dm", "history-ask"] as const,
   peerKeyChanges: ["dm", "peer-key-changes"] as const,
+  // Outside the `["dm", …]` family: each is thousands of hashes, and nothing a
+  // socket frame says changes a key this browser already holds.
+  thisDevice: ["dm-this-device"] as const,
+  safetyNumber: (userId: number) => ["dm-safety-number", userId] as const,
   /** The family a socket frame invalidates, which is everything read locally. */
   all: ["dm"] as const,
 };
@@ -191,7 +199,7 @@ export function useStartConversation() {
  * subscription to the same signal.
  *
  * It never invalidates its own key — only the threads, the conversation list
- * and the two history panels — so a collection cannot re-trigger itself.
+ * and the notices it can raise — so a collection cannot re-trigger itself.
  */
 export function useCollectMessages(enabled: boolean) {
   const queryClient = useQueryClient();
@@ -207,14 +215,14 @@ export function useCollectMessages(enabled: boolean) {
           queryKey: messageKeys.thread(conversationId),
         });
       }
-      // Always, and after the collection rather than with it: a request from
-      // another device arrives inside this call and is written to this
-      // device's own store, which no frame and no other query knows to look at
-      // again. The socket frame that started this collection invalidated the
-      // panel a round trip *before* the request landed, so without this the
-      // dialog waits for a reload — which is the one thing somebody who has
-      // just signed in elsewhere is not doing.
-      void queryClient.invalidateQueries({ queryKey: messageKeys.historyRequest });
+      // Always, and after the collection rather than with it: a new device of
+      // this account's is found by the collection's own read of the device
+      // list and written to this device's own store, which no frame and no
+      // other query knows to look at again. The socket frame that started this
+      // collection invalidated the prompt a round trip *before* that, so this
+      // is what puts it on screen for somebody who has just signed in
+      // elsewhere and is not about to reload.
+      void queryClient.invalidateQueries({ queryKey: messageKeys.ownDevice });
       void queryClient.invalidateQueries({ queryKey: messageKeys.historyAsk });
       // Same reason: a directory read during this collection can record a key
       // change locally, and nothing else asks that query again.
@@ -266,25 +274,56 @@ export function useCollectMessagesWhereRegistered() {
  * whole rail, which is the only mark visible from inside a community.
  */
 /**
- * A device of this account's waiting to be sent its history.
- *
- * Read from this device's own store rather than an endpoint, like the threads:
- * the request arrived as an encrypted envelope and the server never saw what
- * it was. Keyed under `["dm", …]`, so collecting one refreshes this.
+ * A device of this account's that signed in after this browser, waiting to be
+ * confirmed. Read from this device's own store; keyed under `["dm", …]`, so a
+ * collection refreshes it.
  */
-export function useHistoryRequest() {
+export function useOwnDeviceWaiting() {
   return useQuery({
-    queryKey: messageKeys.historyRequest,
-    queryFn: () => historyRequestToAnswer().then((request) => request ?? null),
+    queryKey: messageKeys.ownDevice,
+    queryFn: () => ownDeviceWaiting(),
     staleTime: 0,
   });
 }
 
 /**
- * This device waiting on an answer to its own ask, and the code it shows for it.
+ * Answer the prompt about a new device. Everything under `["dm"]` is refreshed,
+ * which collects again: what the device sent here was waiting on this answer.
+ */
+export function useAnswerNewDevice() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      change,
+      mine,
+      sendHistory,
+    }: {
+      change: PeerKeyChange;
+      mine: boolean;
+      sendHistory: boolean;
+    }) => answerNewDevice(change, { mine, sendHistory }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: messageKeys.all });
+    },
+    onError: (error) => toast.error(getErrorMessage(error, "messages:newDevice.error")),
+  });
+}
+
+/** This browser's device keys, for drawing its code; `null` where it is not set up. */
+export function useThisDevice() {
+  return useQuery({
+    queryKey: messageKeys.thisDevice,
+    queryFn: () => thisDevice(),
+    enabled: useDirectMessagesEnabled(),
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
+/**
+ * This device waiting to be confirmed by another of this account's.
  *
- * The pair of the panel above: one screen decides, the other is being decided
- * about, and both draw the same key so a person can compare them.
+ * The pair of the prompt above: one screen decides, the other is being decided
+ * about, and both draw the same code so a person can compare them.
  */
 export function useHistoryAsk() {
   return useQuery({
@@ -314,12 +353,34 @@ export function usePeerKeyChanges() {
   });
 }
 
-export function useAcknowledgePeerKeyChange() {
+/** One device's code, worked out only where it is drawn: it is thousands of hashes. */
+export function useDeviceCode(userId: number, keys: CodeKeys) {
+  return useQuery({
+    queryKey: ["dm-device-code", userId, keys.fingerprintKey, keys.identityKey],
+    queryFn: () => deviceCode(userId, keys),
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
+/** The safety number with one person, worked out only while it is on screen. */
+export function usePairSafetyNumber(userId: number | null) {
+  return useQuery({
+    queryKey: messageKeys.safetyNumber(userId ?? 0),
+    queryFn: async () => pairSafetyNumber(await ensureDeviceContext(), userId as number),
+    enabled: userId !== null,
+    staleTime: 0,
+  });
+}
+
+/** The person compared the safety number: their held devices are released. */
+export function useAcknowledgeSafetyNumber() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (deviceId: string) => peerKeyChanges.acknowledge(deviceId),
-    onSuccess: () => {
+    mutationFn: ({ userId, number }: { userId: number; number: SafetyNumber }) =>
+      acknowledgeSafetyNumber(userId, number),
+    onSuccess: (_, { userId }) => {
       void queryClient.invalidateQueries({ queryKey: messageKeys.peerKeyChanges });
+      void queryClient.invalidateQueries({ queryKey: messageKeys.safetyNumber(userId) });
     },
   });
 }
@@ -336,16 +397,6 @@ export function useDismissHistoryAsk() {
     mutationFn: () => historyAsk.dismissNotice(),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: messageKeys.historyAsk });
-    },
-  });
-}
-
-export function useAnswerHistoryRequest() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (approve: boolean) => answerHistoryRequest(approve),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: messageKeys.all });
     },
   });
 }
