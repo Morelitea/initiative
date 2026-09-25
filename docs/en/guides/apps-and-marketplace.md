@@ -28,7 +28,7 @@ There are two, and the difference is who gets what you take.
 |---|---|---|
 | What it adds | A screen of charts, numbers and timelines | Something the whole community shares |
 | Where it goes | Into one initiative | Into the community |
-| Who can add it | Anyone who can create dashboards in that initiative | Community admins only |
+| Who can add it | Anyone who can create dashboards in that initiative | Your community's [superadmin](communities.md#why-superadmin-is-separate) |
 
 Both browse the same way: search, open a listing to read what it does, add it.
 
@@ -49,23 +49,52 @@ When the publisher ships a newer version, the dashboard shows **Version X availa
 
 ### Adding an app
 
-An **app** adds something to the community as a whole rather than one effort — a shared surface, extra dashboard widgets, or a connection to a service your group already uses. Because it affects everyone, **only community admins can add or remove one**.
+An **app** adds something to the community as a whole rather than one effort: a page of its own, extra dashboard widgets, or a link to a service your group already uses. Because it affects everyone, **only your community's [superadmin](communities.md#why-superadmin-is-separate) can add or remove one**. Everybody else can browse, read the listing, and go and ask them nicely.
 
 1. Switch the marketplace to the **Apps** shelf and open a listing.
 2. **Add to community**, and name it.
-3. If it needs setting up, it's marked **Needs setup** — open its settings to finish.
+3. Answer the questions it asks (below), and add it.
+4. If it needs setting up, it's marked **Needs setup**. Open its settings to finish.
 
-The Apps shelf lists the apps your server actually runs. Some need a program running alongside Initiative, and one your server hasn't set up — or has switched off — isn't offered here.
-
-Expected something and can't find it? Whoever runs your server is who to ask. On the hosted service they're already running — see [Self-host or let us host it](../self-host-or-hosted.md#apps-that-need-something-running-behind-them).
+The Apps shelf lists the apps your server actually runs. Some need a program running alongside Initiative, and one your server hasn't set up, or has switched off, isn't offered here. Expected something and can't find it? Whoever runs your server is who to ask. On the hosted service they're already running — see [Self-host or let us host it](../self-host-or-hosted.md#apps-that-need-something-running-behind-them).
 
 Installed apps appear in the **Apps** section at the top of the sidebar, above your initiatives, and are managed under **Community settings → Apps**.
+
+### What you're agreeing to
+
+Adding an app asks up to three things, and every answer can be changed later from the app's settings. So none of this is a trap, and you can't get it wrong in a way that sticks.
+
+| | What it means |
+|---|---|
+| **What it can reach** | The kinds of thing it may read, or read and change: projects, documents, comments, tags, and so on. Everything it asks for starts ticked; untick what you'd rather it didn't have. A line marked *This server doesn't allow it* is off-limits whatever you tick. |
+| **Where it works** | Every current initiative, or only the ones you pick. An app reads and changes things only in the initiatives it works in, so the committee's private budget initiative stays out of reach unless you put it there. |
+| **Who can open it there** | Only for an app with a page inside initiatives: which roles see that page. Community admins always can. |
+
+An app asking for nothing gets asked nothing. It just gets a name.
+
+However you answer, **it never reaches past what you allowed.** An app that may read projects in the Garden initiative reads projects in the Garden initiative. Not documents, not the Kitchen.
+
+### Updates
+
+Apps update themselves. Most new versions arrive quietly and nobody notices, which is the idea.
+
+The exception is a version that wants **more** than you agreed to: something new to reach, or a new page. That one waits. The superadmin gets a notification, and the app's settings show what the new version wants, with **Accept and update** and **Decline** beside it. Declining keeps the app exactly as it is, on the version it's already running.
+
+Prefer to read every update first? Turn off **Update automatically** in the app's settings, and each new version waits for you to click **Update to** it.
+
+Some apps come with your server and are added to every community for you. Those can't be removed or turned off from here, and they update without asking. Whoever runs the server decides whether they exist at all.
+
+### An app can own things
+
+Content usually belongs to a person. It can also belong to an **app**, so a project an app looks after doesn't end up orphaned when the person who set it up moves on.
+
+In **Settings → Users**, **Transfer ownership** offers apps beside admins. An app can be given something only while it's switched on, works in that initiative, and is allowed to change that kind of thing. An app that owns something may decide who else gets access to it, if you allowed it to change sharing.
 
 ### Setting an app up
 
 Some apps need a credential — an API key, or a sign-in to another service. Two kinds, and the difference matters:
 
-- **Community credential** — set once by an admin, used for everyone. Good for a shared account the whole group works through.
+- **Community credential** — set once by the superadmin, used for everyone. Good for a shared account the whole group works through.
 - **Your account** — each member supplies their own, used only for them. Yours is yours; other members can't see or use it.
 
 Each connection shows which service it uses and what it's allowed to do there, so you can decide before you hand anything over.
@@ -73,7 +102,10 @@ Each connection shows which service it uses and what it's allowed to do there, s
 ### Turning an app off, and removing it
 
 - **Turn off** hides it from everyone while keeping its setup. Turn it back on and it picks up where it left off. Disabled apps stay listed in **Community settings → Apps**.
-- **Remove** takes it out entirely. Anything it created moves to the **Trash**, restorable during the retention window. Every credential it held — the community's and each member's — is deleted, and the app is told to stop using them.
+- **Remove** takes it out entirely:
+    - Anything it set up when it was added moves to the **Trash**, restorable during the retention window.
+    - Anything it owned stays where it is, with no owner. An admin picks it up with **Claim unowned content** in **Settings → Users**.
+    - Every credential it held, the community's and each member's, is deleted, and the app is told to stop using them.
 
 ## Your own marketplace
 
@@ -107,12 +139,13 @@ Giving one back is the same click in reverse — open the pack's card and remove
 
 ## Where listings come from
 
-Every listing in your marketplace arrived one of two ways:
+Every listing in your marketplace arrived one of three ways:
 
 - It **ships with Initiative** — part of the built-in catalog, credited to Initiative. That credit can't be claimed by anything else.
+- It came from **the Initiative registry** — a signed online catalog your server follows unless its platform owner has switched it off. Every file from it is checked against a signing key built into Initiative before anything is used, so a listing arrives exactly as it was published or not at all.
 - Your **platform owner added it** — they chose that listing and published it to your deployment. If you run Initiative yourself, that's you.
 
-There's no third way. Anyone can write a listing; reaching *your* marketplace is a decision your platform owner makes, one listing at a time. See [Publishing your own listings](../running-a-server/publishing-listings.md).
+That's the lot. Anyone can write a listing; reaching *your* marketplace takes that signed registry or a decision by your platform owner. See [Publishing your own listings](../running-a-server/publishing-listings.md).
 
 Every listing shows **who published it** — on the card, on its page, and in the dialog where you add it — so the question is answered while you're deciding.
 

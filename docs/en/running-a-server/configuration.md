@@ -160,6 +160,33 @@ The captcha switches on once all three are saved, and the section's badge says w
 
 Leave it off unless you want that surface. See [API keys & integrations](../account/api-keys-and-integrations.md) for how users connect.
 
+## The Initiative registry
+
+Your server follows the **Initiative registry**, a signed online catalog of apps and dashboards, from the moment it starts. Every file it brings is checked against a signing key built into Initiative before anything is used, so a listing arrives exactly as it was published or not at all.
+
+Its panel is in **Settings → Platform → Integrations**, under **Marketplace registry**:
+
+| | |
+|---|---|
+| **Follow the registry** | Off, the server stops asking for updates. Whatever it already brought stays. |
+| **Refresh now** | Checks straight away rather than at the next scheduled check (every fifteen minutes). |
+| **Upload a registry bundle** | For a server with no internet access: a `.tar.gz` of the registry's `metadata` and `targets` folders, carried in by hand. It's checked against the same key, so a bundle that went via a USB stick in somebody's coat pocket is exactly as trustworthy as one that didn't. |
+
+The panel also says when it last updated, how many listings came from it, and why the last attempt stopped, if it did. A skipped listing is named with its reason.
+
+| Variable | What it does | Default |
+|---|---|---|
+| `MARKETPLACE_REGISTRY_URL` | Where the registry is read from. Point it at a mirror, or a curated copy signed with the same key. | Initiative's public registry |
+| `MARKETPLACE_REGISTRY_ROOT` | A path to a different signing key, for a registry somebody else signs. Its listings and apps arrive as usual. | The key built into Initiative |
+| `MARKETPLACE_REGISTRY_TTL_SECONDS` | How often the server checks for updates. At least 60. | `900` |
+
+### Apps from the registry
+
+An app from the registry lands in **Settings → Platform → Integrations**, under **App services**, marked **From the registry**. The registry keeps its listing, keys and what it may be granted. You decide whether it runs here:
+
+- **Switch it on or off.** Off, every community that added it stops reaching it at once. Nothing is deleted.
+- **Give it an address.** An app that runs as its own program needs one: the **Base URL** Initiative's server calls it on, which can be a private address inside your own network. Until it has one, it shows **Not live** and communities aren't offered it.
+
 ## Your own marketplace listings
 
 | Variable | What it does | Default |
