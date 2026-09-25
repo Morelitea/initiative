@@ -403,7 +403,12 @@ def _asking_definition(
 
 
 async def _asking_install(
-    session: AsyncSession, uid: str, *, granted=("projects:read",), **definition
+    session: AsyncSession,
+    uid: str,
+    *,
+    granted=("projects:read",),
+    mandatory: bool = False,
+    **definition,
 ):
     """An install of a registered service app pinned at 1.0.0, granted
     ``granted``, whose community has a seat holder."""
@@ -412,6 +417,7 @@ async def _asking_install(
         public_id=ASKING_SERVICE,
         listing_uid=uid,
         scope_ceiling=["projects:read", "projects:write", "comments:read"],
+        mandatory=mandatory,
     )
     await _publish(session, uid, "1.0.0", definition=_asking_definition(**definition))
     seat = await create_user(session)
@@ -510,6 +516,55 @@ class TestVersionsThatAskForMore:
         # Already waiting: the next pass neither applies it nor asks again.
         moved, asked = await _sweep(session, guild.id)
         assert (moved, asked) == (0, [])
+
+    async def test_a_required_app_applies_and_takes_its_new_scopes(
+        self, session: AsyncSession
+    ):
+        """The registration granted what a required app requests at install,
+        with no seat asked, so a newer version is applied the same way."""
+        uid = marketplace_uid("asksrequired")
+        _, guild, app = await _asking_install(session, uid, mandatory=True, scopes=())
+        await _publish(
+            session,
+            uid,
+            "1.1.0",
+            definition=_asking_definition(
+                scopes=("projects:read", "projects:write", "tags:read")
+            ),
+        )
+
+        moved, asked = await _sweep(session, guild.id)
+
+        assert (moved, asked) == (1, [])
+        updated = await _reread(session, guild.id, app.id)
+        assert updated.listing_version == "1.1.0"
+        assert updated.pending_version is None
+        # What the version asks for within the ceiling; tags:read is above it.
+        assert sorted(updated.granted_scopes) == ["projects:read", "projects:write"]
+
+    async def test_a_required_app_already_waiting_is_applied(
+        self, session: AsyncSession
+    ):
+        uid = marketplace_uid("askswaiting")
+        _, guild, app = await _asking_install(session, uid, mandatory=True)
+        await _publish(
+            session,
+            uid,
+            "1.1.0",
+            definition=_asking_definition(scopes=("projects:read", "projects:write")),
+        )
+        await route_session_to_guild(session, guild.id)
+        row = await _reread(session, guild.id, app.id)
+        row.pending_version = "1.1.0"
+        session.add(row)
+        await session.commit()
+
+        moved, _ = await _sweep(session, guild.id)
+
+        assert moved == 1
+        updated = await _reread(session, guild.id, app.id)
+        assert (updated.listing_version, updated.pending_version) == ("1.1.0", None)
+        assert "projects:write" in updated.granted_scopes
 
     async def test_a_new_initiative_surface_waits(self, session: AsyncSession):
         uid = marketplace_uid("askssurface")

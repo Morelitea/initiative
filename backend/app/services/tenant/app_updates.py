@@ -21,6 +21,12 @@ grant. The seat accepts it from the Update button, adding the scopes it
 consents to, or declines it, which stops the asking until a newer version is
 published. A version asking for nothing new applies as before.
 
+**A required app does not wait.** The deployment's registration is what
+installed it and granted what it requests within the ceiling, with no seat
+asked; its newer versions are applied the same way, adding the new scopes
+within the ceiling. A community with no seat holder would otherwise keep a
+required app on a version it can no longer serve.
+
 What survives an upgrade is the same either way. Stored configuration is pruned
 to what the new definition still declares — a value cannot outlive the field it
 was typed into — and a connection the new version dropped is *revoked* rather
@@ -379,6 +385,23 @@ async def _update_guild(
         if offer is None:
             continue
         pending = offer.update
+        mandatory = (await registration_lookup.install_state(app.definition)).mandatory
+        if offer.asks.asks_more and mandatory:
+            # The registration stands in for the seat, as at install.
+            from_version = app.listing_version
+            await apply_version(
+                session, app, pending, add_scopes=offer.asks.added_scopes
+            )
+            applied += 1
+            logger.info(
+                "app auto-update: guild=%s app=%s listing=%s required, %s -> %s",
+                guild_id,
+                app.id,
+                app.listing_uid,
+                from_version,
+                pending.version,
+            )
+            continue
         if offer.asks.asks_more:
             if pending.version not in (app.pending_version, app.declined_version):
                 app.pending_version = pending.version
