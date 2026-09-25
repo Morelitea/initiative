@@ -177,9 +177,11 @@ export function $isReferenceEmbedNode(
 export function $placeEmbed(inline: LexicalNode, embed: ReferenceEmbedNode): void {
   const block = inline.getTopLevelElementOrThrow();
   inline.remove();
-  const empty = block
-    .getChildren()
-    .every((child) => $isTextNode(child) && child.getTextContent().trim() === "");
+  const empty =
+    $isElementNode(block) &&
+    block
+      .getChildren()
+      .every((child) => $isTextNode(child) && child.getTextContent().trim() === "");
   if (empty) block.replace(embed);
   else block.insertAfter(embed);
   const next = embed.getNextSibling();
