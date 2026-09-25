@@ -45,6 +45,7 @@ from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
 import httpx
 import jwt
+from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -127,7 +128,14 @@ SETUP_PATH = "/api/v1/app-connections/setup"
 
 #: How a flow ended, as the landing page reads it.
 OUTCOMES: frozenset[str] = frozenset(
-    {"connected", "refused", "expired", "not_recorded", "awaiting_approval"}
+    {
+        "connected",
+        "refused",
+        "expired",
+        "not_recorded",
+        "awaiting_approval",
+        "sign_in_required",
+    }
 )
 
 #: The keys a flow's tokens are held under in a connection's stored values
@@ -359,6 +367,7 @@ async def start_url(
     connection: Mapping[str, Any],
     guild_id: int,
     user_id: Optional[int],
+    started_by: int,
     public_id: str,
     fields: Mapping[str, Any],
 ) -> str:
@@ -377,6 +386,7 @@ async def start_url(
         install_id=app.id,
         connection_id=str(connection.get("id")),
         user_id=user_id,
+        started_by=started_by,
         return_path=return_path(public_id, str(connection.get("id"))),
         pkce=flow.get("pkce") is not False,
         phase="install" if install else "authorize",
@@ -846,11 +856,37 @@ def _clean_installation_id(value: Optional[str]) -> Optional[str]:
     return value if all(char in allowed for char in value) else None
 
 
+async def _person_outcome(
+    state: ConnectionFlowState, signed_in: Optional[int]
+) -> Optional[str]:
+    """Whether the person finishing a flow may: the landing outcome when not,
+    ``None`` when they may go on.
+
+    The flow is finished only by the signed-in person who started it. A
+    community connection is finished only while that person still holds the
+    community's seat.
+    """
+    if signed_in is None or signed_in != state.started_by:
+        return "sign_in_required"
+    if state.user_id is None:
+        async with db_session.SystemSessionLocal() as session:
+            await set_rls_context(session)
+            holds = (
+                await session.exec(
+                    select(func.guild_superadmin(state.guild_id, state.started_by))
+                )
+            ).first()
+        if not holds:
+            return "refused"
+    return None
+
+
 async def complete_setup(
     *,
     state_token: Optional[str],
     installation_id: Optional[str],
     setup_action: Optional[str],
+    signed_in: Optional[int],
 ) -> str:
     """The return from an installation-style vendor's install page.
 
@@ -865,6 +901,9 @@ async def complete_setup(
         return landing_url(None, "expired")
     if state.phase != "install":
         return landing_url(state.return_path, "expired")
+    outcome = await _person_outcome(state, signed_in)
+    if outcome is not None:
+        return landing_url(state.return_path, outcome)
     if setup_action == "request":
         return landing_url(state.return_path, "awaiting_approval")
     claimed = _clean_installation_id(installation_id)
@@ -893,6 +932,7 @@ async def complete_callback(
     state_token: Optional[str],
     code: Optional[str],
     error: Optional[str],
+    signed_in: Optional[int],
 ) -> str:
     """The vendor's return with an authorization code. Exchanges it, asks the
     app's ``after_connect`` hook when the flow says so, stores the result, and
@@ -903,6 +943,9 @@ async def complete_callback(
         return landing_url(None, "expired")
     if state.phase != "authorize":
         return landing_url(state.return_path, "expired")
+    outcome = await _person_outcome(state, signed_in)
+    if outcome is not None:
+        return landing_url(state.return_path, outcome)
     if error or not code:
         return landing_url(state.return_path, "refused")
 

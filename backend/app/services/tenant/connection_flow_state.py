@@ -7,8 +7,8 @@ flow_state` uses for sign-in, under a salt of its own). It is confidential,
 cannot be altered, and expires ten minutes after it was minted.
 
 It names the install, the connection and the member (or none, for the
-community's own connection), the PKCE verifier, the path to send the person
-back to, and the phase: ``install`` while a person is on the vendor's install
+community's own connection), the person who started it, the PKCE verifier,
+the path to send the person back to, and the phase: ``install`` while a person is on the vendor's install
 page, ``authorize`` once the authorization request is sent. An
 installation-style flow's second leg carries the installation id the vendor's
 setup address returned.
@@ -63,6 +63,9 @@ class ConnectionFlowState:
     connection_id: str
     #: The member connecting their own account; ``None`` for the community's.
     user_id: Optional[int]
+    #: The signed-in person who started the flow, and the only one who may
+    #: finish it.
+    started_by: int
     #: The PKCE verifier, or empty when the flow sends no challenge.
     verifier: str
     #: Where to send the person when the flow ends, as a path on this
@@ -89,6 +92,7 @@ def new_state(
     install_id: int,
     connection_id: str,
     user_id: Optional[int],
+    started_by: int,
     return_path: str,
     pkce: bool,
     phase: str,
@@ -98,6 +102,7 @@ def new_state(
         install_id=install_id,
         connection_id=connection_id,
         user_id=user_id,
+        started_by=started_by,
         verifier=secrets.token_urlsafe(_VERIFIER_BYTES) if pkce else "",
         return_path=return_path,
         phase=phase,
@@ -111,6 +116,7 @@ def encode_state(state: ConnectionFlowState) -> str:
             "i": state.install_id,
             "c": state.connection_id,
             "u": state.user_id,
+            "b": state.started_by,
             "v": state.verifier,
             "r": state.return_path,
             "p": state.phase,
@@ -140,6 +146,7 @@ def decode_state(
             install_id=int(data["i"]),
             connection_id=str(data["c"]),
             user_id=None if data.get("u") is None else int(data["u"]),
+            started_by=int(data["b"]),
             verifier=str(data.get("v") or ""),
             return_path=str(data["r"]),
             phase=str(data["p"]),

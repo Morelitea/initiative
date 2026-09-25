@@ -1319,6 +1319,7 @@ async def connect_guild_app(
             connection=connection,
             guild_id=guild_context.guild_id,
             user_id=user_id,
+            started_by=current_user.id,
             public_id=registration.public_id,
             fields=flows_service.stored_fields(stored_config),
         )

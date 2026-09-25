@@ -25,11 +25,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.app_access_token import seal_install_token
 from app.core.config import settings
+from app.core.security import SESSION_COOKIE_NAME
 from app.core.encryption import SALT_APP_CONFIG, decrypt_field, encrypt_field
 from app.core.messages import AppChannelMessages
 from app.db import session as db_session
 from app.db.session import set_rls_context
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.marketplace.registration_lookup import load_registrations
@@ -208,8 +209,20 @@ async def _start(client: AsyncClient, actor, app: GuildApp, connection: str) -> 
     }
 
 
-async def _callback(client: AsyncClient, **params) -> dict:
-    response = await client.get("/api/v1/app-connections/callback", params=params)
+def _cookie(actor) -> dict[str, str]:
+    """The session cookie the actor's browser carries."""
+    token = actor.headers["Authorization"].removeprefix("Bearer ")
+    return {"Cookie": f"{SESSION_COOKIE_NAME}={token}"}
+
+
+async def _callback(client: AsyncClient, actor, **params) -> dict:
+    """The vendor's return, in a browser where ``actor`` is signed in (or no
+    one is, when ``actor`` is ``None``)."""
+    response = await client.get(
+        "/api/v1/app-connections/callback",
+        params=params,
+        headers=_cookie(actor) if actor is not None else {},
+    )
     assert response.status_code == 303, response.text
     return _landing(response.headers["location"])
 
@@ -285,7 +298,7 @@ class TestMemberFlow:
         assert start["redirect_uri"] == app_connection_flows.callback_url()
 
         code = vendor.authorize(start["code_challenge"])
-        landing = await _callback(client, state=start["state"], code=code)
+        landing = await _callback(client, a, state=start["state"], code=code)
 
         assert landing["_path"] == "/apps/connected"
         assert landing["outcome"] == "connected"
@@ -334,7 +347,7 @@ class TestMemberFlow:
         for _ in range(2):
             start = await _start(client, a, app, "account")
             code = vendor.authorize(start["code_challenge"])
-            await _callback(client, state=start["state"], code=code)
+            await _callback(client, a, state=start["state"], code=code)
             row = await _member_row(session, a.guild.id, app.id)
             assert row is not None
             refs.append(row.connection_ref)
@@ -352,7 +365,7 @@ class TestMemberFlow:
         assert start["code_challenge_method"] == "S256"
 
         code = vendor.authorize("a-challenge-this-flow-never-sent")
-        landing = await _callback(client, state=start["state"], code=code)
+        landing = await _callback(client, a, state=start["state"], code=code)
 
         assert landing["outcome"] == "refused"
         assert await _member_row(session, a.guild.id, app.id) is None
@@ -367,7 +380,7 @@ class TestMemberFlow:
         state = start["state"]
         tampered = state[:-6] + ("A" if state[-6] != "A" else "B") + state[-5:]
 
-        landing = await _callback(client, state=tampered, code=code)
+        landing = await _callback(client, a, state=tampered, code=code)
 
         assert landing["outcome"] == "expired"
         assert vendor.token_requests == []
@@ -389,7 +402,7 @@ class TestMemberFlow:
 
         later = time.time() + 11 * 60
         monkeypatch.setattr(cryptography.fernet.time, "time", lambda: later)
-        landing = await _callback(client, state=start["state"], code=code)
+        landing = await _callback(client, a, state=start["state"], code=code)
 
         assert landing["outcome"] == "expired"
         assert vendor.token_requests == []
@@ -401,7 +414,9 @@ class TestMemberFlow:
         app = await _install(session, a)
         start = await _start(client, a, app, "account")
 
-        landing = await _callback(client, state=start["state"], error="access_denied")
+        landing = await _callback(
+            client, a, state=start["state"], error="access_denied"
+        )
 
         assert landing["outcome"] == "refused"
 
@@ -414,7 +429,7 @@ class TestMemberFlow:
         start = await _start(client, a, app, "account")
         code = vendor.authorize(start["code_challenge"])
 
-        landing = await _callback(client, state=start["state"], code=code)
+        landing = await _callback(client, a, state=start["state"], code=code)
 
         assert landing["outcome"] == "refused"
         assert await _member_row(session, a.guild.id, app.id) is None
@@ -428,9 +443,42 @@ class TestMemberFlow:
         start = await _start(client, a, app, "account")
         code = vendor.authorize(start["code_challenge"])
 
-        landing = await _callback(client, state=start["state"], code=code)
+        landing = await _callback(client, a, state=start["state"], code=code)
 
         assert landing["outcome"] == "not_recorded"
+        assert await _member_row(session, a.guild.id, app.id) is None
+
+    async def test_another_signed_in_person_cannot_finish_it(
+        self, client: AsyncClient, acting_user, session, vendor, registration
+    ):
+        """A flow is finished only by the person who started it; anyone else
+        is told to finish it where that person is signed in, and the code is
+        never exchanged."""
+        a = await acting_user(guild_role=GuildRole.member)
+        other = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        app = await _install(session, a)
+        start = await _start(client, a, app, "account")
+        code = vendor.authorize(start["code_challenge"])
+
+        landing = await _callback(client, other, state=start["state"], code=code)
+
+        assert landing["outcome"] == "sign_in_required"
+        assert vendor.token_requests == []
+        assert vendor.hooks == []
+        assert await _member_row(session, a.guild.id, app.id) is None
+
+    async def test_no_session_cannot_finish_it(
+        self, client: AsyncClient, acting_user, session, vendor, registration
+    ):
+        a = await acting_user(guild_role=GuildRole.member)
+        app = await _install(session, a)
+        start = await _start(client, a, app, "account")
+        code = vendor.authorize(start["code_challenge"])
+
+        landing = await _callback(client, None, state=start["state"], code=code)
+
+        assert landing["outcome"] == "sign_in_required"
+        assert vendor.token_requests == []
         assert await _member_row(session, a.guild.id, app.id) is None
 
 
@@ -454,6 +502,7 @@ class TestInstallationStyleFlow:
 
         setup = await client.get(
             "/api/v1/app-connections/setup",
+            headers=_cookie(a),
             params={
                 "state": start["state"],
                 "installation_id": "42",
@@ -469,7 +518,7 @@ class TestInstallationStyleFlow:
         assert query["state"] != start["state"]
 
         code = vendor.authorize(query["code_challenge"])
-        landing = await _callback(client, state=query["state"], code=code)
+        landing = await _callback(client, a, state=query["state"], code=code)
         assert landing["outcome"] == "connected"
 
         name, body, _ = vendor.hooks[0]
@@ -483,6 +532,38 @@ class TestInstallationStyleFlow:
         assert stored.connection_refs.get("workspace")
         assert await _member_row(session, a.guild.id, app.id, "workspace") is None
 
+    async def test_losing_the_seat_mid_flow_refuses_it(
+        self, client: AsyncClient, acting_user, session, vendor, registration
+    ):
+        """A community connection is finished only while its starter still
+        holds the seat."""
+        a = await acting_user(guild_role=GuildRole.superadmin)
+        app = await _install(session, a)
+        start = await _start(client, a, app, "workspace")
+
+        membership = (
+            await session.exec(
+                select(GuildMembership).where(
+                    GuildMembership.guild_id == a.guild.id,
+                    GuildMembership.user_id == a.user.id,
+                )
+            )
+        ).one()
+        membership.role = GuildRole.member
+        session.add(membership)
+        await session.commit()
+
+        setup = await client.get(
+            "/api/v1/app-connections/setup",
+            headers=_cookie(a),
+            params={"state": start["state"], "installation_id": "42"},
+        )
+
+        assert _landing(setup.headers["location"])["outcome"] == "refused"
+        assert vendor.token_requests == []
+        stored = await _reload(session, a.guild.id, app.id)
+        assert "workspace" not in (stored.config or {})
+
     async def test_an_install_awaiting_approval_says_so(
         self, client: AsyncClient, acting_user, session, vendor, registration
     ):
@@ -492,6 +573,7 @@ class TestInstallationStyleFlow:
 
         setup = await client.get(
             "/api/v1/app-connections/setup",
+            headers=_cookie(a),
             params={"state": start["state"], "setup_action": "request"},
         )
 
@@ -508,6 +590,7 @@ class TestInstallationStyleFlow:
 
         setup = await client.get(
             "/api/v1/app-connections/setup",
+            headers=_cookie(a),
             params={"state": start["state"], "installation_id": "42"},
         )
 
