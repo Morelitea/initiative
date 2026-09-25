@@ -912,20 +912,19 @@ async def test_delete_queue_still_emits_queue_deleted(
     client: AsyncClient, acting_user, monkeypatch
 ):
     """Deleting a queue must still emit ``queue_deleted``. Regression: the queue
-    is soft-deleted before _emit_queue runs, so its fallback guild lookup is
-    hidden by the global deleted_at IS NULL filter — the delete path must pass
-    guild_id explicitly or the event is silently dropped."""
+    is soft-deleted before the signal goes out, so the delete path names
+    the guild from the request rather than from the row."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     queue = await _create_queue_via_api(client, a)
 
-    from app.services import stream_authz
+    from app.services.content_sockets import sockets
 
     emitted: list[tuple] = []
 
-    async def _record(guild_id, resource_type, resource_id, event_type, data):
-        emitted.append((guild_id, resource_type, resource_id, event_type))
+    def _record(guild_id, tool, resource_id, event_type):
+        emitted.append((guild_id, tool.value, resource_id, event_type))
 
-    monkeypatch.setattr(stream_authz.authority, "emit", _record)
+    monkeypatch.setattr(sockets, "signal", _record)
 
     resp = await client.delete(a.g(f"/queues/{queue['id']}"), headers=a.headers)
     assert resp.status_code == 204, resp.text

@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Request size limits** — a request can now be at most 4 MiB, a file upload 51 MiB, and saving a document 64 MiB, which leaves room for whiteboards with pictures in them. Imports keep their own, larger limits.
 - **The update check asks Docker Hub less often** — the server asks at most every six hours, and every visitor shares the answer, instead of asking on every page load. A server without internet access logs that once and stops trying for 15 minutes at a time.
 - **Password sign-in switches off after wrong answers** — five wrong passwords or codes within 15 minutes turn off password and code sign-in for that account for 15 minutes, and its email addresses are told. Three of those in a day and it stays off until a moderator turns it back on from **Operator dashboard → Users**. Passkeys, and anywhere already signed in, keep working throughout.
+- **Live updates follow access as it changes** — changing who a queue, counter group, document or other tool is shared with now updates everyone who has it open straight away, and anyone it no longer reaches stops receiving updates for it. Someone added to or removed from an initiative starts or stops getting its live updates without reloading, and turning a tool off for an initiative also stops its open pages from updating.
 
 - **Password reset and sign-up say the same thing for every address** — asking for a reset link gets the same answer whether or not the address has an account, and the link is sent after the answer. A server with no mail set up says so for every address. Where signing up needs an invite, sign-up asks for the invite before checking whether the address is already taken.
 
@@ -37,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A deleted wiki shows once in the trash** — the trash lists a deleted wiki as one item. Before, it also listed each of its pages and comments, and restoring one of those on its own failed.
 - **Faster delete, restore and purge** — deleting, restoring, purging and archiving something large, like an initiative with thousands of tasks, now takes a few database queries instead of one per item inside it.
 - **A search error at startup** — every start logged `search reindex failed for guild_template`. It was harmless, since search in your communities was already up to date, and it no longer appears.
+- **Queues and counter groups stay live after a dropped connection** — their pages reconnect on their own after a network drop or a server restart, and catch up on anything that changed meanwhile. Before, they stopped updating until the page was reloaded.
 
 ## [0.72.0] - 2026-09-24
 

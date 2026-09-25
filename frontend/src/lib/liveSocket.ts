@@ -1,17 +1,20 @@
 /**
  * One authenticated WebSocket, kept open.
  *
- * Both push channels — the per-guild events bus and the personal notification
- * stream — need the same connection underneath: authenticate in the first
- * frame, reconnect with backoff, stop for good once the credential has been
- * rejected repeatedly, and notice a socket that has stopped carrying without
- * ever closing. There is no library behind any of that, so it was written
- * twice; this is the one copy.
+ * Every JSON push channel — the per-guild events bus, the personal
+ * notification stream and a queue's or counter group's change signal — needs
+ * the same connection underneath: authenticate in the first frame, reconnect
+ * with jittered backoff, stop for good once the credential has been rejected
+ * repeatedly, and notice a socket that has stopped carrying without ever
+ * closing. This is the one copy. (The collaboration socket speaks Yjs frames
+ * and keeps its own connection, with the same backoff.)
  *
  * What differs between the two channels sits above it — which address, what
  * else rides in the auth frame, and what a frame means — and that is the whole
  * of the options.
  */
+
+import { reconnectDelay } from "@/lib/reconnectBackoff";
 
 // Must match the backend's MSG_AUTH. The token rides in the first frame rather
 // than the URL, so it never lands in a proxy or server access log.
@@ -71,6 +74,8 @@ export const openLiveSocket = ({
   let reconnectTimer: number | null = null;
   let active = true;
   let authFailures = 0;
+  // Attempts since a socket last carried a frame: what widens the backoff.
+  let attempts = 0;
   // The last frame this socket saw, which is what silence is measured against.
   // Reset on open so a fresh socket is not closed for its predecessor's quiet.
   let lastFrameAt = Date.now();
@@ -80,10 +85,12 @@ export const openLiveSocket = ({
   // gap the next attempt reports.
   let carriedUntil: number | null = null;
 
-  const scheduleReconnect = (delayMs = RECONNECT_DELAY_MS) => {
+  const scheduleReconnect = () => {
     if (!active || reconnectTimer !== null) {
       return;
     }
+    const delayMs = reconnectDelay(attempts, RECONNECT_DELAY_MS, MAX_RECONNECT_DELAY_MS);
+    attempts += 1;
     reconnectTimer = window.setTimeout(() => {
       reconnectTimer = null;
       connect();
@@ -121,6 +128,7 @@ export const openLiveSocket = ({
       // clears the count. Opening is not: the auth frame is sent after the
       // socket opens and answered after that, so opening says nothing yet.
       authFailures = 0;
+      attempts = 0;
       lastFrameAt = Date.now();
       carriedUntil = lastFrameAt;
       let payload: unknown;
@@ -148,8 +156,6 @@ export const openLiveSocket = ({
           onAuthRejected?.();
           return;
         }
-        scheduleReconnect(Math.min(MAX_RECONNECT_DELAY_MS, RECONNECT_DELAY_MS * 2 ** authFailures));
-        return;
       }
       scheduleReconnect();
     };

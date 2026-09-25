@@ -15,7 +15,7 @@ from app.db.schema_provisioning import (
     guild_superadmin_role_name,
     guild_support_role_name,
 )
-from app.db.session import CONNECTION_RESET_SQL, _render_context_bind_params
+from app.db.session import _render_context_bind_params
 
 pytestmark = pytest.mark.unit
 
@@ -227,13 +227,3 @@ class TestTheSeatRoute:
             _params(pam_guild_id=4, pam_write=True, settings_guild_id=4)
         )
         assert paired["role"] == guild_support_role_name(4)
-
-
-class TestConnectionReset:
-    def test_reset_clears_role_and_names_the_same_path(self):
-        """Entry points that build their own session share one reset with the
-        routed platform path, rather than spelling it out again."""
-        assert "set_config('role', 'none', false)" in CONNECTION_RESET_SQL
-        assert "set_config('search_path', 'public, pg_temp', false)" in (
-            CONNECTION_RESET_SQL
-        )

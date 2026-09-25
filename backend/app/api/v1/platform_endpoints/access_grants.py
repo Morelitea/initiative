@@ -43,7 +43,7 @@ from app.services.auth import challenges as challenge_service
 from app.services.auth import passkeys as passkey_service
 from app.services.auth import totp as totp_service
 from app.services.platform import access_grants as service
-from app.services.stream_authz import authority as stream_authority
+from app.services.content_sockets import sockets as content_sockets
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 router = APIRouter()
@@ -555,7 +555,7 @@ async def revoke_access_grant(
     await session.commit()
     # PAM access revoked — drop the grantee's live content streams in that guild
     # immediately, don't wait for the bounded re-auth tick.
-    await stream_authority.revoke_user(grant.guild_id, grant.user_id)
+    await content_sockets.revoke_user(grant.guild_id, grant.user_id)
     return read
 
 

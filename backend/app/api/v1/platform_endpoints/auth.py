@@ -171,7 +171,7 @@ from app.services import email as email_service
 from app.services.platform import user_tokens
 from app.services.platform import guilds as guilds_service
 from app.services.oidc_sync import extract_claim_values, sync_oidc_assignments
-from app.services.stream_authz import authority as stream_authority
+from app.services.content_sockets import sockets as content_sockets
 from app.services.platform import provider_placement
 from app.models.platform.user_token import UserTokenPurpose
 
@@ -1127,7 +1127,7 @@ async def logout(
             actor_user_id=signed_out,
         )
         await system_session.commit()
-        await stream_authority.revoke_user_everywhere(signed_out)
+        await content_sockets.revoke_user_everywhere(signed_out)
     clear_session_cookie(response)
     clear_refresh_cookie(response)
 
@@ -1333,7 +1333,7 @@ async def revoke_device_token(
         )
     # Connections the device opened with it close now rather than at the next
     # sweep.
-    await stream_authority.revoke_user_everywhere(current_user.id)
+    await content_sockets.revoke_user_everywhere(current_user.id)
 
 
 def _provider_state_key(row: AuthProvider) -> str:
@@ -2165,6 +2165,6 @@ async def reset_password(
     system_session.add(user)
     await system_session.commit()
     # Open connections stand on credentials the reset has just ended.
-    await stream_authority.revoke_user_everywhere(record.user_id)
+    await content_sockets.revoke_user_everywhere(record.user_id)
     await email_service.announce_password_changed(system_session, user)
     return VerificationSendResponse(status="reset")

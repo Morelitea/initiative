@@ -138,10 +138,9 @@ from app.services.platform import cookie_consent as cookie_consent_service
 from app.services.platform import guilds as guilds_service
 from app.services.platform import guild_images as images_service
 from app.services.platform import legal as legal_service
-from app.services.realtime import manager as realtime_manager
+from app.services.content_sockets import sockets as content_sockets
 from app.services.platform import presence
 from app.services.platform import usernames as username_service
-from app.services.stream_authz import authority as stream_authority
 from app.models.platform.user_avatar import AVATAR_MAX_BYTES
 from app.models.platform.user_profile_view import (
     GuildMember,
@@ -779,7 +778,7 @@ async def read_user_communities(
             )
         ).all()
     }
-    online = realtime_manager.present_counts(guild.id for guild in guilds)
+    online = content_sockets.present_counts(guild.id for guild in guilds)
     # How many people are in each, which the card names and this read has to
     # ask for: nothing about a guild row carries it.
     members = await guilds_service.count_members_by_guild(
@@ -1411,7 +1410,7 @@ async def update_users_me(
     if password:
         # Open connections stand on the credentials the change has just ended,
         # this device's included; its replacement session reconnects them.
-        await stream_authority.revoke_user_everywhere(current_user.id)
+        await content_sockets.revoke_user_everywhere(current_user.id)
     if "presence" in update_data:
         # A change made from an open tab takes effect for readers immediately,
         # rather than at the next reconnect. Told after the commit, so nothing
@@ -1933,7 +1932,7 @@ async def delete_user(
     await session.commit()
     # Kicked from the guild — drop the user's live content streams immediately
     # (guild-level access change), consistent with the other removal paths.
-    await stream_authority.revoke_user(guild_context.guild_id, user_id)
+    await content_sockets.revoke_user(guild_context.guild_id, user_id)
     await app_revocation_service.dispatch_revocations(
         app_revocation_service.drain_revocations(session)
     )

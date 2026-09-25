@@ -26,7 +26,8 @@ from app.services.marketplace import catalog as marketplace_catalog
 from app.services.marketplace.builtin import load_builtin_manifests
 from app.services.platform import profile_decorations as profile_decorations_service
 from app.services.platform import user_stream
-from app.services.realtime import manager as realtime_manager
+from app.services.content_sockets import sockets as content_sockets
+from app.testing.sockets import FakeWebSocket, watch_events_bus
 from app.testing.factories import (
     create_federated_identity,
     create_guild,
@@ -1204,9 +1205,13 @@ async def _open_guild_events(session: AsyncSession, subject: User):
     """A tab sitting inside a guild. Returns how to close it."""
     guild = await create_guild(session)
     await create_guild_membership(session, user=subject, guild=guild)
-    socket = object()
-    await realtime_manager.connect(guild.id, [], socket, user_id=subject.id)  # type: ignore[arg-type]
-    return lambda: realtime_manager.disconnect(socket)  # type: ignore[arg-type]
+    socket = FakeWebSocket()
+    watch_events_bus(guild.id, [], socket, user_id=subject.id)
+
+    async def close() -> None:
+        content_sockets.leave(socket)  # type: ignore[arg-type]
+
+    return close
 
 
 async def _open_notification_stream(session: AsyncSession, subject: User):
@@ -1256,11 +1261,11 @@ async def test_profile_stays_online_while_any_socket_is_open(
     guild = await create_guild(session)
     await create_guild_membership(session, user=subject, guild=guild)
 
-    bell, events = object(), object()
+    bell, events = object(), FakeWebSocket()
     await user_stream.stream.connect(subject.id, bell)
-    await realtime_manager.connect(guild.id, [], events, user_id=subject.id)  # type: ignore[arg-type]
+    watch_events_bus(guild.id, [], events, user_id=subject.id)
     try:
-        await realtime_manager.disconnect(events)  # type: ignore[arg-type]
+        content_sockets.leave(events)  # type: ignore[arg-type]
         response = await client.get(_profile_url(subject), headers=caller.headers)
     finally:
         await user_stream.stream.disconnect(bell)

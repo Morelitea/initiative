@@ -51,7 +51,7 @@ from app.services.auth import addresses
 from app.services.auth import challenges as challenge_service
 from app.services.auth import email_otp as email_otp_service
 from app.services.platform import user_tokens
-from app.services.stream_authz import authority as stream_authority
+from app.services.content_sockets import sockets as content_sockets
 
 logger = logging.getLogger(__name__)
 
@@ -310,7 +310,7 @@ async def verify_sign_in_code(
     )
     if challenge_response is not None:
         if retired:
-            await stream_authority.revoke_user_everywhere(user_id)
+            await content_sockets.revoke_user_everywhere(user_id)
         return challenge_response
 
     opened = await open_session(
@@ -325,7 +325,7 @@ async def verify_sign_in_code(
     )
     if retired:
         # Connections opened on the credentials retired above close now.
-        await stream_authority.revoke_user_everywhere(user_id)
+        await content_sockets.revoke_user_everywhere(user_id)
     return opened
 
 
