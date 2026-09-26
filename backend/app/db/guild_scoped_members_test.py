@@ -134,16 +134,20 @@ class TestItAnswersForTheRoutedGuild:
             async with conn.begin():
                 await _as_query_role(conn, guild.id)
                 await _routed(conn, guild.id)
+                here = await conn.scalar(text(_COUNT))
+                # The query role reads nothing else in ``public``, so the
+                # projection is read as the guild's read-only role.
+                read_only = guild_role_name(guild.id, GuildRoleKind.read_only)
+                await conn.execute(text(f'SET LOCAL ROLE "{read_only}"'))
                 everywhere = await conn.scalar(
                     text("SELECT count(*) FROM public.guild_member_profiles")
                 )
-                here = await conn.scalar(text(_COUNT))
         assert here <= everywhere
 
 
 class TestTheRolesThatReadIt:
-    """The shared floors are kept as one set, and the query role reads through
-    the read-only one."""
+    """The shared floors are kept as one set. The query role holds neither, and
+    is granted this view on its own (``query_role_test``)."""
 
     @pytest.mark.parametrize("role", ["app_guild_base", "app_guild_base_ro"])
     async def test_both_floors_read_it(self, engine, role):

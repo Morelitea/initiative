@@ -112,22 +112,27 @@ async def test_a_read_the_database_stopped_on_its_own_can_be_asked_again(
     assert stopped.value.code == QueryMessages.INTERRUPTED
 
 
-async def test_the_transaction_refuses_a_write(guild):
+@pytest.mark.parametrize(
+    ("sql", "answer"),
+    [
+        # The role holds no write on any table.
+        (f"INSERT INTO guild_{_GID}.tasks (title) VALUES ('x')", "permission"),
+        # A write the role may make is refused by the transaction, which is
+        # read-only before the reader's first statement ...
+        ("SELECT lo_create(0)", "read-only"),
+        # ... and stays that way once a query has run.
+        ("SELECT set_config('transaction_read_only', 'off', true)", "read-write"),
+    ],
+)
+async def test_the_transaction_refuses_a_write(guild, sql, answer):
     """Reached past the validator on purpose: the transaction and the role
     answer for themselves, so a statement that never went through resolve is
     still refused."""
     statement = resolve("SELECT title FROM tasks")
-    write = type(statement)(
-        sql=f"INSERT INTO guild_{_GID}.tasks (title) VALUES ('x')",
-        parameters=(),
-        relations=("tasks",),
-    )
+    write = type(statement)(sql=sql, parameters=(), relations=("tasks",))
     with pytest.raises(Exception) as refused:
         await execute(write, context=_context(guild))
-    assert (
-        "read-only" in str(refused.value).lower()
-        or "permission" in str(refused.value).lower()
-    )
+    assert answer in str(refused.value).lower()
 
 
 async def test_more_rows_than_one_query_returns_are_cut_off(guild, monkeypatch):
