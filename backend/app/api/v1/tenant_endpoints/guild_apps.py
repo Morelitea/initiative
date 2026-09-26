@@ -34,7 +34,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Annotated, Any, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func, union
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -58,9 +59,11 @@ from app.core.messages import (
     MarketplaceMessages,
 )
 from app.db import cohorts
+from app.db.query import build_paginated_response, paginated_query
 from app.models.platform.guild import GuildMembership
 from app.models.tenant.app_member_consent import AppMemberConsent
 from app.models.tenant.guild_app import GuildApp
+from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.models.tenant.initiative import Initiative
 from app.schemas.tenant.guild_app import (
     AppPlacementRead,
@@ -68,6 +71,7 @@ from app.schemas.tenant.guild_app import (
     GuildAppScopesUpdate,
     GuildAppConfigUpdate,
     GuildAppConnectionSummary,
+    GuildAppConsentSummary,
     GuildAppConnectStart,
     GuildAppConsentAnswer,
     GuildAppConsentRead,
@@ -1552,8 +1556,11 @@ async def list_guild_app_members(
     session: SeatSessionDep,
     current_user: CurrentUser,
     guild_context: SeatContextDep,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
 ) -> GuildAppMembersResponse:
-    """Who has connected which of this app's per-member connections.
+    """Who has connected which of this app's per-member connections, and who
+    answered its requests to act as them — a page of members at a time.
 
     Guild admins only, and never secret values: what this supports is governance
     — seeing which vendor account somebody connected as, and ending it — rather
@@ -1561,42 +1568,68 @@ async def list_guild_app_members(
     """
     app = await _load(session, app_id)
 
-    rows = await connections_service.list_app_connections(session, app_id=app.id)
-    member_count = len(
-        (
-            await session.exec(
-                select(GuildMembership.user_id).where(
-                    GuildMembership.guild_id == guild_context.guild_id
-                )
+    member_count = (
+        await session.exec(
+            select(func.count()).where(
+                GuildMembership.guild_id == guild_context.guild_id
             )
-        ).all()
-    )
+        )
+    ).one()
+    tallies = await connections_service.connection_tallies(session, app_id=app.id)
 
     summary: list[GuildAppConnectionSummary] = []
     for connection in app_config_service.definition_connections(app.definition):
         if connection.get("scope") != "interactive":
             continue
         connection_id = connection.get("id") or ""
-        matching = [row for row in rows if row.connection_id == connection_id]
+        connected, blocked = tallies.get(connection_id, (0, 0))
         summary.append(
             GuildAppConnectionSummary(
                 connection_id=connection_id,
                 label=connection.get("label") or {},
-                connected_count=sum(1 for row in matching if row.blocked_at is None),
-                blocked_count=sum(1 for row in matching if row.blocked_at is not None),
+                connected_count=connected,
+                blocked_count=blocked,
                 member_count=member_count,
             )
         )
 
+    # Everybody with a connection to this app or an answer to one of its
+    # requests, once each.
+    members = union(
+        select(GuildAppUserConnection.user_id).where(
+            GuildAppUserConnection.app_id == app.id
+        ),
+        select(AppMemberConsent.user_id).where(AppMemberConsent.install_id == app.id),
+    ).subquery()
+    user_ids, total_count, actual_page = await paginated_query(
+        session,
+        select(members.c.user_id).order_by(members.c.user_id),
+        select(func.count()).select_from(members),
+        page=page,
+        page_size=page_size,
+    )
+
+    rows = await connections_service.list_app_connections(
+        session, app_id=app.id, user_ids=user_ids
+    )
+    consents = await consents_service.list_install_consents(
+        session, install_id=app.id, user_ids=user_ids
+    )
+    consent_tallies = await consents_service.consent_tallies(session, install_id=app.id)
     return GuildAppMembersResponse(
-        summary=summary,
-        items=[serialize_member_connection(row) for row in rows],
-        consents=[
-            serialize_member_consent(row)
-            for row in await consents_service.list_install_consents(
-                session, install_id=app.id
-            )
-        ],
+        **build_paginated_response(
+            [serialize_member_connection(row) for row in rows],
+            total_count,
+            actual_page,
+            page_size,
+            summary=summary,
+            consents=[serialize_member_consent(row) for row in consents],
+            consent_summary=GuildAppConsentSummary(
+                member_count=consent_tallies.members,
+                allowed_count=consent_tallies.allowed,
+                open_count=consent_tallies.open,
+            ),
+        )
     )
 
 

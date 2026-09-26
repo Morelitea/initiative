@@ -130,6 +130,11 @@ async def test_the_seat_sees_every_members_answers(
     assert rows[answered.user.id]["granted_access"] == "read"
     assert rows[answered.user.id]["label"] == "Comment on the linked issue as you"
     assert rows[waiting.user.id]["status"] == "pending"
+    assert members.json()["consent_summary"] == {
+        "member_count": 2,
+        "allowed_count": 1,
+        "open_count": 2,
+    }
 
 
 async def test_a_member_does_not_get_the_members_view(

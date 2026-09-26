@@ -394,7 +394,7 @@ async def test_the_operator_shape_carries_the_erasure_date(
     session.expunge_all()
 
     listed = await client.get("/api/v1/operator/users", headers=operator.headers)
-    entry = next(u for u in listed.json() if u["id"] == user.id)
+    entry = next(u for u in listed.json()["items"] if u["id"] == user.id)
     assert entry["status"] == "deleted"
     assert entry["purge_at"] is not None
 

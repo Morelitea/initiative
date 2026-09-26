@@ -198,7 +198,7 @@ async def test_support_can_list_users_role_scoped(client, acting_user):
     a = await acting_user("support")
     resp = await client.get("/api/v1/operator/users", headers=a.headers)
     assert resp.status_code == 200
-    assert any(u["id"] == a.user.id for u in resp.json())
+    assert any(u["id"] == a.user.id for u in resp.json()["items"])
 
 
 async def test_member_cannot_list_users(client, acting_user):

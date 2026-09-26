@@ -27,6 +27,7 @@ from pydantic import ConfigDict, Field
 
 from app.models.tenant.app_member_consent import ConsentAccess, ConsentStatus
 from app.schemas.base import SanitizedBaseModel
+from app.schemas.query import PageMeta
 from app.services.marketplace.registration_lookup import InstallState
 from app.services.tenant import app_config as app_config_service
 from app.services.tenant.guild_apps import (
@@ -450,16 +451,34 @@ class GuildAppConnectionSummary(SanitizedBaseModel):
     member_count: int = 0
 
 
-class GuildAppMembersResponse(SanitizedBaseModel):
+class GuildAppConsentSummary(SanitizedBaseModel):
+    """Every member's answers to this app's requests, counted."""
+
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    #: Members who were asked anything.
+    member_count: int = 0
+    #: Members who allowed at least one request.
+    allowed_count: int = 0
+    #: Answers that still stand or still wait: the ones an admin can end.
+    open_count: int = 0
+
+
+class GuildAppMembersResponse(PageMeta):
+    """One page of the members who connected to this app or answered it.
+
+    ``summary`` and ``consent_summary`` count across every member; ``items``
+    and ``consents`` are the rows of the members on this page.
+    """
 
     summary: List[GuildAppConnectionSummary] = []
     items: List[GuildAppMemberConnection] = []
-    #: Every member's answers to this app's requests to act as them. Beside the
-    #: connections rather than in a view of its own: both answer "what does this
-    #: app have of this member's", and an admin governing one wants the other in
-    #: the same place.
+    #: The page's members' answers to this app's requests to act as them.
+    #: Beside the connections rather than in a view of its own: both answer
+    #: "what does this app have of this member's", and an admin governing one
+    #: wants the other in the same place.
     consents: List[GuildAppMemberConsent] = []
+    consent_summary: GuildAppConsentSummary = GuildAppConsentSummary()
 
 
 # --- serialization ----------------------------------------------------------

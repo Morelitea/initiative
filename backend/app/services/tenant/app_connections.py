@@ -24,6 +24,7 @@ from __future__ import annotations
 import secrets
 from typing import Any, Optional, Sequence
 
+from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -39,6 +40,7 @@ from app.core.clock import utcnow
 
 __all__ = [
     "block_member_connection",
+    "connection_tallies",
     "delete_app_connections",
     "delete_guild_connections",
     "delete_member_connections",
@@ -105,25 +107,51 @@ async def list_member_connections(
 
 
 async def list_app_connections(
-    session: AsyncSession, *, app_id: int
+    session: AsyncSession,
+    *,
+    app_id: int,
+    user_ids: Optional[Sequence[int]] = None,
 ) -> list[GuildAppUserConnection]:
     """Every member's connection for one install — the admin's Members view.
+    ``user_ids`` narrows it to those members, one page of that view.
 
     Returns only the caller's own rows unless the session is routed as a guild
     admin; the endpoint that offers this requires one.
     """
+    stmt = select(GuildAppUserConnection).where(GuildAppUserConnection.app_id == app_id)
+    if user_ids is not None:
+        stmt = stmt.where(GuildAppUserConnection.user_id.in_(user_ids))
     return list(
         (
             await session.exec(
-                select(GuildAppUserConnection)
-                .where(GuildAppUserConnection.app_id == app_id)
-                .order_by(
+                stmt.order_by(
                     GuildAppUserConnection.connection_id,
                     GuildAppUserConnection.user_id,
                 )
             )
         ).all()
     )
+
+
+async def connection_tallies(
+    session: AsyncSession, *, app_id: int
+) -> dict[str, tuple[int, int]]:
+    """Per connection of one install: how many members are connected, and how
+    many are blocked."""
+    blocked = GuildAppUserConnection.blocked_at.is_not(None)
+    rows = await session.exec(
+        select(
+            GuildAppUserConnection.connection_id,
+            func.count().filter(~blocked),
+            func.count().filter(blocked),
+        )
+        .where(GuildAppUserConnection.app_id == app_id)
+        .group_by(GuildAppUserConnection.connection_id)
+    )
+    return {
+        connection_id: (connected, blocked_count)
+        for connection_id, connected, blocked_count in rows.all()
+    }
 
 
 # --- ending it --------------------------------------------------------------

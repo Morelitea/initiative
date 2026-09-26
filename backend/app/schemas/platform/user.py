@@ -717,6 +717,12 @@ class OperatorUserRead(UserRead):
         return mask_email(value) or value
 
 
+class OperatorUserListResponse(PageMeta):
+    """One page of the operator roster."""
+
+    items: List[OperatorUserRead]
+
+
 class UsernameClaim(SanitizedBaseModel):
     """The name part an account picks for itself.
 

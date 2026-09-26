@@ -6,7 +6,7 @@ import io
 import pytest
 from sqlmodel import select
 
-from app.models.platform.user import User, UserRole
+from app.models.platform.user import User, UserRole, UserStatus
 from app.services.platform import users as users_service
 from app.testing.factories import create_user
 
@@ -219,9 +219,38 @@ async def test_platform_roster_masks_addresses(client, acting_user):
     response = await client.get("/api/v1/operator/users", headers=owner.headers)
 
     assert response.status_code == 200
-    body = response.json()
+    body = response.json()["items"]
     assert {u["email"] for u in body} == {"o***r@e***m", "u***1@e***m"}
     assert "@example.com" not in response.text
+
+
+async def test_platform_roster_is_paged_searched_and_sorted(
+    client, session, acting_user
+):
+    """The roster is read a page at a time, searched by handle and sorted on
+    the server."""
+    owner = await acting_user("owner")
+    first = await create_user(session, username="vexquorra", discriminator=42)
+    second = await create_user(
+        session, username="vexquorrabis", status=UserStatus.suspended
+    )
+    url = "/api/v1/operator/users"
+
+    async def ids(**params) -> list[int]:
+        response = await client.get(url, params=params, headers=owner.headers)
+        assert response.status_code == 200, response.text
+        return [row["id"] for row in response.json()["items"]]
+
+    page = (
+        await client.get(url, params={"page_size": 2}, headers=owner.headers)
+    ).json()
+    assert page["total_count"] == 3
+    assert page["has_next"] is True
+    assert [row["id"] for row in page["items"]] == [owner.user.id, first.id]
+
+    assert set(await ids(search="vexquorra")) == {first.id, second.id}
+    assert await ids(search="vexquorra#0042") == [first.id]
+    assert (await ids(sort_by="status", sort_dir="desc"))[0] == second.id
 
 
 async def test_operator_mutations_return_masked_addresses(client, acting_user):

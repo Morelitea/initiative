@@ -126,7 +126,7 @@ async def test_the_guilds_tab_lists_every_guild_with_its_dials(
 
     resp = await client.get(GUILDS, headers=operator.headers)
     assert resp.status_code == 200
-    rows = {row["name"]: row for row in resp.json()}
+    rows = {row["name"]: row for row in resp.json()["items"]}
 
     assert rows["Dialled Guild"]["id"] == theirs.id
     assert rows["Dialled Guild"][dial] == value
@@ -285,7 +285,9 @@ async def test_operator_grants_and_withdraws_guild_auth_options(
 
     listed = await client.get(GUILDS, headers=operator.headers)
     assert listed.status_code == 200
-    assert {r["name"]: r for r in listed.json()}[guild.name]["auth_options"] == []
+    assert {r["name"]: r for r in listed.json()["items"]}[guild.name][
+        "auth_options"
+    ] == []
 
     # One switch without the other: neither needs the other to count.
     for sent in (["providers"], ["providers", "restrictions"], []):
@@ -412,7 +414,29 @@ async def test_raising_cap_reopens_joins(
     # And it reads back as 5 for somebody entitled to see it.
     listed = await client.get(GUILDS, headers=operator.headers)
     assert listed.status_code == 200
-    assert {row["id"]: row for row in listed.json()}[guild.id]["max_users"] == 5
+    assert {row["id"]: row for row in listed.json()["items"]}[guild.id][
+        "max_users"
+    ] == 5
+
+
+async def test_the_guilds_tab_is_paged_and_searched(
+    client: AsyncClient, session: AsyncSession, operator
+) -> None:
+    alpha = await create_guild(session, name="Alpha Lodge")
+    await create_guild(session, name="Beta Lodge")
+    await create_guild(session, name="Gamma Hall")
+
+    resp = await client.get(
+        GUILDS,
+        params={"search": "lodge", "page_size": 1},
+        headers=operator.headers,
+    )
+
+    assert resp.status_code == 200, resp.text
+    page = resp.json()
+    assert page["total_count"] == 2
+    assert page["has_next"] is True
+    assert [row["id"] for row in page["items"]] == [alpha.id]
 
 
 async def test_guild_list_exposes_tier_name(
@@ -425,7 +449,7 @@ async def test_guild_list_exposes_tier_name(
     resp = await client.get(GUILDS, headers=operator.headers)
 
     assert resp.status_code == 200
-    row = next(g for g in resp.json() if g["id"] == guild.id)
+    row = next(g for g in resp.json()["items"] if g["id"] == guild.id)
     assert row["tier_name"] == "Bespoke Plan"
 
 
