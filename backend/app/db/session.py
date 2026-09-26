@@ -251,12 +251,12 @@ def clear_rls_context(session: AsyncSession) -> None:
 
 # Maximum age of a *user-derived* authorization snapshot. The stored params
 # capture membership / guild role / PAM state as validated by
-# establish_guild_access; replaying them indefinitely would launder a revoked
-# grant. The socket register re-validates sockets every REAUTH_INTERVAL_SECONDS
-# (= half this bound; content_sockets derives it from this constant), so any
-# properly registered consumer refreshes long before the floor. Only a
-# consumer that HOLDS a routed session without re-validating hits it — which
-# must fail. System contexts (no user_id: workers, seeding) are not
+# establish_guild_access, so a snapshot older than this is refused rather than
+# replayed. The socket register re-validates sockets every
+# REAUTH_INTERVAL_SECONDS (= half this bound; content_sockets derives it from
+# this constant), so any properly registered consumer refreshes long before the
+# floor; a consumer that holds a routed session without re-validating reaches
+# it and fails. System contexts (no user_id: workers, seeding) are not
 # user-authorization snapshots and are exempt.
 RLS_CONTEXT_MAX_AGE_SECONDS = 60
 
@@ -844,9 +844,8 @@ async def set_rls_context(
     # already passed the guild-access gate. Anything else must be ints.
     if isinstance(satisfied_providers, str) and satisfied_providers != SYSTEM_SATISFIED:
         raise ValueError(f"Invalid satisfied_providers: {satisfied_providers!r}")
-    # Validate the tier before it reaches the SET ROLE name sink. The value comes
-    # from the ``users.role`` enum, but treat the privileged role-name injection
-    # point as untrusted: reject anything not on the known ladder.
+    # The tier names the role the transaction assumes, so only a known route is
+    # accepted.
     from app.db.schema_provisioning import PLATFORM_ROUTES
 
     if platform_role is not None and platform_role not in PLATFORM_ROUTES:

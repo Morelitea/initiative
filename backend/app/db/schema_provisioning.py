@@ -245,8 +245,8 @@ def platform_role_name(role: str) -> str:
     Carries ``settings.PLATFORM_ROLE_PREFIX`` (empty in prod/dev; ``test_`` under
     the suite) so these cluster-global roles don't collide with a co-located dev
     DB's. ``role`` is a ``users.role`` value or :data:`PLATFORM_SUSPENDED`, and is
-    validated by the caller against :data:`PLATFORM_ROUTES` before reaching the
-    privileged ``SET ROLE`` sink.
+    validated by the caller against :data:`PLATFORM_ROUTES` before the role is
+    assumed.
     """
     return f"{settings.PLATFORM_ROLE_PREFIX}platform_{role}"
 
