@@ -296,7 +296,6 @@
     "noDoneTasksToArchive": "Keine erledigten Aufgaben zum Archivieren",
     "taskCreated": "Aufgabe erstellt",
     "createError": "Aufgabe konnte nicht erstellt werden. Bitte versuche es erneut, sobald die Status geladen sind.",
-    "taskUpdated": "Aufgabe aktualisiert",
     "bulkUpdated": "{{count}} Aufgabe aktualisiert",
     "bulkUpdated_other": "{{count}} Aufgaben aktualisiert",
     "bulkUpdateError": "Aufgaben können derzeit nicht aktualisiert werden.",

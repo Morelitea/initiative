@@ -296,7 +296,6 @@
     "noDoneTasksToArchive": "Aucune tâche terminée à archiver",
     "taskCreated": "Tâche créée",
     "createError": "Impossible de créer la tâche. Veuillez réessayer une fois les statuts chargés.",
-    "taskUpdated": "Tâche mise à jour",
     "bulkUpdated": "{{count}} tâche mise à jour",
     "bulkUpdated_other": "{{count}} tâches mises à jour",
     "bulkUpdateError": "Impossible de mettre à jour les tâches pour l'instant.",

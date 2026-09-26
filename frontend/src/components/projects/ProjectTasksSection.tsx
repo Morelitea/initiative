@@ -79,6 +79,7 @@ import {
 } from "@/hooks/useFilterPresets";
 import { useTags } from "@/hooks/useTags";
 import {
+  type UpdateTaskVariables,
   useArchiveDoneTasks,
   useBulkArchiveTasks,
   useBulkDeleteTasks,
@@ -109,6 +110,9 @@ import { getItem, setItem } from "@/lib/storage";
 import { taskReadToListRow } from "@/lib/taskUtils";
 
 type ViewMode = TaskViewMode;
+
+/** A status change on screen whose request has not answered yet. */
+type PendingStatus = { vars: UpdateTaskVariables; status: TaskStatusRead };
 
 /**
  * What this project's task view remembers for one person: the filter values,
@@ -617,7 +621,7 @@ export const ProjectTasksSection = ({
    * round trip lands.
    */
   const stillMatchesFilters = useCallback(
-    (task: TaskRead) => {
+    (task: Pick<TaskListRead, "task_status_id" | "task_status" | "due_date">) => {
       const { status_ids, status_categories, due } = appliedSpec;
       if (status_ids.length > 0 && !status_ids.includes(task.task_status_id)) return false;
       if (status_categories.length > 0 && !status_categories.includes(task.task_status.category)) {
@@ -646,10 +650,33 @@ export const ProjectTasksSection = ({
     [projectTasks, stillMatchesFilters]
   );
 
-  const updateTaskStatus = useUpdateTask({
-    onSuccess: (updatedTask) => {
+  // Status changes shown before the server confirms them, keyed by task. Each
+  // entry keeps the request that made it, and only that request's reply
+  // retires it: an older reply for the same task (ticked, then unticked) does
+  // not overwrite the newer choice, and a failure drops the entry, which puts
+  // the row back. The ref is what reply callbacks read, since an earlier
+  // request keeps the callbacks of the render that sent it.
+  const pendingStatusesRef = useRef<ReadonlyMap<number, PendingStatus>>(new Map());
+  const [pendingStatuses, setPendingStatuses] = useState(pendingStatusesRef.current);
+  const writePendingStatuses = useCallback((update: (next: Map<number, PendingStatus>) => void) => {
+    const next = new Map(pendingStatusesRef.current);
+    update(next);
+    pendingStatusesRef.current = next;
+    setPendingStatuses(next);
+  }, []);
+
+  // Silent like the reschedule below: ticking off a run of tasks should not
+  // stack a toast per row. The checkbox and completion feedback confirm it.
+  const { mutate: mutateTaskStatus } = useUpdateTask({
+    onSuccess: (updatedTask, vars) => {
+      const pending = pendingStatusesRef.current.get(vars.taskId);
+      // A newer change to this task is still on its way and will settle it.
+      if (pending && pending.vars !== vars) return;
       applyTaskUpdateToLocal(updatedTask);
-      toast.success(t("tasks.taskUpdated"));
+    },
+    onSettled: (_data, _error, vars) => {
+      if (pendingStatusesRef.current.get(vars.taskId)?.vars !== vars) return;
+      writePendingStatuses((next) => next.delete(vars.taskId));
     },
   });
 
@@ -701,10 +728,43 @@ export const ProjectTasksSection = ({
 
   const { mutate: persistTaskOrderMutate, isPending: isPersistingOrder } = useReorderTasks();
 
-  const taskActionsDisabled = updateTaskStatus.isPending || isPersistingOrder;
+  // Status changes stay open while earlier ones are in flight, so a run of
+  // tasks can be ticked off without waiting on each.
+  const taskActionsDisabled = isPersistingOrder;
   const canReorderTasks = canEditTaskDetails && !isPersistingOrder;
 
-  const tasks = useMemo(() => localOverride ?? projectTasks, [localOverride, projectTasks]);
+  const tasks = useMemo(() => {
+    const base = localOverride ?? projectTasks;
+    if (pendingStatuses.size === 0) return base;
+    return base.flatMap((task) => {
+      const pending = pendingStatuses.get(task.id);
+      if (!pending) return [task];
+      const row = { ...task, task_status_id: pending.status.id, task_status: pending.status };
+      return stillMatchesFilters(row) ? [row] : [];
+    });
+  }, [localOverride, projectTasks, pendingStatuses, stillMatchesFilters]);
+
+  // Show the new status at once and send it; the completion feedback goes out
+  // with the click rather than the reply.
+  const changeTaskStatus = useCallback(
+    (taskId: number, taskStatusId: number) => {
+      const status = statusLookup.get(taskStatusId);
+      const current = tasks.find((task) => task.id === taskId);
+      const vars: UpdateTaskVariables = {
+        taskId,
+        data: { task_status_id: taskStatusId },
+        statusChange:
+          status && current
+            ? { from: current.task_status.category, to: status.category }
+            : undefined,
+      };
+      if (status) {
+        writePendingStatuses((next) => next.set(taskId, { vars, status }));
+      }
+      mutateTaskStatus(vars);
+    },
+    [statusLookup, tasks, writePendingStatuses, mutateTaskStatus]
+  );
   const activeTask = useMemo(
     () => projectTasks.find((task) => task.id === activeTaskId) ?? null,
     [projectTasks, activeTaskId]
@@ -1197,12 +1257,7 @@ export const ProjectTasksSection = ({
             onDragStart={handleTaskDragStart}
             onDragEnd={handleListDragEnd}
             onDragCancel={handleListDragCancel}
-            onStatusChange={(taskId, taskStatusId) =>
-              updateTaskStatus.mutate({
-                taskId,
-                data: { task_status_id: taskStatusId },
-              })
-            }
+            onStatusChange={changeTaskStatus}
             taskHref={taskHref}
             onTaskSelectionChange={setSelectedTasks}
             onExitSelection={() => setSelectedTasks([])}

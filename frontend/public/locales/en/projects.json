@@ -296,7 +296,6 @@
     "noDoneTasksToArchive": "No done tasks to archive",
     "taskCreated": "Task created",
     "createError": "Unable to create task. Please try again once statuses load.",
-    "taskUpdated": "Task updated",
     "bulkUpdated": "{{count}} task updated",
     "bulkUpdated_other": "{{count}} tasks updated",
     "bulkUpdateError": "Unable to update tasks right now.",
