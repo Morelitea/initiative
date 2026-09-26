@@ -376,7 +376,7 @@ async def test_list_projects_slim_permission_for_member(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Slim projection computes ``can`` from DAC grants, not just
-    the guild-admin shortcut."""
+    the guild-admin shortcut; the writable list keeps what ``can.edit`` says."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     member = await acting_user(
         guild_role=GuildRole.member,
@@ -388,6 +388,10 @@ async def test_list_projects_slim_permission_for_member(
     await create_resource_grant(
         session, project, user=member.user, level=ResourceAccessLevel.write
     )
+    read_only = await create_project(session, admin.initiative, admin.user)
+    await create_resource_grant(
+        session, read_only, user=member.user, level=ResourceAccessLevel.read
+    )
 
     response = await client.get(
         member.g("/projects/?slim=true"), headers=member.headers
@@ -396,6 +400,10 @@ async def test_list_projects_slim_permission_for_member(
     assert response.status_code == 200
     item = next(p for p in response.json()["items"] if p["id"] == project.id)
     assert (item["can"]["edit"], item["can"]["delete"]) == (True, False)
+
+    writable = await client.get(member.g("/projects/writable"), headers=member.headers)
+    assert writable.status_code == 200
+    assert [p["id"] for p in writable.json()] == [project.id]
 
 
 async def test_create_project(client: AsyncClient, acting_user):

@@ -6,7 +6,6 @@ from typing import List, Literal, Optional
 from pydantic import field_validator, ConfigDict, EmailStr, Field
 
 from app.core.guild_auth_options import GuildAuthOption
-from app.core.identity_boundary import GuildId
 from app.core.messages import GuildMessages
 from app.schemas.base import RawTextStr, RichTextStr, SanitizedBaseModel, TitleStr
 
@@ -556,16 +555,6 @@ class GuildDeletionRequest(SanitizedBaseModel):
 class GuildOrderUpdate(SanitizedBaseModel):
     model_config = ConfigDict(populate_by_name=True)
     guild_ids: list[int] = Field(min_length=1, alias="guildIds")
-
-
-class GuildSummary(SanitizedBaseModel):
-    model_config = ConfigDict(
-        from_attributes=True, json_schema_serialization_defaults_required=True
-    )
-
-    id: GuildId
-    name: str
-    icon_url: Optional[str] = None
 
 
 class GuildEntitlementsRead(SanitizedBaseModel):

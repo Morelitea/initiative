@@ -5062,12 +5062,6 @@ export interface GuildStorageUsageRead {
   usage_bytes: number;
 }
 
-export interface GuildSummary {
-  id: number;
-  name: string;
-  icon_url: string | null;
-}
-
 /**
  * Task completion breakdown by guild.
  */
@@ -8784,7 +8778,6 @@ export interface TaskRead {
   recurrence_occurrence_count: number;
   comment_count: number;
   blocked_by_open_count: number;
-  guild: GuildSummary | null;
   project: TaskProjectSummary | null;
   checklist: ChecklistItem[];
   checklist_progress: ChecklistProgress | null;

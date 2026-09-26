@@ -11,7 +11,6 @@ from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
 from app.schemas.platform.user import AvatarUrl, UserPublic
 from app.schemas.tenant.initiative import InitiativeSummary
 from app.schemas.tenant.task_status import TaskStatusRead
-from app.schemas.platform.guild import GuildSummary
 from app.schemas.tenant.tag import TagSummary
 from app.schemas.tenant.property import PropertySummary, PropertyValueInput
 
@@ -262,7 +261,6 @@ class TaskRead(TaskBase):
     #: edges whose far end has not finished. Only kinds with a reading of
     #: "finished" count — see :mod:`app.db.blocking`.
     blocked_by_open_count: int = 0
-    guild: Optional[GuildSummary] = None
     project: Optional[TaskProjectSummary] = None
     checklist: List[ChecklistItem] = []
     checklist_progress: Optional[ChecklistProgress] = None

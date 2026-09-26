@@ -22,7 +22,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sqlmodel import select
 
-from app.api.v1.tenant_endpoints.tasks import _advance_recurrence_if_needed
+from app.services.tenant.task_creation import advance_recurrence_if_needed
 from app.models.platform.guild import GuildRole
 from app.models.tenant.task import Task, TaskStatusCategory
 from app.models.tenant.resource_grant import ResourceAccessLevel
@@ -1411,7 +1411,7 @@ async def test_rolling_recurrence_counts_from_the_users_own_calendar_day(
     task.task_status_id = done.id
     task.task_status = done
 
-    advanced = await _advance_recurrence_if_needed(
+    advanced = await advance_recurrence_if_needed(
         session,
         task,
         previous_status_category=TaskStatusCategory.todo,
@@ -1473,7 +1473,7 @@ async def test_completing_a_tagged_recurring_task_copies_tags_to_next_occurrence
     tag_id = tag.id
     session.expunge(tag)
 
-    advanced = await _advance_recurrence_if_needed(
+    advanced = await advance_recurrence_if_needed(
         session,
         task,
         previous_status_category=TaskStatusCategory.todo,

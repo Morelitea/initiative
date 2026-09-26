@@ -28,7 +28,7 @@ from app.models.platform.user import User
 from app.schemas.tenant.calendar_entry import CalendarEntriesResponse
 from app.schemas.tenant.calendar_event import serialize_calendar_event_summary
 from app.api.v1.tenant_endpoints import calendar_events as calendar_events_api
-from app.api.v1.tenant_endpoints import tasks as tasks_api
+from app.services.tenant import task_queries
 
 router = APIRouter()
 # Cross-guild "my calendar" aggregate. Mounted under /api/v1/me.
@@ -89,7 +89,7 @@ async def list_calendar_entries(
 
     tasks_out = []
     if include_tasks:
-        tasks_out = await tasks_api.query_guild_tasks(
+        tasks_out = await task_queries.query_guild_tasks(
             session,
             current_user,
             guild_context,
@@ -138,7 +138,7 @@ async def list_my_calendar_entries(
 
     tasks_out = []
     if include_tasks:
-        tasks_out = await tasks_api.query_my_tasks_list(
+        tasks_out = await task_queries.query_my_tasks_list(
             session,
             current_user,
             conditions=conditions,
