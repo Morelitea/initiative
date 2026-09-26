@@ -482,14 +482,16 @@ async def _allowed_project_ids(
     them — the tag browse, the community calendar's task markers — the question
     is what has been shared with the reader, so the answer matches the events
     those markers sit beside.
+
+    Archived projects stay out of a spanning list, as they do from the default
+    project list. Opened on its own, an archived project is still read.
     """
-    conditions = [
-        Project.archived_at.is_(None),
-    ]
+    conditions = []
     if project_id is None:
         # Spanning initiatives, the answer is what has been shared with the
         # reader, which is a narrower question than "may I reach it" — so it
         # stays here rather than resting on the table's own policy.
+        conditions.append(Project.archived_at.is_(None))
         conditions.append(
             permissions_service.granted_scope_clause(
                 Tool.project,
@@ -498,6 +500,8 @@ async def _allowed_project_ids(
                 context=context,
             )
         )
+    else:
+        conditions.append(Project.id == project_id)
     if not include_templates:
         conditions.append(Project.is_template == False)  # noqa: E712
     stmt = select(Project.id).join(Project.initiative).where(*conditions)
@@ -899,7 +903,12 @@ async def guild_task_query_builder(
     access_conditions: list = []
 
     if not include_archived:
-        access_conditions.append(Task.archived_at.is_(None))
+        # A task archived along with its project carries the project's own
+        # stamp: it is that project's content, not something put away inside
+        # it, so an archived project opened on its own still lists it.
+        access_conditions.append(
+            or_(Task.archived_at.is_(None), Task.archived_at == Project.archived_at)
+        )
 
     allowed_ids = await _allowed_project_ids(
         session,

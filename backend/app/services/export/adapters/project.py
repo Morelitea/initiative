@@ -6,7 +6,8 @@ its payload is the envelope verbatim. The report formats project the same
 envelope into the shared columns/rows payload: a formatted PDF via the
 ``project-report`` template, or a task table via the tabular renderers.
 Archived tasks stay in the backup (it must round-trip everything) but are
-excluded from the report formats, matching the on-screen list defaults.
+excluded from the report formats, matching the on-screen list defaults — save
+the ones archived along with the project, which the list shows too.
 
 Access rule for every format: WRITE on the project (read-only members can't
 take backups), enforced by the ``projects.py`` seams at both count and build
@@ -126,7 +127,12 @@ def build_project_item(
 
 
 def _report_payload(envelope: ProjectExportEnvelope, user: User) -> dict:
-    tasks = [t for t in envelope.tasks if t.archived_at is None]
+    project_archived_at = envelope.project.archived_at
+    tasks = [
+        t
+        for t in envelope.tasks
+        if t.archived_at is None or t.archived_at == project_archived_at
+    ]
     loc = export_locale(user)
     return {
         # The project name is user data — never translated.
