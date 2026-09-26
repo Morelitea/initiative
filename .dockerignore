@@ -1,6 +1,9 @@
-# Test files (not needed in production image)
+# Test files and dev scripts (not needed in production image)
 backend/app/testing/
 backend/app/**/*_test.py
+backend/alembic/**/*_test.py
+backend/app/services/import_engine/fixtures/
+backend/scripts/
 backend/conftest.py
 backend/pytest.ini
 backend/.coveragerc
