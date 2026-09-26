@@ -156,7 +156,7 @@ APP_REFUSED_TABLES: frozenset[str] = frozenset(
 #: made it, the install, or, for a member token, the member it acts for. A
 #: system job names nobody, and the function writes nothing.
 #: Shared, in ``public``; the row lands in the schema the trigger fired in.
-#: Restated in full by the migration that sets it (20260925_0402).
+#: Restated in full by the migration that sets it (20260925_0403).
 INSTALL_OWNS_WHAT_IT_CREATES = """
 CREATE OR REPLACE FUNCTION public.fn_install_owns_what_it_creates() RETURNS trigger
     LANGUAGE plpgsql AS $owns$

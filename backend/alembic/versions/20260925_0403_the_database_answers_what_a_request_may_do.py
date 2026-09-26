@@ -18,8 +18,8 @@ renders from ``app.db.authorization`` once these are in place:
 The bodies are stated here in full, as they were and as they become, so this
 revision reads the same whatever the modules say later.
 
-Revision ID: 20260925_0402
-Revises: 20260925_0401
+Revision ID: 20260925_0403
+Revises: 20260925_0402
 Create Date: 2026-09-25
 """
 
@@ -28,8 +28,8 @@ from alembic import op
 
 from app.db.guild_migrations import guild_schema_names
 
-revision = "20260925_0402"
-down_revision = "20260925_0401"
+revision = "20260925_0403"
+down_revision = "20260925_0402"
 branch_labels = None
 depends_on = None
 
