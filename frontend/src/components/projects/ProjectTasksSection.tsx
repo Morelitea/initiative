@@ -71,6 +71,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAuth } from "@/hooks/useAuth";
 import {
   useCreateFilterPreset,
@@ -227,6 +228,7 @@ export const ProjectTasksSection = ({
   onComposerOpenChange,
 }: ProjectTasksSectionProps) => {
   const { t } = useTranslation("projects");
+  const guildId = useActiveGuildId();
   const sortedTaskStatuses = useMemo(() => {
     return [...taskStatuses].sort((a, b) => {
       if (a.position === b.position) {
@@ -567,7 +569,7 @@ export const ProjectTasksSection = ({
     onSuccess: (newTask) => {
       setComposerValue(emptyTaskFormValue({ statusId: defaultStatusId }));
       setIsComposerOpen(false);
-      setLocalOverride((prev) => [...(prev ?? projectTasks), taskReadToListRow(newTask)]);
+      setLocalOverride((prev) => [...(prev ?? projectTasks), taskReadToListRow(newTask, guildId)]);
       toast.success(t("tasks.taskCreated"));
     },
   });
@@ -637,13 +639,13 @@ export const ProjectTasksSection = ({
         const base = prev ?? projectTasks;
         if (!base.length) return prev;
         if (stillMatchesFilters(updatedTask)) {
-          const row = taskReadToListRow(updatedTask);
+          const row = taskReadToListRow(updatedTask, guildId);
           return base.map((task) => (task.id === row.id ? row : task));
         }
         return base.filter((task) => task.id !== updatedTask.id);
       });
     },
-    [projectTasks, stillMatchesFilters]
+    [projectTasks, stillMatchesFilters, guildId]
   );
 
   const updateTaskStatus = useUpdateTask({
