@@ -245,7 +245,39 @@ async def sync_oidc_assignments(
     # rows and owned content in the guild go first, and the shared membership
     # only where they did, so a guild whose half fails keeps the member it
     # still holds initiative rows for, for the next sync to finish.
-    from app.services.tenant.initiatives import remove_user_from_guild_initiatives
+    from app.services.tenant.initiatives import (
+        clear_user_task_assignments_for_initiative,
+        enroll_in_auto_join_initiatives,
+        remove_user_from_guild_initiatives,
+    )
+
+    async def drop_stale_initiatives(guild_session: AsyncSession, gid: int) -> None:
+        """Remove the oidc-managed initiative memberships in this guild that
+        the claims no longer grant, recording each."""
+        stale_inits = (
+            await guild_session.exec(
+                select(InitiativeMember).where(
+                    InitiativeMember.user_id == user_id,
+                    InitiativeMember.oidc_provider_id == provider_id,
+                )
+            )
+        ).all()
+        for im in stale_inits:
+            if im.initiative_id not in matched_initiative_ids:
+                await clear_user_task_assignments_for_initiative(
+                    guild_session, initiative_id=im.initiative_id, user_id=user_id
+                )
+                await _record(
+                    guild_session,
+                    event_type=AuditEventType.INITIATIVE_MEMBER_REMOVED,
+                    target_user_id=user_id,
+                    guild_id=gid,
+                    target_type="initiative",
+                    target_id=im.initiative_id,
+                    detail={"via": _VIA},
+                )
+                await guild_session.delete(im)
+                result.initiatives_removed.append(im.initiative_id)
 
     # The role comes back with the id: it is gone once the delete below lands,
     # and the record says what the person held.
@@ -265,6 +297,8 @@ async def sync_oidc_assignments(
     left: set[int] = set()
 
     async def leave_initiatives(guild_session: AsyncSession, gid: int) -> None:
+        await drop_stale_initiatives(guild_session, gid)
+        await guild_session.flush()
         await remove_user_from_guild_initiatives(
             guild_session, guild_id=gid, user_id=user_id
         )
@@ -384,11 +418,6 @@ async def sync_oidc_assignments(
     await session.commit()
 
     # --- Initiative resolution + membership (each guild's half) ---
-    from app.services.tenant.initiatives import (
-        clear_user_task_assignments_for_initiative,
-        enroll_in_auto_join_initiatives,
-    )
-
     async def sync_initiatives(guild_session: AsyncSession, gid: int) -> None:
         guild_inits = {iid for iid, g in initiative_guild.items() if g == gid}
         # Drop references to initiatives that no longer exist in this schema
@@ -462,32 +491,7 @@ async def sync_oidc_assignments(
                 )
                 result.initiatives_added.append(iid)
 
-        # Remove stale oidc-managed initiative memberships in THIS guild that the
-        # claims no longer grant.
-        stale_inits = (
-            await guild_session.exec(
-                select(InitiativeMember).where(
-                    InitiativeMember.user_id == user_id,
-                    InitiativeMember.oidc_provider_id == provider_id,
-                )
-            )
-        ).all()
-        for im in stale_inits:
-            if im.initiative_id not in matched_initiative_ids:
-                await clear_user_task_assignments_for_initiative(
-                    guild_session, initiative_id=im.initiative_id, user_id=user_id
-                )
-                await _record(
-                    guild_session,
-                    event_type=AuditEventType.INITIATIVE_MEMBER_REMOVED,
-                    target_user_id=user_id,
-                    guild_id=gid,
-                    target_type="initiative",
-                    target_id=im.initiative_id,
-                    detail={"via": _VIA},
-                )
-                await guild_session.delete(im)
-                result.initiatives_removed.append(im.initiative_id)
+        await drop_stale_initiatives(guild_session, gid)
 
         # Onboarding for a first-time arrival, once the claims have had their
         # say. It runs last because the claims are authoritative about role:
