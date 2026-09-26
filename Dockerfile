@@ -35,6 +35,32 @@ LABEL org.opencontainers.image.version="${VERSION}"
 LABEL org.opencontainers.image.title="Initiative"
 LABEL org.opencontainers.image.description="Initiative project management application"
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+# dist-upgrade, not upgrade. `apt-get upgrade` leaves a package at its current
+# version when the new one "cannot be upgraded without changing the install
+# status of another package", and it never removes one -- so a security update
+# that needs a dependency change is held back, silently, while this line still
+# looks like it applied everything available.
+#
+# Then assert it: a simulated pass must find nothing left to install. Without
+# that the claim "available security updates are applied" is a claim nothing
+# checks, and the image that quietly kept a vulnerable package looks exactly
+# like the image that had nothing to keep.
+#
+# This layer sits above the application so a code change reuses it. A build
+# that must apply today's updates passes a new APT_REFRESH, which is all it
+# takes to run this layer again.
+ARG APT_REFRESH=
+RUN apt-get update \
+    && apt-get dist-upgrade -y \
+    && apt-get install -y --no-install-recommends gosu \
+    && remaining="$(apt-get --simulate dist-upgrade | grep '^Inst ' || true)" \
+    && if [ -n "$remaining" ]; then \
+         echo "packages still upgradable after dist-upgrade:" >&2; \
+         echo "$remaining" >&2; \
+         exit 1; \
+       fi \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /app/uploads
 # uv binary (pinned) for native, lockfile-based dependency installs
 COPY --from=ghcr.io/astral-sh/uv:0.11.21@sha256:ff07b86af50d4d9391d9daf4ff89ce427bc544f9aae87057e69a1cc0aa369946 /uv /uvx /bin/
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_PREFERENCE=only-system
@@ -58,27 +84,6 @@ COPY MIN_NATIVE_VERSION ./MIN_NATIVE_VERSION
 COPY CHANGELOG.md ./CHANGELOG.md
 COPY --from=frontend-build /frontend/dist ./static
 COPY --from=frontend-build /ota/ ./ota/
-# dist-upgrade, not upgrade. `apt-get upgrade` leaves a package at its current
-# version when the new one "cannot be upgraded without changing the install
-# status of another package", and it never removes one -- so a security update
-# that needs a dependency change is held back, silently, while this line still
-# looks like it applied everything available.
-#
-# Then assert it: a simulated pass must find nothing left to install. Without
-# that the claim "available security updates are applied" is a claim nothing
-# checks, and the image that quietly kept a vulnerable package looks exactly
-# like the image that had nothing to keep.
-RUN apt-get update \
-    && apt-get dist-upgrade -y \
-    && apt-get install -y --no-install-recommends gosu \
-    && remaining="$(apt-get --simulate dist-upgrade | grep '^Inst ' || true)" \
-    && if [ -n "$remaining" ]; then \
-         echo "packages still upgradable after dist-upgrade:" >&2; \
-         echo "$remaining" >&2; \
-         exit 1; \
-       fi \
-    && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /app/uploads
 COPY backend/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]
