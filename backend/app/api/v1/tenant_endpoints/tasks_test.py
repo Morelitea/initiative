@@ -207,6 +207,46 @@ async def test_a_project_filter_that_narrows_nothing_does_not_widen_access(
     assert hidden.id not in {t["id"] for t in response.json()["items"]}
 
 
+async def test_an_archived_project_still_lists_its_tasks(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Archiving a project stamps its tasks with the project's own
+    ``archived_at``; opened on its own, the project still shows them.
+
+    A task archived earlier, on its own, carries a different stamp and stays
+    behind the "show archived" toggle, as it does in a live project.
+    """
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    earlier = await create_task(session, a.project, title="Archived earlier")
+    await client.post(a.g(f"/archive/task/{earlier.id}"), headers=a.headers)
+    task = await create_task(session, a.project, title="Archived with project")
+    archived = await client.post(
+        a.g(f"/archive/project/{a.project.id}"), headers=a.headers
+    )
+    assert archived.status_code == 200
+
+    conditions = json.dumps(
+        [{"field": "project_id", "op": "eq", "value": a.project.id}]
+    )
+    response = await client.get(
+        a.g(f"/tasks/?conditions={conditions}"), headers=a.headers
+    )
+    assert response.status_code == 200
+    assert {t["id"] for t in response.json()["items"]} == {task.id}
+
+    response = await client.get(
+        a.g(f"/tasks/?conditions={conditions}&include_archived=true"),
+        headers=a.headers,
+    )
+    assert response.status_code == 200
+    assert {t["id"] for t in response.json()["items"]} == {task.id, earlier.id}
+
+    # Spanning every project, an archived one stays out.
+    response = await client.get(a.g("/tasks/"), headers=a.headers)
+    assert response.status_code == 200
+    assert task.id not in {t["id"] for t in response.json()["items"]}
+
+
 async def test_create_task(client: AsyncClient, session: AsyncSession, acting_user):
     """Test creating a new task."""
     from app.services.tenant import task_statuses as task_statuses_service
