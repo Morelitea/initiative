@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://initiative.morels.me/schemas/app-manifest-v1.json",
   "title": "Initiative app manifest (the 'definition' body)",
-  "description": "What a service app declares it can do. This is the 'definition' field of the document served at /.well-known/initiative-app.json, NOT that whole document: a registrar also requires protocol_version, public_id and kind alongside it, and refuses a definition served bare. Generated from the platform's own validator vocabulary. A manifest that satisfies this schema is well-formed, not necessarily acceptable. Cross-references (the endpoint a widget binds, a requires term's connection, an endpoint's service prefix), the direction-specific rules on an endpoint, the features/blocks cross-check in both directions, UTF-8 byte-size caps, and the rules tying a connection's flow and token to its scope and fields, and what a webhooks block names, are enforced by the platform on publish and are not expressible here.",
+  "description": "What a service app declares it can do. This is the 'definition' field of the document served at /.well-known/initiative-app.json, NOT that whole document: a registrar also requires protocol_version, public_id and kind alongside it, and refuses a definition served bare. Generated from the platform's own validator vocabulary. A manifest that satisfies this schema is well-formed, not necessarily acceptable. Cross-references (the endpoint a widget binds, a requires term's connection, an endpoint's service prefix), the direction-specific rules on an endpoint, the features/blocks cross-check in both directions, UTF-8 byte-size caps, the rules tying a connection's flow and token to its scope and fields, what a webhooks block names, and the bounds and unique ids of schedules are enforced by the platform on publish and are not expressible here.",
   "type": "object",
   "required": [
     "app_kind",
@@ -108,6 +108,14 @@
     },
     "webhooks": {
       "$ref": "#/$defs/webhooks"
+    },
+    "schedules": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "$ref": "#/$defs/schedule"
+      },
+      "description": "What Initiative calls the app's schedule hook for, and how often. At most 8."
     },
     "endpoints": {
       "type": "array",
@@ -720,6 +728,26 @@
         "field": {
           "$ref": "#/$defs/identifier",
           "description": "A field that connection declares, whose stored value the body's value is matched against."
+        }
+      }
+    },
+    "schedule": {
+      "type": "object",
+      "description": "An interval at which Initiative calls the app's schedule hook, once for each community that installed it, with when the call last succeeded there.",
+      "required": [
+        "id",
+        "every"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier",
+          "description": "Unique within the manifest. The hook is told which schedule is due by it."
+        },
+        "every": {
+          "type": "string",
+          "maxLength": 5,
+          "pattern": "^[0-9]+[mh]$",
+          "description": "How often: a whole number of minutes ('15m') or hours ('6h'), at least 5 minutes and at most 1440 minutes."
         }
       }
     },

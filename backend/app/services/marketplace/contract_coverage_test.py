@@ -119,6 +119,7 @@ def maximal_manifest() -> dict:
             "dedup": "X-Acme-Delivery",
             "route": {"path": "install.id", "connection": "vendor", "field": "choice"},
         },
+        "schedules": [{"id": "sync", "every": "15m"}],
         "endpoints": [
             {
                 "id": READ_ENDPOINT,
@@ -258,6 +259,7 @@ def _nodes(published: dict) -> list[tuple[str, dict]]:
         ("webhooks", published["webhooks"]),
         ("webhookVerify", published["webhooks"]["verify"]),
         ("webhookRoute", published["webhooks"]["route"]),
+        ("schedule", published["schedules"][0]),
         ("accessHint", connection["access_hint"]),
         # A read carries the caller-side fields and a write carries the
         # identity; no single direction carries every field, so the two are
