@@ -1,7 +1,10 @@
+import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildGuild, buildUser, guildCan } from "@/__tests__/factories";
+import { createTestQueryClient } from "@/__tests__/helpers/render";
 
 const get = vi.fn();
 
@@ -52,6 +55,14 @@ const Probe = () => {
   );
 };
 
+/** The provider reads its list through React Query, so each test gets a client. */
+const withQueryClient = () => {
+  const client = createTestQueryClient();
+  return ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+};
+
 describe("settings grants in the community switcher", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -90,7 +101,8 @@ describe("settings grants in the community switcher", () => {
     render(
       <GuildProvider>
         <Probe />
-      </GuildProvider>
+      </GuildProvider>,
+      { wrapper: withQueryClient() }
     );
 
     await waitFor(() =>
@@ -124,7 +136,8 @@ describe("settings grants in the community switcher", () => {
     render(
       <GuildProvider>
         <Probe />
-      </GuildProvider>
+      </GuildProvider>,
+      { wrapper: withQueryClient() }
     );
 
     await waitFor(() => expect(screen.getByText('{"settings":"superadmin"}')).toBeVisible());
@@ -178,7 +191,8 @@ describe("settings grants in the community switcher", () => {
     render(
       <GuildProvider>
         <EntryProbe />
-      </GuildProvider>
+      </GuildProvider>,
+      { wrapper: withQueryClient() }
     );
 
     await waitFor(() =>
