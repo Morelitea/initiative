@@ -30,7 +30,9 @@ from app.db.guild_standing import InstallContext
 from app.db.initiative_rls import governing_path
 from app.models.tenant.initiative import Initiative, PermissionKey
 from app.models.tenant.resource_grant import ResourceAccessLevel
+from app.models.tenant.task import Task, TaskAssignee
 from app.models.platform.user import User
+from sqlmodel import select
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.services import permissions as permissions_service
 from app.services.permissions import Action
@@ -44,6 +46,7 @@ from app.services.tenant import documents as documents_service
 from app.services.tenant import galleries as galleries_service
 from app.services.tenant import wikis as wikis_service
 from app.services.tenant import posts as posts_service
+from app.services.tenant import named_people
 from app.services.tenant import project_grants
 from app.services.tenant import queues as queues_service
 
@@ -477,35 +480,42 @@ async def load_authorized(
 # One code path for replacing a resource's sharing — used by every per-resource
 # ``PUT /{id}/grants`` endpoint and by the bulk endpoint. The only per-kind
 # variation is an optional post-change side effect (projects unassign anyone
-# dropped below write access from the project's tasks).
+# who can no longer open the project from its tasks).
 
 
 @dataclass(frozen=True)
 class GrantHooks:
     # raise to reject the change (e.g. archived project) — runs after authorization
     precheck: Optional[Callable[[Any], None]] = None
-    # who can write *before* the change, for diffing afterwards
-    writers_before: Optional[Callable[[Any, Any], Awaitable[set[int]]]] = None
-    # post-change hook: (session, reloaded_row, writers_before) -> None
+    # post-change hook: (session, reloaded_row) -> None
     on_changed: Optional[Callable[..., Awaitable[None]]] = None
 
 
-async def _project_on_grants_changed(
-    session: Any, row: Any, writers_before: set[int]
-) -> None:
-    """Unassign anyone the grant change dropped below project write access — you
-    can't be assigned to tasks you can no longer edit. Commits + reapplies RLS
-    only when something actually changed."""
-    demoted = writers_before - await project_grants.write_holder_ids(session, row)
-    if demoted:
-        await project_grants.remove_user_task_assignments(session, row.id, demoted)
+async def _project_on_grants_changed(session: Any, row: Any) -> None:
+    """Unassign anyone the grant change left unable to open the project: only
+    people who can open it are named on its tasks. Commits only when something
+    changed."""
+    assigned = set(
+        (
+            await session.exec(
+                select(TaskAssignee.user_id)
+                .join(Task, Task.id == TaskAssignee.task_id)
+                .where(Task.project_id == row.id)
+                .distinct()
+            )
+        ).all()
+    )
+    gone = assigned - await named_people.readers(
+        session, named_people.Governing.of(Tool.project, row), assigned
+    )
+    if gone:
+        await project_grants.remove_user_task_assignments(session, row.id, gone)
         await session.commit()
 
 
 GRANT_HOOKS: dict[Tool, GrantHooks] = {
     Tool.project: GrantHooks(
         precheck=project_grants.ensure_grantable,
-        writers_before=project_grants.write_holder_ids,
         on_changed=_project_on_grants_changed,
     ),
 }
@@ -542,12 +552,6 @@ async def set_resource_grants(
     hooks = GRANT_HOOKS.get(kind)
     if hooks and hooks.precheck:
         hooks.precheck(row)
-    writers_before = (
-        await hooks.writers_before(session, row)
-        if hooks and hooks.writers_before
-        else None
-    )
-
     await permissions_service.replace_resource_grants(
         session,
         resource_type=kind,
@@ -566,4 +570,4 @@ async def set_resource_grants(
         # resource_type/resource_id), so ``row.grants`` in the identity map is now
         # stale — refresh just that one collection rather than the whole graph.
         await session.refresh(row, attribute_names=["grants"])
-        await hooks.on_changed(session, row, writers_before or set())
+        await hooks.on_changed(session, row)

@@ -10223,23 +10223,6 @@ export type ReadProjectApiV1CGuildIdProjectsProjectIdGetParams = {
   include_deleted?: boolean;
 };
 
-export type SearchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGetParams = {
-  /**
-   * Case-insensitive substring match on the member's name.
-   */
-  search?: string | null;
-  user_id?: number[] | null;
-  /**
-   * @minimum 1
-   */
-  page?: number;
-  /**
-   * @minimum 0
-   * @maximum 100
-   */
-  page_size?: number;
-};
-
 export type ListTasksApiV1CGuildIdTasksGetParams = {
   /**
    * JSON list of filter conditions, AND-ed together. Each object: {"field": "<column>", "op": "<operator>", "value": <val>}. Any Task column is valid plus virtual fields: status_category, assignee_ids, tag_ids, initiative_ids. An object with a "conditions" key is an AND/OR group: {"logic": "or", "conditions": [...]}.
@@ -11025,6 +11008,11 @@ export type SearchUsersApiV1CGuildIdUsersSearchGetParams = {
    * Only members of this initiative. The caller must reach it: be in it, administer the community, or (an app) be placed there.
    */
   initiative_id?: number | null;
+  /**
+   * With ``resource_id``: only the people who can open that row, which is who may be named on content inside it (assignees, attendees, person properties). The caller must be able to open it too. For a person's picker; an installed app's search does not take it.
+   */
+  tool?: Tool | null;
+  resource_id?: number | null;
   /**
    * @minimum 1
    */

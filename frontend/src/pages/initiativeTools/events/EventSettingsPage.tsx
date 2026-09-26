@@ -303,11 +303,7 @@ export function EventSettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <MemberMultiSelect
-            scope={
-              event != null && event.initiative_id == null
-                ? { type: "guild" }
-                : { type: "initiative", initiativeId: event?.initiative_id ?? null }
-            }
+            scope={{ type: "canOpen", tool: Tool.calendar, id: event?.calendar_id ?? null }}
             selectedIds={attendeeIds}
             selectedUsers={attendeeUsers}
             onChange={setAttendeeIds}
@@ -351,6 +347,7 @@ export function EventSettingsPage() {
               entityId={eventId}
               properties={combinedProperties}
               initiativeId={event.initiative_id}
+              canOpen={{ tool: Tool.calendar, id: event.calendar_id }}
             />
             <AddPropertyButton
               initiativeId={event.initiative_id}

@@ -8,6 +8,7 @@ import type {
   TaskListReadRecurrenceStrategy,
   TaskRecurrenceOutput,
 } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
 import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
 import { Button } from "@/components/ui/button";
@@ -284,18 +285,13 @@ export const CreateEventDialog = ({
 
           <EventDateTimeFields value={timing} onChange={patchTiming} />
 
-          {/* Attendees come from whatever the calendar belongs to — an
-              initiative's members, or the whole guild for a guild calendar,
-              which belongs to no initiative. Wait until a calendar is chosen. */}
+          {/* Attendees are the people who can open the calendar. Wait until one
+              is chosen. */}
           {effectiveCalendar != null && (
             <div className="space-y-2">
               <Label>{t("attendees")}</Label>
               <MemberMultiSelect
-                scope={
-                  effectiveCalendar.initiative_id == null
-                    ? { type: "guild" }
-                    : { type: "initiative", initiativeId: effectiveCalendar.initiative_id }
-                }
+                scope={{ type: "canOpen", tool: Tool.calendar, id: effectiveCalendar.id }}
                 selectedIds={attendeeIds}
                 selectedUsers={user ? [user] : undefined}
                 onChange={setAttendeeIds}

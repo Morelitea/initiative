@@ -6,13 +6,13 @@ import type {
   AccountDeletionResponse,
   ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams,
   GuildRole,
+  Tool,
   UserGuildMember,
   UserGuildRead,
   UserRead,
   UserSummary,
 } from "@/api/generated/initiativeAPI.schemas";
 import { useSearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGet } from "@/api/generated/initiatives/initiatives";
-import { useSearchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGet } from "@/api/generated/projects/projects";
 import {
   approveUserApiV1CGuildIdUsersUserIdApprovePost,
   deleteOwnAccountApiV1UsersMeDeleteAccountPost,
@@ -75,6 +75,9 @@ export interface UserSearchOptions {
   userIds?: number[];
   /** Bounded page size (server caps at 100). */
   pageSize?: number;
+  /** Only the people who can open this row: who may be named on what it
+   *  holds (assignees, attendees, person properties, queue items). */
+  canOpen?: { tool: Tool; id: number | null | undefined };
   /** Gate the request — pass the picker's `open` state so we don't fetch until
    *  the dropdown is shown. */
   enabled?: boolean;
@@ -193,6 +196,7 @@ export const useUserSearch = ({
   pageSize = USER_SEARCH_PAGE_SIZE,
   enabled = true,
   guildIdOverride,
+  canOpen,
 }: UserSearchOptions = {}) => {
   const activeGuildId = useActiveGuildId();
   const guildId = guildIdOverride ?? activeGuildId;
@@ -202,10 +206,11 @@ export const useUserSearch = ({
       ...memberSearchParams(search, userIds),
       page_size: pageSize,
       ...(page != null ? { page } : {}),
+      ...(canOpen ? { tool: canOpen.tool, resource_id: canOpen.id } : {}),
     },
     {
       query: {
-        enabled: enabled && guildId != null,
+        enabled: enabled && guildId != null && (!canOpen || canOpen.id != null),
         staleTime: 30_000,
         // Keep the prior page visible while the next keystroke's request is in
         // flight so the dropdown doesn't flash empty on every character.
@@ -250,56 +255,22 @@ export const useInitiativeMemberSearch = (
 };
 
 /**
- * Slim, server-side typeahead over the users **assignable to a project's
- * tasks** — the project's write/owner DAC set, computed server-side. Replaces
- * the client-side `project.grants` filtering the assignee pickers used to run
- * over the full guild roster.
- */
-export const useProjectMemberSearch = (
-  projectId: number | null | undefined,
-  {
-    search,
-    userIds,
-    pageSize = USER_SEARCH_PAGE_SIZE,
-    enabled = true,
-    guildIdOverride,
-  }: UserSearchOptions = {}
-) => {
-  const activeGuildId = useActiveGuildId();
-  const guildId = guildIdOverride ?? activeGuildId;
-  return useSearchProjectMembersApiV1CGuildIdProjectsProjectIdMembersSearchGet(
-    guildId,
-    projectId as number,
-    {
-      ...memberSearchParams(search, userIds),
-      page_size: pageSize,
-    },
-    {
-      query: {
-        enabled: enabled && guildId != null && projectId != null,
-        staleTime: 30_000,
-        placeholderData: keepPreviousData,
-      },
-    }
-  );
-};
-
-/**
- * Which RLS-scoped roster a member picker searches.
- * - `guild`: every guild member (e.g. a user-reference property).
- * - `initiative`: one initiative's members (linked-member / event pickers).
- * - `project`: users assignable to a project's tasks (write/owner DAC set).
+ * Which roster a member picker searches.
+ * - `guild`: every guild member.
+ * - `initiative`: one initiative's members (mentions, linked members).
+ * - `canOpen`: the people who can open one row, who are the ones that may be
+ *   named on what it holds (task assignees, event attendees, person
+ *   properties, queue items).
  */
 export type MemberSearchScope =
   | { type: "guild"; guildIdOverride?: number }
   | { type: "initiative"; initiativeId: number | null | undefined }
-  | { type: "project"; projectId: number | null | undefined };
+  | { type: "canOpen"; tool: Tool; id: number | null | undefined };
 
 /**
- * One entry point for the three slim member typeaheads, selected by `scope`.
- * All three underlying queries are declared (rules of hooks) but only the
- * scope-matching one is enabled, so exactly one request fires. Returns the
- * active query result (`{ data, isLoading, ... }`).
+ * One entry point for the member typeaheads, selected by `scope`. Both
+ * underlying queries are declared (rules of hooks) but only the scope-matching
+ * one is enabled, so exactly one request fires.
  */
 export const useMemberSearch = (
   scope: MemberSearchScope,
@@ -308,27 +279,22 @@ export const useMemberSearch = (
     userIds,
     pageSize = USER_SEARCH_PAGE_SIZE,
     enabled = true,
-  }: Omit<UserSearchOptions, "guildIdOverride"> = {}
+  }: Omit<UserSearchOptions, "guildIdOverride" | "canOpen"> = {}
 ) => {
   const guildQuery = useUserSearch({
     search,
     userIds,
     pageSize,
-    enabled: enabled && scope.type === "guild",
+    enabled: enabled && scope.type !== "initiative",
     guildIdOverride: scope.type === "guild" ? scope.guildIdOverride : undefined,
+    canOpen: scope.type === "canOpen" ? { tool: scope.tool, id: scope.id } : undefined,
   });
   const initiativeQuery = useInitiativeMemberSearch(
     scope.type === "initiative" ? scope.initiativeId : undefined,
     { search, userIds, pageSize, enabled: enabled && scope.type === "initiative" }
   );
-  const projectQuery = useProjectMemberSearch(
-    scope.type === "project" ? scope.projectId : undefined,
-    { search, userIds, pageSize, enabled: enabled && scope.type === "project" }
-  );
 
-  if (scope.type === "guild") return guildQuery;
-  if (scope.type === "initiative") return initiativeQuery;
-  return projectQuery;
+  return scope.type === "initiative" ? initiativeQuery : guildQuery;
 };
 
 export type { UserSummary };

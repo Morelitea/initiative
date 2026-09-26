@@ -747,10 +747,7 @@ async def create_calendar_event(
 
     if event_in.attendee_ids:
         await events_service.set_event_attendees(
-            session,
-            event,
-            event_in.attendee_ids,
-            guild_context.guild_id,
+            session, event, event_in.attendee_ids, calendar=event.calendar
         )
     if event_in.tag_ids:
         await tags_service.set_entity_tags(
@@ -833,6 +830,14 @@ async def update_calendar_event(
                 detail=CalendarEventMessages.CANNOT_CROSS_SCOPE,
             )
         event.calendar_id = update_data["calendar_id"]
+        # Only those who can open the destination stay on the list.
+        await events_service.set_event_attendees(
+            session,
+            event,
+            [attendee.user_id for attendee in event.attendees],
+            calendar=destination,
+            carried=True,
+        )
         updated = True
 
     for field in (
@@ -969,7 +974,7 @@ async def set_attendees(
     )
     old_ids = {a.user_id for a in event.attendees}
     await events_service.set_event_attendees(
-        session, event, attendee_ids, guild_context.guild_id
+        session, event, attendee_ids, calendar=event.calendar
     )
 
     added_ids = [

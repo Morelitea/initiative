@@ -190,6 +190,16 @@ async def test_add_queue_item(client: AsyncClient, acting_user):
     assert data["position"] == 15
     assert data["color"] == "#FF0000"
 
+    # A queue item names only someone who can open the queue.
+    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    refused = await client.post(
+        a.g(f"/queues/{queue_data['id']}/items"),
+        headers=a.headers,
+        json={"label": "Player 2", "user_id": outsider.user.id},
+    )
+    assert refused.status_code == 422
+    assert refused.json()["detail"] == "PERSON_CANNOT_READ"
+
 
 async def test_update_queue_item(client: AsyncClient, acting_user):
     """Owner can update an item."""

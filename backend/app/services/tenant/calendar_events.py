@@ -13,7 +13,6 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.core.messages import CalendarEventMessages
-from app.db.session import install_context
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import (
     CalendarEvent,
@@ -25,6 +24,8 @@ from app.models.tenant.document import Document
 from app.services.tenant import relationships
 from app.models.tenant.property import CalendarEventPropertyValue
 from app.models.tenant.resource_grant import ResourceGrant
+from app.core.tools import Tool
+from app.services.tenant import named_people
 from app.services.tenant import tags as tags_service
 
 
@@ -78,60 +79,45 @@ async def set_event_attendees(
     session: AsyncSession,
     event: CalendarEvent,
     user_ids: list[int],
-    guild_id: int,
+    *,
+    calendar: Calendar,
+    carried: bool = False,
 ) -> None:
-    """Replace all attendees on a calendar event.
+    """Make ``user_ids`` the event's attendees.
 
-    Who may be named depends on what the calendar belongs to. An initiative
-    calendar draws its attendees from that initiative's members. A guild
-    calendar belongs to no initiative and never reads one — its events are the
-    guild's, so anyone in the guild can be named. An installed app reads the
-    guild's members from the projection of the routed community's members,
-    which is what its role holds; the initiative roster it reads under its
-    ``members`` scope.
-
-    Requires ``event.calendar`` to be eager-loaded.
+    Everyone named must be able to open ``calendar``; ``carried`` is the
+    existing list following the event somewhere new, which keeps those who
+    still can rather than refusing. Someone already attending keeps their
+    answer.
     """
-    if user_ids:
-        from app.models.platform.guild import GuildMembership
-        from app.models.platform.user_profile_view import current_guild_members
-        from app.models.tenant.initiative import InitiativeMember
+    wanted = list(dict.fromkeys(user_ids))
+    governing = named_people.Governing.of(Tool.calendar, calendar)
+    if carried:
+        keep = await named_people.readers(session, governing, wanted)
+        wanted = [user_id for user_id in wanted if user_id in keep]
+    else:
+        await named_people.require_readers(session, governing, wanted)
 
-        initiative_id = event.calendar.initiative_id
-        if initiative_id is None and install_context(session) is not None:
-            stmt = select(current_guild_members.c.id).where(
-                current_guild_members.c.id.in_(user_ids)
-            )
-        elif initiative_id is None:
-            stmt = select(GuildMembership.user_id).where(
-                GuildMembership.guild_id == guild_id,
-                GuildMembership.user_id.in_(user_ids),
-            )
-        else:
-            stmt = select(InitiativeMember.user_id).where(
-                InitiativeMember.initiative_id == initiative_id,
-                InitiativeMember.user_id.in_(user_ids),
-            )
-        result = await session.exec(stmt)
-        valid_ids = set(result.all())
-        invalid = set(user_ids) - valid_ids
-        if invalid:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=CalendarEventMessages.INVALID_ATTENDEE_IDS,
-            )
-
-    delete_stmt = sa_delete(CalendarEventAttendee).where(
-        CalendarEventAttendee.calendar_event_id == event.id,
-    )
-    await session.exec(delete_stmt)
-
-    for user_id in user_ids:
-        attendee = CalendarEventAttendee(
-            calendar_event_id=event.id,
-            user_id=user_id,
+    await session.exec(
+        sa_delete(CalendarEventAttendee).where(
+            CalendarEventAttendee.calendar_event_id == event.id,
+            CalendarEventAttendee.user_id.not_in(wanted),
         )
-        session.add(attendee)
+    )
+    present = set(
+        (
+            await session.exec(
+                select(CalendarEventAttendee.user_id).where(
+                    CalendarEventAttendee.calendar_event_id == event.id
+                )
+            )
+        ).all()
+    )
+    session.add_all(
+        CalendarEventAttendee(calendar_event_id=event.id, user_id=user_id)
+        for user_id in wanted
+        if user_id not in present
+    )
 
 
 # ---------------------------------------------------------------------------
