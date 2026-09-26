@@ -49,6 +49,10 @@ def _chip(chip_kind: str, entity_id: int, text: str) -> dict:
     }
 
 
+def _embed(entity_type: str, entity_id: int, text: str) -> dict:
+    return {**_mention(entity_type, entity_id, text), "type": "reference-embed"}
+
+
 def _wikilink(document_id: int, title: str) -> dict:
     return {
         "type": "wikilink",
@@ -97,11 +101,14 @@ def test_an_editor_reference_carries_a_ref_instead_of_an_id():
         _wikilink(7, "Spec"),
         _mention("task", 0, "Waiting on a page"),
     )
+    content["root"]["children"].append(_embed("task", 41, "Fix the bug"))
     before = copy.deepcopy(content)
 
     detached = detach_editor_references(content)
 
     text, mention, chip, wikilink, waiting = _inline(detached)
+    embed = detached["root"]["children"][1]
+    assert (embed["entityId"], embed[SOURCE_REF]) == (0, "task:41")
     assert text == {"type": "text", "text": "See "}
     assert (mention["entityId"], mention[SOURCE_REF]) == (0, "task:41")
     assert (chip["entityId"], chip[SOURCE_REF]) == (0, "task:41")
@@ -115,14 +122,14 @@ def test_an_editor_reference_carries_a_ref_instead_of_an_id():
 
 
 def test_an_exported_editor_reference_is_placed_or_left_as_words():
-    detached = detach_editor_references(
-        _editor(
-            _mention("task", 41, "Fix the bug"),
-            _mention("document", 8, "Gone"),
-            _chip("task:status", 42, "Done"),
-            _wikilink(7, "Spec"),
-        )
+    content = _editor(
+        _mention("task", 41, "Fix the bug"),
+        _mention("document", 8, "Gone"),
+        _chip("task:status", 42, "Done"),
+        _wikilink(7, "Spec"),
     )
+    content["root"]["children"].append(_embed("document", 8, "Gone"))
+    detached = detach_editor_references(content)
 
     placed = place_editor_references(
         detached, lambda ref: 90 if ref == "task:41" else None
@@ -133,6 +140,10 @@ def test_an_exported_editor_reference_is_placed_or_left_as_words():
     # A reference to nothing here is its words, never somebody else's row.
     assert gone["type"] == "text" and gone["text"] == "Gone"
     assert chip["type"] == "text" and chip["text"] == "Done"
+    # An embed is a block of its own, so its words keep a paragraph.
+    embed = placed["root"]["children"][1]
+    assert embed["type"] == "paragraph"
+    assert [child["text"] for child in embed["children"]] == ["Gone"]
     # A wikilink stays one, unlinked — how the editor draws a missing page.
     assert wikilink["type"] == "wikilink"
     assert wikilink["documentId"] is None and SOURCE_REF not in wikilink
