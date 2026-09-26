@@ -121,6 +121,26 @@ export function removeItem(key: string): Promise<void> {
   return inGroup(groupOf(key), () => Preferences.remove({ key }));
 }
 
+/**
+ * Values for the life of this tab, or of the app process on native: gone when
+ * it closes, on every platform, so they stay in the WebView's sessionStorage.
+ */
+export function getSessionItem(key: string): string | null {
+  try {
+    return sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+export function setSessionItem(key: string, value: string): void {
+  try {
+    sessionStorage.setItem(key, value);
+  } catch {
+    // Storage unavailable; the value is simply not kept.
+  }
+}
+
 /** Enumerate every stored key. */
 export function listKeys(): string[] {
   if (!isNative()) {

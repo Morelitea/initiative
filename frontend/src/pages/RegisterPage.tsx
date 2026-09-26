@@ -2,7 +2,8 @@ import { Link, useRouter, useSearch } from "@tanstack/react-router";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
+import { bootstrapStatusApiV1AuthBootstrapGet } from "@/api/generated/auth/auth";
+import { getInviteStatusApiV1CommunitiesInviteCodeGet } from "@/api/generated/communities/communities";
 import type { GuildInviteStatus } from "@/api/generated/initiativeAPI.schemas";
 import { CaptchaWidget } from "@/components/auth/CaptchaWidget";
 import { LegalNotice } from "@/components/auth/LegalNotice";
@@ -94,11 +95,8 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
     }
     const fetchBootstrapStatus = async () => {
       try {
-        const response = await apiClient.get<{
-          has_users: boolean;
-          public_registration_enabled: boolean;
-        }>("/auth/bootstrap");
-        setPublicRegistrationEnabled(response.data.public_registration_enabled);
+        const response = await bootstrapStatusApiV1AuthBootstrapGet();
+        setPublicRegistrationEnabled(response.public_registration_enabled);
       } catch {
         // Default to enabled if we can't fetch
         setPublicRegistrationEnabled(true);
@@ -120,17 +118,14 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
     setInviteStatus(null);
     setInviteStatusError(null);
     setInviteStatusLoading(true);
-    apiClient
-      .get<GuildInviteStatus>(`/communities/invite/${encodeURIComponent(inviteCode)}`)
-      .then((response) => {
+    getInviteStatusApiV1CommunitiesInviteCodeGet(encodeURIComponent(inviteCode))
+      .then((status) => {
         if (ignore) {
           return;
         }
-        setInviteStatus(response.data);
+        setInviteStatus(status);
         setInviteStatusError(
-          response.data.is_valid
-            ? null
-            : (response.data.reason ?? t("register.inviteNoLongerValid"))
+          status.is_valid ? null : (status.reason ?? t("register.inviteNoLongerValid"))
         );
       })
       .catch((error) => {
