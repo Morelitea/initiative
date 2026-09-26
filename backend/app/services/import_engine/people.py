@@ -30,7 +30,7 @@ from sqlalchemy import delete as sa_delete
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.session import require_guild_context
+from app.db.session import guild_context
 from app.models.tenant.initiative import InitiativeMember
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.import_engine.common import handle_key
@@ -180,8 +180,10 @@ async def bring_in_named(
             )
         ).all()
     )
-    context = require_guild_context(session)
-    if context.is_admin or initiative_id in context.manager_initiatives:
+    context = guild_context(session)
+    if context is not None and (
+        context.is_admin or initiative_id in context.manager_initiatives
+    ):
         role = await initiatives_service.get_member_role(
             session, initiative_id=initiative_id
         )
