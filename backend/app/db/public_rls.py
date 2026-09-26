@@ -831,12 +831,14 @@ PUBLIC_RLS: dict[str, TableRls] = {
                 ),
                 using=routed_or_member("id"),
             ),
-            # A routed request, the seat's included, reads its own community.
+            # A routed request, the seat's and a read-only one's included,
+            # reads its own community.
             Policy(
                 "guild_select_routed",
                 SELECT,
                 (
                     "app_guild_base",
+                    "app_guild_base_ro",
                     "app_superadmin",
                 ),
                 using=routed_or_pam("id"),

@@ -24,7 +24,7 @@ from app.models.platform.email_outbox import EmailOutboxItem
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.initiative import InitiativeJoinRequest, InitiativeMember
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.models.tenant.resource_grant import ResourceGrant
 from app.services import email as email_service
 from app.services.platform import email_outbox
 from app.services.tenant import initiatives as initiatives_service
@@ -943,8 +943,8 @@ async def test_removing_a_membership_ends_it(
 
     Ending a membership is not blocked by it being the last manager's;
     ``test_cannot_demote_last_manager`` covers the case that still is, which
-    edits a live membership rather than ending it. The sharing that came with
-    the membership goes with it, on every tool; owner grants stay.
+    edits a live membership rather than ending it. Every grant naming the
+    person in the initiative goes with it, on every tool, owner grants included.
     """
     owner, initiative = await _initiative_with_owner(session, acting_user)
     target = (
@@ -971,9 +971,7 @@ async def test_removing_a_membership_ends_it(
             select(ResourceGrant.level).where(ResourceGrant.user_id == target.user.id)
         )
     ).all()
-    assert levels == (
-        [ResourceAccessLevel.owner] * len(Tool) if target is owner else []
-    )
+    assert levels == []
 
 
 async def test_cannot_demote_last_manager(

@@ -935,7 +935,7 @@ _SHARES = f"""(v_level = '{_OWNER}'
 #:   archived because its initiative was archived comes back with the
 #:   initiative instead.
 RESOURCE_ACTIONS = f"""\
-CREATE OR REPLACE FUNCTION resource_actions(p_tool text, p_resource_id integer, p_user_id integer, p_initiative_id integer, p_archived_at timestamptz, p_deleted_at timestamptz, p_st standing)
+CREATE OR REPLACE FUNCTION resource_actions(p_tool text, p_resource_id integer, p_user_id integer, p_initiative_id integer, p_archived_at timestamp with time zone, p_deleted_at timestamp with time zone, p_st standing)
  RETURNS text[]
  LANGUAGE plpgsql
  STABLE
