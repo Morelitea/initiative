@@ -903,17 +903,15 @@ $function$
 _WRITE_RUNGS = sql_values(level.value for level in WRITE_LEVELS)
 _OWNER = ResourceAccessLevel.owner.value
 
-#: Whether a change may be made to a row the request holds ``v_level`` on:
-#: the row is live (neither archived nor in the trash — a tool's row carries
-#: its initiative's state, which both lifecycles cascade onto it) and the
-#: community's content is not on hold.
+#: The row can be changed at all: it is not archived or in the trash, and the
+#: community is not read-only. (Archiving or trashing an initiative stamps
+#: its tools too, so the row's own columns are enough.)
 _MAY_CHANGE = f"""(p_archived_at IS NULL AND p_deleted_at IS NULL
         AND NOT {_B.content_hold})"""
 
-#: What changing who a resource is shared with asks beyond its being live: the
-#: owner's rung, held by the request itself rather than lent by a content
-#: grant, and — for an installed app — ``sharing:write`` beside the tool's own
-#: write scope.
+#: The request may change who the resource is shared with: it is the owner,
+#: in its own right rather than through an access grant, and — if it is an
+#: installed app — it holds ``sharing:write`` and the tool's write scope.
 _SHARES = f"""(v_level = '{_OWNER}'
         AND NOT {_B.pam_any}
         AND ({_B.install_id} IS NULL
@@ -922,18 +920,20 @@ _SHARES = f"""(v_level = '{_OWNER}'
                    {" ".join(f"WHEN '{t.value}' THEN '{tool_resource(t).value}'" for t in Tool)}
                    END) = ANY ({_B.field("install_write")}), false))))"""
 
-#: What the request may do to one of a tool's rows, beyond reading it: the
-#: row's ``can``, and the check each route that does the thing makes. One
-#: function, so the flag a client reads and the refusal a route gives are one
-#: answer.
+#: The actions the request may take on one tool row. The routes check this
+#: list before doing anything, and the row's ``can`` reports it to the client,
+#: so the two always agree.
 #:
-#: - ``edit``: write or owner, on a live row.
-#: - ``delete``, ``share``, ``configure``: the owner's, on a live row; sharing
-#:   is never lent by a content grant, and configuring a project is also its
-#:   initiative's managers'.
-#: - ``export``: the owner's, archived or not — an export changes nothing.
-#: - ``unarchive``: write on a row archived on its own occasion; one archived
-#:   along with its initiative comes back with it.
+#: - ``edit``: write or owner access, and the row can be changed.
+#: - ``delete``: owner, and the row can be changed.
+#: - ``share``: as delete, and see ``_SHARES`` above.
+#: - ``configure`` (projects): owner or a manager of the initiative, and the
+#:   row can be changed.
+#: - ``export``: owner. Allowed even when archived, since exporting changes
+#:   nothing.
+#: - ``unarchive``: write access to a row that was archived on its own. A row
+#:   archived because its initiative was archived comes back with the
+#:   initiative instead.
 RESOURCE_ACTIONS = f"""\
 CREATE OR REPLACE FUNCTION resource_actions(p_tool text, p_resource_id integer, p_user_id integer, p_initiative_id integer, p_archived_at timestamptz, p_deleted_at timestamptz, p_st standing)
  RETURNS text[]
@@ -978,10 +978,10 @@ $function$
 
 """
 
-#: Whether the request may change who one resource is shared with — the
-#: ``share`` of :data:`RESOURCE_ACTIONS`, asked by the policies on
-#: ``resource_grants``. Whether the resource is live is the freeze's to say
-#: there (``app.db.frozen``), so this asks only the rest.
+#: Whether the request may change who a resource is shared with. The same
+#: rule as ``share`` in :data:`RESOURCE_ACTIONS`, for the policies on
+#: ``resource_grants``. It skips the archived/trashed check, which those rows
+#: already get from ``app.db.frozen``.
 RESOURCE_SHARES = f"""\
 CREATE OR REPLACE FUNCTION resource_shares(p_tool text, p_resource_id integer, p_user_id integer, p_initiative_id integer, p_st standing)
  RETURNS boolean
@@ -1006,9 +1006,9 @@ def _author_arms() -> str:
     )
 
 
-#: Whether ``p_user_id`` wrote a resource that nobody owns — the one owner row
-#: anybody but its sharer may write: handing unowned content back to its
-#: author.
+#: Whether ``p_user_id`` wrote this resource and nobody owns it now. Lets an
+#: owner row be written that gives unowned content back to its author (trash
+#: restore does this), by someone who is not its owner.
 RESOURCE_RECLAIMABLE = f"""\
 CREATE OR REPLACE FUNCTION resource_reclaimable(p_tool text, p_resource_id integer, p_user_id integer)
  RETURNS boolean
@@ -1036,13 +1036,15 @@ $function$
 
 """
 
-#: Who each of ``p_resource_ids`` is shared with: the people a grant names,
-#: holds a role for, or reaches as everyone in the resource's initiative — and
-#: only while they are in it, since a grant outlives the membership it was
-#: written for. On a resource in no initiative, "everyone" is the community's
-#: members (``p_guild_id``). Standing that comes from elsewhere — a community
-#: admin, a content grant — is not an audience: nobody asked them to hear
-#: about it. Who a notification may name, and who a notice is read by.
+#: The people each resource in ``p_resource_ids`` is shared with, as
+#: ``(resource_id, user_id)`` rows: used to decide who gets a notification and
+#: who a post counts as its readers.
+#:
+#: Someone is included when a grant names them, names a role they hold, or is
+#: shared with everyone in the initiative — and only while they are still a
+#: member of it. For a resource in no initiative, "everyone" means the
+#: community's members (``p_guild_id``). Community admins and access-grant
+#: holders are not included unless a grant names them.
 RESOURCE_AUDIENCE = """\
 CREATE OR REPLACE FUNCTION resource_audience(p_tool text, p_resource_ids integer[], p_guild_id integer)
  RETURNS TABLE(resource_id integer, user_id integer)
@@ -1075,10 +1077,11 @@ $function$
 
 """
 
-#: Whether a grant row reaches the request, and nothing else: no community
-#: admin, no "Full access", no content grant. What a list spanning initiatives
-#: shows is what was shared with the reader (``permissions.granted_scope_clause``);
-#: ``p_need_write`` narrows to a grant that lets them change it.
+#: Whether a grant row gives the request access to the resource — grants
+#: only, ignoring admin, "Full access" and access grants. Lists that span
+#: initiatives show only what was shared with the reader
+#: (``permissions.granted_scope_clause``). With ``p_need_write`` the grant must
+#: allow editing.
 RESOURCE_GRANTED = f"""\
 CREATE OR REPLACE FUNCTION resource_granted(p_tool text, p_resource_id integer, p_user_id integer, p_need_write boolean, p_st standing)
  RETURNS boolean
@@ -1098,10 +1101,11 @@ $function$
 
 
 def _initiative_tool_actions() -> str:
-    """One pair of arms per tool: viewing it where the initiative has it on and
-    the role permits it, and making one where the role permits that too, the
-    content is not on hold, and access is the reader's own rather than a
-    content grant's (which edits what exists and authors nothing)."""
+    """Two checks per tool, only when the initiative has the tool switched on:
+    ``view:<tool>`` if the reader's role allows viewing it, and
+    ``create:<tool>`` if the role allows creating it, the community is not
+    read-only, and the reader is not here through an access grant (those can
+    edit existing things but not create new ones)."""
     arms = []
     for tool in Tool:
         switch = f"v_initiative.{tool.view_permission}"
@@ -1125,10 +1129,14 @@ def _initiative_tool_actions() -> str:
     return "\n".join(arms)
 
 
-#: What the request may do in one initiative: run it (``manage``: the
-#: community's admin or one of its managers), act on its moderation reports
-#: (``moderate``: :data:`INITIATIVE_FULL_ACCESS` at write), and, per tool,
-#: ``view:<tool>`` and ``create:<tool>``.
+#: The actions the request may take in one initiative, for the initiative's
+#: ``can``:
+#:
+#: - ``manage``: change its settings, members and roles — a community admin
+#:   or one of its managers.
+#: - ``moderate``: act on its moderation reports — "Full access" or a
+#:   community admin (:data:`INITIATIVE_FULL_ACCESS`).
+#: - ``view:<tool>`` and ``create:<tool>`` per tool.
 INITIATIVE_ACTIONS = f"""\
 CREATE OR REPLACE FUNCTION initiative_actions(p_initiative_id integer, p_user_id integer, p_st standing)
  RETURNS text[]

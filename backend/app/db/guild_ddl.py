@@ -773,17 +773,19 @@ def _guild_level_guard_block(table: str) -> str:
 
 _SHARING_SECTION = """\
 -- ===========================================================================
--- Who a resource is shared with (resource_grants), beside the initiative gate
--- its own policies ask: RESTRICTIVE, so each AND-combines with those.
+-- Sharing: who may add, change or remove a row in resource_grants.
 --
--- A grant row is written or removed by whoever may share the resource
--- (resource_shares: its owner's rung, held by the request itself), by a
--- trigger (the owner row a create writes, and a departure removing what the
--- person held), or — the owner row alone — to give an unowned resource back to
--- whoever wrote it (resource_reclaimable).
+-- These policies are checked in addition to the table's usual initiative
+-- check (RESTRICTIVE: both must pass). A grant row may be written when:
+--   * the request may share the resource: it is the owner, in its own right
+--     rather than through an access grant (resource_shares);
+--   * a trigger writes it: the owner row made along with a new resource, or
+--     the grants removed when someone leaves an initiative;
+--   * it is an owner row giving an unowned resource back to the person who
+--     wrote it (resource_reclaimable).
 -- ==========================================================================="""
 
-#: Whether the request may write this grant row: the share, or a trigger.
+#: The request may share the resource, or a trigger is writing the row.
 _SHARES_ROW = (
     "(pg_trigger_depth() > 0 OR resource_shares(resource_grants.resource_type,"
     f" resource_grants.resource_id, {_APP_MEMBER}, resource_grants.initiative_id,"
@@ -816,10 +818,11 @@ def _sharing_block() -> str:
 
 _DRAFT_SECTION = """\
 -- ===========================================================================
--- Work not yet out — a post that has not gone up, a wiki page still a draft —
--- is its writers' alone: RESTRICTIVE on SELECT, so it narrows the sharing
--- gate. Everything reached through one (comments, reactions, a poll) reads it
--- and so answers the same.
+-- Drafts: a post that is not published yet, or a wiki page marked as a draft,
+-- can only be read by people who can edit it.
+--
+-- RESTRICTIVE on SELECT, so it applies on top of the usual read check.
+-- Comments, reactions and polls read their post, so they are hidden with it.
 -- ==========================================================================="""
 
 
@@ -841,10 +844,10 @@ def _draft_block() -> str:
 
 _DEPARTURE_SECTION = """\
 -- ===========================================================================
--- Leaving an initiative takes what came with it: every grant naming the person
--- in that initiative goes with the membership row, owner included, so what
--- they owned there is unowned — the community's admins recover it. A trigger,
--- so it holds however the membership is removed.
+-- Leaving an initiative: when someone's membership row is deleted, every
+-- grant naming them in that initiative is deleted too, owner rows included.
+-- Anything they owned there becomes unowned, and a community admin can claim
+-- it. A trigger, so this happens however the membership is removed.
 -- ==========================================================================="""
 
 #: The function ``tr_initiative_members_departure`` runs. Shared, in
