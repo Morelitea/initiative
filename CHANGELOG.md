@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Password sign-in pauses** after repeated wrong answers. Passkeys keep working.
 - **A phone restored from backup asks you to sign in again.**
 - **Links to other sites open in a new tab.**
+- **Comments show the newest conversation first.** Replies still read in order.
 - **Pictures from other sites show as links.**
 - **Ticked checklist lines stay readable** instead of being crossed out.
 - **Only people who can open something** can be assigned to it, invited to it or notified about it.
