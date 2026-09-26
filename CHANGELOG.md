@@ -44,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Large spreadsheets** keep up with your typing.
 - **Duplicated file documents** include the file.
 - **Notifications** open the event or page they're about.
+- **The Markdown view** keeps smart chips, `#` links and @mentions instead of turning them into plain words, and a `|` inside a table cell no longer splits it.
 - **Erased accounts** show as "Deleted user" everywhere they were mentioned.
 - **Exports that keep failing** stop and tell you.
 - **Jira and Confluence CSVs** arrive as spreadsheets.
