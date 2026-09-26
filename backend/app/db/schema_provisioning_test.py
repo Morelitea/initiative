@@ -377,12 +377,12 @@ async def test_the_app_role_is_refused_the_communitys_settings(engine):
 
 
 async def test_the_read_roles_cannot_write_shared_tables(engine):
-    """The two per-guild roles that only read take the read-only shared floor.
+    """The two per-guild roles that only read write nothing in ``public``.
 
-    ``guild_<id>_ro`` serves PAM read grants and read-only members and
-    ``guild_<id>_q`` serves the query surface; neither writes anything, in the
-    guild schema or in ``public``. The writable floor the other roles carry
-    would arrive by inheritance, which cannot be revoked back off.
+    ``guild_<id>_ro`` serves PAM read grants and read-only members, over the
+    read-only shared floor; ``guild_<id>_q`` serves the query surface and holds
+    no floor at all. The writable floor the other roles carry would arrive by
+    inheritance, which cannot be revoked back off.
     """
     gid = _GID_READ_FLOOR
     try:
@@ -406,15 +406,6 @@ async def test_the_read_roles_cannot_write_shared_tables(engine):
                             )
                             is False
                         ), f"{role} {verb} {table}"
-                # Reading them still works: the guild policies call
-                # public.guild_auth_satisfied(), which reads guild_auth_policies.
-                assert (
-                    await conn.scalar(
-                        text("SELECT has_table_privilege(:r, :t, 'SELECT')"),
-                        {"r": role, "t": "public.guild_auth_policies"},
-                    )
-                    is True
-                ), role
     finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, gid)

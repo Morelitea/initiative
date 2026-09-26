@@ -489,7 +489,13 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
             platform_role_name(platform_role) if platform_role is not None else "none"
         )
     else:
-        sp = _search_path(guild_schema_name(route_guild), "public")
+        # A query sees its own community alone; what it reads in ``public`` it
+        # names by schema.
+        sp = (
+            _search_path(guild_schema_name(route_guild))
+            if query
+            else _search_path(guild_schema_name(route_guild), "public")
+        )
         # Pick the guild role by how access was granted:
         # - a seat request (``seat``): guild_<id>_superadmin, which reads the
         #   community and writes its sign-in configuration. Asked for by the

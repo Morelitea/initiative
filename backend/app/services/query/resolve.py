@@ -212,8 +212,11 @@ def _name_parts(parts: Any) -> list[str]:
     return [part.sval for part in (parts or ()) if isinstance(part, ast.String)]
 
 
-def _physical_table(dataset_name: str) -> str:
-    return dataset(dataset_name).model.__table__.name
+def _physical_table(dataset_name: str) -> tuple[str | None, str]:
+    """The schema and name of the table behind a dataset. A community's own
+    tables carry no schema, and resolve to the routed one."""
+    table = dataset(dataset_name).model.__table__
+    return table.schema, table.name
 
 
 def _physical_column(dataset_name: str, field_name: str) -> str:
@@ -408,7 +411,7 @@ def _relations(select: ast.SelectStmt) -> dict[str, str]:
         if handle in scope:
             raise QueryError(QueryMessages.DUPLICATE_ALIAS, handle)
         scope[handle] = node.relname
-        node.relname = _physical_table(node.relname)
+        node.schemaname, node.relname = _physical_table(node.relname)
         return {handle}
 
     visit(select.fromClause[0])
