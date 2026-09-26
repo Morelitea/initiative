@@ -57,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Leaving takes you off what you were named on** — when someone leaves or is removed from an initiative, they are taken off its task assignments, event invitations and person fields, and their queue items are left with no one on them. Leaving the community does the same for its own calendars. Before, only task assignments were cleared. Upgrading clears the ones earlier departures left.
 - **A project is owned by whoever makes it** — `POST /projects/` no longer takes an `owner_id`. To give a project to someone else, transfer its ownership after creating it.
 - **Export date and author move into the file's properties** — PDF and Markdown exports of documents, wikis, projects, queues, counter groups and task lists no longer print "exported …" or "generated … by …" under the title. Who exported the file and when is kept in the PDF, Word or Excel document properties, and as a hidden comment at the top of a Markdown file. Reports keep their counts, and the download's file name still has the date.
+- **Switching communities keeps everything that isn't the community's** — your messages, notifications, account settings, access requests and the community directory stay loaded when you move between communities, instead of being fetched again each time.
 
 ### Fixed
 

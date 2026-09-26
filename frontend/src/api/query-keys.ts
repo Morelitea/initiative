@@ -718,39 +718,28 @@ export const q = {
 };
 
 // ── Guild Switch ─────────────────────────────────────────────────────────────
-// Keys that are NOT guild-scoped and should survive a guild switch.
-// `/api/v1/recents` is one of them: the recents bar is a cross-guild personal
-// list, so switching community neither changes its contents nor invalidates
-// them. Resetting it made the bar blank and refetch on every switch, dropping
-// tabs that belong to the community being left as well as the one arriving.
-const GLOBAL_KEY_PREFIXES = [
-  "/api/v1/communities",
-  "/api/v1/users/me",
-  "/api/v1/version",
-  "/api/v1/recents",
-];
 
 /**
- * Remove guild-scoped query data so stale cross-guild results are never shown.
+ * Drop the departing guild's cached data on a guild switch.
  *
- * `arrivingGuildId` names the guild being entered, and that guild's own keys
- * are left alone: they hold its data, not the departing guild's, so there is
- * nothing stale about them. Online this changes nothing observable — those
- * queries are stale on mount and refetch anyway — but it is the difference
- * between showing a cached page and showing an empty one when the device has
- * no connection to refetch from.
+ * Only keys that address a guild (`/api/v1/c/{guildId}/…`) are reset, and not
+ * the arriving guild's own: those hold its data, not the departing guild's.
+ * Online that changes nothing observable — they are stale on mount and refetch
+ * anyway — but it is the difference between a cached page and an empty one
+ * when the device has no connection to refetch from.
+ *
+ * Everything else survives. A platform or personal path (`/me/*`, `/users`,
+ * `/communities`, `/recents`) answers the same in every guild, and a
+ * hand-written key that holds guild data (`["query", guildId, …]`) carries the
+ * guild's id, so another guild's entry is never the one read.
  */
 export const resetGuildScopedQueries = (arrivingGuildId?: number | null) =>
   queryClient.resetQueries({
     predicate: (query) => {
       const first = query.queryKey[0];
-      if (typeof first !== "string") return true;
-      if (GLOBAL_KEY_PREFIXES.some((prefix) => first.startsWith(prefix))) return false;
-      if (arrivingGuildId != null) {
-        const match = GUILD_SEGMENT.exec(first);
-        if (match && Number(match[1]) === arrivingGuildId) return false;
-      }
-      return true;
+      if (typeof first !== "string") return false;
+      const match = GUILD_SEGMENT.exec(first);
+      return match !== null && Number(match[1]) !== arrivingGuildId;
     },
   });
 

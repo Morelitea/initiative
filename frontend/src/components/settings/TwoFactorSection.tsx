@@ -3,6 +3,7 @@ import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
+  getReadSecondFactorApiV1AuthTotpGetQueryKey,
   useBeginSecondFactorApiV1AuthTotpEnrollPost,
   useConfirmSecondFactorApiV1AuthTotpConfirmPost,
   useDisableSecondFactorApiV1AuthTotpDisablePost,
@@ -52,7 +53,8 @@ type Errand = "enrol" | "regenerate";
 export const TwoFactorSection = () => {
   const { t } = useTranslation(["settings", "errors"]);
   const status = useReadSecondFactorApiV1AuthTotpGet();
-  const refreshStatus = () => queryClient.invalidateQueries({ queryKey: ["/api/v1/auth/totp"] });
+  const refreshStatus = () =>
+    queryClient.invalidateQueries({ queryKey: getReadSecondFactorApiV1AuthTotpGetQueryKey() });
 
   const [enrolOpen, setEnrolOpen] = useState(false);
   const { step, commit, reset } = useWizard<EnrolStep>("password");

@@ -136,21 +136,25 @@ describe("query-keys guild scoping", () => {
       return () => queryClient.getQueryData(key) !== undefined;
     };
 
-    it("drops guild-scoped data but keeps the cross-guild personal keys", async () => {
+    it("drops guild-scoped data and keeps every key that addresses no guild", async () => {
       const guildScoped = survives(["/api/v1/c/5/projects/"]);
-      const guildList = survives(["/api/v1/communities/"]);
-      const currentUser = survives(["/api/v1/users/me"]);
-      const version = survives(["/api/v1/version"]);
-      // The recents bar spans every community, so a switch must not blank it.
-      const recents = survives(["/api/v1/recents/"]);
+      const kept = [
+        ["/api/v1/communities/"],
+        ["/api/v1/communities/directory", { q: "chess" }],
+        ["/api/v1/access-grants/queue", { status: "pending" }],
+        ["/api/v1/users/me"],
+        ["/api/v1/me/tasks", { page: 1 }],
+        // The recents bar spans every community, so a switch must not blank it.
+        ["/api/v1/recents/"],
+        ["dm", "inbox"],
+        // Hand-written guild keys carry their guild, so another guild never reads them.
+        ["query", 5, "SELECT 1", null],
+      ].map(survives);
 
       await resetGuildScopedQueries();
 
       expect(guildScoped()).toBe(false);
-      expect(guildList()).toBe(true);
-      expect(currentUser()).toBe(true);
-      expect(version()).toBe(true);
-      expect(recents()).toBe(true);
+      for (const key of kept) expect(key()).toBe(true);
     });
 
     it("keeps the arriving guild's own data — it is not the departing guild's", async () => {
