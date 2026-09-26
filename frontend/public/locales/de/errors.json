@@ -347,6 +347,7 @@
   "CALENDAR_WRITE_ACCESS_REQUIRED": "Sie benötigen Schreibzugriff auf diesen Kalender",
   "CALENDAR_GRANT_CANNOT_MANAGE_MEMBERS": "Temporärer Zugriff kann die Kalenderfreigabe nicht verwalten",
   "CALENDAR_EVENT_NOT_FOUND": "Termin nicht gefunden",
+  "CALENDAR_EVENT_ENDS_BEFORE_START": "Ein Termin kann nicht enden, bevor er beginnt",
   "CALENDAR_EVENT_GUILD_CALENDAR_NO_PROPERTIES": "Eigene Eigenschaften gehören zu einer Initiative, deshalb können Termine in einem Community-Kalender keine haben",
   "CALENDAR_EVENT_GUILD_CALENDAR_NO_DOCUMENTS": "Dokumente gehören zu einer Initiative, deshalb können Termine in einem Community-Kalender keine verknüpfen",
   "CALENDAR_EVENT_CANNOT_CROSS_SCOPE": "Termine können nicht zwischen einem Community-Kalender und dem Kalender einer Initiative verschoben werden",

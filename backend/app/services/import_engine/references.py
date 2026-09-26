@@ -2,8 +2,8 @@
 
 Inside the app a reference names what it points at by id: ``#task[Fix the
 bug](41)`` in markdown (a task's description, a comment), and an
-``entity-mention``, ``wikilink`` or ``smart-chip`` node in an editor state (a
-document, a post, a wiki page). An id means nothing where an export is
+``entity-mention``, ``wikilink``, ``smart-chip`` or ``reference-embed`` node in
+an editor state (a document, a post, a wiki page). An id means nothing where an export is
 restored — on another instance, or in a community where 41 is something else,
 and even in the same community a restore makes new rows — so the export writes
 each reference as the **ref** of what it named where it was written
@@ -31,7 +31,15 @@ from typing import TYPE_CHECKING, Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.references import TEXT_REFERENCE, format_ref, kind_for_trigger, parse_ref
+from app.core.references import (
+    REFERENCE_NODES,
+    TEXT_REFERENCE,
+    format_ref,
+    kind_for_trigger,
+    parse_ref,
+    reference_as_text,
+    reference_node_kind,
+)
 from app.core.search import SearchEntityType
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -43,31 +51,12 @@ SOURCE_REF = "importSourceRef"
 #: An exported reference in markdown: the id's place holds the ref instead.
 _EXPORTED_TEXT_REFERENCE = re.compile(r"#([\w-]+)\[([^\]]*)\]\(([a-z_]+:\d+)\)")
 
-#: Editor nodes that name a thing, the field holding its id, and what that
-#: field holds while the node waits to be placed. A wikilink with no document is
-#: one the editor already draws as unlinked; the other two keep a number, as a
-#: Confluence mention waiting on its page does.
-_REFERENCE_NODES: dict[str, tuple[str, int | None]] = {
-    "entity-mention": ("entityId", 0),
-    "smart-chip": ("entityId", 0),
-    "wikilink": ("documentId", None),
-}
 
-
-def _node_kind(node: dict[str, Any]) -> SearchEntityType | None:
-    """What kind of thing a reference node names."""
-    node_type = node.get("type")
-    if node_type == "wikilink":
-        return SearchEntityType.document
-    if node_type == "smart-chip":
-        # ``task:status`` — the thing, then the fact about it.
-        raw = str(node.get("chipKind") or "").partition(":")[0]
-    else:
-        raw = str(node.get("entityType") or "")
-    try:
-        return SearchEntityType(raw)
-    except ValueError:
-        return None
+def _waiting(node_type: str) -> int | None:
+    """What a reference node's id field holds while it waits to be placed. A
+    wikilink with no document is one the editor already draws as unlinked; the
+    others keep a number, as a Confluence mention waiting on its page does."""
+    return None if node_type == "wikilink" else 0
 
 
 def _is_id(value: Any) -> bool:
@@ -106,14 +95,13 @@ def detach_editor_references(content: Any) -> Any:
     def walk(node: Any) -> Any:
         if not isinstance(node, dict):
             return node
-        spec = _REFERENCE_NODES.get(node.get("type"))
-        if spec is not None:
-            field, waiting = spec
-            kind = _node_kind(node)
+        field = REFERENCE_NODES.get(node.get("type"))
+        if field is not None:
+            kind = reference_node_kind(node)
             if kind is not None and _is_id(node.get(field)):
                 return {
                     **node,
-                    field: waiting,
+                    field: _waiting(node["type"]),
                     SOURCE_REF: format_ref(kind, node[field]),
                 }
             return node
@@ -223,9 +211,8 @@ def place_editor_references(content: Any, resolve: Callable[[str], int | None]) 
         if not isinstance(node, dict):
             return node
         ref = node.get(SOURCE_REF)
-        spec = _REFERENCE_NODES.get(node.get("type"))
-        if isinstance(ref, str) and spec is not None:
-            field, _waiting = spec
+        field = REFERENCE_NODES.get(node.get("type"))
+        if isinstance(ref, str) and field is not None:
             placed = {k: v for k, v in node.items() if k != SOURCE_REF}
             target = resolve(ref)
             if target is not None:
@@ -234,25 +221,13 @@ def place_editor_references(content: Any, resolve: Callable[[str], int | None]) 
             if node.get("type") == "wikilink":
                 placed[field] = None
                 return placed
-            return _text_node(str(node.get("text") or ""))
+            return reference_as_text(node)
         children = node.get("children")
         if isinstance(children, list):
             return {**node, "children": [walk(child) for child in children]}
         return node
 
     return {**content, "root": walk(content["root"])}
-
-
-def _text_node(text: str) -> dict[str, Any]:
-    return {
-        "type": "text",
-        "version": 1,
-        "text": text,
-        "format": 0,
-        "style": "",
-        "mode": "normal",
-        "detail": 0,
-    }
 
 
 def note_or_settle(

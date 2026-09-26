@@ -417,6 +417,24 @@ def _embed_url(node: dict) -> str | None:
 # Markdown
 # ---------------------------------------------------------------------------
 
+#: No guild's uploads are this one's, so every picture keeps its own address
+#: rather than being rewritten as a file inside an export archive.
+_NO_ARCHIVE = -1
+
+
+def editor_markdown(content: Any, *, reading: bool = False) -> str:
+    """An editor state as Markdown text alone: no title, no stamp, no archive.
+
+    ``reading`` lays columns out one after another and leaves drawings out,
+    for a reader that wants the words in order rather than the page.
+    """
+    blocks, _assets = blocks_from_editor_state(content, guild_id=_NO_ARCHIVE)
+    if reading:
+        blocks = _in_line(blocks, callouts=False)
+    if not blocks:
+        return ""
+    return _markdown_text({"blocks": blocks}).strip()
+
 
 def render_markdown(data: dict, read_blob: ReadBlob) -> tuple[bytes, str, str | None]:
     """Emit Markdown. With referenced assets: a zip of ``{stem}.md`` +
@@ -709,7 +727,7 @@ def render_docx(data: dict, read_blob: ReadBlob) -> bytes:
             widths = [1] * len(columns)
         set_columns(document.add_section(WD_SECTION.CONTINUOUS), widths)
         for index, column in enumerate(columns):
-            for inner in _flatten_callouts(column):
+            for inner in _in_line(column):
                 add_block(inner)
             if index < len(columns) - 1:
                 document.add_paragraph().add_run().add_break(WD_BREAK.COLUMN)
@@ -803,7 +821,7 @@ def render_docx(data: dict, read_blob: ReadBlob) -> bytes:
         if top.get("type") == "columns" and top.get("columns"):
             add_columns(top)
             continue
-        for block in _flatten_callouts([top]):
+        for block in _in_line([top]):
             add_block(block)
 
     out = io.BytesIO()
@@ -811,20 +829,24 @@ def render_docx(data: dict, read_blob: ReadBlob) -> bytes:
     return out.getvalue()
 
 
-def _flatten_callouts(blocks: list[dict]) -> list[dict]:
-    """Blocks with each callout and each set of columns laid out in line —
-    a callout's kind as a bold label, then what it holds; columns one after
-    another — for a renderer with no panel or grid of its own to draw."""
+def _in_line(blocks: list[dict], *, callouts: bool = True) -> list[dict]:
+    """Blocks with each set of columns laid out one after another, drawings
+    left out and, with ``callouts``, each callout as its kind in a bold label
+    and then what it holds — for a renderer with no panel or grid of its own
+    to draw."""
     out: list[dict] = []
     for block in blocks:
         btype = block.get("type")
-        if btype == "callout":
+        if btype == "callout" and callouts:
             label = str(block.get("variant") or "note").capitalize()
             out.append({"type": "quote", "runs": [{"text": label, "bold": True}]})
-            out.extend(_flatten_callouts(block.get("blocks") or []))
+            out.extend(_in_line(block.get("blocks") or []))
+        elif btype == "callout":
+            inner = _in_line(block.get("blocks") or [], callouts=False)
+            out.append({**block, "blocks": inner})
         elif btype == "columns":
             for column in block.get("columns") or []:
-                out.extend(_flatten_callouts(column))
+                out.extend(_in_line(column, callouts=callouts))
         elif btype == "drawing":
             continue
         else:

@@ -103,15 +103,19 @@ def parse_ref(ref: str) -> tuple[SearchEntityType, int] | None:
 #: stops "what links here" under-reporting the moment anyone uses ``#``. A
 #: ``smart-chip`` and a ``reference-embed`` (``![[ ]]``) count too: a page
 #: showing a task's status, or the task itself, is about that task.
-_REFERENCE_NODES: dict[str, str] = {
+REFERENCE_NODES: dict[str, str] = {
     "wikilink": "documentId",
     "entity-mention": "entityId",
     "smart-chip": "entityId",
     "reference-embed": "entityId",
 }
 
+#: The reference nodes the editor draws as a block of their own rather than in
+#: a line of text.
+BLOCK_REFERENCE_NODES = frozenset({"reference-embed"})
 
-def _node_kind(node: dict[str, Any]) -> SearchEntityType | None:
+
+def reference_node_kind(node: dict[str, Any]) -> SearchEntityType | None:
     """The kind a reference node names. A chip spells it as the first half of
     its ``task:status``; a legacy wikilink is a document by construction and
     carries none."""
@@ -119,6 +123,37 @@ def _node_kind(node: dict[str, Any]) -> SearchEntityType | None:
     if isinstance(chip_kind, str):
         return _kind(chip_kind.split(REF_SEPARATOR)[0])
     return _kind(node.get("entityType", SearchEntityType.document.value))
+
+
+def text_node(text: str, fmt: int = 0) -> dict[str, Any]:
+    """A plain Lexical text node."""
+    return {
+        "type": "text",
+        "version": 1,
+        "text": text,
+        "format": fmt,
+        "style": "",
+        "mode": "normal",
+        "detail": 0,
+    }
+
+
+def reference_as_text(node: dict[str, Any]) -> dict[str, Any]:
+    """A reference node as the words it was written with: a text node, or a
+    paragraph holding one when the reference is a block of its own."""
+    words = text_node(str(node.get("text") or ""), node.get("format") or 0)
+    if node.get("type") not in BLOCK_REFERENCE_NODES:
+        return words
+    return {
+        "type": "paragraph",
+        "version": 1,
+        "children": [words],
+        "direction": None,
+        "format": "",
+        "indent": 0,
+        "textFormat": 0,
+        "textStyle": "",
+    }
 
 
 #: A reference written into running text: ``#task[Fix the bug](12)``. The kind
@@ -165,9 +200,9 @@ def references_in_body(content: Any) -> set[tuple[SearchEntityType, int]]:
     def walk(node: Any) -> None:
         if not isinstance(node, dict):
             return
-        field = _REFERENCE_NODES.get(node.get("type"))
+        field = REFERENCE_NODES.get(node.get("type"))
         if field is not None:
-            kind = _node_kind(node)
+            kind = reference_node_kind(node)
             entity_id = node.get(field)
             if kind is not None and isinstance(entity_id, int) and entity_id > 0:
                 found.add((kind, entity_id))
