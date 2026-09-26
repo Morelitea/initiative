@@ -832,7 +832,8 @@ async def uninstall_guild_app(
     await webhook_subscriptions_service.deactivate_for_install(
         session, guild_id=routed_guild_id(session), app_install_id=app.id
     )
-    for stored_id in sorted({*(app.config or {}), *(app.config_secrets or {})}):
+    secrets = await guild_apps_service.load_secrets(session, app)
+    for stored_id in sorted({*(app.config or {}), *secrets}):
         revocation_service.queue_revocation(
             session,
             revocation_service.intent_for(
@@ -842,7 +843,7 @@ async def uninstall_guild_app(
                 definition=app.definition,
                 connection_id=stored_id,
                 config=(app.config or {}).get(stored_id),
-                secrets=(app.config_secrets or {}).get(stored_id),
+                secrets=secrets.get(stored_id),
                 reason="uninstalled",
             ),
         )
@@ -918,7 +919,7 @@ async def update_guild_app_config(
     app = await _load(session, app_id, for_update=True)
 
     config = dict(app.config or {})
-    secrets = dict(app.config_secrets or {})
+    secrets = await guild_apps_service.load_secrets(session, app)
     before = _config_fields(config, secrets)
 
     for connection_id, submitted in payload.values.items():
@@ -958,7 +959,7 @@ async def update_guild_app_config(
             app_config_service.guild_connection_ref(app, connection_id)
 
     app.config = config
-    app.config_secrets = secrets
+    await guild_apps_service.store_secrets(session, app, secrets)
     # The app has not seen these values yet, so its previous verdict no longer
     # describes them. It reports again once it has pulled and checked.
     app.config_state = "unverified"
@@ -1324,7 +1325,7 @@ async def connect_guild_app(
         satisfied = app_config_service.is_satisfied(
             connection,
             stored_config,
-            (app.config_secrets or {}).get(connection_id) or {},
+            (app.secret_fields or {}).get(connection_id) or {},
         )
         current_status = "connected" if satisfied else "pending"
         user_id = None
@@ -1388,9 +1389,8 @@ async def disconnect_guild_app(
         # Clearing rewrites both configuration maps, so it takes the row: an app
         # writing back at the same moment must not put back what was cleared.
         app = await _load(session, app_id, for_update=True)
-        if (app.config or {}).get(connection_id) or (app.config_secrets or {}).get(
-            connection_id
-        ):
+        secrets = await guild_apps_service.load_secrets(session, app)
+        if (app.config or {}).get(connection_id) or secrets.get(connection_id):
             revocation_service.queue_revocation(
                 session,
                 revocation_service.intent_for(
@@ -1400,7 +1400,7 @@ async def disconnect_guild_app(
                     definition=app.definition,
                     connection_id=connection_id,
                     config=(app.config or {}).get(connection_id),
-                    secrets=(app.config_secrets or {}).get(connection_id),
+                    secrets=secrets.get(connection_id),
                     reason="disconnected",
                 ),
             )
@@ -1409,11 +1409,11 @@ async def disconnect_guild_app(
             for key, value in (app.config or {}).items()
             if key != connection_id
         }
-        app.config_secrets = {
-            key: value
-            for key, value in (app.config_secrets or {}).items()
-            if key != connection_id
-        }
+        await guild_apps_service.store_secrets(
+            session,
+            app,
+            {key: value for key, value in secrets.items() if key != connection_id},
+        )
         # The handle goes with them, so a token asked for by the old one is
         # refused. Connecting again mints a fresh one.
         app.connection_refs = {

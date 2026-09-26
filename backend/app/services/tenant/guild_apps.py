@@ -24,8 +24,8 @@ it is settled by the endpoint that mints its handoff rather than by grants,
 which is why such an app reports itself as admin-only.
 
 A **service** app brings connections rather than content: what it needs is
-configuration, which lives on the install row and in each member's own
-connection. It creates no artifacts here.
+configuration, which lives on the install row, in its secret values
+(:func:`store_secrets`) and in each member's own connection. It creates no artifacts here.
 
 **Artifacts are what the install owns.** An install may produce more than
 one thing; what it produced is every guild-level row whose owner grant names
@@ -37,13 +37,14 @@ row behind.
 
 from __future__ import annotations
 
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Awaitable, Callable, Iterable, Optional
 
 from sqlalchemy import delete
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -53,6 +54,7 @@ from app.models.platform.marketplace import MarketplaceListing
 from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.guild_app import GuildApp
+from app.models.tenant.guild_app_secret import GuildAppSecret
 from app.models.tenant.initiative import (
     BUILTIN_ROLES,
     Initiative,
@@ -81,6 +83,7 @@ __all__ = [
     "initiative_surface_ids",
     "install_app",
     "is_placed",
+    "load_secrets",
     "lock_install",
     "place_in_every_initiative",
     "place_with_roles",
@@ -91,6 +94,7 @@ __all__ = [
     "remove_placement",
     "set_placed_initiatives",
     "set_placement_roles",
+    "store_secrets",
     "surface_access",
     "surface_openability",
     "surface_renders_in",
@@ -243,6 +247,47 @@ async def lock_install(session: AsyncSession, app_id: int) -> Optional[GuildApp]
     ).first()
 
 
+async def load_secrets(session: AsyncSession, app: GuildApp) -> dict[str, Any]:
+    """An install's secret values, ``{connection_id: {key: ciphertext}}``.
+
+    Read from ``guild_app_secrets``, which the seat and the system engine read.
+    No row reads as ``{}``.
+    """
+    stored = (
+        await session.exec(
+            select(GuildAppSecret.secrets).where(GuildAppSecret.install_id == app.id)
+        )
+    ).first()
+    return dict(stored or {})
+
+
+async def store_secrets(
+    session: AsyncSession, app: GuildApp, secrets: Mapping[str, Any]
+) -> None:
+    """Replace an install's secret values; an empty map removes its row.
+
+    The trigger on ``guild_app_secrets`` rewrites ``guild_apps.secret_fields``
+    in the same statement, and ``app`` is refreshed with it. Pending changes to
+    ``app`` are flushed first, so the refresh replaces ``secret_fields`` alone.
+    """
+    await session.flush()
+    if secrets:
+        insert = pg_insert(GuildAppSecret).values(
+            install_id=app.id, secrets=dict(secrets)
+        )
+        await session.exec(
+            insert.on_conflict_do_update(
+                index_elements=[GuildAppSecret.install_id],
+                set_={"secrets": insert.excluded.secrets},
+            )
+        )
+    else:
+        await session.exec(
+            delete(GuildAppSecret).where(col(GuildAppSecret.install_id) == app.id)
+        )
+    await session.refresh(app, ["secret_fields"])
+
+
 async def find_mounting_app(session: AsyncSession, *, tool: str) -> Optional[GuildApp]:
     """The install that mounts ``tool`` at guild scope, if this guild has one.
 
@@ -322,7 +367,6 @@ async def install_app(
         name=name,
         definition=definition,
         config={},
-        config_secrets={},
         granted_scopes=sorted(set(granted_scopes)),
         created_by=created_by,
     )

@@ -221,6 +221,7 @@ async def config_payload(session: AsyncSession, app: GuildApp) -> dict[str, Any]
     """
     connections: dict[str, dict[str, Any]] = {}
     connection_refs: dict[str, str] = {}
+    secrets = await guild_apps_service.load_secrets(session, app)
     for connection in app_config_service.definition_connections(app.definition):
         connection_id = connection.get("id")
         if not isinstance(connection_id, str):
@@ -233,7 +234,7 @@ async def config_payload(session: AsyncSession, app: GuildApp) -> dict[str, Any]
         values = _without_tokens((app.config or {}).get(connection_id))
         values.update(
             app_config_service.decrypt_connection_secrets(
-                _without_tokens((app.config_secrets or {}).get(connection_id))
+                _without_tokens(secrets.get(connection_id))
             )
         )
         if values:

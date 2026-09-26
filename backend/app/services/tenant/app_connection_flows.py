@@ -1097,8 +1097,9 @@ async def _store_community(
     if app is None:
         return False
     connection_id = str(connection.get("id"))
+    all_secrets = await guild_apps_service.load_secrets(session, app)
     stored_config = (app.config or {}).get(connection_id) or {}
-    stored_secrets = (app.config_secrets or {}).get(connection_id) or {}
+    stored_secrets = all_secrets.get(connection_id) or {}
     config, secrets = app_config_service.apply_connection_values(
         connection,
         _managed_only(connection, values),
@@ -1109,13 +1110,14 @@ async def _store_community(
     if tokens is not None:
         config, secrets = seal_tokens(tokens, config=config, secrets=secrets)
     app.config = _replace_entry(app.config, connection_id, config)
-    app.config_secrets = _replace_entry(app.config_secrets, connection_id, secrets)
     app_config_service.guild_connection_ref(app, connection_id)
     app.config_state = "unverified"
     app.config_state_detail = None
     app.updated_at = datetime.now(timezone.utc)
     session.add(app)
-    await session.flush()
+    await guild_apps_service.store_secrets(
+        session, app, _replace_entry(all_secrets, connection_id, secrets)
+    )
     return True
 
 
@@ -1246,8 +1248,9 @@ async def community_token(
     if locked is None or flow is None:
         raise ConnectionFlowError(AppChannelMessages.CONNECTION_NO_TOKEN)
     app = locked
+    all_secrets = await guild_apps_service.load_secrets(session, app)
     stored_config = (app.config or {}).get(connection_id) or {}
-    stored_secrets = (app.config_secrets or {}).get(connection_id) or {}
+    stored_secrets = all_secrets.get(connection_id) or {}
     tokens = unseal_tokens(stored_config, stored_secrets)
     if tokens is None:
         raise ConnectionFlowError(AppChannelMessages.CONNECTION_NO_TOKEN)
@@ -1258,11 +1261,13 @@ async def community_token(
         app.config = _replace_entry(
             app.config, connection_id, without_tokens(stored_config)
         )
-        app.config_secrets = _replace_entry(
-            app.config_secrets, connection_id, without_tokens(stored_secrets)
-        )
         guild_apps_service.touch(app)
         session.add(app)
+        await guild_apps_service.store_secrets(
+            session,
+            app,
+            _replace_entry(all_secrets, connection_id, without_tokens(stored_secrets)),
+        )
         await session.commit()
         raise ConnectionFlowError(AppChannelMessages.CONNECTION_EXPIRED)
     if renewed is not tokens:
@@ -1270,9 +1275,11 @@ async def community_token(
             renewed, config=stored_config, secrets=stored_secrets
         )
         app.config = _replace_entry(app.config, connection_id, config)
-        app.config_secrets = _replace_entry(app.config_secrets, connection_id, secrets)
         guild_apps_service.touch(app)
         session.add(app)
+        await guild_apps_service.store_secrets(
+            session, app, _replace_entry(all_secrets, connection_id, secrets)
+        )
     await session.commit()
     return renewed
 

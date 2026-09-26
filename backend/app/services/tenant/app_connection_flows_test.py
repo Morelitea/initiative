@@ -564,7 +564,7 @@ class TestInstallationStyleFlow:
 
         stored = await _reload(session, a.guild.id, app.id)
         assert stored.config["workspace"] == {"owner": "acme", "installation_id": "42"}
-        assert "workspace" not in (stored.config_secrets or {})
+        assert "workspace" not in (stored.secret_fields or {})
         assert stored.connection_refs.get("workspace")
         assert await _member_row(session, a.guild.id, app.id, "workspace") is None
         # The vendor's webhooks for installation 42 now route here.

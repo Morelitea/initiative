@@ -458,7 +458,7 @@ async def _resolve_connections(
         return {}
 
     config = app.config or {}
-    secrets = app.config_secrets or {}
+    secret_fields = app.secret_fields or {}
     refs: dict[str, str] = {}
     #: The connections whose handle is a member's own.
     member_refs: set[str] = set()
@@ -509,7 +509,7 @@ async def _resolve_connections(
         if not app_config_service.is_satisfied(
             connection,
             config.get(connection_id) or {},
-            secrets.get(connection_id) or {},
+            secret_fields.get(connection_id) or {},
         ):
             refusal = refusal or AppDataError(AppDataMessages.NEEDS_CONFIGURATION, 409)
             continue
@@ -636,7 +636,7 @@ def _cache_key(
             {
                 "version": app.listing_version,
                 "config": app.config or {},
-                "secrets": app.config_secrets or {},
+                "secret_fields": app.secret_fields or {},
                 "refs": dict(sorted(refs.items())),
             },
             sort_keys=True,

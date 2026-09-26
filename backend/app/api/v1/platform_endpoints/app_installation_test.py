@@ -121,7 +121,7 @@ async def _install(
     if with_values:
         overrides.setdefault("config", {"admin": {"shop_domain": "example.test"}})
         overrides.setdefault(
-            "config_secrets",
+            "secrets",
             {"admin": {"admin_token": encrypt_field(GUILD_TOKEN, SALT_APP_CONFIG)}},
         )
     app = await create_guild_app(

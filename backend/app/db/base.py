@@ -12,6 +12,7 @@ from app.models.platform.guild_administration import GuildAdministration
 from app.models.tenant.app_member_consent import AppMemberConsent
 from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.guild_app import GuildApp
+from app.models.tenant.guild_app_secret import GuildAppSecret
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.models.tenant.guild_setting import GuildSetting
 from app.models.tenant.project import Project
@@ -253,6 +254,7 @@ __all__ = [
     "AppMemberConsent",
     "AppPlacement",
     "GuildApp",
+    "GuildAppSecret",
     "GuildAppUserConnection",
     "UserTotp",
     "UserTotpSecret",

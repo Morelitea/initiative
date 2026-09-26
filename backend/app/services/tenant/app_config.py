@@ -445,9 +445,7 @@ def needs_configuration(
 def config_state(app: Any) -> ConfigState:
     """The combined answer the settings page shows for an install."""
     return ConfigState(
-        needs_config=needs_configuration(
-            app.definition, app.config, app.config_secrets
-        ),
+        needs_config=needs_configuration(app.definition, app.config, app.secret_fields),
         state=app.config_state if app.config_state in CONFIG_STATES else "unverified",
         detail=app.config_state_detail,
     )

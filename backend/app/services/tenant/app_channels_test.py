@@ -40,7 +40,7 @@ def _app(
             "connections": [],
         },
         config={},
-        config_secrets={},
+        secret_fields={},
         config_state="unverified",
         config_state_detail=None,
         updated_at=datetime.now(timezone.utc),

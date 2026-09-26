@@ -3,7 +3,8 @@
 ``guild_ai_connections`` is read within the community — a member's AI request
 reads the connection it runs on — and written by the seat alone.
 ``app_placements`` has the same shape: read within the community, placed by
-the seat.
+the seat. ``guild_app_secrets`` is read and written by the seat and the system
+engine alone, and its trigger keeps ``guild_apps.secret_fields`` in step.
 ``webhook_deliveries`` is read through its subscription and written by the
 system engine. Each test acts on the real request login, routed through the
 seam, and carries no guard of its own: what the database accepts is what the
@@ -12,6 +13,7 @@ policies allow.
 
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timezone
 
 import pytest
@@ -26,6 +28,7 @@ from app.models.tenant.ai_connection import GuildAIConnection
 from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.webhook_subscription import WebhookSubscription
+from app.services.tenant import guild_apps as guild_apps_service
 from app.testing import (
     create_access_grant,
     create_guild_app,
@@ -215,32 +218,23 @@ async def _granted(session, guild_id: int, install_id: int) -> list[str]:
     return list(row.granted_scopes)
 
 
-async def test_an_admin_below_the_seat_does_not_grant_scopes(
+async def test_an_admin_below_the_seat_does_not_write_an_install(
     session, acting_user, role_session
 ):
+    """Installing, configuring and granting are the seat's: an admin below it
+    reads the install and changes nothing on it."""
     a = await acting_user(guild_role=GuildRole.admin)
     app = await create_guild_app(session, a.guild, a.user, definition=_APP_DEFINITION)
     s = await _as(role_session, user_id=a.user.id, guild_id=a.guild.id)
-    row = (await s.exec(select(GuildApp).where(GuildApp.id == app.id))).one()
-    row.granted_scopes = ["documents:read"]
-    s.add(row)
-    with pytest.raises(DBAPIError, match="granted scopes"):
-        await s.commit()
+    result = await s.exec(
+        text(
+            "UPDATE guild_apps SET name = 'Renamed', "
+            "granted_scopes = ARRAY['documents:read'] WHERE id = :id"
+        ).bindparams(id=app.id)
+    )
+    assert result.rowcount == 0
     await s.rollback()
     assert await _granted(session, a.guild.id, app.id) == []
-
-
-async def test_an_admin_below_the_seat_still_renames_an_install(
-    session, acting_user, role_session
-):
-    """Only the grant is the seat's: the rest of the row keeps its writers."""
-    a = await acting_user(guild_role=GuildRole.admin)
-    app = await create_guild_app(session, a.guild, a.user, definition=_APP_DEFINITION)
-    s = await _as(role_session, user_id=a.user.id, guild_id=a.guild.id)
-    row = (await s.exec(select(GuildApp).where(GuildApp.id == app.id))).one()
-    row.name = "Renamed"
-    s.add(row)
-    await s.commit()
 
 
 async def test_the_seat_grants_scopes(session, acting_user, role_session):
@@ -254,6 +248,63 @@ async def test_the_seat_grants_scopes(session, acting_user, role_session):
     s.add(row)
     await s.commit()
     assert await _granted(session, seat.guild.id, app.id) == ["documents:read"]
+
+
+# ---------------------------------------------------------------------------
+# guild_app_secrets
+# ---------------------------------------------------------------------------
+
+
+async def test_only_the_seat_and_the_system_engine_read_secrets(
+    session, acting_user, role_session
+):
+    seat = await acting_user(guild_role=GuildRole.superadmin)
+    app = await create_guild_app(
+        session,
+        seat.guild,
+        seat.user,
+        definition=_APP_DEFINITION,
+        secrets={"admin": {"admin_token": "ciphertext"}},
+    )
+    member = await acting_user(guild_role=GuildRole.member, guild=seat.guild)
+    read = text("SELECT install_id FROM guild_app_secrets")
+
+    s = await _as(role_session, user_id=member.user.id, guild_id=seat.guild.id)
+    assert list(await s.exec(read)) == []
+    s = await _as(role_session, user_id=seat.user.id, guild_id=seat.guild.id)
+    assert list(await s.exec(read)) == [(app.id,)]
+    system = await role_session("app_admin")
+    await set_rls_context(system, guild_id=seat.guild.id)
+    assert list(await system.exec(read)) == [(app.id,)]
+
+
+async def test_secret_fields_follow_the_stored_values(
+    session, acting_user, role_session
+):
+    """Each key that holds a value, with the digest of its ciphertext, written
+    by the trigger as the seat stores, replaces and removes the values."""
+    seat = await acting_user(guild_role=GuildRole.superadmin)
+    app = await create_guild_app(
+        session, seat.guild, seat.user, definition=_APP_DEFINITION
+    )
+    s = await _as(role_session, user_id=seat.user.id, guild_id=seat.guild.id)
+    row = (await s.exec(select(GuildApp).where(GuildApp.id == app.id))).one()
+    assert row.secret_fields == {}
+
+    for value in ("first", "second"):
+        await guild_apps_service.store_secrets(
+            s, row, {"admin": {"admin_token": value}}
+        )
+        digest = hashlib.sha256(value.encode()).hexdigest()
+        assert row.secret_fields == {"admin": {"admin_token": digest}}
+    assert await guild_apps_service.load_secrets(s, row) == {
+        "admin": {"admin_token": "second"}
+    }
+
+    await guild_apps_service.store_secrets(s, row, {})
+    assert row.secret_fields == {}
+    assert await guild_apps_service.load_secrets(s, row) == {}
+    await s.commit()
 
 
 # ---------------------------------------------------------------------------
