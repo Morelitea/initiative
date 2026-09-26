@@ -17,24 +17,13 @@ import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { useGuildPaymentIssue } from "@/hooks/useGuildPaymentIssue";
 import type { GuildEntry } from "@/hooks/useGuilds";
 import { useSupportAvailability } from "@/hooks/useSupport";
+import { getSessionItem, setSessionItem } from "@/lib/storage";
 
 const SEEN_KEY_PREFIX = "guild-status-notice:";
 
-const seenThisSession = (key: string): boolean => {
-  try {
-    return window.sessionStorage.getItem(SEEN_KEY_PREFIX + key) !== null;
-  } catch {
-    return false;
-  }
-};
+const seenThisSession = (key: string): boolean => getSessionItem(SEEN_KEY_PREFIX + key) !== null;
 
-const markSeenThisSession = (key: string) => {
-  try {
-    window.sessionStorage.setItem(SEEN_KEY_PREFIX + key, "1");
-  } catch {
-    // Storage unavailable; the notice shows again next time.
-  }
-};
+const markSeenThisSession = (key: string) => setSessionItem(SEEN_KEY_PREFIX + key, "1");
 
 export const guildStatusNoticeApplies = (guild: GuildEntry): boolean =>
   guild.accessType !== "grant" && guild.can.seat && guild.status === GuildStatus.read_only;
