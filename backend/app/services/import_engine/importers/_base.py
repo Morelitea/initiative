@@ -134,13 +134,17 @@ def _options_for_value(pv: EnvelopePropertyValue) -> list[dict] | None:
 
 
 class AttachedProperties:
-    __slots__ = ("column_kwargs_by_id", "created", "matched")
+    __slots__ = ("column_kwargs_by_id", "created", "matched", "named", "unmatched")
 
     def __init__(self) -> None:
         # property_definition_id -> typed value column kwargs
         self.column_kwargs_by_id: dict[int, dict[str, Any]] = {}
         self.created = 0
         self.matched = 0
+        #: Person values placed, by account, with the handle that named them.
+        self.named: dict[int, str] = {}
+        #: Person values whose handle landed on nobody.
+        self.unmatched: set[str] = set()
 
 
 async def resolve_property_values(
@@ -154,8 +158,8 @@ async def resolve_property_values(
     """Resolve flat by-name property values against the target initiative's
     definitions: match by (name, type); a missing definition is recreated
     minimally (select options synthesized from the value so it stays valid).
-    Unresolvable values (user refs with no matching member) are dropped —
-    the caller reports counts, mirroring the project importer's policy."""
+    Unresolvable values (user refs nobody was mapped to) are dropped and their
+    handles collected, mirroring the project importer's policy."""
     existing = await load_initiative_properties(session, initiative_id=initiative_id)
     attached = AttachedProperties()
     for pv in values:
@@ -188,6 +192,10 @@ async def resolve_property_values(
             attached.matched += 1
         column_kwargs = decode_property_value(pv, member_handles, people=people)
         if column_kwargs is None:
+            if pv.value_handle:
+                attached.unmatched.add(pv.value_handle)
             continue
+        if column_kwargs.get("value_user_id") is not None and pv.value_handle:
+            attached.named.setdefault(column_kwargs["value_user_id"], pv.value_handle)
         attached.column_kwargs_by_id[definition.id] = column_kwargs  # ty: ignore[invalid-assignment] — persisted row, id is set
     return attached

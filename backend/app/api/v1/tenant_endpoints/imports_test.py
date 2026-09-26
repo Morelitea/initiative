@@ -21,6 +21,8 @@ from app.testing.factories import (
     create_initiative,
     create_queue,
     create_task,
+    grant_role_permission,
+    route_session_to_guild,
 )
 from app.services.import_engine import limits as import_limits
 
@@ -2342,15 +2344,67 @@ async def test_only_the_creator_answers_an_envelopes_people_step(
     assert stolen.json()["detail"] == "IMPORT_NOT_CONFIRMABLE"
 
 
-async def test_the_people_map_decides_who_an_envelopes_assignee_is(
-    client, acting_user, session, monkeypatch, role_session
-):
-    """An assignee goes through the map like an author does — but the
-    initiative's roster still has the last word, because being assigned
-    something is a statement about who is working here now."""
+async def _import_with_assignees(client, a, people_map, monkeypatch, role_session):
+    """Import a one-task project assigning ``ghost#1111`` and ``phantom#2222``,
+    with the people step answered by ``people_map``; the job's result."""
+    envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
+    envelope["tasks"][0]["assignee_handles"] = ["ghost#1111", "phantom#2222"]
+    resp = await _import_envelope(client, a, envelope, a.initiative.id)
+    assert resp.status_code == 202, resp.text
+    job_id = resp.json()["id"]
+    confirm = await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"),
+        headers=a.headers,
+        json={"people_map": people_map},
+    )
+    assert confirm.status_code == 200, confirm.text
+    await _run_import_worker(monkeypatch, role_session)
+    job = await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
+    return job.json()["result"]
+
+
+async def _named_on_the_import(session, a):
+    """The imported task's assignees, and who the imported project is shared
+    with at read."""
     from sqlmodel import select
 
+    from app.models.tenant.project import Project
+    from app.models.tenant.resource_grant import ResourceGrant
     from app.models.tenant.task import Task, TaskAssignee
+
+    await route_session_to_guild(session, a.guild.id)
+    task = (await session.exec(select(Task).where(Task.title == "Fit the door"))).one()
+    project = await session.get(Project, task.project_id)
+    assignees = set(
+        (
+            await session.exec(
+                select(TaskAssignee.user_id).where(TaskAssignee.task_id == task.id)
+            )
+        ).all()
+    )
+    readers = set(
+        (
+            await session.exec(
+                select(ResourceGrant.user_id).where(
+                    ResourceGrant.resource_type == "project",
+                    ResourceGrant.resource_id == project.id,
+                    ResourceGrant.level == "read",
+                )
+            )
+        ).all()
+    )
+    return assignees, readers
+
+
+async def test_an_import_brings_in_the_people_it_names(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """Somebody an import assigns is somebody the importer means to work on
+    it. Run by the initiative's manager, it adds the person to the initiative
+    and shares the project with them, and the assignment lands."""
+    from sqlmodel import select
+
+    from app.models.tenant.initiative import InitiativeMember
 
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     inside = await acting_user(
@@ -2359,35 +2413,62 @@ async def test_the_people_map_decides_who_an_envelopes_assignee_is(
         initiative=a.initiative,
         initiative_role="member",
     )
-    # In the community, not in this initiative — so the map may name them and
-    # the assignment still must not land.
     outside = await acting_user(guild_role=GuildRole.member, guild=a.guild)
 
-    envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
-    envelope["tasks"][0]["assignee_handles"] = ["ghost#1111", "phantom#2222"]
-
-    resp = await _import_envelope(client, a, envelope, a.initiative.id)
-    assert resp.status_code == 202, resp.text
-    job_id = resp.json()["id"]
-
-    confirm = await client.post(
-        a.g(f"/imports/jobs/{job_id}/confirm"),
-        headers=a.headers,
-        json={
-            "people_map": {
-                "ghost#1111": inside.user.id,
-                "phantom#2222": outside.user.id,
-            }
-        },
+    await _import_with_assignees(
+        client,
+        a,
+        {"ghost#1111": inside.user.id, "phantom#2222": outside.user.id},
+        monkeypatch,
+        role_session,
     )
-    assert confirm.status_code == 200, confirm.text
-    await _run_import_worker(monkeypatch, role_session)
 
-    task = (await session.exec(select(Task).where(Task.title == "Fit the door"))).one()
-    assignees = (
-        await session.exec(select(TaskAssignee).where(TaskAssignee.task_id == task.id))
-    ).all()
-    assert [row.user_id for row in assignees] == [inside.user.id]
+    assignees, readers = await _named_on_the_import(session, a)
+    assert assignees == readers == {inside.user.id, outside.user.id}
+    joined = (
+        await session.exec(
+            select(InitiativeMember).where(
+                InitiativeMember.initiative_id == a.initiative.id,
+                InitiativeMember.user_id == outside.user.id,
+            )
+        )
+    ).one()
+    assert joined.role_id is not None
+
+
+async def test_an_import_by_a_member_brings_in_nobody(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """Who is in an initiative is its managers' to decide. A member's import
+    shares the project with the people it names who are in the initiative
+    already, and reports the rest rather than adding them."""
+    manager = await acting_user(guild_role=GuildRole.member, initiative=True)
+    await grant_role_permission(session, manager.initiative, "create_projects")
+    a = await acting_user(
+        guild_role=GuildRole.member,
+        guild=manager.guild,
+        initiative=manager.initiative,
+        initiative_role="member",
+    )
+    inside = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    outside = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+
+    result = await _import_with_assignees(
+        client,
+        a,
+        {"ghost#1111": inside.user.id, "phantom#2222": outside.user.id},
+        monkeypatch,
+        role_session,
+    )
+
+    assignees, readers = await _named_on_the_import(session, a)
+    assert assignees == readers == {inside.user.id}
+    assert result["unmatched_handles"] == ["phantom#2222"]
 
 
 async def test_an_exact_handle_match_makes_the_comment_theirs(
