@@ -47,6 +47,10 @@ class ToolCan(ContentCan):
     """What the caller may do to one of a tool's rows
     (``permissions.client_access``)."""
 
+    #: Write what it holds: a calendar's events, a project's tasks. The same as
+    #: ``edit`` inside an initiative; on a row that belongs to the whole
+    #: community, ``edit`` is the row itself and stays with its administrators.
+    contribute: bool = False
     delete: bool = False
     #: Change who it is shared with.
     share: bool = False

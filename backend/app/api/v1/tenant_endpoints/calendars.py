@@ -208,8 +208,8 @@ async def update_calendar(
     current_user: ActorUserDep,
     guild_context: CalendarsWrite,
 ) -> CalendarRead:
-    """Rename/update a calendar. Requires write access, and a guild calendar
-    the guild admin: a write grant on one writes its events."""
+    """Rename/update a calendar. Asks the edit action, which on a guild
+    calendar is the guild admin's: a write grant on one writes its events."""
     calendar = await resource_access.load_authorized(
         session,
         Tool.calendar,
@@ -218,11 +218,6 @@ async def update_calendar(
         guild_context,
         access="write",
     )
-    if calendar.initiative_id is None and not guild_context.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_ADMIN_REQUIRED,
-        )
     updated = False
     update_data = calendar_in.model_dump(exclude_unset=True)
 

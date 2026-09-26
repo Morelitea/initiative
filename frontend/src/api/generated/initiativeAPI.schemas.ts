@@ -1977,6 +1977,7 @@ export interface CalendarEventUpdate {
  */
 export interface ToolCan {
   edit: boolean;
+  contribute: boolean;
   delete: boolean;
   share: boolean;
   export: boolean;
@@ -7183,6 +7184,7 @@ export interface ProjectActivityResponse {
 
 export interface ProjectCan {
   edit: boolean;
+  contribute: boolean;
   delete: boolean;
   share: boolean;
   export: boolean;

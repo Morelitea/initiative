@@ -760,8 +760,8 @@ export function useReadCalendarApiV1CGuildIdCalendarsCalendarIdGet<
 }
 
 /**
- * Rename/update a calendar. Requires write access, and a guild calendar
- * the guild admin: a write grant on one writes its events.
+ * Rename/update a calendar. Asks the edit action, which on a guild
+ * calendar is the guild admin's: a write grant on one writes its events.
  * @summary Update Calendar
  */
 export const updateCalendarApiV1CGuildIdCalendarsCalendarIdPatch = (

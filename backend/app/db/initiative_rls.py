@@ -371,14 +371,11 @@ _FROM_CONTENT = f"'{Provenance.content.value}'"
 #: community, beside the one that admits trusted system maintenance. Both are
 #: the same legs the gate functions carry — one definition, in
 #: :mod:`app.db.authorization`.
-_GUILD_ADMIN = f"({_P.system} OR {_P.admin})"
+_GUILD_ADMIN = _P.system_or_admin
 
 #: An installed app acting in this community on a token that is not narrowed
 #: to one initiative.
-_UNNARROWED_INSTALL = (
-    f"({_P.install_id} IS NOT NULL AND {_P.scope} IS NULL"
-    f" AND {_P.this_guild} AND {_P.auth_ok})"
-)
+_UNNARROWED_INSTALL = _P.unnarrowed_install
 
 #: A live PAM window, either level. Used where a leg is about what a guild has
 #: switched on rather than about what one person may reach.
@@ -451,9 +448,10 @@ def direct_or_guild() -> InitiativePath:
     decide: every member reads it as its sharing allows, and writing it is the
     guild admin's (or a live write grant's), or the installed app's on a token
     not narrowed to one initiative. Sharing still applies on top, which is how
-    the admin decides who writes what the row holds.
+    the admin decides who writes what the row holds. ``resource_actions``
+    asks the same writer for ``edit``.
     """
-    writer = f"({_GUILD_ADMIN} OR {_P.pam_write} OR {_UNNARROWED_INSTALL})"
+    writer = _P.guild_row_writer
     return InitiativePath(
         predicate=lambda t, w: (
             f"({_access(f'{t}.initiative_id', w)}"
