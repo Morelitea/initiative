@@ -52,6 +52,7 @@ from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
 from app.models.tenant.wiki import Wiki, WikiPage
 from app.models.tenant.post_poll import PostPoll, PostPollOption
 from app.models.tenant.guild_app import GuildApp
+from app.models.tenant.guild_app_secret import GuildAppSecret
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
@@ -1197,9 +1198,13 @@ async def create_guild_app(
     listing_uid: str = "TESTAPP0000001",
     listing_version: str = "1.0.0",
     name: str = "Test app",
+    secrets: dict[str, Any] | None = None,
     **overrides: Any,
 ) -> GuildApp:
     """An installed app, written straight into the guild's schema.
+
+    ``secrets`` is its secret values, ``{connection_id: {key: ciphertext}}``,
+    stored in ``guild_app_secrets``.
 
     Deliberately not routed through the install endpoint. A ``service`` app's
     definition is publishable and storable today but the install path does not
@@ -1223,6 +1228,9 @@ async def create_guild_app(
     )
     session.add(app)
     await session.commit()
+    if secrets:
+        session.add(GuildAppSecret(install_id=app.id, secrets=secrets))
+        await session.commit()
     await session.refresh(app)
     await app_installs.record(guild.id, app)
     await app_schedules.reconcile(guild.id, app.id, app.definition)

@@ -20,6 +20,7 @@ from app.db.tenancy import (
     INITIATIVE_SCOPED_TABLES,
     LEDGER_TABLES,
     OWN_ROW_TABLES,
+    SEAT_READ_TABLES,
     SEAT_TABLES,
     SHARED_TABLES,
     is_guild_scoped,
@@ -140,9 +141,10 @@ def test_own_row_tables_are_guild_level():
 
 def test_seat_and_ledger_tables_are_guild_level():
     """SEAT_TABLES and LEDGER_TABLES are policy overlays, like the two above:
-    every entry is GUILD_LEVEL, and a ledger's parent key is a real column
-    pointing at a real parent."""
+    every entry is GUILD_LEVEL, a seat-read table is a seat table, and a
+    ledger's parent key is a real column pointing at a real parent."""
     assert SEAT_TABLES <= GUILD_LEVEL_TABLES
+    assert SEAT_READ_TABLES <= SEAT_TABLES
     assert set(LEDGER_TABLES) <= GUILD_LEVEL_TABLES
     for table, (parent, fk) in LEDGER_TABLES.items():
         column = SQLModel.metadata.tables[table].columns[fk]

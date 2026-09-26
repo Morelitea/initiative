@@ -318,6 +318,7 @@ async def test_the_app_role_holds_only_what_an_app_reaches(engine):
             for table in (
                 "guild_settings",
                 "guild_apps",
+                "guild_app_secrets",
                 "app_placements",
                 "initiative_role_permissions",
             ):

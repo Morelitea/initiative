@@ -228,8 +228,9 @@ async def apply_version(
     app.pending_version = None
     app.declined_version = None
 
-    config, config_secrets, dropped = app_config_service.prune_to_definition(
-        definition, app.config, app.config_secrets
+    stored_secrets = await guild_apps_service.load_secrets(session, app)
+    config, secrets, dropped = app_config_service.prune_to_definition(
+        definition, app.config, stored_secrets
     )
     for connection_id in sorted(dropped):
         revocation_service.queue_revocation(
@@ -241,12 +242,11 @@ async def apply_version(
                 definition=previous,
                 connection_id=connection_id,
                 config=(app.config or {}).get(connection_id),
-                secrets=(app.config_secrets or {}).get(connection_id),
+                secrets=stored_secrets.get(connection_id),
                 reason="upgraded",
             ),
         )
     app.config = config
-    app.config_secrets = config_secrets
     app.definition = definition
     app.listing_version = pending.version
     # The app has not seen the new configuration shape yet, so whatever it said
@@ -255,6 +255,7 @@ async def apply_version(
     app.config_state_detail = None
     guild_apps_service.touch(app)
     session.add(app)
+    await guild_apps_service.store_secrets(session, app, secrets)
 
     surviving = {
         connection.get("id")

@@ -551,7 +551,7 @@ def serialize_connection(
 
     if scope == "static":
         stored_config = (app.config or {}).get(connection_id) or {}
-        stored_secrets = (app.config_secrets or {}).get(connection_id) or {}
+        stored_secrets = (app.secret_fields or {}).get(connection_id) or {}
     else:
         stored_config = (member_row.config or {}) if member_row is not None else {}
         stored_secrets = (

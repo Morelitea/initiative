@@ -2,7 +2,7 @@
 
 Some vendors authorize an *organization* and some authorize a *person*. The
 first kind is a credential a guild admin types once and the whole guild uses,
-which lives on the ``guild_apps`` row. This table is the second kind: an OAuth
+which lives in ``guild_app_secrets``. This table is the second kind: an OAuth
 grant, or anything else where the vendor's answer to "who is this?" is a human
 being. Whatever such a credential can reach is what *that person* can reach, so
 each member connects their own account and the app holds one credential per

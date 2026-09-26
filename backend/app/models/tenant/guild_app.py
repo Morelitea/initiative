@@ -7,7 +7,7 @@ cannot be that.
 
 The row is *installation state*, not content. It records which listing was
 installed, at which version, and how the guild configured it (``config`` /
-``config_secrets``). The content itself is an ordinary row in an ordinary table
+``secret_fields``). The content itself is an ordinary row in an ordinary table
 — a guild-level ``calendars`` row, for instance — owned by the install and
 governed by its own grants like anything else. That split is
 deliberate: apps mount existing tools at guild scope rather than introducing a
@@ -17,10 +17,10 @@ What an install produced is the guild-level content it owns: an owner grant
 naming the install (``resource_grants.app_install_id``), which goes when the
 install does. There is no list on this row to keep in step with it.
 
-``config_secrets`` holds the values a guild admin typed into an app's connection
-form, encrypted per key. This row is the custodian: the values are written
-through the API and never read back out of it — a read reports only whether a
-value is present.
+The secret values a guild admin typed into an app's connection form live in
+``guild_app_secrets``, encrypted per key, which the seat and the system engine
+alone read. This row carries ``secret_fields``, which keys hold a value, so a
+read reports only whether a value is present.
 
 Managing apps is the seat's action, which only its role writes; the row is readable by any member of the
 guild, because the sidebar has to know an app is there. What a member may do
@@ -90,10 +90,11 @@ class GuildApp(CreatedByMixin, table=True):
         default_factory=dict,
         sa_column=Column(JSONB, nullable=False, server_default="{}"),
     )
-    # The same shape, holding one Fernet ciphertext per secret field. Written
-    # through the config endpoint, read only by the code that hands values to
-    # the app — never serialized back to a client.
-    config_secrets: dict[str, Any] = Field(
+    # The same shape, holding a SHA-256 hex digest of each ciphertext in
+    # ``guild_app_secrets``: the keys say which secret fields hold a value, and
+    # a digest changes when its value does. Written by the trigger on
+    # ``guild_app_secrets``, never by the app.
+    secret_fields: dict[str, Any] = Field(
         default_factory=dict,
         sa_column=Column(JSONB, nullable=False, server_default="{}"),
     )

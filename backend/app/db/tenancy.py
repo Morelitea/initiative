@@ -217,6 +217,11 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # *inside* an app is decided by that instance's own grants, not by this
         # row.
         "guild_apps",
+        # The secret values of each install's connections, one row per
+        # install. Read and written by the seat and the system engine alone
+        # (SEAT_READ_TABLES below); members read which keys hold a value off
+        # guild_apps.secret_fields.
+        "guild_app_secrets",
         # Where an install appears, one row per initiative, with the roles
         # allowed to open it there. A fact about the install rather than
         # initiative content: read within the schema, written by the seat
@@ -327,8 +332,15 @@ OWN_ROW_TABLES: dict[str, str] = {
 # ``app.db.guild_ddl.render_guild_rls_ddl``. Every entry here MUST also be in
 # ``GUILD_LEVEL_TABLES`` — enforced in ``tenancy_test.py``.
 SEAT_TABLES: frozenset[str] = frozenset(
-    {"app_placements", "guild_ai_connections", "guild_apps"}
+    {"app_placements", "guild_ai_connections", "guild_app_secrets", "guild_apps"}
 )
+
+# --- Seat tables read by the seat alone ---------------------------------------
+# The seat tables whose rows are read by the seat or the system engine rather
+# than within the schema: rendered with the same ``seat_*`` policies, whose
+# read predicate is the seat's. Every entry here MUST also be in
+# ``SEAT_TABLES`` — enforced in ``tenancy_test.py``.
+SEAT_READ_TABLES: frozenset[str] = frozenset({"guild_app_secrets"})
 
 # --- Ledger overlay on guild-level tables -------------------------------------
 # Guild-level bookkeeping a system job keeps about a parent row: table ->
@@ -372,6 +384,9 @@ CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
         # A fact about an install: where it appears. The rows a new initiative's
         # trigger writes have no person placing them.
         "app_placements",
+        # An install's secret values, one row per install. The install row
+        # names who made it.
+        "guild_app_secrets",
         # A ballot: ``user_id`` is the voter, which is both the author of the
         # row and its whole content.
         "post_poll_votes",

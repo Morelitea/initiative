@@ -17,7 +17,7 @@ Two rules the builders hold to:
 
 * **Secrets never leave.** A row that holds a credential is exempt, and a
   section over a table that holds one selects columns rather than dumping the
-  row (``guild_apps.config_secrets`` is the live example).
+  row (``guild_apps.connection_refs`` is the live example).
 * **People are named the way the rest of the app names them.** The roster goes
   through ``GuildMember``/``handle_of``, the same shape every other
   server-generated text uses, so a name reads here exactly as it does
@@ -183,8 +183,9 @@ async def _build_apps(ctx: SectionContext) -> tuple[dict[str, Any], int] | None:
     installs are recorded in the manifest's ``skipped`` list instead, so the
     archive says they existed.
 
-    Secrets are selected out rather than filtered: ``config_secrets`` and
-    ``connection_refs`` never appear.
+    Columns are selected rather than dumped: ``secret_fields`` and
+    ``connection_refs`` never appear, and the secret values are in
+    ``guild_app_secrets``, which is exempt.
     """
     from sqlmodel import select
 
@@ -302,6 +303,7 @@ EXEMPT: dict[str, str] = {
     # Credentials. An archive is a file that leaves the deployment.
     "guild_ai_connections": "credentials",
     "guild_ai_member_keys": "credentials",
+    "guild_app_secrets": "credentials",
     "guild_app_user_connections": "credentials",
     "app_member_consents": "credentials",
     # Per-member personal preference, not community property — it belongs to

@@ -23,7 +23,7 @@ from app.models.platform.guild import Guild
 from app.schemas.tenant.guild_app import serialize_guild_app
 
 
-SECRET_CIPHERTEXT = "gAAAAAB-not-a-real-token"
+SECRET_DIGEST = "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"
 
 DEFINITION = {
     "app_kind": "service",
@@ -70,7 +70,7 @@ def _app(**overrides) -> SimpleNamespace:
             "auto_update": True,
             "definition": DEFINITION,
             "config": {},
-            "config_secrets": {"admin": {"admin_token": SECRET_CIPHERTEXT}},
+            "secret_fields": {"admin": {"admin_token": SECRET_DIGEST}},
             "config_state": "ok",
             "config_state_detail": None,
             "granted_scopes": [],
@@ -113,8 +113,8 @@ def test_no_stored_value_appears_anywhere_in_the_payload():
     )
 
     serialized = payload.model_dump_json()
-    assert SECRET_CIPHERTEXT not in serialized
-    assert "config_secrets" not in serialized
+    assert SECRET_DIGEST not in serialized
+    assert "secret_fields" not in serialized
     # The definition describes the field; it carries no value for it.
     assert payload.definition["connections"][0]["fields"][0]["key"] == "admin_token"
     assert "value" not in payload.definition["connections"][0]["fields"][0]
@@ -124,7 +124,7 @@ def test_needs_config_still_reads_from_presence():
     """A required guild-wide field with nothing in it is the one thing this
     build can know by itself, and it is unaffected by the passthrough."""
     assert (
-        serialize_guild_app(_app(config_secrets={}), context=CONTEXT).needs_config
+        serialize_guild_app(_app(secret_fields={}), context=CONTEXT).needs_config
         is True
     )
     assert serialize_guild_app(_app(), context=CONTEXT).needs_config is False
