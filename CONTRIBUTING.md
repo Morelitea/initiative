@@ -100,7 +100,7 @@ cd backend && pytest
 # All frontend tests
 cd frontend && pnpm test:run
 
-# Only tests related to files you've changed (vs main)
+# Only tests related to files you've changed (vs dev)
 cd backend && ./scripts/test-changed.sh
 cd frontend && ./scripts/test-changed.sh
 
