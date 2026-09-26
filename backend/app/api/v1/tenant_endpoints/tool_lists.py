@@ -948,11 +948,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         default_order=_post_order,
         serialize=_serialize_posts,
         conditions=_post_conditions,
-        # A scheduled notice is on the board only for the people who could edit
-        # it, and that holds for the badge beside it too.
-        counts_conditions=lambda user, guild_context: [
-            posts_service.visibility_clause(user.id, context=guild_context)
-        ],
         params=(
             _initiative_id(),
             search_param(

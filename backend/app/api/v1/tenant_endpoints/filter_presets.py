@@ -103,8 +103,8 @@ async def list_filter_presets(
         access="read",
     )
     presets = await filter_presets_service.list_presets(session, project_id)
-    can_manage = permissions_service.can_configure_project(
-        project, context=guild_context
+    can_manage = permissions_service.allows(
+        project, permissions_service.Action.configure
     )
     return FilterPresetListResponse(
         items=[FilterPresetRead.model_validate(preset) for preset in presets],

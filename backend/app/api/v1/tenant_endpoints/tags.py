@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Annotated, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, or_, update as sa_update
+from sqlalchemy import func, update as sa_update
 from sqlmodel import select
 
 from app.api import resource_access
@@ -24,11 +24,9 @@ from app.core.messages import AppMessages, TagMessages
 from app.core.tools import Tool
 from app.db.guild_standing import InstallContext
 from app.db.initiative_rls import governing_path
-from app.models.tenant.post import Post
 from app.models.tenant.tag import Tag
 from app.models.platform.user import User
 from app.services import permissions as permissions_service
-from app.services.tenant import posts as posts_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant.soft_delete import trash
 from app.schemas.tenant.search import SearchHit
@@ -319,21 +317,6 @@ async def get_tag_entities(
         )
         if chain:
             statement = statement.join_from(model, parent, parent.id == tool_id)
-        # What is not live yet — a scheduled notice, a draft page — is listed
-        # only for the people who could edit it, as on its own surface.
-        if model is Post:
-            statement = statement.where(
-                posts_service.visibility_clause(current_user.id, context=guild_context)
-            )
-        if "is_draft" in model.model_fields:
-            statement = statement.where(
-                or_(
-                    model.is_draft.is_(False),
-                    permissions_service.writable_scope_clause(
-                        tool, tool_id, current_user.id, context=guild_context
-                    ),
-                )
-            )
         items.extend(
             SearchHit(
                 entity_type=spec.kind,

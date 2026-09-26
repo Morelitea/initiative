@@ -11,7 +11,7 @@ CI if a ``SoftDeleteMixin`` subclass ever lands outside ``app/models/tenant/``.
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, ClassVar, Optional, TypeVar
 
-from sqlalchemy import Boolean, DateTime, Integer, String, column, func, select, values
+from sqlalchemy import ARRAY, DateTime, Integer, String, func, select
 from sqlalchemy.orm import column_property
 from sqlmodel import Field, SQLModel
 
@@ -245,71 +245,47 @@ def tool_models() -> dict[str, type[SQLModel]]:
     return _mapped_subclasses(SoftDeleteMixin)
 
 
-def attach_access_level(model: type[SQLModel], tool: "Tool") -> None:
-    """Map ``access_level`` on a shareable model: the rung of the sharing
-    ladder the request holds on the row, answered by the schema's own
-    ``resource_level`` in the same SELECT as the row.
+def attach_actions(model: type[SQLModel], tool: "Tool") -> None:
+    """Map ``actions`` on a shareable model: what the request may do to the
+    row beyond reading it, answered by the schema's own ``resource_actions`` in
+    the same SELECT as the row — the function whose answers the routes refuse
+    by and the row's ``can`` reports.
 
     Deferred, so a load that only needs the row pays nothing; a loader that
-    goes on to serialize the row asks for it with ``undefer``. Read through
-    :func:`app.services.permissions.level_of`.
+    goes on to decide or serialize asks for it with ``undefer``. Read through
+    :func:`app.services.permissions.actions_of`.
     """
     model.__mapper__.add_property(  # type: ignore[attr-defined]
-        "access_level",
+        "actions",
         column_property(
-            func.resource_level(
+            func.resource_actions(
                 tool.value,
                 model.id,  # type: ignore[attr-defined]
                 _reader(),
                 model.initiative_id,  # type: ignore[attr-defined]
+                model.archived_at,  # type: ignore[attr-defined]
+                model.deleted_at,  # type: ignore[attr-defined]
                 _standing(),
+                type_=ARRAY(String),
             ),
             deferred=True,
         ),
     )
 
 
-def attach_initiative_standing(
-    model: type[SQLModel], defaults: dict[str, bool]
-) -> None:
-    """Map what the request holds in an initiative, answered by the schema's
-    own gates in the same SELECT as the row — the functions the content
-    policies call, so what an initiative reports and what its tables admit are
-    one rule.
-
-    ``permitted_keys``: which of the role permission keys (``defaults``, each
-    with the value it takes when a role stores none) ``initiative_role_permits``
-    grants. ``full_access``: ``initiative_full_access`` for a write.
-
-    Deferred like ``access_level``; the loaders that serialize an initiative
-    ask for them with ``undefer``."""
-    keys = values(
-        column("key", String), column("fallback", Boolean), name="permission_keys"
-    ).data(list(defaults.items()))
+def attach_initiative_actions(model: type[SQLModel]) -> None:
+    """Map ``actions`` on the initiative: what the request may do in it,
+    answered by the schema's ``initiative_actions`` in the same SELECT as the
+    row. Deferred like a tool's; the loaders that serialize an initiative ask
+    for it with ``undefer``."""
     model.__mapper__.add_property(  # type: ignore[attr-defined]
-        "permitted_keys",
+        "actions",
         column_property(
-            select(func.array_agg(keys.c.key))
-            .where(
-                func.initiative_role_permits(
-                    model.id,  # type: ignore[attr-defined]
-                    _reader(),
-                    keys.c.key,
-                    keys.c.fallback,
-                    _standing(),
-                )
-            )
-            .scalar_subquery(),
-            deferred=True,
-        ),
-    )
-    model.__mapper__.add_property(  # type: ignore[attr-defined]
-        "full_access",
-        column_property(
-            func.initiative_full_access(
+            func.initiative_actions(
                 model.id,  # type: ignore[attr-defined]
-                True,
+                _reader(),
                 _standing(),
+                type_=ARRAY(String),
             ),
             deferred=True,
         ),

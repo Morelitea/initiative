@@ -26,13 +26,6 @@ import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { useGuilds } from "@/hooks/useGuilds";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import {
-  administersGuild,
-  administersGuildContent,
-  changesGuildSettings,
-  guildIsClosed,
-  holdsGuildSeat,
-} from "@/lib/permissions";
 
 import { LeaveGuildDialog } from "./LeaveGuildDialog";
 
@@ -54,10 +47,10 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
   const { billing, openPortal } = useBillingPortal();
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
 
-  const isAdmin = administersGuild(guild);
+  const isAdmin = guild.can.administer;
   // A suspended community offers nothing to open, and its membership cannot
   // change until the platform lifts the suspension.
-  const closed = guildIsClosed(guild);
+  const closed = !guild.can.enter;
   const [creatingInvite, setCreatingInvite] = useState(false);
   // A guild at its seat cap mints no invite (the server refuses), so the item
   // says so rather than handing back an error toast. Both fields are
@@ -66,7 +59,7 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
   // Where a billing portal exists the cap travels with the plan, so a full
   // guild leads there — for the seat, which is who the portal answers. An
   // ordinary admin sees the plain "community is full" wording instead.
-  const upgradeForSeats = atUserLimit && billing != null && holdsGuildSeat(guild);
+  const upgradeForSeats = atUserLimit && billing != null && guild.can.seat;
 
   const handleInviteMembers = async () => {
     if (creatingInvite || atUserLimit) return;
@@ -155,7 +148,7 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
           {isAdmin && !closed && (
             <>
               <ContextMenuSeparator />
-              {changesGuildSettings(guild) && (
+              {guild.can.configure && (
                 <ContextMenuItem
                   onClick={
                     upgradeForSeats
@@ -168,7 +161,7 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
                   {creatingInvite ? t("creatingInvite") : inviteLabel}
                 </ContextMenuItem>
               )}
-              {administersGuildContent(guild) && (
+              {guild.can.administer_content && (
                 <ContextMenuItem onClick={handleCreateInitiative}>
                   <Plus className="mr-2 h-4 w-4" />
                   {t("createInitiative")}

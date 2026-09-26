@@ -1,7 +1,7 @@
 import { cleanup, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildGuild, buildUser } from "@/__tests__/factories";
+import { buildGuild, buildUser, guildCan } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { GuildAuthOption, GuildRole } from "@/api/generated/initiativeAPI.schemas";
 import type { GuildEntry } from "@/hooks/useGuilds";
@@ -26,10 +26,12 @@ vi.mock(import("@/hooks/useGuilds"), async (importOriginal) => ({
         name: "Test Community",
         role: guildRole,
         auth_options: authOptions,
-        ...(canWriteSettings === undefined ? {} : { can_write_settings: canWriteSettings }),
+        can: guildCan(guildRole, {
+          content: reachesContent,
+          ...(canWriteSettings === undefined ? {} : { configure: canWriteSettings }),
+        }),
       }),
       grantSettingsLevel,
-      reachesContent,
     };
     return {
       guilds: [activeGuild],

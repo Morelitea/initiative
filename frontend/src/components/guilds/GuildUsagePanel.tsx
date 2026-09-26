@@ -8,7 +8,6 @@ import { Separator } from "@/components/ui/separator";
 import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { useGuilds } from "@/hooks/useGuilds";
 import { formatBytes } from "@/lib/fileUtils";
-import { holdsGuildSeat, reachesGuildContent } from "@/lib/permissions";
 
 /** Percentage 0–100 of `used` against a cap, or null when the cap is
  * unlimited (null) — a null ratio renders no progress bar. */
@@ -30,7 +29,7 @@ export const GuildUsagePanel = () => {
   // What a community stores is read from inside it, so the figure is not part
   // of what a settings grant reaches. The panel renders without it.
   const { data: usage } = useReadStorageUsageApiV1CGuildIdStorageUsageGet(guildId ?? 0, {
-    query: { enabled: guildId != null && reachesGuildContent(activeGuild) },
+    query: { enabled: guildId != null && Boolean(activeGuild?.can.content) },
   });
 
   if (!activeGuild) {
@@ -78,7 +77,7 @@ export const GuildUsagePanel = () => {
           {memberPct != null && <Progress value={memberPct} />}
         </div>
 
-        {billing && holdsGuildSeat(activeGuild) && (
+        {billing && activeGuild?.can.seat && (
           <>
             <Separator />
             <div className="flex flex-wrap items-center justify-between gap-3">

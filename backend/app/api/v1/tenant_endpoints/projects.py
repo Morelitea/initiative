@@ -399,14 +399,14 @@ def project_load_options(*, slim: bool = False) -> list:
         return [
             selectinload(Project.grants),
             selectinload(Project.initiative),
-            undefer(Project.access_level),
+            undefer(Project.actions),
         ]
     return [
         selectinload(Project.grants).options(
             selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
         ),
         selectinload(Project.initiative),
-        undefer(Project.access_level),
+        undefer(Project.actions),
     ]
 
 
@@ -522,7 +522,7 @@ def _project_can(
     """What the reader may do to the project, configuring it included."""
     return ProjectCan(
         **permissions_service.client_access(project, user_id, context=context),
-        configure=permissions_service.can_configure_project(project, context=context),
+        configure=permissions_service.allows(project, Action.configure),
     )
 
 
@@ -727,7 +727,7 @@ async def list_writable_projects(
     writable_projects = [
         project
         for project in projects
-        if permissions_service.allows(project, Action.edit, context=guild_context)
+        if permissions_service.allows(project, Action.edit)
     ]
     return await _project_reads_with_order(
         session,
@@ -1123,10 +1123,7 @@ async def update_project(
     pinned_value = update_data.pop("pinned", sentinel)
     view_mode_value = update_data.pop("default_view_mode", sentinel)
     if pinned_value is not sentinel or view_mode_value is not sentinel:
-        can_configure = permissions_service.can_configure_project(
-            project, context=guild_context
-        )
-        if not can_configure:
+        if not permissions_service.allows(project, Action.configure):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=(

@@ -49,10 +49,12 @@ at call time is still the caller's route, which is the same schema.
 
 from __future__ import annotations
 from collections.abc import Iterable
-from app.core.app_scopes import AppScopeResource
+from app.core.app_scopes import AppScopeResource, tool_resource
+from app.core.tools import Tool
 from app.models.platform.access_grant import AccessGrantPurpose, SettingsLevel
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserRole
+from app.models.tenant.initiative import DEFAULT_PERMISSION_VALUES, PermissionKey
 from app.models.tenant.resource_grant import (
     RESOURCE_LEVEL_LADDER,
     WRITE_LEVELS,
@@ -508,6 +510,13 @@ STANDING_FIELDS: tuple[tuple[str, str, str], ...] = (
     ),
     ("install_read", "text[]", standing_pairs("app.install_read")),
     ("install_write", "text[]", standing_pairs("app.install_write")),
+    # The community's content is on hold (``read_only``) for this reader: no
+    # change to any of it, whatever their rung. A grant is not held.
+    (
+        "content_hold",
+        "boolean",
+        "current_setting('app.content_hold'::text, true) = 'true'::text",
+    ),
 )
 _STANDING_NAMES = frozenset(name for name, _type, _expr in STANDING_FIELDS)
 
@@ -590,6 +599,10 @@ class Legs:
     @property
     def install_id(self) -> str:
         return self.field("install_id")
+
+    @property
+    def content_hold(self) -> str:
+        return self.field("content_hold")
 
     @property
     def pam_any(self) -> str:
@@ -887,6 +900,272 @@ $function$
 
 """
 
+_WRITE_RUNGS = sql_values(level.value for level in WRITE_LEVELS)
+_OWNER = ResourceAccessLevel.owner.value
+
+#: The row can be changed at all: it is not archived or in the trash, and the
+#: community is not read-only. (Archiving or trashing an initiative stamps
+#: its tools too, so the row's own columns are enough.)
+_MAY_CHANGE = f"""(p_archived_at IS NULL AND p_deleted_at IS NULL
+        AND NOT {_B.content_hold})"""
+
+#: The request may change who the resource is shared with: it is the owner,
+#: in its own right rather than through an access grant, and — if it is an
+#: installed app — it holds ``sharing:write`` and the tool's write scope.
+_SHARES = f"""(v_level = '{_OWNER}'
+        AND NOT {_B.pam_any}
+        AND ({_B.install_id} IS NULL
+             OR ('{AppScopeResource.sharing.value}' = ANY ({_B.field("install_write")})
+                 AND COALESCE((CASE p_tool
+                   {" ".join(f"WHEN '{t.value}' THEN '{tool_resource(t).value}'" for t in Tool)}
+                   END) = ANY ({_B.field("install_write")}), false))))"""
+
+#: The actions the request may take on one tool row. The routes check this
+#: list before doing anything, and the row's ``can`` reports it to the client,
+#: so the two always agree.
+#:
+#: - ``edit``: write or owner access, and the row can be changed.
+#: - ``delete``: owner, and the row can be changed.
+#: - ``share``: as delete, and see ``_SHARES`` above.
+#: - ``configure`` (projects): owner or a manager of the initiative, and the
+#:   row can be changed.
+#: - ``export``: owner. Allowed even when archived, since exporting changes
+#:   nothing.
+#: - ``unarchive``: write access to a row that was archived on its own. A row
+#:   archived because its initiative was archived comes back with the
+#:   initiative instead.
+RESOURCE_ACTIONS = f"""\
+CREATE OR REPLACE FUNCTION resource_actions(p_tool text, p_resource_id integer, p_user_id integer, p_initiative_id integer, p_archived_at timestamptz, p_deleted_at timestamptz, p_st standing)
+ RETURNS text[]
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+DECLARE
+    v_level text := resource_level(p_tool, p_resource_id, p_user_id, p_initiative_id, p_st);
+    v_actions text[] := ARRAY[]::text[];
+BEGIN
+    IF v_level IS NULL THEN
+        RETURN v_actions;
+    END IF;
+    IF v_level = '{_OWNER}' THEN
+        v_actions := v_actions || 'export'::text;
+    END IF;
+    IF {_MAY_CHANGE} THEN
+        IF v_level IN ({_WRITE_RUNGS}) THEN
+            v_actions := v_actions || 'edit'::text;
+        END IF;
+        IF v_level = '{_OWNER}' THEN
+            v_actions := v_actions || 'delete'::text;
+        END IF;
+        IF {_SHARES} THEN
+            v_actions := v_actions || 'share'::text;
+        END IF;
+        IF v_level = '{_OWNER}'
+           OR ({_B.this_guild}
+               AND p_initiative_id = ANY ({_B.field("manager_initiatives")})) THEN
+            v_actions := v_actions || 'configure'::text;
+        END IF;
+    ELSIF p_archived_at IS NOT NULL
+          AND NOT {_B.content_hold}
+          AND v_level IN ({_WRITE_RUNGS})
+          AND (p_initiative_id IS NULL
+               OR NOT resource_frozen('initiatives', p_initiative_id)) THEN
+        v_actions := v_actions || 'unarchive'::text;
+    END IF;
+    RETURN v_actions;
+END
+$function$
+
+"""
+
+#: Whether the request may change who a resource is shared with. The same
+#: rule as ``share`` in :data:`RESOURCE_ACTIONS`, for the policies on
+#: ``resource_grants``. It skips the archived/trashed check, which those rows
+#: already get from ``app.db.frozen``.
+RESOURCE_SHARES = f"""\
+CREATE OR REPLACE FUNCTION resource_shares(p_tool text, p_resource_id integer, p_user_id integer, p_initiative_id integer, p_st standing)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+DECLARE
+    v_level text := resource_level(p_tool, p_resource_id, p_user_id, p_initiative_id, p_st);
+BEGIN
+    RETURN NOT {_B.content_hold} AND {_SHARES};
+END
+$function$
+
+"""
+
+
+def _author_arms() -> str:
+    return "\n".join(
+        f"      WHEN '{tool.value}' THEN\n"
+        f"        SELECT created_by INTO v_author FROM {tool.plural} WHERE id = p_resource_id;"
+        for tool in Tool
+    )
+
+
+#: Whether ``p_user_id`` wrote this resource and nobody owns it now. Lets an
+#: owner row be written that gives unowned content back to its author (trash
+#: restore does this), by someone who is not its owner.
+RESOURCE_RECLAIMABLE = f"""\
+CREATE OR REPLACE FUNCTION resource_reclaimable(p_tool text, p_resource_id integer, p_user_id integer)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+DECLARE
+    v_author integer;
+BEGIN
+    CASE p_tool
+{_author_arms()}
+      ELSE
+        RETURN false;
+    END CASE;
+    RETURN v_author IS NOT NULL
+       AND v_author = p_user_id
+       AND NOT EXISTS (
+           SELECT 1 FROM resource_grants g
+           WHERE g.resource_type = p_tool
+             AND g.resource_id = p_resource_id
+             AND g.level = '{_OWNER}'
+       );
+END
+$function$
+
+"""
+
+#: The people each resource in ``p_resource_ids`` is shared with, as
+#: ``(resource_id, user_id)`` rows: used to decide who gets a notification and
+#: who a post counts as its readers.
+#:
+#: Someone is included when a grant names them, names a role they hold, or is
+#: shared with everyone in the initiative — and only while they are still a
+#: member of it. For a resource in no initiative, "everyone" means the
+#: community's members (``p_guild_id``). Community admins and access-grant
+#: holders are not included unless a grant names them.
+RESOURCE_AUDIENCE = """\
+CREATE OR REPLACE FUNCTION resource_audience(p_tool text, p_resource_ids integer[], p_guild_id integer)
+ RETURNS TABLE(resource_id integer, user_id integer)
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+BEGIN
+    RETURN QUERY
+    SELECT DISTINCT g.resource_id, im.user_id
+      FROM resource_grants g
+      JOIN initiative_members im
+        ON im.initiative_id = g.initiative_id
+       AND (g.user_id = im.user_id
+            OR g.role_id = im.role_id
+            OR g.all_initiative_members)
+     WHERE g.resource_type = p_tool
+       AND g.resource_id = ANY (p_resource_ids)
+       AND g.initiative_id IS NOT NULL
+    UNION
+    SELECT DISTINCT g.resource_id, m.user_id
+      FROM resource_grants g
+      JOIN public.guild_memberships m
+        ON m.guild_id = p_guild_id
+       AND (g.user_id = m.user_id OR g.all_initiative_members)
+     WHERE g.resource_type = p_tool
+       AND g.resource_id = ANY (p_resource_ids)
+       AND g.initiative_id IS NULL;
+END
+$function$
+
+"""
+
+#: Whether a grant row gives the request access to the resource — grants
+#: only, ignoring admin, "Full access" and access grants. Lists that span
+#: initiatives show only what was shared with the reader
+#: (``permissions.granted_scope_clause``). With ``p_need_write`` the grant must
+#: allow editing.
+RESOURCE_GRANTED = f"""\
+CREATE OR REPLACE FUNCTION resource_granted(p_tool text, p_resource_id integer, p_user_id integer, p_need_write boolean, p_st standing)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM resource_grants g
+        WHERE {GRANT_REACHES_READER}
+          AND (NOT p_need_write OR g.level IN ({_WRITE_RUNGS}))
+    );
+END
+$function$
+
+"""
+
+
+def _initiative_tool_actions() -> str:
+    """Two checks per tool, only when the initiative has the tool switched on:
+    ``view:<tool>`` if the reader's role allows viewing it, and
+    ``create:<tool>`` if the role allows creating it, the community is not
+    read-only, and the reader is not here through an access grant (those can
+    edit existing things but not create new ones)."""
+    arms = []
+    for tool in Tool:
+        switch = f"v_initiative.{tool.view_permission}"
+        view_default = str(
+            DEFAULT_PERMISSION_VALUES[PermissionKey(tool.view_permission)]
+        ).lower()
+        create_default = str(
+            DEFAULT_PERMISSION_VALUES[PermissionKey(tool.create_permission)]
+        ).lower()
+        arms.append(
+            f"""    IF {switch} THEN
+        IF initiative_role_permits(p_initiative_id, p_user_id, '{tool.view_permission}', {view_default}, p_st) THEN
+            v_actions := v_actions || 'view:{tool.value}'::text;
+        END IF;
+        IF NOT {_B.content_hold} AND NOT {_B.pam_any}
+           AND initiative_role_permits(p_initiative_id, p_user_id, '{tool.create_permission}', {create_default}, p_st) THEN
+            v_actions := v_actions || 'create:{tool.value}'::text;
+        END IF;
+    END IF;"""
+        )
+    return "\n".join(arms)
+
+
+#: The actions the request may take in one initiative, for the initiative's
+#: ``can``:
+#:
+#: - ``manage``: change its settings, members and roles — a community admin
+#:   or one of its managers.
+#: - ``moderate``: act on its moderation reports — "Full access" or a
+#:   community admin (:data:`INITIATIVE_FULL_ACCESS`).
+#: - ``view:<tool>`` and ``create:<tool>`` per tool.
+INITIATIVE_ACTIONS = f"""\
+CREATE OR REPLACE FUNCTION initiative_actions(p_initiative_id integer, p_user_id integer, p_st standing)
+ RETURNS text[]
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+DECLARE
+    v_initiative initiatives%ROWTYPE;
+    v_actions text[] := ARRAY[]::text[];
+BEGIN
+    SELECT * INTO v_initiative FROM initiatives WHERE id = p_initiative_id;
+    IF NOT FOUND THEN
+        RETURN v_actions;
+    END IF;
+    IF {_B.system} OR {_B.admin}
+       OR ({_B.this_guild}
+           AND p_initiative_id = ANY ({_B.field("manager_initiatives")})) THEN
+        v_actions := v_actions || 'manage'::text;
+    END IF;
+    IF initiative_full_access(p_initiative_id, true, p_st) THEN
+        v_actions := v_actions || 'moderate'::text;
+    END IF;
+{_initiative_tool_actions()}
+    RETURN v_actions;
+END
+$function$
+
+"""
+
 #: Who holds a guild's top seat — its sign-in configuration and its billing.
 #:
 #: Named ``public.guild_memberships`` in full, unlike its neighbours: this one
@@ -962,6 +1241,12 @@ GUILD_AUTHORIZATION_FUNCTIONS: tuple[tuple[str, str], ...] = (
     ("initiative_role_permits", INITIATIVE_ROLE_PERMITS),
     ("resource_level", RESOURCE_LEVEL),
     ("resource_access", RESOURCE_ACCESS),
+    ("resource_actions", RESOURCE_ACTIONS),
+    ("resource_shares", RESOURCE_SHARES),
+    ("resource_granted", RESOURCE_GRANTED),
+    ("resource_reclaimable", RESOURCE_RECLAIMABLE),
+    ("resource_audience", RESOURCE_AUDIENCE),
+    ("initiative_actions", INITIATIVE_ACTIONS),
 )
 
 #: Argument types of every function that lives in a guild schema — the five
@@ -974,6 +1259,12 @@ GUILD_FUNCTION_SIGNATURES: dict[str, str] = {
     "initiative_role_permits": "(integer, integer, text, boolean, public.standing)",
     "resource_level": "(text, integer, integer, integer, public.standing)",
     "resource_access": "(text, integer, integer, integer, boolean, public.standing)",
+    "resource_actions": "(text, integer, integer, integer, timestamp with time zone, timestamp with time zone, public.standing)",
+    "resource_shares": "(text, integer, integer, integer, public.standing)",
+    "resource_granted": "(text, integer, integer, boolean, public.standing)",
+    "resource_reclaimable": "(text, integer, integer)",
+    "resource_audience": "(text, integer[], integer)",
+    "initiative_actions": "(integer, integer, public.standing)",
     "resource_frozen": "(text, bigint, boolean)",
     "resource_frozen_for_grant": "(text, bigint, boolean)",
     "entity_access": "(text, integer, boolean, boolean, public.standing)",

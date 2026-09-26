@@ -354,18 +354,13 @@ async def grant_initial_sharing(
     payload: Any,
     grants: list[ResourceGrantSchema],
 ) -> None:
-    """Share a resource that has just been made: its maker owns it, and
-    ``grants`` says who else may reach it.
-
-    A person gets the owner row here. An installed app's is written by the
-    table's own trigger as the row goes in, and only the sharing its create
-    asked for is applied (:func:`apply_app_initial_sharing`). The row is
-    flushed first; the caller commits.
+    """Share a resource that has just been made: its maker owns it — the
+    table's own trigger wrote that row as the resource went in — and ``grants``
+    says who else may reach it. An installed app applies only the sharing its
+    create asked for (:func:`apply_app_initial_sharing`). The row is flushed
+    first; the caller commits.
     """
-    owner = ownership_service.creator_owner_grant(
-        actor, tool=kind, resource_id=resource_id, initiative_id=initiative_id
-    )
-    if owner is None or user is None:
+    if actor.user_id is None or user is None:
         await apply_app_initial_sharing(
             session,
             actor,
@@ -376,7 +371,6 @@ async def grant_initial_sharing(
             grants=grants,
         )
         return
-    session.add(owner)
     await permissions_service.replace_resource_grants(
         session,
         resource_type=kind.value,
@@ -397,18 +391,15 @@ def authorize(
     context: Optional[ActorContext],
     access: str = "read",
     action: Optional[Action] = None,
-    allow_frozen: bool = False,
 ) -> None:
-    """Feature gate → DAC decision → not-yet-published.
+    """Feature gate → the action ``resource_actions`` answered for the row.
 
     ``context`` is the reader's standing in the community, as the seam computed
     it — the same object the session was routed with, so what this decides and
     what the policies evaluate are the same facts.
 
-    ``action`` names what the caller is about to do beyond reading or writing
-    (:data:`permissions.ACTIONS`), which is what the row's ``can`` reports.
-    ``allow_frozen`` belongs to unarchiving and to nothing else — see
-    ``permissions_service.require_access``."""
+    ``action`` names what the caller is about to do beyond reading;
+    ``access="write"`` is an edit."""
     cfg = RESOURCE_ACCESS[kind]
     initiative = getattr(row, "initiative", None)
     if initiative is not None and not getattr(initiative, cfg.feature_attr):
@@ -419,19 +410,9 @@ def authorize(
         permissions_service.DAC_RESOURCES[cfg.dac_kind],
         row,
         context=context,
-        allow_frozen=allow_frozen,
-        **(permissions_service.ACTIONS[action] if action else {"access": access}),
+        access=access,
+        action=action,
     )
-    # Last, and only for somebody the sharing already admitted: a row that
-    # exists before it is anybody's to read — a post that has not gone up.
-    # Answering 404 here rather than 403 is the point; to a reader the
-    # notice does not exist yet.
-    reader = user is not None or (context is not None and context.user_id is None)
-    if reader and permissions_service.hidden_from_reader(cfg.dac_kind, row):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=cfg.not_found_msg,
-        )
 
 
 async def load_authorized(

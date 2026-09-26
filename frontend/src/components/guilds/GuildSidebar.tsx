@@ -51,7 +51,6 @@ import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { guildPath } from "@/lib/guildUrl";
 import { getInitials } from "@/lib/initials";
-import { guildIsClosed } from "@/lib/permissions";
 import { resolveHeaderlessApiUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 
@@ -378,7 +377,7 @@ const SortableGuildButton = ({
               icon={guild.icon_url}
               active={isActive}
               unread={hasUnread}
-              closed={guildIsClosed(guild)}
+              closed={!guild.can.enter}
             />
           </button>
         </TooltipTrigger>
@@ -507,7 +506,7 @@ const GuildRow = ({
             icon={guild.icon_url}
             active={isActive}
             unread={rowUnread.hasGuild(guild.id)}
-            closed={guildIsClosed(guild)}
+            closed={!guild.can.enter}
           />
           {isGrant ? (
             <span className="absolute -top-1 -right-1 rounded-full bg-background p-0.5">

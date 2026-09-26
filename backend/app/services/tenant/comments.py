@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional, cast
 
 from sqlalchemy import ColumnElement, func
-from sqlalchemy.orm import selectinload, undefer
+from sqlalchemy.orm import selectinload
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -60,7 +60,6 @@ from app.services import rls as rls_service
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import content_references
 from app.services import notifications
-from app.services import permissions as permissions_service
 from app.services import reachability
 from app.services.tenant.mention_parser import (
     extract_mentioned_user_ids,
@@ -370,11 +369,6 @@ async def _get_tool_context(
         .where(target.model.id == entity_id)  # type: ignore[attr-defined]
         .options(selectinload(target.model.initiative))  # type: ignore[attr-defined]
     )
-    if target.tool in permissions_service.READ_VISIBLE:
-        # This tool has something between "shared with me" and "I can see it",
-        # and answering it asks whether the caller could edit the row. Loaded
-        # only for the tools that ask, so the other six pay nothing.
-        stmt = stmt.options(undefer(target.model.access_level))  # type: ignore[attr-defined]
     row = (await session.exec(stmt)).one_or_none()
     if row is None:
         return None
@@ -469,12 +463,6 @@ async def _ensure_parent_access(
         if not getattr(ctx.resource, "comments_enabled", True):
             raise CommentPermissionError(CommentMessages.COMMENTS_DISABLED)
         anchor_model, anchor_row = target.model, ctx.resource
-        # A parent that has not gone up yet has no thread to join: a scheduled
-        # post is a draft, and reading or writing its comments would say it
-        # exists. Asked before the sharing decision below, because the answer
-        # for anyone who could edit it is the ordinary one.
-        if permissions_service.hidden_from_reader(target.tool, ctx.resource):
-            raise CommentNotFoundError(target.not_found)
 
     if await _shares_resource(
         session,

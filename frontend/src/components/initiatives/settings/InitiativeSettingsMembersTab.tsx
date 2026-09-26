@@ -31,7 +31,7 @@ import {
 import { useUsers } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { rungReaches } from "@/lib/permissions";
+import { isAdminRole } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
 import { getUserDisplayName } from "@/lib/userDisplay";
 
@@ -103,7 +103,7 @@ export const InitiativeSettingsMembersTab = ({
     () =>
       new Set(
         (usersQuery.data ?? [])
-          .filter((candidate) => rungReaches(candidate.guild_role, "admin"))
+          .filter((candidate) => isAdminRole(candidate.guild_role))
           .map((candidate) => candidate.id)
       ),
     [usersQuery.data]

@@ -59,7 +59,7 @@ def list_loader_options() -> list:
     return [
         selectinload(Wiki.grants).selectinload(ResourceGrant.role),
         selectinload(Wiki.initiative),
-        undefer(Wiki.access_level),
+        undefer(Wiki.actions),
         selectinload(Wiki.home_page),
     ]
 
@@ -189,18 +189,11 @@ async def load_pages(
     wiki_id: int,
     *,
     page_order: WikiPageOrder = WikiPageOrder.manual,
-    include_drafts: bool = True,
 ) -> list[WikiPage]:
-    """Every live page of a wiki, in the order the navigation draws them.
-
-    ``include_drafts`` is the caller's answer to "may this person write here":
-    a draft is a page somebody is still working on, so it is part of the wiki
-    for the people who write it and not part of the wiki for the people who
-    read it.
-    """
+    """Every live page of a wiki the reader can see, in the order the
+    navigation draws them. A draft is part of the wiki for the people who write
+    it and not for the people who read it (the ``wiki_pages`` read policy)."""
     statement = select(WikiPage).where(WikiPage.wiki_id == wiki_id)
-    if not include_drafts:
-        statement = statement.where(WikiPage.is_draft.is_(False))
     return list(
         (await session.exec(statement.order_by(*_ORDERINGS[page_order]()))).all()
     )
@@ -320,8 +313,6 @@ def _parent_of(item: Any, known: set[int]) -> int | None:
 async def load_list(
     session: AsyncSession,
     wiki: Wiki,
-    *,
-    include_drafts: bool = True,
 ) -> list[Any]:
     """A wiki's whole tree — its pages and its documents — in reading order.
 
@@ -330,9 +321,7 @@ async def load_list(
     here rather than in SQL because it spans two tables and a wiki's list is
     the size of a table of contents, not of a table.
     """
-    pages = await load_pages(
-        session, wiki.id, page_order=wiki.page_order, include_drafts=include_drafts
-    )
+    pages = await load_pages(session, wiki.id, page_order=wiki.page_order)
     documents = await linked_documents(session, wiki.id)
     known = {page.id for page in pages}
 

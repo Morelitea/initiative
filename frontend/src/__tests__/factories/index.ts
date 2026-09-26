@@ -21,6 +21,7 @@ export {
   buildBanner,
   buildGuild,
   buildGuildInviteStatus,
+  guildCan,
   resetCounter as resetGuildCounter,
 } from "./guild.factory";
 export {

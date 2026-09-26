@@ -4,7 +4,7 @@ import { endOfMonth, startOfMonth } from "date-fns";
 import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
-import { buildProject, buildTask, writerCan } from "@/__tests__/factories";
+import { buildGuild, buildProject, buildTask, writerCan } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { createTestQueryClient, renderPage } from "@/__tests__/helpers/render";
@@ -288,7 +288,12 @@ describe("CalendarsView on the calendar app's own surface", () => {
     queryClient.setQueryData(VIEW_PREFERENCES_QUERY_KEY, {
       items: { [CALENDAR_VIEW_MODE_KEY]: "list" },
     });
-    return renderPage(() => <CalendarsView guildScope />, { queryClient });
+    // The community's own calendars are its admins' to add.
+    const guild = buildGuild({ id: 1, role: "admin" });
+    return renderPage(() => <CalendarsView guildScope />, {
+      queryClient,
+      guilds: { activeGuildId: 1, activeGuild: guild, guilds: [guild] },
+    });
   }
 
   it("asks for the guild's own calendars and overlays all of them", async () => {
@@ -382,7 +387,7 @@ describe("CalendarsView on the calendar app's own surface", () => {
     renderGuildScope();
 
     expect(await screen.findByText(/no calendars yet/i)).toBeInTheDocument();
-    // Any member may add one, so the offer stands without an initiative role.
+    // An admin adds one here without holding an initiative role.
     expect(screen.getAllByRole("button", { name: /new calendar/i }).length).toBeGreaterThan(0);
   });
 });

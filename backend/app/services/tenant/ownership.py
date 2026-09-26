@@ -53,7 +53,6 @@ from app.core.app_scopes import (
 from app.core.audit_events import AuditEventType
 from app.core.messages import UserMessages
 from app.core.tools import Tool
-from app.db.guild_standing import ActorContext
 from app.db.session import install_context
 from app.models.tenant._mixins import tool_models
 from app.models.platform.guild import GuildMembership
@@ -460,32 +459,6 @@ async def _clear_owner_grants(session: AsyncSession, *, tool: Tool, row: Any) ->
         await session.flush()
 
 
-def creator_owner_grant(
-    actor: ActorContext,
-    *,
-    tool: Tool,
-    resource_id: int,
-    initiative_id: Optional[int],
-) -> Optional[ResourceGrant]:
-    """The owner grant a create path adds for whoever made the resource.
-
-    A person's is their own row. An installed app's is written by the tool
-    table's ``AFTER INSERT`` trigger (``public.fn_install_owns_what_it_creates``)
-    as the row goes in, so there is nothing for the create path to add, and
-    ``None`` is returned.
-    """
-    if actor.user_id is None:
-        return None
-    return ResourceGrant(
-        resource_type=tool.value,
-        resource_id=resource_id,
-        user_id=actor.user_id,
-        role_id=None,
-        level=ResourceAccessLevel.owner,
-        initiative_id=initiative_id,
-    )
-
-
 async def set_resource_owner(
     session: AsyncSession, *, tool: Tool, row: Any, new_owner: Optional[Owner]
 ) -> None:
@@ -493,46 +466,69 @@ async def set_resource_owner(
     Caller commits, and has decided the new owner may hold it (an app, by
     :func:`require_app_owner_eligible`).
 
-    Clears any existing owner grant, then gives the recipient one at ``owner`` —
-    upgrading a lower grant they already hold rather than colliding with the
-    ``resource_grants_unique_grantee`` constraint. Author columns are not
-    touched: who wrote the thing does not change when who owns it does.
+    A person's owner row changes hands in place — one ``UPDATE`` — so the
+    request writing it holds the owner's rung for the whole of the change, as
+    the share gate on ``resource_grants`` asks. Any lower grant the recipient
+    already holds is removed first, so the row does not collide with it on
+    ``resource_grants_unique_grantee``. With no person's owner row to hand on,
+    the others are cleared (:func:`_clear_owner_grants`) and a new one is
+    written. Author columns are not touched: who wrote the thing does not
+    change when who owns it does.
     """
-    await _clear_owner_grants(session, tool=tool, row=row)
-
     if new_owner is None:
+        await _clear_owner_grants(session, tool=tool, row=row)
         await session.flush()
         return
 
-    grantee = (
-        ResourceGrant.user_id == new_owner.user_id
-        if new_owner.user_id is not None
-        else ResourceGrant.app_install_id == new_owner.app_install_id
-    )
-    existing = (
+    grants = (
         await session.exec(
             select(ResourceGrant).where(
                 ResourceGrant.resource_type == tool.value,
                 ResourceGrant.resource_id == row.id,
-                grantee,
             )
         )
-    ).one_or_none()
-    if existing is not None:
-        existing.level = ResourceAccessLevel.owner
-        session.add(existing)
-    else:
-        session.add(
-            ResourceGrant(
-                resource_type=tool.value,
-                resource_id=row.id,
-                user_id=new_owner.user_id,
-                app_install_id=new_owner.app_install_id,
-                role_id=None,
-                level=ResourceAccessLevel.owner,
-                initiative_id=row.initiative_id,
+    ).all()
+    is_recipient = (
+        (lambda g: g.user_id == new_owner.user_id)
+        if new_owner.user_id is not None
+        else (lambda g: g.app_install_id == new_owner.app_install_id)
+    )
+    held = next((g for g in grants if is_recipient(g)), None)
+    if held is not None and held.level == ResourceAccessLevel.owner:
+        return
+    handover = next(
+        (
+            g
+            for g in grants
+            if g.level == ResourceAccessLevel.owner and g.user_id is not None
+        ),
+        None,
+    )
+    if handover is None:
+        await _clear_owner_grants(session, tool=tool, row=row)
+        if held is not None:
+            held.level = ResourceAccessLevel.owner
+            session.add(held)
+        else:
+            session.add(
+                ResourceGrant(
+                    resource_type=tool.value,
+                    resource_id=row.id,
+                    user_id=new_owner.user_id,
+                    app_install_id=new_owner.app_install_id,
+                    role_id=None,
+                    level=ResourceAccessLevel.owner,
+                    initiative_id=row.initiative_id,
+                )
             )
-        )
+        await session.flush()
+        return
+    if held is not None:
+        await session.delete(held)
+        await session.flush()
+    handover.user_id = new_owner.user_id
+    handover.app_install_id = new_owner.app_install_id
+    session.add(handover)
     await session.flush()
 
 
@@ -714,20 +710,30 @@ async def claim_unowned_content(
 async def release_owned_content(
     session: AsyncSession, *, user_id: int
 ) -> dict[Tool, int]:
-    """Leave everything this user owns in the routed guild unowned.
+    """Leave what this user owns at the community's own level — resources in
+    no initiative — unowned.
 
     The departure hook, called from ``remove_user_from_guild_initiatives`` — the
     choke point every guild-departure path funnels through — so leaving, being
     removed, being deactivated, anonymized, hard-deleted or revoked by OIDC sync
-    all land the same way.
-
-    Being removed from a single *initiative* is not a departure in this sense:
-    the person is still in the guild, their content simply stops being reachable
-    by them, and nothing here runs.
+    all land the same way. What they owned inside an initiative leaves with
+    their membership of it (``tr_initiative_members_departure``).
     """
     released: dict[Tool, int] = {}
     for tool in OWNABLE:
-        rows = await _owned_rows(session, tool, user_id)
+        model = OWNABLE[tool].model
+        rows = list(
+            (
+                await session.exec(
+                    select(model).where(
+                        model.id.in_(_owner_grant_resource_ids(tool, user_id)),
+                        model.initiative_id.is_(None),
+                    )
+                )
+            )
+            .unique()
+            .all()
+        )
         for row in rows:
             await set_resource_owner(session, tool=tool, row=row, new_owner=None)
         if rows:

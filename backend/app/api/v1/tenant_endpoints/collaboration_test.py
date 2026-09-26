@@ -85,14 +85,12 @@ async def test_collaboration_guild_admin_gets_full_access(
     # through the seam as the admin, the row arrives with the level the
     # standing gives — owner, grant or no grant.
     s = await role_session("app_user")
-    context = await route_as(s, user_id=admin.user.id, guild_id=owner.guild.id)
+    await route_as(s, user_id=admin.user.id, guild_id=owner.guild.id)
     resolved = await resource_for(SearchEntityType.document.value).load(
         s, doc.id, owner.guild.id
     )
     assert resolved is not None
-    assert permissions_service.allows(
-        resolved.body, permissions_service.Action.edit, context=context
-    )
+    assert permissions_service.allows(resolved.body, permissions_service.Action.edit)
 
 
 async def test_a_handover_merges_into_the_room_and_saves_both_views(

@@ -8,7 +8,7 @@ from sqlmodel import Field, Relationship
 from app.core.tools import Tool
 from app.models.tenant._mixins import (
     ArchiveMixin,
-    attach_access_level,
+    attach_actions,
     CommentsToggleMixin,
     CreatedByMixin,
     ListingProvenanceMixin,
@@ -105,4 +105,4 @@ class Dashboard(
     )
 
 
-attach_access_level(Dashboard, Tool.dashboard)
+attach_actions(Dashboard, Tool.dashboard)

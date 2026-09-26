@@ -93,8 +93,7 @@ def _roster_options(guild_context: ActorContext) -> tuple:
     initiative's switches."""
     role = selectinload(Initiative.memberships).selectinload(InitiativeMember.role_ref)
     return (
-        undefer(Initiative.permitted_keys),
-        undefer(Initiative.full_access),
+        undefer(Initiative.actions),
         selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
         role.noload(InitiativeRoleModel.permissions)
         if guild_context.user_id is None
@@ -155,8 +154,7 @@ async def _get_initiative_or_404(
         .where(Initiative.id == initiative_id)
         .execution_options(populate_existing=True)
         .options(
-            undefer(Initiative.permitted_keys),
-            undefer(Initiative.full_access),
+            undefer(Initiative.actions),
             selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
             selectinload(Initiative.memberships)
             .selectinload(InitiativeMember.role_ref)
@@ -1591,11 +1589,6 @@ async def remove_initiative_member(
             detail={"role": role_name, "via": "manager"},
         )
 
-        # A guild admin re-homes the owner grants that stay through the
-        # transfer-ownership action.
-        await initiatives_service.drop_member_grants(
-            session, user_id=user_id, initiative_ids=[initiative_id]
-        )
         await initiatives_service.clear_user_task_assignments_for_initiative(
             session, initiative_id=initiative_id, user_id=user_id
         )

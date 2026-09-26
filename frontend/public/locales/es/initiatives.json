@@ -215,7 +215,7 @@
     "savingRole": "Guardando...",
     "removeMemberTitle": "¿Eliminar miembro?",
     "removeMemberDescription": "¿Estás seguro de que deseas eliminar a <bold>{{name}}</bold> de esta iniciativa?",
-    "removeMemberWarning": "Esto también eliminará su acceso explícito a todos los proyectos y documentos en esta iniciativa.",
+    "removeMemberWarning": "Esto también elimina su acceso a todo lo que se compartió con ellos en esta iniciativa. Todo lo que les pertenece aquí se queda sin propietario y un administrador de la comunidad puede reclamarlo.",
     "removing": "Eliminando...",
     "nameRequired": "El nombre es obligatorio.",
     "roleNameRequired": "El nombre y el nombre visible son obligatorios.",

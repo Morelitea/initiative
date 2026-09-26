@@ -47,7 +47,7 @@ def list_loader_options() -> list:
         selectinload(CounterGroup.counters),
         selectinload(CounterGroup.grants).selectinload(ResourceGrant.role),
         selectinload(CounterGroup.initiative),
-        undefer(CounterGroup.access_level),
+        undefer(CounterGroup.actions),
     ]
 
 
@@ -64,7 +64,7 @@ async def get_counter_group(
             selectinload(CounterGroup.counters),
             selectinload(CounterGroup.grants).selectinload(ResourceGrant.role),
             selectinload(CounterGroup.initiative),
-            undefer(CounterGroup.access_level),
+            undefer(CounterGroup.actions),
         )
     )
     if populate_existing:

@@ -14,6 +14,7 @@
 import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { guildCan } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { MarketplaceListingDetail } from "@/api/generated/initiativeAPI.schemas";
 
@@ -31,7 +32,7 @@ vi.mock("@/hooks/useMarketplace", () => ({
 vi.mock("@/hooks/useDashboards", () => ({ useWidgetCatalog: () => ({ data: undefined }) }));
 vi.mock("@/hooks/useGuilds", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useGuilds")>()),
-  useGuilds: () => ({ activeGuild: { role: guildRole } }),
+  useGuilds: () => ({ activeGuild: { role: guildRole, can: guildCan(guildRole) } }),
 }));
 vi.mock("@/hooks/useGuildApps", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useGuildApps")>()),

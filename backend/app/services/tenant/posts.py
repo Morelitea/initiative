@@ -22,7 +22,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
 from app.db import session as db_session
-from app.db.guild_standing import ActorContext
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.post import Post, board_time, is_published_clause, pin_is_live
@@ -40,7 +39,7 @@ def list_loader_options() -> list:
     return [
         selectinload(Post.grants).selectinload(ResourceGrant.role),
         selectinload(Post.initiative).selectinload(Initiative.memberships),
-        undefer(Post.access_level),
+        undefer(Post.actions),
         # Who wrote it. A notice is signed — the board shows the person above
         # the headline the way a comment shows its author — so the profile
         # comes with the row rather than costing a query per card.
@@ -93,40 +92,6 @@ def board_order(*, anchored: bool = False) -> list:
     ]
 
 
-def visibility_clause(
-    user_id: int | None,
-    *,
-    context: ActorContext | None,
-    initiative_id: int | None = None,
-) -> Any:
-    """The WHERE leg hiding notices that have not gone up yet.
-
-    A scheduled post is a draft: it is live for nobody until the publication
-    sweep stamps it, and until then only the people who could edit it — its
-    author, anyone it is shared with at write or owner, a guild admin — have
-    any business seeing it. Everyone else's board, counts and search results
-    are as if it did not exist.
-
-    Written as one clause so every surface that lists posts appends the same
-    rule. The draft leg is the DAC machinery's own
-    :func:`permissions.writable_scope_clause` rather than a restatement of who
-    may edit a post, and it takes the same ``initiative_id`` the read leg does
-    so both agree on whether the question is scoped to one initiative.
-    """
-    from sqlalchemy import or_
-
-    return or_(
-        is_published_clause(),
-        permissions_service.writable_scope_clause(
-            Tool.post,
-            Post.id,
-            user_id,
-            context=context,
-            initiative_id=initiative_id,
-        ),
-    )
-
-
 def anchored_clause(until: datetime):
     """The WHERE leg for "start the board here and go back".
 
@@ -137,15 +102,18 @@ def anchored_clause(until: datetime):
     return board_time() <= until
 
 
-def audience_user_ids(post: Post, *, exclude: int | None = None) -> set[int]:
+async def audience_user_ids(
+    session: AsyncSession, post: Post, *, exclude: int | None = None
+) -> set[int]:
     """Who a notice was shared with — the people to tell about it.
 
-    Defers to :func:`permissions.audience_user_ids` so the fan-out and the
-    per-request check read one another's answer: a post shared with three
-    people notifies three people, and a board of a hundred members is not
-    interrupted because somebody posted to a subset of it.
+    The schema's ``resource_audience`` (:func:`permissions.audience`): a post
+    shared with three people notifies three people, and a board of a hundred
+    members is not interrupted because somebody posted to a subset of it.
     """
-    audience = permissions_service.audience_user_ids(post)
+    audience = (await permissions_service.audience(session, Tool.post, [post.id])).get(
+        post.id, set()
+    )
     if exclude is not None:
         audience.discard(exclude)
     return audience
@@ -206,7 +174,9 @@ async def annotate_read_state(
         object.__setattr__(post, "is_read", mine or post.id in read_ids)
 
 
-def current_readers(post: Post, reader_ids: Iterable[int]) -> set[int]:
+def current_readers(
+    post: Post, reader_ids: Iterable[int], audience: set[int]
+) -> set[int]:
     """Of the people who have read this notice, the ones it is still for.
 
     Sharing changes after a notice goes up: somebody who read it can leave the
@@ -218,8 +188,11 @@ def current_readers(post: Post, reader_ids: Iterable[int]) -> set[int]:
     Its author is not among them. Writing a notice is not reading it, and the
     roster says so on the other side too.
     """
-    audience = audience_user_ids(post, exclude=post.created_by)
-    return {user_id for user_id in reader_ids if user_id in audience}
+    return {
+        user_id
+        for user_id in reader_ids
+        if user_id in audience and user_id != post.created_by
+    }
 
 
 async def annotate_read_counts(session: AsyncSession, rows: Sequence[Post]) -> None:
@@ -242,8 +215,11 @@ async def annotate_read_counts(session: AsyncSession, rows: Sequence[Post]) -> N
     by_post: dict[int, set[int]] = {}
     for post_id, user_id in pairs:
         by_post.setdefault(post_id, set()).add(user_id)
+    audiences = await permissions_service.audience(session, Tool.post, ids)
     for post in rows:
-        readers = current_readers(post, by_post.get(post.id, set()))
+        readers = current_readers(
+            post, by_post.get(post.id, set()), audiences.get(post.id, set())
+        )
         object.__setattr__(post, "read_count", len(readers))
 
 
@@ -273,8 +249,11 @@ async def list_readers(
         .unique()
         .all()
     )
-    read_ids = current_readers(post, (receipt.user_id for receipt in receipts))
-    waiting = audience_user_ids(post, exclude=post.created_by) - read_ids
+    audience = await audience_user_ids(session, post, exclude=post.created_by)
+    read_ids = current_readers(
+        post, (receipt.user_id for receipt in receipts), audience
+    )
+    waiting = audience - read_ids
     return [r for r in receipts if r.user_id in read_ids], sorted(waiting)
 
 
@@ -331,7 +310,6 @@ async def mark_read(
             select(Post.id).where(
                 Post.id.in_(tuple(post_ids)),
                 Post.created_by != user_id,
-                visibility_clause(user_id, context=db_session.guild_context(session)),
             )
         )
     ).all()
@@ -431,16 +409,6 @@ async def get_post_for_export(
         )
     context = db_session.guild_context(session)
     resource = permissions_service.DAC_RESOURCES[Tool.post]
-    permissions_service.require_access(resource, post, context=context, access="read")
-    # A notice that has not gone up is in no export either — the same gate the
-    # read path applies, asked here because this seam resolves a caller-chosen
-    # id rather than going through ``load_authorized``. Asked before the export
-    # rung, so a notice that is not up yet reads as absent, as it does elsewhere.
-    if permissions_service.hidden_from_reader(Tool.post, post):
-        raise HTTPException(
-            status_code=http_status.HTTP_404_NOT_FOUND,
-            detail=Tool.post.not_found_code,
-        )
     permissions_service.require_export_access(
         resource, post, context=context, access=access
     )

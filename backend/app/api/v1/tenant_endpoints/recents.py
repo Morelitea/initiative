@@ -130,7 +130,7 @@ async def _enrich_recent_rows(
             .options(
                 selectinload(model.grants).selectinload(ResourceGrant.role),
                 selectinload(model.initiative),
-                undefer(model.access_level),
+                undefer(model.actions),
             )
         )
         result = await session.exec(stmt)

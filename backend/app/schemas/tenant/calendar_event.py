@@ -259,11 +259,7 @@ def serialize_calendar_event_summary(
     # answered its own level, as ``client_access`` answers it on a calendar.
     calendar = event.calendar
     reader = user_id is not None or isinstance(context, InstallContext)
-    can_edit = (
-        reader
-        and calendar is not None
-        and allows(calendar, Action.edit, context=context)
-    )
+    can_edit = reader and calendar is not None and allows(calendar, Action.edit)
     attendees_list = getattr(event, "attendees", None) or []
     names: List[str] = []
     previews: List[CalendarEventAttendeePreview] = []

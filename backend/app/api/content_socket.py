@@ -225,7 +225,7 @@ def tool_authorizer(guild_id: int, tool: Tool, resource_id: int) -> Authorizer:
                 .where(model.id == resource_id)  # type: ignore[attr-defined]
                 .options(
                     selectinload(model.initiative),  # type: ignore[attr-defined]
-                    undefer(model.access_level),  # type: ignore[attr-defined]
+                    undefer(model.actions),  # type: ignore[attr-defined]
                 )
             )
         ).one_or_none()

@@ -2,8 +2,9 @@
 
 ``resource_level`` is the sharing gate's sibling: the same legs, answering
 which rung of the ladder they reach rather than whether they reach one. The
-policies keep asking ``resource_access``; a serializer reads ``access_level``,
-mapped on every shareable model and answered in the same SELECT as the row.
+policies keep asking ``resource_access``; the routes and the ``can`` a row
+reports read ``actions``, mapped on every shareable model and answered in the
+same SELECT as the row by ``resource_actions``, which reads the rung.
 These tests ask all three on the request login, standing by standing, and
 hold them to one another.
 """
@@ -200,12 +201,12 @@ async def test_the_level_the_gate_and_the_column_agree(
         await s.exec(
             select(Project)
             .where(Project.id == a.project.id)
-            .options(undefer(Project.access_level))
+            .options(undefer(Project.actions))
         )
     ).one_or_none()
     assert (row is not None) is reads
     if row is not None:
-        assert row.access_level == level
+        assert ("edit" in (row.actions or ())) is writes
 
 
 async def test_a_reader_outside_the_initiative_is_answered_by_the_policy(

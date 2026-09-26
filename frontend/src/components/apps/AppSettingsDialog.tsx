@@ -40,7 +40,6 @@ import { Separator } from "@/components/ui/separator";
 import { useGuildAppDetail } from "@/hooks/useGuildAppDetail";
 import { useGuilds } from "@/hooks/useGuilds";
 import { declaredEmbeds } from "@/lib/appSurfaces";
-import { holdsGuildSeat } from "@/lib/permissions";
 
 export interface AppSettingsDialogProps {
   appId: number;
@@ -71,7 +70,7 @@ export function AppSettingsDialog({
   // Install management, which the seat holds — not the manifest's
   // admin-visible surfaces above, which ask whether you administer the
   // community and are a different question.
-  const showsAdminSection = holdsGuildSeat(activeGuild) && !!app;
+  const showsAdminSection = Boolean(activeGuild?.can.seat) && !!app;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

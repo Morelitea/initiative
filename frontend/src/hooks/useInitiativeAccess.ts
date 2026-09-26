@@ -4,7 +4,6 @@ import type { InitiativeRead, Tool } from "@/api/generated/initiativeAPI.schemas
 import { useAuth } from "@/hooks/useAuth";
 import { type GuildEntry, useGuilds } from "@/hooks/useGuilds";
 import { useInitiatives, useInitiativesForGuild } from "@/hooks/useInitiatives";
-import { administersGuildContent } from "@/lib/permissions";
 
 const byName = (a: InitiativeRead, b: InitiativeRead) => a.name.localeCompare(b.name);
 
@@ -44,7 +43,7 @@ export const guildMayWriteContent = (guild: GuildEntry): boolean =>
 export function useInitiativeAccess() {
   const { activeGuild } = useGuilds();
   return {
-    isGuildAdmin: administersGuildContent(activeGuild),
+    isGuildAdmin: Boolean(activeGuild?.can.administer_content),
     isGrantGuild: activeGuild?.accessType === "grant",
   };
 }

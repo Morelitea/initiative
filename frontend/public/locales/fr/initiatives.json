@@ -215,7 +215,7 @@
     "savingRole": "Enregistrement...",
     "removeMemberTitle": "Retirer le membre ?",
     "removeMemberDescription": "Êtes-vous sûr de vouloir retirer <bold>{{name}}</bold> de cette initiative ?",
-    "removeMemberWarning": "Cela supprimera également leur accès explicite à tous les projets et documents de cette initiative.",
+    "removeMemberWarning": "Cela supprime aussi leur accès à tout ce qui a été partagé avec eux dans cette initiative. Tout ce qui leur appartient ici n'a plus de propriétaire, et un administrateur de la communauté peut le récupérer.",
     "removing": "Suppression en cours...",
     "nameRequired": "Le nom est requis.",
     "roleNameRequired": "Le nom et le nom affiché sont requis.",

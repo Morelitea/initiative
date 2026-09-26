@@ -372,24 +372,15 @@ class InitiativeSummary(SanitizedBaseModel):
     color: Optional[str] = None
 
 
-def initiative_can(
-    initiative: "Initiative", *, context: "ActorContext"
-) -> InitiativeCan:
-    """What the caller may do in ``initiative``.
-
-    The role's keys are the database's answer (``permitted_keys``, from the
-    ``initiative_role_permits`` the content policies call), within the tools
-    the initiative has switched on. Nothing is made while the community's
-    content is on hold, and granted access edits what exists without authoring
-    anything new."""
-    permitted = set(initiative.permitted_keys or ())
-    switched_on = [t for t in Tool if getattr(initiative, t.view_permission, False)]
-    authors = not (context.content_read_only or context.is_pam)
+def initiative_can(initiative: "Initiative") -> InitiativeCan:
+    """What the caller may do in ``initiative``, as the schema's
+    ``initiative_actions`` answered it in the SELECT that loaded the row."""
+    held = set(initiative.actions or ())
     return InitiativeCan(
-        manage=context.is_admin or initiative.id in context.manager_initiatives,
-        moderate=bool(initiative.full_access),
-        view=[t for t in switched_on if t.view_permission in permitted],
-        create=[t for t in switched_on if authors and t.create_permission in permitted],
+        manage="manage" in held,
+        moderate="moderate" in held,
+        view=[t for t in Tool if f"view:{t.value}" in held],
+        create=[t for t in Tool if f"create:{t.value}" in held],
     )
 
 
@@ -434,7 +425,7 @@ def serialize_initiative(
         created_at=initiative.created_at,
         updated_at=initiative.updated_at,
         members=members,
-        can=initiative_can(initiative, context=context),
+        can=initiative_can(initiative),
         **{
             t.view_permission: getattr(initiative, t.view_permission, False)
             for t in Tool

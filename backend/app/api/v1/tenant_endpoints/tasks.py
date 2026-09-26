@@ -820,7 +820,7 @@ async def _get_project_with_access(
         .options(
             selectinload(Project.grants).selectinload(ResourceGrant.role),
             selectinload(Project.initiative),
-            undefer(Project.access_level),
+            undefer(Project.actions),
         )
     )
     project_result = await session.exec(project_stmt)

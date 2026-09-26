@@ -160,6 +160,7 @@ STANDING_GUCS: tuple[str, ...] = (
     "app.guild_auth_ok",
     "app.install_read",
     "app.install_write",
+    "app.content_hold",
 )
 
 
@@ -249,7 +250,12 @@ SELECT
       WHERE im.user_id = {_UID} AND r.override_share_restrictions
     ), ''), true) AS override_initiatives,
   set_config('app.guild_auth_ok',
-    (SELECT public.guild_auth_satisfied()::text), true) AS guild_auth_ok
+    (SELECT public.guild_auth_satisfied()::text), true) AS guild_auth_ok,
+  set_config('app.content_hold', COALESCE((
+      SELECT (g.status = '{GuildStatus.read_only.value}')::text
+      FROM public.guilds g
+      WHERE g.id = {_GID}
+    ), 'false'), true) AS content_hold
 """
 
 
@@ -536,6 +542,11 @@ SELECT
     ), ''), true) AS install_write,
   set_config('app.guild_auth_ok',
     (SELECT EXISTS (SELECT 1 FROM install))::text, true) AS guild_auth_ok,
+  set_config('app.content_hold', COALESCE((
+      SELECT (g.status = '{GuildStatus.read_only.value}')::text
+      FROM public.guilds g
+      WHERE g.id = {_GID}
+    ), 'false'), true) AS content_hold,
   (
     SELECT r.ref
     FROM public.identity_refs r
@@ -631,6 +642,10 @@ class GuildContext:
     override_initiatives: tuple[int, ...] = ()
     #: The community's sign-in policy is satisfied by this session.
     guild_auth_ok: bool = False
+    #: The community's content is on hold for this reader (``read_only``,
+    #: reached by membership). The routing already chose ``guild_<id>_ro``
+    #: from the same fact; the gates read it here.
+    content_hold: bool = False
 
     # --- Identity ------------------------------------------------------------
 
@@ -804,6 +819,7 @@ class GuildContext:
             enabled_tools=_pairs(row.get("enabled_tools")),
             override_initiatives=_ids(row.get("override_initiatives")),
             guild_auth_ok=row.get("guild_auth_ok") == "true",
+            content_hold=row.get("content_hold") == "true",
         )
 
 
@@ -999,6 +1015,7 @@ def empty_standing() -> dict[str, str]:
         "override_initiatives": "",
         "install_read": "",
         "install_write": "",
+        "content_hold": "false",
     }
 
 
@@ -1024,6 +1041,7 @@ def standing_bind_params(
             "override_initiatives": _csv(context.override_initiatives),
             "install_read": _csv(context.install_read),
             "install_write": _csv(context.install_write),
+            "content_hold": "true" if context.read_only else "false",
         }
     return {
         "standing_guild_id": str(context.standing_guild_id),
@@ -1039,6 +1057,7 @@ def standing_bind_params(
         "override_initiatives": _csv(context.override_initiatives),
         "install_read": "",
         "install_write": "",
+        "content_hold": "true" if context.content_hold else "false",
     }
 
 

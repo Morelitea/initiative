@@ -540,6 +540,11 @@ def frozen_write_triggers(table: str) -> list[str]:
                 f"EXECUTE FUNCTION public.fn_frozen_parent_guard()"
             )
     doomed = freeze_leg(table, "DELETE", alias="OLD")
+    if doomed is not None and table == "resource_grants":
+        # Leaving an initiative removes what the person held there whatever
+        # state it is in (``fn_initiative_departure``): a departure is not a
+        # change to the resource.
+        doomed = f"pg_trigger_depth() = 0 AND {doomed}"
     if doomed is not None:
         out.append(
             f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_ancestor_delete "

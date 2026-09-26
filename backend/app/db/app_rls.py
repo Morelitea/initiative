@@ -151,12 +151,12 @@ APP_REFUSED_TABLES: frozenset[str] = frozenset(
 
 
 #: The trigger function every tool table carries (``tr_<table>_install_owns``,
-#: attached with the tool's value as its argument): when an installed app's
-#: request creates a tool's resource, it writes the one owner row. That row
-#: names the install, or, for a member token, the member it acts for. A
-#: request a person makes names no install, and the function writes nothing.
+#: attached with the tool's value as its argument): when a request creates a
+#: tool's resource, it writes the one owner row. That row names the person who
+#: made it, the install, or, for a member token, the member it acts for. A
+#: system job names nobody, and the function writes nothing.
 #: Shared, in ``public``; the row lands in the schema the trigger fired in.
-#: Restated in full by the migration that sets it (20260924_0385).
+#: Restated in full by the migration that sets it (20260925_0403).
 INSTALL_OWNS_WHAT_IT_CREATES = """
 CREATE OR REPLACE FUNCTION public.fn_install_owns_what_it_creates() RETURNS trigger
     LANGUAGE plpgsql AS $owns$
@@ -168,7 +168,7 @@ DECLARE
         current_setting('app.current_user_id', true), ''
     )::integer;
 BEGIN
-    IF v_install IS NULL THEN
+    IF v_install IS NULL AND v_member IS NULL THEN
         RETURN NULL;
     END IF;
     IF v_member IS NULL THEN

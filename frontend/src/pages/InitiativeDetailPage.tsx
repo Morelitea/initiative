@@ -20,7 +20,6 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
-import { administersGuildContent } from "@/lib/permissions";
 import { initiativeRoute, TOOLS, toolCamelPlural, toolListRoute } from "@/lib/tools";
 
 import { DocumentsView } from "./DocumentsPage";
@@ -84,7 +83,7 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
   // and the endpoint answers 404 to anyone the row is not visible to.
   const initiativeQuery = useInitiative(hasValidInitiativeId ? initiativeId : null);
   const initiative = initiativeQuery.data ?? null;
-  const isGuildAdmin = administersGuildContent(activeGuild);
+  const isGuildAdmin = Boolean(activeGuild?.can.administer_content);
   const membership = initiative?.members.find((member) => member.user.id === user?.id) ?? null;
   const canManageInitiative = Boolean(initiative?.can.manage);
 
