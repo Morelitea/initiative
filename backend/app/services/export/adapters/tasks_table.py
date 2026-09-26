@@ -26,6 +26,7 @@ from app.services.export.i18n import et, export_locale
 from app.services.export.markdown import blocks_from_markdown
 from app.core.user_display import display_name
 from app.services.export import limits as export_limits
+from app.services.tenant import task_queries
 
 # Mentions are stored as ``@[Display Name](id)`` / ``#kind[Text](id)`` — in a
 # comment and in a task's description alike. A printed report shows
@@ -86,10 +87,8 @@ class TasksTableAdapter:
         params: dict,
         format: str,
     ) -> int:
-        from app.api.v1.tenant_endpoints.tasks import count_tasks_for_export
-
-        return await count_tasks_for_export(
-            session, user, guild_id, **_selector(params)
+        return await task_queries.count_tasks_for_export(
+            session, user, **_selector(params)
         )
 
     async def build(
@@ -107,12 +106,9 @@ class TasksTableAdapter:
         if format == "pdf" and params.get("layout") == "detailed":
             return await self._build_detailed(session, user, guild_id, params)
 
-        from app.api.v1.tenant_endpoints.tasks import query_tasks_for_export
-
-        tasks = await query_tasks_for_export(
+        tasks = await task_queries.query_tasks_for_export(
             session,
             user,
-            guild_id,
             **_selector(params),
             max_rows=export_limits.EXPORT_MAX_ROWS,
         )
@@ -141,14 +137,9 @@ class TasksTableAdapter:
     async def _build_detailed(
         self, session: AsyncSession, user: User, guild_id: int, params: dict
     ) -> RenderRequest:
-        from app.api.v1.tenant_endpoints.tasks import (
-            query_tasks_for_detailed_export,
-        )
-
-        tasks, comments = await query_tasks_for_detailed_export(
+        tasks, comments = await task_queries.query_tasks_for_detailed_export(
             session,
             user,
-            guild_id,
             **_selector(params),
             max_rows=export_limits.EXPORT_MAX_ROWS,
         )

@@ -1,32 +1,14 @@
-from dataclasses import dataclass
+from copy import deepcopy
 from datetime import datetime, timezone
-from operator import attrgetter
-from typing import Annotated, Any, List, Optional, Sequence
+from typing import Annotated, List, Optional, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import joinedload, selectinload
-from sqlalchemy.orm import undefer
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
-
-from sqlalchemy import and_, exists, func, or_
+from pydantic import BaseModel
+from sqlalchemy import func
+from sqlalchemy.orm import joinedload, selectinload, undefer
 from sqlmodel import select, delete
 
-from app.db.query import (
-    clamp_page,
-    apply_filters,
-    apply_sorting,
-    build_paginated_response,
-    extract_condition_value,
-    iter_leaf_conditions,
-    paginate_sequence,
-    paginated_query,
-    check_ops,
-    parse_conditions,
-    parse_sort_fields,
-)
-from app.schemas.query import FilterCondition, FilterGroup, FilterOp, SortDir
-from sqlmodel.ext.asyncio.session import AsyncSession
-
+from app.api import resource_access
 from app.api.actor_route import ActorRoute
 from app.api.deps import (
     ActorContext,
@@ -41,34 +23,25 @@ from app.api.deps import (
     get_guild_membership,
     GuildContext,
 )
-from app.models.tenant.property import PropertyType
-from app.services.cross_guild import gather_across_guilds, member_guild_ids
-from app.core.relationships import RelationshipType
-from app.core.search import SearchEntityType
-from app.db.blocking import blocking_kinds
-from app.models.tenant.relationship import EntityRelationship
-from app.models.tenant.project import Project
-from app.models.tenant.resource_grant import ResourceGrant
-from app.models.tenant.task import (
-    Task,
-    TaskAssignee,
-    TaskPriority,
-    TaskStatus,
-    TaskStatusCategory,
-)
-from app.models.tenant.property import PropertyDefinition, TaskPropertyValue
+from app.core.audit_events import AuditEventType
+from app.core.messages import ChecklistMessages, TaskMessages
+from app.db.query import build_paginated_response, paginated_query
 from app.db.session import routed_guild_id
-from app.models.platform.guild import Guild
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
-from app.models.tenant.comment import Comment
-from pydantic import BaseModel, ValidationError
-
+from app.models.tenant.project import Project
+from app.models.tenant.property import TaskPropertyValue
+from app.models.tenant.task import Task, TaskStatus, TaskStatusCategory
+from app.schemas.ai_generation import (
+    GenerateChecklistResponse,
+    GenerateDescriptionResponse,
+)
+from app.schemas.tenant.property import PropertyValuesSetRequest
+from app.schemas.tenant.tag import TagSetRequest
 from app.schemas.tenant.task import (
     ChecklistItem,
     ChecklistItemToggle,
     TaskCreate,
-    TaskListRead,
     TaskListResponse,
     TaskMoveRequest,
     TaskRead,
@@ -76,39 +49,20 @@ from app.schemas.tenant.task import (
     TaskRecurrence,
     TaskUpdate,
 )
-from app.schemas.ai_generation import (
-    GenerateChecklistResponse,
-    GenerateDescriptionResponse,
-)
-from app.schemas.tenant.tag import TagSetRequest
-from app.schemas.tenant.property import PropertyValuesSetRequest
-from app.services import notifications as notifications_service
-from app.api import resource_access
-from app.services import permissions as permissions_service
-from app.services.tenant.recurrence import get_next_due_date
-from app.services.tenant import task_statuses as task_statuses_service
-from app.services.tenant import task_creation as task_creation_service
-from app.services.tenant.task_completion import sync_completed_at
-from app.services.tenant import task_checklist as checklist_service
-from app.services.tenant import task_description as task_description_service
-from app.services.tenant import attachments as attachments_service
 from app.services import ai_generation as ai_generation_service
 from app.services import audit as audit_service
+from app.services import notifications as notifications_service
 from app.services.ai_settings import resolve_ai_settings
-from app.services import fields as fields_registry
-from app.services.fields.spec import FieldContext, SortContext
+from app.services.tenant import attachments as attachments_service
 from app.services.tenant import properties as properties_service
-from app.services.tenant import named_people
 from app.services.tenant import tags as tags_service
-from app.core.tools import Tool
-from app.db.session import require_guild_context
-from app.core.audit_events import AuditEventType
-from app.core.messages import (
-    ProjectMessages,
-    QueryMessages,
-    TaskMessages,
-    ChecklistMessages,
-)
+from app.services.tenant import task_checklist as checklist_service
+from app.services.tenant import task_creation as task_creation_service
+from app.services.tenant import task_description as task_description_service
+from app.services.tenant import task_queries
+from app.services.tenant import task_statuses as task_statuses_service
+from app.services.tenant.soft_delete import trash
+from app.services.tenant.task_completion import sync_completed_at
 
 router = APIRouter(route_class=ActorRoute)
 
@@ -118,165 +72,11 @@ ProjectsRead = Annotated[ActorContext, Depends(app_scope("projects:read"))]
 ProjectsWrite = Annotated[ActorContext, Depends(app_scope("projects:write"))]
 
 
-def _validate_tz(tz: str | None) -> str | None:
-    """Return *tz* if it is a recognised IANA timezone, else ``None``."""
-    if tz and tz in available_timezones():
-        return tz
-    return None
-
-
-def _date_group_expression(tz: str | None = None):
-    """The date-group ordering expression, from the field registry.
-
-    Kept as a helper because two queries select it as a labelled column rather
-    than only ordering by it — the cross-guild merge sorts in Python and needs
-    the value carried out of SQL.
-    """
-    return fields_registry.sort_expression("tasks", "date_group", _sort_ctx(tz))
-
-
-def _sort_ctx(tz: str | None) -> SortContext:
-    """Sorting needs only the timezone; identity is filter context."""
-    return SortContext(tz=tz)
-
-
-def _task_sort_fields(tz: str | None = None) -> dict[str, object]:
-    """Allowed sort fields for the list endpoint, from the field registry."""
-    return fields_registry.sort_fields("tasks", _sort_ctx(tz))
-
-
-TASK_DEFAULT_SORT = [(Task.position, "asc"), (Task.id, "asc")]
-
-
-# Attribute sorters for the cross-guild merge. attrgetter is faster than a
-# lambda and avoids per-row closure overhead on large result sets. ``priority``
-# and ``date_group`` need custom handling (enum order / SQL-carried value) and
-# are resolved separately in _sort_global_task_keys.
-_GLOBAL_SORT_ATTRGETTERS = {
-    "position": attrgetter("position"),
-    "title": attrgetter("title"),
-    "due_date": attrgetter("due_date"),
-    "start_date": attrgetter("start_date"),
-    "created_at": attrgetter("created_at"),
-    "updated_at": attrgetter("updated_at"),
-}
-
-# Native PG enum orders by definition order (low→urgent), not alphabetically;
-# replicate that here. TaskPriority is a str-enum, so a plain-string priority
-# hashes to the same key.
-_PRIORITY_SORT_ORDER = {p: i for i, p in enumerate(TaskPriority)}
-
-
-def _global_ordering_selectables(tz: str | None = None):
-    """The columns the cross-guild ordering pass selects.
-
-    Every sort key the /me task views accept is a plain ``tasks`` column (plus
-    the SQL-computed ``date_group``), so the whole matching set can be ordered
-    from rows this narrow — no relationships, no annotations. Labelled with the
-    sort field names so :func:`_sort_global_task_keys` reads a row by the name
-    the caller sorted on.
-    """
-    return (
-        Task.id.label("id"),
-        _date_group_expression(tz).label("date_group"),
-        Task.position.label("position"),
-        Task.title.label("title"),
-        Task.due_date.label("due_date"),
-        Task.start_date.label("start_date"),
-        Task.created_at.label("created_at"),
-        Task.updated_at.label("updated_at"),
-        Task.priority.label("priority"),
-    )
-
-
-def _sort_global_task_keys(
-    items: list[tuple[int, Any]],
-    sort_fields: list | None,
-) -> list[tuple[int, Any]]:
-    """Order the merged cross-guild ordering rows.
-
-    Cross-schema results can't be ordered by a single SQL query, so this is the
-    *only* sort for the /me task views (the per-guild queries deliberately skip
-    ORDER BY). ``items`` are ``(guild_id, row)`` pairs where ``row`` is a
-    :func:`_global_ordering_selectables` row — the guild id travels alongside
-    because task ids are unique per schema, not across them.
-
-    Matches the guild-scoped list's ordering conventions: NULLs sort last
-    regardless of direction, and ``id`` ascending breaks ties.
-    """
-    rows = list(items)
-    if not sort_fields:
-        # Deterministic default when the caller doesn't sort. position is
-        # per-guild so it can't truly order across guilds, but the id tiebreaker
-        # keeps the merge stable; mirrors the SQL endpoint's position-then-id.
-        rows.sort(key=lambda pair: (pair[1].position, pair[1].id))
-        return rows
-
-    def _getter(field):
-        if field == "date_group":
-            return lambda pair: pair[1].date_group
-        if field == "priority":
-            # None priority → None so the nulls-last partition applies it in
-            # both directions (mirrors apply_sorting()'s nulls_last()).
-            return lambda pair: (
-                _PRIORITY_SORT_ORDER.get(pair[1].priority)
-                if pair[1].priority is not None
-                else None
-            )
-        base = _GLOBAL_SORT_ATTRGETTERS.get(field)
-        if base is None:
-            return None
-        return lambda pair: base(pair[1])
-
-    # Stable radix sort: apply the least-significant key first. ``id`` asc is the
-    # final tiebreaker, so it sorts first here.
-    rows.sort(key=lambda pair: pair[1].id)
-    for sf in reversed(sort_fields):
-        getter = _getter(sf.field)
-        if getter is None:
-            # Unknown field: skipped, like apply_sorting() ignoring columns
-            # absent from allowed_fields.
-            continue
-        reverse = sf.dir == SortDir.desc
-        non_null = [r for r in rows if getter(r) is not None]
-        nulls = [r for r in rows if getter(r) is None]
-        non_null.sort(key=getter, reverse=reverse)
-        rows = non_null + nulls
-    return rows
-
-
-def _build_task_filter_fields(
-    *,
-    guild_id: int,
-    current_user_id: int | None,
-    property_definitions: Optional[dict[int, PropertyDefinition]] = None,
-) -> dict:
-    """The ``allowed_fields`` mapping for a task filter, from the field registry.
-
-    Every column and every virtual field is declared once in
-    ``app.services.fields.tasks`` — the same declaration the filter UI and the
-    query surface read — so this is the binding of that declaration to one
-    request rather than a catalog of its own.
-    """
-    return fields_registry.allowed_fields(
-        "tasks",
-        FieldContext(
-            guild_id=guild_id,
-            user_id=current_user_id,
-            property_definitions=property_definitions or {},
-        ),
-    )
-
-
 # Cross-guild "my tasks" aggregates (My Tasks / Created Tasks pages). Mounted
 # under /api/v1/me; user-scoped (no guild context), routes per member guild
 # itself via gather_across_guilds.
 me_router = APIRouter()
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
-
-
-async def _next_position(session: SessionDep, project_id: int) -> float:
-    return await task_creation_service.next_position(session, project_id)
 
 
 # Positions are stored as NUMERIC(20, 10); two stored values differ by at least
@@ -346,1222 +146,57 @@ async def _rebalance_if_needed(
     return changed
 
 
-def _comment_count_expression():
-    """A task's comment count, as a column on the row that carries the task.
-
-    For a read that is bounded by round trips rather than by rows — the
-    cross-guild lists pay per guild they touch — the count travels with the
-    task instead of costing a query of its own. Correlated on ``Task``, so it
-    resolves against whichever ``tasks`` the caller's search_path names.
-    """
-    return (
-        select(func.count(Comment.id))
-        .where(Comment.task_id == Task.id)
-        .correlate(Task)
-        .scalar_subquery()
-        .label("comment_count")
-    )
-
-
-def _open_blocker_count_expression():
-    """How many things are still holding this task up.
-
-    Live outbound ``depends_on`` edges whose far end is still outstanding —
-    "outbound" because the source of a dependency is the end that waits.
-
-    What counts as outstanding is per kind and comes from
-    :data:`app.db.blocking.OPEN_WHEN`: a task not yet done, an event not yet
-    passed, a counter short of its target. A kind with no rule there is not
-    counted at all, which is the honest reading — nothing says when a document
-    stops blocking. One ``EXISTS`` arm per registered kind, built from the
-    registry, so a kind gains a count the day it gains a rule.
-
-    Correlated on ``Task`` like :func:`_comment_count_expression`, so it rides
-    along with the row instead of costing a query of its own. RLS does the rest:
-    the relationships policy clears both endpoints, so a blocker this reader
-    cannot open is not counted at them.
-    """
-    edge = EntityRelationship
-    arms = [
-        and_(
-            edge.target_type == kind,
-            exists(
-                select(1)
-                .select_from(table)
-                .where(table.c["id"] == edge.target_id, open_when)
-            ),
-        )
-        for kind, table, open_when in blocking_kinds()
-    ]
-    return (
-        select(func.count())
-        .select_from(edge)
-        .where(
-            edge.source_type == SearchEntityType.task.value,
-            edge.source_id == Task.id,
-            edge.relationship_type == RelationshipType.depends_on.value,
-            edge.removed_at.is_(None),
-            or_(*arms),
-        )
-        .correlate(Task)
-        .scalar_subquery()
-        .label("blocked_by_open_count")
-    )
-
-
-async def _annotate_tasks(
-    session: SessionDep,
-    tasks: list[Task],
-    *,
-    comment_counts: dict[int, int] | None = None,
-    blocker_counts: dict[int, int] | None = None,
-) -> None:
-    """Annotate tasks with comment counts, blockers and checklist progress.
-
-    Checklist progress is read from the column the row already carries, so only
-    the comment and blocker counts need a query — and passing either in skips
-    even that, for a caller that selected them alongside the rows
-    (:func:`_comment_count_expression`, :func:`_open_blocker_count_expression`).
-    """
-    task_ids = [task.id for task in tasks if task.id is not None]
-    if not task_ids:
-        return
-
-    if comment_counts is None:
-        ids_tuple = tuple(task_ids)
-
-        stmt = (
-            select(Comment.task_id, func.count(Comment.id))
-            .where(Comment.task_id.in_(ids_tuple))
-            .group_by(Comment.task_id)
-        )
-        result = await session.exec(stmt)
-        comment_counts = {row[0]: row[1] for row in result.all()}
-
-    if blocker_counts is None:
-        stmt = select(Task.id, _open_blocker_count_expression()).where(
-            Task.id.in_(tuple(task_ids))
-        )
-        result = await session.exec(stmt)
-        blocker_counts = {row[0]: row[1] for row in result.all()}
-
-    for task in tasks:
-        object.__setattr__(task, "comment_count", comment_counts.get(task.id, 0))
-        object.__setattr__(
-            task, "blocked_by_open_count", blocker_counts.get(task.id, 0)
-        )
-        object.__setattr__(
-            task, "checklist_progress", checklist_service.progress(task.checklist)
-        )
-
-
-def _annotate_task_guild(tasks: list[Task]) -> None:
-    for task in tasks:
-        project = getattr(task, "project", None)
-        initiative = getattr(project, "initiative", None) if project else None
-        guild = getattr(initiative, "guild", None) if initiative else None
-        object.__setattr__(task, "guild", guild)
-
-
-def _annotate_task_properties(tasks: list[Task]) -> None:
-    """Annotate tasks with serialized ``PropertySummary`` values.
-
-    Relies on ``task.property_values`` being eager-loaded with the
-    ``property_definition`` (and ``value_user`` where relevant) relationship.
-    """
-    for task in tasks:
-        rows = getattr(task, "property_values", []) or []
-        summaries = properties_service.summaries_from_rows(rows)
-        object.__setattr__(task, "properties", summaries)
-
-
-def _task_to_list_read(
-    task: Task,
-    *,
-    guild_id: int | None = None,
-    guild_name: str | None = None,
-) -> TaskListRead:
-    """Convert Task model to lightweight TaskListRead schema.
-
-    ``guild_id`` is the community the row was read in — the route's for a
-    guild-scoped list, and for a cross-guild one the schema each row came
-    from, because rows from several are merged after the session has moved on.
-    ``guild_name`` goes with it, for the same reason.
-    """
-    from app.schemas.tenant.task import TaskAssigneeSummary
-
-    project = getattr(task, "project", None)
-    initiative = getattr(project, "initiative", None) if project else None
-
-    assignees = [
-        TaskAssigneeSummary(
-            id=assignee.id,
-            username=assignee.username,
-            discriminator=assignee.discriminator,
-            full_name=assignee.full_name,
-            avatar_url=assignee.avatar_url,
-            status=assignee.status,
-        )
-        for assignee in task.assignees
-    ]
-
-    return TaskListRead(
-        id=task.id,
-        title=task.title,
-        description=task.description,
-        project_id=task.project_id,
-        task_status_id=task.task_status_id,
-        task_status=task.task_status,
-        priority=task.priority,
-        start_date=task.start_date,
-        due_date=task.due_date,
-        recurrence=task.recurrence,
-        recurrence_strategy=task.recurrence_strategy,
-        created_at=task.created_at,
-        updated_at=task.updated_at,
-        completed_at=task.completed_at,
-        position=task.position,
-        archived_at=task.archived_at,
-        created_by=task.created_by,
-        assignees=assignees,
-        recurrence_occurrence_count=task.recurrence_occurrence_count,
-        comment_count=getattr(task, "comment_count", 0),
-        blocked_by_open_count=getattr(task, "blocked_by_open_count", 0),
-        guild_id=guild_id,
-        guild_name=guild_name,
-        project_name=project.name if project else None,
-        initiative_id=initiative.id if initiative else None,
-        initiative_name=initiative.name if initiative else None,
-        initiative_color=initiative.color if initiative else None,
-        checklist_progress=getattr(task, "checklist_progress", None),
-        tags=getattr(task, "tags", []),
-        properties=getattr(task, "properties", []),
-    )
-
-
-async def _touch_project(
-    session: SessionDep, project_id: int, *, timestamp: datetime | None = None
-) -> datetime:
+def _touch_project(project: Project, now: datetime) -> None:
     """Bump a project's updated_at so task activity surfaces in 'sort by updated'."""
-    now = timestamp or datetime.now(timezone.utc)
-    result = await session.exec(select(Project).where(Project.id == project_id))
-    project = result.one_or_none()
-    if project is not None:
-        project.updated_at = now
-        session.add(project)
-    return now
+    project.updated_at = now
 
 
-async def _fetch_task(
-    session: SessionDep,
-    task_id: int,
-    guild_id: int,
-    *,
-    populate_existing: bool = False,
-) -> Task | None:
-    stmt = (
+#: A task has no sharing of its own: it is reached through its project, at the
+#: project's level. Which tool that is comes from the registry entry the
+#: ``tasks`` policy is rendered from, so the routes and the policy cannot
+#: disagree about a task's parent.
+_GOVERNING = resource_access.governing_tool("tasks")
+
+
+async def _load_for_change(
+    session: SessionDep, task_id: int, user: User | None, context: ActorContext
+) -> Task:
+    """The task with what changing it reads — its project and initiative, its
+    status and its assignees — refused unless the request may edit the project.
+
+    What only a response reads (counts, tags, properties, the creator) is left
+    to :func:`task_queries.load_task` once the change has landed.
+    """
+    statement = (
         select(Task)
-        .join(Task.project)
-        .join(Project.initiative)
-        .where(
-            Task.id == task_id,
-        )
+        .where(Task.id == task_id)
         .options(
-            selectinload(Task.project).selectinload(Project.initiative),
+            joinedload(Task.project).options(
+                joinedload(Project.initiative), undefer(Project.actions)
+            ),
+            joinedload(Task.task_status),
             selectinload(Task.assignees),
-            selectinload(Task.creator),
-            selectinload(Task.task_status),
-            selectinload(Task.property_values).selectinload(
-                TaskPropertyValue.property_definition
-            ),
-            selectinload(Task.property_values).selectinload(
-                TaskPropertyValue.value_user
-            ),
         )
     )
-    if populate_existing:
-        # Force SA to refresh relationships on any Task already in the
-        # session's identity map. Required after commits that mutate
-        # collections (e.g. property_values replace-all) since
-        # expire_on_commit=False keeps stale collections otherwise.
-        stmt = stmt.execution_options(populate_existing=True)
-    result = await session.exec(stmt)
-    task = result.one_or_none()
-    if task:
-        await _annotate_tasks(session, [task])
-        _annotate_task_guild([task])
-        await tags_service.annotate_tags(session, [task])
-        _annotate_task_properties([task])
+    task = (await session.exec(statement)).one_or_none()
+    if task is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
+        )
+    resource_access.authorize(
+        _GOVERNING, task.project, user, context=context, access="write"
+    )
     return task
 
 
-async def _set_task_assignees(
-    session: SessionDep,
-    task: Task,
-    assignee_ids: list[int] | None,
-    *,
-    project: Project,
-    carried: bool = False,
-) -> None:
-    """Replace the task's assignees. Everyone named must be able to open the
-    project; ``carried`` is a copy made from existing assignees (a duplicate, a
-    recurrence, a move), which keeps those who still can rather than refusing."""
-    unique_ids = list(dict.fromkeys(assignee_ids or []))
-    governing = named_people.Governing.of(Tool.project, project)
-    if carried:
-        keep = await named_people.readers(session, governing, unique_ids)
-        unique_ids = [user_id for user_id in unique_ids if user_id in keep]
-    else:
-        await named_people.require_readers(session, governing, unique_ids)
-
-    # Read the current set before replacing it, so anyone dropped can have
-    # their un-sent digest item withdrawn. An explicit query rather than
-    # ``task.assignees`` — on a freshly flushed task that relationship is not
-    # loaded yet, and touching it would fire a lazy load.
-    previous_ids = set(
-        (
-            await session.exec(
-                select(TaskAssignee.user_id).where(TaskAssignee.task_id == task.id)
-            )
-        ).all()
-    )
-
-    delete_stmt = delete(TaskAssignee).where(TaskAssignee.task_id == task.id)
-    await session.exec(delete_stmt)
-
-    if unique_ids:
-        session.add_all(
-            [TaskAssignee(task_id=task.id, user_id=user_id) for user_id in unique_ids]
-        )
-
-    await notifications_service.dequeue_task_assignment_events(
-        session, task_id=task.id, user_ids=sorted(previous_ids - set(unique_ids))
-    )
-
-    await session.flush()
-    await session.refresh(task, attribute_names=["assignees"])
-
-
-def _resolve_user_zone(user_tz: str | None) -> ZoneInfo:
-    """Resolve a user's stored ``timezone`` string to a ``ZoneInfo``,
-    falling back to UTC if the value is missing or unrecognised.
-
-    The user model defaults to ``"UTC"`` so this is mostly a guard
-    against bad data — but we treat an unknown zone as UTC rather than
-    erroring, since recurrence-on-completion shouldn't fail just
-    because a profile field drifted.
-    """
-    if not user_tz:
-        return ZoneInfo("UTC")
-    try:
-        return ZoneInfo(user_tz)
-    except ZoneInfoNotFoundError:
-        return ZoneInfo("UTC")
-
-
-async def _advance_recurrence_if_needed(
-    session: SessionDep,
-    task: Task,
-    *,
-    previous_status_category: TaskStatusCategory | None,
-    now: datetime,
-    user_timezone: str | None,
-) -> bool:
-    current_category = task.task_status.category if task.task_status else None
-    if (
-        previous_status_category == TaskStatusCategory.done
-        or current_category != TaskStatusCategory.done
-        or not task.recurrence
-        or task.due_date is None
-    ):
-        return False
-
-    try:
-        recurrence = TaskRecurrence.model_validate(task.recurrence)
-    except ValidationError:
-        return False
-
-    strategy = task.recurrence_strategy or "fixed"
-    if strategy == "rolling":
-        # For rolling: use the user's local *calendar day* of completion
-        # but preserve the task's original *local* time-of-day. Doing
-        # this math in UTC produced an off-by-one when the task's
-        # local time crossed UTC midnight: e.g. a 5pm LA task is
-        # midnight UTC the next day, so a UTC-anchored
-        # ``now.replace(hour=0)`` landed the new occurrence one local
-        # day earlier than the user's "complete + 3 days" intuition.
-        zone = _resolve_user_zone(user_timezone)
-        now_local = now.astimezone(zone)
-        due_local = task.due_date.astimezone(zone)
-        # ``replace()`` doesn't consult the zone's transition table on
-        # its own, so a gap-time result (e.g. 2:30 AM on a spring-
-        # forward day) is left labelled with the surrounding offset.
-        # The trailing ``astimezone(zone)`` is defensive — when the
-        # source and target tzinfo are the same ZoneInfo instance
-        # CPython short-circuits to ``return self``, so this is a
-        # no-op in that case, but it documents the intent and makes
-        # the call site safe if a future change resolves ``zone``
-        # from a different cache. The downstream ``+ timedelta``
-        # advance preserves wall-clock time across DST, which is the
-        # behaviour we want for daily recurrence: an "every day at
-        # 2:30 AM" task continues to fire at 2:30 AM after DST kicks
-        # in, the same way an alarm clock would.
-        base_local = now_local.replace(
-            hour=due_local.hour,
-            minute=due_local.minute,
-            second=due_local.second,
-            microsecond=due_local.microsecond,
-        ).astimezone(zone)
-        # ``get_next_due_date`` is timezone-naive about its frequency
-        # math (adds ``timedelta(days=...)`` directly), so keep the
-        # base in local time for the duration of the calculation and
-        # let the caller convert back to UTC if needed. Storing a
-        # timezone-aware value preserves the right instant either way.
-        base_date = base_local
-    else:
-        base_date = task.due_date
-    next_due = get_next_due_date(
-        base_date,
-        recurrence,
-        completed_occurrences=task.recurrence_occurrence_count,
-    )
-    if next_due is None:
-        task.recurrence = None
-        return False
-
-    duration = None
-    if task.start_date and task.due_date:
-        duration = task.due_date - task.start_date
-    new_start = next_due - duration if duration else None
-
-    default_status = await task_statuses_service.get_default_status(
-        session, task.project_id
-    )
-    new_task = Task(
-        project_id=task.project_id,
-        task_status_id=default_status.id,
-        title=task.title,
-        description=task.description,
-        priority=task.priority,
-        start_date=new_start,
-        due_date=next_due,
-        recurrence=recurrence.model_dump(mode="json"),
-        recurrence_strategy=strategy,
-        position=await _next_position(session, task.project_id),
-        recurrence_occurrence_count=task.recurrence_occurrence_count + 1,
-        created_by=task.created_by,
-        checklist=checklist_service.cloned(task.checklist),
-    )
-    sync_completed_at(new_task, default_status.category, now=now)
-    session.add(new_task)
-    await session.flush()
-    assignee_ids = [assignee.id for assignee in task.assignees]
-    project = await session.get(Project, task.project_id)
-    if project is None:  # the task was just read inside it
-        raise RuntimeError("a recurring task's project is gone")
-    await _set_task_assignees(
-        session, new_task, assignee_ids, project=project, carried=True
-    )
-    await tags_service.copy_entity_tags(
-        session,
-        tags_service.TAG_LINKS["task"],
-        source_id=task.id,
-        target_id=new_task.id,
-    )
-    if new_task.description:
-        await task_description_service.record_references(
-            session, new_task, author_id=task.created_by
-        )
-    await session.flush()
-    # Reload through a select rather than ``session.refresh``: refresh takes no
-    # loader options, so the assignees would come back unloaded and the
-    # serializer would have to emit IO from sync context. ``populate_existing``
-    # applies the freshly loaded rows to the identity-mapped instance.
-    await session.exec(
-        select(Task)
-        .where(Task.id == new_task.id)
-        .options(
-            selectinload(Task.assignees),
-        )
-        .execution_options(populate_existing=True)
-    )
-    await tags_service.annotate_tags(session, [new_task])
-
-    task.recurrence = None
-    task.recurrence_strategy = "fixed"
-    task.updated_at = now
-    session.add(task)
-    return True
-
-
-async def _get_project_with_access(
-    session: SessionDep,
-    project_id: int,
-    user: User | None,
-    *,
-    context: ActorContext,
-    access: str = "read",
-) -> Project:
-    """Load the project a task hangs off, and authorize against it.
-
-    A task has no sharing of its own: it is reached through the project, at
-    the project's level. Which tool that is comes from
-    ``resource_access.governing_tool("tasks")`` rather than a literal here —
-    the same registry entry the ``tasks`` policy is rendered from, where the
-    row's sharing leg is an EXISTS onto ``projects``. One declaration, so the
-    endpoint and the policy cannot disagree about a task's parent.
-    """
-    project_stmt = (
-        select(Project)
-        .join(Project.initiative)
-        .where(
-            Project.id == project_id,
-        )
-        .options(
-            selectinload(Project.grants).selectinload(ResourceGrant.role),
-            selectinload(Project.initiative),
-            undefer(Project.actions),
-        )
-    )
-    project_result = await session.exec(project_stmt)
-    project = project_result.one_or_none()
-    if not project:
+async def _response(session: SessionDep, task_id: int, missing: str) -> Task:
+    """The task as a ``TaskRead`` reads it, after a change has committed."""
+    task = await task_queries.load_task(session, task_id)
+    if task is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=Tool.project.not_found_code
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=missing
         )
-    if project.archived_at is not None and access == "write":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.IS_ARCHIVED
-        )
-
-    # project.grants is eager-loaded above; the DAC engine reads it.
-    resource_access.authorize(
-        resource_access.governing_tool("tasks"),
-        project,
-        user,
-        access=access,
-        context=context,
-    )
-
-    return project
-
-
-async def _ensure_can_manage(
-    session: SessionDep,
-    project_id: int,
-    user: User | None,
-    *,
-    context: ActorContext,
-) -> Project:
-    project = await _get_project_with_access(
-        session,
-        project_id,
-        user,
-        context=context,
-        access="write",
-    )
-    return project
-
-
-def _confining_project_id(
-    conditions: list[FilterCondition | FilterGroup],
-) -> Optional[int]:
-    """The single project this request is narrowed to, or ``None``.
-
-    Only a plain top-level equality on one id confines a request to a project.
-    ``project_id != 5`` and ``project_id NOT IN []`` both name a value while
-    leaving the request spanning every other project in the community, so the
-    scope question they ask is the cross-initiative one — and the answer to
-    "which rows may this reader see" must not turn on a value the filter is
-    about to discard.
-
-    Deliberately stricter than :func:`extract_condition_value`, which reports a
-    value for any of those shapes: this one decides access, and the only shape
-    that decides it is the one that actually holds for every row returned.
-    """
-    for cond in conditions:
-        if isinstance(cond, FilterGroup) or cond.field != "project_id":
-            continue
-        if cond.negate or cond.op is not FilterOp.eq:
-            return None
-        if isinstance(cond.value, (list, tuple, set)):
-            return None
-        try:
-            return int(cond.value)
-        except (TypeError, ValueError):
-            return None
-    return None
-
-
-async def _allowed_project_ids(
-    session: SessionDep,
-    user: User | None,
-    context: ActorContext,
-    *,
-    include_templates: bool = False,
-    project_id: Optional[int] = None,
-) -> Optional[set[int]]:
-    """Project ids whose tasks this request may see.
-
-    The set stays explicitly guild-scoped either way; the sharing gate on top of
-    it follows the scope being asked about, the same rule the tool listings
-    follow. Confined to one project, the question is the reader's standing in
-    the initiative holding it, and a guild admin's reaches all of it. Spanning
-    them — the tag browse, the community calendar's task markers — the question
-    is what has been shared with the reader, so the answer matches the events
-    those markers sit beside.
-    """
-    conditions = [
-        Project.archived_at.is_(None),
-    ]
-    if project_id is None:
-        # Spanning initiatives, the answer is what has been shared with the
-        # reader, which is a narrower question than "may I reach it" — so it
-        # stays here rather than resting on the table's own policy.
-        conditions.append(
-            permissions_service.granted_scope_clause(
-                Tool.project,
-                Project.id,
-                user.id if user is not None else None,
-                context=context,
-            )
-        )
-    if not include_templates:
-        conditions.append(Project.is_template == False)  # noqa: E712
-    stmt = select(Project.id).join(Project.initiative).where(*conditions)
-    result = await session.exec(stmt)
-    return {pid for pid in result.all() if pid is not None}
-
-
-def _global_task_options():
-    """Loaders for the hydration pass of a cross-guild task list.
-
-    project → initiative → guild is a chain of many-to-one links, so it is
-    joined onto the row rather than fetched with a query per level: a
-    ``selectinload`` there cost three extra round trips per guild the page draws
-    from, and this endpoint is bounded by round trips. The collections stay on
-    ``selectinload``, which is what it is for.
-    """
-    return (
-        joinedload(Task.project).joinedload(Project.initiative),
-        selectinload(Task.assignees),
-        selectinload(Task.task_status),
-        selectinload(Task.property_values).selectinload(
-            TaskPropertyValue.property_definition
-        ),
-        selectinload(Task.property_values).selectinload(TaskPropertyValue.value_user),
-    )
-
-
-async def _gather_global_task_reads(
-    session: SessionDep,
-    current_user: User,
-    *,
-    build_query,
-    guild_ids: Optional[List[int]],
-    page: int,
-    page_size: int,
-    sort_fields: list | None = None,
-    tz: str | None = None,
-) -> tuple[list[TaskListRead], int, int]:
-    """Run a per-guild task query across every guild the user belongs to and
-    merge into TaskListReads.
-
-    Two passes, because a single SQL query can't order across guild schemas and
-    the ordering has to see the whole matching set before anything can be paged:
-
-    1. **Order.** Each guild returns :func:`_global_ordering_selectables` rows —
-       the sort keys and the id, nothing else — *without* ORDER BY, and the
-       merged set is sorted once, globally, by :func:`_sort_global_task_keys`
-       and then sliced to the requested page.
-    2. **Hydrate.** Only the ids on that page are loaded with their
-       relationships and annotations, and only from the guilds that actually
-       contribute to it. By id alone: the filters are not re-applied, so a
-       concurrent edit cannot drop a row the ordering pass already counted.
-
-    The split is what keeps the cost of this endpoint proportional to the page
-    rather than to everything the filter matches: a reader with hundreds of
-    assigned tasks across half a dozen guilds used to pay the relationship
-    loads, comment counts, tag and property annotation for every one of them to
-    show twenty.
-
-    ``build_query(guild_id, *selectables)`` receives the guild id so it can
-    compile the guild-local filter fields (tag/property subqueries resolve
-    against that guild's schema), and what to select.
-    """
-    target_guilds = await member_guild_ids(
-        session, current_user.id, restrict_to=guild_ids
-    )
-    # Names for the guild column of each row, read once on the user context
-    # before the session starts routing into schemas.
-    guild_names: dict[int, str] = (
-        dict(
-            (
-                await session.exec(
-                    select(Guild.id, Guild.name).where(Guild.id.in_(target_guilds))
-                )
-            ).all()
-        )
-        if target_guilds
-        else {}
-    )
-
-    ordering = _global_ordering_selectables(tz)
-
-    async def _order_keys(
-        guild_session: AsyncSession, _guild_id: int
-    ) -> list[tuple[int, Any]]:
-        rows = (await guild_session.exec(build_query(_guild_id, *ordering))).all()
-        return [(_guild_id, row) for row in rows]
-
-    keys = await gather_across_guilds(
-        session, current_user.id, target_guilds, _order_keys
-    )
-    # Sort across ALL guilds before slicing — the per-guild queries return rows
-    # unordered, so this is where global ordering is established.
-    keys = _sort_global_task_keys(keys, sort_fields)
-    total_count = len(keys)
-    actual_page = clamp_page(page, page_size, total_count)
-    # One slicing rule for every page_size, including the windowed
-    # page_size<=0 "fetch all" protocol (bounded response, nothing
-    # unreachable — the caller walks pages until has_next is false).
-    window = paginate_sequence(keys, actual_page, page_size)
-    if not window:
-        return [], total_count, actual_page
-
-    # (guild, task) -> where it sits on the page, so the hydrated rows come back
-    # in the order the global sort established rather than in guild order.
-    placement: dict[tuple[int, int], int] = {}
-    wanted: dict[int, list[int]] = {}
-    for index, (guild_id, row) in enumerate(window):
-        wanted.setdefault(guild_id, []).append(row.id)
-        placement[(guild_id, row.id)] = index
-
-    async def _hydrate(
-        guild_session: AsyncSession, _guild_id: int
-    ) -> list[tuple[int, TaskListRead]]:
-        ids = wanted.get(_guild_id)
-        if not ids:
-            return []
-        # By id ALONE — deliberately not through ``build_query``. Re-applying
-        # the filters here would let a concurrent edit drop a row the ordering
-        # pass already counted: a task that goes done, gets reassigned or is
-        # archived between the two statements would stop matching, and the page
-        # would come back a row short of the ``total_count`` and ``has_next``
-        # computed from the first pass. Access does not rest on those filters —
-        # it rests on the guild schema this session is routed into and on
-        # ``initiative_access``, and both apply to this statement exactly as
-        # they did to the one that chose the ids a moment ago.
-        statement = (
-            select(
-                Task,
-                _comment_count_expression(),
-                _open_blocker_count_expression(),
-            )
-            .where(Task.id.in_(tuple(ids)))
-            .options(*_global_task_options())
-        )
-        rows = list((await guild_session.exec(statement)).unique().all())
-        tasks = [row[0] for row in rows]
-        comment_counts = {row[0].id: row[1] for row in rows}
-        blocker_counts = {row[0].id: row[2] for row in rows}
-        await _annotate_tasks(
-            guild_session,
-            tasks,
-            comment_counts=comment_counts,
-            blocker_counts=blocker_counts,
-        )
-        await tags_service.annotate_tags(guild_session, tasks)
-        _annotate_task_properties(tasks)
-        return [
-            (
-                placement[(_guild_id, task.id)],
-                _task_to_list_read(
-                    task, guild_id=_guild_id, guild_name=guild_names.get(_guild_id)
-                ),
-            )
-            for task in tasks
-        ]
-
-    hydrated = await gather_across_guilds(
-        session, current_user.id, sorted(wanted), _hydrate
-    )
-    hydrated.sort(key=lambda pair: pair[0])
-    return [read for _, read in hydrated], total_count, actual_page
-
-
-async def _list_global_tasks(
-    session: SessionDep,
-    current_user: User,
-    *,
-    user_conditions: list,
-    guild_ids: Optional[List[int]],
-    property_definitions: dict | None = None,
-    include_archived: bool = False,
-    page: int = 1,
-    page_size: int = 20,
-    sort_fields: list | None = None,
-    tz: str | None = None,
-    start_after: datetime | None = None,
-    start_before: datetime | None = None,
-) -> tuple[list[TaskListRead], int, int]:
-    """Tasks assigned to the user, across every guild they belong to.
-
-    ``user_conditions`` are applied per guild via :func:`apply_filters` using the
-    same field set as the guild-scoped list, so any Task field — ``due_date``,
-    ``title``, ``priority``, ``status_category``, property values, … — filters
-    here too. ``start_after``/``start_before`` window the set to tasks whose
-    start or due date falls inside — used by the ``/me`` calendar aggregate (the
-    window travels as explicit params so a caller never has to encode it in
-    ``conditions``).
-    """
-    base_conditions = [
-        TaskAssignee.user_id == current_user.id,
-        Project.archived_at.is_(None),
-        Project.is_template.is_(False),
-    ]
-    if not include_archived:
-        base_conditions.append(Task.archived_at.is_(None))
-    window = _task_calendar_window_clause(start_after, start_before)
-    if window is not None:
-        base_conditions.append(window)
-
-    def _build(guild_id: int, *selectables):
-        # Defines the filtered set for the ordering pass, which selects the
-        # sort keys from it. ORDER BY is omitted — _sort_global_task_keys orders
-        # the merged set, which no single schema's query can do.
-        stmt = (
-            select(*selectables)
-            .join(TaskAssignee, TaskAssignee.task_id == Task.id)
-            .join(Task.project)
-            .join(Project.initiative)
-            .where(*base_conditions)
-        )
-        return apply_filters(
-            stmt,
-            Task,
-            user_conditions,
-            allowed_ops=fields_registry.allowed_ops("tasks"),
-            allowed_fields=_build_task_filter_fields(
-                guild_id=guild_id,
-                current_user_id=current_user.id,
-                property_definitions=property_definitions or {},
-            ),
-        )
-
-    return await _gather_global_task_reads(
-        session,
-        current_user,
-        build_query=_build,
-        guild_ids=guild_ids,
-        page=page,
-        page_size=page_size,
-        sort_fields=sort_fields,
-        tz=tz,
-    )
-
-
-async def _list_global_created_tasks(
-    session: SessionDep,
-    current_user: User,
-    *,
-    user_conditions: list,
-    guild_ids: Optional[List[int]],
-    property_definitions: dict | None = None,
-    include_archived: bool = False,
-    page: int = 1,
-    page_size: int = 20,
-    sort_fields: list | None = None,
-    tz: str | None = None,
-) -> tuple[list[TaskListRead], int, int]:
-    """Tasks created by the user, across every guild they belong to.
-
-    ``user_conditions`` are applied per guild via :func:`apply_filters` (same
-    field set as the guild-scoped list), so any Task field filters here too.
-    """
-    base_conditions = [
-        Task.created_by == current_user.id,
-        Project.archived_at.is_(None),
-        Project.is_template.is_(False),
-    ]
-    if not include_archived:
-        base_conditions.append(Task.archived_at.is_(None))
-
-    def _build(guild_id: int, *selectables):
-        # Defines the filtered set for the ordering pass, which selects the
-        # sort keys from it. ORDER BY is omitted — _sort_global_task_keys orders
-        # the merged set, which no single schema's query can do.
-        stmt = (
-            select(*selectables)
-            .join(Task.project)
-            .join(Project.initiative)
-            .where(*base_conditions)
-        )
-        return apply_filters(
-            stmt,
-            Task,
-            user_conditions,
-            allowed_ops=fields_registry.allowed_ops("tasks"),
-            allowed_fields=_build_task_filter_fields(
-                guild_id=guild_id,
-                current_user_id=current_user.id,
-                property_definitions=property_definitions or {},
-            ),
-        )
-
-    return await _gather_global_task_reads(
-        session,
-        current_user,
-        build_query=_build,
-        guild_ids=guild_ids,
-        page=page,
-        page_size=page_size,
-        sort_fields=sort_fields,
-        tz=tz,
-    )
-
-
-@dataclass
-class _TaskListQuery:
-    """Parsed task list/filter query params, shared by the guild-scoped list
-    and the cross-guild /me aggregates so they stay in lockstep."""
-
-    user_conditions: list
-    sort_fields: Optional[list]
-    tz: Optional[str]
-    # project_id narrows which projects the guild path checks access on; guild_ids
-    # restricts the cross-guild fan-out. Every other field filters through
-    # ``user_conditions`` via apply_filters, so no other scalar is extracted here.
-    project_id: Optional[int]
-    guild_ids: Optional[list]
-    property_definitions: dict
-    # Every property_values leaf's definition id (nested groups included), so the
-    # deferred cross-guild loader resolves exactly what the limit check counted.
-    property_ids_needed: list[int]
-
-
-async def _parse_task_list_query(
-    session,
-    conditions: Optional[str],
-    sorting: Optional[str],
-    tz: Optional[str],
-    *,
-    defer_property_definitions: bool = False,
-) -> _TaskListQuery:
-    """Validate + extract task list query params (conditions, sort, tz,
-    property-value filters). Raises 400 on malformed input.
-
-    ``defer_property_definitions`` leaves ``property_definitions`` empty for
-    the cross-guild ``/me`` paths, whose session runs in the ``public``
-    search_path and cannot see any guild's ``property_definitions`` table.
-    Those callers load the definitions per-guild afterwards via
-    :func:`_load_property_definitions_across_guilds`."""
-    try:
-        user_conditions = parse_conditions(conditions)
-        # Operators are checked here rather than at query-build time so an
-        # unsupported one is the same 400 as any other malformed filter.
-        check_ops(user_conditions, fields_registry.allowed_ops("tasks"))
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=QueryMessages.INVALID_CONDITIONS,
-        )
-
-    try:
-        sort_fields = parse_sort_fields(sorting) or None
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=QueryMessages.INVALID_SORT_FIELDS,
-        )
-
-    tz = _validate_tz(tz)
-
-    # Every property_values leaf, wherever it sits, so its definition is loaded
-    # and the limit counts what the query actually compiles.
-    property_value_leaves = [
-        cond
-        for cond in iter_leaf_conditions(user_conditions)
-        if cond.field == "property_values"
-    ]
-    if len(property_value_leaves) > properties_service.MAX_PROPERTY_FILTERS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=QueryMessages.INVALID_CONDITIONS,
-        )
-    property_ids_needed: list[int] = []
-    for cond in property_value_leaves:
-        if isinstance(cond.value, dict):
-            try:
-                property_ids_needed.append(int(cond.value.get("property_id")))
-            except (TypeError, ValueError):
-                continue
-    if defer_property_definitions:
-        property_definitions_map: dict[int, PropertyDefinition] = {}
-    else:
-        property_definitions_map = await properties_service.load_definitions_by_ids(
-            session,
-            property_ids_needed,
-        )
-
-    return _TaskListQuery(
-        user_conditions=user_conditions,
-        sort_fields=sort_fields,
-        tz=tz,
-        project_id=extract_condition_value(user_conditions, "project_id"),
-        guild_ids=extract_condition_value(user_conditions, "guild_ids"),
-        property_definitions=property_definitions_map,
-        property_ids_needed=property_ids_needed,
-    )
-
-
-#: Task filter fields whose values name people by row id.
-_PERSON_FILTER_FIELDS = frozenset({"assignee_ids", "created_by"})
-
-
-def _refuse_person_filters(q: _TaskListQuery) -> None:
-    """Refuse, for an installed app, a filter that names people.
-
-    A filter's values are row ids inside a JSON string, which an app does not
-    hold, so the fields that take one are left to people: ``assignee_ids``
-    and ``created_by`` (bar asking whether there is one), and a
-    person-valued custom property.
-    """
-    for cond in iter_leaf_conditions(q.user_conditions):
-        named = cond.field in _PERSON_FILTER_FIELDS and cond.op is not FilterOp.is_null
-        if cond.field == "property_values" and isinstance(cond.value, dict):
-            try:
-                defn = q.property_definitions.get(int(cond.value.get("property_id")))
-            except (TypeError, ValueError):
-                defn = None
-            named = defn is not None and defn.type is PropertyType.user_reference
-        if named:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=QueryMessages.INVALID_CONDITIONS,
-            )
-
-
-async def _load_property_definitions_across_guilds(
-    session,
-    current_user: User,
-    q: _TaskListQuery,
-) -> dict[int, PropertyDefinition]:
-    """Load the property definitions a cross-guild ``/me`` list needs, routing
-    into each of the user's guild schemas.
-
-    The ``/me`` session runs in the ``public`` search_path and cannot see any
-    guild's ``property_definitions`` table, so the definitions must be loaded
-    under the same per-guild routing the aggregate list itself uses. A property
-    definition id is unique per guild schema; the compiled filter clause only
-    needs the definition's *type* (which typed column to compare), so the first
-    guild that resolves an id wins and its type is reused for every guild's
-    schema-local ``property_id`` predicate."""
-    needed = q.property_ids_needed
-    if not needed:
-        return {}
-
-    target_guilds = await member_guild_ids(
-        session, current_user.id, restrict_to=q.guild_ids
-    )
-
-    async def _fetch(guild_session, _guild_id: int):
-        defs = await properties_service.load_definitions_by_ids(guild_session, needed)
-        return list(defs.values())
-
-    definitions = await gather_across_guilds(
-        session, current_user.id, target_guilds, _fetch
-    )
-    merged: dict[int, PropertyDefinition] = {}
-    for defn in definitions:
-        merged.setdefault(defn.id, defn)
-    return merged
-
-
-async def _guild_task_query_builder(
-    session,
-    current_user: User | None,
-    context: ActorContext,
-    *,
-    q: _TaskListQuery,
-    include_archived: bool,
-):
-    """The guild-scoped task visibility pipeline (guild scope, archived
-    default, project DAC, filter conditions) as a statement-builder closure.
-    Shared by ``list_tasks`` and the tasks export so an export always matches
-    the on-screen list. Returns ``None`` when no project is reachable."""
-    access_conditions: list = []
-
-    if not include_archived:
-        access_conditions.append(Task.archived_at.is_(None))
-
-    allowed_ids = await _allowed_project_ids(
-        session,
-        current_user,
-        context,
-        include_templates=q.project_id is not None,
-        # Access takes the strict reading, not the one that decides whether
-        # templates join the set.
-        project_id=_confining_project_id(q.user_conditions),
-    )
-    if allowed_ids is not None:
-        if not allowed_ids:
-            return None
-        access_conditions.append(Task.project_id.in_(tuple(allowed_ids)))
-
-    filter_fields = _build_task_filter_fields(
-        guild_id=context.guild_id,
-        current_user_id=current_user.id if current_user is not None else None,
-        property_definitions=q.property_definitions,
-    )
-
-    def build(stmt):
-        stmt = stmt.join(Task.project).join(Project.initiative)
-        stmt = stmt.where(*access_conditions)
-        return apply_filters(
-            stmt,
-            Task,
-            q.user_conditions,
-            allowed_fields=filter_fields,
-            allowed_ops=fields_registry.allowed_ops("tasks"),
-        )
-
-    return build
-
-
-async def count_tasks_for_export(
-    session,
-    current_user: User,
-    guild_id: int,
-    *,
-    conditions: Optional[str] = None,
-    sorting: Optional[str] = None,
-    tz: Optional[str] = None,
-    include_archived: bool = False,
-) -> int:
-    """Row count for an export snapshot — the cheap pre-render signal for the
-    inline-vs-job auto-select and the export size ceiling."""
-    q = await _parse_task_list_query(session, conditions, sorting, tz)
-    build = await _guild_task_query_builder(
-        session,
-        current_user,
-        require_guild_context(session),
-        q=q,
-        include_archived=include_archived,
-    )
-    if build is None:
-        return 0
-    count_subq = build(select(Task.id)).subquery()
-    return (await session.exec(select(func.count()).select_from(count_subq))).one()
-
-
-async def query_tasks_for_export(
-    session,
-    current_user: User,
-    guild_id: int,
-    *,
-    conditions: Optional[str] = None,
-    sorting: Optional[str] = None,
-    tz: Optional[str] = None,
-    include_archived: bool = False,
-    max_rows: int,
-) -> list[Task]:
-    """The tasks export adapter's query seam: the exact ``list_tasks``
-    visibility/filter/sort pipeline, unpaginated up to ``max_rows``, with the
-    eager loads the export payload needs."""
-    q = await _parse_task_list_query(session, conditions, sorting, tz)
-    build = await _guild_task_query_builder(
-        session,
-        current_user,
-        require_guild_context(session),
-        q=q,
-        include_archived=include_archived,
-    )
-    if build is None:
-        return []
-    statement = build(select(Task)).options(
-        selectinload(Task.project),
-        selectinload(Task.assignees),
-        selectinload(Task.task_status),
-    )
-    statement = apply_sorting(
-        statement,
-        Task,
-        sort_fields=q.sort_fields,
-        allowed_fields=_task_sort_fields(q.tz),
-        default_sort=TASK_DEFAULT_SORT,
-    )
-    tasks = list(await session.exec(statement.limit(max_rows)))
-    await tags_service.annotate_tags(session, tasks)
-    return tasks
-
-
-async def query_tasks_for_detailed_export(
-    session,
-    current_user: User,
-    guild_id: int,
-    *,
-    conditions: Optional[str] = None,
-    sorting: Optional[str] = None,
-    tz: Optional[str] = None,
-    include_archived: bool = False,
-    max_rows: int,
-) -> tuple[list[Task], dict[int, list[Comment]]]:
-    """Detailed-report seam: the same ``list_tasks`` visibility/filter/sort
-    pipeline as ``query_tasks_for_export``, but with the extra eager loads a
-    one-task-per-page report needs (tags) plus each task's comments
-    batch-loaded by id. Comments have no ``Task`` relationship, so they are
-    fetched separately — under the caller's RLS session, scoped to the same
-    initiatives the tasks came from (the tasks are already visibility-filtered,
-    so their comments are in reachable initiatives)."""
-    q = await _parse_task_list_query(session, conditions, sorting, tz)
-    build = await _guild_task_query_builder(
-        session,
-        current_user,
-        require_guild_context(session),
-        q=q,
-        include_archived=include_archived,
-    )
-    if build is None:
-        return [], {}
-    statement = build(select(Task)).options(
-        selectinload(Task.project),
-        selectinload(Task.assignees),
-        selectinload(Task.task_status),
-    )
-    statement = apply_sorting(
-        statement,
-        Task,
-        sort_fields=q.sort_fields,
-        allowed_fields=_task_sort_fields(q.tz),
-        default_sort=TASK_DEFAULT_SORT,
-    )
-    tasks = list(await session.exec(statement.limit(max_rows)))
-    await tags_service.annotate_tags(session, tasks)
-    comments = await _load_comments_for_tasks(session, [t.id for t in tasks if t.id])
-    return tasks, comments
-
-
-async def _load_comments_for_tasks(
-    session, task_ids: list[int]
-) -> dict[int, list[Comment]]:
-    """Non-deleted comments for the given tasks, author eager-loaded, grouped
-    by task id and ordered oldest-first (reading order for a report)."""
-    if not task_ids:
-        return {}
-    statement = (
-        select(Comment)
-        .where(
-            Comment.task_id.in_(task_ids),
-            Comment.deleted_at.is_(None),
-        )
-        .options(selectinload(Comment.author))
-        .order_by(Comment.created_at)
-    )
-    grouped: dict[int, list[Comment]] = {}
-    for comment in await session.exec(statement):
-        grouped.setdefault(comment.task_id, []).append(comment)
-    return grouped
+    return task
 
 
 @me_router.get("/tasks", response_model=TaskListResponse)
@@ -1579,23 +214,16 @@ async def list_my_tasks(
 
     An optional ``guild_ids`` conditions entry narrows to a subset of guilds.
     """
-    q = await _parse_task_list_query(
-        session, conditions, sorting, tz, defer_property_definitions=True
+    q = await task_queries.parse_task_list_query(
+        session, conditions, sorting, tz, across_guilds_for=current_user
     )
-    q.property_definitions = await _load_property_definitions_across_guilds(
-        session, current_user, q
-    )
-    items, total_count, actual_page = await _list_global_tasks(
+    items, total_count, actual_page = await task_queries.list_global_tasks(
         session,
         current_user,
-        user_conditions=q.user_conditions,
-        guild_ids=q.guild_ids,
-        property_definitions=q.property_definitions,
+        q,
         include_archived=include_archived,
         page=page,
         page_size=page_size,
-        sort_fields=q.sort_fields,
-        tz=q.tz,
     )
     return TaskListResponse(
         **build_paginated_response(
@@ -1620,23 +248,17 @@ async def list_my_created_tasks(
     tz: Optional[str] = Query(default=None),
 ) -> TaskListResponse:
     """Tasks created by the current user across every guild they belong to."""
-    q = await _parse_task_list_query(
-        session, conditions, sorting, tz, defer_property_definitions=True
+    q = await task_queries.parse_task_list_query(
+        session, conditions, sorting, tz, across_guilds_for=current_user
     )
-    q.property_definitions = await _load_property_definitions_across_guilds(
-        session, current_user, q
-    )
-    items, total_count, actual_page = await _list_global_created_tasks(
+    items, total_count, actual_page = await task_queries.list_global_tasks(
         session,
         current_user,
-        user_conditions=q.user_conditions,
-        guild_ids=q.guild_ids,
-        property_definitions=q.property_definitions,
+        q,
+        created=True,
         include_archived=include_archived,
         page=page,
         page_size=page_size,
-        sort_fields=q.sort_fields,
-        tz=q.tz,
     )
     return TaskListResponse(
         **build_paginated_response(
@@ -1647,132 +269,6 @@ async def list_my_created_tasks(
             sorting=sorting,
         )
     )
-
-
-def _task_calendar_window_clause(
-    start_after: Optional[datetime], start_before: Optional[datetime]
-):
-    """Keep only tasks that sit on a calendar within ``[start_after,
-    start_before]`` — i.e. whose ``start_date`` OR ``due_date`` falls in the
-    window (a task placed by either endpoint belongs on the calendar).
-
-    Returns ``None`` when neither bound is given (no windowing). This is the
-    aggregate's authoritative task window: the named params bound the task leg
-    directly, so a caller never has to duplicate the window inside ``conditions``
-    (and the cross-guild ``/me`` path can't express it there at all).
-    """
-    if start_after is None and start_before is None:
-        return None
-    field_clauses = []
-    for field in (Task.start_date, Task.due_date):
-        bounds = []
-        if start_after is not None:
-            bounds.append(field >= start_after)
-        if start_before is not None:
-            bounds.append(field <= start_before)
-        field_clauses.append(and_(*bounds))
-    return or_(*field_clauses)
-
-
-async def query_guild_tasks(
-    session: RLSSessionDep,
-    current_user: User,
-    guild_context: GuildContext,
-    *,
-    conditions: Optional[str] = None,
-    sorting: Optional[str] = None,
-    tz: Optional[str] = None,
-    include_archived: bool = False,
-    start_after: Optional[datetime] = None,
-    start_before: Optional[datetime] = None,
-) -> list[TaskListRead]:
-    """Fetch every guild task matching the filter (no pagination).
-
-    Shared by the ``calendar-entries`` aggregate, whose date window is bounded so
-    the whole matching set is small. Mirrors ``list_tasks`` minus paging: same
-    parse → guild query builder → eager loads → sort → annotate → serialize path,
-    so access + shaping are identical. ``start_after``/``start_before`` bound the
-    result to the calendar window regardless of ``conditions``.
-    """
-    q = await _parse_task_list_query(session, conditions, sorting, tz)
-    build = await _guild_task_query_builder(
-        session,
-        current_user,
-        guild_context,
-        q=q,
-        include_archived=include_archived,
-    )
-    if build is None:
-        return []
-    window = _task_calendar_window_clause(start_after, start_before)
-    base = build(select(Task))
-    if window is not None:
-        base = base.where(window)
-    statement = base.options(
-        selectinload(Task.project).selectinload(Project.initiative),
-        selectinload(Task.assignees),
-        selectinload(Task.task_status),
-        selectinload(Task.property_values).selectinload(
-            TaskPropertyValue.property_definition
-        ),
-        selectinload(Task.property_values).selectinload(TaskPropertyValue.value_user),
-    )
-    statement = apply_sorting(
-        statement,
-        Task,
-        sort_fields=q.sort_fields,
-        allowed_fields=_task_sort_fields(q.tz),
-        default_sort=TASK_DEFAULT_SORT,
-    )
-    result = await session.exec(statement)
-    tasks = list(result.unique().all())
-    await _annotate_tasks(session, tasks)
-    await tags_service.annotate_tags(session, tasks)
-    _annotate_task_properties(tasks)
-    guild_id = routed_guild_id(session)
-    return [_task_to_list_read(task, guild_id=guild_id) for task in tasks]
-
-
-async def query_my_tasks_list(
-    session: UserSessionDep,
-    current_user: User,
-    *,
-    conditions: Optional[str] = None,
-    sorting: Optional[str] = None,
-    tz: Optional[str] = None,
-    include_archived: bool = False,
-    start_after: Optional[datetime] = None,
-    start_before: Optional[datetime] = None,
-) -> list[TaskListRead]:
-    """Fetch every cross-guild assigned task matching the filter (no paging).
-
-    Shared by the ``/me/calendar-entries`` aggregate; mirrors ``list_my_tasks``
-    with ``page_size=0`` (the global path's fetch-all).
-    ``start_after``/``start_before`` bound the result to the calendar window —
-    the global path applies only extracted scalar filters, so the window can
-    only be expressed through these params, never through ``conditions``.
-    """
-    q = await _parse_task_list_query(
-        session, conditions, sorting, tz, defer_property_definitions=True
-    )
-    q.property_definitions = await _load_property_definitions_across_guilds(
-        session, current_user, q
-    )
-    items, _total, _page = await _list_global_tasks(
-        session,
-        current_user,
-        user_conditions=q.user_conditions,
-        guild_ids=q.guild_ids,
-        property_definitions=q.property_definitions,
-        include_archived=include_archived,
-        page=1,
-        page_size=0,
-        sort_fields=q.sort_fields,
-        tz=q.tz,
-        start_after=start_after,
-        start_before=start_before,
-    )
-    return items
 
 
 @router.get("/", response_model=TaskListResponse)
@@ -1803,22 +299,20 @@ async def list_tasks(
         description="IANA timezone name (e.g. America/Los_Angeles) for date_group calculation",
     ),
 ) -> TaskListResponse:
-    q = await _parse_task_list_query(session, conditions, sorting, tz)
+    q = await task_queries.parse_task_list_query(session, conditions, sorting, tz)
     if current_user is None:
-        _refuse_person_filters(q)
-    sort_fields = q.sort_fields
-    tz = q.tz
+        task_queries.refuse_person_filters(q)
 
     # Guild-scoped list. Cross-guild "my tasks" aggregates live under
     # /me/tasks and /me/tasks/created (see list_my_tasks above).
-    _build_non_global_query = await _guild_task_query_builder(
+    build = await task_queries.guild_task_query_builder(
         session,
         current_user,
         guild_context,
         q=q,
         include_archived=include_archived,
     )
-    if _build_non_global_query is None:
+    if build is None:
         return TaskListResponse(
             **build_paginated_response(
                 items=[],
@@ -1829,34 +323,12 @@ async def list_tasks(
             )
         )
 
-    count_subq = _build_non_global_query(select(Task.id)).subquery()
-    count_stmt = select(func.count()).select_from(count_subq)
-
-    statement = _build_non_global_query(select(Task)).options(
-        selectinload(Task.project).selectinload(Project.initiative),
-        selectinload(Task.assignees),
-        selectinload(Task.task_status),
-        selectinload(Task.property_values).selectinload(
-            TaskPropertyValue.property_definition
-        ),
-        selectinload(Task.property_values).selectinload(TaskPropertyValue.value_user),
-    )
-    statement = apply_sorting(
-        statement,
-        Task,
-        sort_fields=sort_fields,
-        allowed_fields=_task_sort_fields(tz),
-        default_sort=TASK_DEFAULT_SORT,
-    )
-
+    count_stmt = select(func.count()).select_from(build(select(Task.id)).subquery())
+    statement = task_queries.list_statement(build, q, *task_queries.LIST_ROW_OPTIONS)
     tasks, total_count, actual_page = await paginated_query(
         session, statement, count_stmt, page, page_size
     )
-    await _annotate_tasks(session, tasks)
-    await tags_service.annotate_tags(session, tasks)
-    _annotate_task_properties(tasks)
-    guild_id = routed_guild_id(session)
-    items = [_task_to_list_read(task, guild_id=guild_id) for task in tasks]
+    items = await task_queries.list_reads(session, tasks, routed_guild_id(session))
     return TaskListResponse(
         **build_paginated_response(
             items=items,
@@ -1875,11 +347,12 @@ async def create_task(
     current_user: ActorUserDep,
     guild_context: ProjectsWrite,
 ) -> Task:
-    project = await _get_project_with_access(
+    project = await resource_access.load_authorized(
         session,
+        _GOVERNING,
         task_in.project_id,
         current_user,
-        context=guild_context,
+        guild_context,
         access="write",
     )
 
@@ -1911,8 +384,10 @@ async def create_task(
         created_by=guild_context.user_id,
         checklist=checklist_service.normalize(task_in.checklist),
     )
-    await _set_task_assignees(session, task, task_in.assignee_ids, project=project)
-    if project and task.assignees:
+    await task_creation_service.set_task_assignees(
+        session, task, task_in.assignee_ids, project=project
+    )
+    if task.assignees:
         assigned_by = await notifications_service.author_of(
             session, guild_context, current_user
         )
@@ -1937,19 +412,13 @@ async def create_task(
                 tag_ids=task_in.tag_ids,
             )
         if task_in.property_values:
-            initiative_id = project.initiative_id if project else None
-            if initiative_id is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=TaskMessages.NOT_FOUND,
-                )
             await properties_service.set_task_property_values(
                 session,
                 task,
                 await properties_service.property_values_by_row_id(
                     session, task_in.property_values
                 ),
-                initiative_id,
+                project.initiative_id,
             )
     except HTTPException:
         await session.rollback()
@@ -1963,15 +432,9 @@ async def create_task(
             author=current_user,
         )
 
-    await _touch_project(session, task_in.project_id)
+    _touch_project(project, datetime.now(timezone.utc))
     await session.commit()
-    task = await _fetch_task(session, task.id, guild_context.guild_id)
-    if task is None:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=TaskMessages.MISSING_AFTER_CREATE,
-        )
-    return task
+    return await _response(session, task.id, TaskMessages.MISSING_AFTER_CREATE)
 
 
 @router.get("/{task_id}", response_model=TaskRead)
@@ -1982,18 +445,13 @@ async def read_task(
     guild_context: ProjectsRead,
     include_deleted: IncludeDeletedDep = False,
 ) -> Task:
-    task = await _fetch_task(session, task_id, guild_context.guild_id)
-    if not task:
+    task = await task_queries.load_task(session, task_id)
+    if task is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
         )
-
-    await _get_project_with_access(
-        session,
-        task.project_id,
-        current_user,
-        context=guild_context,
-        access="read",
+    resource_access.authorize(
+        _GOVERNING, task.project, current_user, context=guild_context
     )
     return task
 
@@ -2006,19 +464,8 @@ async def update_task(
     current_user: ActorUserDep,
     guild_context: ProjectsWrite,
 ) -> Task:
-    task = await _fetch_task(session, task_id, guild_context.guild_id)
-    if not task:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
-        )
-
-    project = await _get_project_with_access(
-        session,
-        task.project_id,
-        current_user,
-        context=guild_context,
-        access="write",
-    )
+    task = await _load_for_change(session, task_id, current_user, guild_context)
+    project = task.project
 
     update_data = task_in.model_dump(exclude_unset=True)
     assignee_ids = update_data.pop("assignee_ids", None)
@@ -2072,14 +519,16 @@ async def update_task(
     new_assignees: list[MemberProfile] = []
     if assignee_ids is not None:
         existing_assignee_ids = {assignee.id for assignee in task.assignees}
-        await _set_task_assignees(session, task, assignee_ids, project=project)
+        await task_creation_service.set_task_assignees(
+            session, task, assignee_ids, project=project
+        )
         new_assignees = [
             assignee
             for assignee in task.assignees
             if assignee.id not in existing_assignee_ids
         ]
 
-    await _advance_recurrence_if_needed(
+    await task_creation_service.advance_recurrence_if_needed(
         session,
         task,
         previous_status_category=previous_status_category,
@@ -2089,7 +538,7 @@ async def update_task(
         user_timezone=current_user.timezone if current_user is not None else None,
     )
 
-    if new_assignees and project:
+    if new_assignees:
         assigned_by = await notifications_service.author_of(
             session, guild_context, current_user
         )
@@ -2114,30 +563,17 @@ async def update_task(
                 tag_ids=tag_ids,
             )
         if property_values is not None:
-            initiative_id = task.project.initiative_id if task.project else None
-            if initiative_id is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=TaskMessages.NOT_FOUND,
-                )
             await properties_service.set_task_property_values(
                 session,
                 task,
                 await properties_service.property_values_by_row_id(
                     session, task_in.property_values or []
                 ),
-                initiative_id,
+                project.initiative_id,
             )
     except HTTPException:
         await session.rollback()
         raise
-
-    # The property service issues a bulk DELETE on the value rows, leaving the
-    # ORM-loaded collection stale. Expire it so ``session.add(task)`` below
-    # doesn't cascade the now-deleted instances (they reload fresh in the
-    # populate_existing fetch that builds the response).
-    if property_values is not None:
-        session.expire(task, ["property_values"])
 
     released_images: set[str] = set()
     if task.description != previous_description:
@@ -2157,20 +593,11 @@ async def update_task(
                 leaving={Task: {task.id}},
             )
 
-    await _touch_project(session, task.project_id, timestamp=now)
-    session.add(task)
+    _touch_project(project, now)
     await session.commit()
     # A picture taken out of the description goes once the edit has landed.
     attachments_service.delete_blobs(guild_context.guild_id, released_images)
-    task = await _fetch_task(
-        session, task.id, guild_context.guild_id, populate_existing=True
-    )
-    if task is None:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=TaskMessages.MISSING_AFTER_UPDATE,
-        )
-    return task
+    return await _response(session, task.id, TaskMessages.MISSING_AFTER_UPDATE)
 
 
 @router.post("/{task_id}/move", response_model=TaskRead)
@@ -2181,30 +608,19 @@ async def move_task(
     current_user: ActorUserDep,
     guild_context: ProjectsWrite,
 ) -> Task:
-    task = await _fetch_task(session, task_id, guild_context.guild_id)
-    if not task:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
-        )
-
+    task = await _load_for_change(session, task_id, current_user, guild_context)
     if task.project_id == move_in.target_project_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=TaskMessages.ALREADY_IN_PROJECT,
         )
 
-    await _ensure_can_manage(
+    target_project = await resource_access.load_authorized(
         session,
-        task.project_id,
-        current_user,
-        context=guild_context,
-    )
-
-    target_project = await _get_project_with_access(
-        session,
+        _GOVERNING,
         move_in.target_project_id,
         current_user,
-        context=guild_context,
+        guild_context,
         access="write",
     )
     if target_project.is_template:
@@ -2217,9 +633,8 @@ async def move_task(
         session, target_project.id
     )
     now = datetime.now(timezone.utc)
-    source_project_id = task.project_id
-    source_initiative_id = task.project.initiative_id if task.project else None
-    task.project_id = target_project.id  # ty: ignore[invalid-assignment] — persisted row, id is set
+    source_project = task.project
+    task.project_id = target_project.id
     task.task_status_id = default_status.id  # ty: ignore[invalid-assignment] — persisted row, id is set
     task.task_status = default_status
     task.position = 0
@@ -2230,15 +645,12 @@ async def move_task(
     # If the move crosses initiative boundaries, drop property values —
     # their definitions belong to the old initiative and can't resolve in
     # the new one.
-    if (
-        source_initiative_id is not None
-        and source_initiative_id != target_project.initiative_id
-    ):
+    if source_project.initiative_id != target_project.initiative_id:
         await session.exec(
             delete(TaskPropertyValue).where(TaskPropertyValue.task_id == task.id)
         )
     # Only those who can open the destination stay assigned.
-    await _set_task_assignees(
+    await task_creation_service.set_task_assignees(
         session,
         task,
         [assignee.id for assignee in task.assignees],
@@ -2246,17 +658,10 @@ async def move_task(
         carried=True,
     )
 
-    await _touch_project(session, source_project_id, timestamp=now)
-    await _touch_project(session, target_project.id, timestamp=now)
+    _touch_project(source_project, now)
+    _touch_project(target_project, now)
     await session.commit()
-
-    updated_task = await _fetch_task(session, task.id, guild_context.guild_id)
-    if updated_task is None:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=TaskMessages.MISSING_AFTER_MOVE,
-        )
-    return updated_task
+    return await _response(session, task.id, TaskMessages.MISSING_AFTER_MOVE)
 
 
 @router.post(
@@ -2268,35 +673,11 @@ async def duplicate_task(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> Task:
-    # Fetch the original task with its tags
-    task_stmt = (
-        select(Task)
-        .options(
-            selectinload(Task.assignees),
-            selectinload(Task.task_status),
-        )
-        .join(Task.project)
-        .join(Project.initiative)
-        .where(
-            Task.id == task_id,
-        )
+    original_task = await _load_for_change(
+        session, task_id, current_user, guild_context
     )
-    task_result = await session.exec(task_stmt)
-    original_task = task_result.one_or_none()
-    if not original_task:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
-        )
-
-    project = await _ensure_can_manage(
-        session,
-        original_task.project_id,
-        current_user,
-        context=guild_context,
-    )
-
-    # Get next sort order for the new task
-    position = await _next_position(session, original_task.project_id)
+    project = original_task.project
+    position = await task_creation_service.next_position(session, project.id)
 
     # Create the new task with the same properties
     new_task = Task(
@@ -2326,7 +707,7 @@ async def duplicate_task(
 
     # Copy assignees
     assignee_ids = [assignee.id for assignee in original_task.assignees]
-    await _set_task_assignees(
+    await task_creation_service.set_task_assignees(
         session, new_task, assignee_ids, project=project, carried=True
     )
 
@@ -2340,8 +721,6 @@ async def duplicate_task(
 
     # Copy property values — duplicate stays in the same project and
     # therefore the same initiative, so definitions always resolve.
-    from copy import deepcopy  # local import to avoid top-level clutter
-
     source_values_stmt = select(TaskPropertyValue).where(
         TaskPropertyValue.task_id == original_task.id
     )
@@ -2372,20 +751,9 @@ async def duplicate_task(
             session, new_task, author_id=current_user.id
         )
 
-    await _touch_project(session, original_task.project_id)
+    _touch_project(project, datetime.now(timezone.utc))
     await session.commit()
-
-    # Fetch with all relationships for the response
-    task_with_relations = await _fetch_task(
-        session, new_task.id, guild_context.guild_id
-    )
-    if not task_with_relations:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=TaskMessages.DUPLICATE_NOT_FOUND,
-        )
-
-    return task_with_relations
+    return await _response(session, new_task.id, TaskMessages.DUPLICATE_NOT_FOUND)
 
 
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -2395,37 +763,10 @@ async def delete_task(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
-    task_stmt = (
-        select(Task)
-        .join(Task.project)
-        .join(Project.initiative)
-        .where(
-            Task.id == task_id,
-        )
-    )
-    task_result = await session.exec(task_stmt)
-    task = task_result.one_or_none()
-    if not task:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
-        )
-
-    await _ensure_can_manage(
-        session,
-        task.project_id,
-        current_user,
-        context=guild_context,
-    )
-
-    from app.services.tenant.soft_delete import trash
-
-    project_id = task.project_id
-    await trash(
-        session,
-        task,
-        deleted_by_user_id=current_user.id,
-    )
-    await _touch_project(session, project_id)
+    task = await _load_for_change(session, task_id, current_user, guild_context)
+    project = task.project
+    await trash(session, task, deleted_by_user_id=current_user.id)
+    _touch_project(project, datetime.now(timezone.utc))
     await session.commit()
 
 
@@ -2439,21 +780,19 @@ async def reorder_tasks(
     if not reorder_in.items:
         return []
 
-    await _ensure_can_manage(
+    project = await resource_access.load_authorized(
         session,
+        _GOVERNING,
         reorder_in.project_id,
         current_user,
-        context=guild_context,
+        guild_context,
+        access="write",
     )
 
     task_ids = [item.id for item in reorder_in.items]
     tasks_stmt = (
         select(Task)
-        .join(Task.project)
-        .join(Project.initiative)
-        .where(
-            Task.id.in_(tuple(task_ids)),
-        )
+        .where(Task.id.in_(tuple(task_ids)))
         .options(selectinload(Task.assignees), selectinload(Task.task_status))
     )
     tasks_result = await session.exec(tasks_stmt)
@@ -2502,7 +841,7 @@ async def reorder_tasks(
             task, task.task_status.category if task.task_status else None, now=now
         )
         session.add(task)
-        await _advance_recurrence_if_needed(
+        await task_creation_service.advance_recurrence_if_needed(
             session,
             task,
             previous_status_category=previous_status_category,
@@ -2518,26 +857,9 @@ async def reorder_tasks(
         await _rebalance_if_needed(session, reorder_in.project_id, moved_positions)
     )
 
-    await _touch_project(session, reorder_in.project_id, timestamp=now)
+    _touch_project(project, now)
     await session.commit()
-
-    affected_ids = set(task_ids) | rebalanced_ids
-    refreshed_stmt = (
-        select(Task)
-        .options(
-            selectinload(Task.project).selectinload(Project.initiative),
-            selectinload(Task.assignees),
-            selectinload(Task.task_status),
-            selectinload(Task.creator),
-        )
-        .where(Task.id.in_(tuple(affected_ids)))
-        .order_by(Task.position.asc(), Task.id.asc())
-    )
-    refreshed_result = await session.exec(refreshed_stmt)
-    tasks = refreshed_result.all()
-    await _annotate_tasks(session, tasks)
-    _annotate_task_guild(tasks)
-    return tasks
+    return await task_queries.load_tasks(session, list(set(task_ids) | rebalanced_ids))
 
 
 class ArchiveDoneResponse(BaseModel):
@@ -2555,11 +877,8 @@ async def archive_done_tasks(
     ),
 ) -> ArchiveDoneResponse:
     """Archive all tasks in 'done' status category for a project."""
-    await _ensure_can_manage(
-        session,
-        project_id,
-        current_user,
-        context=guild_context,
+    project = await resource_access.load_authorized(
+        session, _GOVERNING, project_id, current_user, guild_context, access="write"
     )
 
     # Build the query to find done tasks
@@ -2589,7 +908,7 @@ async def archive_done_tasks(
         task.updated_at = now
         session.add(task)
 
-    await _touch_project(session, project_id, timestamp=now)
+    _touch_project(project, now)
     await session.commit()
     return ArchiveDoneResponse(archived_count=len(tasks))
 
@@ -2613,19 +932,7 @@ async def toggle_checklist_item(
     several people make to the same task at once: it names one item and rewrites
     only that item, so two ticks on different items both land.
     """
-    task = await _fetch_task(session, task_id, guild_context.guild_id)
-    if not task:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
-        )
-
-    await _ensure_can_manage(
-        session,
-        task.project_id,
-        current_user,
-        context=guild_context,
-    )
-
+    task = await _load_for_change(session, task_id, current_user, guild_context)
     now = datetime.now(timezone.utc)
     result = await session.exec(
         checklist_service.toggle_statement(),
@@ -2644,7 +951,7 @@ async def toggle_checklist_item(
             detail=ChecklistMessages.ITEM_NOT_FOUND,
         )
 
-    await _touch_project(session, task.project_id, timestamp=now)
+    _touch_project(task.project, now)
     await session.commit()
     # The statement wrote behind the ORM's back, so the loaded row is stale.
     session.expire(task)
@@ -2696,20 +1003,8 @@ async def generate_task_checklist(
     guild_context: GuildContextDep,
 ) -> GenerateChecklistResponse:
     """Suggest checklist steps for a task."""
-    task = await _fetch_task(session, task_id, guild_context.guild_id)
-    if not task:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
-        )
-
-    # Check write access and get project with initiative
-    project = await _get_project_with_access(
-        session,
-        task.project_id,
-        current_user,
-        context=guild_context,
-        access="write",
-    )
+    task = await _load_for_change(session, task_id, current_user, guild_context)
+    project = task.project
 
     await _record_ai_request(
         session,
@@ -2742,20 +1037,8 @@ async def generate_task_description(
     guild_context: GuildContextDep,
 ) -> GenerateDescriptionResponse:
     """Generate AI-powered description for a task."""
-    task = await _fetch_task(session, task_id, guild_context.guild_id)
-    if not task:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
-        )
-
-    # Check write access and get project with initiative
-    project = await _get_project_with_access(
-        session,
-        task.project_id,
-        current_user,
-        context=guild_context,
-        access="write",
-    )
+    task = await _load_for_change(session, task_id, current_user, guild_context)
+    project = task.project
 
     await _record_ai_request(
         session,
@@ -2789,49 +1072,19 @@ async def set_task_tags(
     guild_context: GuildContextDep,
 ) -> Task:
     """Set the tags for a task. Replaces all existing tags with the provided list."""
-    task = await _fetch_task(session, task_id, guild_context.guild_id)
-    if not task:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
-        )
-
-    await _ensure_can_manage(
-        session,
-        task.project_id,
-        current_user,
-        context=guild_context,
-    )
-
-    task_id_to_update = task.id
+    task = await _load_for_change(session, task_id, current_user, guild_context)
     await tags_service.set_entity_tags(
         session,
         tags_service.TAG_LINKS["task"],
         guild_id=guild_context.guild_id,
-        entity_id=task_id_to_update,
+        entity_id=task.id,
         tag_ids=tags_in.tag_ids,
     )
-
-    # Update timestamp via a lightweight select (avoids stale relationship objects)
-    ts_stmt = select(Task).where(Task.id == task_id_to_update)
-    ts_result = await session.exec(ts_stmt)
-    ts_task = ts_result.one()
     now = datetime.now(timezone.utc)
-    ts_task.updated_at = now
-    await _touch_project(session, ts_task.project_id, timestamp=now)
+    task.updated_at = now
+    _touch_project(task.project, now)
     await session.commit()
-
-    # Single fetch with all relationships for the response —
-    # populate_existing so the identity-mapped task's collections refresh
-    # (expire_on_commit=False keeps the pre-write ones otherwise).
-    task = await _fetch_task(
-        session, task_id_to_update, guild_context.guild_id, populate_existing=True
-    )
-    if task is None:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=TaskMessages.MISSING_AFTER_UPDATE,
-        )
-    return task
+    return await _response(session, task.id, TaskMessages.MISSING_AFTER_UPDATE)
 
 
 @router.put("/{task_id}/properties", response_model=TaskRead)
@@ -2849,62 +1102,19 @@ async def set_task_properties(
     installed app names the person a person-valued property holds by its
     reference for them.
     """
-    task = await _fetch_task(session, task_id, guild_context.guild_id)
-    if task is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
-        )
-
-    await _ensure_can_manage(
-        session,
-        task.project_id,
-        current_user,
-        context=guild_context,
-    )
-
-    task_id_to_update = task.id
-    project_id = task.project_id
-    initiative_id = task.project.initiative_id if task.project else None
-    if initiative_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=TaskMessages.NOT_FOUND,
-        )
-
+    task = await _load_for_change(session, task_id, current_user, guild_context)
     try:
         await properties_service.set_task_property_values(
             session,
             task,
             await properties_service.property_values_by_row_id(session, payload.values),
-            initiative_id,
+            task.project.initiative_id,
         )
     except HTTPException:
         await session.rollback()
         raise
-
-    # Update task timestamp via a lightweight select (avoids stale
-    # relationship objects after the DELETE in the service).
-    ts_stmt = select(Task).where(Task.id == task_id_to_update)
-    ts_result = await session.exec(ts_stmt)
-    ts_task = ts_result.one()
     now = datetime.now(timezone.utc)
-    ts_task.updated_at = now
-    await _touch_project(session, project_id, timestamp=now)
-
+    task.updated_at = now
+    _touch_project(task.project, now)
     await session.commit()
-
-    # populate_existing=True forces selectinload to refresh the cached
-    # task's property_values collection; expire_on_commit=False keeps the
-    # stale collection otherwise.
-    refreshed = await _fetch_task(
-        session,
-        task_id_to_update,
-        guild_context.guild_id,
-        populate_existing=True,
-    )
-    if refreshed is None:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=TaskMessages.MISSING_AFTER_UPDATE,
-        )
-    return refreshed
+    return await _response(session, task.id, TaskMessages.MISSING_AFTER_UPDATE)

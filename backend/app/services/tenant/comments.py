@@ -22,9 +22,9 @@ import logging
 from dataclasses import dataclass
 from collections.abc import Sequence
 from datetime import datetime, timezone
-from typing import Any, Optional, cast
+from typing import TYPE_CHECKING, Any, Optional, cast
 
-from sqlalchemy import ColumnElement, func
+from sqlalchemy import ColumnElement, and_, func, or_
 from sqlalchemy.orm import selectinload
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -65,6 +65,9 @@ from app.services.tenant.mention_parser import (
     extract_mentioned_user_ids,
     extract_mentioned_task_ids,
 )
+
+if TYPE_CHECKING:
+    from app.schemas.tenant.comment import RecentActivityEntry
 
 logger = logging.getLogger(__name__)
 
@@ -1018,3 +1021,218 @@ async def update_comment(
     # would blank the chips until the next refetch.
     await attach_reactions(session, comment)
     return comment, released
+
+
+async def recent_activity(
+    session: AsyncSession, *, viewer_id: int, limit: int
+) -> list[RecentActivityEntry]:
+    """The community's most recent top-level comments, newest first.
+
+    Only comments on parents the reader can open: the parent tables' own
+    policies and the soft-delete filter decide which rows each leg reaches, and
+    a thread whose comments or whose tool is switched off is left out.
+    """
+    from app.schemas.tenant.comment import CommentAuthor, RecentActivityEntry
+    from app.services.tenant import reactions as reactions_service
+    from app.core.reactions import ReactionTarget
+
+    conditions = [
+        Comment.parent_comment_id.is_(None),
+    ]
+    # A comment is reached through its parent — the task's project, or the
+    # tool entity itself — so the sharing gate is applied per kind, each leg a
+    # subquery over the parent table (which also drops trashed parents via the
+    # session's soft-delete filter). Each clause is a no-op for a request that
+    # reaches the whole guild, leaving only "attached to some parent".
+    legs = []
+    reachable_by_tool = {}
+    for tool, target in TOOL_COMMENT_TARGETS.items():
+        model = target.model
+        fk = getattr(Comment, target.column)
+        # The entity's own comment switch gates its thread, so it gates the
+        # feed too.
+        parent_ids = select(model.id).where(model.comments_enabled.is_(True))
+        if target.feature_disabled is not None:
+            # The tool's master switch gates the thread, so it gates the feed
+            # too. A parent that names no initiative (a guild calendar) has no
+            # switch to answer to.
+            parent_ids = parent_ids.where(
+                or_(
+                    model.initiative_id.is_(None),
+                    model.initiative_id.in_(
+                        select(Initiative.id).where(
+                            getattr(Initiative, tool.view_permission).is_(True)
+                        )
+                    ),
+                )
+            )
+        reachable_by_tool[tool] = parent_ids
+        legs.append(and_(fk.isnot(None), fk.in_(parent_ids)))
+    # The extras — a thread on something that is not a tool. Each is reached
+    # through the tool that owns it, and takes that tool's switches only where
+    # its registry entry says they answer for it.
+    for column, extra in EXTRA_COMMENT_TARGETS.items():
+        parent = COMMENT_PARENTS[column]
+        fk = getattr(Comment, column)
+        rows = select(extra.model.id)
+        if extra.anchor_switch:
+            rows = rows.where(
+                getattr(extra.model, parent.tool_fk).in_(
+                    reachable_by_tool[parent.governed_by]
+                )
+            )
+        legs.append(and_(fk.isnot(None), fk.in_(rows)))
+    conditions.append(or_(*legs))
+
+    stmt = (
+        select(Comment)
+        .where(*conditions)
+        .options(selectinload(Comment.author))
+        .order_by(Comment.created_at.desc(), Comment.id.desc())
+        .limit(limit)
+    )
+    result = await session.exec(stmt)
+    comments = result.all()
+
+    # Batch-load the parents the rows point at
+    task_ids = {c.task_id for c in comments if c.task_id}
+    tasks_by_id: dict[int, Task] = {}
+    projects_by_id: dict[int, Project] = {}
+    if task_ids:
+        task_result = await session.exec(select(Task).where(Task.id.in_(task_ids)))
+        for task in task_result.all():
+            tasks_by_id[task.id] = task  # ty: ignore[invalid-assignment] — persisted row, id is set
+
+        project_ids = {t.project_id for t in tasks_by_id.values()}
+        if project_ids:
+            proj_result = await session.exec(
+                select(Project).where(Project.id.in_(project_ids))
+            )
+            for proj in proj_result.all():
+                projects_by_id[proj.id] = proj  # ty: ignore[invalid-assignment] — persisted row, id is set
+
+    # The extras' rows, and the tool row each belongs to — the feed shows the
+    # thread's own name and links at its real address, and the initiative is
+    # the tool's. The task is loaded above instead: its entry carries the
+    # project as well, which no other extra has.
+    extra_rows: dict[str, dict[int, object]] = {}
+    extra_anchors: dict[str, dict[int, object]] = {}
+    for column, extra in EXTRA_COMMENT_TARGETS.items():
+        if column == "task_id":
+            continue
+        parent = COMMENT_PARENTS[column]
+        ids = {value for c in comments if (value := getattr(c, column)) is not None}
+        rows: dict[int, object] = {}
+        anchors: dict[int, object] = {}
+        if ids:
+            loaded = (
+                await session.exec(select(extra.model).where(extra.model.id.in_(ids)))
+            ).all()
+            rows = {row.id: row for row in loaded}
+            anchor_model = TOOL_COMMENT_TARGETS[parent.governed_by].model
+            anchor_ids = {getattr(row, parent.tool_fk) for row in loaded}
+            if anchor_ids:
+                anchors = {
+                    anchor.id: anchor
+                    for anchor in (
+                        await session.exec(
+                            select(anchor_model).where(anchor_model.id.in_(anchor_ids))
+                        )
+                    ).all()
+                }
+        extra_rows[column] = rows
+        extra_anchors[column] = anchors
+
+    rows_by_tool: dict[Tool, dict] = {}
+    for tool, target in TOOL_COMMENT_TARGETS.items():
+        ids = {
+            value for c in comments if (value := getattr(c, target.column)) is not None
+        }
+        if not ids:
+            rows_by_tool[tool] = {}
+            continue
+        loaded = await session.exec(
+            select(target.model).where(target.model.id.in_(ids))
+        )
+        rows_by_tool[tool] = {row.id: row for row in loaded.all()}
+
+    # The feed's chips, in one query for the whole page rather than one per row.
+    reactions_by_comment = await reactions_service.load_reactions(
+        session,
+        target=ReactionTarget.comment,
+        target_ids=[c.id for c in comments],
+    )
+
+    entries: list[RecentActivityEntry] = []
+    for comment in comments:
+        author = comment.author
+        author_payload = CommentAuthor.model_validate(author) if author else None
+        fields: dict = {
+            "comment_id": comment.id,
+            "content": comment.content,
+            "created_at": comment.created_at,
+            "author": author_payload,
+            "reactions": reactions_service.summarize(
+                reactions_by_comment.get(comment.id, []), viewer_id=viewer_id
+            ),
+        }
+        if comment.task_id:
+            task = tasks_by_id.get(comment.task_id)
+            project = projects_by_id.get(task.project_id) if task else None
+            fields.update(
+                task_id=task.id if task else None,
+                task_title=task.title if task else None,
+                project_id=project.id if project else None,
+                project_name=project.name if project else None,
+                entity_type="task",
+                entity_id=comment.task_id,
+                entity_name=task.title if task else None,
+                initiative_id=project.initiative_id if project else None,
+            )
+        elif hit := next(
+            (
+                (column, value)
+                for column in extra_rows
+                if (value := getattr(comment, column)) is not None
+            ),
+            None,
+        ):
+            column, value = hit
+            extra = EXTRA_COMMENT_TARGETS[column]
+            row = extra_rows[column].get(value)
+            anchor = (
+                extra_anchors[column].get(getattr(row, COMMENT_PARENTS[column].tool_fk))
+                if row is not None
+                else None
+            )
+            fields.update(
+                entity_type=extra.kind,
+                entity_id=value,
+                entity_name=getattr(row, extra.title_field) if row else None,
+                initiative_id=anchor.initiative_id if anchor else None,
+            )
+        else:
+            for tool, target in TOOL_COMMENT_TARGETS.items():
+                value = getattr(comment, target.column)
+                if value is None:
+                    continue
+                row = rows_by_tool[tool].get(value)
+                fields.update(
+                    entity_type=tool.value,
+                    entity_id=value,
+                    entity_name=row.name if row else None,
+                    initiative_id=row.initiative_id if row else None,
+                )
+                if tool is Tool.document:
+                    fields.update(
+                        document_id=value,
+                        document_name=row.name if row else None,
+                    )
+                elif tool is Tool.project:
+                    fields.update(
+                        project_id=value,
+                        project_name=row.name if row else None,
+                    )
+                break
+        entries.append(RecentActivityEntry(**fields))
+    return entries

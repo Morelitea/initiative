@@ -6,6 +6,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select, delete, update
 
+from app.api import resource_access
 from app.api.actor_route import ActorRoute
 from app.api.deps import (
     ActorContext,
@@ -19,11 +20,6 @@ from app.api.deps import (
     get_guild_membership,
 )
 from app.db.guild_standing import InstallContext
-from app.api.v1.tenant_endpoints.tasks import (
-    _advance_recurrence_if_needed,
-    _get_project_with_access,
-    _ensure_can_manage,
-)
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.task import Task, TaskStatus, TaskStatusCategory
@@ -41,6 +37,7 @@ from app.db.frozen import mark_restructuring
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant import task_completion
+from app.services.tenant import task_creation as task_creation_service
 
 router = APIRouter(
     prefix="/projects/{project_id}/task-statuses",
@@ -157,12 +154,12 @@ async def list_task_statuses(
     current_user: ActorUserDep,
     guild_context: ProjectsRead,
 ) -> Sequence[TaskStatus]:
-    await _get_project_with_access(
+    await resource_access.load_authorized(
         session,
+        resource_access.governing_tool("tasks"),
         project_id,
         current_user,
-        context=guild_context,
-        access="read",
+        guild_context,
     )
     return await task_statuses_service.list_statuses(session, project_id)
 
@@ -175,11 +172,13 @@ async def create_task_status(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> TaskStatus:
-    project = await _ensure_can_manage(
+    project = await resource_access.load_authorized(
         session,
+        resource_access.governing_tool("tasks"),
         project_id,
         current_user,
-        context=guild_context,
+        guild_context,
+        access="write",
     )
 
     statuses = await task_statuses_service.list_statuses(session, project.id)
@@ -219,11 +218,13 @@ async def update_task_status(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> TaskStatus:
-    await _ensure_can_manage(
+    await resource_access.load_authorized(
         session,
+        resource_access.governing_tool("tasks"),
         project_id,
         current_user,
-        context=guild_context,
+        guild_context,
+        access="write",
     )
 
     target = await _load_status_or_404(session, project_id, status_id)
@@ -279,11 +280,13 @@ async def reorder_task_statuses(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> Sequence[TaskStatus]:
-    project = await _ensure_can_manage(
+    project = await resource_access.load_authorized(
         session,
+        resource_access.governing_tool("tasks"),
         project_id,
         current_user,
-        context=guild_context,
+        guild_context,
+        access="write",
     )
 
     if not reorder_in.items:
@@ -324,11 +327,13 @@ async def delete_task_status(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
-    await _ensure_can_manage(
+    await resource_access.load_authorized(
         session,
+        resource_access.governing_tool("tasks"),
         project_id,
         current_user,
-        context=guild_context,
+        guild_context,
+        access="write",
     )
 
     target = await _load_status_or_404(session, project_id, status_id)
@@ -428,7 +433,7 @@ async def delete_task_status(
         for task in recurring_tasks:
             task.task_status_id = fallback_obj.id  # ty: ignore[invalid-assignment] — persisted row, id is set
             task.task_status = fallback_obj
-            await _advance_recurrence_if_needed(
+            await task_creation_service.advance_recurrence_if_needed(
                 session,
                 task,
                 previous_status_category=target.category,

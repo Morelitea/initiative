@@ -14,7 +14,7 @@ standing in for one, and nothing counts it as a blocker.
 
 Each rule is a SQL expression over the kind's own table, so the two readers —
 the far end of an edge (:mod:`app.db.reference_targets`) and a task's blocker
-count (``app.api.v1.tenant_endpoints.tasks``) — work from one definition and
+count (``app.services.tenant.task_queries``) — work from one definition and
 cannot drift.
 """
 
