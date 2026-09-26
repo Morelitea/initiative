@@ -14,7 +14,7 @@ from app.core.tools import Tool
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.models.tenant.wiki import Wiki, WikiPage, WikiPageOrder, WikiReadingWidth
 from app.services.tenant import relationships as relationships_service
-from app.services.tenant.wikis import slugify_page_title
+from app.services.tenant.names import slugify
 
 from seed.common import Community, chip, heading, lexical, para, share, tag
 
@@ -1175,7 +1175,7 @@ async def seed(c: Community) -> None:
                 position=position,
                 is_draft=pd.get("is_draft", False),
                 title=pd["title"],
-                slug=slugify_page_title(pd["title"], fallback=f"page-{position}"),
+                slug=slugify(pd["title"], fallback=f"page-{position}"),
                 content=_body(pd),
                 created_by=c.users[pd.get("created_by", d["created_by"])].id,
             )
