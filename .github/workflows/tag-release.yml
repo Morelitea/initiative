@@ -22,9 +22,14 @@ jobs:
 
       - name: Extract version from branch name
         id: version
+        env:
+          BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
-          BRANCH="${{ github.event.pull_request.head.ref }}"
           VERSION="${BRANCH#release/v}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Release branch does not name a version (expected release/vX.Y.Z)."
+            exit 1
+          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
           echo "Extracted version: $VERSION from branch: $BRANCH"

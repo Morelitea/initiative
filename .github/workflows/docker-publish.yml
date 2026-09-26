@@ -30,18 +30,25 @@ jobs:
 
       - name: Extract version from tag
         id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          if [[ -n "${{ inputs.version }}" ]]; then
-            VERSION="${{ inputs.version }}"
+          if [[ -n "$INPUT_VERSION" ]]; then
+            VERSION="$INPUT_VERSION"
             echo "Version from input: $VERSION"
-          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
             VERSION=${GITHUB_REF#refs/tags/v}
             echo "Version from tag: $VERSION"
           else
             VERSION=$(cat VERSION)
             echo "Version from file: $VERSION"
           fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          # Every later job reads this output, so it is checked once, here.
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Not a release version (expected X.Y.Z)."
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Decide whether to build the native app
         id: decide
@@ -220,9 +227,9 @@ jobs:
         VERSION=${{ needs.decide.outputs.version }}
         VITE_API_URL=/api/v1
       tags: |
-        type=semver,pattern={{version}}${{ inputs.version && format(',value=v{0}', inputs.version) || '' }}
-        type=semver,pattern={{major}}.{{minor}}${{ inputs.version && format(',value=v{0}', inputs.version) || '' }}
-        type=semver,pattern={{major}}${{ inputs.version && format(',value=v{0}', inputs.version) || '' }}
+        type=semver,pattern={{version}}${{ inputs.version && format(',value=v{0}', needs.decide.outputs.version) || '' }}
+        type=semver,pattern={{major}}.{{minor}}${{ inputs.version && format(',value=v{0}', needs.decide.outputs.version) || '' }}
+        type=semver,pattern={{major}}${{ inputs.version && format(',value=v{0}', needs.decide.outputs.version) || '' }}
         type=raw,value=latest
     secrets:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -270,8 +277,8 @@ jobs:
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           APK_BUILT: ${{ needs.build-android.result == 'success' }}
+          VERSION: ${{ needs.decide.outputs.version }}
         run: |
-          VERSION="${{ needs.decide.outputs.version }}"
           echo "Extracting changelog for version $VERSION"
 
           # Extract the section for this version from CHANGELOG.md
@@ -290,7 +297,7 @@ jobs:
           # If no version-specific section found, provide fallback
           if [ -z "$CHANGELOG" ]; then
             echo "No changelog section found for version $VERSION"
-            CHANGELOG="See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details."
+            CHANGELOG="See [CHANGELOG.md](https://github.com/$GITHUB_REPOSITORY/blob/main/CHANGELOG.md) for details."
           fi
 
           # The native app is only rebuilt when the native shell changed (see the `decide`
