@@ -20,6 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import SystemSessionDep
 from app.api.v1.platform_endpoints.session_opening import (
     EMAIL_CODE_LEG,
     count_wrong_answer,
@@ -34,7 +35,7 @@ from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages
 from app.core.email_i18n import SUPPORTED_EMAIL_LOCALES
 from app.core.rate_limit import get_real_client_ip, limiter
-from app.db.session import get_system_session, get_session
+from app.db.session import get_session
 from app.models.platform.user import SIGN_IN_STATUSES, User
 from app.models.platform.user_email import UserEmail
 from app.schemas.platform.email_otp import (
@@ -57,7 +58,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 

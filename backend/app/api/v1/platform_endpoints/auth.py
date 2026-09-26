@@ -27,10 +27,11 @@ from app.api.deps import (
     get_current_active_user,
     get_current_user_optional,
     require_first_party_session,
+    SystemSessionDep,
 )
 from app.db import cohorts
 from app.db import session as db_session
-from app.db.session import get_system_session, set_rls_context
+from app.db.session import set_rls_context
 from app.core.config import API_V1_STR, settings
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core import auth_context
@@ -183,7 +184,6 @@ from app.services.platform import provider_placement
 from app.models.platform.user_token import UserTokenPurpose
 
 router = APIRouter()
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 
 logger = logging.getLogger(__name__)

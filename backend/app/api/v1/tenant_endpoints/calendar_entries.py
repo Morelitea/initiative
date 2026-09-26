@@ -21,8 +21,7 @@ from app.api.deps import (
     RLSSessionDep,
     UserSessionDep,
     get_current_active_user,
-    get_guild_membership,
-    GuildContext,
+    GuildContextDep,
 )
 from app.models.platform.user import User
 from app.schemas.tenant.calendar_entry import CalendarEntriesResponse
@@ -33,8 +32,6 @@ from app.services.tenant import task_queries
 router = APIRouter()
 # Cross-guild "my calendar" aggregate. Mounted under /api/v1/me.
 me_router = APIRouter()
-
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 @router.get("/", response_model=CalendarEntriesResponse)

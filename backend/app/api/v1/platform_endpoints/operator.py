@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Response
 from sqlmodel import select
 
-from app.api.deps import UserSessionDep, require_capability
+from app.api.deps import UserSessionDep, require_capability, SystemSessionDep
 from app.core.audit_events import AuditEventType
 from app.core.user_display import handle_of
 from app.core.usernames import UsernameError
@@ -15,8 +15,6 @@ from app.core.capabilities import (
     can_assign_role,
     role_rank,
 )
-from app.db.session import get_system_session
-from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.user import User, UserStatus
 from app.models.platform.user_token import UserTokenPurpose
 from app.schemas.platform.user import OperatorUserRead, AccountDeletionResponse
@@ -72,7 +70,6 @@ RolesAssignDep = Annotated[User, Depends(require_capability(Capability.ROLES_ASS
 # App-wide configuration (OIDC, SMTP, branding, role labels, platform AI).
 # Owner-only — imported by settings.py / ai_settings.py.
 ConfigManageDep = Annotated[User, Depends(require_capability(Capability.CONFIG_MANAGE))]
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 
 @router.get("/users", response_model=List[OperatorUserRead])

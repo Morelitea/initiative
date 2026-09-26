@@ -20,7 +20,11 @@ from sqlalchemy import or_, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.capabilities import Capability, roles_with_capability
+from app.core.capabilities import (
+    ROLE_MAX_GRANT_MINUTES,
+    Capability,
+    roles_with_capability,
+)
 from app.core.login_methods import LoginMethod
 from app.core.email_i18n import translate
 from app.models.platform.access_grant import (
@@ -79,19 +83,6 @@ DEFAULT_DURATION_MINUTES = 240  # 4 hours
 #: The absolute ceiling on any grant.
 MAX_DURATION_MINUTES = 1440  # 24 hours
 
-# Per-role maximum grant duration (least privilege). Each is clamped to the
-# absolute ceiling. The request and break-glass forms read the caller's figure
-# from the server (``max_minutes_for_role``, ``break_glass_max_minutes``).
-_ROLE_MAX_MINUTES: dict[UserRole, int] = {
-    UserRole.support: 240,  # 4 hours
-    UserRole.moderator: 480,  # 8 hours
-    UserRole.operator: 1440,  # 24 hours
-    # Owners/operators reach a guild via the self-approved break-glass path
-    # (``data.bypass``) rather than the request→approve flow; their cap applies
-    # to that self-issued grant.
-    UserRole.owner: 1440,
-}
-
 # Break-glass is self-approved, so its window is short and re-issued to
 # extend. Capped below the role maxima.
 BREAK_GLASS_DEFAULT_MINUTES = 60  # 1 hour
@@ -100,7 +91,7 @@ BREAK_GLASS_MAX_MINUTES = 240  # 4 hours
 
 def max_minutes_for_role(role: UserRole) -> int:
     """The longest grant the given role may hold (clamped to the ceiling)."""
-    role_cap = _ROLE_MAX_MINUTES.get(role, DEFAULT_DURATION_MINUTES)
+    role_cap = ROLE_MAX_GRANT_MINUTES.get(role, DEFAULT_DURATION_MINUTES)
     return min(role_cap, MAX_DURATION_MINUTES)
 
 

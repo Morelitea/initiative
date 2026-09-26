@@ -28,11 +28,10 @@ from app.api.deps import (
     ActorContext,
     ActorSessionDep,
     ActorUserDep,
-    GuildContext,
     RLSSessionDep,
     app_scope_by,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
 from app.core.app_scopes import AppScopeAccess, scope_name, tool_resource
 from app.core.messages import GuildMessages, InitiativeMessages
@@ -49,7 +48,6 @@ from app.services.tenant import archive as archive_service
 
 router = APIRouter(route_class=ActorRoute)
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 #: What an installed app needs to archive each kind: the write scope of the tool
 #: whose sharing governs it. An initiative is the guild admins' to archive, so

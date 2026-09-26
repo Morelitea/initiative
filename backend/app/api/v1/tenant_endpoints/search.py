@@ -20,11 +20,10 @@ from app.api.actor_route import ActorRoute
 from app.api.deps import (
     ActorContext,
     ActorSessionDep,
-    GuildContext,
     RLSSessionDep,
     app_scope_checked,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
 from app.core.references import parse_ref
 from app.core.search import SearchEntityType
@@ -37,7 +36,6 @@ from app.services.tenant import search as search_service
 
 router = APIRouter(route_class=ActorRoute)
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 #: ``/suggest`` for a person or an installed app. An app needs the read scope
 #: of each kind it asks for, which the service checks once it has ``types``.
 SuggestByEntityType = Annotated[

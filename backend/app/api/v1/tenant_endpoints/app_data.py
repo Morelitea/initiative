@@ -33,19 +33,17 @@ declaration, and it is fetched on the caller's own credentials.
 
 from typing import Annotated, Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 from sqlmodel import select
 
 from app.api import resource_access
 from app.api.deps import (
-    GuildContext,
     RLSSessionDep,
-    get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
+    CurrentUser,
 )
 from app.core.messages import AppDataMessages
 from app.core.tools import Tool
-from app.models.platform.user import User
 from app.models.tenant.guild_app import GuildApp
 from app.schemas.sql_query import QueryColumnDescription
 from app.services.query import rows as rows_query
@@ -85,9 +83,6 @@ def _projected_sample(raw: Any, endpoints: dict[str, dict[str, Any]]) -> dict[st
 
 
 router = APIRouter()
-
-CurrentUser = Annotated[User, Depends(get_current_active_user)]
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 def _bound_bindings(

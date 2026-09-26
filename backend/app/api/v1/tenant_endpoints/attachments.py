@@ -5,10 +5,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
 from app.api.deps import (
-    GuildContext,
     RLSSessionDep,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
 from app.core.messages import AttachmentMessages
 from app.models.platform.user import User
@@ -46,7 +45,6 @@ _SUFFIXES = {
 }
 
 ImageUploadUser = Annotated[User, Depends(get_current_active_user)]
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 async def _store_image(

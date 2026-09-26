@@ -25,24 +25,21 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from app.api.deps import AccountHolder, require_first_party_session
+from app.api.deps import AccountHolder, require_first_party_session, SystemSessionDep
 from app.api.v1.platform_endpoints.session_opening import current_session_row
 from app.core import auth_context
 from app.core.audit_events import AuditEventType
 from app.core.messages import AuthMessages
 from app.core.user_agents import describe, kind_of
-from app.db.session import get_system_session
 from app.models.platform.auth_session import AuthSession
 from app.schemas.platform.auth import SignedInSessionInfo
 from app.services import audit as audit_service
 from app.services.auth import sessions as session_service
 from app.services.platform import user_tokens
 from app.services.content_sockets import sockets as content_sockets
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 router = APIRouter()
 
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 #: The account's own sign-ins are listed and ended by the person, in a session of
 #: their own, not through a standing credential.
 FirstPartyOnly = Annotated[str, Depends(require_first_party_session)]

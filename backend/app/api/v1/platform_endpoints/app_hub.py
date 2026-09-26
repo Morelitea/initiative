@@ -17,7 +17,6 @@ from typing import Annotated, Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import (
     CREDENTIAL_INSTALL,
@@ -26,6 +25,7 @@ from app.api.deps import (
     VerifiedInstall,
     establish_install_access,
     oauth2_scheme,
+    SystemSessionDep,
 )
 from app.core import audit_context
 from app.core.app_access_token import (
@@ -41,7 +41,7 @@ from app.core.rate_limit import (
     APP_HUB_CALLS_PER_TARGET,
     take_allowance,
 )
-from app.db.session import clear_rls_context, get_system_session
+from app.db.session import clear_rls_context
 from app.schemas.platform.app_hub import AppHubCall
 from app.services import audit as audit_service
 from app.services.marketplace import app_hub as hub_service
@@ -50,7 +50,6 @@ from app.services.marketplace.app_data import AppDataError
 # Not part of the OpenAPI document: only app services call it, never the SPA.
 router = APIRouter(include_in_schema=False)
 
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 #: The counter namespace for this route's allowances.
 _LIMIT_NAMESPACE = "app-hub"

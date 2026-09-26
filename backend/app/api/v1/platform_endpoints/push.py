@@ -1,10 +1,7 @@
-from typing import Annotated
+from fastapi import APIRouter, HTTPException, status
 
-from fastapi import APIRouter, Depends, HTTPException, status
-
-from app.api.deps import UserSessionDep, get_current_active_user
+from app.api.deps import UserSessionDep, CurrentUser
 from app.core.auth_context import device_token_id
-from app.models.platform.user import User
 from app.schemas.platform.push import (
     PushTokenRegisterRequest,
     PushTokenUnregisterRequest,
@@ -14,8 +11,6 @@ from app.core.messages import NotificationMessages
 from app.services.platform import app_settings, push_tokens
 
 router = APIRouter()
-
-CurrentUser = Annotated[User, Depends(get_current_active_user)]
 
 
 @router.post("/register", response_model=PushTokenResponse)

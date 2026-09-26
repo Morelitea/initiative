@@ -24,10 +24,9 @@ from fastapi import APIRouter, Depends, Path, status
 
 from app.api import resource_access
 from app.api.deps import (
-    GuildContext,
     RLSSessionDep,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
 from app.core.tools import Tool
 from app.models.platform.user import User
@@ -36,7 +35,6 @@ from app.services.tenant import recent_views as recent_views_service
 
 router = APIRouter()
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 
 # The OpenAPI tag a tool's routes carry. It is the tool's own plural, except

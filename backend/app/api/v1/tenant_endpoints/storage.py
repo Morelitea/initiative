@@ -11,25 +11,18 @@ disclosed to regular members).
 
 from __future__ import annotations
 
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 
 from app.core.messages import GuildMessages
 from app.api.deps import (
-    GuildContext,
     RLSSessionDep,
-    get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
+    CurrentUser,
 )
-from app.models.platform.user import User
 from app.schemas.base import SanitizedBaseModel
 from app.services.tenant.attachments import get_guild_storage_usage
 
 router = APIRouter()
-
-CurrentUser = Annotated[User, Depends(get_current_active_user)]
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 class GuildStorageUsageRead(SanitizedBaseModel):

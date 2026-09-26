@@ -29,9 +29,8 @@ from app.api.deps import (
     SessionDep,
     UserSessionDep,
     get_current_active_user,
-    get_guild_membership,
-    GuildContext,
-    require_guild_roles,
+    SystemSessionDep,
+    GuildAdminContext,
 )
 from app.api.v1.platform_endpoints.password_recheck import (
     require_password_or_recent_proof,
@@ -55,7 +54,6 @@ from app.core.user_input_validators import (
     normalize_time_format,
     normalize_week_starts_on,
 )
-from app.db.session import get_system_session
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.guild import (
     GUILD_ADMIN_ROLES,
@@ -184,12 +182,7 @@ me_router = APIRouter()
 # ``members:read``.
 guild_router = APIRouter(route_class=ActorRoute)
 
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 MembersRead = Annotated[ActorContext, Depends(app_scope("members:read"))]
-GuildAdminContext = Annotated[
-    GuildContext, Depends(require_guild_roles(GuildRole.admin))
-]
 
 
 @router.get("/me/time-out", response_model=AccountTimeOutRead)

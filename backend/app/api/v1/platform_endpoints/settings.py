@@ -1,15 +1,15 @@
 import logging
 from datetime import datetime
-from typing import Annotated, Any, Literal
+from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Request, status
 from sqlalchemy import func
 from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import (
     SessionDep,
     UserSessionDep,
+    SystemSessionDep,
 )
 from app.api.v1.platform_endpoints.access_grants import check_second_factor
 from app.api.v1.platform_endpoints.operator import ConfigManageDep, GuildsManageDep
@@ -18,7 +18,6 @@ from app.core.audit_events import AuditEventType
 from app.core.config import API_V1_STR
 from app.core.config import settings as app_config
 from app.core.rate_limit import limiter
-from app.db.session import get_system_session
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.app_setting_secret import AppSettingSecret
 from app.models.platform.guild import (
@@ -130,7 +129,6 @@ _GUILD_ADMINISTRATION_FIELDS: tuple[str, ...] = (
     "support_enabled",
 )
 
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 router = APIRouter()
 

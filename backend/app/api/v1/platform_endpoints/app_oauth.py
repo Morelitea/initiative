@@ -16,13 +16,13 @@ what they read is registrations, spent assertions and, for the listing, the
 install index (``app_installs``).
 """
 
-from typing import Annotated, Any, List, Optional
+from typing import Any, List, Optional
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
-from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.api.deps import SystemSessionDep
 from app.core.app_access_token import (
     AccessTokenError,
     AppAccessToken,
@@ -30,7 +30,6 @@ from app.core.app_access_token import (
     unseal_access_token,
 )
 from app.core.messages import AuthMessages
-from app.db.session import get_system_session
 from app.schemas.platform.app_oauth import (
     AppAccessTokenResponse,
     AppInstallationRead,
@@ -38,7 +37,6 @@ from app.schemas.platform.app_oauth import (
 )
 from app.services.marketplace import app_installs, app_oauth, registration_lookup
 
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 router = APIRouter()
 

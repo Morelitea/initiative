@@ -34,8 +34,7 @@ from app.api.deps import (
     RLSSessionDep,
     app_scope,
     get_current_active_user,
-    get_guild_membership,
-    GuildContext,
+    GuildContextDep,
 )
 from app.models.tenant.queue import (
     Queue,
@@ -166,7 +165,6 @@ items_router = APIRouter(route_class=ActorRoute)
 
 logger = logging.getLogger(__name__)
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 #: The routes an installed app may call, under the queues scopes. A queue's
 #: items and its turn commands answer to the queue's own scopes.
 QueuesRead = Annotated[ActorContext, Depends(app_scope("queues:read"))]

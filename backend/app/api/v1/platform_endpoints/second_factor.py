@@ -10,14 +10,15 @@ there is anybody to scope a policy to.
 """
 
 from datetime import datetime
-from typing import Annotated, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from app.api.deps import (
     FactorExemptUser,
-    get_current_active_user,
     require_first_party_session,
+    SystemSessionDep,
+    CurrentUser,
 )
 from app.core.audit_events import AuditEventType
 from app.core.login_methods import LoginMethod
@@ -29,10 +30,7 @@ from app.api.v1.platform_endpoints.password_recheck import (
     require_password_or_recent_proof,
 )
 from app.api.v1.platform_endpoints.session_opening import upgrade_session
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.session import get_system_session
-from app.models.platform.user import User
 from app.schemas.platform.token import Token
 from app.schemas.platform.second_factor import (
     SecondFactorStepUpAnswer,
@@ -56,9 +54,7 @@ from app.services.content_sockets import sockets as content_sockets
 
 router = APIRouter()
 
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
-CurrentUser = Annotated[User, Depends(get_current_active_user)]
 #: Setting a factor up and presenting one have to answer while the
 #: deployment's own rule is unmet — they are how an account meets it. Removing
 #: one, and replacing the recovery set, are ordinary and take ``CurrentUser``.

@@ -19,7 +19,7 @@ from app.api.deps import (
     RLSSessionDep,
     app_scope,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
 from app.core.messages import PropertyMessages
 from app.models.tenant.calendar import Calendar
@@ -50,7 +50,6 @@ from app.services.tenant import properties as properties_service
 
 router = APIRouter(route_class=ActorRoute)
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 #: The routes an installed app may call. Property definitions are part of how
 #: an initiative is set up, so they answer to the initiatives scope.
 PropertyDefinitionsRead = Annotated[

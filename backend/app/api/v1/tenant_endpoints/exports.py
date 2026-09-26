@@ -30,8 +30,8 @@ from app.api.deps import (
     GuildContext,
     RLSSessionDep,
     get_current_active_user,
-    get_guild_membership,
     require_seat,
+    GuildContextDep,
 )
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
@@ -61,7 +61,6 @@ from app.services.export import limits as export_limits
 
 router = APIRouter()
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 
 _LIST_LIMIT = 50

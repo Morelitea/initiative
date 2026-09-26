@@ -41,11 +41,10 @@ from app.api.deps import (
     ActorSessionDep,
     ActorUserDep,
     IncludeDeletedDep,
-    GuildContext,
     RLSSessionDep,
     app_scope,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
 from app.core.messages import CommonMessages, PostMessages
 from app.core.tools import Tool
@@ -100,7 +99,6 @@ MAX_BOARD_PAGE_SIZE = 50
 
 router = APIRouter(route_class=ActorRoute)
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 #: The routes an installed app may call, under the posts scopes. Pinning is an
 #: edit of the board, so it asks the write scope.
 PostsRead = Annotated[ActorContext, Depends(app_scope("posts:read"))]

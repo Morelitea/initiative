@@ -11,8 +11,7 @@ from typing import Annotated, List
 
 from fastapi import APIRouter, Depends, Query
 
-from app.api.deps import GuildContext, RLSSessionDep, get_current_active_user
-from app.api.deps import get_guild_membership
+from app.api.deps import RLSSessionDep, get_current_active_user, GuildContextDep
 from app.core.smart_chips import SmartChipKind
 from app.models.platform.user import User
 from app.schemas.tenant.smart_chip import ReferenceEmbedList, SmartChipStateList
@@ -20,7 +19,6 @@ from app.services.tenant import smart_chips as smart_chips_service
 
 router = APIRouter()
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 _REF_DESCRIPTION = (
     "A chip to read, as `kind:id:aspect` — `task:12:status`. Repeat it for "

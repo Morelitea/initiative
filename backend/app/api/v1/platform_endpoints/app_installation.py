@@ -39,6 +39,7 @@ from app.api.deps import (
     VerifiedInstall,
     establish_install_access,
     oauth2_scheme,
+    SystemSessionDep,
 )
 from app.core import audit_context
 from app.core.app_access_token import (
@@ -48,7 +49,7 @@ from app.core.app_access_token import (
     unseal_access_token,
 )
 from app.core.messages import AuthMessages
-from app.db.session import clear_rls_context, get_system_session
+from app.db.session import clear_rls_context
 from app.models.tenant.guild_app import GuildApp
 from app.schemas.tenant.app_channel import (
     AppConnectionRead,
@@ -67,8 +68,6 @@ from app.services.tenant.app_channels import AppChannelError
 # Not part of the OpenAPI document: only app containers call these, never the
 # SPA, so the generated frontend client carries none of them.
 router = APIRouter(prefix="/installation", include_in_schema=False)
-
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 
 def _refuse() -> HTTPException:

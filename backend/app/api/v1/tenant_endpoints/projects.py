@@ -29,8 +29,7 @@ from app.api.deps import (
     SessionDep,
     app_scope,
     get_current_active_user,
-    get_guild_membership,
-    GuildContext,
+    GuildContextDep,
 )
 from app.models.tenant.project import (
     Project,
@@ -105,7 +104,6 @@ from app.schemas.tenant.tag import annotated_tags
 
 router = APIRouter(route_class=ActorRoute)
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 #: The routes an installed app may call, under the projects scopes.
 ProjectsRead = Annotated[ActorContext, Depends(app_scope("projects:read"))]
 ProjectsWrite = Annotated[ActorContext, Depends(app_scope("projects:write"))]

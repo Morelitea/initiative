@@ -6,6 +6,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from datetime import datetime, timedelta, timezone
 
+from app.core.capabilities import ROLE_MAX_GRANT_MINUTES
 from app.core.tools import Tool
 from app.models.platform.access_grant import AccessGrant
 from app.models.platform.guild import GuildRole
@@ -446,7 +447,7 @@ async def test_the_request_form_reads_the_callers_ceiling(
     from app.services.platform import access_grants as service
 
     # A deployment that configured its own figure for one tier.
-    monkeypatch.setitem(service._ROLE_MAX_MINUTES, service.UserRole.support, 90)
+    monkeypatch.setitem(ROLE_MAX_GRANT_MINUTES, service.UserRole.support, 90)
     reader = await acting_user(tier)
 
     limits = await client.get(f"{GRANTS}limits", headers=reader.headers)

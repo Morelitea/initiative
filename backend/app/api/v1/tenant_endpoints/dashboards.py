@@ -29,7 +29,7 @@ from app.api.deps import (
     GuildContext,
     RLSSessionDep,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
 from app.core.audit_events import AuditEventType
 from app.core.messages import (
@@ -83,8 +83,6 @@ from app.services.tenant.dashboard_definition import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 # ---------------------------------------------------------------------------
