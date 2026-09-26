@@ -12,8 +12,8 @@ import asyncio
 import functools
 import hashlib
 import os
-from collections.abc import AsyncGenerator
-from contextlib import suppress
+from collections.abc import AsyncGenerator, AsyncIterator
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -997,7 +997,10 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     # leaves an open transaction (e.g. SELECT ... FOR UPDATE then a 4xx without
     # commit) leaks its row locks onto the next request, or onto a follow-up setup
     # write on the SAME row, which then blocks until statement_timeout.
-    async def _override(login: str, connection: HTTPConnection):
+    @asynccontextmanager
+    async def _override(
+        login: str, connection: HTTPConnection
+    ) -> AsyncIterator[AsyncSession]:
         await _publish_setup_state()
         reused = await _served_session(login, served_guild_id(connection))
         # Production gets a FRESH session (empty info) per request; this reused
@@ -1017,16 +1020,19 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         finally:
             await reused.rollback()
 
+    # ``async with``, not ``async for``: closing the dependency must run the
+    # rollback before the next request, rather than leave the inner generator
+    # for the event loop to close later on the same connection.
     async def override_get_session(
         connection: HTTPConnection,
     ) -> AsyncGenerator[AsyncSession, None]:
-        async for reused in _override("app_user", connection):
+        async with _override("app_user", connection) as reused:
             yield reused
 
     async def override_get_system_session(
         connection: HTTPConnection,
     ) -> AsyncGenerator[AsyncSession, None]:
-        async for reused in _override("app_admin", connection):
+        async with _override("app_admin", connection) as reused:
             yield reused
 
     app.dependency_overrides[get_session] = override_get_session
