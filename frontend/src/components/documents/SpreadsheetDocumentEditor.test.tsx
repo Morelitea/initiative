@@ -1,7 +1,7 @@
 /**
- * A hidden row or column is not drawn.
+ * The spreadsheet editor's grid.
  *
- * The virtualizer keeps a hidden line in its layout at zero size, so the
+ * A hidden row or column is not drawn. The virtualizer keeps a hidden line in its layout at zero size, so the
  * lines after it sit at the right offsets. Drawing it anyway puts its cells
  * at the same offset as the next line's, which is what
  * https://github.com/Morelitea/initiative/issues/1562 showed: hiding a row
@@ -14,7 +14,7 @@
  * component's own decision about what to render.
  */
 
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "@/__tests__/helpers/render";
@@ -87,5 +87,22 @@ describe("a hidden row", () => {
     // on screen twice — in the grid and in the formula bar.
     expect(screen.getAllByText("Test1").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Test3").length).toBeGreaterThan(0);
+  });
+});
+
+describe("a cell being edited", () => {
+  it("takes a clicked cell into the formula typed so far", async () => {
+    await renderSheet({});
+
+    fireEvent.doubleClick(screen.getByText("Test2"));
+    const input = document.activeElement as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "=" } });
+    fireEvent.mouseDown(screen.getByText("Test1"), { button: 0 });
+    expect(input.value).toBe("=A1");
+
+    fireEvent.keyDown(input, { key: "Enter" });
+    // A1 itself, and A2 showing what its formula computes.
+    expect(screen.getAllByText("Test1")).toHaveLength(2);
+    expect(screen.queryByText("Test2")).not.toBeInTheDocument();
   });
 });

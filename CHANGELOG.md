@@ -66,6 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **A failed project delete says so** — it used to say the project couldn't be loaded.
+- **Typing in a spreadsheet cell keeps up** — each keystroke redrew every cell on screen, so a large sheet lagged behind the typing. Now only the cells that change are redrawn.
 - **Changing a task's priority from My Tasks saves it** — the priority menu on **My Tasks** saves to the task's own community, and the priority shows in your language.
 - **A detail page says why it can't open** — a project, document, task or tool page you can't open says whether you have no access to it or it doesn't exist, and a failed request shows the error instead of calling the page missing. Wikis and counters used to say "not found" even when you had no access.
 - **Back works in the create task and document dialogs** — with one community, **Back** from choosing an initiative now stays on the community step instead of jumping forward again.

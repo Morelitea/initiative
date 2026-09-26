@@ -6,6 +6,7 @@ import {
   type CSSProperties,
   Fragment,
   type KeyboardEvent,
+  memo,
   type PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
@@ -1717,6 +1718,95 @@ export const SpreadsheetDocumentEditor = ({
   const totalGridWidth = colVirtualizer.getTotalSize();
   const totalGridHeight = rowVirtualizer.getTotalSize();
 
+  // The cells' event handlers, rebuilt every render so they read current
+  // state. Cells call them through ``cellHandlers``, whose identity never
+  // changes, so a memoised cell re-renders only when what it draws changes.
+  const cellHandlersRef = useRef<CellHandlers | null>(null);
+  cellHandlersRef.current = {
+    mouseDown: (r, c, e) => {
+      if (e.button !== 0) return;
+      // Point mode: while editing a formula, clicking another cell
+      // splices its reference into the draft instead of moving the
+      // selection. preventDefault keeps the input focused (no blur →
+      // no commit). A null return means "not a reference spot" — fall
+      // through to a normal, committing click.
+      if (editing && isFormula(editing.draft)) {
+        // Shift-click extends the last inserted reference into a range;
+        // a plain click inserts/moves a single reference.
+        const extend = e.shiftKey && pointRefRef.current !== null;
+        if (insertReference(r, c, extend)) {
+          e.preventDefault();
+          pointDraggingRef.current = true;
+          return;
+        }
+      }
+      containerRef.current?.focus();
+      selectingRef.current = "range";
+      selectCell(r, c, e.shiftKey);
+    },
+    mouseEnter: (r, c, e) => {
+      // A point-mode drag (button still held) extends the reference into
+      // a range. Gate on the live button state (``e.buttons``) rather
+      // than only the flag, so a missed mouseup (release off-window, HMR)
+      // can't leave the drag stuck following the cursor.
+      if (pointDraggingRef.current) {
+        if (e.buttons === 0) {
+          pointDraggingRef.current = false;
+        } else {
+          insertReference(r, c, true);
+          return;
+        }
+      }
+      // A fill drag in progress takes over hover: extend its preview
+      // instead of moving the selection focus.
+      if (fillSourceRef.current) {
+        extendFill(r, c);
+        return;
+      }
+      if (selectingRef.current !== "range") return;
+      setSel((p) => ({
+        anchor: p.anchor,
+        focus: { row: r, col: c },
+        mode: "range",
+      }));
+    },
+    doubleClick: (r, c) => beginEdit(r, c),
+    toggleBoolean: (r, c) => {
+      const value = cells.get(keyOf(r, c));
+      if (readOnly || typeof value !== "boolean") return;
+      selectCell(r, c);
+      setCell(r, c, !value);
+    },
+    draftChange: (draft) => {
+      // Typing invalidates the recorded reference span, so a later
+      // shift-click starts a fresh reference rather than re-splicing.
+      pointRefRef.current = null;
+      setEditing((p) => (p ? { ...p, draft } : p));
+    },
+    editingKeyDown: handleEditingKeyDown,
+    editingBlur: handleEditorBlur,
+    editingFocus: () => {
+      activeEditorRef.current = editingInputRef.current;
+    },
+    fillHandleMouseDown: startFill,
+    fillHandleDoubleClick: autofillDown,
+  };
+  const cellHandlers = useMemo<CellHandlers>(
+    () => ({
+      mouseDown: (r, c, e) => cellHandlersRef.current?.mouseDown(r, c, e),
+      mouseEnter: (r, c, e) => cellHandlersRef.current?.mouseEnter(r, c, e),
+      doubleClick: (r, c) => cellHandlersRef.current?.doubleClick(r, c),
+      toggleBoolean: (r, c) => cellHandlersRef.current?.toggleBoolean(r, c),
+      draftChange: (draft) => cellHandlersRef.current?.draftChange(draft),
+      editingKeyDown: (e) => cellHandlersRef.current?.editingKeyDown(e),
+      editingBlur: (e) => cellHandlersRef.current?.editingBlur(e),
+      editingFocus: () => cellHandlersRef.current?.editingFocus(),
+      fillHandleMouseDown: () => cellHandlersRef.current?.fillHandleMouseDown(),
+      fillHandleDoubleClick: () => cellHandlersRef.current?.fillHandleDoubleClick(),
+    }),
+    []
+  );
+
   const renderCell = useCallback(
     (r: number, c: number, left: number, top: number) => {
       const isActive = sel.focus.row === r && sel.focus.col === c;
@@ -1756,7 +1846,12 @@ export const SpreadsheetDocumentEditor = ({
       return (
         <CellView
           key={keyOf(r, c)}
-          style={{ left, top, width: colWidth(c), height: rowHeight(r) }}
+          row={r}
+          col={c}
+          left={left}
+          top={top}
+          width={colWidth(c)}
+          height={rowHeight(r)}
           cellCss={cellCss}
           isActive={isActive}
           inSelection={isInSel(r, c)}
@@ -1774,73 +1869,7 @@ export const SpreadsheetDocumentEditor = ({
           peerName={peer?.user.name ?? null}
           refHighlight={refHighlightAt(r, c)}
           refTokens={isEditing ? visibleRefs : EMPTY_REF_TOKENS}
-          onMouseDown={(e) => {
-            if (isEditing) return;
-            if (e.button !== 0) return;
-            // Point mode: while editing a formula, clicking another cell
-            // splices its reference into the draft instead of moving the
-            // selection. preventDefault keeps the input focused (no blur →
-            // no commit). A null return means "not a reference spot" — fall
-            // through to a normal, committing click.
-            if (editing && isFormula(editing.draft)) {
-              // Shift-click extends the last inserted reference into a range;
-              // a plain click inserts/moves a single reference.
-              const extend = e.shiftKey && pointRefRef.current !== null;
-              if (insertReference(r, c, extend)) {
-                e.preventDefault();
-                pointDraggingRef.current = true;
-                return;
-              }
-            }
-            containerRef.current?.focus();
-            selectingRef.current = "range";
-            selectCell(r, c, e.shiftKey);
-          }}
-          onMouseEnter={(e) => {
-            // A point-mode drag (button still held) extends the reference into
-            // a range. Gate on the live button state (``e.buttons``) rather
-            // than only the flag, so a missed mouseup (release off-window, HMR)
-            // can't leave the drag stuck following the cursor.
-            if (pointDraggingRef.current) {
-              if (e.buttons === 0) {
-                pointDraggingRef.current = false;
-              } else {
-                insertReference(r, c, true);
-                return;
-              }
-            }
-            // A fill drag in progress takes over hover: extend its preview
-            // instead of moving the selection focus.
-            if (fillSourceRef.current) {
-              extendFill(r, c);
-              return;
-            }
-            if (selectingRef.current !== "range") return;
-            setSel((p) => ({
-              anchor: p.anchor,
-              focus: { row: r, col: c },
-              mode: "range",
-            }));
-          }}
-          onFillHandleMouseDown={startFill}
-          onFillHandleDoubleClick={autofillDown}
-          onDoubleClick={() => beginEdit(r, c)}
-          onToggleBoolean={() => {
-            if (readOnly || !isBoolean) return;
-            selectCell(r, c);
-            setCell(r, c, !(value as boolean));
-          }}
-          onDraftChange={(draft) => {
-            // Typing invalidates the recorded reference span, so a later
-            // shift-click starts a fresh reference rather than re-splicing.
-            pointRefRef.current = null;
-            setEditing((p) => (p ? { ...p, draft } : p));
-          }}
-          onEditingKeyDown={handleEditingKeyDown}
-          onEditingBlur={handleEditorBlur}
-          onEditingFocus={() => {
-            activeEditorRef.current = editingInputRef.current;
-          }}
+          handlers={cellHandlers}
         />
       );
     },
@@ -1859,19 +1888,11 @@ export const SpreadsheetDocumentEditor = ({
       activeSheetId,
       visibleRefs,
       refHighlightAt,
-      insertReference,
       readOnly,
       peerSelectionsByCell,
       colWidth,
       rowHeight,
-      selectCell,
-      beginEdit,
-      setCell,
-      handleEditingKeyDown,
-      handleEditorBlur,
-      startFill,
-      autofillDown,
-      extendFill,
+      cellHandlers,
     ]
   );
 
@@ -2661,8 +2682,27 @@ const HeaderContextMenu = ({
   );
 };
 
+/** A cell's event handlers, keyed by the cell they fire on. */
+interface CellHandlers {
+  mouseDown: (row: number, col: number, e: React.MouseEvent) => void;
+  mouseEnter: (row: number, col: number, e: React.MouseEvent) => void;
+  doubleClick: (row: number, col: number) => void;
+  toggleBoolean: (row: number, col: number) => void;
+  draftChange: (draft: string) => void;
+  editingKeyDown: (e: KeyboardEvent<HTMLInputElement>) => void;
+  editingBlur: (e: React.FocusEvent<HTMLInputElement>) => void;
+  editingFocus: () => void;
+  fillHandleMouseDown: () => void;
+  fillHandleDoubleClick: () => void;
+}
+
 interface CellViewProps {
-  style: CSSProperties;
+  row: number;
+  col: number;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
   /** Resolved style/format CSS (background, color, weight, align). */
   cellCss: CSSProperties;
   /** The focus cell — strong ring, the keyboard/edit target. */
@@ -2689,20 +2729,35 @@ interface CellViewProps {
   refTokens: FormulaRefToken[];
   peerColor: string | null;
   peerName: string | null;
-  onMouseDown: (e: React.MouseEvent) => void;
-  onMouseEnter: (e: React.MouseEvent) => void;
-  onDoubleClick: () => void;
-  onToggleBoolean: () => void;
-  onDraftChange: (draft: string) => void;
-  onEditingKeyDown: (e: KeyboardEvent<HTMLInputElement>) => void;
-  onEditingBlur: (e: React.FocusEvent<HTMLInputElement>) => void;
-  onEditingFocus: () => void;
-  onFillHandleMouseDown: () => void;
-  onFillHandleDoubleClick: () => void;
+  /** Stable for the editor's lifetime, so it never defeats the memo. */
+  handlers: CellHandlers;
 }
 
-const CellView = ({
-  style,
+/** The props the parent rebuilds each render, compared by their entries. */
+const SHALLOW_CELL_PROPS = new Set<string>(["cellCss", "refHighlight"]);
+
+const shallowEqual = (a: object | null, b: object | null): boolean => {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const aKeys = Object.keys(a);
+  if (aKeys.length !== Object.keys(b).length) return false;
+  return aKeys.every((k) => Object.is(a[k as keyof typeof a], b[k as keyof typeof b]));
+};
+
+const cellViewPropsEqual = (prev: CellViewProps, next: CellViewProps): boolean =>
+  (Object.keys(next) as (keyof CellViewProps)[]).every((k) =>
+    SHALLOW_CELL_PROPS.has(k)
+      ? shallowEqual(prev[k] as object | null, next[k] as object | null)
+      : Object.is(prev[k], next[k])
+  );
+
+const CellView = memo(function CellView({
+  row,
+  col,
+  left,
+  top,
+  width,
+  height,
   cellCss,
   isActive,
   inSelection,
@@ -2720,17 +2775,8 @@ const CellView = ({
   refTokens,
   peerColor,
   peerName,
-  onMouseDown,
-  onMouseEnter,
-  onDoubleClick,
-  onToggleBoolean,
-  onDraftChange,
-  onEditingKeyDown,
-  onEditingBlur,
-  onEditingFocus,
-  onFillHandleMouseDown,
-  onFillHandleDoubleClick,
-}: CellViewProps) => {
+  handlers,
+}: CellViewProps) {
   const baseClass = useMemo(
     () =>
       cn(
@@ -2742,9 +2788,12 @@ const CellView = ({
   // Fill must sit *under* the value/ring; positioning + fill on the
   // container, text styling inherited by the value span.
   const containerStyle = useMemo<CSSProperties>(
-    () => ({ position: "absolute", ...style, ...cellCss }),
-    [style, cellCss]
+    () => ({ position: "absolute", left, top, width, height, ...cellCss }),
+    [left, top, width, height, cellCss]
   );
+  const onMouseDown = (e: React.MouseEvent) => handlers.mouseDown(row, col, e);
+  const onMouseEnter = (e: React.MouseEvent) => handlers.mouseEnter(row, col, e);
+  const onDoubleClick = () => handlers.doubleClick(row, col);
 
   const peerOverlay =
     peerColor && peerName ? (
@@ -2807,11 +2856,11 @@ const CellView = ({
       onMouseDown={(e) => {
         e.stopPropagation();
         e.preventDefault();
-        onFillHandleMouseDown();
+        handlers.fillHandleMouseDown();
       }}
       onDoubleClick={(e) => {
         e.stopPropagation();
-        onFillHandleDoubleClick();
+        handlers.fillHandleDoubleClick();
       }}
     />
   ) : null;
@@ -2823,10 +2872,10 @@ const CellView = ({
           inputRef={inputRef}
           value={draft}
           tokens={refTokens}
-          onChange={onDraftChange}
-          onKeyDown={onEditingKeyDown}
-          onBlur={onEditingBlur}
-          onFocus={onEditingFocus}
+          onChange={handlers.draftChange}
+          onKeyDown={handlers.editingKeyDown}
+          onBlur={handlers.editingBlur}
+          onFocus={handlers.editingFocus}
         />
         {peerOverlay}
       </div>
@@ -2848,7 +2897,7 @@ const CellView = ({
           disabled={readOnly}
           onClick={(e) => {
             e.stopPropagation();
-            onToggleBoolean();
+            handlers.toggleBoolean(row, col);
           }}
           aria-label={booleanValue ? "true" : "false"}
         />
@@ -2881,4 +2930,4 @@ const CellView = ({
       {fillHandle}
     </div>
   );
-};
+}, cellViewPropsEqual);
