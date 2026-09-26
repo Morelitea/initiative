@@ -322,10 +322,12 @@ async def test_an_embedded_wiki_page_shows_its_body_but_not_a_draft(
     """A draft is hidden from a reader everywhere else, so an embed of one is
     absent to them rather than a window onto it."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    a.initiative.wikis_enabled = True
-    session.add(a.initiative)
+    initiative = a.initiative
+    assert initiative is not None
+    initiative.wikis_enabled = True
+    session.add(initiative)
     await session.commit()
-    wiki = await create_wiki(session, a.initiative, a.user)
+    wiki = await create_wiki(session, initiative, a.user)
     page = await create_wiki_page(
         session, wiki, a.user, title="Rota", content=_prose("Tuesdays.")
     )

@@ -530,7 +530,9 @@ async def _bodies(
     """What these things say, in full — for the kinds in :data:`_PROSE`.
 
     An empty body is left out, the way an empty description is: there is
-    nothing to show under the name.
+    nothing to show under the name. A wiki page still being drafted is left
+    out for anyone who cannot edit it by the table's own read policy, which
+    this request's session is under, as every other read of a page is.
     """
     prose = _PROSE.get(entity_type)
     if prose is None:
