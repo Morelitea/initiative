@@ -6,8 +6,6 @@ connection's cohort refused rather than counted.
 """
 
 import asyncio
-from contextlib import asynccontextmanager
-from typing import AsyncIterator
 
 import pytest
 from sqlalchemy import text
@@ -18,9 +16,8 @@ from app.core.config import Settings, settings
 from app.db import cohorts
 from app.db import session as db_session
 from app.db.session import get_session, set_rls_context
-from app.models.platform.user import User
 from app.services.cross_guild import gather_across_guilds
-from app.testing import create_guild, create_user
+from app.testing import create_guild, create_user, platform_session
 
 
 def _connection(path_params: dict[str, str]) -> HTTPConnection:
@@ -63,19 +60,11 @@ def test_one_cohort_is_the_one_request_pool(monkeypatch):
     assert cohorts.request_sessionmaker(None) is db_session.AsyncSessionLocal
 
 
-@asynccontextmanager
-async def _request_parent(user: User) -> AsyncIterator[AsyncSession]:
-    async with cohorts.request_sessionmaker(None)() as parent:
-        cohorts.mark_request_session(parent)
-        await set_rls_context(parent, user_id=user.id, platform_role=user.role.value)
-        yield parent
-
-
 async def _bind_for(path_params: dict[str, str]):
     sessions = get_session(_connection(path_params))
     session = await anext(sessions)
     try:
-        return session.bind, cohorts.fans_out(session)
+        return session.bind, cohorts._KIND_KEY in session.info
     finally:
         await sessions.aclose()
 
@@ -148,7 +137,7 @@ async def test_a_read_across_communities_reads_each_from_its_own_cohort(session,
     second = await create_guild(session, creator=user)
     assert cohorts.cohort_of(first.id) != cohorts.cohort_of(second.id)
     if kind == "request":
-        opened, maker = _request_parent(user), cohorts.request_sessionmaker
+        opened, maker = platform_session(user), cohorts.request_sessionmaker
     else:
         opened, maker = cohorts.system_session(None), cohorts.system_sessionmaker
 

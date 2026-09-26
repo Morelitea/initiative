@@ -3,8 +3,8 @@
 Under schema-per-guild a routed session only sees one guild's schema, so a
 "global" list (the user's items across every guild they belong to) has to visit
 each guild's schema in turn and merge the results. Per-schema ids collide across
-guilds, so callers must keep each item's ``guild_id`` and the identity map is
-cleared between guilds.
+guilds, so callers must keep each item's ``guild_id``, and each guild is
+visited on a session of its own.
 """
 
 from typing import Awaitable, Callable, Optional, Sequence, TypeVar
@@ -97,8 +97,8 @@ async def gather_across_guilds(
     writes: bool = False,
 ) -> list[T]:
     """Route into each guild's schema, call ``fetch(session, guild_id)``, and
-    concatenate the results. The identity map is expunged between guilds because
-    ids are unique only within a schema, not across them.
+    concatenate the results. Each guild gets a session of its own, since ids
+    are unique only within a schema, not across them.
 
     Each community is entered through the **same seam** a ``/c/{guild_id}``
     request goes through, so what these views show is what that request would
@@ -115,15 +115,13 @@ async def gather_across_guilds(
     ``/c/{guild_id}`` settings routes do (``establish_guild_access``'s
     ``for_settings``), for a read of what its administrator configures.
 
-    With communities divided into cohorts (``app.db.cohorts``), a request-path
-    ``session``, or one from ``cohorts.system_session``, stays where it is and
-    each community gets a session of the same kind from its own cohort, which
-    is closed before the next one opens; ``fetch`` receives that session. It is
-    read-only unless ``writes`` is set, in which case each community's session
-    is committed once its ``fetch`` returns — each community's writes are then
-    a transaction of their own, not the caller's.
-    Otherwise ``session`` itself is routed into each community in turn, is left
-    routed into the last, and what ``fetch`` writes rides its transaction."""
+    ``session`` is a request-path session, or one from
+    ``cohorts.system_session``. It stays where it is: each community gets a
+    session of the same kind from its own cohort (``app.db.cohorts``), which is
+    closed before the next one opens, and ``fetch`` receives that session. It
+    is read-only unless ``writes`` is set, in which case each community's
+    session is committed once its ``fetch`` returns — each community's writes
+    are then a transaction of their own, not the caller's."""
     if not guild_ids:
         return []
     from app.api.deps import (
@@ -182,29 +180,15 @@ async def gather_across_guilds(
         return True
 
     results: list[T] = []
-    if cohorts.fans_out(session):
-        # Each community is read on a session from its own cohort's pool, so
-        # the caller's connection never opens another cohort's schema.
-        for guild_id in guild_ids:
-            async with cohorts.community_session(
-                session, guild_id, read_only=not writes
-            ) as routed:
-                account = await routed.merge(user, load=False)
-                if await enter(routed, account, guild_id):
-                    results.extend(await fetch(routed, guild_id))
-                    if writes:
-                        await routed.commit()
-        return results
-
+    # Each community is read on a session from its own cohort's pool, so the
+    # caller's connection never opens another cohort's schema.
     for guild_id in guild_ids:
-        # Expunge BEFORE each guild: a cached object with this schema's id (from
-        # a prior guild, or anything already on the session) would otherwise be
-        # returned by the identity map instead of this guild's row.
-        session.expunge_all()
-        # The caller's own account is a ``public`` row and collides with
-        # nothing per schema, so it goes straight back — every step below
-        # reads it.
-        session.add(user)
-        if await enter(session, user, guild_id):
-            results.extend(await fetch(session, guild_id))
+        async with cohorts.community_session(
+            session, guild_id, read_only=not writes
+        ) as routed:
+            account = await routed.merge(user, load=False)
+            if await enter(routed, account, guild_id):
+                results.extend(await fetch(routed, guild_id))
+                if writes:
+                    await routed.commit()
     return results

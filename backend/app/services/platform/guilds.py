@@ -608,8 +608,6 @@ async def list_memberships(
                 for_settings=True,
             )
         )
-        # Back to the user-only context the caller (UserSessionDep) handed us.
-        await set_rls_context(session, user_id=user_id)
 
     return [
         (
