@@ -439,9 +439,10 @@ class TestScopesOnAnInstallAlreadyThere:
         if granted:
             # Written on the system engine, which the grant guard admits, as a
             # stand-in for the seat having granted it.
+            from app.db import cohorts
             from app.db import session as db_session
 
-            async with db_session.SystemSessionLocal() as system:
+            async with cohorts.system_session(guild.id) as system:
                 await db_session.set_rls_context(system, guild_id=guild.id)
                 row = (
                     await system.exec(select(GuildApp).where(GuildApp.id == app.id))
