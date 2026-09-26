@@ -69,6 +69,7 @@ from app.core.tools import Tool
 from app.db.session import require_guild_context
 from app.models.tenant.resource_grant import ResourceGrant
 from app.services import permissions as permissions_service
+from app.services.permissions import Action
 from app.services.tenant import calendar_events as events_service
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import content_references
@@ -103,7 +104,7 @@ async def _get_event_or_404(
     user: User | None,
     guild_context: ActorContext,
     *,
-    access: str = "read",
+    action: Action | None = None,
 ) -> CalendarEvent:
     event = await events_service.get_event(session, event_id)
     if not event:
@@ -112,14 +113,14 @@ async def _get_event_or_404(
             detail=CalendarEventMessages.NOT_FOUND,
         )
     # Feature gate + DAC, both resolved on the parent calendar: read to see the
-    # event, write for any mutation. The parent's tool comes from the registry
+    # event, contribute for any mutation. The parent's tool comes from the registry
     # the event table's own policy is rendered from, so the two agree on what
     # governs an event by construction.
     resource_access.authorize(
         resource_access.governing_tool("calendar_events"),
         event.calendar,
         user,
-        access=access,
+        action=action,
         context=guild_context,
     )
     return event
@@ -131,15 +132,15 @@ async def _get_writable_calendar(
     user: User | None,
     guild_context: ActorContext,
 ) -> Calendar:
-    """Load a calendar and require write access — the gate for creating or
-    moving events into it."""
+    """Load a calendar the request may write events into — the gate for
+    creating or moving events into it."""
     return await resource_access.load_authorized(
         session,
         Tool.calendar,
         calendar_id,
         user,
         guild_context,
-        access="write",
+        action=Action.contribute,
     )
 
 
@@ -796,7 +797,7 @@ async def update_calendar_event(
     """Update a calendar event. Requires write access on the calendar (and on
     the target calendar when moving the event)."""
     event = await _get_event_or_404(
-        session, event_id, current_user, guild_context, access="write"
+        session, event_id, current_user, guild_context, action=Action.contribute
     )
 
     # Snapshot fields that drive the "updated"/"rescheduled" notification before
@@ -923,7 +924,7 @@ async def delete_calendar_event(
     from app.services.tenant.soft_delete import trash
 
     event = await _get_event_or_404(
-        session, event_id, current_user, guild_context, access="write"
+        session, event_id, current_user, guild_context, action=Action.contribute
     )
     # A declined attendee already isn't attending, so skip the cancellation
     # notice for them (consistent with update/reminder notifications).
@@ -970,7 +971,7 @@ async def set_attendees(
     installed app by its name.
     """
     event = await _get_event_or_404(
-        session, event_id, current_user, guild_context, access="write"
+        session, event_id, current_user, guild_context, action=Action.contribute
     )
     old_ids = {a.user_id for a in event.attendees}
     await events_service.set_event_attendees(
@@ -1053,7 +1054,7 @@ async def set_event_tags(
     list. Events are content-level extras (like tasks), so they keep a
     hand-written tag route instead of the generic ``/tools/{tool}`` one."""
     event = await _get_event_or_404(
-        session, event_id, current_user, guild_context, access="write"
+        session, event_id, current_user, guild_context, action=Action.contribute
     )
     await tags_service.set_entity_tags(
         session,
@@ -1098,7 +1099,7 @@ async def set_event_properties(
     reference for them.
     """
     event = await _get_event_or_404(
-        session, event_id, current_user, guild_context, access="write"
+        session, event_id, current_user, guild_context, action=Action.contribute
     )
     if payload.values and event.calendar.initiative_id is None:
         raise HTTPException(

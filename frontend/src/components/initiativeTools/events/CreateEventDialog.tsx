@@ -39,9 +39,9 @@ import type { DialogProps } from "@/types/dialog";
 import { EventDateTimeFields, type EventTiming, useEventTiming } from "./EventDateTimeFields";
 import { offsetEndTime } from "./eventDateTime";
 
-/** A calendar the user may author events in — write access on the calendar
- * is the event-create gate (like task creation via project write). */
-export const isWritableCalendar = (calendar: CalendarSummary): boolean => calendar.can.edit;
+/** A calendar the user may author events in — `can.contribute` on the
+ * calendar is the event-create gate (like task creation via project write). */
+export const isWritableCalendar = (calendar: CalendarSummary): boolean => calendar.can.contribute;
 
 const LAST_CALENDAR_KEY = "initiative-last-event-calendar";
 

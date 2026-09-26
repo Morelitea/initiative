@@ -299,6 +299,7 @@ async def test_every_tool_resolves_sharing_through_one_engine(
     await w.grant("write", user=w.co_member.user)
     row, context = await w.as_reader(w.co_member.user)
     assert client_access(row, context.user_id, context=context) == {
+        "contribute": True,
         "edit": True,
         "delete": False,
         "share": False,
@@ -326,7 +327,7 @@ async def test_a_role_grant_elevates_over_a_users_own(
         session, w.row, role_id=role_id, level=ResourceAccessLevel.write
     )
     row, _ = await w.as_reader(w.co_member.user)
-    assert actions_of(row) == {"edit"}
+    assert actions_of(row) == {"contribute", "edit"}
 
 
 async def test_general_access_covers_the_initiatives_members_only(
@@ -339,7 +340,7 @@ async def test_general_access_covers_the_initiatives_members_only(
 
     await w.grant("write", everyone=True)
     row, context = await w.as_reader(w.co_member.user)
-    assert actions_of(row) == {"edit"}
+    assert actions_of(row) == {"contribute", "edit"}
     require_access(w.resource, row, context=context, access="write")
 
     row, _ = await w.as_reader(outsider.user)
@@ -487,6 +488,7 @@ async def test_a_frozen_guild_caps_everyone_at_read(session, role_session, actin
     row, context = await w.as_reader(w.owner.user)
     assert context.content_read_only
     assert client_access(row, context.user_id, context=context) == {
+        "contribute": False,
         "edit": False,
         "delete": False,
         "share": False,

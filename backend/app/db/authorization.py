@@ -614,6 +614,28 @@ class Legs:
             f" ELSE {self.pam_read} OR {self.pam_write} END)"
         )
 
+    @property
+    def system_or_admin(self) -> str:
+        return f"({self.system} OR {self.admin})"
+
+    @property
+    def unnarrowed_install(self) -> str:
+        """An installed app acting in this community on a token that is not
+        narrowed to one initiative."""
+        return (
+            f"({self.install_id} IS NOT NULL AND {self.scope} IS NULL"
+            f" AND {self.this_guild} AND {self.auth_ok})"
+        )
+
+    @property
+    def guild_row_writer(self) -> str:
+        """Who changes a row that belongs to the whole community rather than
+        one initiative: the guild admin or the system, a live write grant, or
+        an installed app on a token not narrowed to one initiative."""
+        return (
+            f"({self.system_or_admin} OR {self.pam_write} OR {self.unnarrowed_install})"
+        )
+
 
 def standing_arg():
     """This statement's standing, for an app query that asks a gate directly.
@@ -909,11 +931,18 @@ _OWNER = ResourceAccessLevel.owner.value
 _MAY_CHANGE = f"""(p_archived_at IS NULL AND p_deleted_at IS NULL
         AND NOT {_B.content_hold})"""
 
+#: The request may change the row itself, as the table's write policy answers
+#: it for a row naming no initiative (``initiative_rls.direct_or_guild``).
+_WRITES_ROW = f"""(p_initiative_id IS NOT NULL
+               OR {_B.guild_row_writer})"""
+
 #: The request may change who the resource is shared with: it is the owner,
-#: in its own right rather than through an access grant, and — if it is an
-#: installed app — it holds ``sharing:write`` and the tool's write scope.
+#: in its own right rather than through an access grant, it may change the row
+#: itself, and — if it is an installed app — it holds ``sharing:write`` and
+#: the tool's write scope.
 _SHARES = f"""(v_level = '{_OWNER}'
         AND NOT {_B.pam_any}
+        AND {_WRITES_ROW}
         AND ({_B.install_id} IS NULL
              OR ('{AppScopeResource.sharing.value}' = ANY ({_B.field("install_write")})
                  AND COALESCE((CASE p_tool
@@ -924,14 +953,20 @@ _SHARES = f"""(v_level = '{_OWNER}'
 #: list before doing anything, and the row's ``can`` reports it to the client,
 #: so the two always agree.
 #:
-#: - ``edit``: write or owner access, and the row can be changed.
-#: - ``delete``: owner, and the row can be changed.
+#: - ``contribute``: write or owner access, and the row can be changed: the
+#:   request may write what the row holds (a calendar's events, a project's
+#:   tasks).
+#: - ``edit``: as contribute, and the request may change the row itself. A row
+#:   that belongs to the whole community rather than one initiative is changed
+#:   by the writer its policy names (``Legs.guild_row_writer``).
+#: - ``delete``: owner, the row can be changed, and the request may change
+#:   the row itself (as ``edit``).
 #: - ``share``: as delete, and see ``_SHARES`` above.
 #: - ``configure`` (projects): owner or a manager of the initiative, and the
 #:   row can be changed.
 #: - ``export``: owner. Allowed even when archived, since exporting changes
 #:   nothing.
-#: - ``unarchive``: write access to a row that was archived on its own. A row
+#: - ``unarchive``: as edit, for a row that was archived on its own. A row
 #:   archived because its initiative was archived comes back with the
 #:   initiative instead.
 RESOURCE_ACTIONS = f"""\
@@ -952,9 +987,12 @@ BEGIN
     END IF;
     IF {_MAY_CHANGE} THEN
         IF v_level IN ({_WRITE_RUNGS}) THEN
-            v_actions := v_actions || 'edit'::text;
+            v_actions := v_actions || 'contribute'::text;
+            IF {_WRITES_ROW} THEN
+                v_actions := v_actions || 'edit'::text;
+            END IF;
         END IF;
-        IF v_level = '{_OWNER}' THEN
+        IF v_level = '{_OWNER}' AND {_WRITES_ROW} THEN
             v_actions := v_actions || 'delete'::text;
         END IF;
         IF {_SHARES} THEN
@@ -968,6 +1006,7 @@ BEGIN
     ELSIF p_archived_at IS NOT NULL
           AND NOT {_B.content_hold}
           AND v_level IN ({_WRITE_RUNGS})
+          AND {_WRITES_ROW}
           AND (p_initiative_id IS NULL
                OR NOT resource_frozen('initiatives', p_initiative_id)) THEN
         v_actions := v_actions || 'unarchive'::text;

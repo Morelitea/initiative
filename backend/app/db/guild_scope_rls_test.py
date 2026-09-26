@@ -14,8 +14,11 @@ does — and a superuser session would show none of it.
 import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
+from sqlalchemy.orm import undefer
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.models.tenant.calendar import Calendar
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.testing import (
     create_guild,
@@ -143,7 +146,9 @@ class TestGuildLevelTools:
         self, session, role_session
     ):
         """Its sharing decides who writes what a guild calendar holds; the row
-        itself is the admin's, whatever grant a member holds on it."""
+        itself is the admin's, whatever grant a member holds on it. The row's
+        actions say the same: ``edit`` where the UPDATE lands, ``contribute``
+        wherever the grant writes."""
         admin = await create_user(session)
         guild = await create_guild(session, creator=admin)
         member = await create_user(session)
@@ -153,9 +158,20 @@ class TestGuildLevelTools:
             session, calendar, level=ResourceAccessLevel.write, user=member
         )
 
-        for user, renamed in ((member, 0), (admin, 1)):
+        for user, renamed, actions in (
+            (member, 0, {"contribute"}),
+            (admin, 1, {"contribute", "edit"}),
+        ):
             s = await role_session("app_user")
             await route_as(s, user_id=user.id, guild_id=guild.id)
+            row = (
+                await s.exec(
+                    select(Calendar)
+                    .where(Calendar.id == calendar.id)
+                    .options(undefer(Calendar.actions))
+                )
+            ).one()
+            assert set(row.actions) & {"contribute", "edit"} == actions
             result = await s.exec(
                 text("UPDATE calendars SET name = 'Renamed' WHERE id = :id").bindparams(
                     id=calendar.id

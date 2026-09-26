@@ -545,6 +545,7 @@ class Action(str, Enum):
     """What somebody may do to one of a tool's rows, beyond reading it — the
     names ``resource_actions`` answers in (``app.db.authorization``)."""
 
+    contribute = "contribute"
     edit = "edit"
     delete = "delete"
     share = "share"
@@ -556,6 +557,7 @@ class Action(str, Enum):
 #: The actions a tool's read reports under ``can``. ``configure`` is a
 #: project's alone (``ProjectCan``).
 TOOL_CAN: tuple[Action, ...] = (
+    Action.contribute,
     Action.edit,
     Action.delete,
     Action.share,

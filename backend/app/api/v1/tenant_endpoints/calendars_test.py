@@ -365,8 +365,8 @@ async def test_a_guild_calendar_is_the_admin_s_and_the_install_owns_it(
 async def test_a_write_grant_writes_a_guild_calendar_s_events(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """The admin decides who writes what a guild calendar holds. Writing the
-    calendar itself stays the admin's."""
+    """The admin decides who writes what a guild calendar holds. Changing the
+    calendar itself — renaming it, archiving it — stays the admin's."""
     admin = await acting_user(guild_role=GuildRole.admin)
     app = await _install_calendar_app(session, admin.guild, admin.user)
     calendar = await create_guild_calendar(session, admin.guild, admin.user, app=app)
@@ -381,7 +381,12 @@ async def test_a_write_grant_writes_a_guild_calendar_s_events(
         json={"name": "Mine now"},
     )
     assert renamed.status_code == 403
-    assert renamed.json()["detail"] == "GUILD_ADMIN_REQUIRED"
+    assert renamed.json()["detail"] == "CALENDAR_WRITE_ACCESS_REQUIRED"
+
+    archived = await client.post(
+        member.g(f"/archive/calendar/{calendar.id}"), headers=member.headers
+    )
+    assert archived.status_code == 403
 
     event = await client.post(
         member.g("/calendar-events/"),
