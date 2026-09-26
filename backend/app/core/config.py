@@ -3,6 +3,7 @@ import hmac
 import logging
 import re
 from collections.abc import Sequence
+from enum import Enum
 from functools import lru_cache
 from urllib.parse import urlsplit
 
@@ -47,12 +48,28 @@ CSP_EMBED_FRAME_ORIGINS = [
     "https://airtable.com",
 ]
 
+
+class CaptchaProvider(str, Enum):
+    """The registration captcha vendors ``CAPTCHA_PROVIDER`` may name."""
+
+    hcaptcha = "hcaptcha"
+    turnstile = "turnstile"
+    recaptcha = "recaptcha"
+
+
+class StorageBackendKind(str, Enum):
+    """Where uploads are kept: ``STORAGE_BACKEND``."""
+
+    local = "local"
+    s3 = "s3"
+
+
 # Captcha providers → the extra origins each needs (script/frame/style/connect).
 # Only the configured provider's origins are added; the gate is off by default.
-CSP_CAPTCHA_ORIGINS = {
-    "hcaptcha": ["https://hcaptcha.com", "https://*.hcaptcha.com"],
-    "turnstile": ["https://challenges.cloudflare.com"],
-    "recaptcha": ["https://www.google.com", "https://www.gstatic.com"],
+CSP_CAPTCHA_ORIGINS: dict[str, list[str]] = {
+    CaptchaProvider.hcaptcha: ["https://hcaptcha.com", "https://*.hcaptcha.com"],
+    CaptchaProvider.turnstile: ["https://challenges.cloudflare.com"],
+    CaptchaProvider.recaptcha: ["https://www.google.com", "https://www.gstatic.com"],
 }
 
 # Origins the SPA fetches non-script assets from via fetch()/XHR, used to build

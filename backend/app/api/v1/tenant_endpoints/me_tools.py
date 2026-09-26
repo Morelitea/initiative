@@ -53,16 +53,17 @@ from app.api.v1.tenant_endpoints.tool_lists import (
 )
 from app.core.tools import Tool
 from app.db.session import require_guild_context
-from app.db.query import page_has_next, paginate_sequence
+from app.db.query import build_paginated_response, paginate_sequence
 from app.models.platform.user import User
-from app.schemas.tenant.calendar import serialize_calendar_summary
-from app.schemas.tenant.counter import serialize_counter_group_summary
-from app.schemas.tenant.dashboard import serialize_dashboard_summary
-from app.schemas.tenant.gallery import serialize_gallery_summary
+from app.schemas.tenant.calendar import CalendarSummary
+from app.schemas.tenant.counter import CounterGroupSummary
+from app.schemas.tenant.dashboard import DashboardSummary
+from app.schemas.tenant.gallery import GallerySummary
 from app.schemas.tenant.my_tools import MyToolCountsResponse
-from app.schemas.tenant.post import serialize_post
-from app.schemas.tenant.queue import serialize_queue_summary
-from app.schemas.tenant.wiki import serialize_wiki_summary
+from app.schemas.tenant.post import PostRead
+from app.schemas.tenant.queue import QueueSummary
+from app.schemas.tenant.tool import ToolSummaryBase, serialize_tool
+from app.schemas.tenant.wiki import WikiSummary
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import counters as counters_service
@@ -149,14 +150,17 @@ class MyToolList:
 
 
 def _summaries(
-    serializer: Callable[..., Any],
+    schema: type[ToolSummaryBase],
 ) -> Callable[[AsyncSession, list, User], Awaitable[list]]:
     """The ordinary page: tag the rows, then turn each into its summary."""
 
     async def serialize(session: AsyncSession, rows: list, user: User) -> list:
         await tags_service.annotate_tags(session, rows)
         context = require_guild_context(session)
-        return [serializer(row, context=context, user_id=user.id) for row in rows]
+        return [
+            serialize_tool(schema, row, context=context, user_id=user.id)
+            for row in rows
+        ]
 
     return serialize
 
@@ -230,14 +234,14 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
     ),
     Tool.queue: MyToolList(
         loader_options=queues_service.list_loader_options,
-        serialize=_summaries(serialize_queue_summary),
+        serialize=_summaries(QueueSummary),
         default_key=lambda row: row.updated_at,
         params=_shared_params(page_size_param(20, ge=0, le=100)),
         list_doc="Queues that reach the caller across every guild they belong to.",
     ),
     Tool.counter_group: MyToolList(
         loader_options=counters_service.list_loader_options,
-        serialize=_summaries(serialize_counter_group_summary),
+        serialize=_summaries(CounterGroupSummary),
         default_key=lambda row: row.updated_at,
         params=_shared_params(page_size_param(20, ge=0, le=100)),
         list_doc=(
@@ -246,7 +250,7 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
     ),
     Tool.calendar: MyToolList(
         loader_options=calendars_service.calendar_loader_options,
-        serialize=_summaries(serialize_calendar_summary),
+        serialize=_summaries(CalendarSummary),
         # By name, like the calendar list inside a guild: this one backs a
         # grouping panel, which is read down rather than scanned for what moved.
         default_key=lambda row: (row.name or "").lower(),
@@ -284,7 +288,7 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
     ),
     Tool.dashboard: MyToolList(
         loader_options=dashboards_service.dashboard_loader_options,
-        serialize=_summaries(serialize_dashboard_summary),
+        serialize=_summaries(DashboardSummary),
         default_key=lambda row: (row.name or "").lower(),
         default_desc=False,
         params=_shared_params(page_size_param(20, ge=0, le=100)),
@@ -292,7 +296,7 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
     ),
     Tool.post: MyToolList(
         loader_options=posts_service.list_loader_options,
-        serialize=_summaries(serialize_post),
+        serialize=_summaries(PostRead),
         # The board's own date: when it went up, or when it is due to. A
         # scheduled draft — which only its writers see here — sorts by the day
         # it will land, not by the day somebody started it.
@@ -308,7 +312,7 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
     ),
     Tool.gallery: MyToolList(
         loader_options=galleries_service.list_loader_options,
-        serialize=_summaries(serialize_gallery_summary),
+        serialize=_summaries(GallerySummary),
         default_key=lambda row: row.updated_at,
         params=_shared_params(page_size_param(20, ge=0, le=100)),
         list_doc=(
@@ -327,7 +331,7 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
     ),
     Tool.wiki: MyToolList(
         loader_options=wikis_service.list_loader_options,
-        serialize=_summaries(serialize_wiki_summary),
+        serialize=_summaries(WikiSummary),
         default_key=lambda row: row.updated_at,
         params=_shared_params(page_size_param(20, ge=0, le=100)),
         list_doc=(
@@ -458,12 +462,7 @@ def _mount(tool: Tool, spec: MyToolList) -> None:
         )
         extras = spec.response_extras(values) if spec.response_extras else {}
         return response_model(
-            items=items,
-            total_count=total_count,
-            page=page,
-            page_size=page_size,
-            has_next=page_has_next(page, page_size, total_count),
-            **extras,
+            **build_paginated_response(items, total_count, page, page_size, **extras)
         )
 
     list_rows.__signature__ = _signature(spec.params)

@@ -20,6 +20,7 @@ const list = (...items: ReturnType<typeof buildProject>[]): ProjectListResponse 
   page: 1,
   page_size: 20,
   has_next: false,
+  has_prev: false,
 });
 
 describe("project list cache keys", () => {

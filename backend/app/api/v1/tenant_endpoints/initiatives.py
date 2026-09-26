@@ -63,12 +63,17 @@ from app.schemas.platform.user import (
     UserPublic,
     UserSummaryListResponse,
 )
-from app.db.query import MAX_ID_FILTER_VALUES, page_has_next, paginated_query
+from app.db.query import (
+    MAX_ID_FILTER_VALUES,
+    build_paginated_response,
+    paginated_query,
+)
 from app.services import audit as audit_service
 from app.services import email as email_service
 from app.services import notifications as notifications_service
 from app.services.platform import accounts as accounts_service
 from app.services.tenant import initiatives as initiatives_service
+from app.services.tenant.names import ensure_name_free
 from app.services.platform import guilds as guilds_service
 from app.services.platform import users as users_service
 from app.services.content_sockets import sockets as content_sockets
@@ -170,25 +175,6 @@ async def _read_initiative(
         initiative_id, session, *_roster_options(guild_context)
     )
     return serialize_initiative(initiative, context=guild_context)
-
-
-async def _initiative_name_exists(
-    session: SessionDep,
-    name: str,
-    *,
-    guild_id: int,
-    exclude_initiative_id: int | None = None,
-) -> bool:
-    normalized = name.strip().lower()
-    if not normalized:
-        return False
-    statement = select(Initiative.id).where(
-        func.lower(Initiative.name) == normalized,
-    )
-    if exclude_initiative_id is not None:
-        statement = statement.where(Initiative.id != exclude_initiative_id)
-    result = await session.exec(statement)
-    return result.first() is not None
 
 
 async def _require_manager_access(
@@ -811,10 +797,12 @@ async def create_initiative(
     ],
 ) -> InitiativeRead:
     guild_id = guild_context.guild_id
-    if await _initiative_name_exists(session, initiative_in.name, guild_id=guild_id):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=InitiativeMessages.NAME_EXISTS
-        )
+    await ensure_name_free(
+        session,
+        Initiative.name,
+        initiative_in.name,
+        detail=InitiativeMessages.NAME_EXISTS,
+    )
     initiative = Initiative(
         name=initiative_in.name,
         description=initiative_in.description,
@@ -910,16 +898,13 @@ async def update_initiative(
         if join_policy is not None:
             update_data["join_policy"] = join_policy
     if "name" in update_data and update_data["name"] is not None:
-        if await _initiative_name_exists(
+        await ensure_name_free(
             session,
+            Initiative.name,
             update_data["name"],
-            guild_id=routed_guild_id(session),
-            exclude_initiative_id=initiative_id,
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=InitiativeMessages.NAME_EXISTS,
-            )
+            Initiative.id != initiative_id,
+            detail=InitiativeMessages.NAME_EXISTS,
+        )
     for field, value in update_data.items():
         setattr(initiative, field, value)
     session.add(initiative)
@@ -1329,15 +1314,11 @@ async def search_initiative_members(
         session, data_stmt, count_stmt, page=page, page_size=page_size
     )
 
+    items = await users_service.summaries_with_guild_role(
+        session, guild_context.guild_id, users
+    )
     return UserSummaryListResponse(
-        items=await users_service.summaries_with_guild_role(
-            session, guild_context.guild_id, users
-        ),
-        total_count=total_count,
-        page=actual_page,
-        page_size=page_size,
-        has_next=page_has_next(actual_page, page_size, total_count),
-        has_prev=actual_page > 1,
+        **build_paginated_response(items, total_count, actual_page, page_size)
     )
 
 

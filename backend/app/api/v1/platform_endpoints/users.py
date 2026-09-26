@@ -160,7 +160,11 @@ from app.services import email as email_service
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import user_tokens as user_tokens_service
 from app.services.tenant import recent_views as recent_views_service
-from app.db.query import MAX_ID_FILTER_VALUES, page_has_next, paginated_query
+from app.db.query import (
+    MAX_ID_FILTER_VALUES,
+    build_paginated_response,
+    paginated_query,
+)
 
 # Allowed values for the optional "task completion visual feedback" effect.
 # Mirrored on the frontend in src/lib/taskCompletionVisualFeedback.ts; keep
@@ -369,12 +373,7 @@ async def _search_members_for_app(
         for user in users
     ]
     return UserSummaryListResponse(
-        items=items,
-        total_count=total_count,
-        page=actual_page,
-        page_size=page_size,
-        has_next=page_has_next(actual_page, page_size, total_count),
-        has_prev=actual_page > 1,
+        **build_paginated_response(items, total_count, actual_page, page_size)
     )
 
 
@@ -518,18 +517,14 @@ async def search_users(
         else {}
     )
 
+    items = [
+        UserSummary.model_validate(user).model_copy(
+            update=_membership_standing(roles.get(user.id))
+        )
+        for user in users
+    ]
     return UserSummaryListResponse(
-        items=[
-            UserSummary.model_validate(user).model_copy(
-                update=_membership_standing(roles.get(user.id))
-            )
-            for user in users
-        ],
-        total_count=total_count,
-        page=actual_page,
-        page_size=page_size,
-        has_next=page_has_next(actual_page, page_size, total_count),
-        has_prev=actual_page > 1,
+        **build_paginated_response(items, total_count, actual_page, page_size)
     )
 
 

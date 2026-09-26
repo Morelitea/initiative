@@ -7,6 +7,7 @@ from pydantic import ConfigDict, Field
 
 from app.core.identity_boundary import GuildId, PersonId
 from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
+from app.schemas.query import PageMeta
 from app.schemas.tenant.archive import ToolCan, ToolState
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
@@ -134,14 +135,8 @@ class ProjectRead(ProjectBase, ToolState):
     grants: List[ResourceGrantSchema] = Field(default_factory=list)
 
 
-class ProjectListResponse(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
+class ProjectListResponse(PageMeta):
     items: List[ProjectRead]
-    total_count: int
-    page: int
-    page_size: int
-    has_next: bool
 
 
 class ProjectReorderRequest(SanitizedBaseModel):

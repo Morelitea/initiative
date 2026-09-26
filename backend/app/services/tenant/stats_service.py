@@ -4,7 +4,7 @@ Service for calculating user statistics and metrics.
 
 from datetime import date, datetime, timedelta, timezone
 from typing import List, Literal, Optional, Set
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import case, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -19,14 +19,7 @@ from app.schemas.tenant.stats import (
     UserStatsResponse,
     VelocityWeekData,
 )
-
-
-def _resolve_timezone(timezone_str: str) -> ZoneInfo:
-    """Resolve timezone string to ZoneInfo object, falling back to UTC if invalid."""
-    try:
-        return ZoneInfo(timezone_str)
-    except ZoneInfoNotFoundError:
-        return ZoneInfo("UTC")
+from app.core.user_input_validators import resolve_zone
 
 
 def _get_week_start(dt: date, week_starts_on: int) -> date:
@@ -85,7 +78,7 @@ async def calculate_user_streak(
     Task activity includes: task creation dates and task updates for tasks user is assigned to.
     Weekends do not break the streak.
     """
-    user_tz = _resolve_timezone(user_timezone)
+    user_tz = resolve_zone(user_timezone)
     now_local = datetime.now(user_tz)
     today = now_local.date()
 
@@ -241,7 +234,7 @@ async def get_completed_counts(
 
     Returns (total_completed, this_week_completed)
     """
-    user_tz = _resolve_timezone(user_timezone)
+    user_tz = resolve_zone(user_timezone)
     now_local = datetime.now(user_tz)
     today = now_local.date()
 
@@ -305,7 +298,7 @@ async def get_velocity_data(
     Returns list of VelocityWeekData with assigned and completed counts per week.
     Note: "Assigned" counts tasks created in the week (assumes assignment at creation).
     """
-    user_tz = _resolve_timezone(user_timezone)
+    user_tz = resolve_zone(user_timezone)
     week_boundaries = _get_week_boundaries(user_tz, week_starts_on, num_weeks=12)
 
     velocity_data: List[VelocityWeekData] = []
@@ -376,7 +369,7 @@ async def get_heatmap_data(
 
     Activity includes task creation and task updates for user's assigned tasks.
     """
-    user_tz = _resolve_timezone(user_timezone)
+    user_tz = resolve_zone(user_timezone)
     now_local = datetime.now(user_tz)
     today = now_local.date()
 
@@ -485,7 +478,7 @@ async def get_backlog_trend(
     Returns "Growing" if more tasks assigned than completed this week, else "Shrinking".
     Note: "Assigned" counts tasks created this week (assumes assignment at creation).
     """
-    user_tz = _resolve_timezone(user_timezone)
+    user_tz = resolve_zone(user_timezone)
     now_local = datetime.now(user_tz)
     today = now_local.date()
 

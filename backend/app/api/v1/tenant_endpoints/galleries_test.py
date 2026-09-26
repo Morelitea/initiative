@@ -542,6 +542,7 @@ async def test_pictures_page_newest_first_and_anchor(
     )
     assert [i["title"] for i in last.json()["items"]] == ["day 0"]
     assert last.json()["has_next"] is False
+    assert last.json()["has_prev"] is True
 
     anchored = await client.get(
         a.g(f"/galleries/{gallery.id}/images"),

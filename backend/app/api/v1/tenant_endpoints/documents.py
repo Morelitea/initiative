@@ -86,6 +86,7 @@ from app.core.tools import Tool
 from app.services.tenant import documents as documents_service
 from app.services.tenant import ownership as ownership_service
 from app.services.tenant import tags as tags_service
+from app.services.tenant.names import ensure_name_free
 from app.services.tenant import tool_listing
 from app.services import notifications as notifications_service
 from app.services import reachability
@@ -334,34 +335,6 @@ async def get_document_counts(
     )
 
 
-async def _check_duplicate_name(
-    session: SessionDep,
-    *,
-    initiative_id: int,
-    name: str,
-    exclude_document_id: int | None = None,
-) -> None:
-    """Check if a document with the same name already exists in the initiative.
-
-    Raises 400 if a duplicate is found.
-    """
-    normalized_name = name.strip().lower()
-    stmt = select(Document).where(
-        Document.initiative_id == initiative_id,
-        func.lower(Document.name) == normalized_name,
-    )
-    if exclude_document_id is not None:
-        stmt = stmt.where(Document.id != exclude_document_id)
-
-    result = await session.exec(stmt)
-    existing = result.first()
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=DocumentMessages.NAME_ALREADY_EXISTS,
-        )
-
-
 @router.post("/", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
 async def create_document(
     document_in: DocumentCreate,
@@ -380,8 +353,13 @@ async def create_document(
             detail=DocumentMessages.NAME_REQUIRED,
         )
 
-    # Check for duplicate name in initiative
-    await _check_duplicate_name(session, initiative_id=initiative.id, name=name)
+    await ensure_name_free(
+        session,
+        Document.name,
+        name,
+        Document.initiative_id == initiative.id,
+        detail=DocumentMessages.NAME_ALREADY_EXISTS,
+    )
 
     try:
         normalized_content = documents_service.normalize_document_content(
@@ -453,8 +431,13 @@ async def upload_document_file(
     # Pick up a backend/credential change saved in another worker before writing.
     await storage_config.ensure_storage_config_fresh(session)
 
-    # Check for duplicate name in initiative
-    await _check_duplicate_name(session, initiative_id=initiative.id, name=name)
+    await ensure_name_free(
+        session,
+        Document.name,
+        name,
+        Document.initiative_id == initiative.id,
+        detail=DocumentMessages.NAME_ALREADY_EXISTS,
+    )
 
     # Read the body with a hard cap so an over-limit upload is rejected before
     # the whole payload is buffered into memory (memory-exhaustion DoS guard).
@@ -858,12 +841,13 @@ async def update_document(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=DocumentMessages.NAME_REQUIRED,
             )
-        # Check for duplicate name in initiative (exclude current document)
-        await _check_duplicate_name(
+        await ensure_name_free(
             session,
-            initiative_id=document.initiative_id,
-            name=name,
-            exclude_document_id=document.id,
+            Document.name,
+            name,
+            Document.initiative_id == document.initiative_id,
+            Document.id != document.id,
+            detail=DocumentMessages.NAME_ALREADY_EXISTS,
         )
         document.name = name
         updated = True
@@ -972,7 +956,13 @@ async def _duplicate_into(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=DocumentMessages.NAME_REQUIRED,
         )
-    await _check_duplicate_name(session, initiative_id=initiative_id, name=name)
+    await ensure_name_free(
+        session,
+        Document.name,
+        name,
+        Document.initiative_id == initiative_id,
+        detail=DocumentMessages.NAME_ALREADY_EXISTS,
+    )
     try:
         duplicated = await documents_service.duplicate_document(
             session,

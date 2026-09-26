@@ -12,6 +12,7 @@ from pydantic import (
 )
 
 from app.schemas.base import RawTextStr, SanitizedBaseModel, TitleStr
+from app.schemas.query import PageMeta
 
 from app.core.capabilities import Capability, standing_capabilities
 from app.core.cookie_categories import CookieCategory
@@ -94,7 +95,7 @@ class UserCreate(SanitizedBaseModel):
     password: RawTextStr = Field(max_length=256)
     # Optional IANA timezone forwarded by the SPA on registration so a
     # new account starts at the user's wall clock instead of the model
-    # default ``"UTC"``. Validated server-side by ``_normalize_timezone``;
+    # default ``"UTC"``. Validated server-side by ``normalize_timezone``;
     # omitted by non-SPA callers, in which case the model default applies.
     timezone: Optional[str] = None
     # Optional captcha token supplied by the SPA's widget when the
@@ -244,17 +245,10 @@ class UserSummary(UserIdentity):
     guild_role: Optional[str] = None
 
 
-class UserSummaryListResponse(SanitizedBaseModel):
+class UserSummaryListResponse(PageMeta):
     """Paginated envelope for the slim user search/typeahead endpoints."""
 
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
     items: List[UserSummary]
-    total_count: int
-    page: int
-    page_size: int
-    has_next: bool
-    has_prev: bool
 
 
 #: How long the line beside the emoji may run. Short on purpose: the bubble is

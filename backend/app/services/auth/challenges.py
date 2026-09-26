@@ -24,7 +24,7 @@ import hmac
 import secrets
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from enum import Enum
 
 from sqlalchemy import delete, or_, update
@@ -33,6 +33,7 @@ from sqlmodel import select
 
 from app.core.encryption import SALT_EMAIL, decrypt_field, encrypt_field
 from app.models.platform.auth_challenge import AuthChallenge
+from app.core.clock import utcnow
 
 #: Bytes of randomness behind the value handed to the client.
 _CHALLENGE_BYTES = 32
@@ -116,10 +117,6 @@ class IssuedChallenge:
     value: str
 
 
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
-
-
 def _hash(value: str) -> bytes:
     return hashlib.sha256(value.encode("utf-8")).digest()
 
@@ -165,7 +162,7 @@ async def create(
         user_email_id=user_email_id,
         email_encrypted=encrypt_field(email, SALT_EMAIL) if email else None,
         purpose=purpose.value,
-        expires_at=_now() + (ttl or CHALLENGE_TTL),
+        expires_at=utcnow() + (ttl or CHALLENGE_TTL),
     )
     session.add(challenge)
     await session.flush()
@@ -199,7 +196,7 @@ async def claim_attempt(
             AuthChallenge.challenge_hash == digest,
             AuthChallenge.purpose.in_([p.value for p in purposes]),
             AuthChallenge.consumed_at.is_(None),
-            AuthChallenge.expires_at > _now(),
+            AuthChallenge.expires_at > utcnow(),
             AuthChallenge.attempts < MAX_ATTEMPTS,
         )
         .values(attempts=AuthChallenge.attempts + 1)
@@ -248,7 +245,7 @@ async def consume(session: AsyncSession, challenge: AuthChallenge) -> bool:
             AuthChallenge.id == challenge.id,
             AuthChallenge.consumed_at.is_(None),
         )
-        .values(consumed_at=_now())
+        .values(consumed_at=utcnow())
     )
     return bool(result.rowcount)
 
@@ -275,7 +272,7 @@ async def purge_expired(session: AsyncSession) -> int:
     result = await session.exec(
         delete(AuthChallenge).where(
             or_(
-                AuthChallenge.expires_at <= _now(),
+                AuthChallenge.expires_at <= utcnow(),
                 AuthChallenge.consumed_at.is_not(None),
             )
         )

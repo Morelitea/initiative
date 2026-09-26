@@ -93,6 +93,7 @@ export function buildQueueListResponse(
       page: 1,
       page_size: 20,
       has_next: false,
+      has_prev: false,
     };
   }
   return {
@@ -101,6 +102,7 @@ export function buildQueueListResponse(
     page: 1,
     page_size: 20,
     has_next: false,
+    has_prev: false,
     ...itemsOrOverrides,
   };
 }

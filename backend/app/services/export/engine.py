@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Protocol
 
 from sqlalchemy import func, text
@@ -32,6 +32,7 @@ from app.services.export.contract import (
 from app.services.export.local_backend import LocalRenderBackend
 from app.services.storage import get_guild_storage
 from app.services.export import limits as export_limits
+from app.core.user_input_validators import resolve_zone
 
 
 # Advisory-lock namespace (arbitrary constant) for the per-user job-cap check.
@@ -376,9 +377,7 @@ async def _stream_zip_to_storage(
 def _bundle_stem(source: str, tz: str | None) -> str:
     """The zip's name shares the caller's timezone with the entry names the
     adapters produce — near-midnight exports must not disagree on the date."""
-    from app.services.export.i18n import localize_now
-
-    date = localize_now(datetime.now(timezone.utc), tz).strftime("%Y-%m-%d")
+    date = datetime.now(resolve_zone(tz)).strftime("%Y-%m-%d")
     return f"{source}-{date}"
 
 

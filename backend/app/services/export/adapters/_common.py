@@ -13,7 +13,7 @@ rows it loads and how one row serialises.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -23,9 +23,9 @@ from app.core.tools import Tool, tool_envelope_type, tool_export_source
 from app.models.platform.user import User
 from app.services.export.contract import RenderItem, RenderRequest
 from app.services.export.engine import ExportError
-from app.services.export.i18n import localize_now
 from app.services.permissions import EXPORT_ACCESS
 from app.services.platform.csv_export import safe_filename_component
+from app.core.user_input_validators import resolve_zone
 
 # Bound on a single selection: page-size multiples, not initiative dumps —
 # each id costs a fetch+authorize round trip at count AND build time.
@@ -217,7 +217,7 @@ class ToolExportAdapter:
             guild_id=guild_id,
             # One clock read: the filename date and the subtitle timestamp
             # must not straddle midnight into disagreeing dates.
-            now=localize_now(datetime.now(timezone.utc), params.get("tz")),
+            now=datetime.now(resolve_zone(params.get("tz"))),
             prepared=await self.prepare(session, entities),
         )
         batch = tuple(item for entity in entities for item in self.items(entity, ctx))

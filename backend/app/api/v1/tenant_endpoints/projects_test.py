@@ -54,6 +54,7 @@ async def test_list_projects_as_admin_shows_all(
     assert body["page"] == 1
     assert body["page_size"] == 0
     assert body["has_next"] is False
+    assert body["has_prev"] is False
     assert body["total_count"] >= 2
 
 

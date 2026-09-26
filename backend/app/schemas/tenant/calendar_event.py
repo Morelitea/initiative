@@ -8,11 +8,13 @@ from pydantic import ConfigDict, Field, model_validator
 from app.core.identity_boundary import GuildId, PersonId
 from app.core.relationships import Related
 from app.schemas.base import SanitizedBaseModel, TitleStr
+from app.schemas.query import PageMeta
 
 from app.models.tenant.calendar_event import RSVPStatus
 from app.schemas.tenant.property import PropertySummary
 from app.schemas.tenant.archive import ContentCan
 from app.schemas.tenant.tag import TagSummary, annotated_tags
+from app.schemas.tenant.tool import from_row
 from app.schemas.platform.user import AvatarUrl, UserPublic
 from app.core.user_display import display_name
 
@@ -161,14 +163,8 @@ class CalendarEventSummary(CalendarEventBase):
     updated_at: datetime
 
 
-class CalendarEventListResponse(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
+class CalendarEventListResponse(PageMeta):
     items: List[CalendarEventSummary]
-    total_count: int
-    page: int
-    page_size: int
-    has_next: bool
 
 
 class CalendarEventRead(CalendarEventSummary):
@@ -275,27 +271,18 @@ def serialize_calendar_event_summary(
                     avatar_url=user.avatar_url,
                 )
             )
-    return CalendarEventSummary(
-        id=event.id,
-        title=event.title,
-        description=event.description,
-        location=event.location,
-        start_at=event.start_at,
-        end_at=event.end_at,
-        all_day=event.all_day,
+    return from_row(
+        CalendarEventSummary,
+        event,
         recurrence=_parse_recurrence(event),
-        calendar_id=event.calendar_id,
         initiative_id=calendar.initiative_id if calendar is not None else 0,
         guild_id=guild_id if guild_id is not None else context.guild_id,
-        created_by=event.created_by,
         attendee_count=len(attendees_list),
         attendee_names=names,
         attendee_previews=previews,
         property_values=_serialize_event_properties(event),
         tags=annotated_tags(event),
         can=ContentCan(edit=can_edit),
-        created_at=event.created_at,
-        updated_at=event.updated_at,
     )
 
 

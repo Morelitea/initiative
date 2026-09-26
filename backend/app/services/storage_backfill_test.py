@@ -60,7 +60,7 @@ async def test_stale_running_can_be_reclaimed(system_session) -> None:
     assert await storage_backfill.try_claim(system_session) is True
     await system_session.exec(
         text("UPDATE storage_backfill_state SET heartbeat = :hb"),
-        params={"hb": storage_backfill._now() - timedelta(hours=2)},
+        params={"hb": storage_backfill.utcnow() - timedelta(hours=2)},
     )
     await system_session.commit()
 

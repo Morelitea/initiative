@@ -18,7 +18,6 @@ changes the next request without anything else being told.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import delete as sa_delete
@@ -34,6 +33,7 @@ from app.models.tenant.app_member_consent import (
     ConsentStatus,
 )
 from app.services import audit as audit_service
+from app.core.clock import utcnow
 
 __all__ = [
     "ConsentRequest",
@@ -50,10 +50,6 @@ __all__ = [
     "revoke_all",
     "revoke_member_consents",
 ]
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 def _purpose_is(purpose: Optional[str]):
@@ -112,8 +108,8 @@ async def request_consent(
                 label=request.label,
                 initiative_id=request.initiative_id,
                 requested_access=request.access.value,
-                requested_at=_now(),
-                updated_at=_now(),
+                requested_at=utcnow(),
+                updated_at=utcnow(),
             )
             .on_conflict_do_nothing(constraint="app_member_consents_unique_purpose")
             .returning(AppMemberConsent.id)
@@ -208,7 +204,7 @@ async def grant(
     """
     if not ConsentAccess(row.requested_access).covers(access):
         raise ValueError("more than the app asked for")
-    now = _now()
+    now = utcnow()
     row.granted_access = access.value
     row.granted_at = now
     row.revoked_at = None
@@ -236,7 +232,7 @@ async def grant(
 
 
 def _mark_revoked(row: AppMemberConsent, *, revoked_by_id: int) -> None:
-    now = _now()
+    now = utcnow()
     row.revoked_at = now
     row.revoked_by_id = revoked_by_id
     row.updated_at = now

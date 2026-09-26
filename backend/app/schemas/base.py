@@ -12,7 +12,7 @@ from pydantic import BaseModel, model_validator
 
 # Hard ceiling on any plain-text field. Generous for names/titles/labels/tokens
 # while bounding both the stored size (DoS) and the entity-decode loop in
-# _strip_to_plain_text. Fields that legitimately hold large data (base64 images,
+# strip_to_plain_text. Fields that legitimately hold large data (base64 images,
 # import payloads, AI output) opt out via RawTextStr; rich text via RichTextStr.
 MAX_PLAIN_TEXT_LENGTH = 8192
 
@@ -67,7 +67,7 @@ holds a reserved sigil. Read schemas deliberately do NOT use it — a row stored
 before the rules has to stay readable."""
 
 
-def _strip_to_plain_text(value: str) -> str:
+def strip_to_plain_text(value: str) -> str:
     """Strip all HTML markup from a plain-text field WITHOUT HTML-encoding it.
 
     ``nh3.clean()`` is an HTML *output encoder*: it turns ``&`` into ``&amp;``,
@@ -164,7 +164,7 @@ class SanitizedBaseModel(BaseModel):
     Plain-text fields have all tags removed without HTML-encoding the surviving
     characters, so ``Foo & Bar`` stays ``Foo & Bar`` (not ``Foo &amp; Bar``)
     while ``<img onerror>``/``<script>`` payloads are stripped — see
-    :func:`_strip_to_plain_text` — and are rejected past
+    :func:`strip_to_plain_text` — and are rejected past
     :data:`MAX_PLAIN_TEXT_LENGTH` characters. Fields typed :data:`RichTextStr`
     (rich text) or :data:`RawTextStr` (large or opaque data) opt out of both,
     even when wrapped in ``Optional[...]``. Enum-typed fields are skipped.
@@ -192,7 +192,7 @@ class SanitizedBaseModel(BaseModel):
                         f"{field_name} exceeds the maximum length of "
                         f"{MAX_PLAIN_TEXT_LENGTH} characters"
                     )
-                cleaned = _strip_to_plain_text(value)
+                cleaned = strip_to_plain_text(value)
                 # Both checked on the stripped value, which is what gets stored.
                 if field_name in sigil_free:
                     if len(cleaned) > MAX_TITLE_LENGTH:

@@ -206,6 +206,7 @@ async def test_pagination_walks_the_merged_list(
     assert second.status_code == 200
     assert len(second.json()["items"]) == 1
     assert second.json()["has_next"] is False
+    assert second.json()["has_prev"] is True
 
 
 @per_tool

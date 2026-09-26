@@ -13,7 +13,7 @@ Capability and ownership checks happen at the endpoint as well.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Optional, Sequence
 
 from sqlalchemy import or_, text
@@ -51,6 +51,7 @@ from app.services.platform import guilds as guilds_service
 from app.services.platform import push_notifications
 from app.services.platform import user_notifications
 from app.core.user_display import display_name
+from app.core.clock import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -62,10 +63,6 @@ class AccessGrantError(Exception):
     def __init__(self, code: str):
         self.code = code
         super().__init__(code)
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 async def _lock_user_guild_grants(
@@ -271,7 +268,7 @@ async def request_grants(
         )
         for grant in existing.all():
             if grant.status == AccessGrantStatus.pending.value or grant.is_live(
-                now=_now()
+                now=utcnow()
             ):
                 raise AccessGrantError("OVERLAPPING_GRANT")
 
@@ -429,7 +426,7 @@ async def break_glass(
             ),
         )
     )
-    now = _now()
+    now = utcnow()
     for grant in existing.all():
         if grant.status == AccessGrantStatus.pending.value:
             raise AccessGrantError("OVERLAPPING_GRANT")
@@ -495,7 +492,7 @@ async def reconcile_break_glass_pair(
             ),
         )
     )
-    now = _now()
+    now = utcnow()
     replaced: list[AccessGrant] = []
     for grant in result.all():
         if grant.status == AccessGrantStatus.pending.value:
@@ -541,7 +538,7 @@ async def approve(
     duration = _capped_duration(
         duration_minutes or grant.requested_duration_minutes, grantee_role
     )
-    now = _now()
+    now = utcnow()
     grant.status = AccessGrantStatus.approved.value
     grant.approved_by_id = approver.id
     grant.decided_at = now
@@ -575,7 +572,7 @@ async def deny(
 ) -> AccessGrant:
     if grant.status != AccessGrantStatus.pending.value:
         raise AccessGrantError("NOT_PENDING")
-    now = _now()
+    now = utcnow()
     grant.status = AccessGrantStatus.denied.value
     grant.approved_by_id = approver.id
     grant.decided_at = now
@@ -610,7 +607,7 @@ async def revoke(
     # a pending one should be denied, a terminal one is already over.
     if grant.status != AccessGrantStatus.approved.value:
         raise AccessGrantError("NOT_ACTIVE")
-    now = _now()
+    now = utcnow()
     grant.status = AccessGrantStatus.revoked.value
     grant.revoked_by_id = revoker.id
     grant.revoked_at = now
@@ -664,7 +661,7 @@ async def get_live_grant(
     so a grant issued for one authority is never spent as another — the default
     keeps the content path seeing only content grants.
     """
-    now = _now()
+    now = utcnow()
     result = await session.exec(
         select(AccessGrant).where(
             AccessGrant.user_id == user_id,
@@ -703,7 +700,7 @@ async def list_grants(
     if statuses:
         stmt = stmt.where(AccessGrant.status.in_(statuses))
     if live_only:
-        stmt = stmt.where(AccessGrant.expires_at > _now())
+        stmt = stmt.where(AccessGrant.expires_at > utcnow())
     stmt = stmt.order_by(AccessGrant.requested_at.desc())
     if offset:
         stmt = stmt.offset(offset)
@@ -719,7 +716,7 @@ async def expire_due(session: AsyncSession) -> int:
     Liveness is computed independently, so this is housekeeping, not a
     correctness requirement. Returns the number of rows updated.
     """
-    now = _now()
+    now = utcnow()
     result = await session.exec(
         select(AccessGrant).where(
             AccessGrant.status == AccessGrantStatus.approved.value,

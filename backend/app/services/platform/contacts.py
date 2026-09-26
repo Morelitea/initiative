@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 
 from app.core import usernames
+from app.db.query import apply_pagination, page_has_next
 from app.db.session import set_rls_context
 from app.models.platform.guild import LIVE_STATUS_VALUES, Guild, GuildMembership
 from app.models.platform.guild_image import GuildImageVariant
@@ -187,16 +188,19 @@ async def guild_sections(
 
         rows = (
             await guild_session.exec(
-                base.order_by(
-                    *users_service.member_order(
-                        closest, shows_names=shows_names_by_guild.get(guild_id, False)
+                apply_pagination(
+                    base.order_by(
+                        *users_service.member_order(
+                            closest,
+                            shows_names=shows_names_by_guild.get(guild_id, False),
+                        ),
+                        col(MemberProfile.username).asc(),
+                        col(MemberProfile.discriminator).asc(),
+                        col(MemberProfile.id).asc(),
                     ),
-                    col(MemberProfile.username).asc(),
-                    col(MemberProfile.discriminator).asc(),
-                    col(MemberProfile.id).asc(),
+                    page,
+                    page_size,
                 )
-                .offset((page - 1) * page_size)
-                .limit(page_size)
             )
         ).all()
 
@@ -207,7 +211,7 @@ async def guild_sections(
             icon_url=icon,
             total_count=total,
             items=_reads(rows),
-            has_next=page * page_size < total,
+            has_next=page_has_next(page, page_size, total),
         )
         return []
 

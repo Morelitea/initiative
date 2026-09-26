@@ -16,6 +16,7 @@ from pydantic import ConfigDict, Field, model_validator
 
 from app.core.identity_boundary import PersonId
 from app.core.tools import Tool
+from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.schemas.base import SanitizedBaseModel
 
 # Upper bound on how many resources one bulk grant request may touch. Each item is
@@ -52,7 +53,7 @@ class ResourceGrantSchema(SanitizedBaseModel):
     # project.grants).
     model_config = ConfigDict(from_attributes=True)
 
-    level: Literal["read", "write", "owner"]
+    level: ResourceAccessLevel
     user_id: Optional[PersonId] = None
     role_id: Optional[int] = None
     all_initiative_members: bool = False

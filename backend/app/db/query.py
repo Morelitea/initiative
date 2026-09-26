@@ -561,7 +561,7 @@ def build_paginated_response(
     page_size: int,
     **extra: Any,
 ) -> dict:
-    """Build a dict suitable for unpacking into a concrete response model.
+    """Build a dict suitable for unpacking into a ``PageMeta`` response model.
 
     Computes ``has_next`` and ``has_prev`` automatically from the inputs.
     ``page_size<=0`` responses window through the server cap (SEC-14), so

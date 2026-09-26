@@ -76,9 +76,9 @@ from app.core.tools import (
 )
 from app.services.export.engine import ExportError
 from app.services.export import delivery
-from app.services.export.i18n import localize_now
 from app.services.platform.csv_export import safe_filename_component
 from app.services.export import limits as export_limits
+from app.core.user_input_validators import resolve_zone
 
 # Tool keys as they appear in the selector's include/formats maps. Derived:
 # a backup covers what the engine can export, so a ninth tool is carried by
@@ -352,7 +352,7 @@ async def _build_scope(
     )
 
     mode = params.get("mode") or "backup"
-    now = localize_now(datetime.now(timezone.utc), params.get("tz"))
+    now = datetime.now(resolve_zone(params.get("tz")))
     builder = _ScopeBuilder(
         session=session,
         user=user,

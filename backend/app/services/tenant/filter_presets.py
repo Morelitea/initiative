@@ -8,13 +8,13 @@ called from every project-creating path, never from a read.
 
 from __future__ import annotations
 
-import re
 from typing import Any, Iterable, Sequence
 
 from sqlmodel import delete, select, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.tenant.filter_preset import ProjectFilterPreset
+from app.services.tenant.names import slugify, unique_slug
 
 # The four presets every project starts with. "All" is the default so a project
 # that has never been configured behaves exactly as it did before presets
@@ -91,29 +91,15 @@ async def ensure_default_presets(
     return _sorted(created)
 
 
-def slugify(name: str) -> str:
-    """Kebab-case a preset name down to the slug alphabet."""
-    slug = re.sub(r"[^a-z0-9]+", "-", name.strip().lower()).strip("-")
-    return slug[:MAX_SLUG_LENGTH].strip("-")
-
-
 async def slugify_unique(session: AsyncSession, project_id: int, name: str) -> str:
     """A slug free on this project, suffixing ``-2``, ``-3``, … on collision.
 
     A user preset named "Mine" becomes ``mine-2`` when the seeded ``mine`` is
     still around, so a default preset's link never silently retargets.
     """
-    base = slugify(name) or "preset"
-    presets = await list_presets(session, project_id)
-    taken = {preset.slug for preset in presets}
-    if base not in taken:
-        return base
-    for suffix in range(2, MAX_PRESETS_PER_PROJECT + 3):
-        trimmed = base[: MAX_SLUG_LENGTH - len(str(suffix)) - 1].strip("-") or "preset"
-        candidate = f"{trimmed}-{suffix}"
-        if candidate not in taken:
-            return candidate
-    raise ValueError("could not derive a unique preset slug")
+    taken = {preset.slug for preset in await list_presets(session, project_id)}
+    base = slugify(name, fallback="preset", max_length=MAX_SLUG_LENGTH)
+    return unique_slug(base, taken, max_length=MAX_SLUG_LENGTH)
 
 
 async def normalize_defaults(

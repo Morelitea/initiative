@@ -228,7 +228,7 @@ def serialize_grants(row: Any, *, context: ActorContext | None) -> list:
         return []
     return [
         ResourceGrantSchema(
-            level=_grant_level(g.level),
+            level=g.level,
             user_id=g.user_id,
             role_id=g.role_id,
             all_initiative_members=bool(getattr(g, "all_initiative_members", False)),

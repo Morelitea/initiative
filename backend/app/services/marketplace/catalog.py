@@ -29,6 +29,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.version import get_version
+from app.db.query import apply_pagination
 from app.models.platform.marketplace import (
     MarketplaceListing,
     MarketplaceListingVersion,
@@ -209,8 +210,8 @@ async def list_listings(
     query: Optional[str] = None,
     include_unavailable: bool = False,
     bundled_with: Optional[Sequence[str]] = None,
-    offset: int = 0,
-    limit: int = 50,
+    page: int = 1,
+    page_size: int = 50,
 ) -> tuple[Sequence[MarketplaceListing], int]:
     """A page of listings, newest first, with the total that matched.
 
@@ -261,7 +262,9 @@ async def list_listings(
         count_statement = count_statement.where(condition)
 
     total = (await session.exec(count_statement)).one()
-    statement = statement.order_by(MarketplaceListing.name).offset(offset).limit(limit)
+    statement = apply_pagination(
+        statement.order_by(MarketplaceListing.name), page, page_size
+    )
     return (await session.exec(statement)).all(), int(total)
 
 

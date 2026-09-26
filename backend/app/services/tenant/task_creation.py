@@ -16,7 +16,6 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any, Optional
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import HTTPException, status as http_status
 from pydantic import ValidationError
@@ -39,6 +38,7 @@ from app.services.tenant import task_description as task_description_service
 from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant.recurrence import get_next_due_date
 from app.services.tenant.task_completion import sync_completed_at
+from app.core.user_input_validators import resolve_zone
 
 
 async def next_position(session: AsyncSession, project_id: int) -> float:
@@ -165,23 +165,6 @@ async def set_task_assignees(
     await session.refresh(task, attribute_names=["assignees"])
 
 
-def _resolve_user_zone(user_tz: str | None) -> ZoneInfo:
-    """Resolve a user's stored ``timezone`` string to a ``ZoneInfo``,
-    falling back to UTC if the value is missing or unrecognised.
-
-    The user model defaults to ``"UTC"`` so this is mostly a guard
-    against bad data — but we treat an unknown zone as UTC rather than
-    erroring, since recurrence-on-completion shouldn't fail just
-    because a profile field drifted.
-    """
-    if not user_tz:
-        return ZoneInfo("UTC")
-    try:
-        return ZoneInfo(user_tz)
-    except ZoneInfoNotFoundError:
-        return ZoneInfo("UTC")
-
-
 async def advance_recurrence_if_needed(
     session: AsyncSession,
     task: Task,
@@ -213,7 +196,7 @@ async def advance_recurrence_if_needed(
         # midnight UTC the next day, so a UTC-anchored
         # ``now.replace(hour=0)`` landed the new occurrence one local
         # day earlier than the user's "complete + 3 days" intuition.
-        zone = _resolve_user_zone(user_timezone)
+        zone = resolve_zone(user_timezone)
         now_local = now.astimezone(zone)
         due_local = task.due_date.astimezone(zone)
         # ``replace()`` doesn't consult the zone's transition table on

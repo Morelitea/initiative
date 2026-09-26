@@ -21,7 +21,6 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 from urllib.parse import quote
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import column as sa_column
 from sqlalchemy import delete, func, or_, select
@@ -85,6 +84,7 @@ from app.services.platform import (
     push_notifications,
     user_notifications,
 )
+from app.core.user_input_validators import resolve_zone
 
 logger = logging.getLogger(__name__)
 
@@ -466,7 +466,7 @@ def event_when(event: CalendarEvent, recipient: User) -> str:
     otherwise the time in their own zone (``Wed, Jul 1, 2026 at 2:30 PM PDT``)."""
     if event.all_day:
         return event.start_at.strftime("%a, %b %-d, %Y")
-    local = event.start_at.astimezone(_resolve_timezone(recipient.timezone))
+    local = event.start_at.astimezone(resolve_zone(recipient.timezone))
     return local.strftime("%a, %b %-d, %Y at %-I:%M %p %Z")
 
 
@@ -541,14 +541,6 @@ def _nt(key: str, locale: str, **kwargs: str | int) -> str:
     separate because their wording differs (push is terse, email is richer).
     """
     return translate(key, locale, namespace="notifications", **kwargs)
-
-
-def _resolve_timezone(value: str | None) -> ZoneInfo:
-    zone_id = value or "UTC"
-    try:
-        return ZoneInfo(zone_id)
-    except ZoneInfoNotFoundError:
-        return ZoneInfo("UTC")
 
 
 # ── a flurry of comments is one line ─────────────────────────────────────────
@@ -1788,7 +1780,7 @@ async def _send_overdue(
         for u in users
     ]
     for user_id, user_tz, schedule, last_at in candidates:
-        tz = _resolve_timezone(user_tz)
+        tz = resolve_zone(user_tz)
         now_local = now.astimezone(tz)
         try:
             hour, minute = map(int, schedule.at.split(":"))

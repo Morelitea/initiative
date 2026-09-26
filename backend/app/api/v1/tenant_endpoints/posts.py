@@ -46,7 +46,7 @@ from app.api.deps import (
     get_current_active_user,
     GuildContextDep,
 )
-from app.core.messages import CommonMessages, PostMessages
+from app.core.messages import PostMessages
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative
@@ -63,8 +63,8 @@ from app.schemas.tenant.post import (
     PostUpdate,
     post_body_too_long,
     post_reader,
-    serialize_post,
 )
+from app.schemas.tenant.tool import serialize_tool
 from app.schemas.tenant.post_poll import (
     PollVoteWrite,
     PollVoters,
@@ -297,14 +297,6 @@ async def get_post_timeline(
     Scoped through :func:`board_conditions`, the same gates the list applies, so
     the rail can never show a month whose notices the reader cannot open.
     """
-    try:
-        zone = timeline_service.resolve_zone(tz)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=CommonMessages.UNKNOWN_TIMEZONE,
-        ) from exc
-
     scope = board_conditions(
         current_user.id,
         context=guild_context,
@@ -314,7 +306,7 @@ async def get_post_timeline(
     )
     return TimelineResponse(
         buckets=await timeline_service.month_buckets(
-            session, date_expr=board_time(), conditions=scope, tz=zone
+            session, date_expr=board_time(), conditions=scope, tz=tz
         )
     )
 
@@ -333,7 +325,9 @@ async def read_post(
         session, Tool.post, post_id, current_user, guild_context
     )
     await annotate_post_rows(session, [post], user_id=guild_context.user_id)
-    return serialize_post(post, user_id=guild_context.user_id, context=guild_context)
+    return serialize_tool(
+        PostRead, post, user_id=guild_context.user_id, context=guild_context
+    )
 
 
 @router.post("/", response_model=PostRead, status_code=status.HTTP_201_CREATED)
@@ -409,8 +403,8 @@ async def create_post(
 
     await session.commit()
     hydrated = await _refetch_post(session, post.id, user_id=guild_context.user_id)
-    return serialize_post(
-        hydrated, user_id=guild_context.user_id, context=guild_context
+    return serialize_tool(
+        PostRead, hydrated, user_id=guild_context.user_id, context=guild_context
     )
 
 
@@ -493,8 +487,8 @@ async def update_post(
         await session.commit()
 
     hydrated = await _refetch_post(session, post.id, user_id=guild_context.user_id)
-    return serialize_post(
-        hydrated, user_id=guild_context.user_id, context=guild_context
+    return serialize_tool(
+        PostRead, hydrated, user_id=guild_context.user_id, context=guild_context
     )
 
 
@@ -568,8 +562,8 @@ async def set_post_pin(
     # Pinning reorders the whole board, not just this row.
 
     hydrated = await _refetch_post(session, post.id, user_id=guild_context.user_id)
-    return serialize_post(
-        hydrated, user_id=guild_context.user_id, context=guild_context
+    return serialize_tool(
+        PostRead, hydrated, user_id=guild_context.user_id, context=guild_context
     )
 
 
@@ -621,8 +615,8 @@ async def read_after_write(
     (``tool_grants.py``) answers in this tool's own shape.
     """
     hydrated = await _refetch_post(session, post_id, user_id=guild_context.user_id)
-    return serialize_post(
-        hydrated, user_id=guild_context.user_id, context=guild_context
+    return serialize_tool(
+        PostRead, hydrated, user_id=guild_context.user_id, context=guild_context
     )
 
 
@@ -778,7 +772,9 @@ async def set_post_poll(
     await session.commit()
 
     hydrated = await _refetch_post(session, post_id, user_id=current_user.id)
-    return serialize_post(hydrated, user_id=current_user.id, context=guild_context)
+    return serialize_tool(
+        PostRead, hydrated, user_id=current_user.id, context=guild_context
+    )
 
 
 @router.delete("/{post_id}/poll", response_model=PostRead)
@@ -805,7 +801,9 @@ async def delete_post_poll(
     await session.commit()
 
     hydrated = await _refetch_post(session, post_id, user_id=current_user.id)
-    return serialize_post(hydrated, user_id=current_user.id, context=guild_context)
+    return serialize_tool(
+        PostRead, hydrated, user_id=current_user.id, context=guild_context
+    )
 
 
 @router.put("/{post_id}/poll/vote", response_model=PostRead)
@@ -866,7 +864,9 @@ async def vote_on_post_poll(
     # Everybody watching the poll is watching the tallies.
 
     hydrated = await _refetch_post(session, post_id, user_id=current_user.id)
-    return serialize_post(hydrated, user_id=current_user.id, context=guild_context)
+    return serialize_tool(
+        PostRead, hydrated, user_id=current_user.id, context=guild_context
+    )
 
 
 @router.delete("/{post_id}/poll/vote", response_model=PostRead)
@@ -897,7 +897,9 @@ async def retract_post_poll_vote(
     await session.commit()
 
     hydrated = await _refetch_post(session, post_id, user_id=current_user.id)
-    return serialize_post(hydrated, user_id=current_user.id, context=guild_context)
+    return serialize_tool(
+        PostRead, hydrated, user_id=current_user.id, context=guild_context
+    )
 
 
 @router.get("/{post_id}/poll/voters", response_model=PollVoters)

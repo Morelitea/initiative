@@ -20,7 +20,7 @@ FIXED_NOW = datetime(2026, 9, 16, 12, 0, 0, tzinfo=timezone.utc)
 
 @pytest.fixture
 def frozen(monkeypatch):
-    monkeypatch.setattr(totp_service, "_now", lambda: FIXED_NOW)
+    monkeypatch.setattr(totp_service, "utcnow", lambda: FIXED_NOW)
     return FIXED_NOW
 
 
@@ -88,7 +88,7 @@ async def test_a_later_code_is_taken_after_an_earlier_one(
     await session.commit()
 
     later = FIXED_NOW + timedelta(seconds=totp_service.TOTP_PERIOD)
-    monkeypatch.setattr(totp_service, "_now", lambda: later)
+    monkeypatch.setattr(totp_service, "utcnow", lambda: later)
     assert (
         await totp_service.verify_code(
             session, user_id=user_id, code=_code_at(secret, at=later)

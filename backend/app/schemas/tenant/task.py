@@ -7,6 +7,7 @@ from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from app.core.identity_boundary import GuildId, PersonId
 from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
+from app.schemas.query import PageMeta
 
 from app.schemas.platform.user import AvatarUrl, UserPublic
 from app.schemas.tenant.initiative import InitiativeSummary
@@ -303,15 +304,8 @@ class TaskListRead(TaskBase):
     properties: List[PropertySummary] = []
 
 
-class TaskListResponse(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
+class TaskListResponse(PageMeta):
     items: List[TaskListRead]
-    total_count: int
-    page: int
-    page_size: int
-    has_next: bool
-    has_prev: bool
     sorting: Optional[str] = None
 
 

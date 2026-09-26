@@ -1,20 +1,20 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional, TYPE_CHECKING
+from typing import Any, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
-from app.core.identity_boundary import GuildId, PersonId
 from app.schemas.base import SanitizedBaseModel, TitleStr
-from app.schemas.tenant.archive import ToolState
+from app.schemas.query import PageMeta
 from app.schemas.tenant.comment import CommentAuthor
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.tenant.tag import TagSummary, annotated_tags
+from app.schemas.tenant.tool import ToolSummaryBase
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.db.guild_standing import ActorContext, GuildContext
-    from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
+    from app.models.tenant.gallery import GalleryImage, GalleryImageVersion
 
 
 class GalleryBase(SanitizedBaseModel):
@@ -53,17 +53,7 @@ class GalleryCover(SanitizedBaseModel):
     height: Optional[int] = None
 
 
-class GallerySummary(GalleryBase, ToolState):
-    model_config = ConfigDict(
-        from_attributes=True, json_schema_serialization_defaults_required=True
-    )
-
-    id: int
-    initiative_id: int
-    guild_id: GuildId
-    created_by: PersonId | None = None
-    created_at: datetime
-    updated_at: datetime
+class GallerySummary(GalleryBase, ToolSummaryBase):
     #: How many pictures it holds. Served with the row so a list of galleries
     #: can say so without a request per card.
     image_count: int = 0
@@ -73,12 +63,19 @@ class GallerySummary(GalleryBase, ToolState):
     cover_image_id: Optional[int] = None
     cover: Optional[GalleryCover] = None
     preview: List[GalleryCover] = Field(default_factory=list)
-    # When false this entity's comment thread is off — the UI renders none
-    # and the API refuses to read or post one.
-    comments_enabled: bool = True
     comment_count: int = 0
-    tags: List[TagSummary] = Field(default_factory=list)
-    grants: List[ResourceGrantSchema] = Field(default_factory=list)
+
+    @classmethod
+    def derived_fields(
+        cls, row: Any, *, context: ActorContext, user_id: Optional[int]
+    ) -> dict[str, Any]:
+        # Stamped by the service; a row that was never annotated shows its
+        # chosen cover alone and no preview.
+        previews = (gallery_cover(image) for image in getattr(row, "_preview", []))
+        return {
+            "cover": gallery_cover(getattr(row, "_cover", None) or row.cover_image),
+            "preview": [cover for cover in previews if cover is not None],
+        }
 
 
 class GalleryRead(GallerySummary):
@@ -86,14 +83,8 @@ class GalleryRead(GallerySummary):
     are paged separately, because a gallery is browsed rather than read."""
 
 
-class GalleryListResponse(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
+class GalleryListResponse(PageMeta):
     items: List[GallerySummary]
-    total_count: int
-    page: int
-    page_size: int
-    has_next: bool
 
 
 class GalleryImageUpdate(SanitizedBaseModel):
@@ -148,14 +139,8 @@ class GalleryImageRead(SanitizedBaseModel):
     tags: List[TagSummary] = Field(default_factory=list)
 
 
-class GalleryImageListResponse(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
+class GalleryImageListResponse(PageMeta):
     items: List[GalleryImageRead]
-    total_count: int
-    page: int
-    page_size: int
-    has_next: bool
 
 
 class GalleryImageVersionRead(SanitizedBaseModel):
@@ -188,52 +173,6 @@ def gallery_cover(image: "GalleryImage | None") -> GalleryCover | None:
         thumbnail_url=image.thumbnail_url,
         width=image.width,
         height=image.height,
-    )
-
-
-def serialize_gallery_summary(
-    gallery: "Gallery", *, context: ActorContext, user_id: Optional[int] = None
-) -> GallerySummary:
-    # Local import avoids a schema -> service import cycle.
-    from app.services.permissions import client_access, serialize_grants
-
-    return GallerySummary(
-        id=gallery.id,
-        name=gallery.name,
-        description=gallery.description,
-        initiative_id=gallery.initiative_id,
-        guild_id=context.guild_id,
-        created_by=gallery.created_by,
-        created_at=gallery.created_at,
-        updated_at=gallery.updated_at,
-        image_count=int(getattr(gallery, "image_count", 0)),
-        cover_image_id=gallery.cover_image_id,
-        # Stamped by the service; a row that was never annotated shows its
-        # chosen cover alone and no preview.
-        cover=gallery_cover(getattr(gallery, "_cover", None) or gallery.cover_image),
-        preview=[
-            cover
-            for cover in (
-                gallery_cover(image) for image in getattr(gallery, "_preview", [])
-            )
-            if cover is not None
-        ],
-        archived_at=gallery.archived_at,
-        can=client_access(gallery, user_id, context=context),
-        comments_enabled=gallery.comments_enabled,
-        comment_count=getattr(gallery, "comment_count", 0),
-        tags=annotated_tags(gallery),
-        grants=serialize_grants(gallery, context=context),
-    )
-
-
-def serialize_gallery(
-    gallery: "Gallery", *, context: ActorContext, user_id: Optional[int] = None
-) -> GalleryRead:
-    return GalleryRead(
-        **serialize_gallery_summary(
-            gallery, context=context, user_id=user_id
-        ).model_dump()
     )
 
 

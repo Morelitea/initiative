@@ -66,6 +66,11 @@ from app.schemas.tenant.property import PropertyValuesSetRequest
 from app.schemas.tenant.tag import TagSetRequest
 from app.api import resource_access
 from app.core.tools import Tool
+from app.db.query import (
+    apply_pagination,
+    build_paginated_response,
+    paginate_sequence,
+)
 from app.db.session import require_guild_context
 from app.models.tenant.resource_grant import ResourceGrant
 from app.services import permissions as permissions_service
@@ -323,17 +328,9 @@ async def list_my_calendar_events(
         start_before=start_before,
     )
     total_count = len(events)
-    start = (page - 1) * page_size
-    page_events = events[start : start + page_size]
-
-    items = page_events
-    has_next = page * page_size < total_count
+    items = paginate_sequence(events, page, page_size)
     return CalendarEventListResponse(
-        items=items,
-        total_count=total_count,
-        page=page,
-        page_size=page_size,
-        has_next=has_next,
+        **build_paginated_response(items, total_count, page, page_size)
     )
 
 
@@ -517,16 +514,16 @@ async def query_guild_calendar_events(
     start_after: Optional[datetime] = None,
     start_before: Optional[datetime] = None,
     property_filters: Optional[str] = None,
-    limit: Optional[int] = None,
-    offset: int = 0,
+    page: Optional[int] = None,
+    page_size: int = 0,
 ) -> tuple[list[CalendarEvent], int]:
     """Shared guild calendar-event query for ``list_calendar_events`` and the
     ``calendar-entries`` aggregate.
 
     Applies the same guild scope, feature-gate, window, property-filter, and DAC
     conditions to both callers so access is identical. Returns
-    ``(events, total_count)``; pass ``limit=None`` (the aggregate's bounded
-    window) to fetch every matching row, or ``limit``/``offset`` to paginate.
+    ``(events, total_count)``; pass ``page=None`` (the aggregate's bounded
+    window) to fetch every matching row, or ``page``/``page_size`` to paginate.
 
     ``guild_scope`` narrows to the guild's own calendars — the ones belonging to
     no initiative. It is the calendar app's whole surface, and stating it here
@@ -612,10 +609,9 @@ async def query_guild_calendar_events(
         .where(*conditions)
         .options(*_calendar_event_loader_options())
         .order_by(CalendarEvent.start_at.asc(), CalendarEvent.id.asc())
-        .offset(offset)
     )
-    if limit is not None:
-        stmt = stmt.limit(limit)
+    if page is not None:
+        stmt = apply_pagination(stmt, page, page_size)
     return await _exec_events(session, stmt), total_count
 
 
@@ -642,8 +638,8 @@ async def list_calendar_events(
         start_after=start_after,
         start_before=start_before,
         property_filters=property_filters,
-        limit=page_size,
-        offset=(page - 1) * page_size,
+        page=page,
+        page_size=page_size,
     )
 
     items = [
@@ -652,13 +648,8 @@ async def list_calendar_events(
         )
         for e in events
     ]
-    has_next = page * page_size < total_count
     return CalendarEventListResponse(
-        items=items,
-        total_count=total_count,
-        page=page,
-        page_size=page_size,
-        has_next=has_next,
+        **build_paginated_response(items, total_count, page, page_size)
     )
 
 

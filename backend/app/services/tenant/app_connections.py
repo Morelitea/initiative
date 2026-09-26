@@ -22,7 +22,6 @@ same member uncorrelated across apps and guilds.
 from __future__ import annotations
 
 import secrets
-from datetime import datetime, timezone
 from typing import Any, Optional, Sequence
 
 from sqlmodel import select
@@ -36,6 +35,7 @@ from app.services.tenant.app_revocation import (
     queue_revocation,
     queue_revocations_for_rows,
 )
+from app.core.clock import utcnow
 
 __all__ = [
     "block_member_connection",
@@ -60,10 +60,6 @@ _REF_ENTROPY_BYTES = 24
 
 def mint_connection_ref() -> str:
     return secrets.token_urlsafe(_REF_ENTROPY_BYTES)
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 # --- reading ----------------------------------------------------------------
@@ -238,9 +234,9 @@ async def block_member_connection(
     row.config = {}
     row.config_secrets = {}
     row.account_label = None
-    row.blocked_at = _now()
+    row.blocked_at = utcnow()
     row.blocked_by_id = blocked_by_id
-    row.updated_at = _now()
+    row.updated_at = utcnow()
     session.add(row)
     await session.flush()
     return row

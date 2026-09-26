@@ -14,7 +14,7 @@ from __future__ import annotations
 import enum
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from sqlalchemy import delete
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -24,6 +24,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.audit_events import AuditEventType
 from app.models.platform.sign_in_lock import SignInLock
 from app.services import audit as audit_service
+from app.core.clock import utcnow
 
 LOCK_AFTER_FAILURES = 5
 FAILURE_WINDOW = timedelta(minutes=15)
@@ -47,10 +48,6 @@ class Failure:
 
     outcome: Outcome
     notify: bool
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 async def _row_for_update(session: AsyncSession, user_id: int) -> SignInLock:
@@ -82,12 +79,12 @@ def _is_closed(row: SignInLock | None, now: datetime) -> bool:
 
 async def is_locked(session: AsyncSession, user_id: int) -> bool:
     """Whether password and codes are refused for this account right now."""
-    return _is_closed(await session.get(SignInLock, user_id), _now())
+    return _is_closed(await session.get(SignInLock, user_id), utcnow())
 
 
 async def record_failure(session: AsyncSession, user_id: int) -> Failure:
     """Count one wrong answer, and place a lock or a hold if it is due."""
-    now = _now()
+    now = utcnow()
     row = await _row_for_update(session, user_id)
     if _is_closed(row, now):
         # Refused before anything was checked; nothing more to count.
@@ -153,7 +150,7 @@ async def record_success(session: AsyncSession, user_id: int) -> None:
 async def lift(session: AsyncSession, user_id: int) -> bool:
     """Clear everything counted against the account. True if it was locked or
     held."""
-    was_closed = _is_closed(await session.get(SignInLock, user_id), _now())
+    was_closed = _is_closed(await session.get(SignInLock, user_id), utcnow())
     await session.exec(delete(SignInLock).where(SignInLock.user_id == user_id))
     return was_closed
 
@@ -170,5 +167,5 @@ async def closed(
             SignInLock.user_id.in_(user_ids)  # type: ignore[attr-defined]
         )
     )
-    now = _now()
+    now = utcnow()
     return {row.user_id: row for row in result.all() if _is_closed(row, now)}
