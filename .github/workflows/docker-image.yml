@@ -108,7 +108,11 @@ jobs:
           file: ./Dockerfile
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: ${{ inputs.build-args }}
+          # A new APT_REFRESH per run: every published image applies the
+          # updates available when it was built, not those its cache holds.
+          build-args: |
+            APT_REFRESH=${{ github.run_id }}-${{ github.run_attempt }}
+            ${{ inputs.build-args }}
           secrets: ${{ inputs.signed && format('ota_signing_key={0}', secrets.OTA_SIGNING_KEY) || '' }}
           outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=docker-build-${{ env.PLATFORM_PAIR }}
