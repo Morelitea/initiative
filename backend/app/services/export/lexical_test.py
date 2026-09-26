@@ -6,6 +6,7 @@ import zipfile
 
 from app.services.export.lexical import (
     blocks_from_editor_state,
+    editor_markdown,
     render_docx,
     render_markdown,
 )
@@ -610,6 +611,21 @@ def test_a_drawing_is_left_out_of_word():
     out = render_docx({"title": "", "blocks": blocks}, lambda key: b"")
     texts = [p.text for p in docx.Document(io.BytesIO(out)).paragraphs if p.text]
     assert [text.strip() for text in texts] == ["before", "after"]
+
+
+def test_reading_order_keeps_callouts_and_reads_columns_in_line():
+    assert editor_markdown(CALLOUT, reading=True).splitlines() == [
+        "> [!warning]",
+        "> Careful",
+        ">",
+        "> - one",
+        ">",
+        f"> ![pic](</uploads/{GUILD}/in-callout.png>)",
+        "",
+        "after",
+    ]
+    assert editor_markdown(COLUMNS, reading=True) == "narrow\n\nwide\n\nmore"
+    assert editor_markdown(DRAWING, reading=True) == "before \n\n after"
 
 
 def test_a_status_exports_as_its_word_set_apart():
