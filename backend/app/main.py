@@ -47,6 +47,7 @@ from app.db.session import SystemSessionLocal
 from app.models.platform.user import User
 from app.services import background_tasks as background_tasks_service
 from app.services import captcha_config
+from app.services.marketplace.installs import ListingInstallError
 from app.services.platform.users import SeatWouldBeEmptied
 
 # Before anything in this process logs: the served wiring for the application
@@ -353,6 +354,21 @@ async def seat_would_be_emptied_handler(
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
         content={"detail": GuildMessages.CANNOT_VACATE_LAST_SUPERADMIN},
+    )
+
+
+@app.exception_handler(ListingInstallError)
+async def listing_install_error_handler(
+    request: Request, exc: ListingInstallError
+) -> JSONResponse:
+    """A catalog listing that cannot be installed: 404 when there is no such
+    listing, 409 for the conflicts a real one can be in. Raised by
+    ``resolve_listing_install``, which every install route goes through."""
+    return JSONResponse(
+        status_code=(
+            status.HTTP_404_NOT_FOUND if exc.not_found else status.HTTP_409_CONFLICT
+        ),
+        content={"detail": exc.code},
     )
 
 

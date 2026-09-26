@@ -43,7 +43,7 @@ from typing import Any, Iterable, Optional
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.session import routed_guild_id, set_rls_context
+from app.db.session import set_rls_context
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.platform.notification import NotificationType
 from app.models.tenant.guild_app import GuildApp
@@ -232,20 +232,9 @@ async def apply_version(
     config, secrets, dropped = app_config_service.prune_to_definition(
         definition, app.config, stored_secrets
     )
-    for connection_id in sorted(dropped):
-        revocation_service.queue_revocation(
-            session,
-            revocation_service.intent_for(
-                guild_id=routed_guild_id(session),
-                app_id=app.id,
-                listing_uid=app.listing_uid,
-                definition=previous,
-                connection_id=connection_id,
-                config=(app.config or {}).get(connection_id),
-                secrets=stored_secrets.get(connection_id),
-                reason="upgraded",
-            ),
-        )
+    revocation_service.queue_install_revocations(
+        session, app, dropped, secrets=stored_secrets, reason="upgraded"
+    )
     app.config = config
     app.definition = definition
     app.listing_version = pending.version

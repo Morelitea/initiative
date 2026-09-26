@@ -61,9 +61,17 @@ from app.models.tenant.initiative import (
     InitiativeRoleModel,
 )
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.core.messages import GuildAppMessages
+from app.db.session import routed_guild_id
 from app.services import audit as audit_service
 from app.services.marketplace import registration_lookup
 from app.services.marketplace.service_apps import is_admin_only
+from app.services.platform import guilds as guilds_service
+from app.services.tenant import app_config as app_config_service
+from app.services.tenant import app_connections as connections_service
+from app.services.tenant import app_member_consents as consents_service
+from app.services.tenant import webhook_subscriptions as webhook_subscriptions_service
+from app.services.tenant.app_revocation import queue_install_revocations
 from app.services.tenant.soft_delete import soft_delete_entity
 
 __all__ = [
@@ -75,7 +83,9 @@ __all__ = [
     "SurfaceAccess",
     "SurfaceOpenability",
     "app_artifacts",
+    "apply_static_config",
     "artifacts_by_install",
+    "clear_static_connection",
     "declared_surfaces",
     "create_app_artifacts",
     "find_mounting_app",
@@ -90,7 +100,6 @@ __all__ = [
     "placed_initiative_ids",
     "placement_role_ids",
     "placements_by_install",
-    "remove_app_artifacts",
     "remove_placement",
     "set_placed_initiatives",
     "set_placement_roles",
@@ -99,6 +108,7 @@ __all__ = [
     "surface_openability",
     "surface_renders_in",
     "touch",
+    "uninstall_app",
 ]
 
 # --- artifacts --------------------------------------------------------------
@@ -129,6 +139,15 @@ async def _create_calendar(session: AsyncSession, *, app: GuildApp, name: str) -
     session.add(calendar)
     await session.flush()
 
+    # Creating it wrote an owner row naming whoever asked, where the request
+    # names somebody; the calendar is the install's.
+    await session.exec(
+        delete(ResourceGrant).where(
+            col(ResourceGrant.resource_type) == "calendar",
+            col(ResourceGrant.resource_id) == calendar.id,
+            col(ResourceGrant.level) == ResourceAccessLevel.owner,
+        )
+    )
     session.add(
         ResourceGrant(
             resource_type="calendar",
@@ -392,28 +411,191 @@ async def install_app(
     return app
 
 
-async def remove_app_artifacts(
-    session: AsyncSession,
-    app: GuildApp,
-    *,
-    deleted_by_user_id: Optional[int],
-    retention_days: Optional[int],
+async def uninstall_app(
+    session: AsyncSession, app: GuildApp, *, actor_user_id: int
 ) -> None:
-    """Trash everything the app owns at guild scope.
+    """Remove an install, ending its access and trashing what it created.
 
-    Through the ordinary soft-delete path, so removing an app is recoverable for
-    as long as the guild's retention window allows — the events someone put in a
-    guild calendar should not evaporate because an admin removed the app. The
-    caller holds the install row (:func:`lock_install`).
+    The two halves are deliberately different. **Credentials are deleted**, both
+    the guild's and every member's, and each app is told to let go at the vendor
+    — an uninstalled app still receiving a guild's data is the thing this
+    prevents. **Content is trashed** through the ordinary soft-delete path,
+    because the events someone put in a guild calendar are the guild's, and
+    should survive an admin removing the app for as long as the retention
+    window allows.
+
+    The caller holds the install row (:func:`lock_install`), commits, and then
+    dispatches the queued revocations.
     """
+    guild_id = routed_guild_id(session)
+    retention_days = await guilds_service.get_guild_retention_days(session)
+    connections = await connections_service.delete_app_connections(session, app=app)
+    # Every member's answers to its requests go with it. The foreign key would
+    # take them with the install row; removed here so the record counts them.
+    consents = await consents_service.delete_install_consents(
+        session, install_id=app.id
+    )
+    # An install is what makes an app present in a guild, so removing it ends
+    # what that app is sent. Switched off rather than deleted: the row records
+    # what was going where, and a reinstall registers afresh.
+    await webhook_subscriptions_service.deactivate_for_install(
+        session, guild_id=guild_id, app_install_id=app.id
+    )
+    secrets = await load_secrets(session, app)
+    queue_install_revocations(
+        session,
+        app,
+        {*(app.config or {}), *secrets},
+        secrets=secrets,
+        reason="uninstalled",
+    )
     for artifact in await app_artifacts(session, app):
-        handler = ARTIFACT_HANDLERS[artifact["type"]]
-        await handler.remove(
+        await ARTIFACT_HANDLERS[artifact["type"]].remove(
             session,
             artifact["id"],
-            deleted_by_user_id=deleted_by_user_id,
+            deleted_by_user_id=actor_user_id,
             retention_days=retention_days,
         )
+    install_id, listing_uid = app.id, app.listing_uid
+    await session.delete(app)
+    # Staged before the commit that removes the row, and reading the counts the
+    # steps above returned rather than asking again.
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.APP_UNINSTALLED,
+        actor_user_id=actor_user_id,
+        guild_id=guild_id,
+        target_type="app",
+        target_id=install_id,
+        detail={
+            "listing_uid": listing_uid,
+            "connections": connections,
+            "consents": consents,
+        },
+    )
+
+
+async def clear_static_connection(
+    session: AsyncSession, app: GuildApp, connection_id: str
+) -> None:
+    """Clear a guild-wide connection's stored values and its handle.
+
+    Its grant is ended at the vendor after the caller commits. The handle goes
+    with the values, so a token asked for by the old one is refused;
+    connecting again mints a fresh one. The caller holds the install row.
+    """
+    secrets = await load_secrets(session, app)
+    if (app.config or {}).get(connection_id) or secrets.get(connection_id):
+        queue_install_revocations(
+            session, app, [connection_id], secrets=secrets, reason="disconnected"
+        )
+    app.config = {
+        key: value for key, value in (app.config or {}).items() if key != connection_id
+    }
+    await store_secrets(
+        session,
+        app,
+        {key: value for key, value in secrets.items() if key != connection_id},
+    )
+    app.connection_refs = {
+        key: value
+        for key, value in (app.connection_refs or {}).items()
+        if key != connection_id
+    }
+    _unverified(app)
+
+
+def _config_fields(config: dict, secrets: dict) -> dict[str, Any]:
+    """Every stored configuration field, keyed ``connection.field``.
+
+    The shape a before/after comparison reads: the keys are what a record
+    carries, and the values are only ever compared with one another.
+    """
+    fields: dict[str, Any] = {}
+    for store in (config, secrets):
+        for connection_id, values in (store or {}).items():
+            for field, value in (values or {}).items():
+                fields[f"{connection_id}.{field}"] = value
+    return fields
+
+
+async def apply_static_config(
+    session: AsyncSession,
+    app: GuildApp,
+    values: Mapping[str, Mapping[str, Any]],
+    *,
+    actor_user_id: int,
+) -> None:
+    """Set the guild-wide values ``values`` names, per connection.
+
+    Validated against the *pinned* definition, so what an install accepts is
+    the form it was configured against. Only guild-scoped connections are
+    settable here. Raises :class:`~app.services.tenant.app_config.AppConfigError`
+    for anything refused. The caller holds the install row and commits.
+    """
+    config = dict(app.config or {})
+    secrets = await load_secrets(session, app)
+    before = _config_fields(config, secrets)
+
+    for connection_id, submitted in values.items():
+        connection = app_config_service.connection_by_id(app.definition, connection_id)
+        if connection is None:
+            raise app_config_service.AppConfigError(
+                GuildAppMessages.CONFIG_UNKNOWN_CONNECTION
+            )
+        if connection.get("scope") != "static":
+            raise app_config_service.AppConfigError(
+                GuildAppMessages.CONNECTION_NOT_STATIC
+            )
+        new_config, new_secrets = app_config_service.apply_connection_values(
+            connection,
+            submitted,
+            current=config.get(connection_id) or {},
+            current_secrets=secrets.get(connection_id) or {},
+        )
+        if new_config:
+            config[connection_id] = new_config
+        else:
+            config.pop(connection_id, None)
+        if new_secrets:
+            secrets[connection_id] = new_secrets
+        else:
+            secrets.pop(connection_id, None)
+        if app_config_service.token_of(connection) is not None:
+            # A connection the app asks a token for is addressed by a handle.
+            app_config_service.guild_connection_ref(app, connection_id)
+
+    app.config = config
+    await store_secrets(session, app, secrets)
+    _unverified(app)
+    # Which fields hold something different now, by name. A configuration value
+    # is the app's credential to the vendor, so none of it reaches the record.
+    moved = audit_service.changed_fields(before, _config_fields(config, secrets))[
+        "changed"
+    ]
+    if moved:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.APP_UPDATED,
+            actor_user_id=actor_user_id,
+            guild_id=routed_guild_id(session),
+            target_type="app",
+            target_id=app.id,
+            detail={
+                "area": "config",
+                "changed": moved,
+                "connection_ids": sorted(values),
+            },
+        )
+
+
+def _unverified(app: GuildApp) -> None:
+    """The app has not seen the install's values as they now stand, so its
+    previous verdict no longer describes them. It reports again once it has
+    pulled and checked."""
+    app.config_state = "unverified"
+    app.config_state_detail = None
+    touch(app)
 
 
 def touch(app: GuildApp) -> None:

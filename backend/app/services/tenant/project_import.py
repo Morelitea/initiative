@@ -31,7 +31,7 @@ from app.core.search import SearchEntityType
 from app.models.tenant.comment import Comment
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+
 from app.models.tenant.property import (
     PropertyType,
     TaskPropertyValue,
@@ -53,6 +53,7 @@ from app.schemas.tenant.project_export import (
 )
 from app.schemas.tenant.task import mint_checklist_item_id
 from app.services.import_engine.context import ImportContext
+from app.services.import_engine.importers._base import grant_ownership
 from app.services.import_engine.links import links_to_pages
 from app.services.import_engine.references import (
     has_source_references,
@@ -138,16 +139,12 @@ async def import_project(
     session.add(project)
     await session.flush()  # populate project.id
 
-    # Owner permission row (matches the `create_project` flow's invariant)
-    session.add(
-        ResourceGrant(
-            resource_type="project",
-            resource_id=project.id,
-            user_id=importer.id,
-            role_id=None,
-            level=ResourceAccessLevel.owner,
-            initiative_id=project.initiative_id,
-        )
+    await grant_ownership(
+        session,
+        tool=Tool.project,
+        entity_id=project.id,
+        target_initiative=target_initiative,
+        importer=importer,
     )
 
     # 2. Task statuses → name → id map

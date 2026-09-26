@@ -79,7 +79,11 @@ from app.services.marketplace.vendor_values import load_vendor_values
 from app.services.safe_http import ResponseTooLargeError, request_public_target
 from app.services.tenant import app_config as app_config_service
 from app.services.tenant import guild_apps as guild_apps_service
-from app.services.tenant.app_connections import mint_connection_ref
+from app.services.tenant.app_config import (
+    mint_connection_ref,
+    token_of,
+    without_tokens,
+)
 from app.services.tenant.connection_flow_state import (
     MAX_INSTALLATION_ID_LENGTH,
     ConnectionFlowState,
@@ -100,7 +104,6 @@ __all__ = [
     "CALLBACK_PATH",
     "OUTCOMES",
     "REFRESH_WINDOW_SECONDS",
-    "RESERVED_TOKEN_KEYS",
     "SETUP_PATH",
     "ConnectionFlowError",
     "HookError",
@@ -117,7 +120,6 @@ __all__ = [
     "seal_tokens",
     "setup_url",
     "start_url",
-    "token_of",
     "unseal_tokens",
 ]
 
@@ -137,10 +139,6 @@ OUTCOMES: frozenset[str] = frozenset(
         "sign_in_required",
     }
 )
-
-#: The keys a flow's tokens are held under in a connection's stored values
-#: (:data:`app.services.tenant.app_config.RESERVED_TOKEN_KEYS`).
-RESERVED_TOKEN_KEYS = app_config_service.RESERVED_TOKEN_KEYS
 
 #: A stored token this close to its expiry is refreshed before it is handed out.
 REFRESH_WINDOW_SECONDS = 120
@@ -194,12 +192,6 @@ def flow_of(connection: Mapping[str, Any] | None) -> Optional[dict[str, Any]]:
     """The connection's ``flow``, when it declares one."""
     flow = (connection or {}).get("flow")
     return flow if isinstance(flow, dict) else None
-
-
-def token_of(connection: Mapping[str, Any] | None) -> Optional[dict[str, Any]]:
-    """The connection's ``token``, when it declares one."""
-    token = (connection or {}).get("token")
-    return token if isinstance(token, dict) else None
 
 
 # --- addresses --------------------------------------------------------------
@@ -314,16 +306,6 @@ def _client(
         else None
     )
     return client_id, secret
-
-
-def stored_fields(config: Mapping[str, Any] | None) -> dict[str, Any]:
-    """A connection's plain values, without the reserved token keys: what a
-    template's ``{<key>}`` reads."""
-    return {
-        key: value
-        for key, value in (config or {}).items()
-        if key not in RESERVED_TOKEN_KEYS
-    }
 
 
 # --- starting ---------------------------------------------------------------
@@ -504,8 +486,8 @@ def seal_tokens(
     secrets: Mapping[str, Any] | None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """A connection's stored maps with ``tokens`` in the reserved keys."""
-    plain = {k: v for k, v in (config or {}).items() if k not in RESERVED_TOKEN_KEYS}
-    sealed = {k: v for k, v in (secrets or {}).items() if k not in RESERVED_TOKEN_KEYS}
+    plain = without_tokens(config)
+    sealed = without_tokens(secrets)
     sealed["access_token"] = encrypt_field(tokens.access_token, SALT_APP_CONFIG)
     if tokens.refresh_token:
         sealed["refresh_token"] = encrypt_field(tokens.refresh_token, SALT_APP_CONFIG)
@@ -539,11 +521,6 @@ def unseal_tokens(
         expires_at=_time("expires_at"),
         refresh_expires_at=_time("refresh_expires_at"),
     )
-
-
-def without_tokens(values: Mapping[str, Any] | None) -> dict[str, Any]:
-    """A stored map with the reserved token keys taken out."""
-    return {k: v for k, v in (values or {}).items() if k not in RESERVED_TOKEN_KEYS}
 
 
 def needs_refresh(tokens: TokenSet, *, now: Optional[int] = None) -> bool:
@@ -907,7 +884,7 @@ async def complete_setup(
         loaded = await _load_for_flow(session, state)
         if loaded is None:
             return landing_url(state.return_path, "not_recorded")
-        fields = stored_fields((loaded.app.config or {}).get(state.connection_id))
+        fields = without_tokens((loaded.app.config or {}).get(state.connection_id))
     try:
         vendor = await load_vendor_values(loaded.public_id)
         return authorize_url(
@@ -946,7 +923,7 @@ async def complete_callback(
         loaded = await _load_for_flow(session, state)
         if loaded is None:
             return landing_url(state.return_path, "not_recorded")
-        fields = stored_fields((loaded.app.config or {}).get(state.connection_id))
+        fields = without_tokens((loaded.app.config or {}).get(state.connection_id))
         install_id = loaded.app.id
 
     # The vendor and the app are asked with no transaction open. What they
@@ -1247,7 +1224,7 @@ async def member_token(
         return None
     flow, tokens = _member_tokens(app, row)
     renewed = await _renewed(
-        flow, public_id=public_id, fields=stored_fields(row.config), tokens=tokens
+        flow, public_id=public_id, fields=without_tokens(row.config), tokens=tokens
     )
     if renewed is tokens:
         await session.commit()
@@ -1300,7 +1277,7 @@ async def community_token(
         return await mint_jwt_bearer(
             spec,
             vendor=vendor,
-            fields=stored_fields((app.config or {}).get(connection_id)),
+            fields=without_tokens((app.config or {}).get(connection_id)),
             cache_key=(guild_id, app.id, connection_id),
         )
 
@@ -1319,7 +1296,7 @@ async def community_token(
     if tokens is None:
         raise ConnectionFlowError(AppChannelMessages.CONNECTION_NO_TOKEN)
     renewed = await _renewed(
-        flow, public_id=public_id, fields=stored_fields(stored_config), tokens=tokens
+        flow, public_id=public_id, fields=without_tokens(stored_config), tokens=tokens
     )
     if renewed is tokens:
         await session.commit()

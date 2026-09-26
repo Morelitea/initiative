@@ -31,7 +31,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from app.core.app_scopes import app_scope_target
+from app.core.app_scopes import ALL_SCOPES, app_scope_target
 from app.services.marketplace import contract
 from app.services.marketplace.manifest_values import (
     MAX_HINT_LENGTH,
@@ -70,7 +70,6 @@ __all__ = [
     "FEATURE_BLOCKS",
     "FIELD_TYPES",
     "PARAM_TYPES",
-    "SCOPES",
     "SURFACE_SCOPES",
     "app_widget_type",
     "is_admin_only",
@@ -137,11 +136,6 @@ PARAM_TYPES: frozenset[str] = contract.enum("paramType")
 #: opened in. Closed, and defaulting to ``["guild"]``, so an app that says
 #: nothing keeps the placement it already had.
 SURFACE_SCOPES: frozenset[str] = contract.enum("surfaceScope")
-
-#: The scopes a service may ask a community to grant: what its installation
-#: and member tokens act with. The contract's vocabulary, which is the same one
-#: ``app.core.app_scopes`` derives (``app_scopes_test`` holds the two equal).
-SCOPES: frozenset[str] = contract.enum("scope")
 
 #: How many ``apps:<public_id>`` scopes a service may ask for beside the fixed
 #: ones: one per app it calls through Initiative.
@@ -1619,7 +1613,7 @@ def _requested_scopes(raw: Any) -> list[str]:
     if raw is None:
         return []
     declared = require_list(
-        raw, "service app: service.scopes", len(SCOPES) + MAX_APP_SCOPES
+        raw, "service app: service.scopes", len(ALL_SCOPES) + MAX_APP_SCOPES
     )
     scopes: set[str] = set()
     app_scopes = 0
@@ -1630,7 +1624,7 @@ def _requested_scopes(raw: Any) -> list[str]:
             fail(f"service app: {entry!r} is not a scope an app may request")
         if app_scope_target(entry) is not None:
             app_scopes += 1
-        elif entry not in SCOPES:
+        elif entry not in ALL_SCOPES:
             fail(f"service app: {entry!r} is not a scope an app may request")
         if entry in scopes:
             fail(f"service app: service.scopes names {entry!r} twice")

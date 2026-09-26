@@ -41,7 +41,7 @@ from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.services.tenant import app_revocation
 from app.services.tenant.app_connection_flows import callback_url
-from app.services.tenant.app_connections import mint_connection_ref
+from app.services.tenant.app_config import mint_connection_ref
 from app.testing import (
     create_app_service_registration,
     create_guild_app,

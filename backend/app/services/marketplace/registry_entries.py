@@ -506,7 +506,7 @@ async def _apply_registration(
         raise _invalid("registration is not an object")
     publisher_id = publisher.id
     assert publisher_id is not None  # flushed by _apply_publisher
-    public_id = service_public_id(definition if isinstance(definition, dict) else None)
+    public_id = service_public_id(definition)
     if public_id is None:
         raise _invalid("an app with a registration must be a service app")
     public_id = _normalized(

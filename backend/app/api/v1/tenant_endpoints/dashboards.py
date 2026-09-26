@@ -39,7 +39,6 @@ from app.core.messages import (
 from app.core.tools import Tool
 from app.db.session import require_guild_context
 from app.models.platform.marketplace import (
-    MarketplaceListing,
     MarketplaceListingVersion,
 )
 from app.models.platform.user import User
@@ -66,7 +65,6 @@ from app.services import audit as audit_service
 from app.services import query as query_service
 from app.services.marketplace.installs import (
     count_install,
-    ListingInstallError,
     resolve_listing_install,
 )
 from app.services.tenant import dashboards as dashboards_service
@@ -129,26 +127,6 @@ def _normalize_body(
             detail=str(exc),
         ) from exc
     return clean_definition, clean_config
-
-
-async def _resolve_listing_install(
-    session: RLSSessionDep, listing_uid: str
-) -> tuple[MarketplaceListing, MarketplaceListingVersion]:
-    """The catalog rows behind an install, as an HTTP answer.
-
-    The resolving itself is shared with the app installer
-    (``services.marketplace.installs``) so both kinds ask the catalog the same
-    questions; only the mapping to a status code belongs to this layer.
-    """
-    try:
-        return await resolve_listing_install(session, listing_uid, kind="dashboard")
-    except ListingInstallError as exc:
-        raise HTTPException(
-            status_code=(
-                status.HTTP_404_NOT_FOUND if exc.not_found else status.HTTP_409_CONFLICT
-            ),
-            detail=exc.code,
-        ) from exc
 
 
 def _listing_canvas(version: MarketplaceListingVersion) -> dict:
@@ -259,8 +237,8 @@ async def create_dashboard(
     listing_id: Optional[int] = None
     listing_version: Optional[str] = None
     if dashboard_in.listing_uid:
-        listing, version = await _resolve_listing_install(
-            session, dashboard_in.listing_uid
+        listing, version = await resolve_listing_install(
+            session, dashboard_in.listing_uid, kind="dashboard"
         )
         listing_id, listing_version = listing.id, version.version
         # Validated again on the way in: the catalog validated it at publish
@@ -311,7 +289,7 @@ async def create_dashboard(
 
     await session.commit()
     if listing_id is not None:
-        await count_install(listing_id)
+        await count_install(guild_context.guild_id, listing_id)
     hydrated = await _refetch_dashboard(session, dashboard.id)
     return serialize_tool(
         DashboardRead, hydrated, user_id=current_user.id, context=guild_context
@@ -410,7 +388,9 @@ async def upgrade_dashboard(
             detail=MarketplaceMessages.NOT_INSTALLED_FROM_LISTING,
         )
 
-    _, version = await _resolve_listing_install(session, dashboard.listing_uid)
+    _, version = await resolve_listing_install(
+        session, dashboard.listing_uid, kind="dashboard"
+    )
     if version.version == dashboard.listing_version:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

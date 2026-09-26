@@ -21,22 +21,17 @@ same member uncorrelated across apps and guilds.
 
 from __future__ import annotations
 
-import secrets
 from typing import Any, Optional, Sequence
 
 from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.session import routed_guild_id
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
-from app.services.tenant.app_revocation import (
-    intent_for,
-    queue_revocation,
-    queue_revocations_for_rows,
-)
 from app.core.clock import utcnow
+from app.services.tenant.app_config import mint_connection_ref
+from app.services.tenant.app_revocation import queue_revocations_for_rows
 
 __all__ = [
     "block_member_connection",
@@ -49,19 +44,9 @@ __all__ = [
     "is_blocked",
     "list_app_connections",
     "list_member_connections",
-    "mint_connection_ref",
     "revoke_all",
     "unblock_member_connection",
 ]
-
-#: Long enough that a handle is never guessed, short enough to sit in a URL the
-#: app builds. ``token_urlsafe(24)`` renders as 32 characters, which is the
-#: column width.
-_REF_ENTROPY_BYTES = 24
-
-
-def mint_connection_ref() -> str:
-    return secrets.token_urlsafe(_REF_ENTROPY_BYTES)
 
 
 # --- reading ----------------------------------------------------------------
@@ -161,25 +146,20 @@ async def _delete_rows(
     session: AsyncSession,
     rows: Sequence[GuildAppUserConnection],
     *,
-    listing_uid: str,
     reason: str,
-    definition: dict[str, Any] | None,
+    installs: dict[int, tuple[str, dict[str, Any] | None]],
 ) -> int:
     """Delete stored credentials and record the matching revocations.
 
     The single choke point for ending per-member access: an intent carrying
     each row's sealed tokens is queued before the row goes, so no caller can
-    delete values without the grant being ended at the vendor.
+    delete values without the grant being ended at the vendor. ``installs`` is
+    as :func:`~app.services.tenant.app_revocation.queue_revocations_for_rows`
+    takes it.
     """
     if not rows:
         return 0
-    queue_revocations_for_rows(
-        session,
-        listing_uid=listing_uid,
-        rows=rows,
-        reason=reason,
-        definition=definition,
-    )
+    queue_revocations_for_rows(session, rows, reason=reason, installs=installs)
     for row in rows:
         await session.delete(row)
     return len(rows)
@@ -207,9 +187,13 @@ async def disconnect(
     return await _delete_rows(
         session,
         [row],
-        listing_uid=app.listing_uid,
         reason=reason,
-        definition=definition if definition is not None else app.definition,
+        installs={
+            app.id: (
+                app.listing_uid,
+                definition if definition is not None else app.definition,
+            )
+        },
     )
 
 
@@ -242,20 +226,11 @@ async def block_member_connection(
             status="blocked",
         )
     else:
-        queue_revocation(
+        queue_revocations_for_rows(
             session,
-            intent_for(
-                guild_id=routed_guild_id(session),
-                app_id=row.app_id,
-                listing_uid=app.listing_uid,
-                definition=app.definition,
-                connection_id=row.connection_id,
-                config=row.config,
-                secrets=row.config_secrets,
-                reason="blocked",
-                connection_ref=row.connection_ref,
-                user_id=row.user_id,
-            ),
+            [row],
+            reason="blocked",
+            installs={app.id: (app.listing_uid, app.definition)},
         )
         row.status = "blocked"
 
@@ -302,9 +277,8 @@ async def revoke_all(
     return await _delete_rows(
         session,
         rows,
-        listing_uid=app.listing_uid,
         reason=reason,
-        definition=app.definition,
+        installs={app.id: (app.listing_uid, app.definition)},
     )
 
 
@@ -321,9 +295,8 @@ async def delete_app_connections(
     return await _delete_rows(
         session,
         rows,
-        listing_uid=app.listing_uid,
         reason=reason,
-        definition=app.definition,
+        installs={app.id: (app.listing_uid, app.definition)},
     )
 
 
@@ -350,29 +323,12 @@ async def delete_member_connections(
             )
         ).all()
     )
-    if not rows:
-        return 0
-
-    installs = await _installs_by_app_id(session, app_ids={row.app_id for row in rows})
-    for row in rows:
-        listing_uid, definition = installs.get(row.app_id, ("", None))
-        queue_revocation(
-            session,
-            intent_for(
-                guild_id=routed_guild_id(session),
-                app_id=row.app_id,
-                listing_uid=listing_uid,
-                definition=definition,
-                connection_id=row.connection_id,
-                config=row.config,
-                secrets=row.config_secrets,
-                reason=reason,
-                connection_ref=row.connection_ref,
-                user_id=row.user_id,
-            ),
-        )
-        await session.delete(row)
-    return len(rows)
+    return await _delete_rows(
+        session,
+        rows,
+        reason=reason,
+        installs=await _installs_by_app_id(session, app_ids={r.app_id for r in rows}),
+    )
 
 
 async def delete_guild_connections(
@@ -385,28 +341,12 @@ async def delete_guild_connections(
     runs first so each app is asked to let go.
     """
     rows = list((await session.exec(select(GuildAppUserConnection))).all())
-    if not rows:
-        return 0
-    installs = await _installs_by_app_id(session, app_ids={row.app_id for row in rows})
-    for row in rows:
-        listing_uid, definition = installs.get(row.app_id, ("", None))
-        queue_revocation(
-            session,
-            intent_for(
-                guild_id=routed_guild_id(session),
-                app_id=row.app_id,
-                listing_uid=listing_uid,
-                definition=definition,
-                connection_id=row.connection_id,
-                config=row.config,
-                secrets=row.config_secrets,
-                reason=reason,
-                connection_ref=row.connection_ref,
-                user_id=row.user_id,
-            ),
-        )
-        await session.delete(row)
-    return len(rows)
+    return await _delete_rows(
+        session,
+        rows,
+        reason=reason,
+        installs=await _installs_by_app_id(session, app_ids={r.app_id for r in rows}),
+    )
 
 
 async def _installs_by_app_id(
