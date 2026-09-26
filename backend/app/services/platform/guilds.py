@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import logging
 import secrets
 
-from sqlalchemy import func, or_, text
+from sqlalchemy import exists, func, or_, text
+from sqlalchemy.orm import aliased
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -700,9 +702,9 @@ async def create_guild(
     actor_user_id: int | None = None,
 ) -> Guild:
     """Create a guild's *shared* rows only — the guild row (public) and its
-    admin membership (public). The guild-scoped seed rows (settings + default
-    initiative) live in the guild's schema, which doesn't exist yet, so the
-    caller commits this, then calls :func:`seed_guild_content`.
+    admin membership (public). The guild-scoped seed rows live in the guild's
+    schema, which doesn't exist yet; :func:`provision_new_guild` commits this
+    and then calls :func:`seed_guild_content`.
 
     ``creator`` is who performed the creation and is recorded as such;
     ``owner`` is who gets the membership, defaulting to the creator. The row
@@ -774,8 +776,9 @@ async def seed_guild_content(
 
     The shared guild row must already exist, committed; this provisions the
     schema + role and seeds into it on a system session from the guild's cohort,
-    which it commits. ``session`` is the caller's, and is left as it was. On
-    failure the caller should ``deprovision_guild`` and remove the shared rows.
+    which it commits. ``session`` is the caller's, and is left as it was.
+    Called from :func:`provision_new_guild`, which undoes the guild if this
+    fails.
 
     Mandatory apps (§7.7) land here because that is what "every guild has it"
     means. They are also the one part allowed to fail quietly: the install is a
@@ -807,6 +810,69 @@ async def seed_guild_content(
                 guild_id,
             )
         await guild_session.commit()
+
+
+class GuildProvisionError(Exception):
+    """A new guild's schema could not be provisioned or seeded; its shared
+    rows have been removed again."""
+
+
+async def provision_new_guild(
+    session: AsyncSession,
+    *,
+    name: str,
+    creator: User,
+    owner: User | None = None,
+    description: str | None = None,
+    actor_user_id: int | None = None,
+) -> Guild:
+    """Create a guild end to end: :func:`create_guild`, commit, then
+    :func:`seed_guild_content`.
+
+    The shared rows are committed first so the seed runs as a separate step
+    that can be undone. If it fails, the schema is dropped, the guild row is
+    deleted through :func:`delete_guild` (recorded as ``provision_failed``),
+    its app references are forgotten, and :class:`GuildProvisionError` is
+    raised. Anything else the caller committed alongside it (a registering
+    account) is the caller's to remove.
+    """
+    from app.db.schema_provisioning import deprovision_guild
+    from app.db.session import clear_rls_context
+    from app.services.marketplace import app_refs
+
+    first = owner or creator
+    guild = await create_guild(
+        session,
+        name=name,
+        description=description,
+        creator=creator,
+        owner=first,
+        actor_user_id=actor_user_id,
+    )
+    await session.commit()
+    # Read before the seed: the rollback below expires the ORM objects.
+    guild_id = guild.id
+    actor = actor_user_id if actor_user_id is not None else first.id
+    try:
+        await seed_guild_content(session, guild_id=guild_id, owner=first)
+    except Exception as exc:
+        logger.exception("Guild %s setup failed; rolling back", guild_id)
+        # The seed may have left this session aborted or routed into the
+        # schema being dropped; the cleanup runs unrouted, on public.
+        await session.rollback()
+        clear_rls_context(session)
+        with suppress(Exception):
+            await deprovision_guild(guild_id)
+        await delete_guild(
+            session,
+            await get_guild(session, guild_id=guild_id),
+            actor_user_id=actor,
+            via="provision_failed",
+        )
+        await session.commit()
+        await app_refs.forget_guild(guild_id=guild_id)
+        raise GuildProvisionError(guild_id) from exc
+    return guild
 
 
 #: The characters a hex colour is made of, checked one at a time. An explicit
@@ -1205,8 +1271,7 @@ async def delete_guild(
 
     ``actor_user_id`` names who for the record, ``via`` which surface they did
     it from, and ``target_user_id`` the account the deletion was on behalf of
-    where there is one. Without an actor the deletion is unrecorded — the
-    compensating delete of a guild whose setup failed is that case.
+    where there is one. Without an actor the deletion is unrecorded.
 
     Under schema-per-guild the guild's content lives in its schema and is removed
     separately by ``deprovision_guild`` (``DROP SCHEMA … CASCADE``). Here we only
@@ -1223,7 +1288,7 @@ async def delete_guild(
     attempt sync loads in the async context (MissingGreenlet).
 
     **Callers must follow a successful commit with**
-    ``app_refs.drop_guild_app_refs(guild_id=...)`` — what this guild's installed
+    ``app_refs.forget_guild(guild_id=...)`` — what this guild's installed
     apps called its members lives in a platform-wide table that neither the
     guild row's cascade nor the schema drop reaches. After the commit rather
     than here: those references are on a different connection and cannot join
@@ -1996,6 +2061,34 @@ async def lock_guild_seats(session: AsyncSession, guild_id: int) -> None:
     )
 
 
+def _sole_seats(user_id: int):
+    """The live communities where this account holds the only seat.
+
+    A seat held by an account on its way out is not one. That account keeps
+    its membership for its whole window, so counting the row would let two
+    seat holders each leave in turn — each one counting the other — and leave
+    the community with nobody who can run it.
+    """
+    mine = aliased(GuildMembership)
+    other_seat = aliased(GuildMembership)
+    return (
+        select(Guild.id, Guild.name)
+        .join(mine, mine.guild_id == Guild.id)
+        .where(
+            mine.user_id == user_id,
+            mine.role == GuildRole.superadmin,
+            Guild.status != GuildStatus.deleted.value,
+            ~exists().where(
+                other_seat.guild_id == Guild.id,
+                other_seat.user_id != user_id,
+                other_seat.role == GuildRole.superadmin,
+                User.id == other_seat.user_id,
+                User.status != UserStatus.deleted,
+            ),
+        )
+    )
+
+
 async def must_keep_superadmin(
     session: AsyncSession,
     *,
@@ -2026,35 +2119,8 @@ async def must_keep_superadmin(
     agree with each other, and the lock is what makes the answer still true
     when the caller acts on it.
     """
-    membership = await get_membership(session, guild_id=guild_id, user_id=user_id)
-    if membership is None or membership.role != GuildRole.superadmin:
-        return False
-
-    guild = (
-        await session.exec(select(Guild.status).where(Guild.id == guild_id))
-    ).one_or_none()
-    if guild == GuildStatus.deleted.value:
-        return False
-
-    others = (
-        await session.exec(
-            select(func.count())
-            .select_from(GuildMembership)
-            .join(User, User.id == GuildMembership.user_id)
-            .where(
-                GuildMembership.guild_id == guild_id,
-                GuildMembership.user_id != user_id,
-                GuildMembership.role == GuildRole.superadmin,
-                # A seat held by an account on its way out is not one. That
-                # account keeps its membership for its whole window, so
-                # counting the row would let two seat holders each leave in
-                # turn — each one counting the other — and leave the community
-                # with nobody who can run it.
-                User.status != UserStatus.deleted,
-            )
-        )
-    ).one()
-    return others == 0
+    stmt = _sole_seats(user_id).where(Guild.id == guild_id)
+    return (await session.exec(stmt)).first() is not None
 
 
 async def would_strand_guild(
@@ -2077,20 +2143,34 @@ async def would_strand_guild(
 
     Call :func:`lock_guild_seats` first, as for the rule it builds on.
     """
-    if not await must_keep_superadmin(session, guild_id=guild_id, user_id=user_id):
-        return False
+    return bool(await stranded_seats(session, user_id=user_id, guild_id=guild_id))
 
-    others = (
-        await session.exec(
-            select(func.count())
-            .select_from(GuildMembership)
-            .where(
-                GuildMembership.guild_id == guild_id,
-                GuildMembership.user_id != user_id,
+
+async def stranded_seats(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    guild_id: int | None = None,
+) -> list[tuple[int, str]]:
+    """``(id, name)`` of every community this account going would strand, in
+    id order — :func:`would_strand_guild` for all of its seats in one query.
+
+    ``guild_id`` narrows it to one community.
+    """
+    others = aliased(GuildMembership)
+    stmt = (
+        _sole_seats(user_id)
+        .where(
+            exists().where(
+                others.guild_id == Guild.id,
+                others.user_id != user_id,
             )
         )
-    ).one()
-    return others > 0
+        .order_by(Guild.id)
+    )
+    if guild_id is not None:
+        stmt = stmt.where(Guild.id == guild_id)
+    return [(row[0], row[1]) for row in (await session.exec(stmt)).all()]
 
 
 async def remove_user_from_guild(

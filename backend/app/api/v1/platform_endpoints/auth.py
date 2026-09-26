@@ -518,39 +518,21 @@ async def _register_account(
                 if guild_name_source.lower().endswith("guild")
                 else f"{guild_name_source}'s Guild"
             )
-            # create_guild makes the shared rows (guild + admin membership). Commit
-            # them — together with the user — then provision + seed the schema
-            # (settings + default initiative). On failure, undo the whole registration.
-            guild = await guilds_service.create_guild(
-                session, name=guild_name, creator=user
-            )
-            await session.commit()
-            guild_id = guild.id
+            # The account is committed with the guild; if the guild cannot be
+            # set up, the account goes too.
             user_id = user.id
             try:
-                await guilds_service.seed_guild_content(
-                    session, guild_id=guild_id, owner=user
+                guild = await guilds_service.provision_new_guild(
+                    session, name=guild_name, creator=user
                 )
-            except Exception:
-                from contextlib import suppress as _suppress
-
-                from app.db.schema_provisioning import deprovision_guild
-
-                logger.exception(
-                    "Guild %s setup failed during registration; rolling back", guild_id
-                )
-                with _suppress(Exception):
-                    await deprovision_guild(guild_id)
-                # Bulk DELETEs by captured id (CASCADE clears the roster) — never
-                # session.delete (walks ORM relationships with async-unsafe sync
-                # loads) and never the expired ORM objects (would reload).
-                await session.exec(sql_delete(Guild).where(Guild.id == guild_id))
+            except guilds_service.GuildProvisionError:
                 await session.exec(sql_delete(User).where(User.id == user_id))
                 await session.commit()
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=AuthMessages.UNABLE_TO_CREATE_USER,
                 )
+            guild_id = guild.id
             # Registration seeds the new account a guild of its own; claim it
             # for them. Fire-and-forget, once the seed has committed.
             billing_claim.claim_new_guild(user_id=user_id, guild_id=guild_id)

@@ -120,10 +120,10 @@ _ALLOWED: dict[tuple[str, str], str] = {
     ),
     # --- The caller's own community, behind its settings gate -------------
     # --- Joining and creating ----------------------------------------------
-    (f"{_ENDPOINTS}/auth.py", "_register_account"): (
-        "a new account joins the community it was invited to, or creates one"
+    (f"{_SERVICES}/guilds.py", "provision_new_guild"): (
+        "seeds a community just created, for the create endpoint, registration "
+        "and first boot"
     ),
-    (f"{_ENDPOINTS}/guilds.py", "create_guild"): ("seeds a community just created"),
     # --- Lifecycle -----------------------------------------------------------
     (f"{_SERVICES}/app_settings.py", "ensure_defaults"): (
         "startup seeding of the primary community"
