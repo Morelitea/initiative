@@ -459,6 +459,8 @@ _SEAT_SECTION = """\
 -- tr_guild_app_secrets_fields: each write to an install's secret values
 -- rewrites guild_apps.secret_fields, the keys that hold a value and a digest
 -- of each, as whoever made the write.
+-- tr_guild_ai_connection_keys_present: each write to a connection's shared
+-- key sets guild_ai_connections.has_api_key, as whoever made the write.
 -- ==========================================================================="""
 
 _SEAT_READ_PREDICATE = f"({SYSTEM_SESSION} OR {GUILD_SEAT})"
@@ -562,6 +564,30 @@ APP_SECRET_FIELDS_TRIGGER = (
     "CREATE OR REPLACE TRIGGER tr_guild_app_secrets_fields"
     " AFTER INSERT OR UPDATE OR DELETE ON guild_app_secrets FOR EACH ROW"
     " EXECUTE FUNCTION public.fn_app_secret_fields();"
+)
+
+#: ``guild_ai_connections.has_api_key`` from whether the connection has a row in
+#: ``guild_ai_connection_keys``. Shared, in ``public``; the row it writes is in
+#: the schema the trigger fired in.
+AI_KEY_PRESENT_FN = """
+CREATE OR REPLACE FUNCTION public.fn_ai_connection_key_present() RETURNS trigger
+    LANGUAGE plpgsql AS $key_present$
+BEGIN
+    EXECUTE format(
+        $q$UPDATE %I.guild_ai_connections SET has_api_key = $1
+            WHERE id = $2 AND has_api_key IS DISTINCT FROM $1$q$,
+        TG_TABLE_SCHEMA
+    ) USING TG_OP <> 'DELETE',
+        CASE WHEN TG_OP = 'DELETE' THEN OLD.connection_id ELSE NEW.connection_id END;
+    RETURN NULL;
+END;
+$key_present$;
+"""
+
+AI_KEY_PRESENT_TRIGGER = (
+    "CREATE OR REPLACE TRIGGER tr_guild_ai_connection_keys_present"
+    " AFTER INSERT OR DELETE ON guild_ai_connection_keys FOR EACH ROW"
+    " EXECUTE FUNCTION public.fn_ai_connection_key_present();"
 )
 
 
@@ -1092,6 +1118,7 @@ def render_guild_rls_ddl() -> str:
     seats = [_seat_block(t) for t in sorted(SEAT_TABLES)]
     out += "\n\n" + _SEAT_SECTION + "\n\n" + "\n\n".join(seats)
     out += "\n" + APP_SECRET_FIELDS_FN + "\n" + APP_SECRET_FIELDS_TRIGGER
+    out += "\n" + AI_KEY_PRESENT_FN + "\n" + AI_KEY_PRESENT_TRIGGER
     ledgers = [_ledger_block(t, p, fk) for t, (p, fk) in sorted(LEDGER_TABLES.items())]
     out += "\n\n" + _LEDGER_SECTION + "\n\n" + "\n\n".join(ledgers)
     # After every block above, so each table's RLS is on before its app

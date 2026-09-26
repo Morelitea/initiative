@@ -162,6 +162,7 @@ class ResolvedAISettings(SanitizedBaseModel):
     enabled: bool = False
     provider: Optional[AIProvider] = None
     api_key: Optional[RawTextStr] = None
+    has_api_key: bool = False
     base_url: Optional[str] = None
     model: Optional[str] = None
     # ``allow_private`` is server-computed as (provider == ollama and the chosen

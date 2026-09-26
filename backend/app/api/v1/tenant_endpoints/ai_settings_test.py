@@ -186,6 +186,65 @@ async def test_guild_admin_cannot_save_private_base_url(client, acting_user):
     assert r.json()["detail"] == "AI_INVALID_BASE_URL"
 
 
+async def test_a_member_runs_on_the_community_s_shared_key(
+    client, acting_user, monkeypatch
+):
+    """A member reads that the seat's connection has a key, and a request to
+    the provider carries it; clearing it is seen the same way."""
+    owner = await acting_user()
+    await _set_mode(client, owner, "guild")
+    seat = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+    r = await client.post(
+        seat.g("/settings/ai/connections"),
+        headers=seat.headers,
+        json={
+            "label": "Team",
+            "provider": "openai",
+            "api_key": "sk-team",
+            "is_default": True,
+            "allow_member_keys": False,
+        },
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["has_api_key"] is True
+    conn_id = r.json()["id"]
+
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=seat.guild,
+        initiative=seat.initiative,
+        initiative_role="member",
+    )
+    view = (
+        await client.get(member.g("/settings/ai/me"), headers=member.headers)
+    ).json()
+    assert view["enabled"] is True
+    assert view["connections"][0]["requires_member_key"] is False
+
+    sent: list[str | None] = []
+
+    async def _list_models(provider, api_key, base_url, *, allow_private):
+        sent.append(api_key)
+        return [], None
+
+    monkeypatch.setattr(ai_settings_service, "_list_models", _list_models)
+    r = await client.post(member.g("/settings/ai/me/test"), headers=member.headers)
+    assert r.status_code == 200, r.text
+    assert sent == ["sk-team"]
+
+    r = await client.put(
+        seat.g(f"/settings/ai/connections/{conn_id}"),
+        headers=seat.headers,
+        json={"api_key": None},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["has_api_key"] is False
+    resolved = await client.get(
+        member.g("/settings/ai/resolved"), headers=member.headers
+    )
+    assert resolved.json()["has_api_key"] is False
+
+
 async def test_connection_that_disallows_member_keys(client, acting_user):
     """A connection with allow_member_keys=False uses its own shared key only —
     a member cannot attach their own key to it."""

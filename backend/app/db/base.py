@@ -131,7 +131,7 @@ from app.models.platform.app_service_registration import AppServiceRegistration
 from app.models.platform.publisher import Publisher
 from app.models.platform.app_assertion_jti import AppAssertionJti
 from app.models.platform.app_install import AppInstall
-from app.models.tenant.ai_connection import GuildAIConnection
+from app.models.tenant.ai_connection import GuildAIConnection, GuildAIConnectionKey
 from app.models.tenant.ai_member_key import GuildAIMemberKey
 from app.models.tenant.ai_member_pref import GuildAIMemberPref
 
@@ -249,6 +249,7 @@ __all__ = [
     "MarketplaceTufMetadata",
     "PlatformAIConnection",
     "GuildAIConnection",
+    "GuildAIConnectionKey",
     "GuildAIMemberKey",
     "GuildAIMemberPref",
     "AppMemberConsent",

@@ -11,6 +11,9 @@ Resolution (member M generating in guild G):
    ``platform_ai_connections`` under a guild role).
 2. connection: member pref (guild-local) -> owner default -> first enabled.
 3. key: member key for that connection (guild-local) -> the connection's own key.
+   A guild connection's own key is in ``guild_ai_connection_keys``, which the
+   seat and the system engine read, so generation reads it on the system engine
+   (:func:`_load_guild_key`); everything else reads ``has_api_key``.
 4. destination always comes from the connection (owner-set). ``allow_private``
    is server-computed as (provider == ollama and the connection is a platform
    connection) — never from request input.
@@ -27,14 +30,15 @@ from sqlalchemy import text
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.session import routed_guild_id
+from app.db import cohorts
+from app.db.session import routed_guild_id, set_rls_context
 from app.core.audit_events import AuditEventType
 from app.core.encryption import SALT_AI_API_KEY, decrypt_field, encrypt_field
 from app.core.messages import AIMessages
 from app.db import session as db_session
 from app.models.platform.ai_connection import PlatformAIConnection
 from app.models.platform.user import User
-from app.models.tenant.ai_connection import GuildAIConnection
+from app.models.tenant.ai_connection import GuildAIConnection, GuildAIConnectionKey
 from app.models.tenant.ai_member_key import GuildAIMemberKey
 from app.models.tenant.ai_member_pref import GuildAIMemberPref
 from app.services.platform.app_settings import get_app_settings
@@ -105,7 +109,10 @@ class _ConnRow:
     provider: str
     base_url: str | None
     model: str | None
+    # The ciphertext of a platform connection's key; a guild connection's is
+    # read by :func:`_load_guild_key` when it is needed.
     api_key_encrypted: str | None
+    has_key: bool
     enabled: bool
     is_default: bool
     allow_member_keys: bool
@@ -149,6 +156,7 @@ async def _load_platform_connections() -> tuple[_ConnRow, ...]:
             base_url=r[3],
             model=r[4],
             api_key_encrypted=r[5],
+            has_key=r[5] is not None,
             enabled=bool(r[6]),
             is_default=bool(r[7]),
             allow_member_keys=bool(r[8]),
@@ -229,11 +237,58 @@ def _conn_from_guild(row: GuildAIConnection) -> _ConnRow:
         provider=row.provider,
         base_url=row.base_url,
         model=row.model,
-        api_key_encrypted=row.api_key_encrypted,
+        api_key_encrypted=None,
+        has_key=row.has_api_key,
         enabled=row.enabled,
         is_default=row.is_default,
         allow_member_keys=row.allow_member_keys,
     )
+
+
+async def _load_guild_key(guild_id: int, connection_id: int) -> str | None:
+    """A guild connection's shared key ciphertext, read on the system engine
+    in ``guild_id``'s schema: the key table is read by the seat and the system
+    engine, and a member's generation needs the key of the connection it runs
+    on."""
+    async with cohorts.system_session(guild_id) as system, system.begin():
+        await set_rls_context(system, guild_id=guild_id)
+        return (
+            await system.exec(
+                select(GuildAIConnectionKey.api_key_encrypted).where(
+                    GuildAIConnectionKey.connection_id == connection_id
+                )
+            )
+        ).first()
+
+
+async def _guild_key(session: AsyncSession, connection_id: int) -> str | None:
+    """A guild connection's shared key, decrypted, read on the seat's session."""
+    ciphertext = (
+        await session.exec(
+            select(GuildAIConnectionKey.api_key_encrypted).where(
+                GuildAIConnectionKey.connection_id == connection_id
+            )
+        )
+    ).first()
+    return decrypt_field(ciphertext, SALT_AI_API_KEY) if ciphertext else None
+
+
+async def _set_guild_key(
+    session: AsyncSession, connection_id: int, ciphertext: str | None
+) -> None:
+    """Store, replace or clear a guild connection's shared key."""
+    await session.exec(
+        delete(GuildAIConnectionKey).where(
+            GuildAIConnectionKey.connection_id == connection_id
+        )
+    )
+    if ciphertext is not None:
+        session.add(
+            GuildAIConnectionKey(
+                connection_id=connection_id, api_key_encrypted=ciphertext
+            )
+        )
+    await session.flush()
 
 
 def _provider_or_none(value: str) -> AIProvider | None:
@@ -249,12 +304,11 @@ def _allow_private_for(provider: AIProvider, scope: str) -> bool:
     return provider == AIProvider.ollama and scope == "platform"
 
 
-def _enforce_key_ownership(row) -> None:  # noqa: ANN001 (Platform/Guild connection)
+def _kept_key(allow_member_keys: bool, ciphertext: str | None) -> str | None:
     """A connection's key is EITHER shared (admin-set) OR member-supplied, never
     both. The ``allow_member_keys`` toggle is the switch: when it's on, members
     bring their own key, so any shared key is cleared."""
-    if row.allow_member_keys:
-        row.api_key_encrypted = None
+    return None if allow_member_keys else ciphertext
 
 
 # ---------------------------------------------------------------------------
@@ -284,8 +338,14 @@ async def resolve_ai_settings(
     session: AsyncSession,
     user: User,
     guild_id: int | None = None,
+    *,
+    with_key: bool = False,
 ) -> ResolvedAISettings:
-    """Compute the AI settings for ``user`` generating in guild ``guild_id``."""
+    """Compute the AI settings for ``user`` generating in guild ``guild_id``.
+
+    The key itself is read and decrypted only ``with_key``, for a request that
+    goes to the provider; otherwise ``has_api_key`` says whether there is one.
+    """
     if guild_id is None:
         return ResolvedAISettings(enabled=False, source="disabled")
 
@@ -342,31 +402,31 @@ async def resolve_ai_settings(
     # Member key for the chosen connection (guild-local, own-row RLS), else the
     # connection's own shared key. Per-connection: a connection that disallows
     # member keys always uses its own shared key.
-    member_key: str | None = None
+    member_ciphertext: str | None = None
     if chosen.allow_member_keys:
-        mk = (
+        member_ciphertext = (
             await session.exec(
-                select(GuildAIMemberKey).where(
+                select(GuildAIMemberKey.api_key_encrypted).where(
                     GuildAIMemberKey.user_id == user.id,
                     GuildAIMemberKey.connection_scope == chosen.scope,
                     GuildAIMemberKey.connection_id == chosen.id,
                 )
             )
-        ).one_or_none()
-        if mk:
-            member_key = decrypt_field(mk.api_key_encrypted, SALT_AI_API_KEY)
-    conn_key = (
-        decrypt_field(chosen.api_key_encrypted, SALT_AI_API_KEY)
-        if chosen.api_key_encrypted
-        else None
-    )
-    api_key = member_key or conn_key
+        ).first()
+    has_key = member_ciphertext is not None or chosen.has_key
+    api_key: str | None = None
+    if with_key and has_key:
+        ciphertext = member_ciphertext or chosen.api_key_encrypted
+        if ciphertext is None:
+            ciphertext = await _load_guild_key(guild_id, chosen.id)
+        api_key = decrypt_field(ciphertext, SALT_AI_API_KEY) if ciphertext else None
 
-    usable = provider == AIProvider.ollama or bool(api_key)
+    usable = provider == AIProvider.ollama or has_key
     return ResolvedAISettings(
         enabled=usable,
         provider=provider,
         api_key=api_key,
+        has_api_key=has_key,
         base_url=chosen.base_url,
         model=chosen.model,
         allow_private=allow_private,
@@ -386,7 +446,7 @@ async def get_resolved_ai_settings_response(
     return ResolvedAISettingsResponse(
         enabled=resolved.enabled,
         provider=resolved.provider,
-        has_api_key=bool(resolved.api_key),
+        has_api_key=resolved.has_api_key,
         base_url=resolved.base_url,
         model=resolved.model,
         source=resolved.source,
@@ -475,7 +535,7 @@ async def create_platform_connection(
         is_default=payload.is_default,
         allow_member_keys=payload.allow_member_keys,
     )
-    _enforce_key_ownership(row)
+    row.api_key_encrypted = _kept_key(row.allow_member_keys, row.api_key_encrypted)
     if payload.is_default:
         await _clear_platform_default(session)
     session.add(row)
@@ -553,7 +613,7 @@ async def update_platform_connection(
         if payload.is_default:
             await _clear_platform_default(session)
         row.is_default = payload.is_default
-    _enforce_key_ownership(row)
+    row.api_key_encrypted = _kept_key(row.allow_member_keys, row.api_key_encrypted)
     session.add(row)
     await _bump_ai_config_version(session)
     secret_changed = row.api_key_encrypted != key_before
@@ -614,7 +674,7 @@ def _guild_conn_response(row: GuildAIConnection) -> AIConnectionResponse:
         provider=AIProvider(row.provider),
         base_url=row.base_url,
         model=row.model,
-        has_api_key=bool(row.api_key_encrypted),
+        has_api_key=row.has_api_key,
         enabled=row.enabled,
         is_default=row.is_default,
         allow_member_keys=row.allow_member_keys,
@@ -658,20 +718,21 @@ async def create_guild_connection(
         provider=payload.provider.value,
         base_url=base_url,
         model=_normalize_optional_string(payload.model),
-        api_key_encrypted=(
-            encrypt_field(payload.api_key.strip(), SALT_AI_API_KEY)
-            if payload.api_key and payload.api_key.strip()
-            else None
-        ),
         enabled=payload.enabled,
         is_default=payload.is_default,
         allow_member_keys=payload.allow_member_keys,
     )
-    _enforce_key_ownership(row)
+    key = _kept_key(
+        row.allow_member_keys,
+        encrypt_field(payload.api_key.strip(), SALT_AI_API_KEY)
+        if payload.api_key and payload.api_key.strip()
+        else None,
+    )
     if payload.is_default:
         await _clear_guild_default(session)
     session.add(row)
     await session.flush()
+    await _set_guild_key(session, row.id, key)  # type: ignore[arg-type]
     await audit_service.record(
         session,
         event_type=AuditEventType.AI_CONNECTION_CREATED,
@@ -684,7 +745,7 @@ async def create_guild_connection(
             **audit_service.changed_fields(
                 {}, audit_service.snapshot(row, AUDITED_CONNECTION_FIELDS)
             ),
-            "secret_changed": bool(row.api_key_encrypted),
+            "secret_changed": key is not None,
         },
     )
     await session.commit()
@@ -704,7 +765,14 @@ async def update_guild_connection(
         raise HTTPException(status_code=404, detail=AIMessages.CONNECTION_NOT_FOUND)
     data = payload.model_dump(exclude_unset=True)
     before = audit_service.snapshot(row, AUDITED_CONNECTION_FIELDS)
-    key_before = row.api_key_encrypted
+    key_before = (
+        await session.exec(
+            select(GuildAIConnectionKey.api_key_encrypted).where(
+                GuildAIConnectionKey.connection_id == connection_id
+            )
+        )
+    ).first()
+    key = key_before
     provider = payload.provider or AIProvider(row.provider)
     if "base_url" in data:
         base_url = _normalize_optional_string(payload.base_url)
@@ -720,9 +788,7 @@ async def update_guild_connection(
         row.model = _normalize_optional_string(payload.model)
     if "api_key" in data:
         normalized = _normalize_optional_string(payload.api_key)
-        row.api_key_encrypted = (
-            encrypt_field(normalized, SALT_AI_API_KEY) if normalized else None
-        )
+        key = encrypt_field(normalized, SALT_AI_API_KEY) if normalized else None
     if "enabled" in data and payload.enabled is not None:
         row.enabled = payload.enabled
     if "allow_member_keys" in data and payload.allow_member_keys is not None:
@@ -731,9 +797,11 @@ async def update_guild_connection(
         if payload.is_default:
             await _clear_guild_default(session)
         row.is_default = payload.is_default
-    _enforce_key_ownership(row)
+    key = _kept_key(row.allow_member_keys, key)
     session.add(row)
-    secret_changed = row.api_key_encrypted != key_before
+    secret_changed = key != key_before
+    if secret_changed:
+        await _set_guild_key(session, connection_id, key)
     changed = audit_service.changed_fields(
         before, audit_service.snapshot(row, AUDITED_CONNECTION_FIELDS)
     )
@@ -857,7 +925,7 @@ async def get_member_ai_view(
             has_member_key=(c.scope, c.id) in member_keys,
             # A member must supply a key only when the connection has no shared
             # key of its own AND allows member keys.
-            requires_member_key=not c.api_key_encrypted and c.allow_member_keys,
+            requires_member_key=not c.has_key and c.allow_member_keys,
             allow_member_keys=c.allow_member_keys,
             is_selected=selected == (c.scope, c.id),
         )
@@ -1186,6 +1254,7 @@ async def test_platform_connection(
         base_url=row.base_url,
         model=row.model,
         api_key_encrypted=row.api_key_encrypted,
+        has_key=row.api_key_encrypted is not None,
         enabled=row.enabled,
         is_default=row.is_default,
         allow_member_keys=row.allow_member_keys,
@@ -1225,13 +1294,7 @@ async def test_guild_connection(
     row = await session.get(GuildAIConnection, connection_id)
     if row is None:
         raise HTTPException(status_code=404, detail=AIMessages.CONNECTION_NOT_FOUND)
-    conn = _conn_from_guild(row)
-    key = (
-        decrypt_field(conn.api_key_encrypted, SALT_AI_API_KEY)
-        if conn.api_key_encrypted
-        else None
-    )
-    return await _probe(conn, key)
+    return await _probe(_conn_from_guild(row), await _guild_key(session, connection_id))
 
 
 async def fetch_guild_connection_models(
@@ -1241,11 +1304,7 @@ async def fetch_guild_connection_models(
     if row is None:
         raise HTTPException(status_code=404, detail=AIMessages.CONNECTION_NOT_FOUND)
     provider = AIProvider(row.provider)
-    key = (
-        decrypt_field(row.api_key_encrypted, SALT_AI_API_KEY)
-        if row.api_key_encrypted
-        else None
-    )
+    key = await _guild_key(session, connection_id)
     models, error = await _list_models(provider, key, row.base_url, allow_private=False)
     return AIModelsResponse(models=models, error=error)
 
@@ -1255,7 +1314,7 @@ async def test_member_connection(
 ) -> AIConnectionTestResponse:
     """Test the member's currently-resolved connection using their effective
     key (member key if attached, else the connection's shared key)."""
-    resolved = await resolve_ai_settings(session, user, guild_id)
+    resolved = await resolve_ai_settings(session, user, guild_id, with_key=True)
     if resolved.provider is None or resolved.scope is None:
         raise HTTPException(status_code=404, detail=AIMessages.CONNECTION_NOT_FOUND)
     conn = _ConnRow(
@@ -1266,6 +1325,7 @@ async def test_member_connection(
         base_url=resolved.base_url,
         model=resolved.model,
         api_key_encrypted=None,
+        has_key=resolved.has_api_key,
         enabled=True,
         is_default=False,
         allow_member_keys=True,
