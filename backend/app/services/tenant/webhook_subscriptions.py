@@ -13,7 +13,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import webhook_events
 from app.core.app_scopes import app_scope
-from app.db import session as db_session
+from app.db import cohorts
 from app.db.session import set_rls_context
 from app.core.audit_events import AuditEventType
 from app.db.guild_standing import InstallContext
@@ -69,7 +69,7 @@ async def app_event_emitters(
     wanted = {name for name in event_types if name.startswith(ENDPOINT_ID_PREFIX)}
     if not wanted:
         return {}
-    async with db_session.SystemSessionLocal() as session:
+    async with cohorts.system_session(guild_id) as session:
         await set_rls_context(session, guild_id=guild_id, read_only=True)
         definitions = (
             await session.exec(
