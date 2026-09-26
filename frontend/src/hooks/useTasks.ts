@@ -14,6 +14,7 @@ import type {
   TaskListResponse,
   TaskRead,
   TaskReorderRequest,
+  TaskStatusCategory,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { getReadSmartChipsApiV1CGuildIdSmartChipsGetQueryKey } from "@/api/generated/smart-chips/smart-chips";
@@ -131,18 +132,28 @@ const findCachedTask = (
   return null;
 };
 
+/**
+ * A status change the caller already shows as made. Passing it moves the
+ * completion feedback from the response to the click, so it lands with the
+ * tick rather than a round trip later.
+ */
+export interface OptimisticStatusChange {
+  from: TaskStatusCategory;
+  to: TaskStatusCategory;
+}
+
+export interface UpdateTaskVariables {
+  taskId: number;
+  data: Parameters<typeof updateTaskApiV1CGuildIdTasksTaskIdPatch>[2];
+  /** Passthrough request options (e.g. AbortSignal). The guild is the
+   * active route's guild (path param). For cross-guild updates from
+   * personal surfaces use useUpdateTaskInGuild instead. */
+  params?: Parameters<typeof updateTaskApiV1CGuildIdTasksTaskIdPatch>[3];
+  statusChange?: OptimisticStatusChange;
+}
+
 export const useUpdateTask = (
-  options?: MutationOpts<
-    TaskRead,
-    {
-      taskId: number;
-      data: Parameters<typeof updateTaskApiV1CGuildIdTasksTaskIdPatch>[2];
-      /** Passthrough request options (e.g. AbortSignal). The guild is the
-       * active route's guild (path param). For cross-guild updates from
-       * personal surfaces use useUpdateTaskInGuild instead. */
-      params?: Parameters<typeof updateTaskApiV1CGuildIdTasksTaskIdPatch>[3];
-    }
-  >,
+  options?: MutationOpts<TaskRead, UpdateTaskVariables>,
   /** What a failure says. Defaults to the status-change wording, which is what
    *  most callers of this are doing. */
   errorKey = "tasks:errors.statusUpdate"
@@ -154,22 +165,22 @@ export const useUpdateTask = (
 
   return useMutation({
     ...rest,
-    mutationFn: async ({
-      taskId,
-      data,
-      params,
-    }: {
-      taskId: number;
-      data: Parameters<typeof updateTaskApiV1CGuildIdTasksTaskIdPatch>[2];
-      params?: Parameters<typeof updateTaskApiV1CGuildIdTasksTaskIdPatch>[3];
-    }) => {
+    mutationFn: async ({ taskId, data, params }: UpdateTaskVariables) => {
       return updateTaskApiV1CGuildIdTasksTaskIdPatch(guildId, taskId, data, params);
     },
-    onMutate: ({ taskId }) => {
+    onMutate: ({ taskId, statusChange }) => {
       // Snapshot the task's previous status category so onSuccess can detect
       // the non-done -> done transition that fires the celebratory effect.
       const cached = findCachedTask(guildId, queryClient, taskId);
-      return { previousCategory: cached?.task_status?.category ?? null };
+      if (!statusChange) {
+        return { previousCategory: cached?.task_status?.category ?? null };
+      }
+      // The caller already shows the change, so the feedback goes with it.
+      if (statusChange.to === "done" && statusChange.from !== "done" && user) {
+        const isAssigned = cached?.assignees?.some((assignee) => assignee.id === user.id) ?? false;
+        fireTaskCompletionFeedback(user, { isAssigned });
+      }
+      return { feedbackFired: true };
     },
     onSuccess: (...args) => {
       const [updated, vars, context] = args;
@@ -179,11 +190,13 @@ export const useUpdateTask = (
       // (b) the status actually transitioned non-done -> done. Audio +
       // haptic always fire on completion the user initiated; visual is
       // additionally gated on the user being assigned to the task.
-      const previousCategory = (context as { previousCategory?: string | null } | undefined)
-        ?.previousCategory;
+      const ctx = context as
+        | { previousCategory?: string | null; feedbackFired?: boolean }
+        | undefined;
+      const previousCategory = ctx?.previousCategory;
       const newCategory = updated?.task_status?.category;
       const movedIntoDone = newCategory === "done" && previousCategory !== "done";
-      if (movedIntoDone && user) {
+      if (movedIntoDone && user && !ctx?.feedbackFired) {
         const isAssigned = updated.assignees?.some((assignee) => assignee.id === user.id) ?? false;
         fireTaskCompletionFeedback(user, { isAssigned });
       }

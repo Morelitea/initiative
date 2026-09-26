@@ -296,7 +296,6 @@
     "noDoneTasksToArchive": "No hay tareas terminadas para archivar",
     "taskCreated": "Tarea creada",
     "createError": "No se pudo crear la tarea. Por favor intenta de nuevo cuando los estados se carguen.",
-    "taskUpdated": "Tarea actualizada",
     "bulkUpdated": "{{count}} tarea actualizada",
     "bulkUpdated_other": "{{count}} tareas actualizadas",
     "bulkUpdateError": "No se pudieron actualizar las tareas en este momento.",

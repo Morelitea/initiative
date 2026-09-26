@@ -9,21 +9,29 @@
  * The preset picker lives in the filter panel, since picking one sets every
  * field below it; opening the panel is the first step of most of these.
  */
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   buildDefaultFilterPresets,
   buildDefaultTaskStatuses,
   buildTag,
+  buildTask,
   buildTaskListResponse,
 } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { ProjectTasksSection } from "@/components/projects/ProjectTasksSection";
+import { toast } from "@/lib/chesterToast";
+import { fireTaskCompletionFeedback } from "@/lib/taskCompletionFeedback";
+
+vi.mock("@/lib/taskCompletionFeedback", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/taskCompletionFeedback")>()),
+  fireTaskCompletionFeedback: vi.fn(),
+}));
 
 type Condition = { field?: string; op?: string; value?: unknown; logic?: string };
 
@@ -397,5 +405,148 @@ describe("ProjectTasksSection presets", () => {
     await waitFor(() =>
       expect((router.state.location.search as { preset?: string }).preset).toBeUndefined()
     );
+  });
+});
+
+describe("ProjectTasksSection ticking tasks off", () => {
+  const statuses = buildDefaultTaskStatuses(1);
+  const [todo, , done] = statuses;
+
+  /** Task PATCHes wait here until the test answers them. */
+  let replies: Array<(response: Response) => void> = [];
+
+  const answer = (index: number, response: Response) => replies[index](response);
+
+  const doneReply = (taskId: number) =>
+    HttpResponse.json({
+      ...buildTask({ id: taskId, title: `Chore ${taskId}` }),
+      task_status_id: done.id,
+      task_status: done,
+    });
+
+  const table = (count: number) => {
+    const tasks = Array.from({ length: count }, (_, index) =>
+      buildTask({
+        id: index + 1,
+        title: `Chore ${index + 1}`,
+        task_status_id: todo.id,
+        task_status: todo,
+      })
+    );
+    server.use(
+      guildHttp.get("/tasks/", () => HttpResponse.json(buildTaskListResponse(tasks))),
+      guildHttp.patch(
+        "/tasks/:taskId",
+        () => new Promise<Response>((resolve) => replies.push(resolve))
+      )
+    );
+    return renderPage(
+      () => (
+        <ProjectTasksSection
+          projectId={1}
+          initiativeId={1}
+          taskStatuses={statuses}
+          canEditTaskDetails
+          projectIsArchived={false}
+          taskHref={(taskId) => `/tasks/${taskId}`}
+        />
+      ),
+      { routerSearch: {} }
+    );
+  };
+
+  const doneBox = async (title: string) => {
+    const row = (await screen.findByText(title)).closest("tr");
+    if (!row) throw new Error(`no row for ${title}`);
+    return within(row).getByRole("checkbox");
+  };
+
+  beforeEach(() => {
+    replies = [];
+    vi.mocked(fireTaskCompletionFeedback).mockClear();
+    // The table is virtualized, and jsdom gives every element a zero height,
+    // which windows it down to no rows at all.
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(800);
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(1200);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("ticks the box and celebrates before the server answers", async () => {
+    table(1);
+    const user = userEvent.setup();
+    await user.click(await doneBox("Chore 1"));
+
+    await waitFor(() => expect(replies).toHaveLength(1));
+    expect(await doneBox("Chore 1")).toBeChecked();
+    expect(fireTaskCompletionFeedback).toHaveBeenCalledTimes(1);
+
+    answer(0, await doneReply(1));
+    await waitFor(() => expect(replies).toHaveLength(1));
+    expect(await doneBox("Chore 1")).toBeChecked();
+    // Once, at the click, not again when the reply lands.
+    expect(fireTaskCompletionFeedback).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the other boxes open while one is on its way", async () => {
+    table(2);
+    const user = userEvent.setup();
+
+    await user.click(await doneBox("Chore 1"));
+    const second = await doneBox("Chore 2");
+
+    expect(second).toBeEnabled();
+    await user.click(second);
+
+    await waitFor(() => expect(replies).toHaveLength(2));
+    expect(await doneBox("Chore 1")).toBeChecked();
+    expect(await doneBox("Chore 2")).toBeChecked();
+  });
+
+  it("does not toast each tick", async () => {
+    const success = vi.spyOn(toast, "success");
+    table(1);
+    const user = userEvent.setup();
+
+    await user.click(await doneBox("Chore 1"));
+    await waitFor(() => expect(replies).toHaveLength(1));
+    answer(0, await doneReply(1));
+
+    await waitFor(() => expect(fireTaskCompletionFeedback).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(success).not.toHaveBeenCalled();
+    success.mockRestore();
+  });
+
+  it("puts the box back when the change fails", async () => {
+    table(1);
+    const user = userEvent.setup();
+    await user.click(await doneBox("Chore 1"));
+    await waitFor(() => expect(replies).toHaveLength(1));
+    expect(await doneBox("Chore 1")).toBeChecked();
+
+    answer(0, HttpResponse.json({ detail: "TASK_NOT_FOUND" }, { status: 404 }));
+
+    await waitFor(async () => expect(await doneBox("Chore 1")).not.toBeChecked());
+  });
+
+  it("keeps the newest choice when an older reply for the same task lands after it", async () => {
+    table(1);
+    const user = userEvent.setup();
+
+    await user.click(await doneBox("Chore 1"));
+    await waitFor(() => expect(replies).toHaveLength(1));
+    expect(await doneBox("Chore 1")).toBeChecked();
+    await user.click(await doneBox("Chore 1"));
+    await waitFor(() => expect(replies).toHaveLength(2));
+    expect(await doneBox("Chore 1")).not.toBeChecked();
+
+    // The tick's reply arrives while the untick is still out.
+    answer(0, await doneReply(1));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(await doneBox("Chore 1")).not.toBeChecked();
   });
 });
