@@ -1,15 +1,6 @@
 import { Link, useBlocker, useParams } from "@tanstack/react-router";
 import type { SerializedEditorState } from "lexical";
-import {
-  CalendarClock,
-  Loader2,
-  Pin,
-  PinOff,
-  SearchX,
-  Settings,
-  ShieldAlert,
-  Vote,
-} from "lucide-react";
+import { CalendarClock, Loader2, Pin, PinOff, Settings, Vote } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -27,7 +18,7 @@ import {
 } from "@/components/initiativeTools/posts/PollEditor";
 import { PostPoll } from "@/components/initiativeTools/posts/PostPoll";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
-import { StatusMessage } from "@/components/StatusMessage";
+import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { UserHandle } from "@/components/UserHandle";
@@ -50,7 +41,6 @@ import {
 } from "@/hooks/usePosts";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { toast } from "@/lib/chesterToast";
-import { getHttpStatus } from "@/lib/errorMessage";
 import { formatDateTime, fromLocalDateTimeInput, toLocalDateTimeInput } from "@/lib/formatDate";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hasBody, MAX_POST_TEXT_CHARS } from "@/lib/posts";
@@ -163,33 +153,13 @@ export function PostDetailPage() {
     withResolver: true,
   });
 
-  if (!Number.isFinite(parsedId)) {
-    return <p className="text-destructive">{t("notFound")}</p>;
-  }
-
-  if (postQuery.isError) {
-    const status = getHttpStatus(postQuery.error);
-    const backTo = gp(toolListRoute(Tool.post, initiativeId));
-    const backLabel = t("backToPosts");
-
-    if (status === 403) {
-      return (
-        <StatusMessage
-          icon={<ShieldAlert />}
-          title={t("noAccess")}
-          description={t("noAccessDescription")}
-          backTo={backTo}
-          backLabel={backLabel}
-        />
-      );
-    }
+  if (!Number.isFinite(parsedId) || postQuery.isError) {
     return (
-      <StatusMessage
-        icon={<SearchX />}
-        title={t("notFound")}
-        description={t("notFoundDescription")}
-        backTo={backTo}
-        backLabel={backLabel}
+      <ToolAccessStatus
+        error={postQuery.error}
+        keys="posts:"
+        backTo={gp(toolListRoute(Tool.post, initiativeId))}
+        backLabel={t("backToPosts")}
       />
     );
   }

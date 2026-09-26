@@ -11,9 +11,7 @@ import {
   PanelRight,
   Save,
   ScrollText,
-  SearchX,
   Settings,
-  ShieldAlert,
   X,
 } from "lucide-react";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -41,8 +39,8 @@ import { clearWhiteboardSceneCache } from "@/components/documents/whiteboardScen
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { AddPropertyButton } from "@/components/properties/AddPropertyButton";
 import { PropertyList } from "@/components/properties/PropertyList";
-import { StatusMessage } from "@/components/StatusMessage";
 import { DocumentDetailSkeleton } from "@/components/skeletons/PageSkeletons";
+import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { TagPicker } from "@/components/tags/TagPicker";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Badge } from "@/components/ui/badge";
@@ -68,7 +66,6 @@ import { useServerForm } from "@/hooks/useServerForm";
 import { useSetToolTags } from "@/hooks/useToolTags";
 import { uploadAttachment } from "@/lib/attachmentUtils";
 import { toast } from "@/lib/chesterToast";
-import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { findNewMentions } from "@/lib/mentionUtils";
@@ -671,37 +668,17 @@ export const DocumentDetailPage = () => {
     [parsedId, serverProperties, serverPropertyIds, setDocumentPropertiesMutation]
   );
 
-  if (!Number.isFinite(parsedId)) {
-    return <p className="text-destructive">{t("detail.invalidId")}</p>;
-  }
-
   if (documentQuery.isLoading) {
     return <DocumentDetailSkeleton label={t("detail.loading")} />;
   }
 
   if (documentQuery.isError || !document) {
-    const status = getHttpStatus(documentQuery.error);
-    const backTo = gp(toolListRoute(Tool.document, initiativeId));
-    const backLabel = t("detail.backToDocuments");
-
-    if (status === 403) {
-      return (
-        <StatusMessage
-          icon={<ShieldAlert />}
-          title={t("detail.noAccess")}
-          description={t("detail.noAccessDescription")}
-          backTo={backTo}
-          backLabel={backLabel}
-        />
-      );
-    }
     return (
-      <StatusMessage
-        icon={<SearchX />}
-        title={t("detail.notFound")}
-        description={t("detail.notFoundDescription")}
-        backTo={backTo}
-        backLabel={backLabel}
+      <ToolAccessStatus
+        error={documentQuery.error}
+        keys="documents:detail."
+        backTo={gp(toolListRoute(Tool.document, initiativeId))}
+        backLabel={t("detail.backToDocuments")}
       />
     );
   }

@@ -37,6 +37,7 @@
     "projectPath": "Chemin du projet",
     "priority": "Priorité",
     "tags": "Étiquettes",
+    "moreTags": "+{{count}}",
     "status": "Statut"
   },
   "checkbox": {
@@ -51,10 +52,7 @@
   "updating": "Mise à jour…",
   "projectFallback": "Projet #{{id}}",
   "edit": {
-    "invalidTaskId": "Identifiant de tâche invalide.",
-    "back": "← Retour",
     "loadingTask": "Chargement de la tâche…",
-    "loadError": "Impossible de charger la tâche.",
     "notFound": "Tâche introuvable",
     "notFoundDescription": "Cette tâche a peut-être été supprimée ou vous avez suivi un lien invalide.",
     "noAccess": "Accès refusé",

@@ -1,16 +1,11 @@
 import { useRouter } from "@tanstack/react-router";
-import { FileText, Loader2, Zap } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { FileText } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
-import { GuildAvatar } from "@/components/guilds/GuildSidebar";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
-import { useGuilds } from "@/hooks/useGuilds";
-import { guildMayAuthorTools, useCreatableInitiatives } from "@/hooks/useInitiativeAccess";
-import { useWizard } from "@/hooks/useWizard";
+import { type Choice, useGuildInitiativeSteps } from "@/hooks/useGuildInitiativeSteps";
 import { guildPath } from "@/lib/guildUrl";
-import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { getItem, setItem } from "@/lib/storage";
 import { toolListRoute } from "@/lib/tools";
 
@@ -45,31 +40,12 @@ function loadLastUsed(): LastUsedInitiative | null {
   }
 }
 
-function saveLastUsed(data: LastUsedInitiative) {
-  setItem(STORAGE_KEY, JSON.stringify(data));
-}
-
 // ── Component ───────────────────────────────────────────────────────────────
 
-type Step = "select-guild" | "select-initiative";
-
 export const CreateDocumentWizard = () => {
-  const { t } = useTranslation("documents");
   const router = useRouter();
-  const { guilds: allGuilds } = useGuilds();
-  // Only guilds the user could author a document in — drops frozen guilds and
-  // scoped PAM grants (which edit existing content but never author). The
-  // precise per-initiative call is made on the next step.
-  const guilds = useMemo(() => allGuilds.filter(guildMayAuthorTools), [allGuilds]);
-
   const [open, setOpen] = useState(false);
-  const { step, go, back, reset } = useWizard<Step>("select-guild");
-  const [selectedGuildId, setSelectedGuildId] = useState<number | null>(null);
-  const [selectedGuildName, setSelectedGuildName] = useState("");
-  const [lastUsed, setLastUsed] = useState<LastUsedInitiative | null>(null);
-
-  // Track whether we've already auto-advanced for the current step to avoid loops
-  const autoAdvancedRef = useRef<string | null>(null);
+  const lastUsed = useMemo(() => (open ? loadLastUsed() : null), [open]);
 
   // Register module-level opener
   useEffect(() => {
@@ -79,203 +55,50 @@ export const CreateDocumentWizard = () => {
     };
   }, []);
 
-  // Reset state when dialog closes
-  useEffect(() => {
-    if (!open) {
-      reset();
-      setSelectedGuildId(null);
-      setSelectedGuildName("");
-      autoAdvancedRef.current = null;
-    } else {
-      setLastUsed(loadLastUsed());
-    }
-  }, [open, reset]);
-
-  // ── Data fetching ───────────────────────────────────────────────────────
-
-  // Initiatives the user can actually create documents in for the selected
-  // guild — fetched lazily only once the initiative step is reached.
-  const { initiatives, isLoading: initiativesLoading } = useCreatableInitiatives(
-    Tool.document,
-    step === "select-initiative" ? selectedGuildId : null
-  );
-
-  // ── Handlers ────────────────────────────────────────────────────────────
-
-  const handleGuildSelect = useCallback(
-    (guildId: number, guildName: string) => {
-      setSelectedGuildId(guildId);
-      setSelectedGuildName(guildName);
-      go("select-initiative");
-    },
-    [go]
-  );
-
-  const handoffToDocuments = useCallback(
-    (gId: number, gName: string, iId: number, iName: string) => {
-      saveLastUsed({
-        guildId: gId,
-        guildName: gName,
-        initiativeId: iId,
-        initiativeName: iName,
-      });
+  const handoff = useCallback(
+    (guild: Choice, initiative: Choice) => {
+      setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          guildId: guild.id,
+          guildName: guild.name,
+          initiativeId: initiative.id,
+          initiativeName: initiative.name,
+        } satisfies LastUsedInitiative)
+      );
       setOpen(false);
       // The initiative's documents tab reads ?create=true and opens its
       // existing <CreateDocumentDialog>, so the wizard hands off the rest of
       // the flow without re-mounting the creation UI. The initiative is in the
       // path now rather than a search param.
       void router.navigate({
-        to: guildPath(gId, toolListRoute(Tool.document, iId)),
+        to: guildPath(guild.id, toolListRoute(Tool.document, initiative.id)),
         search: { create: "true" },
       });
     },
     [router]
   );
 
-  const handleInitiativeSelect = useCallback(
-    (initiativeId: number, initiativeName: string) => {
-      handoffToDocuments(selectedGuildId!, selectedGuildName, initiativeId, initiativeName);
+  const steps = useGuildInitiativeSteps({
+    ns: "documents",
+    open,
+    authors: Tool.document,
+    shortcut: lastUsed && {
+      title: lastUsed.initiativeName,
+      subtitle: lastUsed.guildName,
+      onClick: () =>
+        handoff(
+          { id: lastUsed.guildId, name: lastUsed.guildName },
+          { id: lastUsed.initiativeId, name: lastUsed.initiativeName }
+        ),
     },
-    [handoffToDocuments, selectedGuildId, selectedGuildName]
-  );
-
-  const handleLastUsedClick = useCallback(() => {
-    if (!lastUsed) return;
-    handoffToDocuments(
-      lastUsed.guildId,
-      lastUsed.guildName,
-      lastUsed.initiativeId,
-      lastUsed.initiativeName
-    );
-  }, [lastUsed, handoffToDocuments]);
-
-  // ── Auto-advance when only 1 option ────────────────────────────────────
-
-  // Auto-advance guild step
-  useEffect(() => {
-    if (
-      open &&
-      step === "select-guild" &&
-      guilds.length === 1 &&
-      !lastUsed &&
-      autoAdvancedRef.current !== "guild"
-    ) {
-      autoAdvancedRef.current = "guild";
-      handleGuildSelect(guilds[0].id, guilds[0].name);
-    }
-  }, [open, step, guilds, lastUsed, handleGuildSelect]);
-
-  // Auto-advance initiative step
-  useEffect(() => {
-    if (
-      open &&
-      step === "select-initiative" &&
-      !initiativesLoading &&
-      initiatives.length === 1 &&
-      autoAdvancedRef.current !== "initiative"
-    ) {
-      autoAdvancedRef.current = "initiative";
-      handleInitiativeSelect(initiatives[0].id, initiatives[0].name);
-    }
-  }, [open, step, initiatives, initiativesLoading, handleInitiativeSelect]);
-
-  const handleBack = useCallback(() => {
-    autoAdvancedRef.current = null;
-    if (step === "select-initiative") {
-      setSelectedGuildId(null);
-      setSelectedGuildName("");
-      back();
-    }
-  }, [step, back]);
-
-  // ── Render helpers ──────────────────────────────────────────────────────
-
-  const stepTitle = useMemo(() => {
-    switch (step) {
-      case "select-guild":
-        return t("createWizard.selectGuild");
-      case "select-initiative":
-        return t("createWizard.selectInitiative");
-    }
-  }, [step, t]);
-
-  // Somebody with one community and no shortcut never sees the first step (the
-  // effect above walks past it), and counting a step nobody is shown would put
-  // them on step two of two before they had answered anything.
-  const skipsGuildStep = guilds.length === 1 && !lastUsed;
+    onInitiative: handoff,
+    initiativeIcon: <FileText className="ml-auto h-4 w-4 shrink-0 text-muted-foreground" />,
+  });
 
   return (
-    <WizardDialog
-      open={open}
-      onOpenChange={setOpen}
-      className="sm:max-w-md"
-      title={t("createWizard.title")}
-      description={stepTitle}
-      progress={skipsGuildStep ? undefined : { current: step === "select-guild" ? 1 : 2, total: 2 }}
-      onBack={step === "select-guild" ? undefined : handleBack}
-      backLabel={t("createWizard.back")}
-    >
-      {/* Step 1: Select Guild */}
-      {step === "select-guild" && (
-        <div className="space-y-2">
-          {/* Last used shortcut */}
-          {lastUsed && (
-            <button
-              type="button"
-              className="flex w-full items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-left transition-colors hover:bg-primary/10"
-              onClick={handleLastUsedClick}
-            >
-              <Zap className="h-5 w-5 shrink-0 text-primary" />
-              <div className="min-w-0 flex-1">
-                <p className="font-medium text-sm">{lastUsed.initiativeName}</p>
-                <p className="truncate text-muted-foreground text-xs">{lastUsed.guildName}</p>
-              </div>
-              <span className="text-muted-foreground text-xs">{t("createWizard.lastUsed")}</span>
-            </button>
-          )}
-
-          {/* Guild list */}
-          {guilds.map((guild) => (
-            <button
-              key={guild.id}
-              type="button"
-              className="flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent"
-              onClick={() => handleGuildSelect(guild.id, guild.name)}
-            >
-              <GuildAvatar name={guild.name} icon={guild.icon_url} active={false} size="sm" />
-              <span className="font-medium text-sm">{guild.name}</span>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Step 2: Select Initiative */}
-      {step === "select-initiative" && (
-        <div className="space-y-2">
-          {initiativesLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : initiatives.length === 0 ? (
-            <p className="py-4 text-center text-muted-foreground text-sm">
-              {t("createWizard.noInitiatives")}
-            </p>
-          ) : (
-            initiatives.map((initiative) => (
-              <button
-                key={initiative.id}
-                type="button"
-                className="flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent"
-                onClick={() => handleInitiativeSelect(initiative.id, initiative.name)}
-              >
-                <InitiativeColorDot color={initiative.color} />
-                <span className="font-medium text-sm">{initiative.name}</span>
-                <FileText className="ml-auto h-4 w-4 shrink-0 text-muted-foreground" />
-              </button>
-            ))
-          )}
-        </div>
-      )}
+    <WizardDialog open={open} onOpenChange={setOpen} className="sm:max-w-md" {...steps.dialog}>
+      {steps.body}
     </WizardDialog>
   );
 };

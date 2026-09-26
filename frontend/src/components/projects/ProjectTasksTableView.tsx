@@ -29,11 +29,10 @@ import {
   uniqueTasksFromRows,
 } from "@/components/projects/taskTagGrouping";
 import { buildPropertyColumns, propertyColumnIds } from "@/components/properties/propertyColumns";
-import { SortIcon } from "@/components/SortIcon";
+import { SortHeader } from "@/components/SortIcon";
 import { TagBadge } from "@/components/tags/TagBadge";
+import { sharedTaskColumns } from "@/components/tasks/globalTaskColumns";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
-import { DateCell } from "@/components/tasks/TaskDateCell";
-import { TaskPrioritySelector } from "@/components/tasks/TaskPrioritySelector";
 import { statusTriggerStyle, TaskStatusOption } from "@/components/tasks/TaskStatusOption";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -46,9 +45,7 @@ import { useProperties } from "@/hooks/useProperties";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useGuildPath } from "@/lib/guildUrl";
 import { summarizeRecurrence } from "@/lib/recurrence";
-import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
 import type { AppColumnDef } from "@/lib/table";
-import { getTaskDateStatus, getTaskDateStatusLabel } from "@/lib/taskDateStatus";
 import { truncateText } from "@/lib/text";
 import { cn } from "@/lib/utils";
 import type { TranslateFn } from "@/types/i18n";
@@ -194,7 +191,7 @@ const ProjectTasksTableViewComponent = ({
   onTaskSelectionChange,
   onExitSelection,
 }: ProjectTasksListViewProps) => {
-  const { t } = useTranslation(["projects", "comments"]);
+  const { t } = useTranslation(["projects", "comments", "tasks"]);
   const statusDisabled = !canEditTaskDetails || taskActionsDisabled;
   const gp = useGuildPath();
 
@@ -240,8 +237,13 @@ const ProjectTasksTableViewComponent = ({
     return { doneStatus, inProgressStatus };
   }, [taskStatuses]);
 
-  const columns = useMemo<AppColumnDef<TaskTagRow>[]>(
-    () => [
+  const columns = useMemo<AppColumnDef<TaskTagRow>[]>(() => {
+    const shared = sharedTaskColumns<TaskTagRow>({
+      t: t as TranslateFn,
+      tagHref: (_task, tagId) => gp(`/tags/${tagId}`),
+      isPriorityDisabled: () => statusDisabled,
+    });
+    return [
       {
         id: "drag",
         header: () => <span className="sr-only">{t("table.reorder")}</span>,
@@ -255,30 +257,7 @@ const ProjectTasksTableViewComponent = ({
         size: 40,
         enableHiding: false,
       },
-      {
-        id: "date group",
-        accessorFn: (task) => getTaskDateStatus(task.start_date, task.due_date),
-        header: ({ column }) => {
-          const isSorted = column.getIsSorted();
-          return (
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-                {t("table.dateWindow")}
-                <SortIcon isSorted={isSorted} />
-              </Button>
-            </div>
-          );
-        },
-        cell: ({ getValue }) => (
-          <span className="font-medium text-base">
-            {getTaskDateStatusLabel(getValue<string>(), t as TranslateFn)}
-          </span>
-        ),
-        enableHiding: true,
-        enableSorting: true,
-        sortFn: "alphanumeric",
-        size: 150,
-      },
+      shared.dateGroup,
       {
         // Never rendered as a column of its own (see effectiveColumnVisibility);
         // it holds the single tag a row is grouped under so the table can group
@@ -333,17 +312,7 @@ const ProjectTasksTableViewComponent = ({
       {
         id: "title",
         accessorKey: "title",
-        header: ({ column }) => {
-          const isSorted = column.getIsSorted();
-          return (
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-                {t("table.taskColumn")}
-                <SortIcon isSorted={isSorted} />
-              </Button>
-            </div>
-          );
-        },
+        header: ({ column }) => <SortHeader column={column} label={t("table.taskColumn")} />,
         cell: ({ row }) => <MemoizedTaskCell task={row.original} taskHref={taskHref} />,
         enableSorting: true,
         sortFn: "alphanumeric",
@@ -352,94 +321,11 @@ const ProjectTasksTableViewComponent = ({
         // the others leave over.
         size: 360,
       },
-      {
-        id: "start date",
-        accessorKey: "start_date",
-        header: ({ column }) => {
-          const isSorted = column.getIsSorted();
-          return (
-            <div className="flex min-w-30 items-center gap-2">
-              <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-                {t("table.startDateColumn")}
-                <SortIcon isSorted={isSorted} />
-              </Button>
-            </div>
-          );
-        },
-        cell: ({ row }) => <DateCell date={row.original.start_date} isPastVariant="primary" />,
-        enableSorting: true,
-        sortFn: dateSortingFn,
-        size: 150,
-      },
-      {
-        id: "due date",
-        accessorKey: "due_date",
-        header: ({ column }) => {
-          const isSorted = column.getIsSorted();
-          return (
-            <div className="flex min-w-30 items-center gap-2">
-              <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-                {t("table.dueDateColumn")}
-                <SortIcon isSorted={isSorted} />
-              </Button>
-            </div>
-          );
-        },
-        cell: ({ row }) => (
-          <DateCell
-            date={row.original.due_date}
-            isPastVariant="destructive"
-            isDone={row.original.task_status?.category === "done"}
-          />
-        ),
-        enableSorting: true,
-        sortFn: dateSortingFn,
-        size: 150,
-      },
-      {
-        accessorKey: "priority",
-        id: "priority",
-        header: ({ column }) => {
-          const isSorted = column.getIsSorted();
-          return (
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-                {t("table.priorityColumn")}
-                <SortIcon isSorted={isSorted} />
-              </Button>
-            </div>
-          );
-        },
-        cell: ({ row }) => {
-          const task = row.original;
-          return <TaskPrioritySelector task={task} disabled={statusDisabled} />;
-        },
-        sortFn: prioritySortingFn,
-        size: 140,
-      },
-      {
-        id: "tags",
-        header: () => <span className="font-medium">{t("table.tagsColumn")}</span>,
-        cell: ({ row }) => {
-          const taskTags = row.original.tags ?? [];
-          if (taskTags.length === 0) {
-            return <span className="text-muted-foreground text-sm">&mdash;</span>;
-          }
-          return (
-            <div className="flex flex-wrap gap-1">
-              {taskTags.slice(0, 3).map((tag) => (
-                <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
-              ))}
-              {taskTags.length > 3 && (
-                <span className="text-muted-foreground text-xs">
-                  {t("table.moreTagsCount", { count: taskTags.length - 3 })}
-                </span>
-              )}
-            </div>
-          );
-        },
-        size: 150,
-      },
+      shared.startDate,
+      shared.dueDate,
+      shared.priority,
+      shared.tags,
+      ...propertyColumns,
       {
         id: "comments",
         header: () => <span className="font-medium">{t("table.commentsColumn")}</span>,
@@ -499,31 +385,22 @@ const ProjectTasksTableViewComponent = ({
         // Wide enough for the w-40 status trigger plus cell padding.
         size: 190,
       },
-    ],
-    [
-      gp,
-      onStatusChange,
-      taskHref,
-      statusDisabled,
-      tagsByName,
-      taskStatuses,
-      statusLookup,
-      t,
-      untaggedLabel,
-    ]
-  );
-  // Insert programmatic property columns between tags (index of "tags") and
-  // comments. We splice by id so the insertion point is robust to column-list
-  // refactors.
-  const columnsWithProperties = useMemo<AppColumnDef<TaskTagRow>[]>(() => {
-    if (propertyColumns.length === 0) return columns;
-    const tagsIdx = columns.findIndex((c) => (c as { id?: string }).id === "tags");
-    if (tagsIdx === -1) return [...columns, ...propertyColumns];
-    return [...columns.slice(0, tagsIdx + 1), ...propertyColumns, ...columns.slice(tagsIdx + 1)];
-  }, [columns, propertyColumns]);
+    ];
+  }, [
+    gp,
+    onStatusChange,
+    taskHref,
+    statusDisabled,
+    tagsByName,
+    taskStatuses,
+    statusLookup,
+    t,
+    untaggedLabel,
+    propertyColumns,
+  ]);
   const groupingOptions = useMemo(
     () => [
-      { id: "date group", label: t("table.dateWindow") },
+      { id: "date group", label: t("tasks:columns.dateWindow") },
       { id: TAG_GROUP_COLUMN_ID, label: t("table.tagGroup") },
     ],
     [t]
@@ -585,7 +462,7 @@ const ProjectTasksTableViewComponent = ({
           // between projects swaps which saved answer applies, so it has to be
           // a fresh table rather than the previous project's.
           key={tableStorageKey}
-          columns={columnsWithProperties}
+          columns={columns}
           data={rows}
           enableVirtualization
           virtualContainerHeight="h-[calc(100vh-20rem)]"
@@ -661,7 +538,7 @@ export const ProjectTasksTableView = memo(
 );
 
 const DragHandleCell = () => {
-  const { t } = useTranslation(["projects", "comments"]);
+  const { t } = useTranslation(["projects", "comments", "tasks"]);
   const sortable = useSortableRowContext();
   if (!sortable) {
     return null;

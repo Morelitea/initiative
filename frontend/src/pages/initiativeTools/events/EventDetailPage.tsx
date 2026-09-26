@@ -1,5 +1,5 @@
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
-import { CalendarDays, MapPin, SearchX, Settings, ShieldAlert, Trash2, Users } from "lucide-react";
+import { CalendarDays, MapPin, Settings, Trash2, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -7,8 +7,8 @@ import { type RSVPStatus, SearchEntityType, Tool } from "@/api/generated/initiat
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { PropertyValueCell } from "@/components/properties/PropertyValueCell";
 import { iconForPropertyType } from "@/components/properties/propertyTypeIcons";
-import { StatusMessage } from "@/components/StatusMessage";
 import { DetailPageSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
+import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,6 @@ import {
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { toast } from "@/lib/chesterToast";
-import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hour12Option } from "@/lib/timeFormat";
 import { eventSettingsRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
@@ -187,10 +186,6 @@ export function EventDetailPage() {
   const myRsvpStatus = myAttendee?.rsvp_status ?? null;
 
   // Error / loading states
-  if (!Number.isFinite(parsedId)) {
-    return <p className="text-destructive">{t("notFound")}</p>;
-  }
-
   if (eventQuery.isLoading) {
     return (
       <SkeletonRegion label={t("loadingEvent")}>
@@ -200,32 +195,16 @@ export function EventDetailPage() {
   }
 
   if (eventQuery.isError || !event) {
-    const status = getHttpStatus(eventQuery.error);
-    const backTo = gp(
-      calendarId == null
-        ? toolListRoute(Tool.calendar, initiativeId)
-        : toolDetailRoute(Tool.calendar, initiativeId, calendarId)
-    );
-    const backLabel = t("backToEvents");
-
-    if (status === 403) {
-      return (
-        <StatusMessage
-          icon={<ShieldAlert />}
-          title={t("noAccess")}
-          description={t("noAccessDescription")}
-          backTo={backTo}
-          backLabel={backLabel}
-        />
-      );
-    }
     return (
-      <StatusMessage
-        icon={<SearchX />}
-        title={t("notFound")}
-        description={t("notFoundDescription")}
-        backTo={backTo}
-        backLabel={backLabel}
+      <ToolAccessStatus
+        error={eventQuery.error}
+        keys="calendars:"
+        backTo={gp(
+          calendarId == null
+            ? toolListRoute(Tool.calendar, initiativeId)
+            : toolDetailRoute(Tool.calendar, initiativeId, calendarId)
+        )}
+        backLabel={t("backToEvents")}
       />
     );
   }

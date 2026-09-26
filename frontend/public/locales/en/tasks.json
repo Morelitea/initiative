@@ -37,6 +37,7 @@
     "projectPath": "Project Path",
     "priority": "Priority",
     "tags": "Tags",
+    "moreTags": "+{{count}}",
     "status": "Status"
   },
   "checkbox": {
@@ -51,10 +52,7 @@
   "updating": "Updating…",
   "projectFallback": "Project #{{id}}",
   "edit": {
-    "invalidTaskId": "Invalid task id.",
-    "back": "← Back",
     "loadingTask": "Loading task…",
-    "loadError": "Unable to load task.",
     "notFound": "Task not found",
     "notFoundDescription": "This task may have been deleted or you may have followed a broken link.",
     "noAccess": "Access denied",

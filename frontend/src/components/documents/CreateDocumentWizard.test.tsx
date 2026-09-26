@@ -95,4 +95,21 @@ describe("CreateDocumentWizard", () => {
 
     expect(await screen.findByText("Step 2 of 2")).toBeInTheDocument();
   });
+
+  it("stays on a step it walked past when Back returns to it", async () => {
+    const user = userEvent.setup();
+    guildsValue.guilds = guilds.slice(0, 1);
+    try {
+      await openWizard();
+      // The only community is walked past on the way in.
+      expect(await screen.findByText("Select an initiative")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Back" }));
+
+      expect(await screen.findByText("Select a community")).toBeInTheDocument();
+      expect(screen.getByText("Anvil Club")).toBeInTheDocument();
+    } finally {
+      guildsValue.guilds = guilds;
+    }
+  });
 });

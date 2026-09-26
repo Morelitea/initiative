@@ -19,34 +19,26 @@
  */
 
 import { useQueries } from "@tanstack/react-query";
-import { useNavigate, useSearch } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { InitiativeListRead } from "@/api/generated/initiativeAPI.schemas";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   getListInitiativesApiV1CGuildIdInitiativesGetQueryKey,
   listInitiativesApiV1CGuildIdInitiativesGet,
 } from "@/api/generated/initiatives/initiatives";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { TOOL_TRAY_SURFACE, ToolRail } from "@/components/toolBrowser/ToolRail";
-import {
-  CROSS_GUILD_TOOL_SORT_FIELDS,
-  isToolSortField,
-  type ToolSortField,
-  ToolTable,
-} from "@/components/toolBrowser/ToolTable";
+import { CROSS_GUILD_TOOL_SORT_FIELDS, ToolTable } from "@/components/toolBrowser/ToolTable";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useGuilds } from "@/hooks/useGuilds";
 import { toolsWithContent, useMyToolCounts, useMyToolRows } from "@/hooks/useMyTools";
-import { toolForRouteSegment } from "@/lib/tools";
+import { useToolBrowserSearch } from "@/hooks/useToolBrowserSearch";
 import { cn } from "@/lib/utils";
 
-const DEFAULT_PAGE_SIZE = 20;
 const ROUTE = "/my-tools";
 
 /** The address bar's `communities=1,2` as ids, dropping anything unreadable. */
@@ -59,23 +51,10 @@ const parseCommunities = (raw: string | undefined): number[] =>
 export function MyToolsPage() {
   const { t } = useTranslation("myTools");
   const { guilds } = useGuilds();
-  const navigate = useNavigate();
-  const search = useSearch({ strict: false }) as {
-    tool?: string;
-    page?: number;
-    q?: string;
-    sort?: string;
-    dir?: string;
+  const { search, setSearch, selectTool, query, table } = useToolBrowserSearch<{
     made?: string;
     communities?: string;
-  };
-
-  const setSearch = useCallback(
-    (next: Record<string, string | number | undefined>) => {
-      void navigate({ to: ".", search: { ...search, ...next }, replace: true });
-    },
-    [navigate, search]
-  );
+  }>(CROSS_GUILD_TOOL_SORT_FIELDS);
 
   // "Made by me" is the narrower of the two views, so it is the one the address
   // has to say; a bare /my-tools is everything.
@@ -89,93 +68,20 @@ export function MyToolsPage() {
   const countsQuery = useMyToolCounts({ created_by_me: createdByMe || undefined });
   const tools = useMemo(() => toolsWithContent(countsQuery.data), [countsQuery.data]);
 
-  const requested = search.tool ? toolForRouteSegment(search.tool) : null;
-  // An unknown or unreachable `?tool=` falls back to the first tab rather than
-  // rendering a table the reader has nothing in.
-  const selected = requested && tools.includes(requested) ? requested : (tools[0] ?? Tool.project);
+  const selected = selectTool(tools);
 
-  const page = search.page ?? 1;
-  const query = search.q ?? "";
-  const sortBy: ToolSortField = isToolSortField(search.sort, CROSS_GUILD_TOOL_SORT_FIELDS)
-    ? search.sort
-    : "updated_at";
-  const sortDir: "asc" | "desc" =
-    search.dir === "asc" || search.dir === "desc"
-      ? search.dir
-      : sortBy === "updated_at"
-        ? "desc"
-        : "asc";
-
-  // What is typed goes into the box at once and to the server a beat later, so
-  // a search is one request rather than one per keystroke.
-  const [draftQuery, setDraftQuery] = useState(query);
-  const lastPushedQuery = useRef(query);
-  useEffect(() => {
-    // A query that changed elsewhere — the back button, a pasted link — wins
-    // over a draft nobody is typing into.
-    if (query !== lastPushedQuery.current) {
-      lastPushedQuery.current = query;
-      setDraftQuery(query);
+  const { rows, totalCount, isLoading, isError } = useMyToolRows(
+    selected,
+    table.page,
+    table.pageSize,
+    {
+      guildIds: guildFilters,
+      search: query || undefined,
+      createdByMe,
+      sortBy: table.sortBy,
+      sortDir: table.sortDir,
     }
-  }, [query]);
-  // Switching tools is a fresh list: the rail's link carries no `q`, so the box
-  // empties with it and a keystroke still in flight is dropped rather than
-  // landing on the new tool.
-  const lastTool = useRef(selected);
-  useEffect(() => {
-    if (lastTool.current === selected) return;
-    lastTool.current = selected;
-    lastPushedQuery.current = query;
-    setDraftQuery(query);
-  }, [selected, query]);
-  useEffect(() => {
-    if (draftQuery === query) return;
-    const timer = setTimeout(() => {
-      lastPushedQuery.current = draftQuery;
-      setSearch({ q: draftQuery || undefined, page: undefined });
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [draftQuery, query, setSearch]);
-
-  const handleSortChange = useCallback(
-    (field: ToolSortField, direction: "asc" | "desc") => {
-      const isDefault = field === "updated_at" && direction === "desc";
-      setSearch({
-        sort: isDefault ? undefined : field,
-        dir: isDefault ? undefined : direction,
-        page: undefined,
-      });
-    },
-    [setSearch]
   );
-
-  // Page size is a view preference, not a URL concern — the `page` param stays
-  // shareable while the size stays local, as on the other list pages.
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-  const handlePageSizeChange = useCallback(
-    (size: number) => {
-      setPageSize(size);
-      setSearch({ page: undefined });
-    },
-    [setSearch]
-  );
-
-  const { rows, totalCount, isLoading, isError } = useMyToolRows(selected, page, pageSize, {
-    guildIds: guildFilters,
-    search: query || undefined,
-    createdByMe,
-    sortBy,
-    sortDir,
-  });
-
-  const pageCount = pageSize > 0 ? Math.max(1, Math.ceil(totalCount / pageSize)) : 1;
-  // A bookmarked page outlives the rows it pointed at. There are still rows, so
-  // land back on the first page rather than showing an empty table over them.
-  useEffect(() => {
-    if (!isLoading && totalCount > 0 && page > pageCount) {
-      setSearch({ page: undefined });
-    }
-  }, [isLoading, totalCount, page, pageCount, setSearch]);
 
   const communities = useMemo(
     () => new Map(guilds.map((guild) => [guild.id, guild.name])),
@@ -301,17 +207,7 @@ export function MyToolsPage() {
                 initiatives={initiatives}
                 communities={communities}
                 totalCount={totalCount}
-                page={page}
-                pageCount={pageCount}
-                pageSize={pageSize}
-                onPageChange={(next) => setSearch({ page: next <= 1 ? undefined : next })}
-                onPageSizeChange={handlePageSizeChange}
-                search={draftQuery}
-                onSearchChange={setDraftQuery}
-                sortBy={sortBy}
-                sortDir={sortDir}
-                onSortChange={handleSortChange}
-                sortFields={CROSS_GUILD_TOOL_SORT_FIELDS}
+                {...table}
               />
             )}
           </div>

@@ -130,7 +130,6 @@
     "noInitiatives": "No initiatives here you can add documents to."
   },
   "detail": {
-    "invalidId": "Invalid document id.",
     "loading": "Loading document…",
     "notFound": "Document not found",
     "notFoundDescription": "This document may have been deleted or you may have followed a broken link.",
