@@ -45,12 +45,8 @@ ALLOWED_DYNAMIC_SQL: dict[str, str] = {
         "reflected catalog identifiers from the Alembic-owned guild_template, "
         "quoted; no request data"
     ),
-    "app/db/schema_provisioning.py::_ensure_role": (
-        "role name quoted server-side via format('%I'); password via set_config "
-        "bind + format('%L')"
-    ),
-    "app/db/schema_provisioning.py::provision_guild_schema": (
-        "int-derived guild_<id> schema/role names + module-constant grants"
+    "app/db/schema_provisioning.py::_apply_parts": (
+        "int-derived guild_<id> schema name + hex-digest stamp"
     ),
     "app/db/schema_provisioning.py::apply_guild_schema": (
         "int-derived schema name + reflected guild_template DDL"

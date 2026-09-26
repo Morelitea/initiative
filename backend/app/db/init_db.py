@@ -300,11 +300,10 @@ async def prepare_database() -> None:
     # the way the guild schemas get theirs from INITIATIVE_PATHS. Stamped on
     # the public schema, so a boot with nothing changed does nothing.
     await ensure_public_rls()
-    # Re-run the idempotent per-guild provisioning for every guild so any
-    # table/column/index/grant the live guild_template gained since a guild was
-    # provisioned is back-filled, and any guild left without a schema (e.g. a
-    # crash mid-provision) is healed. One broken guild is logged and skipped;
-    # guilds stamped with the current artifact version are skipped entirely.
+    # Bring every guild schema up to date: the parts of provisioning whose
+    # render changed since a guild was stamped are re-applied, and a guild left
+    # without a schema (e.g. a crash mid-provision) gets all of them. One
+    # broken guild is logged and skipped; current guilds are not touched.
     from app.db.schema_provisioning import (
         backfill_guild_schemas,
         backfill_guild_search,
