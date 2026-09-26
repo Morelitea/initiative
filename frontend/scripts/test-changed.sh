@@ -1,8 +1,8 @@
 #!/bin/bash
-# Run tests only for frontend files that have changed relative to main (or staged files).
+# Run tests only for frontend files that have changed relative to dev (or staged files).
 #
 # Usage:
-#   ./scripts/test-changed.sh            # changed vs main
+#   ./scripts/test-changed.sh            # changed vs dev
 #   ./scripts/test-changed.sh --staged   # staged files only
 
 set -e
@@ -19,7 +19,7 @@ fi
 if [[ "$MODE" == "staged" ]]; then
     CHANGED=$(git diff --cached --name-only --diff-filter=ACMR -- '*.ts' '*.tsx' | grep '^frontend/src/' | sed 's|^frontend/||' || true)
 else
-    CHANGED=$(git diff --name-only main...HEAD -- '*.ts' '*.tsx' 2>/dev/null | grep '^frontend/src/' | sed 's|^frontend/||' || true)
+    CHANGED=$(git diff --name-only origin/dev...HEAD -- '*.ts' '*.tsx' 2>/dev/null | grep '^frontend/src/' | sed 's|^frontend/||' || true)
     # Also include uncommitted changes
     UNCOMMITTED=$(git diff --name-only -- '*.ts' '*.tsx' | grep '^frontend/src/' | sed 's|^frontend/||' || true)
     UNTRACKED=$(git ls-files --others --exclude-standard -- '*.ts' '*.tsx' | grep '^frontend/src/' | sed 's|^frontend/||' || true)

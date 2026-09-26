@@ -243,7 +243,7 @@ cd backend && pytest app/services/guilds_test.py
 # Run tests for a whole directory
 cd backend && pytest app/api/v1/endpoints/
 
-# Run tests for files you've changed (vs main)
+# Run tests for files you've changed (vs dev)
 cd backend && ./scripts/test-changed.sh
 
 # Run tests for staged files only
@@ -255,7 +255,7 @@ cd frontend && pnpm test:run
 # Run frontend tests in watch mode
 cd frontend && pnpm test
 
-# Run frontend tests for files you've changed (vs main)
+# Run frontend tests for files you've changed (vs dev)
 cd frontend && ./scripts/test-changed.sh
 
 # Run frontend tests for staged files only
