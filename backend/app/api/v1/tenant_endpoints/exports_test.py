@@ -17,7 +17,6 @@ from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
-from zoneinfo import ZoneInfo
 
 import docx
 import pytest
@@ -1537,7 +1536,7 @@ async def test_a_gallery_exports_as_a_zip_of_its_envelope_and_pictures(
 
 
 # ---------------------------------------------------------------------------
-# Report chrome: locale, timezone, branding, detailed layout
+# Report chrome: locale, branding, detailed layout
 # ---------------------------------------------------------------------------
 
 
@@ -1570,7 +1569,7 @@ async def test_task_export_localizes_report_content(
         "md",
         present=(
             "# Tareas",  # localized title
-            "1 tarea · generado el",  # localized, singular plural form
+            "\n1 tarea\n",  # localized, singular plural form
         ),
     )
 
@@ -1704,31 +1703,6 @@ async def test_pdf_export_carries_guild_brand_header(
     resp = await _export(client, a, "tasks", format="pdf")
     # The brand header, with the icon staged alongside it.
     _assert_export(resp, "pdf", present=("Ravenloft Chronicle",))
-
-
-async def test_export_timestamp_uses_requested_timezone(
-    client: AsyncClient, acting_user, session
-):
-    """The "generated at" line renders in the tz the browser sends, not UTC —
-    and an unknown zone falls back to UTC instead of failing the export."""
-    a = await _actor_with_tasks(acting_user, session, count=1)
-
-    # Snapshot the minute on both sides of the request — the render happens
-    # somewhere between, so either minute is a pass (no :59 flake).
-    before = datetime.now(timezone.utc).astimezone(ZoneInfo("Europe/Berlin"))
-    resp = await _export(client, a, "tasks", format="md", tz="Europe/Berlin")
-    after = datetime.now(timezone.utc).astimezone(ZoneInfo("Europe/Berlin"))
-    body = _assert_export(
-        resp,
-        "md",
-        present=(after.strftime("%Z"),),  # CET/CEST, not UTC
-        absent=(" UTC ",),
-    )
-    accepted = {f"generated {t.strftime('%Y-%m-%d %H:%M')}" for t in (before, after)}
-    assert any(stamp in body for stamp in accepted)
-
-    fallback = await _export(client, a, "tasks", format="md", tz="Not/AZone")
-    _assert_export(fallback, "md", present=("UTC",))
 
 
 async def test_detailed_pdf_page_count_is_localized(

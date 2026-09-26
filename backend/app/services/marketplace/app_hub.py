@@ -100,9 +100,10 @@ class HubAnswer:
     cached: bool = False
 
 
-_ISSUABLE_SQL = text(
+_ISSUABLE_SQL_TEXT = (
     f"SELECT {ISSUABLE_SCOPES_SQL} FROM guild_apps a WHERE a.id = :install_id"
 )
+_ISSUABLE_SQL = text(_ISSUABLE_SQL_TEXT)
 
 
 def _refuse(code: str, status_code: int) -> AppDataError:

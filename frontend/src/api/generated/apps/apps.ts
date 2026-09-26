@@ -1281,14 +1281,8 @@ export const useUpdateGuildAppApiV1CGuildIdAppsAppIdPatch = <
   );
 };
 /**
- * Remove an app, ending its access and trashing what it created.
- *
- * The two halves are deliberately different. **Credentials are deleted**, both
- * the guild's and every member's, and each app is told to let go at the vendor
- * — an uninstalled app still receiving a guild's data is the thing this
- * prevents. **Content is trashed**, because the events someone put in a guild
- * calendar are the guild's, and should survive an admin removing the app for
- * as long as the retention window allows.
+ * Remove an app, ending its access and trashing what it created
+ * (:func:`~app.services.tenant.guild_apps.uninstall_app`).
  *
  * An app the deployment provides to every guild is not removable here (§7.7):
  * the operator's registration decides whether it exists at all.

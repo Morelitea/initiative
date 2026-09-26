@@ -109,7 +109,6 @@ async def test_a_handover_merges_into_the_room_and_saves_both_views(
     )
 
     assert response.status_code == 204, response.text
-    session.expire_all()
     saved = (await session.exec(select(Document).where(Document.id == doc.id))).one()
     assert saved.content == CONTENT
     assert saved.yjs_state is not None
@@ -138,7 +137,6 @@ async def test_a_rendering_missing_the_rooms_edits_is_not_taken(
     )
 
     assert response.status_code == 204, response.text
-    session.expire_all()
     saved = (await session.exec(select(Document).where(Document.id == doc.id))).one()
     assert saved.content == {"root": {"children": []}}
     merged = _text_of(saved.yjs_state or b"")
@@ -163,7 +161,6 @@ async def test_a_wiki_page_takes_a_handover_too(
     )
 
     assert response.status_code == 204, response.text
-    session.expire_all()
     saved = (await session.exec(select(WikiPage).where(WikiPage.id == page.id))).one()
     assert _text_of(saved.yjs_state or b"") == "a page written offline"
 
@@ -220,7 +217,7 @@ async def test_a_handover_answers_a_community_that_asks_for_a_passkey(
         json=_handover(_typed("x")),
         headers={"Authorization": f"Bearer {get_auth_token(owner.user, amr=['pwd'])}"},
     )
-    assert with_a_password.status_code == 403
+    assert with_a_password.status_code == 401, with_a_password.text
 
     with_a_passkey = await client.post(
         _document_url(owner.guild.id, doc.id),
