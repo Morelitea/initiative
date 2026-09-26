@@ -75,7 +75,7 @@ async def _hold_seats_or_refuse(session: AsyncSession, user_id: int) -> None:
     locks last to the end of the caller's transaction, which is the one that
     removes the memberships — so the answer is still true when it does.
     """
-    from app.services.platform.guilds import lock_guild_seats, would_strand_guild
+    from app.services.platform.guilds import lock_guild_seats, stranded_seats
 
     guild_ids = sorted(
         (
@@ -87,93 +87,24 @@ async def _hold_seats_or_refuse(session: AsyncSession, user_id: int) -> None:
             )
         ).all()
     )
-    if not guild_ids:
-        return
-
-    stranded: List[str] = []
     for guild_id in guild_ids:
         await lock_guild_seats(session, guild_id)
-        if not await would_strand_guild(session, guild_id=guild_id, user_id=user_id):
-            continue
-        from app.models.platform.guild import Guild
-
-        guild = (
-            await session.exec(select(Guild).where(Guild.id == guild_id))
-        ).one_or_none()
-        stranded.append(guild.name if guild else str(guild_id))
-
-    if stranded:
-        raise SeatWouldBeEmptied(stranded)
+    if guild_ids and (stranded := await stranded_seats(session, user_id=user_id)):
+        raise SeatWouldBeEmptied([name for _, name in stranded])
 
 
 async def is_last_guild_superadmin(session: AsyncSession, user_id: int) -> List[str]:
-    """Communities where this account holds the only superadmin seat.
+    """Names of the communities where this account holds the only superadmin
+    seat.
 
     An ordinary admin does not count: a community left with admins but no
     seat has nobody inside who can appoint one, reach its billing, or change
     its sign-in. A community whose only member is this account
     does not count either — there is nobody there to strand.
     """
-    from app.models.platform.guild import Guild
+    from app.services.platform.guilds import stranded_seats
 
-    seats = (
-        await session.exec(
-            select(GuildMembership).where(
-                GuildMembership.user_id == user_id,
-                GuildMembership.role == GuildRole.superadmin,
-            )
-        )
-    ).all()
-
-    from app.services.platform.guilds import would_strand_guild
-
-    names: List[str] = []
-    for membership in seats:
-        if not await would_strand_guild(
-            session, guild_id=membership.guild_id, user_id=user_id
-        ):
-            continue
-        guild = (
-            await session.exec(select(Guild).where(Guild.id == membership.guild_id))
-        ).one_or_none()
-        if guild:
-            names.append(guild.name)
-    return names
-
-
-async def get_guild_blocker_details(session: AsyncSession, user_id: int) -> List[dict]:
-    """Communities this account's removal would leave without a superadmin.
-
-    What :func:`is_last_guild_superadmin` reports, with the id the operator
-    needs to act on it: ``guild_id`` and ``guild_name``.
-    """
-    from app.models.platform.guild import Guild
-    from app.services.platform.guilds import would_strand_guild
-
-    seats = (
-        await session.exec(
-            select(GuildMembership).where(
-                GuildMembership.user_id == user_id,
-                GuildMembership.role == GuildRole.superadmin,
-            )
-        )
-    ).all()
-
-    blockers = []
-
-    for membership in seats:
-        if await would_strand_guild(
-            session, guild_id=membership.guild_id, user_id=user_id
-        ):
-            guild_stmt = select(Guild).where(Guild.id == membership.guild_id)
-            guild_result = await session.exec(guild_stmt)
-            guild = guild_result.one_or_none()
-            if not guild:
-                continue
-
-            blockers.append({"guild_id": guild.id, "guild_name": guild.name})
-
-    return blockers
+    return [name for _, name in await stranded_seats(session, user_id=user_id)]
 
 
 async def check_deletion_eligibility(

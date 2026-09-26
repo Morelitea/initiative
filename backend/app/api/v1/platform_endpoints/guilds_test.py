@@ -1115,7 +1115,7 @@ async def test_leaving_takes_the_lock_before_it_counts_anyone(
 
     order: list[str] = []
     real_lock = guilds_service.lock_guild_seats
-    real_seat = guilds_service.must_keep_superadmin
+    real_seat = guilds_service.stranded_seats
 
     async def record(name, fn, *args, **kwargs):
         order.append(name)
@@ -1128,7 +1128,7 @@ async def test_leaving_takes_the_lock_before_it_counts_anyone(
     )
     monkeypatch.setattr(
         guilds_service,
-        "must_keep_superadmin",
+        "stranded_seats",
         lambda *a, **k: record("last seat", real_seat, *a, **k),
     )
 

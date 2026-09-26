@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 import asyncio
 import logging
-from contextlib import suppress
 
 import asyncpg
 from sqlalchemy import delete as sql_delete
@@ -14,7 +13,6 @@ from app.core.security import app_platform_signing_enabled, get_password_hash
 from app.core.transitions import TRANSITIONS
 from app.core.version import __version__, get_version
 from app.db.schema_provisioning import (
-    deprovision_guild,
     ensure_shared_table_grants,
     ensure_system_engine_bypassrls,
     verify_effective_shared_grants,
@@ -22,12 +20,10 @@ from app.db.schema_provisioning import (
 )
 from app.db.session import (
     SystemSessionLocal,
-    clear_rls_context,
     migration_chain,
     migration_lock,
     run_migrations,
 )
-from app.models.platform.guild import Guild
 from app.models.platform.user import User, UserRole
 from app.services import audit as audit_service
 from app.services.auth import addresses
@@ -84,36 +80,15 @@ async def init_owner() -> None:
         )
         await session.commit()
 
-        # ...and their guild the same way the API does: create the shared rows,
-        # commit, then provision the schema and seed its content (settings +
-        # default initiative). No bespoke seeding path — it's a real guild.
-        guild = await guilds_service.create_guild(
-            session, name="Primary Community", creator=user
-        )
-        await session.commit()
-        # Capture ids before the seed: the rollback in the failure path expires the
-        # ORM objects, so reading guild.id / user.id afterwards would reload.
-        guild_id = guild.id
+        # ...and their guild the same way the API does. If it cannot be set
+        # up, the account goes too: a committed owner makes init_owner return
+        # early on every restart, leaving the primary guild without a schema.
         user_id = user.id
         try:
-            await guilds_service.seed_guild_content(
-                session, guild_id=guild_id, owner=user
+            await guilds_service.provision_new_guild(
+                session, name="Primary Community", creator=user
             )
-            await session.commit()
-        except Exception:
-            # Undo the whole first-boot seed so a restart re-initializes cleanly.
-            # Otherwise the committed user makes init_owner short-circuit on
-            # every restart, stranding the primary guild without a schema. Mirrors
-            # the API/registration cleanup. Roll back first (an aborted session
-            # would fault the cleanup queries) and drop any stored route, so the
-            # DELETEs run on public rather than in the community removed here.
-            # This is a system-engine session, so the bulk DELETEs aren't
-            # RLS-filtered.
-            await session.rollback()
-            clear_rls_context(session)
-            with suppress(Exception):
-                await deprovision_guild(guild_id)
-            await session.exec(sql_delete(Guild).where(Guild.id == guild_id))
+        except guilds_service.GuildProvisionError:
             await session.exec(sql_delete(User).where(User.id == user_id))
             await session.commit()
             raise
