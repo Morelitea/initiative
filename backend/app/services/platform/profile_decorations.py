@@ -243,7 +243,7 @@ async def available_packs(session: AsyncSession) -> list[Pack]:
     published one only by ``source``.
     """
     listings, _total = await catalog_service.list_listings(
-        session, kind="profile_pack", limit=_MAX_PACKS
+        session, kind="profile_pack", page_size=_MAX_PACKS
     )
     versions = await catalog_service.get_listing_versions(
         session, [listing.latest_version_id for listing in listings]

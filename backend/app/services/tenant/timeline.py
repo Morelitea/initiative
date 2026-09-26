@@ -15,34 +15,12 @@ tools.
 
 from collections.abc import Sequence
 from typing import Any
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.user_input_validators import resolve_zone
 from app.schemas.tenant.timeline import TimelineBucket
-
-#: What the client is shown when it asks for no zone. Months are a human
-#: boundary, so they are cut in the reader's day rather than in UTC — but a
-#: caller that says nothing gets the one zone that needs no guessing.
-DEFAULT_TIMEZONE = "UTC"
-
-
-def resolve_zone(tz: str | None) -> str:
-    """The zone to cut months in, or a ``ValueError`` naming a bad one.
-
-    Checked here rather than left to the database. Postgres answers an unknown
-    zone with an error of its own, which surfaces as a 500 — a request that is
-    simply wrong should say so, and it should say so the same way for every
-    tool that asks for a timeline.
-    """
-    if not tz:
-        return DEFAULT_TIMEZONE
-    try:
-        ZoneInfo(tz)
-    except (ZoneInfoNotFoundError, ValueError) as exc:
-        raise ValueError(tz) from exc
-    return tz
 
 
 async def month_buckets(
@@ -61,7 +39,8 @@ async def month_buckets(
     The month boundary is cut in ``tz``, bound as a parameter rather than
     written into the SQL: a month is a boundary in somebody's day, and a reader
     in Auckland should not find a notice they posted this morning filed under
-    last month.
+    last month. A request that names no zone, or a zone that is not one, gets
+    UTC.
 
     ``anchor`` is the newest instant in each month rather than the month's own
     end, and ``anchor_oldest`` the oldest. They are what a jump asks for, and
@@ -69,7 +48,7 @@ async def month_buckets(
     month begins or ends somewhere else — nor which of the two a list reads
     from, which is a question about that list's own direction.
     """
-    zone = resolve_zone(tz)
+    zone = resolve_zone(tz).key
     # ``timezone(zone, ts)`` renders the instant as local wall time, which is
     # what a month boundary is drawn against.
     local = func.timezone(zone, date_expr)

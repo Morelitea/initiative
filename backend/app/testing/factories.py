@@ -104,7 +104,7 @@ from app.schemas.tenant.task import mint_checklist_item_id
 from app.services.tenant.ownership import tool_for_row
 from app.services.tenant.task_completion import sync_completed_at
 from app.services.tenant.task_statuses import ensure_default_statuses
-from app.services.tenant.wikis import slugify_page_title
+from app.services.tenant.names import slugify
 from app.testing.schema_harness import guild_of, route_session_to_guild
 
 
@@ -2406,7 +2406,7 @@ async def create_wiki_page(
         "wiki_id": wiki.id,
         "created_by": creator.id,
         "title": page_title,
-        "slug": slugify_page_title(page_title, fallback=f"page-{stamp}"),
+        "slug": slugify(page_title, fallback=f"page-{stamp}"),
     }
     page = WikiPage(**{**defaults, **overrides})
     session.add(page)

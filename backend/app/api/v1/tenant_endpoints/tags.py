@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Annotated, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, update as sa_update
+from sqlalchemy import update as sa_update
 from sqlmodel import select
 
 from app.api import resource_access
@@ -27,6 +27,7 @@ from app.models.tenant.tag import Tag
 from app.models.platform.user import User
 from app.services import permissions as permissions_service
 from app.services.tenant import tags as tags_service
+from app.services.tenant.names import ensure_name_free
 from app.services.tenant.soft_delete import trash
 from app.schemas.tenant.search import SearchHit
 from app.schemas.tenant.tag import (
@@ -91,26 +92,6 @@ async def _get_tag_or_404(session: SessionDep, tag_id: int, guild_id: int) -> Ta
     return tag
 
 
-async def _check_duplicate_name(
-    session: SessionDep,
-    guild_id: int,
-    name: str,
-    exclude_tag_id: int | None = None,
-) -> None:
-    """Check for case-insensitive duplicate tag name within guild."""
-    stmt = select(Tag).where(
-        func.lower(Tag.name) == name.lower().strip(),
-    )
-    if exclude_tag_id is not None:
-        stmt = stmt.where(Tag.id != exclude_tag_id)
-    result = await session.exec(stmt)
-    if result.one_or_none() is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=TagMessages.NAME_ALREADY_EXISTS,
-        )
-
-
 @router.get("/", response_model=List[TagRead])
 async def list_tags(
     session: ActorSessionDep,
@@ -131,7 +112,9 @@ async def create_tag(
     guild_context: GuildContextDep,
 ) -> TagRead:
     """Create a new tag in the current guild."""
-    await _check_duplicate_name(session, guild_context.guild_id, tag_in.name)
+    await ensure_name_free(
+        session, Tag.name, tag_in.name, detail=TagMessages.NAME_ALREADY_EXISTS
+    )
 
     tag = Tag(
         name=tag_in.name.strip(),
@@ -237,11 +220,12 @@ async def update_tag(
 
     update_data = tag_in.model_dump(exclude_unset=True)
     if "name" in update_data and update_data["name"] is not None:
-        await _check_duplicate_name(
+        await ensure_name_free(
             session,
-            guild_context.guild_id,
+            Tag.name,
             update_data["name"],
-            exclude_tag_id=tag.id,
+            Tag.id != tag.id,
+            detail=TagMessages.NAME_ALREADY_EXISTS,
         )
         tag.name = update_data["name"].strip()
 

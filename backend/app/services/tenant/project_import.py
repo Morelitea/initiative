@@ -72,6 +72,7 @@ from app.services.import_engine.common import (
     load_initiative_member_handles,
     handle_key,
     resolve_property_definitions,
+    unique_name,
 )
 from app.core.tools import Tool
 from app.services.tenant import tags as tags_service
@@ -120,11 +121,10 @@ async def import_project(
     # known by its id rather than by a handle to look up.
 
     # 1. Project row (rename on collision)
-    project_name = await _unique_project_name(
-        session,
-        initiative_id=target_initiative.id,
-        desired_name=envelope.project.name,
+    taken = await session.exec(
+        select(Project.name).where(Project.initiative_id == target_initiative.id)
     )
+    project_name = unique_name(set(taken.all()), envelope.project.name)
     project = Project(
         name=project_name,
         icon=envelope.project.icon,
@@ -270,23 +270,6 @@ async def import_project(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-async def _unique_project_name(
-    session: AsyncSession, *, initiative_id: int, desired_name: str
-) -> str:
-    """Append ' (imported)' / ' (imported 2)' until the name is free in
-    the target initiative. Soft, non-fatal collision handling."""
-    stmt = select(Project.name).where(Project.initiative_id == initiative_id)
-    existing = {row for row in (await session.exec(stmt)).all()}
-    if desired_name not in existing:
-        return desired_name
-    candidate = f"{desired_name} (imported)"
-    n = 2
-    while candidate in existing:
-        candidate = f"{desired_name} (imported {n})"
-        n += 1
-    return candidate
 
 
 async def _import_task(

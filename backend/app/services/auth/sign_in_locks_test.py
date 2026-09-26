@@ -25,7 +25,7 @@ class Clock:
 @pytest.fixture
 def clock(monkeypatch) -> Clock:
     clock = Clock()
-    monkeypatch.setattr(sign_in_locks, "_now", lambda: clock.now)
+    monkeypatch.setattr(sign_in_locks, "utcnow", lambda: clock.now)
     return clock
 
 

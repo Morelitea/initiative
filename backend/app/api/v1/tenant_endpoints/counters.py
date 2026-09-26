@@ -44,9 +44,9 @@ from app.schemas.tenant.counter import (
     CounterSortRequest,
     CounterUpdate,
     serialize_counter,
-    serialize_counter_group,
     _validate_counter_constraints,
 )
+from app.schemas.tenant.tool import serialize_tool
 from app.services.tenant import counters as counters_service
 from app.api import resource_access
 from app.core.tools import Tool
@@ -121,7 +121,8 @@ async def read_counter_group(
     group = await resource_access.load_authorized(
         session, Tool.counter_group, group_id, current_user, guild_context
     )
-    return serialize_counter_group(
+    return serialize_tool(
+        CounterGroupRead,
         group,
         user_id=guild_context.user_id,
         context=guild_context,
@@ -161,7 +162,8 @@ async def create_counter_group(
     await session.commit()
 
     hydrated = await _refetch_group(session, group.id)
-    return serialize_counter_group(
+    return serialize_tool(
+        CounterGroupRead,
         hydrated,
         user_id=guild_context.user_id,
         context=guild_context,
@@ -220,7 +222,8 @@ async def duplicate_counter_group(
     await session.commit()
 
     hydrated = await _refetch_group(session, new_group.id)
-    return serialize_counter_group(
+    return serialize_tool(
+        CounterGroupRead,
         hydrated,
         user_id=current_user.id,
         context=guild_context,
@@ -259,7 +262,8 @@ async def update_counter_group(
         await session.commit()
 
     hydrated = await _refetch_group(session, group.id)
-    result = serialize_counter_group(
+    result = serialize_tool(
+        CounterGroupRead,
         hydrated,
         user_id=guild_context.user_id,
         context=guild_context,
@@ -630,7 +634,8 @@ async def reset_all_counters(
     await session.commit()
 
     hydrated = await _refetch_group(session, group.id)
-    result = serialize_counter_group(
+    result = serialize_tool(
+        CounterGroupRead,
         hydrated,
         user_id=current_user.id,
         context=guild_context,
@@ -663,7 +668,8 @@ async def sort_counters(
     await session.commit()
 
     hydrated = await _refetch_group(session, group.id)
-    result = serialize_counter_group(
+    result = serialize_tool(
+        CounterGroupRead,
         hydrated,
         user_id=current_user.id,
         context=guild_context,
@@ -692,8 +698,8 @@ async def read_after_write(
     (``tool_grants.py``) answers in this tool's own shape.
     """
     hydrated = await _refetch_group(session, group_id)
-    return serialize_counter_group(
-        hydrated, user_id=guild_context.user_id, context=guild_context
+    return serialize_tool(
+        CounterGroupRead, hydrated, user_id=guild_context.user_id, context=guild_context
     )
 
 

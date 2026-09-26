@@ -55,10 +55,10 @@ from app.api.deps import (
 )
 from app.core.messages import (
     AttachmentMessages,
-    CommonMessages,
     GalleryMessages,
 )
 from app.core.tools import Tool
+from app.db.query import apply_pagination, build_paginated_response
 from app.models.platform.user import User
 from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
 from app.schemas.tenant.gallery import (
@@ -71,11 +71,11 @@ from app.schemas.tenant.gallery import (
     GalleryImageVersionRead,
     GalleryRead,
     GalleryUpdate,
-    serialize_gallery,
     serialize_gallery_image,
     serialize_gallery_image_version,
     serialize_gallery_image_versions,
 )
+from app.schemas.tenant.tool import serialize_tool
 from app.schemas.tenant.timeline import TimelineResponse
 from app.services.permissions import Action
 from app.services import storage_config
@@ -362,8 +362,8 @@ async def read_gallery(
         session, Tool.gallery, gallery_id, current_user, guild_context
     )
     await annotate_gallery_rows(session, [gallery])
-    return serialize_gallery(
-        gallery, user_id=guild_context.user_id, context=guild_context
+    return serialize_tool(
+        GalleryRead, gallery, user_id=guild_context.user_id, context=guild_context
     )
 
 
@@ -412,8 +412,8 @@ async def create_gallery(
     hydrated = await _refetch_gallery(
         session, gallery.id, user_id=guild_context.user_id
     )
-    return serialize_gallery(
-        hydrated, user_id=guild_context.user_id, context=guild_context
+    return serialize_tool(
+        GalleryRead, hydrated, user_id=guild_context.user_id, context=guild_context
     )
 
 
@@ -458,8 +458,8 @@ async def update_gallery(
     hydrated = await _refetch_gallery(
         session, gallery.id, user_id=guild_context.user_id
     )
-    return serialize_gallery(
-        hydrated, user_id=guild_context.user_id, context=guild_context
+    return serialize_tool(
+        GalleryRead, hydrated, user_id=guild_context.user_id, context=guild_context
     )
 
 
@@ -477,8 +477,8 @@ async def read_after_write(
     hydrated = await _refetch_gallery(
         session, gallery_id, user_id=guild_context.user_id
     )
-    return serialize_gallery(
-        hydrated, user_id=guild_context.user_id, context=guild_context
+    return serialize_tool(
+        GalleryRead, hydrated, user_id=guild_context.user_id, context=guild_context
     )
 
 
@@ -537,23 +537,20 @@ async def list_gallery_images(
         await session.exec(select(func.count()).select_from(count_subq))
     ).one()
 
-    stmt = (
+    stmt = apply_pagination(
         select(GalleryImage)
         .where(*conditions)
         .options(*galleries_service.image_loader_options())
-        .order_by(*galleries_service.image_order(oldest_first=oldest_first))
-        .offset((page - 1) * page_size)
-        .limit(page_size)
+        .order_by(*galleries_service.image_order(oldest_first=oldest_first)),
+        page,
+        page_size,
     )
     images = list((await session.exec(stmt)).unique().all())
     await tags_service.annotate_tags(session, images)
     await galleries_service.annotate_version_counts(session, images)
+    items = [serialize_gallery_image(i, context=guild_context) for i in images]
     return GalleryImageListResponse(
-        items=[serialize_gallery_image(i, context=guild_context) for i in images],
-        total_count=total_count,
-        page=page,
-        page_size=page_size,
-        has_next=page * page_size < total_count,
+        **build_paginated_response(items, total_count, page, page_size)
     )
 
 
@@ -576,20 +573,13 @@ async def get_gallery_image_timeline(
     """The months this gallery has pictures in, newest first — what the
     timeline rail is drawn from. Takes the same filters the list does, so the
     rail is a picture of the list as it currently stands."""
-    try:
-        zone = timeline_service.resolve_zone(tz)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=CommonMessages.UNKNOWN_TIMEZONE,
-        ) from exc
     gallery = await resource_access.load_authorized(
         session, Tool.gallery, gallery_id, current_user, guild_context
     )
     conditions = _image_scope(gallery, tag_ids=tag_ids, search=search)
     return TimelineResponse(
         buckets=await timeline_service.month_buckets(
-            session, date_expr=GalleryImage.created_at, conditions=conditions, tz=zone
+            session, date_expr=GalleryImage.created_at, conditions=conditions, tz=tz
         )
     )
 

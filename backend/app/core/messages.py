@@ -8,14 +8,9 @@ from app.core.tools import Tool
 
 
 class CommonMessages:
-    """Codes that belong to no one tool.
+    """Codes that belong to no one tool."""
 
-    A timeline is asked for by any tool that has a history, so the answer to
-    "that is not a zone" has to read the same wherever it comes from.
-    """
-
-    #: A time zone that is not one. Months are cut in the reader's own day, so
-    #: the zone is a real parameter rather than a formatting hint.
+    #: A time zone that is not one, wherever a request names a zone.
     UNKNOWN_TIMEZONE = "UNKNOWN_TIMEZONE"
 
     #: Somebody named on the content (an assignee, an attendee, a person
@@ -304,7 +299,6 @@ class InitiativeMessages:
 class FilterPresetMessages:
     NOT_FOUND = "FILTER_PRESET_NOT_FOUND"
     DUPLICATE_ID = "FILTER_PRESET_DUPLICATE_ID"
-    SLUG_TAKEN = "FILTER_PRESET_SLUG_TAKEN"
     LIMIT_REACHED = "FILTER_PRESET_LIMIT_REACHED"
 
 
@@ -675,7 +669,6 @@ class UserMessages:
     SIGN_IN_NOT_LOCKED = "USER_SIGN_IN_NOT_LOCKED"
     CURRENT_PASSWORD_REQUIRED = "USER_CURRENT_PASSWORD_REQUIRED"
     CURRENT_PASSWORD_INCORRECT = "USER_CURRENT_PASSWORD_INCORRECT"
-    INVALID_TIMEZONE = "USER_INVALID_TIMEZONE"
     INVALID_WEEK_START = "USER_INVALID_WEEK_START"
     INVALID_TIME_FORMAT = "USER_INVALID_TIME_FORMAT"
     INVALID_REMINDER_MINUTES = "USER_INVALID_REMINDER_MINUTES"

@@ -5,7 +5,6 @@ from typing import Annotated, List, Optional, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
@@ -47,6 +46,7 @@ from app.schemas.tenant.tag import (
     TaggedTaskSummary,
 )
 from app.services.tenant import properties as properties_service
+from app.services.tenant.names import ensure_name_free
 
 router = APIRouter(route_class=ActorRoute)
 
@@ -87,26 +87,6 @@ async def _get_definition_or_404(
             detail=PropertyMessages.DEFINITION_NOT_FOUND,
         )
     return defn
-
-
-async def _check_duplicate_name(
-    session: AsyncSession,
-    initiative_id: int,
-    name: str,
-    exclude_id: Optional[int] = None,
-) -> None:
-    stmt = select(PropertyDefinition).where(
-        PropertyDefinition.initiative_id == initiative_id,
-        func.lower(PropertyDefinition.name) == name.lower().strip(),
-    )
-    if exclude_id is not None:
-        stmt = stmt.where(PropertyDefinition.id != exclude_id)
-    result = await session.exec(stmt)
-    if result.one_or_none() is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=PropertyMessages.NAME_ALREADY_EXISTS,
-        )
 
 
 async def _ensure_initiative_member(
@@ -229,7 +209,13 @@ async def create_property_definition(
     await _ensure_initiative_member(
         session, guild_context, payload.initiative_id, current_user
     )
-    await _check_duplicate_name(session, payload.initiative_id, payload.name)
+    await ensure_name_free(
+        session,
+        PropertyDefinition.name,
+        payload.name,
+        PropertyDefinition.initiative_id == payload.initiative_id,
+        detail=PropertyMessages.NAME_ALREADY_EXISTS,
+    )
 
     defn = PropertyDefinition(
         initiative_id=payload.initiative_id,
@@ -274,11 +260,13 @@ async def update_property_definition(
     data = payload.model_dump(exclude_unset=True)
 
     if "name" in data and data["name"] is not None:
-        await _check_duplicate_name(
+        await ensure_name_free(
             session,
-            defn.initiative_id,
+            PropertyDefinition.name,
             data["name"],
-            exclude_id=defn.id,
+            PropertyDefinition.initiative_id == defn.initiative_id,
+            PropertyDefinition.id != defn.id,
+            detail=PropertyMessages.NAME_ALREADY_EXISTS,
         )
         defn.name = data["name"].strip()
 

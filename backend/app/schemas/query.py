@@ -5,6 +5,8 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Literal
 
+from pydantic import ConfigDict
+
 from app.schemas.base import SanitizedBaseModel
 
 
@@ -89,3 +91,17 @@ class FilterGroup(SanitizedBaseModel):
 class SortField(SanitizedBaseModel):
     field: str
     dir: SortDir = SortDir.asc
+
+
+class PageMeta(SanitizedBaseModel):
+    """The page fields of every paginated list response — the keys
+    ``app.db.query.build_paginated_response`` fills. A subclass declares its
+    ``items`` and any extras."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    total_count: int
+    page: int
+    page_size: int
+    has_next: bool
+    has_prev: bool

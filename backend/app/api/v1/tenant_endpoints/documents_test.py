@@ -218,7 +218,7 @@ async def test_duplicate_is_held_to_create_and_keeps_the_sources_sharing(
     again = await client.post(
         owner.g(f"/documents/{doc.id}/duplicate"), headers=owner.headers
     )
-    assert again.status_code == 400
+    assert again.status_code == 409
     assert again.json()["detail"] == "DOCUMENT_NAME_ALREADY_EXISTS"
 
 

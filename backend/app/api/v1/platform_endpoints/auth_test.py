@@ -240,7 +240,7 @@ async def test_register_rejects_invalid_timezone(client: AsyncClient):
         },
     )
     assert response.status_code == 400
-    assert response.json()["detail"] == "USER_INVALID_TIMEZONE"
+    assert response.json()["detail"] == "UNKNOWN_TIMEZONE"
 
 
 async def test_register_without_timezone_keeps_utc_default(

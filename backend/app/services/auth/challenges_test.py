@@ -16,7 +16,7 @@ PURPOSE = challenges.ChallengePurpose.sign_in
 
 @pytest.fixture
 def frozen(monkeypatch):
-    monkeypatch.setattr(challenges, "_now", lambda: FIXED_NOW)
+    monkeypatch.setattr(challenges, "utcnow", lambda: FIXED_NOW)
     return FIXED_NOW
 
 
@@ -77,7 +77,7 @@ async def test_it_stops_standing_once_it_has_expired(
     issued = await _open(session, user.id)
 
     later = FIXED_NOW + challenges.CHALLENGE_TTL + timedelta(seconds=1)
-    monkeypatch.setattr(challenges, "_now", lambda: later)
+    monkeypatch.setattr(challenges, "utcnow", lambda: later)
     assert await _claim(session, issued.value) is None
 
 
@@ -139,11 +139,11 @@ async def test_the_sweep_clears_what_nothing_can_use(
     issued = await _open(session, user.id)
 
     later = FIXED_NOW + challenges.CHALLENGE_TTL + timedelta(seconds=1)
-    monkeypatch.setattr(challenges, "_now", lambda: later)
+    monkeypatch.setattr(challenges, "utcnow", lambda: later)
     assert await challenges.purge_expired(session) >= 1
     await session.commit()
 
-    monkeypatch.setattr(challenges, "_now", lambda: FIXED_NOW)
+    monkeypatch.setattr(challenges, "utcnow", lambda: FIXED_NOW)
     assert await _claim(session, issued.value) is None
 
 

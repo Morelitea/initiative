@@ -416,8 +416,8 @@ async def list_community_guilds(
             user_id=current_user.id,
             query=q,
             category=category.value if category else None,
-            offset=(page - 1) * page_size,
-            limit=page_size,
+            page=page,
+            page_size=page_size,
         )
     except guilds_service.CommunityDirectoryDisabledError as exc:
         raise HTTPException(
@@ -1392,7 +1392,7 @@ async def set_guild_auth_policy(
     # outlive.
     await guilds_service.lock_guild_seats(session, guild_id)
 
-    require_methods: list[str] = sorted({str(m) for m in payload.require_methods})
+    require_methods: list[str] = sorted({m.value for m in payload.require_methods})
     if payload.provider_id is None and not require_methods:
         # ``required`` has to require something.
         raise HTTPException(

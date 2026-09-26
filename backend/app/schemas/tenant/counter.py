@@ -3,17 +3,17 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import List, Optional, TYPE_CHECKING
+from typing import Any, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field, model_validator
 
-from app.core.identity_boundary import GuildId, PersonId
+from app.core.identity_boundary import GuildId
 from app.core.messages import CounterMessages
 from app.models.tenant.counter import CounterViewMode
 from app.schemas.base import SanitizedBaseModel, TitleStr
-from app.schemas.tenant.archive import ToolState
+from app.schemas.query import PageMeta
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
-from app.schemas.tenant.tag import TagSummary, annotated_tags
+from app.schemas.tenant.tool import ToolSummaryBase
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.db.guild_standing import ActorContext
@@ -155,41 +155,32 @@ class CounterGroupDuplicateRequest(SanitizedBaseModel):
     name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
 
 
-class CounterGroupSummary(CounterGroupBase, ToolState):
-    model_config = ConfigDict(
-        from_attributes=True, json_schema_serialization_defaults_required=True
-    )
-
-    id: int
-    initiative_id: int
-    guild_id: GuildId
-    created_by: PersonId | None = None
+class CounterGroupSummary(CounterGroupBase, ToolSummaryBase):
     counter_count: int = 0
-    # When false this entity's comment thread is off — the UI renders none
-    # and the API refuses to read or post one. Tasks are unaffected; their
-    # thread belongs to the task, not to the tool.
-    comments_enabled: bool = True
-    tags: List[TagSummary] = Field(default_factory=list)
-    created_at: datetime
-    updated_at: datetime
-    # The full sharing state — every resource_grants row for this group. Exposed on
-    # the summary (not just the detail read) so list views can manage sharing in
-    # bulk without a per-item detail fetch.
-    grants: List[ResourceGrantSchema] = Field(default_factory=list)
+
+    @classmethod
+    def derived_fields(
+        cls, row: Any, *, context: ActorContext, user_id: Optional[int]
+    ) -> dict[str, Any]:
+        return {"counter_count": len(_active_counters(row))}
 
 
-class CounterGroupListResponse(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
+class CounterGroupListResponse(PageMeta):
     items: List[CounterGroupSummary]
-    total_count: int
-    page: int
-    page_size: int
-    has_next: bool
 
 
 class CounterGroupRead(CounterGroupSummary):
     counters: List[CounterRead] = Field(default_factory=list)
+
+    @classmethod
+    def derived_fields(
+        cls, row: Any, *, context: ActorContext, user_id: Optional[int]
+    ) -> dict[str, Any]:
+        counters = sorted(_active_counters(row), key=lambda c: c.position)
+        return {
+            **super().derived_fields(row, context=context, user_id=user_id),
+            "counters": [serialize_counter(c, context=context) for c in counters],
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -238,44 +229,3 @@ def serialize_counter(counter: "Counter", *, context: ActorContext) -> CounterRe
 def _active_counters(group: "CounterGroup") -> list:
     counters = getattr(group, "counters", None) or []
     return [c for c in counters if getattr(c, "deleted_at", None) is None]
-
-
-def serialize_counter_group_summary(
-    group: "CounterGroup",
-    *,
-    context: ActorContext,
-    user_id: Optional[int] = None,
-) -> CounterGroupSummary:
-    # Local import avoids a schema -> service import cycle.
-    from app.services.permissions import client_access, serialize_grants
-
-    return CounterGroupSummary(
-        id=group.id,
-        name=group.name,
-        description=group.description,
-        initiative_id=group.initiative_id,
-        guild_id=context.guild_id,
-        created_by=group.created_by,
-        counter_count=len(_active_counters(group)),
-        archived_at=group.archived_at,
-        can=client_access(group, user_id, context=context),
-        created_at=group.created_at,
-        updated_at=group.updated_at,
-        comments_enabled=group.comments_enabled,
-        tags=annotated_tags(group),
-        grants=serialize_grants(group, context=context),
-    )
-
-
-def serialize_counter_group(
-    group: "CounterGroup",
-    *,
-    context: ActorContext,
-    user_id: Optional[int] = None,
-) -> CounterGroupRead:
-    summary = serialize_counter_group_summary(group, context=context, user_id=user_id)
-    counters = sorted(_active_counters(group), key=lambda c: c.position)
-    return CounterGroupRead(
-        **summary.model_dump(),
-        counters=[serialize_counter(c, context=context) for c in counters],
-    )

@@ -31,7 +31,7 @@ cleanup runs before the DELETE so blobs on disk and ``Upload`` rows pinned only 
 the doomed documents are also removed.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Iterable, Optional
 
 from sqlmodel import select
@@ -55,6 +55,7 @@ from app.services.tenant.lifecycle_tree import (
     set_columns,
     subtree_levels,
 )
+from app.core.clock import utcnow
 
 __all__ = [
     "CASCADE_CHILDREN",
@@ -84,7 +85,7 @@ RELEASED_NAMES: dict[type, tuple[str, str]] = {
 }
 
 #: What a parked name is parked behind. Deliberately outside the alphabet these
-#: names are generated from (see ``wikis.slugify_page_title``), so a parked name
+#: names are generated from (see ``names.slugify``), so a parked name
 #: can never be one a live row would pick, and the id after it makes it unique
 #: among everything else in the bin.
 _PARK = "~"
@@ -141,10 +142,6 @@ async def _reclaim_name(session: AsyncSession, row: SoftDeleteMixin) -> None:
     setattr(row, column, candidate)
     session.add(row)
     await session.flush()
-
-
-def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 def _compute_purge_at(
@@ -225,7 +222,7 @@ async def soft_delete_entity(
     if entity.deleted_at is not None:
         return
     await session.flush()
-    deleted_at = _utc_now()
+    deleted_at = utcnow()
     values = {
         "deleted_at": deleted_at,
         "deleted_by": deleted_by_user_id,

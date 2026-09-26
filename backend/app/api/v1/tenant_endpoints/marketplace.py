@@ -109,8 +109,8 @@ async def list_marketplace_listings(
         kind=kind,
         query=q,
         bundled_with=sorted(await installed_app_uids(session)),
-        offset=(page - 1) * page_size,
-        limit=page_size,
+        page=page,
+        page_size=page_size,
     )
     # One query for the page's versions rather than one per card.
     versions = await catalog_service.get_listing_versions(

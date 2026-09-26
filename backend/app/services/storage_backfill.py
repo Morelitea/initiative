@@ -30,7 +30,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -40,6 +40,7 @@ from app.db.backfill_uploads_to_s3 import BackfillSummary, backfill_uploads_to_s
 from app.db import session as db_session
 from app.db.session import SystemSessionLocal
 from app.db.system_grants import SHARED_TABLE_SYSTEM_GRANTS, grant_sql
+from app.core.clock import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -92,10 +93,6 @@ _table_ready = False
 
 class BackfillAlreadyRunning(RuntimeError):
     """Raised when a backfill is already running (the claim was lost)."""
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 async def _ensure_table() -> None:
@@ -190,7 +187,7 @@ async def try_claim(session: AsyncSession) -> bool:
     """
     await _ensure_table()
     await _ensure_row(session)
-    now = _now()
+    now = utcnow()
     result = await session.exec(
         text(
             "UPDATE storage_backfill_state SET "
@@ -215,7 +212,7 @@ async def _persist(
     finished: bool = False,
 ) -> None:
     sets = ["status = :status", "heartbeat = :hb"]
-    params: dict = {"id": GLOBAL_ID, "status": status, "hb": _now()}
+    params: dict = {"id": GLOBAL_ID, "status": status, "hb": utcnow()}
     if summary is not None:
         sets += [
             "copied = :copied",
@@ -236,7 +233,7 @@ async def _persist(
         params["error"] = error
     if finished:
         sets.append("finished_at = :fin")
-        params["fin"] = _now()
+        params["fin"] = utcnow()
     await session.exec(
         text(f"UPDATE storage_backfill_state SET {', '.join(sets)} WHERE id = :id"),
         params=params,

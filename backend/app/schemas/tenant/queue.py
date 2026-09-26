@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Mapping, Optional, Sequence, TYPE_CHECKING
+from typing import Any, List, Mapping, Optional, Sequence, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
-from app.core.identity_boundary import GuildId, PersonId
+from app.core.identity_boundary import PersonId
 from app.core.relationships import Related
 from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
-from app.schemas.tenant.archive import ToolState
+from app.schemas.query import PageMeta
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.tenant.tag import TagSummary, annotated_tags
+from app.schemas.tenant.tool import ToolSummaryBase, serialize_tool
 from app.schemas.platform.user import UserPublic
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -136,39 +137,20 @@ class QueueUpdate(SanitizedBaseModel):
     description: Optional[str] = None
 
 
-class QueueSummary(QueueBase, ToolState):
-    model_config = ConfigDict(
-        from_attributes=True, json_schema_serialization_defaults_required=True
-    )
-
-    id: int
-    initiative_id: int
-    guild_id: GuildId
-    created_by: PersonId | None = None
+class QueueSummary(QueueBase, ToolSummaryBase):
     current_round: int
     is_active: bool
     item_count: int = 0
-    created_at: datetime
-    updated_at: datetime
-    # When false this entity's comment thread is off — the UI renders none
-    # and the API refuses to read or post one. Tasks are unaffected; their
-    # thread belongs to the task, not to the tool.
-    comments_enabled: bool = True
-    tags: List[TagSummary] = Field(default_factory=list)
-    # The full sharing state — every resource_grants row for this queue. Exposed on
-    # the summary (not just the detail read) so list views can manage sharing in
-    # bulk without a per-item detail fetch.
-    grants: List[ResourceGrantSchema] = Field(default_factory=list)
+
+    @classmethod
+    def derived_fields(
+        cls, row: Any, *, context: ActorContext, user_id: Optional[int]
+    ) -> dict[str, Any]:
+        return {"item_count": len(getattr(row, "items", None) or [])}
 
 
-class QueueListResponse(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
+class QueueListResponse(PageMeta):
     items: List[QueueSummary]
-    total_count: int
-    page: int
-    page_size: int
-    has_next: bool
 
 
 class QueueRead(QueueSummary):
@@ -238,36 +220,6 @@ def serialize_queue_item(
     )
 
 
-def serialize_queue_summary(
-    queue: "Queue",
-    *,
-    context: ActorContext,
-    user_id: Optional[int] = None,
-) -> QueueSummary:
-    items = getattr(queue, "items", None) or []
-    # Local import avoids a schema -> service import cycle.
-    from app.services.permissions import client_access, serialize_grants
-
-    return QueueSummary(
-        id=queue.id,
-        name=queue.name,
-        description=queue.description,
-        initiative_id=queue.initiative_id,
-        guild_id=context.guild_id,
-        created_by=queue.created_by,
-        current_round=queue.current_round,
-        is_active=queue.is_active,
-        item_count=len(items),
-        created_at=queue.created_at,
-        updated_at=queue.updated_at,
-        archived_at=queue.archived_at,
-        can=client_access(queue, user_id, context=context),
-        comments_enabled=queue.comments_enabled,
-        tags=annotated_tags(queue),
-        grants=serialize_grants(queue, context=context),
-    )
-
-
 def serialize_queue(
     queue: "Queue",
     *,
@@ -300,9 +252,11 @@ def serialize_queue(
             if item.id == queue.current_item_id:
                 current_item = item
                 break
-    summary = serialize_queue_summary(queue, context=context, user_id=user_id)
-    return QueueRead(
-        **summary.model_dump(),
+    return serialize_tool(
+        QueueRead,
+        queue,
+        context=context,
+        user_id=user_id,
         items=serialized_items,
         current_item=current_item,
     )

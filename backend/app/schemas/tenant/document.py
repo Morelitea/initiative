@@ -5,10 +5,9 @@ from typing import Any, Dict, List, Literal, Optional, Sequence, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
-from app.core.identity_boundary import GuildId, PersonId
 from app.core.relationships import Related
 from app.schemas.base import SanitizedBaseModel
-from app.schemas.tenant.archive import ToolState
+from app.schemas.query import PageMeta
 
 from app.models.tenant.document import DocumentType
 from app.models.tenant.resource_grant import ResourceAccessLevel
@@ -17,7 +16,7 @@ from app.schemas.platform.user import UserPublic
 from app.schemas.tenant.initiative import InitiativeSummary
 from app.schemas.tenant.ownership import OwnerAppSummary
 from app.schemas.tenant.property import PropertySummary
-from app.schemas.tenant.tag import TagSummary, annotated_tags
+from app.schemas.tenant.tool import ToolSummaryBase, serialize_tool
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.db.guild_standing import ActorContext
@@ -78,24 +77,12 @@ class DocumentCopyRequest(SanitizedBaseModel):
     name: Optional[str] = None
 
 
-class DocumentSummary(DocumentBase, ToolState):
-    # ``validate_by_name`` so the serializer below can set ``owner`` and
+class DocumentSummary(DocumentBase, ToolSummaryBase):
+    # ``validate_by_name`` so ``derived_fields`` can set ``owner`` and
     # ``owner_app`` by name; their aliases keep ``from_attributes`` from reading
     # an ORM relationship.
-    model_config = ConfigDict(
-        from_attributes=True,
-        json_schema_serialization_defaults_required=True,
-        validate_by_name=True,
-    )
+    model_config = ConfigDict(validate_by_name=True)
 
-    id: int
-    # The owning guild — lets clients address guild-scoped actions (file
-    # download, media) by the document's guild rather than ambient context,
-    # which matters on cross-guild surfaces like My Documents.
-    guild_id: GuildId
-    created_by: PersonId | None = None
-    created_at: datetime
-    updated_at: datetime
     initiative: Optional[InitiativeSummary] = None
     #: The person holding the document's owner grant, or None when it is
     #: unowned or an app owns it.
@@ -107,13 +94,6 @@ class DocumentSummary(DocumentBase, ToolState):
     )
     projects: List[DocumentProjectLink] = Field(default_factory=list)
     comment_count: int = 0
-    # When false this entity's comment thread is off — the UI renders none
-    # and the API refuses to read or post one. Tasks are unaffected; their
-    # thread belongs to the task, not to the tool.
-    comments_enabled: bool = True
-    # The full sharing state — every resource_grants row for this document.
-    grants: List[ResourceGrantSchema] = Field(default_factory=list)
-    tags: List[TagSummary] = Field(default_factory=list)
     properties: List[PropertySummary] = Field(default_factory=list)
     # File document fields
     document_type: DocumentType = DocumentType.native
@@ -127,15 +107,22 @@ class DocumentSummary(DocumentBase, ToolState):
     smart_link_url: Optional[str] = None
     yjs_updated_at: Optional[datetime] = None
 
+    @classmethod
+    def derived_fields(
+        cls, row: Any, *, context: ActorContext, user_id: Optional[int]
+    ) -> dict[str, Any]:
+        from app.services.tenant.ownership import owner_app_of
 
-class DocumentListResponse(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+        return {
+            "owner": _document_owner(row),
+            "owner_app": owner_app_of(row),
+            "properties": _serialize_document_properties(row),
+            "smart_link_url": smart_link_url(row),
+        }
 
+
+class DocumentListResponse(PageMeta):
     items: List[DocumentSummary]
-    total_count: int
-    page: int
-    page_size: int
-    has_next: bool
     sort_by: Optional[str] = None
     sort_dir: Optional[str] = None
 
@@ -232,6 +219,16 @@ def _document_owner(document: "Document") -> Optional[UserPublic]:
     return None
 
 
+def smart_link_url(document: Any) -> Optional[str]:
+    """The address a link document points at, so a card can draw its provider's
+    mark without the content."""
+    if document.document_type != DocumentType.smart_link:
+        return None
+    content = document.content if isinstance(document.content, dict) else {}
+    url = content.get("url")
+    return url if isinstance(url, str) and url else None
+
+
 def serialize_document_summary(
     document: "Document",
     *,
@@ -239,48 +236,12 @@ def serialize_document_summary(
     user_id: Optional[int] = None,
     projects: Sequence[Related] = (),
 ) -> DocumentSummary:
-    initiative = (
-        InitiativeSummary.model_validate(document.initiative)
-        if document.initiative
-        else None
-    )
-    smart_link_url: Optional[str] = None
-    if document.document_type == DocumentType.smart_link:
-        content = document.content or {}
-        url = content.get("url") if isinstance(content, dict) else None
-        if isinstance(url, str) and url:
-            smart_link_url = url
-    from app.services.permissions import client_access, serialize_grants
-    from app.services.tenant.ownership import owner_app_of
-
-    return DocumentSummary(
-        id=document.id,
-        guild_id=context.guild_id,
-        initiative_id=document.initiative_id,
-        name=document.name,
-        featured_image_url=document.featured_image_url,
-        is_template=document.is_template,
-        created_by=document.created_by,
-        created_at=document.created_at,
-        updated_at=document.updated_at,
-        initiative=initiative,
-        owner=_document_owner(document),
-        owner_app=owner_app_of(document),
+    return serialize_tool(
+        DocumentSummary,
+        document,
+        context=context,
+        user_id=user_id,
         projects=_serialize_project_links(projects),
-        comment_count=getattr(document, "comment_count", 0),
-        comments_enabled=document.comments_enabled,
-        grants=serialize_grants(document, context=context),
-        tags=annotated_tags(document),
-        properties=_serialize_document_properties(document),
-        document_type=document.document_type,
-        file_url=document.file_url,
-        file_content_type=document.file_content_type,
-        file_size=document.file_size,
-        original_filename=document.original_filename,
-        smart_link_url=smart_link_url,
-        archived_at=document.archived_at,
-        can=client_access(document, user_id, context=context),
-        yjs_updated_at=document.yjs_updated_at,
     )
 
 
@@ -294,10 +255,12 @@ def serialize_document(
     """The full document. ``include_content=False`` leaves the body out — every
     other field is unchanged, including the smart-link URL that is derived from
     it."""
-    summary = serialize_document_summary(document, context=context, user_id=user_id)
-    return DocumentRead(
-        **summary.model_dump(),
-        content=(document.content or {}) if include_content else {},
+    return serialize_tool(
+        DocumentRead,
+        document,
+        context=context,
+        user_id=user_id,
+        **({} if include_content else {"content": {}}),
     )
 
 

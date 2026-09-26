@@ -57,11 +57,11 @@ from app.schemas.tenant.wiki import (
     WikiPageUpdate,
     WikiRead,
     WikiUpdate,
-    serialize_wiki,
     serialize_wiki_page,
     serialize_document_as_page,
     serialize_wiki_page_summary,
 )
+from app.schemas.tenant.tool import serialize_tool
 from app.services.tenant import comments as comments_service
 from app.services.tenant import content_references
 from app.services.tenant import relationships as relationships_service
@@ -150,8 +150,8 @@ async def read_wiki(
         session, Tool.wiki, wiki_id, current_user, guild_context
     )
     hydrated = await _refetch_wiki(session, wiki_id, user_id=guild_context.user_id)
-    return serialize_wiki(
-        hydrated, user_id=guild_context.user_id, context=guild_context
+    return serialize_tool(
+        WikiRead, hydrated, user_id=guild_context.user_id, context=guild_context
     )
 
 
@@ -198,8 +198,8 @@ async def create_wiki(
         )
     await session.commit()
     hydrated = await _refetch_wiki(session, wiki.id, user_id=guild_context.user_id)
-    return serialize_wiki(
-        hydrated, user_id=guild_context.user_id, context=guild_context
+    return serialize_tool(
+        WikiRead, hydrated, user_id=guild_context.user_id, context=guild_context
     )
 
 
@@ -254,8 +254,8 @@ async def update_wiki(
     session.add(wiki)
     await session.commit()
     hydrated = await _refetch_wiki(session, wiki.id, user_id=guild_context.user_id)
-    return serialize_wiki(
-        hydrated, user_id=guild_context.user_id, context=guild_context
+    return serialize_tool(
+        WikiRead, hydrated, user_id=guild_context.user_id, context=guild_context
     )
 
 
@@ -271,8 +271,8 @@ async def read_after_write(
     (``tool_grants.py``) answers in this tool's own shape.
     """
     hydrated = await _refetch_wiki(session, wiki_id, user_id=guild_context.user_id)
-    return serialize_wiki(
-        hydrated, user_id=guild_context.user_id, context=guild_context
+    return serialize_tool(
+        WikiRead, hydrated, user_id=guild_context.user_id, context=guild_context
     )
 
 

@@ -59,6 +59,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Export date and author move into the file's properties** — PDF and Markdown exports of documents, wikis, projects, queues, counter groups and task lists no longer print "exported …" or "generated … by …" under the title. Who exported the file and when is kept in the PDF, Word or Excel document properties, and as a hidden comment at the top of a Markdown file. Reports keep their counts, and the download's file name still has the date.
 - **Switching communities keeps everything that isn't the community's** — your messages, notifications, account settings, access requests and the community directory stay loaded when you move between communities, instead of being fetched again each time.
 - **The initiatives list leaves out who is in each one** — `GET /initiatives/` no longer includes each initiative's `members`. An app or script that read them there reads one initiative (`GET /initiatives/{id}`) or its `/members` instead.
+- **Paged lists answer the same way** — every paged list response now includes `has_prev` beside `has_next`, and a duplicate document name is refused with `409` like tags, properties and initiatives, instead of `400`. An unknown time zone on a profile or registration is refused as `UNKNOWN_TIMEZONE`; the old `USER_INVALID_TIMEZONE` code is gone.
+- **Timelines fall back to UTC** — the gallery and board timelines draw their months in UTC when the browser sends a time zone the server doesn't know, instead of refusing the request.
 
 ### Fixed
 

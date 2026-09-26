@@ -37,7 +37,6 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Optional, Sequence
 from urllib.parse import urlparse
@@ -72,6 +71,7 @@ from app.services.marketplace.registration_lookup import (
     invalidate_registrations,
     live_registration_clause,
 )
+from app.core.clock import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -126,10 +126,6 @@ _MAX_PUBLIC_ID = MAX_APP_ID_LENGTH
 _MAX_BASE_URL = 1000
 _MAX_ORIGIN = 253 + 16
 _MAX_ORIGINS = 20
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 def _bad_request(code: str, detail: str) -> HTTPException:
@@ -674,7 +670,7 @@ async def update_registration(
     vendor_changed = await _apply_vendor(session, row, vendor_values)
     await vendor_values_service.sync_required(session, row)
 
-    row.updated_at = _now()
+    row.updated_at = utcnow()
     session.add(row)
     changed = audit_service.changed_fields(
         before, audit_service.snapshot(row, AUDITED_FIELDS)
@@ -943,7 +939,7 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
             row.image_digest = None
             row.reference_sectors = []
             row.root_is_builtin = False
-        row.updated_at = _now()
+        row.updated_at = utcnow()
         session.add(row)
         edited.append((row, before))
         updated += 1

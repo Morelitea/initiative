@@ -24,7 +24,7 @@ import logging
 import secrets
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Collection
 
@@ -35,6 +35,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.models.platform.auth_session import AuthSession
 from app.services.auth import session_lifetime
+from app.core.clock import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -71,10 +72,6 @@ SESSION_RETENTION_DAYS = 30
 #: ``auth_sessions`` is app_admin-only, so the sweep runs on SystemSessionLocal
 #: with no guild routing — the same shape as the expired-token purge.
 SESSION_PURGE_POLL_SECONDS = 3600
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 def _capped(expires: datetime, chain_ends: datetime | None) -> datetime:
@@ -215,7 +212,7 @@ async def create_session(
     seven places to forget it. It lands in the same transaction as the session,
     so a sign-in that fails leaves the deletion exactly where it was.
     """
-    issued = now or _now()
+    issued = now or utcnow()
     ttl = await _narrowed_ttl(session, user_id=user_id, requested=refresh_ttl)
     # The end of the whole chain, read once here and carried forward from now
     # on. ``expires_at`` is the idle window and never outlives it.
@@ -278,7 +275,7 @@ async def rotate_session(
     ``rotate → commit → branch`` — so both the rotation and the theft-revocation
     are persisted regardless of how the request ends.
     """
-    issued = now or _now()
+    issued = now or utcnow()
     presented_hash = _hash_refresh_token(raw_refresh_token)
 
     row = (
@@ -373,7 +370,7 @@ async def get_live_session_by_refresh_token(
             )
         )
     ).one_or_none()
-    current = now or _now()
+    current = now or utcnow()
     if row is None or row.revoked_at is not None or row.expires_at <= current:
         return None
     return row
@@ -441,7 +438,7 @@ async def list_live_for_user(
     """Every session this account can still use, most recently active first."""
     connection = await session.connection()
     result = await connection.execute(
-        _LIVE_SESSIONS_SQL, {"uid": user_id, "now": now or _now()}
+        _LIVE_SESSIONS_SQL, {"uid": user_id, "now": now or utcnow()}
     )
     return [LiveSession(**row) for row in result.mappings()]
 
@@ -491,7 +488,7 @@ async def live_chain_tips(
     connection = await session.connection()
     result = await connection.execute(
         _LIVE_CHAIN_TIPS_SQL,
-        {"ids": list(session_ids), "now": now or _now()},
+        {"ids": list(session_ids), "now": now or utcnow()},
     )
     return {row.origin: row.id for row in result}
 
@@ -510,7 +507,7 @@ async def revoke_session(
             "UPDATE auth_sessions SET revoked_at = :now "
             "WHERE id = :id AND revoked_at IS NULL"
         ),
-        params={"now": now or _now(), "id": session_id},
+        params={"now": now or utcnow(), "id": session_id},
     )
     return result.rowcount
 
@@ -524,7 +521,7 @@ async def revoke_chain(
     """Revoke every still-live session in ``session_id``'s rotation chain (theft
     response, or unlink-provider cleanup). Returns the number of rows revoked."""
     result = await session.exec(
-        _REVOKE_CHAIN_SQL, params={"sid": session_id, "now": now or _now()}
+        _REVOKE_CHAIN_SQL, params={"sid": session_id, "now": now or utcnow()}
     )
     return result.rowcount
 
@@ -548,7 +545,7 @@ async def revoke_all_for_user(
         "UPDATE auth_sessions SET revoked_at = :now "
         "WHERE user_id = :uid AND revoked_at IS NULL"
     )
-    params: dict[str, object] = {"now": now or _now(), "uid": user_id}
+    params: dict[str, object] = {"now": now or utcnow(), "uid": user_id}
     if except_session_id is not None:
         sql += " AND id <> CAST(:keep AS uuid)"
         params["keep"] = except_session_id
@@ -590,7 +587,7 @@ async def purge_dead_sessions(
     plain uuid rather than a self-reference, so removing one end of a rotation
     chain leaves the rest intact.
     """
-    horizon = (now or _now()) - timedelta(days=retention_days)
+    horizon = (now or utcnow()) - timedelta(days=retention_days)
     result = await session.exec(
         text(
             "DELETE FROM auth_sessions "

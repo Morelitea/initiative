@@ -272,22 +272,25 @@ async def test_anchoring_keeps_the_other_filters(
     assert [p["name"] for p in response.json()["items"]] == ["feb"]
 
 
-async def test_a_zone_that_is_not_one_is_refused(
+async def test_a_zone_that_is_not_one_falls_back_to_utc(
     client: AsyncClient, acting_user, session
 ):
-    """Left to the database an unknown zone is an error of its own, which
-    surfaces as a 500. A request that is simply wrong should say so."""
+    """The zone only draws month lines; a browser sending one the server does
+    not know still gets its rail, cut in UTC."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _board(session, a)
 
-    response = await client.get(
-        a.g("/posts/timeline"),
-        headers=a.headers,
-        params={"initiative_id": a.initiative.id, "tz": "Not/AZone"},
-    )
+    responses = [
+        await client.get(
+            a.g("/posts/timeline"),
+            headers=a.headers,
+            params={"initiative_id": a.initiative.id, "tz": tz},
+        )
+        for tz in ("Not/AZone", "UTC")
+    ]
 
-    assert response.status_code == 422
-    assert response.json()["detail"] == "UNKNOWN_TIMEZONE"
+    assert [r.status_code for r in responses] == [200, 200]
+    assert responses[0].json() == responses[1].json()
 
 
 async def test_a_lifted_pin_is_still_in_its_own_month(

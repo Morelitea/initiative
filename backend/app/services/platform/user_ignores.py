@@ -19,6 +19,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, func, select
 
+from app.db.query import apply_pagination
 from app.models.platform.user_ignore import UserIgnore
 from app.models.platform.user_profile_view import user_profiles
 from app.services.platform import contacts_stream
@@ -37,25 +38,22 @@ async def list_ignored(
         )
     ).one()
 
-    rows = (
-        await session.exec(
-            select(
-                UserIgnore.ignored_user_id,
-                UserIgnore.created_at,
-                user_profiles.c.username,
-                user_profiles.c.discriminator,
-                user_profiles.c.avatar_url,
-            )
-            .join(
-                user_profiles,
-                user_profiles.c.id == UserIgnore.ignored_user_id,
-            )
-            .where(UserIgnore.user_id == user_id)
-            .order_by(col(UserIgnore.created_at).desc())
-            .offset((page - 1) * page_size)
-            .limit(page_size)
+    statement = (
+        select(
+            UserIgnore.ignored_user_id,
+            UserIgnore.created_at,
+            user_profiles.c.username,
+            user_profiles.c.discriminator,
+            user_profiles.c.avatar_url,
         )
-    ).all()
+        .join(
+            user_profiles,
+            user_profiles.c.id == UserIgnore.ignored_user_id,
+        )
+        .where(UserIgnore.user_id == user_id)
+        .order_by(col(UserIgnore.created_at).desc())
+    )
+    rows = (await session.exec(apply_pagination(statement, page, page_size))).all()
 
     return IgnoredAccountsResponse(
         items=[

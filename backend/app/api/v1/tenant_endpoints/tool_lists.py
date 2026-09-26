@@ -65,7 +65,7 @@ from app.api.v1.tenant_endpoints import queues as queues_endpoints
 from app.api.v1.tenant_endpoints import wikis as wikis_endpoints
 from app.core.messages import DocumentMessages, QueryMessages
 from app.core.tools import Tool
-from app.db.query import page_has_next
+from app.db.query import build_paginated_response
 from app.models.platform.user import User
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.counter import CounterGroup
@@ -83,17 +83,17 @@ from app.models.tenant.wiki import Wiki
 from app.schemas.tenant.calendar import (
     CalendarListResponse,
     CalendarRead,
-    serialize_calendar_summary,
+    CalendarSummary,
 )
 from app.schemas.tenant.counter import (
     CounterGroupListResponse,
     CounterGroupRead,
-    serialize_counter_group_summary,
+    CounterGroupSummary,
 )
 from app.schemas.tenant.dashboard import (
     DashboardListResponse,
     DashboardRead,
-    serialize_dashboard_summary,
+    DashboardSummary,
 )
 from app.schemas.tenant.document import (
     DocumentListResponse,
@@ -102,21 +102,22 @@ from app.schemas.tenant.document import (
 from app.schemas.tenant.gallery import (
     GalleryListResponse,
     GalleryRead,
-    serialize_gallery_summary,
+    GallerySummary,
 )
 from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
-from app.schemas.tenant.post import PostListResponse, PostRead, serialize_post
+from app.schemas.tenant.post import PostListResponse, PostRead
 from app.schemas.tenant.project import ProjectListResponse, ProjectRead
 from app.schemas.tenant.queue import (
     QueueListResponse,
     QueueRead,
-    serialize_queue_summary,
+    QueueSummary,
 )
 from app.schemas.tenant.wiki import (
     WikiListResponse,
     WikiRead,
-    serialize_wiki_summary,
+    WikiSummary,
 )
+from app.schemas.tenant.tool import ToolSummaryBase, serialize_tool
 from app.services.tenant import archive as archive_service
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import counters as counters_service
@@ -354,13 +355,13 @@ async def _default_conditions(spec: ToolListSpec, req: ListRequest) -> list:
     ]
 
 
-def _summaries(serializer: Callable[..., Any]) -> Callable[..., Awaitable[list]]:
+def _summaries(schema: type[ToolSummaryBase]) -> Callable[..., Awaitable[list]]:
     """The ordinary page: tag the rows, then turn each into its summary."""
 
     async def serialize(spec: ToolListSpec, req: ListRequest, rows: list) -> list:
         await tags_service.annotate_tags(req.session, rows)
         return [
-            serializer(row, context=req.guild_context, user_id=req.user_id)
+            serialize_tool(schema, row, context=req.guild_context, user_id=req.user_id)
             for row in rows
         ]
 
@@ -566,7 +567,7 @@ async def _serialize_posts(spec: ToolListSpec, req: ListRequest, rows: list) -> 
     # An installed app's page carries no reactions, read state or ballots.
     await posts_endpoints.annotate_post_rows(session, rows, user_id=req.user_id)
     return [
-        serialize_post(post, context=req.guild_context, user_id=req.user_id)
+        serialize_tool(PostRead, post, context=req.guild_context, user_id=req.user_id)
         for post in rows
     ]
 
@@ -581,7 +582,9 @@ async def _serialize_galleries(
 ) -> list:
     await galleries_endpoints.annotate_gallery_rows(req.session, rows)
     return [
-        serialize_gallery_summary(row, context=req.guild_context, user_id=req.user_id)
+        serialize_tool(
+            GallerySummary, row, context=req.guild_context, user_id=req.user_id
+        )
         for row in rows
     ]
 
@@ -589,7 +592,7 @@ async def _serialize_galleries(
 async def _serialize_wikis(spec: ToolListSpec, req: ListRequest, rows: list) -> list:
     await wikis_endpoints.annotate_wiki_rows(req.session, rows)
     return [
-        serialize_wiki_summary(row, context=req.guild_context, user_id=req.user_id)
+        serialize_tool(WikiSummary, row, context=req.guild_context, user_id=req.user_id)
         for row in rows
     ]
 
@@ -775,7 +778,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         response_model=QueueListResponse,
         loader_options=_loads(queues_service.list_loader_options),
         default_order=_order(Queue.updated_at.desc(), Queue.id.desc()),
-        serialize=_summaries(serialize_queue_summary),
+        serialize=_summaries(QueueSummary),
         params=(
             _initiative_id(),
             search_param(),
@@ -814,7 +817,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         response_model=CounterGroupListResponse,
         loader_options=_loads(counters_service.list_loader_options),
         default_order=_order(CounterGroup.updated_at.desc(), CounterGroup.id.desc()),
-        serialize=_summaries(serialize_counter_group_summary),
+        serialize=_summaries(CounterGroupSummary),
         # The counters router carries the wider "counters" tag, which the
         # individual counters underneath these groups share.
         tag="counters",
@@ -850,7 +853,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         response_model=CalendarListResponse,
         loader_options=_loads(calendars_service.calendar_loader_options),
         default_order=_order(Calendar.name.asc(), Calendar.id.asc()),
-        serialize=_summaries(serialize_calendar_summary),
+        serialize=_summaries(CalendarSummary),
         conditions=_calendar_conditions,
         # A calendar may belong to the guild rather than to an initiative: the
         # app holds it, and no initiative's switch has anything to say about it.
@@ -908,7 +911,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         response_model=DashboardListResponse,
         loader_options=_loads(dashboards_service.dashboard_loader_options),
         default_order=_order(Dashboard.name.asc(), Dashboard.id.asc()),
-        serialize=_summaries(serialize_dashboard_summary),
+        serialize=_summaries(DashboardSummary),
         params=(
             _initiative_id(),
             search_param(),
@@ -1160,12 +1163,7 @@ def _mount_list(spec: ToolListSpec) -> None:
         page_size = values["page_size"]
         extras = spec.response_extras(request) if spec.response_extras else {}
         return spec.response_model(
-            items=items,
-            total_count=total_count,
-            page=page,
-            page_size=page_size,
-            has_next=page_has_next(page, page_size, total_count),
-            **extras,
+            **build_paginated_response(items, total_count, page, page_size, **extras)
         )
 
     list_rows.__signature__ = _signature(

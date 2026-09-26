@@ -16,6 +16,7 @@ from app.core.intake import IntakeStream
 from app.core.encryption import encrypt_field, SALT_EMAIL
 from app.core.messages import GuildMessages
 from app.db import cohorts
+from app.db.query import apply_pagination
 from app.models.platform.guild import (
     BANNER_TEXT_COLORS,
     GUILD_ADMIN_ROLES,
@@ -1831,8 +1832,8 @@ async def list_community_guilds(
     user_id: int,
     query: str | None = None,
     category: str | None = None,
-    offset: int = 0,
-    limit: int = 24,
+    page: int = 1,
+    page_size: int = 24,
 ) -> tuple[list[tuple[Guild, int, bool]], int]:
     """The community directory: (guild, member_count, already_member) + total.
 
@@ -1898,7 +1899,7 @@ async def list_community_guilds(
     statement = statement.order_by(
         member_count.desc(), Guild.name.asc(), Guild.id.asc()
     )
-    rows = (await session.exec(statement.offset(offset).limit(limit))).all()
+    rows = (await session.exec(apply_pagination(statement, page, page_size))).all()
     return [(guild, int(count), bool(joined)) for guild, count, joined in rows], int(
         total
     )

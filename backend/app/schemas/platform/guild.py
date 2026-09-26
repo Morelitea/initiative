@@ -6,6 +6,7 @@ from typing import List, Literal, Optional
 from pydantic import field_validator, ConfigDict, EmailStr, Field
 
 from app.core.guild_auth_options import GuildAuthOption
+from app.core.login_methods import LoginMethod
 from app.core.messages import GuildMessages
 from app.schemas.base import RawTextStr, RichTextStr, SanitizedBaseModel, TitleStr
 
@@ -411,7 +412,7 @@ class PlatformGuildStorageUpdate(SanitizedBaseModel):
 #: session has proved, and those two are about whether the deployment offers
 #: them at all. The same asymmetry the database holds as CHECKs on
 #: ``require_methods``.
-GuildRequirableMethod = Literal["sso", "totp", "passkey"]
+GuildRequirableMethod = Literal[LoginMethod.sso, LoginMethod.totp, LoginMethod.passkey]
 
 
 class GuildAuthPolicyRead(SanitizedBaseModel):

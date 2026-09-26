@@ -26,7 +26,6 @@ from app.api.deps import (
     IncludeDeletedDep,
     RLSSessionDep,
     app_scope,
-    GuildContextDep,
 )
 from app.core.messages import CalendarMessages, GuildMessages
 from app.core.tools import Tool
@@ -37,8 +36,8 @@ from app.schemas.tenant.calendar import (
     CalendarCreate,
     CalendarRead,
     CalendarUpdate,
-    serialize_calendar,
 )
+from app.schemas.tenant.tool import serialize_tool
 from app.services import permissions as permissions_service
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import guild_apps as guild_apps_service
@@ -85,8 +84,8 @@ async def read_calendar(
     calendar = await resource_access.load_authorized(
         session, Tool.calendar, calendar_id, current_user, guild_context
     )
-    return serialize_calendar(
-        calendar, user_id=guild_context.user_id, context=guild_context
+    return serialize_tool(
+        CalendarRead, calendar, user_id=guild_context.user_id, context=guild_context
     )
 
 
@@ -193,8 +192,8 @@ async def create_calendar(
 
     await session.commit()
     hydrated = await _refetch_calendar(session, calendar.id)
-    return serialize_calendar(
-        hydrated, user_id=guild_context.user_id, context=guild_context
+    return serialize_tool(
+        CalendarRead, hydrated, user_id=guild_context.user_id, context=guild_context
     )
 
 
@@ -235,8 +234,8 @@ async def update_calendar(
         await session.commit()
 
     hydrated = await _refetch_calendar(session, calendar.id)
-    return serialize_calendar(
-        hydrated, user_id=guild_context.user_id, context=guild_context
+    return serialize_tool(
+        CalendarRead, hydrated, user_id=guild_context.user_id, context=guild_context
     )
 
 
@@ -257,6 +256,6 @@ async def read_after_write(
     (``tool_grants.py``) answers in this tool's own shape.
     """
     hydrated = await _refetch_calendar(session, calendar_id)
-    return serialize_calendar(
-        hydrated, user_id=guild_context.user_id, context=guild_context
+    return serialize_tool(
+        CalendarRead, hydrated, user_id=guild_context.user_id, context=guild_context
     )

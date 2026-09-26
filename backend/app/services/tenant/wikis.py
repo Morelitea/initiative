@@ -42,15 +42,7 @@ from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.wiki import Wiki, WikiPage, WikiPageOrder
 from app.services.tenant import tags as tags_service
-
-#: Slugs are addresses, so they are bounded by what stays readable in a URL
-#: rather than by the column, which is wider.
-MAX_SLUG_LENGTH = 120
-
-#: The slug alphabet. Stated as the set of characters that survive rather than
-#: as a pattern of ones that do not, so what a slug may contain is readable
-#: here instead of inferred from a negation.
-_SLUG_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789")
+from app.services.tenant.names import slugify, unique_slug
 
 
 def list_loader_options() -> list:
@@ -99,24 +91,6 @@ async def get_page(
     return (await session.exec(statement)).one_or_none()
 
 
-def slugify_page_title(title: str, *, fallback: str = "page") -> str:
-    """Kebab-case a page title down to the slug alphabet.
-
-    Anything outside the alphabet becomes a separator, runs of separators
-    collapse, and the result is trimmed to length. A title made entirely of
-    characters that do not survive — a page called "???" — yields ``fallback``
-    rather than an empty address.
-    """
-    out: list[str] = []
-    for char in title.strip().lower():
-        if char in _SLUG_CHARS:
-            out.append(char)
-        elif out and out[-1] != "-":
-            out.append("-")
-    slug = "".join(out).strip("-")[:MAX_SLUG_LENGTH].strip("-")
-    return slug or fallback
-
-
 async def unique_page_slug(
     session: AsyncSession,
     wiki_id: int,
@@ -131,20 +105,11 @@ async def unique_page_slug(
     page can take the name of one that was thrown away, and restoring that one
     is where the conflict surfaces.
     """
-    base = slugify_page_title(title)
     statement = select(WikiPage.slug).where(WikiPage.wiki_id == wiki_id)
     if exclude_page_id is not None:
         statement = statement.where(WikiPage.id != exclude_page_id)
     taken = set((await session.exec(statement)).all())
-
-    if base not in taken:
-        return base
-    for suffix in range(2, len(taken) + 3):
-        trimmed = base[: MAX_SLUG_LENGTH - len(str(suffix)) - 1].strip("-") or "page"
-        candidate = f"{trimmed}-{suffix}"
-        if candidate not in taken:
-            return candidate
-    raise ValueError("could not derive a unique wiki page slug")
+    return unique_slug(slugify(title, fallback="page"), taken)
 
 
 async def next_position(

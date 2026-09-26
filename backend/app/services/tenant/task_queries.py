@@ -18,12 +18,12 @@ from sqlalchemy import and_, exists, func, or_
 from sqlalchemy.orm import joinedload, selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
-from zoneinfo import available_timezones
 
 from app.core.messages import QueryMessages
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
+from app.core.user_input_validators import resolve_zone
 from app.db.blocking import blocking_kinds
 from app.db.guild_standing import ActorContext
 from app.db.query import (
@@ -58,13 +58,6 @@ from app.services.fields.spec import FieldContext, SortContext
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import task_checklist as checklist_service
-
-
-def _validate_tz(tz: str | None) -> str | None:
-    """Return *tz* if it is a recognised IANA timezone, else ``None``."""
-    if tz and tz in available_timezones():
-        return tz
-    return None
 
 
 def _date_group_expression(tz: str | None = None):
@@ -787,7 +780,7 @@ async def parse_task_list_query(
             detail=QueryMessages.INVALID_SORT_FIELDS,
         )
 
-    tz = _validate_tz(tz)
+    tz = resolve_zone(tz).key if tz else None
 
     # Every property_values leaf, wherever it sits, so its definition is loaded
     # and the limit counts what the query actually compiles.
