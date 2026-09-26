@@ -56,6 +56,7 @@ from app.services.marketplace.installs import (
 from app.services.tenant import app_config as app_config_service
 from app.services.tenant import app_connections as connections_service
 from app.services.tenant import app_revocation as revocation_service
+from app.services.tenant import app_schedules
 from app.services.tenant import guild_apps as guild_apps_service
 
 logger = logging.getLogger(__name__)
@@ -398,6 +399,9 @@ async def _update_guild(
                 guild_id=guild_id,
                 add_scopes=offer.asks.added_scopes,
             )
+            await app_schedules.reconcile(
+                guild_id, app.id, app.definition, session=session
+            )
             applied += 1
             logger.info(
                 "app auto-update: guild=%s app=%s listing=%s required, %s -> %s",
@@ -431,6 +435,7 @@ async def _update_guild(
             continue
         from_version = app.listing_version
         await apply_version(session, app, pending, guild_id=guild_id)
+        await app_schedules.reconcile(guild_id, app.id, app.definition, session=session)
         applied += 1
         logger.info(
             "app auto-update: guild=%s app=%s listing=%s %s -> %s",

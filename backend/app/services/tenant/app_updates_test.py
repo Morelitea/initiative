@@ -10,12 +10,14 @@ the hourly pass routes its own.
 """
 
 import asyncio
+from datetime import datetime
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
+from app.models.tenant.app_schedule_run import AppScheduleRun
 from app.models.tenant.guild_app import GuildApp
 from app.services.tenant import app_updates
 from app.services.tenant.app_updates import (
@@ -106,6 +108,14 @@ async def _reread(session: AsyncSession, guild_id: int, app_id: int) -> GuildApp
     session.expunge_all()
     await route_session_to_guild(session, guild_id)
     return (await session.exec(select(GuildApp).where(GuildApp.id == app_id))).one()
+
+
+async def _schedules(session: AsyncSession, guild_id: int) -> dict[str, datetime]:
+    """When each of the community's schedules is next due, by id."""
+    session.expunge_all()
+    await route_session_to_guild(session, guild_id)
+    runs = (await session.exec(select(AppScheduleRun))).all()
+    return {run.schedule_id: run.next_due_at for run in runs}
 
 
 class TestTheSweep:
@@ -236,6 +246,31 @@ class TestTheSweep:
         # Theirs, not the copy the pass started from. Working off the earlier
         # read stores ``before.example`` here instead.
         assert updated.config["admin"]["shop_domain"] == "typed-just-now.example"
+
+    async def test_a_new_version_brings_its_schedules(self, session: AsyncSession):
+        """A schedule the new version adds gets a row, one it dropped loses
+        its row, and one it kept keeps its row as it was."""
+        uid = marketplace_uid("autoschedules")
+
+        def scheduled(*ids: str) -> dict:
+            schedules = [{"id": schedule_id, "every": "15m"} for schedule_id in ids]
+            return {**_connection_definition(), "schedules": schedules}
+
+        await _publish(session, uid, "1.0.0", definition=scheduled("kept", "dropped"))
+        guild, _ = await _installed(
+            session, uid, definition=scheduled("kept", "dropped")
+        )
+        before = await _schedules(session, guild.id)
+        assert set(before) == {"kept", "dropped"}
+
+        await _publish(session, uid, "1.1.0", definition=scheduled("kept", "added"))
+        await route_session_to_guild(session, guild.id)
+        assert await _update_guild(session, guild.id) == 1
+        await session.commit()
+
+        after = await _schedules(session, guild.id)
+        assert set(after) == {"kept", "added"}
+        assert after["kept"] == before["kept"]
 
     async def test_a_disabled_install_still_tracks(self, session: AsyncSession):
         """Turning an app off is not the same answer as taking it off the

@@ -53,6 +53,7 @@ from app.models.tenant.calendar_event import (
 from app.models.tenant.event_outbox import EventOutbox
 from app.models.tenant.app_event_outbox import AppEventOutbox
 from app.models.tenant.app_hook_delivery import AppHookDelivery
+from app.models.tenant.app_schedule_run import AppScheduleRun
 from app.models.tenant.search_entry import SearchEntry
 from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
 from app.models.tenant.dashboard import Dashboard
@@ -192,6 +193,7 @@ __all__ = [
     "EventOutbox",
     "AppEventOutbox",
     "AppHookDelivery",
+    "AppScheduleRun",
     "SearchEntry",
     "EventReminderDispatch",
     "Dashboard",

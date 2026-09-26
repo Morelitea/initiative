@@ -53,6 +53,7 @@ from app.services.marketplace.installs import (
     ListingInstallError,
     resolve_listing_install,
 )
+from app.services.tenant import app_schedules
 from app.services.tenant import guild_apps as guild_apps_service
 
 logger = logging.getLogger(__name__)
@@ -222,6 +223,7 @@ async def install_mandatory_apps(
         # Indexed now, before the caller commits: a guild whose seed fails is
         # removed, and its index rows with it.
         await app_installs.record(guild_id, app)
+        await app_schedules.reconcile(guild_id, app.id, definition, session=session)
         installed.append(listing.uid)
 
     return installed

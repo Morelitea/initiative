@@ -230,6 +230,8 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # its own; read through its subscription (LEDGER_TABLES below).
         "app_hook_deliveries",  # vendor webhook deliveries an install accepted;
         # read through the install (LEDGER_TABLES below).
+        "app_schedule_runs",  # when an install's schedules last ran and run
+        # next; read through the install (LEDGER_TABLES below).
         "tags",  # tags are guild-level, shared across initiatives (purge-guarded)
         "uploads",  # guild blob store: no FK to any initiative entity (documents
         # reference blobs by file_url string, and a blob can be pinned by
@@ -338,6 +340,7 @@ SEAT_TABLES: frozenset[str] = frozenset(
 LEDGER_TABLES: dict[str, tuple[str, str]] = {
     "webhook_deliveries": ("webhook_subscriptions", "subscription_id"),
     "app_hook_deliveries": ("guild_apps", "install_id"),
+    "app_schedule_runs": ("guild_apps", "install_id"),
 }
 
 # --- Row-attribution overlay on guild-schema tables ---------------------------
@@ -381,6 +384,7 @@ CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
         "event_outbox",
         "app_event_outbox",
         "app_hook_deliveries",
+        "app_schedule_runs",
         "event_reminder_dispatches",
         "search_entries",
         "reaction_digest_items",
