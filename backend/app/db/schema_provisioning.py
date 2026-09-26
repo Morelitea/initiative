@@ -494,12 +494,20 @@ async def strip_template_registry_objects(conn: AsyncConnection) -> int:
 
 #: What ``guild_<id>_app`` reads outside ``APP_TABLE_ACCESS``: table -> the
 #: columns, or ``()`` for the whole row. The install standing statement reads
-#: the install and where it is placed, and for a member token the member's
+#: the install, the scopes its pinned version requests and where it is
+#: placed, and for a member token the member's
 #: consent and what their initiative roles permit; the sharing gate reads the
 #: grant rows; a notification about what the install did names it. No route
 #: addresses any of them for an app.
 APP_ROLE_MACHINERY_READS: dict[str, tuple[str, ...]] = {
-    "guild_apps": ("id", "listing_uid", "enabled", "granted_scopes", "name"),
+    "guild_apps": (
+        "id",
+        "listing_uid",
+        "enabled",
+        "granted_scopes",
+        "definition",
+        "name",
+    ),
     "app_placements": ("install_id", "initiative_id"),
     "app_member_consents": (
         "install_id",

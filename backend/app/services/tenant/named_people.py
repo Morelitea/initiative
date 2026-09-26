@@ -25,7 +25,8 @@ opens the row themselves.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+from collections.abc import AsyncIterator, Callable, Iterable
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any, Optional
 
@@ -168,16 +169,30 @@ def readers_of(governing: Governing, guild_id: int) -> Select:
     )
 
 
+@asynccontextmanager
+async def roster_session(session: AsyncSession) -> AsyncIterator[AsyncSession]:
+    """Where the routed community's roster is read for ``session``'s request.
+
+    The request's own session for a person, so a row it has just made is seen.
+    An installed app's role reads as much of the roster as its scopes allow,
+    and who can open something is not its scopes' to say, so its requests are
+    answered by the community's own read instead, as
+    :mod:`app.services.reachability` does.
+    """
+    if install_context(session) is None:
+        yield session
+        return
+    guild_id = routed_guild_id(session)
+    async with cohorts.system_session(guild_id) as probe, probe.begin():
+        await set_rls_context(probe, guild_id=guild_id)
+        yield probe
+
+
 async def readers(
     session: AsyncSession, governing: Governing, user_ids: Iterable[int]
 ) -> set[int]:
-    """Those of ``user_ids`` who can open the governing row.
-
-    Asked on the request's own session, so a row the request has just made is
-    seen. An installed app's role does not read the rosters this walks, so its
-    requests are answered by the community's own read instead, as
-    :mod:`app.services.reachability` does.
-    """
+    """Those of ``user_ids`` who can open the governing row, read on
+    :func:`roster_session`."""
     ids = sorted(set(user_ids))
     if not ids:
         return set()
@@ -188,11 +203,8 @@ async def readers(
         MemberProfile.id.in_(ids),
         MemberProfile.id.in_(readers_of(governing, guild_id)),
     )
-    if install_context(session) is None:
-        return set((await session.exec(stmt)).all())
-    async with cohorts.system_session(guild_id) as probe, probe.begin():
-        await set_rls_context(probe, guild_id=guild_id)
-        return set((await probe.exec(stmt)).all())
+    async with roster_session(session) as reader:
+        return set((await reader.exec(stmt)).all())
 
 
 async def require_readers(

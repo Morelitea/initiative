@@ -57,6 +57,7 @@ from app.core.app_scopes import (
 )
 from app.core.config import API_V1_STR, settings
 from app.db import cohorts
+from app.db.guild_standing import ISSUABLE_SCOPES_SQL
 from app.db.session import set_rls_context
 from app.models.platform.app_assertion_jti import ASSERTION_JTI_MAX_LENGTH
 from app.models.platform.app_service_registration import registration_live_sql
@@ -387,34 +388,15 @@ def _requested_scopes(value: str | None) -> frozenset[str] | None:
         raise OAuthError("invalid_scope", f"{exc.scope!r} is not a scope") from exc
 
 
-#: The scopes the install's pinned manifest requests, as ``text[]``. A grant
-#: is issued only where the pinned version still asks for it, so a scope a
-#: later version stops requesting stops being issued with it, while the seat's
-#: grant itself is left as the seat set it.
-_REQUESTED_SQL = (
-    "ARRAY(SELECT s #>> '{}' FROM jsonb_path_query(a.definition, "
-    "'$.service.scopes[*] ? (@.type() == \"string\")') AS s) AS requested_scopes"
-)
-
-
 def _issuable(row: Any) -> frozenset[str]:
-    """What an install's grant issues now: the seat's grant, within what the
-    pinned manifest requests and what the vocabulary still defines.
-
-    A scope the vocabulary no longer defines is left out rather than sealed:
-    the token could never be used with it.
-    """
-    return frozenset(
-        scope
-        for scope in frozenset(row.granted_scopes or ())
-        & frozenset(row.requested_scopes or ())
-        if is_known_scope(scope)
-    )
+    """What an install's grant issues now: :data:`ISSUABLE_SCOPES_SQL`, less
+    any scope the vocabulary no longer defines, which the token could never be
+    used with."""
+    return frozenset(scope for scope in row.issuable if is_known_scope(scope))
 
 
 _INSTALL_SQL_TEXT = (
-    "SELECT a.listing_uid, a.enabled, a.granted_scopes, "
-    f"{_REQUESTED_SQL}, "
+    f"SELECT a.listing_uid, a.enabled, {ISSUABLE_SCOPES_SQL} AS issuable, "
     "ARRAY(SELECT p.initiative_id FROM app_placements p "
     "WHERE p.install_id = a.id ORDER BY p.initiative_id) AS placed "
     "FROM guild_apps a WHERE a.id = :install_id"
@@ -490,8 +472,7 @@ async def _installation_token(
 #: initiatives the member is in and their live consent. Read on the system
 #: engine routed into the community.
 _MEMBER_INSTALL_SQL_TEXT = (
-    "SELECT a.listing_uid, a.enabled, a.granted_scopes, "
-    f"{_REQUESTED_SQL}, "
+    f"SELECT a.listing_uid, a.enabled, {ISSUABLE_SCOPES_SQL} AS issuable, "
     "ARRAY(SELECT p.initiative_id FROM app_placements p "
     "WHERE p.install_id = a.id ORDER BY p.initiative_id) AS placed, "
     "ARRAY(SELECT im.initiative_id FROM initiative_members im "

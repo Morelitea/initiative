@@ -63,7 +63,7 @@ async def app_event_emitters(
     definition declares the event as ``emit``. A type no install declares is
     absent.
 
-    Read on the system engine, routed into the community: an installed app's
+    Read on a system session from the community's cohort, routed into it: an installed app's
     own request does not reach ``guild_apps``.
     """
     wanted = {name for name in event_types if name.startswith(ENDPOINT_ID_PREFIX)}

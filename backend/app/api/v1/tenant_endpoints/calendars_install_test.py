@@ -23,6 +23,7 @@ from app.services.marketplace import app_refs
 from app.testing import (
     guild_url,
     create_calendar,
+    create_resource_grant,
     create_calendar_event,
     create_guild_app,
     create_guild_calendar,
@@ -293,6 +294,13 @@ async def test_invites_attendees_by_reference_in_its_own_name(
         json={"name": "App calendar", "initiative_id": installed.placed.id},
     )
     assert calendar.status_code == 201, calendar.text
+    # Open to the initiative, so the attendee can read what they are named on.
+    await route_session_to_guild(session, guild_id)
+    await create_resource_grant(
+        session,
+        await session.get(Calendar, calendar.json()["id"]),
+        all_initiative_members=True,
+    )
     created = await client.post(
         guild_url(guild_id, "/calendar-events/"),
         headers=headers,

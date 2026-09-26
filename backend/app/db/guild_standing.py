@@ -77,6 +77,7 @@ __all__ = [
     "ActorContext",
     "GuildContext",
     "INSTALL_STANDING_SQL",
+    "ISSUABLE_SCOPES_SQL",
     "InstallContext",
     "STANDING_GUCS",
     "STANDING_SQL",
@@ -322,6 +323,17 @@ def _permission_default_values() -> str:
     )
 
 
+#: The scopes an install's tokens may carry, as ``text[]`` over ``guild_apps
+#: a``: those the seat granted that the pinned version still requests. The
+#: grant itself is left as the seat set it, so a scope a later version stops
+#: requesting stops being carried by every token at once. Read by token
+#: issuance, the install standing and the app hub alike.
+ISSUABLE_SCOPES_SQL = (
+    "ARRAY(SELECT s FROM unnest(a.granted_scopes) AS s "
+    "WHERE a.definition -> 'service' -> 'scopes' @> jsonb_build_array(s))"
+)
+
+
 #: An installed app's standing, in one statement. Runs as ``guild_<id>_app``
 #: after the install routing. The community, the install, the client the token
 #: was issued to, the token's scopes, the narrowed initiative and, for a member
@@ -379,7 +391,8 @@ WITH consent AS (
     AND (c.initiative_id IS NULL OR c.initiative_id = {_SCOPE_INITIATIVE})
 ),
 install AS (
-  SELECT a.id, a.granted_scopes, g.status = '{GuildStatus.read_only.value}' AS read_only
+  SELECT a.id, {ISSUABLE_SCOPES_SQL} AS granted_scopes,
+         g.status = '{GuildStatus.read_only.value}' AS read_only
   FROM guild_apps a
   JOIN public.guilds g ON g.id = {_GID}
   WHERE a.id = {_IID}
