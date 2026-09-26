@@ -4,6 +4,7 @@ import {
   type PropertySummary,
   PropertyType,
 } from "@/api/generated/initiativeAPI.schemas";
+import type { MemberLike } from "@/components/members/MemberSearchSelect";
 
 /**
  * Slugify a user-entered label into a stable option value slug. Output is
@@ -95,3 +96,22 @@ export const nonEmptyPropertySummaries = (
   if (!summaries) return [];
   return summaries.filter((summary) => !isEmptyPropertyValue(summary.value));
 };
+
+/** The person a ``user_reference`` value carries (the server reads it back as
+ *  ``{id, full_name, …}``), so a picker can render them without a search. */
+export const userReferenceValue = (property: PropertySummary): MemberLike | null => {
+  if (property.type !== PropertyType.user_reference) return null;
+  const raw = property.value;
+  if (raw && typeof raw === "object" && typeof (raw as { id?: unknown }).id === "number") {
+    return raw as MemberLike;
+  }
+  return null;
+};
+
+/** Convert a server ``PropertySummary.value`` into the shape an edited value
+ *  takes: ``user_reference`` collapses to its numeric id (``PropertyInput``
+ *  round-trips the id), everything else passes through. */
+export const normalizePropertyValue = (property: PropertySummary): unknown =>
+  property.type === PropertyType.user_reference
+    ? (userReferenceValue(property)?.id ?? null)
+    : (property.value ?? null);

@@ -1,19 +1,18 @@
 import { X } from "lucide-react";
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  type PropertyDefinitionRead,
-  type PropertySummary,
-  PropertyType,
-  type Tool,
+import type {
+  PropertyDefinitionRead,
+  PropertySummary,
+  Tool,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { MemberLike } from "@/components/members/MemberSearchSelect";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 import { PropertyInput } from "./PropertyInput";
+import { userReferenceValue } from "./propertyHelpers";
 import { iconForPropertyType } from "./propertyTypeIcons";
 
 export interface PropertyFieldsProps {
@@ -43,45 +42,12 @@ export const propertyStubFromDefinition = (
   value: null,
 });
 
-/** Convert a server ``PropertySummary.value`` into the shape the controlled
- *  ``values`` map expects: ``user_reference`` collapses to its numeric id
- *  (``PropertyInput`` round-trips the id), everything else passes through. */
-export const normalizePropertyValue = (property: PropertySummary): unknown => {
-  if (property.type === PropertyType.user_reference) {
-    if (
-      property.value &&
-      typeof property.value === "object" &&
-      "id" in property.value &&
-      typeof (property.value as { id: unknown }).id === "number"
-    ) {
-      return (property.value as { id: number }).id;
-    }
-    return null;
-  }
-  return property.value ?? null;
-};
-
-/** Pull the person a ``user_reference`` value carries so the picker can
- *  render them without a search round-trip. */
-const userReferenceValue = (property: PropertySummary): MemberLike | null => {
-  if (property.type !== PropertyType.user_reference) return null;
-  const raw = property.value;
-  if (
-    raw &&
-    typeof raw === "object" &&
-    "id" in raw &&
-    typeof (raw as { id: unknown }).id === "number"
-  ) {
-    return raw as MemberLike;
-  }
-  return null;
-};
-
 /**
  * Presentational, fully-controlled list of custom property inputs. It owns no
  * persistence, debounce, or draft state — the parent holds the values and
  * decides when/how to save (immediate PUT vs batch into a create/update
- * request). ``PropertyList`` wraps this for the autosaving document/event flow.
+ * request). ``PropertyList`` wraps this for the autosaving document/task/event
+ * flow.
  */
 export const PropertyFields = ({
   properties,
@@ -94,6 +60,7 @@ export const PropertyFields = ({
   className,
 }: PropertyFieldsProps) => {
   const { t } = useTranslation(["properties", "common"]);
+  const idPrefix = useId();
 
   const sorted = useMemo(
     () => [...properties].sort((a, b) => a.name.localeCompare(b.name)),
@@ -112,7 +79,7 @@ export const PropertyFields = ({
     <div className={cn("space-y-2", className)}>
       <ul className="space-y-2">
         {sorted.map((property) => {
-          const inputId = `property-field-${property.property_id}`;
+          const inputId = `${idPrefix}-${property.property_id}`;
           const Icon = iconForPropertyType(property.type);
           return (
             <li

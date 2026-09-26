@@ -10,8 +10,9 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError, ProgrammingError
 
 from app.db.schema_provisioning import (
+    GuildRoleKind,
+    guild_role_name,
     drop_guild_schema,
-    guild_query_role_name,
     guild_schema_name,
     provision_guild_schema,
 )
@@ -44,7 +45,9 @@ async def _as_query_role(conn, statement: str):
     own membership table.
     """
     schema = guild_schema_name(_GID)
-    await conn.exec_driver_sql(f'SET ROLE "{guild_query_role_name(_GID)}"')
+    await conn.exec_driver_sql(
+        f'SET ROLE "{guild_role_name(_GID, GuildRoleKind.query)}"'
+    )
     await conn.exec_driver_sql(f'SET search_path = "{schema}", public')
     try:
         return await conn.execute(text(statement))
@@ -138,7 +141,7 @@ async def test_the_login_role_holds_no_standing_access(engine, provisioned):
     false, and ``MEMBER`` (may SET ROLE) the half that must be true. A single
     expression combining them cannot tell the two settings apart.
     """
-    role = guild_query_role_name(_GID)
+    role = guild_role_name(_GID, GuildRoleKind.query)
     async with engine.connect() as conn:
         standing = await conn.scalar(
             text("SELECT pg_has_role(:login, :role, 'USAGE')"),
@@ -158,7 +161,7 @@ async def test_the_login_role_holds_no_standing_access(engine, provisioned):
 @pytest.mark.parametrize("verb", ["INSERT", "UPDATE", "DELETE"])
 async def test_it_cannot_write_shared_tables(engine, provisioned, table, verb):
     """The shared floor it inherits is the read-only one."""
-    role = guild_query_role_name(_GID)
+    role = guild_role_name(_GID, GuildRoleKind.query)
     async with engine.connect() as conn:
         granted = await conn.scalar(
             text("SELECT has_table_privilege(:r, :t, :p)"),

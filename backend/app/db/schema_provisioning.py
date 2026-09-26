@@ -26,6 +26,7 @@ import asyncio
 import hashlib
 import logging
 from dataclasses import dataclass, field
+from enum import StrEnum
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
@@ -51,8 +52,40 @@ def guild_schema_name(guild_id: int) -> str:
     return f"guild_{int(guild_id)}"
 
 
-def guild_role_name(guild_id: int) -> str:
-    """Cluster-global role name for a guild, e.g. ``guild_42``.
+class GuildRoleKind(StrEnum):
+    """A guild's roles, each spelled ``guild_<id>`` plus its suffix. The login
+    roles can ``SET ROLE`` into every one and hold no standing access to any.
+    """
+
+    #: The full role: DML on the schema, and the ``app_guild_base`` floor. A
+    #: member's request assumes it.
+    full = ""
+    #: SELECT on the schema and nothing written, over the read-only floor
+    #: ``app_guild_base_ro``. Assumed by PAM *read* grants, read-only members
+    #: and settings-only grants.
+    read_only = "_ro"
+    #: A scoped ``read_write`` grant (the ``support`` identity): DML on content,
+    #: SELECT-only on ``SUPPORT_WRITE_PROTECTED_TABLES``, so the grantee cannot
+    #: manage who is in the guild or who can see what.
+    support = "_support"
+    #: The SQL query surface: ``USAGE`` on the schema and ``SELECT`` on its
+    #: tables. Not ``_ro``: two identities that hold the same privileges today
+    #: are still two identities, and an audit should tell a grantee's read from
+    #: a member's query. Initiative RLS still applies, because the policies read
+    #: the request's identity rather than its role.
+    query = "_q"
+    #: The seat: inherits the full role and ``app_superadmin``, the floor
+    #: carrying the community's sign-in configuration. Assumed by a request
+    #: that asked for the seat and holds it; an ordinary request by a seat
+    #: holder routes as the full role.
+    seat = "_superadmin"
+    #: An installed app's request: only what ``app.db.app_rls.APP_TABLE_ACCESS``
+    #: names, no default privileges, and ``app_install_base`` for ``public``.
+    app = "_app"
+
+
+def guild_role_name(guild_id: int, kind: GuildRoleKind = GuildRoleKind.full) -> str:
+    """Cluster-global role name for a guild, e.g. ``guild_42`` or ``guild_42_ro``.
 
     Carries ``settings.GUILD_ROLE_PREFIX`` (empty in prod/dev). Roles are
     cluster-global — unlike schemas, which are per-database — so the test suite
@@ -60,73 +93,13 @@ def guild_role_name(guild_id: int) -> str:
     Deliberately a separate name from the schema: a role and a schema are
     different objects with different collision scopes.
     """
-    return f"{settings.GUILD_ROLE_PREFIX}guild_{int(guild_id)}"
+    return f"{settings.GUILD_ROLE_PREFIX}guild_{int(guild_id)}{kind.value}"
 
 
-def guild_readonly_role_name(guild_id: int) -> str:
-    """Read-only role for a guild, e.g. ``guild_42_ro``.
-
-    Assumed by PAM *read* grants and by read-only members: SELECT on the schema
-    and on the shared tables, and no DML anywhere — unlike the full guild role
-    used for membership/writes, which carries the writable shared floor.
-    """
-    return f"{settings.GUILD_ROLE_PREFIX}guild_{int(guild_id)}_ro"
-
-
-def guild_support_role_name(guild_id: int) -> str:
-    """Restricted read_write role for a guild, e.g. ``guild_42_support``.
-
-    Assumed by a scoped read_write PAM grant (the ``support`` guild identity): it
-    can SELECT everything and edit content, but the structural / permission tables
-    in ``SUPPORT_WRITE_PROTECTED_TABLES`` are SELECT-only, so a support grantee
-    cannot manage who is in the guild or who can see what. Break-glass (full
-    admin) uses the full ``guild_<id>`` role instead; a read grant uses ``_ro``.
-    """
-    return f"{settings.GUILD_ROLE_PREFIX}guild_{int(guild_id)}_support"
-
-
-def guild_superadmin_role_name(guild_id: int) -> str:
-    """The seat's role for a guild, e.g. ``guild_42_superadmin``.
-
-    Assumed by a request that asked for the seat and reached it — the
-    membership row says ``superadmin``, or a live ``superadmin`` settings
-    grant does. It inherits ``guild_<id>`` (the schema, and through it the
-    ``app_guild_base`` floor) and ``app_superadmin``, the floor carrying the
-    community's sign-in configuration.
-
-    Asking for it is a separate condition from holding it: an ordinary
-    request by a seat holder routes as ``guild_<id>``, so a content read
-    carries none of the configuration grants.
-    """
-    return f"{settings.GUILD_ROLE_PREFIX}guild_{int(guild_id)}_superadmin"
-
-
-def guild_query_role_name(guild_id: int) -> str:
-    """Read-only role for the SQL query surface, e.g. ``guild_42_q``.
-
-    Assumed for a member's own query: ``USAGE`` on the schema and ``SELECT`` on
-    its tables, and nothing else — no writes, and no reach outside the schema
-    and what ``app_guild_base`` already carries. Initiative RLS still applies,
-    because the policies read the request's identity rather than its role.
-
-    Deliberately not ``_ro``, which is the PAM read role. Two identities that
-    happen to hold the same privileges today are still two identities, and an
-    audit that cannot tell a grantee's read from a member's query is worth
-    less than a second ``CREATE ROLE``.
-    """
-    return f"{settings.GUILD_ROLE_PREFIX}guild_{int(guild_id)}_q"
-
-
-def guild_app_role_name(guild_id: int) -> str:
-    """The role an installed app's request assumes, e.g. ``guild_42_app``.
-
-    It holds only what :data:`app.db.app_rls.APP_TABLE_ACCESS` names: ``SELECT``
-    on a table an app reads, DML on a table an app writes or causes to be
-    written, and nothing on any other table in the schema. It takes no default
-    privileges, so a table added later reaches it through an entry there. Its
-    reach into ``public`` is ``app_install_base``, a floor of its own.
-    """
-    return f"{settings.GUILD_ROLE_PREFIX}guild_{int(guild_id)}_app"
+def guild_role_regex() -> str:
+    """A Postgres regex matching every guild's roles, under the current prefix."""
+    suffixes = "|".join(k.value for k in GuildRoleKind if k.value)
+    return f"^{settings.GUILD_ROLE_PREFIX}guild_[0-9]+({suffixes})?$"
 
 
 # Permission tables the restricted ``support`` role may READ but never WRITE:
@@ -222,12 +195,6 @@ SYSTEM_GUILD_MAINTENANCE_SEQUENCE_GRANTS: dict[str, tuple[str, ...]] = {
 }
 
 
-# The platform privilege ladder, least -> most, as ``users.role`` spells it.
-# The migration creates one ``platform_<tier>`` NOLOGIN role per entry plus a
-# shared ``platform_base`` floor; the public/platform request path assumes
-# ``platform_<users.role>``.
-PLATFORM_TIERS: tuple[str, ...] = tuple(role.value for role in UserRole)
-
 #: The platform role a suspended account assumes whatever its tier: it holds no
 #: rung while in time out. ``platform_suspended`` inherits only
 #: ``platform_base_ro``, the read half of ``platform_base``, so what it reaches
@@ -235,8 +202,12 @@ PLATFORM_TIERS: tuple[str, ...] = tuple(role.value for role in UserRole)
 #: holds it — so it sits beside the ladder rather than on it.
 PLATFORM_SUSPENDED = "suspended"
 
-#: Every platform role a request may assume: the ladder, and the time-out role.
-PLATFORM_ROUTES: tuple[str, ...] = (*PLATFORM_TIERS, PLATFORM_SUSPENDED)
+#: Every platform role a request may assume: one ``platform_<tier>`` per rung
+#: of the ladder (``users.role``), and the time-out role.
+PLATFORM_ROUTES: tuple[str, ...] = (
+    *(role.value for role in UserRole),
+    PLATFORM_SUSPENDED,
+)
 
 
 def platform_role_name(role: str) -> str:
@@ -329,7 +300,7 @@ async def get_provisioning_bundle() -> ProvisioningBundle:
         # that were created without it.
         opclass = f"public.{SEARCH_OPCLASS}" if await search_operator_ready() else None
         search_ddl = render_guild_search_ddl(opclass)
-        grants = _grant_statements("__stamp__", *_guild_roles(0))
+        grants = _grant_statements("__stamp__", 0)
         _bundle = ProvisioningBundle(
             schema_ddl=schema_ddl,
             rls_ddl=rls_ddl,
@@ -595,17 +566,8 @@ def _app_role_grant_statements(schema: str, app_role: str) -> list[str]:
     return stmts
 
 
-def _grant_statements(
-    schema: str,
-    role: str,
-    ro_role: str,
-    support_role: str,
-    query_role: str,
-    seat_role: str,
-    app_role: str,
-) -> list[str]:
-    """Fail-closed grants tying a guild's ``role`` (read/write), ``ro_role``
-    (read-only) and ``support_role`` (restricted read/write) to its ``schema``.
+def _grant_statements(schema: str, guild_id: int) -> list[str]:
+    """Fail-closed grants tying each of the guild's roles to its ``schema``.
 
     NOTE: the provisioning-bundle stamp hashes this function's RENDERED
     output, so changing WHAT it grants invalidates every guild's stamp and
@@ -622,6 +584,9 @@ def _grant_statements(
     "no member/permission management" line. The app role (an installed app's
     requests) holds only what ``_app_role_grant_statements`` renders.
     """
+    role, ro_role, support_role, query_role, seat_role, app_role = _guild_roles(
+        guild_id
+    )
     stmts = [
         # Account-erasure maintenance: direct, table-bounded access lets the
         # app_admin login retain BYPASSRLS while it removes embedded names.
@@ -719,16 +684,9 @@ async def _exec_batch(conn: AsyncConnection, statements: list[str]) -> None:
     await raw.driver_connection.execute(";\n".join(statements) + ";")
 
 
-def _guild_roles(guild_id: int) -> tuple[str, str, str, str, str, str]:
-    """A guild's six roles, in the order :func:`_grant_statements` takes them."""
-    return (
-        guild_role_name(guild_id),
-        guild_readonly_role_name(guild_id),
-        guild_support_role_name(guild_id),
-        guild_query_role_name(guild_id),
-        guild_superadmin_role_name(guild_id),
-        guild_app_role_name(guild_id),
-    )
+def _guild_roles(guild_id: int) -> tuple[str, ...]:
+    """A guild's roles, one per :class:`GuildRoleKind`, in its order."""
+    return tuple(guild_role_name(guild_id, kind) for kind in GuildRoleKind)
 
 
 async def _existing_roles(conn: AsyncConnection, roles: tuple[str, ...]) -> set[str]:
@@ -781,7 +739,7 @@ async def _apply_parts(
             conn,
             [
                 *(f'CREATE ROLE "{r}" NOLOGIN' for r in roles if r not in existing),
-                *_grant_statements(schema, *roles),
+                *_grant_statements(schema, guild_id),
             ],
         )
     if "rls" in parts:
@@ -1280,11 +1238,8 @@ def _expected_shared_table_grants() -> list[tuple[str, str, frozenset[str]]]:
     from app.db import system_grants
 
     expected: list[tuple[str, str, frozenset[str]]] = []
-    for role, matrix in (
-        ("app_admin", system_grants.SHARED_TABLE_SYSTEM_GRANTS),
-        ("app_user", system_grants.SHARED_TABLE_APP_USER_GRANTS),
-    ):
-        for table, verbs in matrix.items():
+    for role in ("app_admin", "app_user"):
+        for table, verbs in system_grants.ROLE_GRANTS[role].items():
             if verbs:
                 expected.append((role, table, verbs))
     return expected
@@ -1601,13 +1556,13 @@ async def verify_effective_shared_grants() -> None:
             db_session.system_engine,
             "DATABASE_URL_ADMIN",
             "app_admin",
-            system_grants.SHARED_TABLE_SYSTEM_GRANTS,
+            system_grants.ROLE_GRANTS["app_admin"],
         ),
         (
             db_session.engine,
             "DATABASE_URL_APP",
             "app_user",
-            system_grants.SHARED_TABLE_APP_USER_GRANTS,
+            system_grants.ROLE_GRANTS["app_user"],
         ),
     ):
         async with engine_.connect() as conn:

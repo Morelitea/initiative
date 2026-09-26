@@ -46,6 +46,7 @@ from app.services import notifications as notifications_service
 from app.services.platform import user_avatars as user_avatars_service
 from app.services import audit as audit_service
 from app.services.platform import usernames as username_service
+from app.services.platform import guilds as guilds_service
 from app.services.platform import users as users_service
 
 logger = logging.getLogger(__name__)
@@ -764,16 +765,14 @@ async def check_user_deletion_eligibility(
             )
             can_delete = False
 
-    guild_blocker_details = await users_service.get_guild_blocker_details(
-        session, user_id
-    )
-
     return OperatorDeletionEligibilityResponse(
         can_delete=can_delete,
         blockers=blockers,
         guild_blockers=[
-            GuildBlockerInfo(guild_id=gb["guild_id"], guild_name=gb["guild_name"])
-            for gb in guild_blocker_details
+            GuildBlockerInfo(guild_id=guild_id, guild_name=guild_name)
+            for guild_id, guild_name in await guilds_service.stranded_seats(
+                session, user_id=user_id
+            )
         ],
     )
 

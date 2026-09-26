@@ -1,72 +1,28 @@
-"""Completeness guard for the shared-table grant registry (issue #782).
+"""The shared-table grant registry (issue #782): verbs and their render.
 
-Mirrors ``tenancy_test``: these fail when a shared table has no grant decision
-for one of the six recorded roles — a new ``public`` table must give the
-system engine (and the bare login role) *nothing* until this registry says so,
-and the four floors must have said what they hold, making "decide and grant" a
-real edit rather than a comment in CLAUDE.md.
-
-Pure metadata — no database. The complementary check that the *live catalog*
-matches the registry (drift in either direction) lives in
-``security_invariants_test`` (integration).
+Pure metadata — no database. That every shared table has a record is
+``public_rls_test``; that the live catalog matches the registry (drift in
+either direction) is ``security_invariants_test`` (integration).
 """
 
-import pytest
+from dataclasses import fields
 
-from app.core.capabilities import Capability
-from app.db.public_rls import PLATFORM_TIER_ROLES
-from app.db.system_grants import (
-    GRANTABLE_SHARED_TABLES,
-    SHARED_TABLE_APP_GUILD_BASE_GRANTS,
-    SHARED_TABLE_APP_INSTALL_BASE_GRANTS,
-    SHARED_TABLE_APP_SUPERADMIN_GRANTS,
-    SHARED_TABLE_APP_USER_GRANTS,
-    SHARED_TABLE_PLATFORM_BASE_GRANTS,
-    SHARED_TABLE_SYSTEM_GRANTS,
-    SHARED_TABLE_TIER_GRANTS,
-    VALID_GRANT_VERBS,
-    grant_sql,
-    tier_table_grants,
-)
+from app.db.public_rls import PLATFORM_TIER_ROLES, SHARED_TABLE_REGISTRY, Grants
+from app.db.system_grants import VALID_GRANT_VERBS, grant_sql, tier_table_grants
 
 
-_MATRICES = [
-    ("app_admin", SHARED_TABLE_SYSTEM_GRANTS),
-    ("app_user", SHARED_TABLE_APP_USER_GRANTS),
-    ("app_guild_base", SHARED_TABLE_APP_GUILD_BASE_GRANTS),
-    ("platform_base", SHARED_TABLE_PLATFORM_BASE_GRANTS),
-    ("app_superadmin", SHARED_TABLE_APP_SUPERADMIN_GRANTS),
-    ("app_install_base", SHARED_TABLE_APP_INSTALL_BASE_GRANTS),
-]
-
-
-@pytest.mark.parametrize("role, matrix", _MATRICES)
-def test_registry_covers_exactly_the_shared_tables(role, matrix):
-    """Every shared table — and only shared tables — has an explicit grant
-    decision. A new ``public`` table with no entry fails the ``missing`` half
-    (forcing the "grant it nothing until decided" step to be a real edit); a
-    typo or a dropped table fails the ``phantom`` half."""
-    missing = GRANTABLE_SHARED_TABLES - set(matrix)
-    assert not missing, (
-        f"{role}: shared tables with no grant decision {sorted(missing)}. Add each "
-        "to app/db/system_grants.py (a verb set, or None for no access)."
-    )
-    phantom = set(matrix) - GRANTABLE_SHARED_TABLES
-    assert not phantom, (
-        f"{role}: registry names non-shared or nonexistent tables {sorted(phantom)}. "
-        "Remove them or fix the names (shared tables come from tenancy.SHARED_TABLES)."
-    )
-
-
-@pytest.mark.parametrize("role, matrix", _MATRICES)
-def test_registry_uses_only_known_dml_verbs(role, matrix):
+def test_registry_uses_only_known_dml_verbs():
     """Guard against a typo'd or non-DML verb silently dropping out of the
     rendered GRANT (``grant_sql`` only emits the known verbs)."""
-    for table, verbs in matrix.items():
-        if verbs is None:
-            continue
-        unknown = set(verbs) - VALID_GRANT_VERBS
-        assert not unknown, f"{role}.{table}: unknown grant verbs {sorted(unknown)}"
+    for table, shared in SHARED_TABLE_REGISTRY.items():
+        held = {role.name: getattr(shared.grants, role.name) for role in fields(Grants)}
+        held |= {str(capability): verbs for capability, verbs in shared.tiers.items()}
+        for holder, verbs in held.items():
+            if verbs is None:
+                continue
+            assert verbs, f"{table}.{holder}: empty verb set (use None)"
+            unknown = set(verbs) - VALID_GRANT_VERBS
+            assert not unknown, f"{table}.{holder}: unknown verbs {sorted(unknown)}"
 
 
 def test_grant_sql_renders_canonical_order():
@@ -74,22 +30,8 @@ def test_grant_sql_renders_canonical_order():
         grant_sql(frozenset({"DELETE", "SELECT", "INSERT"})) == "SELECT, INSERT, DELETE"
     )
     assert grant_sql(frozenset({"SELECT"})) == "SELECT"
-
-
-def test_grant_sql_returns_none_for_no_access():
     assert grant_sql(None) is None
     assert grant_sql(frozenset()) is None
-
-
-def test_tier_grants_name_shared_tables_capabilities_and_known_verbs():
-    for table, by_capability in SHARED_TABLE_TIER_GRANTS.items():
-        assert table in GRANTABLE_SHARED_TABLES, f"{table}: not a shared table"
-        assert by_capability, f"{table}: no capability named"
-        for capability, verbs in by_capability.items():
-            assert isinstance(capability, Capability), f"{table}: {capability!r}"
-            assert verbs, f"{table}.{capability}: no verbs"
-            unknown = set(verbs) - VALID_GRANT_VERBS
-            assert not unknown, f"{table}.{capability}: unknown verbs {unknown}"
 
 
 def test_tier_grants_render_to_every_tier():

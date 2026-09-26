@@ -108,7 +108,6 @@
     "createProject": "Create project"
   },
   "detail": {
-    "invalidProjectId": "Invalid project id.",
     "backToProjects": "← Back to projects",
     "loading": "Loading project…",
     "loadError": "Unable to load project.",
@@ -307,16 +306,10 @@
   },
   "table": {
     "reorder": "Reorder",
-    "dateWindow": "Date window",
     "doneColumn": "Done",
     "markInProgress": "Mark task as in progress",
     "markDone": "Mark task as done",
     "taskColumn": "Task",
-    "startDateColumn": "Start Date",
-    "dueDateColumn": "Due Date",
-    "priorityColumn": "Priority",
-    "tagsColumn": "Tags",
-    "moreTagsCount": "+{{count}}",
     "tagGroup": "Tag",
     "untagged": "Untagged",
     "commentsColumn": "Comments",

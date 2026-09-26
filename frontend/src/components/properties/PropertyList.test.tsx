@@ -72,6 +72,38 @@ describe("PropertyList", () => {
     expect(requests[0].body).toEqual({ values: [{ property_id: 42, value: "Ada" }] });
   });
 
+  it("sends an untouched user_reference property back as the user's id", async () => {
+    const requests: Array<{ body: unknown }> = [];
+    server.use(
+      guildHttp.put("/documents/:documentId/properties", async ({ request }) => {
+        requests.push({ body: await request.json() });
+        return HttpResponse.json({ properties: [] });
+      })
+    );
+
+    const props: PropertySummary[] = [
+      buildPropertySummary({
+        property_id: 1,
+        name: "Reviewer",
+        type: PropertyType.user_reference,
+        value: { id: 7, full_name: "Grace" },
+      }),
+      buildPropertySummary({ property_id: 2, name: "Owner", type: PropertyType.text, value: "" }),
+    ];
+    renderWithProviders(<PropertyList entityKind="document" entityId={1} properties={props} />);
+
+    expect(screen.getByText("Grace")).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText("Empty"), { target: { value: "Ada" } });
+    await advanceDebounce();
+
+    expect(requests[0].body).toEqual({
+      values: [
+        { property_id: 1, value: 7 },
+        { property_id: 2, value: "Ada" },
+      ],
+    });
+  });
+
   it("fires the task mutation when entityKind is 'task'", async () => {
     const requests: Array<{ url: string }> = [];
     server.use(

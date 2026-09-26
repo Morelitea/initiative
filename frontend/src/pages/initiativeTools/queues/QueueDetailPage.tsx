@@ -1,5 +1,5 @@
 import { Link, useParams } from "@tanstack/react-router";
-import { Plus, SearchX, Settings, ShieldAlert } from "lucide-react";
+import { Plus, Settings } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -15,12 +15,12 @@ import { QueueItemRow } from "@/components/initiativeTools/queues/QueueItemRow";
 import { QueueTimeline } from "@/components/initiativeTools/queues/QueueTimeline";
 import { QueueViewToggle } from "@/components/initiativeTools/queues/QueueViewToggle";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
-import { StatusMessage } from "@/components/StatusMessage";
 import {
   DetailPageSkeleton,
   ListSkeleton,
   SkeletonRegion,
 } from "@/components/skeletons/PageSkeletons";
+import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,7 +44,6 @@ import { useQueueView } from "@/hooks/useQueueView";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { useQueueRealtime } from "@/hooks/useResourceRealtime";
 import { toast } from "@/lib/chesterToast";
-import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
@@ -153,10 +152,6 @@ export function QueueDetailPage() {
   }, [queue?.items]);
 
   // Error / loading states
-  if (!Number.isFinite(parsedId)) {
-    return <p className="text-destructive">{t("notFound")}</p>;
-  }
-
   if (queueQuery.isLoading) {
     return (
       <SkeletonRegion label={t("loadingQueue")}>
@@ -168,28 +163,12 @@ export function QueueDetailPage() {
   }
 
   if (queueQuery.isError || !queue) {
-    const status = getHttpStatus(queueQuery.error);
-    const backTo = gp(toolListRoute(Tool.queue, initiativeId));
-    const backLabel = t("backToQueues");
-
-    if (status === 403) {
-      return (
-        <StatusMessage
-          icon={<ShieldAlert />}
-          title={t("noAccess")}
-          description={t("noAccessDescription")}
-          backTo={backTo}
-          backLabel={backLabel}
-        />
-      );
-    }
     return (
-      <StatusMessage
-        icon={<SearchX />}
-        title={t("notFound")}
-        description={t("notFoundDescription")}
-        backTo={backTo}
-        backLabel={backLabel}
+      <ToolAccessStatus
+        error={queueQuery.error}
+        keys="queues:"
+        backTo={gp(toolListRoute(Tool.queue, initiativeId))}
+        backLabel={t("backToQueues")}
       />
     );
   }

@@ -1,20 +1,15 @@
 import { useRouter } from "@tanstack/react-router";
-import { ListTodo, Loader2, Search, Zap } from "lucide-react";
+import { ListTodo, Loader2, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
-import { GuildAvatar } from "@/components/guilds/GuildSidebar";
+import { type ProjectRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
-import { useGuilds } from "@/hooks/useGuilds";
-import { guildMayWriteContent } from "@/hooks/useInitiativeAccess";
-import { useInitiativesForGuild } from "@/hooks/useInitiatives";
+import { useGuildInitiativeSteps } from "@/hooks/useGuildInitiativeSteps";
 import { useGlobalProjects } from "@/hooks/useProjects";
-import { useWizard } from "@/hooks/useWizard";
 import { guildPath } from "@/lib/guildUrl";
-import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 import { toolDetailRoute } from "@/lib/tools";
 
@@ -51,10 +46,6 @@ function loadLastUsed(): LastUsedProject | null {
   }
 }
 
-function saveLastUsed(data: LastUsedProject) {
-  setItem(STORAGE_KEY, JSON.stringify(data));
-}
-
 /**
  * Clear the stored "last used" project if it matches the given projectId.
  * Call this from error pages (404/403) to prevent stale shortcuts.
@@ -68,31 +59,13 @@ export function clearLastUsedProject(projectId: number) {
 
 // ── Component ───────────────────────────────────────────────────────────────
 
-type Step = "select-guild" | "select-initiative" | "select-project";
-
 export const CreateTaskWizard = () => {
   const { t } = useTranslation("tasks");
   const router = useRouter();
-  const { guilds: allGuilds } = useGuilds();
-  // A task is child content of a project, so it needs content-write access
-  // somewhere in the guild. Drop guilds where writes are impossible (frozen, or
-  // a read-only PAM grant); the project step then applies the precise per-project
-  // DAC check. A scoped read_write grant is kept — it can create tasks in
-  // projects it can write.
-  const guilds = useMemo(() => allGuilds.filter(guildMayWriteContent), [allGuilds]);
-
   const [open, setOpen] = useState(false);
-  const { step, go, back, reset } = useWizard<Step>("select-guild");
-  const [selectedGuildId, setSelectedGuildId] = useState<number | null>(null);
-  const [selectedGuildName, setSelectedGuildName] = useState("");
-  const [selectedInitiativeId, setSelectedInitiativeId] = useState<number | null>(null);
-  const [selectedInitiativeName, setSelectedInitiativeName] = useState("");
-  const [lastUsed, setLastUsed] = useState<LastUsedProject | null>(null);
+  const lastUsed = useMemo(() => (open ? loadLastUsed() : null), [open]);
   const [projectSearch, setProjectSearch] = useState("");
   const [projectPage, setProjectPage] = useState(1);
-
-  // Track whether we've already auto-advanced for the current step to avoid loops
-  const autoAdvancedRef = useRef<string | null>(null);
 
   // Register module-level opener
   useEffect(() => {
@@ -102,36 +75,53 @@ export const CreateTaskWizard = () => {
     };
   }, []);
 
-  // Reset state when dialog closes
-  useEffect(() => {
-    if (!open) {
-      reset();
-      setSelectedGuildId(null);
-      setSelectedGuildName("");
-      setSelectedInitiativeId(null);
-      setSelectedInitiativeName("");
-      setProjectSearch("");
-      setProjectPage(1);
-      autoAdvancedRef.current = null;
-    } else {
-      setLastUsed(loadLastUsed());
-    }
-  }, [open, reset]);
+  const navigateToProject = useCallback(
+    (target: LastUsedProject) => {
+      setItem(STORAGE_KEY, JSON.stringify(target));
+      setOpen(false);
+      void router.navigate({
+        to: guildPath(
+          target.guildId,
+          toolDetailRoute(Tool.project, target.initiativeId, target.projectId)
+        ),
+        search: { create: "true" },
+      });
+    },
+    [router]
+  );
+
+  // Each walk into the project step starts from an empty search.
+  const startProjectStep = useCallback(() => {
+    setProjectSearch("");
+    setProjectPage(1);
+  }, []);
+
+  // A task is child content of a project, so the guild and initiative steps
+  // offer wherever content can be written; the project step then applies the
+  // precise per-project check.
+  const steps = useGuildInitiativeSteps({
+    ns: "tasks",
+    open,
+    authors: null,
+    shortcut: lastUsed && {
+      title: lastUsed.projectName,
+      subtitle: `${lastUsed.guildName} > ${lastUsed.initiativeName}`,
+      onClick: () => navigateToProject(lastUsed),
+    },
+    onInitiative: startProjectStep,
+    next: { step: "select-project", description: t("createWizard.selectProject") },
+  });
+  const { guild, initiative } = steps;
 
   // ── Data fetching ───────────────────────────────────────────────────────
 
-  const initiativesQuery = useInitiativesForGuild(
-    step === "select-initiative" || step === "select-project" ? selectedGuildId : null
-  );
-  const initiatives = useMemo(() => initiativesQuery.data ?? [], [initiativesQuery.data]);
-
-  const projectsEnabled = step === "select-project" && !!selectedGuildId;
+  const projectsEnabled = steps.step === "select-project" && !!guild;
 
   // Track a "generation" that increments when filters change, so we can
   // distinguish stale accumulated data from the current filter set.
   const [projectGen, setProjectGen] = useState(0);
   const prevFilterKey = useRef("");
-  const filterKey = `${selectedGuildId}-${selectedInitiativeId}-${projectSearch}`;
+  const filterKey = `${guild?.id}-${initiative?.id}-${projectSearch}`;
   if (filterKey !== prevFilterKey.current) {
     prevFilterKey.current = filterKey;
     setProjectGen((g) => g + 1);
@@ -140,7 +130,7 @@ export const CreateTaskWizard = () => {
 
   const projectsQuery = useGlobalProjects(
     {
-      guild_ids: selectedGuildId ? [selectedGuildId] : undefined,
+      guild_ids: guild ? [guild.id] : undefined,
       search: projectSearch || undefined,
       page_size: 25,
       page: projectPage,
@@ -151,7 +141,7 @@ export const CreateTaskWizard = () => {
   // Accumulate pages, keyed by generation to avoid mixing results across filters
   const [accumulatedProjects, setAccumulatedProjects] = useState<{
     gen: number;
-    items: import("@/api/generated/initiativeAPI.schemas").ProjectRead[];
+    items: ProjectRead[];
   }>({ gen: 0, items: [] });
 
   useEffect(() => {
@@ -167,234 +157,17 @@ export const CreateTaskWizard = () => {
   const filteredProjects = useMemo(
     () =>
       accumulatedProjects.items.filter(
-        (p) => p.initiative_id === selectedInitiativeId && p.archived_at === null && p.can.edit
+        (p) => p.initiative_id === initiative?.id && p.archived_at === null && p.can.edit
       ),
-    [accumulatedProjects, selectedInitiativeId]
+    [accumulatedProjects, initiative]
   );
   const hasMoreProjects = projectsQuery.data?.has_next ?? false;
 
-  // ── Handlers ────────────────────────────────────────────────────────────
-
-  const handleGuildSelect = useCallback(
-    (guildId: number, guildName: string) => {
-      setSelectedGuildId(guildId);
-      setSelectedGuildName(guildName);
-      go("select-initiative");
-    },
-    [go]
-  );
-
-  const handleInitiativeSelect = useCallback(
-    (initiativeId: number, initiativeName: string) => {
-      setSelectedInitiativeId(initiativeId);
-      setSelectedInitiativeName(initiativeName);
-      go("select-project");
-    },
-    [go]
-  );
-
-  // ── Auto-advance when only 1 option ────────────────────────────────────
-
-  // Auto-advance guild step
-  useEffect(() => {
-    if (
-      open &&
-      step === "select-guild" &&
-      guilds.length === 1 &&
-      !lastUsed &&
-      autoAdvancedRef.current !== "guild"
-    ) {
-      autoAdvancedRef.current = "guild";
-      handleGuildSelect(guilds[0].id, guilds[0].name);
-    }
-  }, [open, step, guilds, lastUsed, handleGuildSelect]);
-
-  // Auto-advance initiative step
-  useEffect(() => {
-    if (
-      open &&
-      step === "select-initiative" &&
-      !initiativesQuery.isLoading &&
-      initiatives.length === 1 &&
-      autoAdvancedRef.current !== "initiative"
-    ) {
-      autoAdvancedRef.current = "initiative";
-      handleInitiativeSelect(initiatives[0].id, initiatives[0].name);
-    }
-  }, [open, step, initiatives, initiativesQuery.isLoading, handleInitiativeSelect]);
-
-  const navigateToProject = useCallback(
-    (
-      projectId: number,
-      projectName: string,
-      gId: number,
-      gName: string,
-      iId: number,
-      iName: string
-    ) => {
-      saveLastUsed({
-        guildId: gId,
-        guildName: gName,
-        initiativeId: iId,
-        initiativeName: iName,
-        projectId,
-        projectName,
-      });
-      setOpen(false);
-      void router.navigate({
-        to: guildPath(gId, toolDetailRoute(Tool.project, iId, projectId)),
-        search: { create: "true" },
-      });
-    },
-    [router]
-  );
-
-  const handleProjectSelect = useCallback(
-    (projectId: number, projectName: string) => {
-      navigateToProject(
-        projectId,
-        projectName,
-        selectedGuildId!,
-        selectedGuildName,
-        selectedInitiativeId!,
-        selectedInitiativeName
-      );
-    },
-    [
-      navigateToProject,
-      selectedGuildId,
-      selectedGuildName,
-      selectedInitiativeId,
-      selectedInitiativeName,
-    ]
-  );
-
-  const handleLastUsedClick = useCallback(() => {
-    if (!lastUsed) return;
-    navigateToProject(
-      lastUsed.projectId,
-      lastUsed.projectName,
-      lastUsed.guildId,
-      lastUsed.guildName,
-      lastUsed.initiativeId,
-      lastUsed.initiativeName
-    );
-  }, [lastUsed, navigateToProject]);
-
-  const handleBack = useCallback(() => {
-    autoAdvancedRef.current = null;
-    if (step === "select-project") {
-      setSelectedInitiativeId(null);
-      setSelectedInitiativeName("");
-      setProjectSearch("");
-      setProjectPage(1);
-      back();
-    } else if (step === "select-initiative") {
-      setSelectedGuildId(null);
-      setSelectedGuildName("");
-      back();
-    }
-  }, [step, back]);
-
-  // ── Render helpers ──────────────────────────────────────────────────────
-
-  const stepTitle = useMemo(() => {
-    switch (step) {
-      case "select-guild":
-        return t("createWizard.selectGuild");
-      case "select-initiative":
-        return t("createWizard.selectInitiative");
-      case "select-project":
-        return t("createWizard.selectProject");
-    }
-  }, [step, t]);
-
-  // Somebody with one community and no shortcut never sees the first step (the
-  // effect above walks past it), so it is not one of the steps they walk.
-  const skipsGuildStep = guilds.length === 1 && !lastUsed;
-  const walked: Step[] = skipsGuildStep
-    ? ["select-initiative", "select-project"]
-    : ["select-guild", "select-initiative", "select-project"];
-  // The frame before that effect runs still shows the step it is about to walk
-  // past, and a step outside the count has no position to state.
-  const walkedIndex = walked.indexOf(step);
-
   return (
-    <WizardDialog
-      open={open}
-      onOpenChange={setOpen}
-      className="sm:max-w-md"
-      title={t("createWizard.title")}
-      description={stepTitle}
-      progress={walkedIndex < 0 ? undefined : { current: walkedIndex + 1, total: walked.length }}
-      onBack={step === "select-guild" ? undefined : handleBack}
-      backLabel={t("createWizard.back")}
-    >
-      {/* Step 1: Select Guild */}
-      {step === "select-guild" && (
-        <div className="space-y-2">
-          {/* Last used shortcut */}
-          {lastUsed && (
-            <button
-              type="button"
-              className="flex w-full items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-left transition-colors hover:bg-primary/10"
-              onClick={handleLastUsedClick}
-            >
-              <Zap className="h-5 w-5 shrink-0 text-primary" />
-              <div className="min-w-0 flex-1">
-                <p className="font-medium text-sm">{lastUsed.projectName}</p>
-                <p className="truncate text-muted-foreground text-xs">
-                  {lastUsed.guildName} &gt; {lastUsed.initiativeName}
-                </p>
-              </div>
-              <span className="text-muted-foreground text-xs">{t("createWizard.lastUsed")}</span>
-            </button>
-          )}
+    <WizardDialog open={open} onOpenChange={setOpen} className="sm:max-w-md" {...steps.dialog}>
+      {steps.body}
 
-          {/* Guild list */}
-          {guilds.map((guild) => (
-            <button
-              key={guild.id}
-              type="button"
-              className="flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent"
-              onClick={() => handleGuildSelect(guild.id, guild.name)}
-            >
-              <GuildAvatar name={guild.name} icon={guild.icon_url} active={false} size="sm" />
-              <span className="font-medium text-sm">{guild.name}</span>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Step 2: Select Initiative */}
-      {step === "select-initiative" && (
-        <div className="space-y-2">
-          {initiativesQuery.isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : initiatives.length === 0 ? (
-            <p className="py-4 text-center text-muted-foreground text-sm">
-              {t("createWizard.noInitiatives")}
-            </p>
-          ) : (
-            initiatives.map((initiative) => (
-              <button
-                key={initiative.id}
-                type="button"
-                className="flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent"
-                onClick={() => handleInitiativeSelect(initiative.id, initiative.name)}
-              >
-                <InitiativeColorDot color={initiative.color} />
-                <span className="font-medium text-sm">{initiative.name}</span>
-              </button>
-            ))
-          )}
-        </div>
-      )}
-
-      {/* Step 3: Select Project */}
-      {step === "select-project" && (
+      {steps.step === "select-project" && guild && initiative && (
         <div className="space-y-2">
           <div className="relative">
             <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -421,7 +194,16 @@ export const CreateTaskWizard = () => {
                   key={project.id}
                   type="button"
                   className="flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent"
-                  onClick={() => handleProjectSelect(project.id, project.name)}
+                  onClick={() =>
+                    navigateToProject({
+                      guildId: guild.id,
+                      guildName: guild.name,
+                      initiativeId: initiative.id,
+                      initiativeName: initiative.name,
+                      projectId: project.id,
+                      projectName: project.name,
+                    })
+                  }
                 >
                   <ListTodo className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <span className="font-medium text-sm">{project.name}</span>

@@ -16,12 +16,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
 from app.db.schema_provisioning import platform_role_name
-from app.db.public_rls import PUBLIC_RLS, SELECT
-from app.db.system_grants import (
-    SHARED_TABLE_APP_USER_GRANTS,
-    SHARED_TABLE_SYSTEM_GRANTS,
-    SHARED_TABLE_TIER_GRANTS,
-)
+from app.db.public_rls import DML, PUBLIC_RLS, SELECT, SHARED_TABLE_REGISTRY
 from app.models.platform.user import UserRole
 from app.testing import as_role, create_user
 
@@ -54,11 +49,10 @@ def test_registry_records_the_grant_decision():
     """The registries name this table for the system engine alone: it holds
     every verb, the bare pre-routing role and every tier hold nothing, and the
     one policy on the table is the install floor's read."""
-    assert SHARED_TABLE_SYSTEM_GRANTS[TABLE] == frozenset(
-        {"SELECT", "INSERT", "UPDATE", "DELETE"}
-    )
-    assert SHARED_TABLE_APP_USER_GRANTS[TABLE] is None
-    assert TABLE not in SHARED_TABLE_TIER_GRANTS
+    shared = SHARED_TABLE_REGISTRY[TABLE]
+    assert shared.grants.app_admin == DML
+    assert shared.grants.app_user is None
+    assert not shared.tiers
     rls = PUBLIC_RLS[TABLE]
     assert rls.enabled and rls.forced
     assert [(p.command, p.roles) for p in rls.policies] == [

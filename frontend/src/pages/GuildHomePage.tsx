@@ -14,11 +14,9 @@
  * for whom every other section is empty by construction.
  */
 
-import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { AppSettingsDialog } from "@/components/apps/AppSettingsDialog";
 import { GuildBannerBadges } from "@/components/guildHome/GuildBannerBadges";
 import { GuildHomeEmptyState } from "@/components/guildHome/GuildHomeEmptyState";
@@ -34,34 +32,27 @@ import {
 import { PageBanner } from "@/components/PageBanner";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { TOOL_TRAY_SURFACE, ToolRail } from "@/components/toolBrowser/ToolRail";
-import { isToolSortField, type ToolSortField, ToolTable } from "@/components/toolBrowser/ToolTable";
+import { ToolTable } from "@/components/toolBrowser/ToolTable";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useGuildToolRows } from "@/hooks/useGuildToolRows";
 import { liveInitiatives, useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiativeDirectory, useInitiatives } from "@/hooks/useInitiatives";
+import { useToolBrowserSearch } from "@/hooks/useToolBrowserSearch";
 import { renderableBanner } from "@/lib/banner";
 import { useGuildPath } from "@/lib/guildUrl";
-import { DEFAULT_ENABLED_TOOLS, TOOLS, toolForRouteSegment } from "@/lib/tools";
+import { DEFAULT_ENABLED_TOOLS, TOOLS } from "@/lib/tools";
 import { cn } from "@/lib/utils";
-
-const DEFAULT_PAGE_SIZE = 20;
 
 export function GuildHomePage() {
   const { t } = useTranslation("guildHome");
   const { activeGuild } = useGuilds();
   const gp = useGuildPath();
-  const navigate = useNavigate();
-  const search = useSearch({ strict: false }) as {
-    tool?: string;
-    page?: number;
+  const { search, setSearch, selectTool, query, table } = useToolBrowserSearch<{
     create?: string;
-    q?: string;
-    sort?: string;
-    dir?: string;
     state?: string;
     app?: number;
-  };
+  }>();
 
   const initiativesQuery = useInitiatives();
   const directoryQuery = useInitiativeDirectory();
@@ -112,116 +103,22 @@ export function GuildHomePage() {
     );
   }, [visibleInitiatives]);
 
-  const requested = search.tool ? toolForRouteSegment(search.tool) : null;
-  // An unknown or unreachable `?tool=` falls back to the first circle rather
-  // than rendering a table the user has no business seeing.
-  const selected = requested && tools.includes(requested) ? requested : (tools[0] ?? Tool.project);
-
-  const page = search.page ?? 1;
-  const setSearch = useCallback(
-    (next: {
-      page?: number;
-      q?: string;
-      sort?: string;
-      dir?: string;
-      state?: string;
-      app?: number;
-    }) => {
-      void navigate({
-        to: ".",
-        search: { ...search, ...next },
-        replace: true,
-      });
-    },
-    [navigate, search]
-  );
-
-  // The search text and the order are in the address, like the tool and the
-  // page: a narrowed table is a link someone can send. The default order is
-  // left out of it — most-recently-updated is what the endpoints do unasked,
-  // so spelling it in every URL would only be noise.
-  const query = search.q ?? "";
+  const selected = selectTool(tools);
   // Which of the tool's two states the table is showing. In the address like
   // the rest of it, and left out while live — the default needs no spelling.
   const archiveState: ToolArchiveState = isToolArchiveState(search.state) ? search.state : "active";
-  const sortBy: ToolSortField = isToolSortField(search.sort) ? search.sort : "updated_at";
-  const sortDir: "asc" | "desc" =
-    search.dir === "asc" || search.dir === "desc"
-      ? search.dir
-      : sortBy === "updated_at"
-        ? "desc"
-        : "asc";
 
-  // What is typed goes into the box at once and to the server a beat later, so
-  // a search is one request rather than one per keystroke.
-  const [draftQuery, setDraftQuery] = useState(query);
-  const lastPushedQuery = useRef(query);
-  useEffect(() => {
-    // A query that changed elsewhere — the back button, a pasted link — wins
-    // over a draft nobody is typing into.
-    if (query !== lastPushedQuery.current) {
-      lastPushedQuery.current = query;
-      setDraftQuery(query);
+  const { rows, totalCount, isLoading, isError } = useGuildToolRows(
+    selected,
+    table.page,
+    table.pageSize,
+    {
+      search: query || undefined,
+      sortBy: table.sortBy,
+      sortDir: table.sortDir,
+      archived: archivedParam(archiveState),
     }
-  }, [query]);
-  // Switching tools is a fresh list: the rail's link carries no `q`, so the
-  // box empties with it and a keystroke still waiting from the last tool is
-  // dropped rather than landing on the new one.
-  const lastTool = useRef(selected);
-  useEffect(() => {
-    if (lastTool.current === selected) return;
-    lastTool.current = selected;
-    lastPushedQuery.current = query;
-    setDraftQuery(query);
-  }, [selected, query]);
-  useEffect(() => {
-    if (draftQuery === query) return;
-    const timer = setTimeout(() => {
-      lastPushedQuery.current = draftQuery;
-      setSearch({ q: draftQuery || undefined, page: undefined });
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [draftQuery, query, setSearch]);
-
-  const handleSortChange = useCallback(
-    (field: ToolSortField, direction: "asc" | "desc") => {
-      const isDefault = field === "updated_at" && direction === "desc";
-      setSearch({
-        sort: isDefault ? undefined : field,
-        dir: isDefault ? undefined : direction,
-        page: undefined,
-      });
-    },
-    [setSearch]
   );
-
-  // Page size is a view preference, not a URL concern — the `page` param stays
-  // shareable while the size stays local, as on the other list pages.
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-  const handlePageSizeChange = useCallback(
-    (size: number) => {
-      setPageSize(size);
-      setSearch({ page: undefined });
-    },
-    [setSearch]
-  );
-
-  const { rows, totalCount, isLoading, isError } = useGuildToolRows(selected, page, pageSize, {
-    search: query || undefined,
-    sortBy,
-    sortDir,
-    archived: archivedParam(archiveState),
-  });
-
-  const pageCount = pageSize > 0 ? Math.max(1, Math.ceil(totalCount / pageSize)) : 1;
-  // A bookmarked page outlives the rows it pointed at, and a hand-typed one
-  // may never have had any. Either way the guild still holds items, so land
-  // back on the first page instead of showing an empty table over them.
-  useEffect(() => {
-    if (!isLoading && totalCount > 0 && page > pageCount) {
-      setSearch({ page: undefined });
-    }
-  }, [isLoading, totalCount, page, pageCount, setSearch]);
 
   // Every guild has a banner — the artwork it uploaded, or the colour it wears
   // instead — so this is the guild's header rather than a decoration it might
@@ -318,16 +215,7 @@ export function GuildHomePage() {
                     rows={rows}
                     initiatives={initiativesQuery.data ?? []}
                     totalCount={totalCount}
-                    page={page}
-                    pageCount={pageCount}
-                    pageSize={pageSize}
-                    onPageChange={(next) => setSearch({ page: next <= 1 ? undefined : next })}
-                    onPageSizeChange={handlePageSizeChange}
-                    search={draftQuery}
-                    onSearchChange={setDraftQuery}
-                    sortBy={sortBy}
-                    sortDir={sortDir}
-                    onSortChange={handleSortChange}
+                    {...table}
                   />
                 )}
               </div>

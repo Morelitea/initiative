@@ -1,15 +1,7 @@
-import { X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  type PropertySummary,
-  PropertyType,
-  type Tool,
-} from "@/api/generated/initiativeAPI.schemas";
-import type { MemberLike } from "@/components/members/MemberSearchSelect";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import type { PropertySummary, Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   useSetDocumentProperties,
   useSetEventProperties,
@@ -17,8 +9,8 @@ import {
 } from "@/hooks/useProperties";
 import { cn } from "@/lib/utils";
 
-import { PropertyInput } from "./PropertyInput";
-import { iconForPropertyType } from "./propertyTypeIcons";
+import { PropertyFields } from "./PropertyFields";
+import { normalizePropertyValue } from "./propertyHelpers";
 
 export type PropertyEntityKind = "document" | "task" | "event";
 
@@ -34,49 +26,10 @@ export interface PropertyListProps {
   canOpen?: { tool: Tool; id: number | null | undefined };
 }
 
-/** Pull the person a user_reference value carries so the picker can render
- *  them without a search round-trip. */
-const userReferenceValue = (property: PropertySummary): MemberLike | null => {
-  if (property.type !== PropertyType.user_reference) return null;
-  const raw = property.value;
-  if (
-    raw &&
-    typeof raw === "object" &&
-    "id" in raw &&
-    typeof (raw as { id: unknown }).id === "number"
-  ) {
-    return raw as MemberLike;
-  }
-  return null;
-};
-
 const SAVE_DEBOUNCE_MS = 400;
 
 // Internal draft map keeps optimistic local values keyed by property_id.
 type DraftMap = Record<number, unknown>;
-
-/**
- * Convert the server-side `PropertySummary.value` into the shape the input
- * component expects locally.
- *
- * - user_reference: the server returns `{id, full_name}` on reads; we keep
- *   the id in our draft so we can round-trip it through the outgoing payload.
- * - everything else: passes through unchanged.
- */
-const normalizeIncomingValue = (property: PropertySummary): unknown => {
-  if (property.type === PropertyType.user_reference) {
-    if (
-      property.value &&
-      typeof property.value === "object" &&
-      "id" in property.value &&
-      typeof (property.value as { id: unknown }).id === "number"
-    ) {
-      return (property.value as { id: number }).id;
-    }
-    return null;
-  }
-  return property.value ?? null;
-};
 
 /**
  * Build the replace-all payload for the PUT /properties endpoints from the
@@ -103,7 +56,7 @@ const buildPayload = (drafts: DraftMap, properties: PropertySummary[], removedId
   for (const property of properties) {
     if (seen.has(property.property_id)) continue;
     if (removedIds.has(property.property_id)) continue;
-    const current = normalizeIncomingValue(property);
+    const current = normalizePropertyValue(property);
     values.push({ property_id: property.property_id, value: current ?? null });
   }
   return values;
@@ -118,7 +71,7 @@ export const PropertyList = ({
   initiativeId,
   canOpen,
 }: PropertyListProps) => {
-  const { t } = useTranslation(["properties", "common"]);
+  const { t } = useTranslation("properties");
 
   const setDocumentMutation = useSetDocumentProperties();
   const setTaskMutation = useSetTaskProperties();
@@ -136,7 +89,7 @@ export const PropertyList = ({
   const [drafts, setDrafts] = useState<DraftMap>(() => {
     const initial: DraftMap = {};
     for (const property of properties) {
-      initial[property.property_id] = normalizeIncomingValue(property);
+      initial[property.property_id] = normalizePropertyValue(property);
     }
     return initial;
   });
@@ -154,7 +107,7 @@ export const PropertyList = ({
         incomingIds.add(property.property_id);
         // Only overwrite if the user hasn't actively edited this field.
         if (!pendingRef.current.has(property.property_id)) {
-          next[property.property_id] = normalizeIncomingValue(property);
+          next[property.property_id] = normalizePropertyValue(property);
         }
       }
       // Drop drafts for properties no longer on the entity.
@@ -192,33 +145,13 @@ export const PropertyList = ({
       saveTimeoutRef.current = null;
       const payload = buildPayload(latestDraftsRef.current, properties, latestRemovedRef.current);
       const variables = { values: { values: payload } };
+      const options = { onSettled: () => pendingRef.current.clear() };
       if (entityKind === "document") {
-        setDocumentMutation.mutate(
-          { documentId: entityId, ...variables },
-          {
-            onSettled: () => {
-              pendingRef.current.clear();
-            },
-          }
-        );
+        setDocumentMutation.mutate({ documentId: entityId, ...variables }, options);
       } else if (entityKind === "event") {
-        setEventMutation.mutate(
-          { eventId: entityId, ...variables },
-          {
-            onSettled: () => {
-              pendingRef.current.clear();
-            },
-          }
-        );
+        setEventMutation.mutate({ eventId: entityId, ...variables }, options);
       } else {
-        setTaskMutation.mutate(
-          { taskId: entityId, ...variables },
-          {
-            onSettled: () => {
-              pendingRef.current.clear();
-            },
-          }
-        );
+        setTaskMutation.mutate({ taskId: entityId, ...variables }, options);
       }
     }, SAVE_DEBOUNCE_MS);
   }, [entityKind, entityId, properties, setDocumentMutation, setTaskMutation, setEventMutation]);
@@ -253,70 +186,24 @@ export const PropertyList = ({
     [scheduleSave]
   );
 
-  const sorted = useMemo(
-    () =>
-      [...properties]
-        .filter((p) => !removedIds.has(p.property_id))
-        .sort((a, b) => a.name.localeCompare(b.name)),
+  const attached = useMemo(
+    () => properties.filter((p) => !removedIds.has(p.property_id)),
     [properties, removedIds]
   );
 
-  if (sorted.length === 0) {
-    return (
-      <p className={cn("text-muted-foreground text-sm", className)}>
-        {t("properties:noProperties")}
-      </p>
-    );
-  }
-
   return (
     <div className={cn("space-y-2", className)}>
-      <ul className="space-y-2">
-        {sorted.map((property) => {
-          const inputId = `property-${entityKind}-${entityId}-${property.property_id}`;
-          const draft = drafts[property.property_id];
-          const Icon = iconForPropertyType(property.type);
-          return (
-            <li
-              key={property.property_id}
-              className="grid grid-cols-[minmax(0,8rem)_1fr_auto] items-center gap-2"
-            >
-              <Label
-                htmlFor={inputId}
-                className="flex min-w-0 items-center gap-1.5 font-normal text-muted-foreground text-xs"
-                title={property.name}
-              >
-                <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span className="truncate">{property.name}</span>
-              </Label>
-              <div id={inputId} className="min-w-0">
-                <PropertyInput
-                  definition={property}
-                  value={draft}
-                  onChange={(next) => handleChange(property.property_id, next)}
-                  disabled={disabled}
-                  initiativeId={initiativeId}
-                  canOpen={canOpen}
-                  selectedUser={userReferenceValue(property)}
-                />
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="text-muted-foreground"
-                onClick={() => handleRemove(property.property_id)}
-                disabled={disabled}
-                aria-label={t("properties:remove")}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </li>
-          );
-        })}
-      </ul>
+      <PropertyFields
+        properties={attached}
+        values={drafts}
+        onChange={handleChange}
+        onRemove={handleRemove}
+        disabled={disabled}
+        initiativeId={initiativeId}
+        canOpen={canOpen}
+      />
       {activeMutation.isPending ? (
-        <p className="text-muted-foreground text-xs">{t("properties:saving")}</p>
+        <p className="text-muted-foreground text-xs">{t("saving")}</p>
       ) : null}
     </div>
   );

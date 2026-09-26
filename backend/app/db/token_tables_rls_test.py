@@ -17,13 +17,8 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
 from app.core.config import settings
-from app.db.public_rls import FORCED_NO_POLICY, PUBLIC_RLS
+from app.db.public_rls import FORCED_NO_POLICY, PUBLIC_RLS, SHARED_TABLE_REGISTRY
 from app.db.schema_provisioning import platform_role_name
-from app.db.system_grants import (
-    SHARED_TABLE_APP_GUILD_BASE_GRANTS,
-    SHARED_TABLE_APP_USER_GRANTS,
-    SHARED_TABLE_PLATFORM_BASE_GRANTS,
-)
 from app.models.platform.user import UserRole
 from app.testing import as_role, create_user
 
@@ -76,14 +71,13 @@ def test_registry_records_the_token_tables():
     platform floor's own rows and nothing of the guild floor's. The floor's
     read half reads those rows too, and writes none of them."""
     assert PUBLIC_RLS["user_tokens"] == FORCED_NO_POLICY
-    for matrix in (
-        SHARED_TABLE_APP_USER_GRANTS,
-        SHARED_TABLE_APP_GUILD_BASE_GRANTS,
-        SHARED_TABLE_PLATFORM_BASE_GRANTS,
-    ):
-        assert matrix["user_tokens"] is None
-    assert SHARED_TABLE_APP_GUILD_BASE_GRANTS["push_tokens"] is None
-    assert SHARED_TABLE_APP_USER_GRANTS["push_tokens"] is None
+    user_tokens = SHARED_TABLE_REGISTRY["user_tokens"].grants
+    assert user_tokens.app_user is None
+    assert user_tokens.app_guild_base is None
+    assert user_tokens.platform_base is None
+    push_tokens = SHARED_TABLE_REGISTRY["push_tokens"].grants
+    assert push_tokens.app_guild_base is None
+    assert push_tokens.app_user is None
     rls = PUBLIC_RLS["push_tokens"]
     assert rls.enabled and rls.forced
     assert {p.command: p.roles for p in rls.policies} == {

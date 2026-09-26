@@ -37,6 +37,7 @@
     "projectPath": "Ruta del proyecto",
     "priority": "Prioridad",
     "tags": "Etiquetas",
+    "moreTags": "+{{count}}",
     "status": "Estado"
   },
   "checkbox": {
@@ -51,10 +52,7 @@
   "updating": "Actualizando…",
   "projectFallback": "Proyecto #{{id}}",
   "edit": {
-    "invalidTaskId": "ID de tarea no válido.",
-    "back": "← Volver",
     "loadingTask": "Cargando tarea…",
-    "loadError": "No se pudo cargar la tarea.",
     "notFound": "Tarea no encontrada",
     "notFoundDescription": "Esta tarea puede haber sido eliminada o el enlace está roto.",
     "noAccess": "Acceso denegado",

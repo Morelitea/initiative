@@ -21,7 +21,7 @@ from app.api.deps import InstallAccessError, VerifiedInstall, establish_install_
 from app.core.tools import Tool
 from app.db.guild_standing import InstallContext
 from app.db.request_context import ContextShapeError, InstallScoped, classify
-from app.db.schema_provisioning import guild_app_role_name, guild_schema_name
+from app.db.schema_provisioning import guild_schema_name, GuildRoleKind, guild_role_name
 from app.db.session import (
     _RLS_ESTABLISHED_INFO_KEY,
     RLS_CONTEXT_MAX_AGE_SECONDS,
@@ -192,7 +192,7 @@ async def test_the_standing_is_what_the_rows_say(session, acting_user, role_sess
             )
         )
     ).one()
-    assert values[0] == guild_app_role_name(install.guild.id)
+    assert values[0] == guild_role_name(install.guild.id, GuildRoleKind.app)
     assert values[1] == ""
     assert values[2] == str(install.app.id)
     assert values[3] == ",".join(str(i) for i in placed)
@@ -382,7 +382,7 @@ async def test_a_community_that_is_gone_is_refused(session, role_session):
             scopes=["documents:read"],
         )
     assert (await s.exec(text("SELECT current_user"))).one()[0] != (
-        guild_app_role_name(987_654_321)
+        guild_role_name(987_654_321, GuildRoleKind.app)
     )
     await s.rollback()
 
@@ -520,7 +520,7 @@ async def test_a_new_transaction_replays_the_install(
         )
     ).one()
     assert tuple(values) == (
-        guild_app_role_name(install.guild.id),
+        guild_role_name(install.guild.id, GuildRoleKind.app),
         ",".join(str(i) for i in context.member_initiatives),
         "documents",
         "true",

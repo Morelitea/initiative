@@ -282,11 +282,10 @@ async def test_nothing_is_said_when_the_connecting_login_owns_its_objects(
     """The ordinary case, and the one a warning must not fire on."""
     from app.db.bootstrap import _FOREIGN_OWNERS
     from app.db.system_grants import GRANTABLE_SHARED_TABLES
-    from sqlalchemy import text
 
     owners = (
         await session.exec(
-            text(str(_FOREIGN_OWNERS)).bindparams(
+            _FOREIGN_OWNERS.bindparams(
                 owner=login_roles()[0].name,
                 tables=sorted(GRANTABLE_SHARED_TABLES),
             )
@@ -322,7 +321,7 @@ async def test_an_object_owned_elsewhere_is_seen(session):
             row[0]
             for row in (
                 await session.exec(
-                    text(str(_FOREIGN_OWNERS)).bindparams(
+                    _FOREIGN_OWNERS.bindparams(
                         owner=login_roles()[0].name,
                         tables=sorted(GRANTABLE_SHARED_TABLES),
                     )

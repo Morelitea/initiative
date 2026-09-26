@@ -20,10 +20,7 @@ from sqlalchemy.exc import DBAPIError
 
 from app.core.config import settings
 from app.db.session import set_rls_context
-from app.db.system_grants import (
-    SHARED_TABLE_APP_GUILD_BASE_GRANTS,
-    SHARED_TABLE_PLATFORM_BASE_GRANTS,
-)
+from app.db.public_rls import SHARED_TABLE_REGISTRY
 from app.models.platform.user import UserRole
 from app.testing import (
     create_auth_provider,
@@ -116,8 +113,8 @@ async def _two_guilds(session):
 
 def test_the_registry_gives_the_guild_floor_none_of_them():
     for table in PER_PERSON:
-        assert SHARED_TABLE_APP_GUILD_BASE_GRANTS[table] is None, table
-    assert SHARED_TABLE_PLATFORM_BASE_GRANTS["marketplace_media"] is None
+        assert SHARED_TABLE_REGISTRY[table].grants.app_guild_base is None, table
+    assert SHARED_TABLE_REGISTRY["marketplace_media"].grants.platform_base is None
 
 
 @pytest.mark.parametrize("table", PER_PERSON)

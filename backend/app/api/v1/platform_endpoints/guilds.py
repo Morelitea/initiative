@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from contextlib import suppress
 from typing import Annotated, List
 
 from fastapi import (
@@ -52,7 +51,6 @@ from app.core.security import (
 from app.services.platform.identity_refs import billing_refs
 from app.services.marketplace import app_refs
 from app.db import cohorts
-from app.db.schema_provisioning import deprovision_guild
 from app.core.audit_events import AuditEventType
 from app.services import audit as audit_service
 from app.services import email as email_service
@@ -601,18 +599,20 @@ async def create_guild(
             detail=GuildMessages.FREE_COMMUNITY_ALREADY_HELD,
         )
 
-    # The guild's shared rows (guild + admin membership) live in public. Commit
-    # them first so provisioning + the in-schema seed below run as a distinct,
-    # compensatable step (on failure: deprovision + delete these committed rows).
-    guild = await guilds_service.create_guild(
-        session,
-        name=name,
-        description=guild_in.description,
-        creator=current_user,
-        owner=owner,
-        actor_user_id=current_user.id,
-    )
-    await session.commit()
+    try:
+        guild = await guilds_service.provision_new_guild(
+            session,
+            name=name,
+            description=guild_in.description,
+            creator=current_user,
+            owner=owner,
+            actor_user_id=current_user.id,
+        )
+    except guilds_service.GuildProvisionError:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=GuildMessages.GUILD_PROVISION_FAILED,
+        )
     if owner.id != current_user.id:
         # Both identities: created_by holds the first, the admin
         # membership the second.
@@ -621,31 +621,6 @@ async def create_guild(
             guild.id,
             current_user.id,
             owner.id,
-        )
-    try:
-        # Provision the schema and create the guild-scoped seed rows (settings +
-        # default initiative) *inside* it — so a new guild is schema-native from
-        # birth, with private config (API keys, etc.) isolated in its schema.
-        await guilds_service.seed_guild_content(
-            session,
-            guild_id=guild.id,
-            owner=owner,
-        )
-    except Exception:
-        logger.exception("Guild %s setup failed; rolling back", guild.id)
-        with suppress(Exception):
-            await deprovision_guild(guild.id)  # drops the schema + any partial content
-        stale = await guilds_service.get_guild(session, guild_id=guild.id)
-        if stale:
-            stale_id = stale.id
-            await guilds_service.delete_guild(
-                session, stale, actor_user_id=current_user.id, via="provision_failed"
-            )
-            await session.commit()
-            await app_refs.forget_guild(guild_id=stale_id)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=GuildMessages.GUILD_PROVISION_FAILED,
         )
     # Committed and seeded. Claimed for the owner — who holds the admin
     # membership — rather than the caller. Fire-and-forget.

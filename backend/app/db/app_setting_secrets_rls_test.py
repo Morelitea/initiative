@@ -17,17 +17,16 @@ from sqlalchemy.exc import DBAPIError
 
 from app.core.capabilities import Capability, roles_with_capability
 from app.core.config import settings
-from app.db.public_rls import FORCED_NO_POLICY, PUBLIC_RLS
-from app.db.schema_provisioning import platform_role_name
-from app.db.system_grants import (
-    SHARED_TABLE_APP_GUILD_BASE_GRANTS,
-    SHARED_TABLE_APP_INSTALL_BASE_GRANTS,
-    SHARED_TABLE_APP_SUPERADMIN_GRANTS,
-    SHARED_TABLE_APP_USER_GRANTS,
-    SHARED_TABLE_PLATFORM_BASE_GRANTS,
-    SHARED_TABLE_SYSTEM_GRANTS,
-    SHARED_TABLE_TIER_GRANTS,
+from app.db.public_rls import (
+    FORCED_NO_POLICY,
+    INSERT,
+    SELECT,
+    SHARED_TABLE_REGISTRY,
+    UPDATE,
+    Grants,
+    SharedTable,
 )
+from app.db.schema_provisioning import platform_role_name
 from app.db.tenancy import SHARED_TABLES
 from app.models.platform.app_setting import AppSetting
 from app.services.platform.app_settings import GLOBAL_SETTINGS_ID
@@ -64,23 +63,14 @@ def _config_manage_tiers() -> list[str]:
 
 
 def test_registry_records_the_system_engine_alone():
-    """Every request-path matrix names the table ``None``, no tier holds a verb
-    of its own, and the system engine holds what boot, the settings routes and
-    the key rotation use."""
+    """No request-path role holds the table, no tier holds a verb of its own,
+    no policy admits a row, and the system engine holds what boot, the
+    settings routes and the key rotation use."""
     assert TABLE in SHARED_TABLES
-    assert PUBLIC_RLS[TABLE] == FORCED_NO_POLICY
-    assert SHARED_TABLE_SYSTEM_GRANTS[TABLE] == frozenset(
-        {"SELECT", "INSERT", "UPDATE"}
+    assert SHARED_TABLE_REGISTRY[TABLE] == SharedTable(
+        rls=FORCED_NO_POLICY,
+        grants=Grants(app_admin=frozenset({SELECT, INSERT, UPDATE})),
     )
-    for matrix in (
-        SHARED_TABLE_APP_USER_GRANTS,
-        SHARED_TABLE_APP_GUILD_BASE_GRANTS,
-        SHARED_TABLE_PLATFORM_BASE_GRANTS,
-        SHARED_TABLE_APP_SUPERADMIN_GRANTS,
-        SHARED_TABLE_APP_INSTALL_BASE_GRANTS,
-    ):
-        assert matrix[TABLE] is None
-    assert TABLE not in SHARED_TABLE_TIER_GRANTS
 
 
 def test_app_settings_model_carries_no_credential():

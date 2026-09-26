@@ -86,13 +86,14 @@ export function useToolCreateAccess(
 
 /**
  * Cross-guild variant for the global create wizards, which pick a guild first:
- * the live initiatives in `guildId` the user can create `tool` in, fetched
- * lazily and sharing the wizard's own query cache.
+ * the live initiatives in `guildId` the user can create `tool` in — or every
+ * live one when `tool` is null, for a wizard that writes into existing content
+ * — fetched lazily and sharing the wizard's own query cache.
  */
-export function useCreatableInitiatives(tool: Tool, guildId: number | null) {
+export function useCreatableInitiatives(tool: Tool | null, guildId: number | null) {
   const query = useInitiativesForGuild(guildId);
   const initiatives = useMemo(
-    () => liveInitiatives(query.data).filter((i) => i.can.create.includes(tool)),
+    () => liveInitiatives(query.data).filter((i) => tool === null || i.can.create.includes(tool)),
     [query.data, tool]
   );
   return { initiatives, isLoading: query.isLoading };

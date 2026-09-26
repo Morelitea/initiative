@@ -13,8 +13,11 @@ import pytest
 from sqlalchemy import text
 
 from app.core.config import settings
-from app.db.schema_provisioning import PLATFORM_TIERS, platform_role_name
+from app.db.schema_provisioning import platform_role_name
 from app.db.session import set_rls_context
+from app.models.platform.user import UserRole
+
+_TIERS = [role.value for role in UserRole]
 
 
 async def _reset_role(session) -> None:
@@ -25,7 +28,7 @@ async def test_platform_roles_exist_and_are_least_privilege(session):
     """All five tiers + the base floor exist, are NOLOGIN, and crucially carry
     NO BYPASSRLS — the platform ladder never holds a standing all-guild bypass."""
     expected = {f"{settings.PLATFORM_ROLE_PREFIX}platform_base"} | {
-        platform_role_name(tier) for tier in PLATFORM_TIERS
+        platform_role_name(tier) for tier in _TIERS
     }
     rows = (
         await session.exec(
@@ -64,11 +67,11 @@ async def test_each_tier_inherits_the_base_floor(session):
         .scalars()
         .all()
     )
-    for tier in PLATFORM_TIERS:
+    for tier in _TIERS:
         assert platform_role_name(tier) in members
 
 
-@pytest.mark.parametrize("tier", PLATFORM_TIERS)
+@pytest.mark.parametrize("tier", _TIERS)
 async def test_public_path_assumes_platform_role(session, tier):
     """A no-guild request with a platform tier assumes platform_<tier>, not the
     bare login role."""

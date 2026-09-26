@@ -8,12 +8,9 @@ against the pre-existing PAM read-grant leg.
 import pytest
 
 from app.db.schema_provisioning import (
-    guild_app_role_name,
-    guild_readonly_role_name,
+    GuildRoleKind,
     guild_schema_name,
     guild_role_name,
-    guild_superadmin_role_name,
-    guild_support_role_name,
 )
 from app.db.session import _render_context_bind_params
 
@@ -46,18 +43,18 @@ def test_read_only_member_routes_to_ro_role_keeping_membership_gucs():
     community context stays set — writes die in Postgres, reads (and the
     membership legs, once the standing is computed) behave normally."""
     bind = _render_context_bind_params(_params(guild_id=3, read_only=True))
-    assert bind["role"] == guild_readonly_role_name(3)
+    assert bind["role"] == guild_role_name(3, GuildRoleKind.read_only)
     assert bind["gid"] == "3"
 
 
 def test_read_only_admin_also_routes_to_ro_role():
     bind = _render_context_bind_params(_params(guild_id=3, read_only=True))
-    assert bind["role"] == guild_readonly_role_name(3)
+    assert bind["role"] == guild_role_name(3, GuildRoleKind.read_only)
 
 
 def test_pam_read_grant_still_routes_to_ro_role():
     bind = _render_context_bind_params(_params(pam_guild_id=3, pam_read=True))
-    assert bind["role"] == guild_readonly_role_name(3)
+    assert bind["role"] == guild_role_name(3, GuildRoleKind.read_only)
     assert bind["gid"] == ""
 
 
@@ -68,13 +65,13 @@ def test_pam_write_grant_routes_to_support_role():
     bind = _render_context_bind_params(
         _params(pam_guild_id=3, pam_read=True, pam_write=True)
     )
-    assert bind["role"] == guild_support_role_name(3)
+    assert bind["role"] == guild_role_name(3, GuildRoleKind.support)
 
 
 def test_settings_grant_routes_without_content_grant_flags():
     """A settings rung on its own reads: the SELECT-only role, no content flags."""
     bind = _render_context_bind_params(_params(settings_guild_id=3))
-    assert bind["role"] == guild_readonly_role_name(3)
+    assert bind["role"] == guild_role_name(3, GuildRoleKind.read_only)
     assert bind["sp"] == f"{guild_schema_name(3)}, public, pg_temp"
     assert bind["gid"] == ""
     assert bind["pgid"] == ""
@@ -157,7 +154,7 @@ class TestTheInstallRoute:
 
     def test_it_assumes_the_app_role_and_names_no_person(self):
         out = self._install()
-        assert out["role"] == guild_app_role_name(3)
+        assert out["role"] == guild_role_name(3, GuildRoleKind.app)
         assert out["sp"] == f"{guild_schema_name(3)}, public, pg_temp"
         assert out["uid"] == ""
         assert out["gid"] == "3"
@@ -195,12 +192,12 @@ class TestTheSeatRoute:
 
     def test_a_seat_request_by_a_member_assumes_the_seat_role(self):
         out = _render_context_bind_params(_params(guild_id=3, seat=True))
-        assert out["role"] == guild_superadmin_role_name(3)
+        assert out["role"] == guild_role_name(3, GuildRoleKind.seat)
         assert out["gid"] == "3"
 
     def test_a_seat_request_by_a_settings_grantee_assumes_it_too(self):
         out = _render_context_bind_params(_params(settings_guild_id=4, seat=True))
-        assert out["role"] == guild_superadmin_role_name(4)
+        assert out["role"] == guild_role_name(4, GuildRoleKind.seat)
         assert out["setgid"] == "4"
 
     def test_an_ordinary_request_by_the_same_person_does_not(self):
@@ -213,15 +210,15 @@ class TestTheSeatRoute:
         out = _render_context_bind_params(
             _params(pam_guild_id=4, pam_read=True, settings_guild_id=4)
         )
-        assert out["role"] == guild_readonly_role_name(4)
+        assert out["role"] == guild_role_name(4, GuildRoleKind.read_only)
         assert out["setgid"] == "4"
 
     def test_a_settings_only_grant_reads(self):
         """The rung alone is a view; a read_write grant beside it is what
         picks the writable role."""
         out = _render_context_bind_params(_params(settings_guild_id=4))
-        assert out["role"] == guild_readonly_role_name(4)
+        assert out["role"] == guild_role_name(4, GuildRoleKind.read_only)
         paired = _render_context_bind_params(
             _params(pam_guild_id=4, pam_write=True, settings_guild_id=4)
         )
-        assert paired["role"] == guild_support_role_name(4)
+        assert paired["role"] == guild_role_name(4, GuildRoleKind.support)

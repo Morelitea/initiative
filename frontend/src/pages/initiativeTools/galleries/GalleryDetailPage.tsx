@@ -1,15 +1,5 @@
 import { Link, useParams } from "@tanstack/react-router";
-import {
-  Clock,
-  Info,
-  LayoutGrid,
-  Loader2,
-  Plus,
-  SearchX,
-  Settings,
-  ShieldAlert,
-  Tags,
-} from "lucide-react";
+import { Clock, Info, LayoutGrid, Loader2, Plus, Settings, Tags } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -39,9 +29,9 @@ import { MasonryIcon } from "@/components/initiativeTools/galleries/MasonryIcon"
 import { UploadProgress } from "@/components/initiativeTools/galleries/UploadProgress";
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
-import { StatusMessage } from "@/components/StatusMessage";
 import { Lightbox, type LightboxItem } from "@/components/shared/Lightbox";
 import { CardGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
+import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { UserHandle } from "@/components/UserHandle";
@@ -64,7 +54,6 @@ import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { toast } from "@/lib/chesterToast";
-import { getHttpStatus } from "@/lib/errorMessage";
 import { formatPeriod } from "@/lib/formatDate";
 import { imageLabel, imageSrc } from "@/lib/galleries";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -279,32 +268,13 @@ export function GalleryDetailPage() {
     setAnchor(null);
   }, []);
 
-  if (!Number.isFinite(parsedId)) {
-    return <p className="text-destructive">{t("notFound")}</p>;
-  }
-
-  if (galleryQuery.isError) {
-    const status = getHttpStatus(galleryQuery.error);
-    const backTo = gp(toolListRoute(Tool.gallery, initiativeId));
-    const backLabel = t("backToGalleries");
-    if (status === 403) {
-      return (
-        <StatusMessage
-          icon={<ShieldAlert />}
-          title={t("noAccess")}
-          description={t("noAccessDescription")}
-          backTo={backTo}
-          backLabel={backLabel}
-        />
-      );
-    }
+  if (!Number.isFinite(parsedId) || galleryQuery.isError) {
     return (
-      <StatusMessage
-        icon={<SearchX />}
-        title={t("notFound")}
-        description={t("notFoundDescription")}
-        backTo={backTo}
-        backLabel={backLabel}
+      <ToolAccessStatus
+        error={galleryQuery.error}
+        keys="galleries:"
+        backTo={gp(toolListRoute(Tool.gallery, initiativeId))}
+        backLabel={t("backToGalleries")}
       />
     );
   }

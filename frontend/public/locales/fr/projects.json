@@ -108,7 +108,6 @@
     "createProject": "Créer le projet"
   },
   "detail": {
-    "invalidProjectId": "Identifiant de projet invalide.",
     "backToProjects": "← Retour aux projets",
     "loading": "Chargement du projet…",
     "loadError": "Impossible de charger le projet.",
@@ -307,16 +306,10 @@
   },
   "table": {
     "reorder": "Réordonner",
-    "dateWindow": "Fenêtre de dates",
     "doneColumn": "Terminé",
     "markInProgress": "Marquer la tâche en cours",
     "markDone": "Marquer la tâche comme terminée",
     "taskColumn": "Tâche",
-    "startDateColumn": "Date de début",
-    "dueDateColumn": "Date d'échéance",
-    "priorityColumn": "Priorité",
-    "tagsColumn": "Étiquettes",
-    "moreTagsCount": "+{{count}}",
     "tagGroup": "Étiquette",
     "untagged": "Sans étiquette",
     "commentsColumn": "Commentaires",

@@ -9,7 +9,7 @@ import {
 } from "@/api/generated/initiativeAPI.schemas";
 import { TaskBlockersHoverCard } from "@/components/projects/TaskBlockersHoverCard";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
-import { SortIcon } from "@/components/SortIcon";
+import { SortHeader } from "@/components/SortIcon";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
 import { DateCell } from "@/components/tasks/TaskDateCell";
@@ -44,6 +44,99 @@ interface GlobalTaskColumnsOptions {
    */
   isPinned?: (task: TaskListRead) => boolean;
   togglePin?: (task: TaskListRead) => void;
+  /** Custom property columns, placed after the tags. */
+  propertyColumns: AppColumnDef<TaskListRead>[];
+}
+
+interface SharedTaskColumnsOptions<T extends TaskListRead> {
+  t: TranslateFn;
+  /** Where one of the row's tag badges links. */
+  tagHref: (task: T, tagId: number) => string;
+  isPriorityDisabled: (task: T) => boolean;
+}
+
+/**
+ * The columns every task table renders alike, keyed so each table places them
+ * in its own order.
+ */
+export function sharedTaskColumns<T extends TaskListRead>({
+  t,
+  tagHref,
+  isPriorityDisabled,
+}: SharedTaskColumnsOptions<T>): Record<
+  "dateGroup" | "startDate" | "dueDate" | "priority" | "tags",
+  AppColumnDef<T>
+> {
+  return {
+    dateGroup: {
+      id: "date group",
+      accessorFn: (task) => getTaskDateStatus(task.start_date, task.due_date),
+      header: ({ column }) => <SortHeader column={column} label={t("tasks:columns.dateWindow")} />,
+      cell: ({ getValue }) => (
+        <span className="font-medium text-base">
+          {getTaskDateStatusLabel(getValue<string>(), t)}
+        </span>
+      ),
+      sortFn: "alphanumeric",
+    },
+    startDate: {
+      id: "start date",
+      accessorFn: (task) => task.start_date,
+      header: ({ column }) => (
+        <SortHeader column={column} label={t("tasks:columns.startDate")} className="min-w-30" />
+      ),
+      cell: ({ row }) => <DateCell date={row.original.start_date} isPastVariant="primary" />,
+      sortFn: dateSortingFn,
+    },
+    dueDate: {
+      id: "due date",
+      accessorFn: (task) => task.due_date,
+      header: ({ column }) => (
+        <SortHeader column={column} label={t("tasks:columns.dueDate")} className="min-w-30" />
+      ),
+      cell: ({ row }) => (
+        <DateCell
+          date={row.original.due_date}
+          isPastVariant="destructive"
+          isDone={row.original.task_status?.category === "done"}
+        />
+      ),
+      sortFn: dateSortingFn,
+    },
+    priority: {
+      id: "priority",
+      accessorFn: (task) => task.priority,
+      header: ({ column }) => <SortHeader column={column} label={t("tasks:columns.priority")} />,
+      cell: ({ row }) => (
+        <TaskPrioritySelector task={row.original} disabled={isPriorityDisabled(row.original)} />
+      ),
+      sortFn: prioritySortingFn,
+      size: 140,
+    },
+    tags: {
+      id: "tags",
+      header: () => <span className="font-medium">{t("tasks:columns.tags")}</span>,
+      cell: ({ row }) => {
+        const task = row.original;
+        const taskTags = task.tags ?? [];
+        if (taskTags.length === 0) {
+          return <span className="text-muted-foreground text-sm">&mdash;</span>;
+        }
+        return (
+          <div className="flex flex-wrap gap-1">
+            {taskTags.slice(0, 3).map((tag) => (
+              <TagBadge key={tag.id} tag={tag} size="sm" to={tagHref(task, tag.id)} />
+            ))}
+            {taskTags.length > 3 && (
+              <span className="text-muted-foreground text-xs">
+                {t("tasks:columns.moreTags", { count: taskTags.length - 3 })}
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+  };
 }
 
 export function globalTaskColumns({
@@ -56,6 +149,7 @@ export function globalTaskColumns({
   t,
   isPinned,
   togglePin,
+  propertyColumns,
 }: GlobalTaskColumnsOptions): AppColumnDef<TaskListRead>[] {
   const guildDefaultLabel = t("myTasks.noGuild");
   const getGuildGroupLabel = (task: TaskListRead) => task.guild_name ?? guildDefaultLabel;
@@ -64,48 +158,19 @@ export function globalTaskColumns({
     const guildId = task.guild_id ?? activeGuildId;
     return guildId ? guildPath(guildId, path) : path;
   };
+  const shared = sharedTaskColumns<TaskListRead>({
+    t,
+    tagHref: (task, tagId) => taskGuildPath(task, `/tags/${tagId}`),
+    isPriorityDisabled: isUpdatingTask,
+  });
 
   return [
-    {
-      id: "date group",
-      accessorFn: (task) => getTaskDateStatus(task.start_date, task.due_date),
-      header: ({ column }) => {
-        const isSorted = column.getIsSorted();
-        return (
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-              {t("columns.dateWindow")}
-              <SortIcon isSorted={isSorted} />
-            </Button>
-          </div>
-        );
-      },
-      cell: ({ getValue }) => (
-        <span className="font-medium text-base">
-          {getTaskDateStatusLabel(getValue<string>(), t)}
-        </span>
-      ),
-      enableHiding: true,
-      enableSorting: true,
-      sortFn: "alphanumeric",
-    },
+    shared.dateGroup,
     {
       id: "guild",
       accessorFn: (task) => getGuildGroupLabel(task),
-      header: ({ column }) => {
-        const isSorted = column.getIsSorted();
-        return (
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-              {t("columns.guild")}
-              <SortIcon isSorted={isSorted} />
-            </Button>
-          </div>
-        );
-      },
+      header: ({ column }) => <SortHeader column={column} label={t("columns.guild")} />,
       cell: ({ getValue }) => <span className="font-medium text-base">{getValue<string>()}</span>,
-      enableHiding: true,
-      enableSorting: true,
       sortFn: "alphanumeric",
     },
     {
@@ -169,17 +234,7 @@ export function globalTaskColumns({
       : []),
     {
       accessorKey: "title",
-      header: ({ column }) => {
-        const isSorted = column.getIsSorted();
-        return (
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-              {t("columns.task")}
-              <SortIcon isSorted={isSorted} />
-            </Button>
-          </div>
-        );
-      },
+      header: ({ column }) => <SortHeader column={column} label={t("columns.task")} />,
       cell: ({ row }) => {
         const task = row.original;
         const recurrenceSummary = task.recurrence
@@ -223,46 +278,8 @@ export function globalTaskColumns({
       sortFn: "alphanumeric",
       enableHiding: false,
     },
-    {
-      id: "start date",
-      accessorKey: "start_date",
-      header: ({ column }) => {
-        const isSorted = column.getIsSorted();
-        return (
-          <div className="flex min-w-30 items-center gap-2">
-            <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-              {t("columns.startDate")}
-              <SortIcon isSorted={isSorted} />
-            </Button>
-          </div>
-        );
-      },
-      cell: ({ row }) => <DateCell date={row.original.start_date} isPastVariant="primary" />,
-      sortFn: dateSortingFn,
-    },
-    {
-      id: "due date",
-      accessorKey: "due_date",
-      header: ({ column }) => {
-        const isSorted = column.getIsSorted();
-        return (
-          <div className="flex min-w-30 items-center gap-2">
-            <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-              {t("columns.dueDate")}
-              <SortIcon isSorted={isSorted} />
-            </Button>
-          </div>
-        );
-      },
-      cell: ({ row }) => (
-        <DateCell
-          date={row.original.due_date}
-          isPastVariant="destructive"
-          isDone={row.original.task_status?.category === "done"}
-        />
-      ),
-      sortFn: dateSortingFn,
-    },
+    shared.startDate,
+    shared.dueDate,
     {
       id: "path",
       header: () => <span className="font-medium">{t("columns.projectPath")}</span>,
@@ -316,59 +333,9 @@ export function globalTaskColumns({
         );
       },
     },
-    {
-      accessorKey: "priority",
-      id: "priority",
-      header: ({ column }) => {
-        const isSorted = column.getIsSorted();
-        return (
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-              {t("columns.priority")}
-              <SortIcon isSorted={isSorted} />
-            </Button>
-          </div>
-        );
-      },
-      cell: ({ row }) => {
-        const task = row.original;
-        return (
-          <TaskPrioritySelector
-            task={task}
-            guildId={task.guild_id ?? activeGuildId}
-            disabled={isUpdatingTask(task)}
-          />
-        );
-      },
-      sortFn: prioritySortingFn,
-    },
-    {
-      id: "tags",
-      header: () => <span className="font-medium">{t("columns.tags")}</span>,
-      cell: ({ row }) => {
-        const task = row.original;
-        const taskTags = task.tags ?? [];
-        if (taskTags.length === 0) {
-          return <span className="text-muted-foreground text-sm">&mdash;</span>;
-        }
-        return (
-          <div className="flex flex-wrap gap-1">
-            {taskTags.slice(0, 3).map((tag) => (
-              <TagBadge
-                key={tag.id}
-                tag={tag}
-                size="sm"
-                to={taskGuildPath(task, `/tags/${tag.id}`)}
-              />
-            ))}
-            {taskTags.length > 3 && (
-              <span className="text-muted-foreground text-xs">+{taskTags.length - 3}</span>
-            )}
-          </div>
-        );
-      },
-      size: 150,
-    },
+    shared.priority,
+    shared.tags,
+    ...propertyColumns,
     {
       id: "status",
       header: () => <span className="font-medium">{t("columns.status")}</span>,

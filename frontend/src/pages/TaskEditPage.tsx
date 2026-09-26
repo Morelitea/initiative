@@ -9,8 +9,6 @@ import {
   Loader2,
   MoreHorizontal,
   Save,
-  SearchX,
-  ShieldAlert,
   Sparkles,
   Trash2,
   X,
@@ -26,9 +24,10 @@ import { invalidate, q } from "@/api/query-keys";
 import { CommentSection } from "@/components/comments/CommentSection";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { MentionComposer } from "@/components/markdown/MentionComposer";
-import { normalizePropertyValue } from "@/components/properties/PropertyFields";
+import { normalizePropertyValue } from "@/components/properties/propertyHelpers";
 import { StatusMessage } from "@/components/StatusMessage";
 import { TaskEditSkeleton } from "@/components/skeletons/PageSkeletons";
+import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { MoveTaskDialog } from "@/components/tasks/MoveTaskDialog";
 import { TaskChecklist } from "@/components/tasks/TaskChecklist";
 import { TaskDescription } from "@/components/tasks/TaskDescription";
@@ -75,7 +74,6 @@ import {
 } from "@/hooks/useTasks";
 import { toast } from "@/lib/chesterToast";
 import { dateRangeBounds } from "@/lib/dateRange";
-import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { queryClient } from "@/lib/queryClient";
 import { referenceRef } from "@/lib/smartChips";
@@ -474,54 +472,15 @@ export const TaskEditPage = () => {
     withResolver: true,
   });
 
-  const handleBackClick = () => {
-    router.history.back();
-  };
-
-  if (!Number.isFinite(parsedTaskId)) {
-    return (
-      <div className="space-y-4">
-        <p className="text-destructive">{t("edit.invalidTaskId")}</p>
-        <Button variant="link" className="px-0" onClick={handleBackClick}>
-          {t("edit.back")}
-        </Button>
-      </div>
-    );
-  }
-
   if (taskQuery.isLoading || isProjectContextLoading || taskStatusesQuery.isLoading) {
     return <TaskEditSkeleton label={t("edit.loadingTask")} />;
   }
 
   if (taskQuery.isError || taskStatusesQuery.isError || !taskQuery.data) {
-    const status = getHttpStatus(taskQuery.error) ?? getHttpStatus(taskStatusesQuery.error);
-
-    if (status === 404) {
-      return (
-        <StatusMessage
-          icon={<SearchX />}
-          title={t("edit.notFound")}
-          description={t("edit.notFoundDescription")}
-          backTo={gp(toolListRoute(Tool.project, initiativeId))}
-          backLabel={t("edit.backToProjects")}
-        />
-      );
-    }
-    if (status === 403) {
-      return (
-        <StatusMessage
-          icon={<ShieldAlert />}
-          title={t("edit.noAccess")}
-          description={t("edit.noAccessDescription")}
-          backTo={gp(toolListRoute(Tool.project, initiativeId))}
-          backLabel={t("edit.backToProjects")}
-        />
-      );
-    }
     return (
-      <StatusMessage
-        icon={<AlertCircle />}
-        title={t("edit.loadError")}
+      <ToolAccessStatus
+        error={taskQuery.error ?? taskStatusesQuery.error}
+        keys="tasks:edit."
         backTo={gp(toolListRoute(Tool.project, initiativeId))}
         backLabel={t("edit.backToProjects")}
       />

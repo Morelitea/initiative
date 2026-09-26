@@ -12,8 +12,8 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { Link, useParams, useRouter } from "@tanstack/react-router";
-import { ArrowDownUp, ArrowLeft, LayoutGrid, List, Plus, RotateCcw, Settings } from "lucide-react";
+import { useParams, useRouter } from "@tanstack/react-router";
+import { ArrowDownUp, LayoutGrid, List, Plus, RotateCcw, Settings } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -30,6 +30,7 @@ import {
   DetailPageSkeleton,
   SkeletonRegion,
 } from "@/components/skeletons/PageSkeletons";
+import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -171,16 +172,12 @@ export function CounterGroupDetailPage() {
 
   if (groupQuery.isError || !group) {
     return (
-      <div className="space-y-3">
-        <h1 className="font-semibold text-2xl">{t("notFound")}</h1>
-        <p className="text-muted-foreground text-sm">{t("notFoundDescription")}</p>
-        <Button variant="outline" asChild>
-          <Link to={gp(toolListRoute(Tool.counter_group, initiativeId))}>
-            <ArrowLeft className="h-4 w-4" />
-            {t("backToGroups")}
-          </Link>
-        </Button>
-      </div>
+      <ToolAccessStatus
+        error={groupQuery.error}
+        keys="counterGroups:"
+        backTo={gp(toolListRoute(Tool.counter_group, initiativeId))}
+        backLabel={t("backToGroups")}
+      />
     );
   }
 
