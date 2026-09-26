@@ -4,8 +4,8 @@ The whole trip is exercised through the routes a browser and an app use: a
 member starts the flow, the vendor answers the callback with a code, Initiative
 exchanges it (with PKCE), asks the app's ``after_connect`` hook, and stores the
 result; an app asks for a token by reference and gets a fresh one, refreshed
-once under the row's lock however many ask at once; and ending a connection
-ends the grant at the vendor.
+once however many ask at once and without holding the row anyone else writes;
+and ending a connection ends the grant at the vendor.
 """
 
 from __future__ import annotations
@@ -16,12 +16,13 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlparse
 
 import cryptography.fernet
+import httpx
 import jwt
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from httpx import AsyncClient
-from sqlalchemy import update
+from sqlalchemy import delete, text, update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -37,6 +38,7 @@ from app.models.platform.app_install import AppInstall
 from app.models.tenant.app_hook_delivery import AppHookDelivery
 from app.models.tenant.app_schedule_run import AppScheduleRun
 from app.models.tenant.guild_app import GuildApp
+from app.models.tenant.guild_app_secret import GuildAppSecret
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.marketplace.registration_lookup import load_registrations
 from app.services.tenant import app_connection_flows, app_revocation, app_schedules
@@ -132,6 +134,15 @@ WORKSPACE = {
         "alg": "RS256",
         "lifetime": 540,
     },
+}
+
+#: A community connection whose tokens Initiative holds and refreshes.
+ORG = {
+    "id": "org",
+    "scope": "static",
+    "label": {"en": "Organization account"},
+    "fields": [],
+    "flow": FLOW,
 }
 
 DEFINITION = {
@@ -311,6 +322,30 @@ async def _connected_row(
     await session.commit()
     await session.refresh(row)
     return row
+
+
+def _during_refresh(monkeypatch, vendor: FakeVendor, write) -> None:
+    """Run ``write`` while the vendor is answering a refresh."""
+
+    async def handle(request: httpx.Request) -> httpx.Response:
+        if b"grant_type=refresh_token" in request.content:
+            await write()
+        return vendor.handle(request)
+
+    monkeypatch.setattr(
+        app_connection_flows, "http_transport", httpx.MockTransport(handle)
+    )
+
+
+async def _write_during_refresh(guild_id: int, *statements) -> None:
+    """Another request's writes, refused rather than left waiting on a lock
+    the refresh holds."""
+    async with cohorts.system_session(guild_id) as own:
+        await set_rls_context(own, guild_id=guild_id)
+        await own.exec(text("SET LOCAL lock_timeout = '2s'"))
+        for statement in statements:
+            await own.exec(statement)
+        await own.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -661,8 +696,8 @@ class TestTokens:
     async def test_concurrent_reads_refresh_once(
         self, acting_user, session, vendor, registration
     ):
-        """A token about to expire is refreshed under the row's lock: the second
-        reader waits and finds the first's fresh token.
+        """A token about to expire is refreshed by one reader at a time: the
+        second waits and finds the first's fresh token.
 
         Two sessions of their own, as two requests in two workers would have;
         the test client shares one session per role, so it cannot overlap
@@ -682,6 +717,7 @@ class TestTokens:
                     app=install,
                     public_id=PUBLIC_ID,
                     connection_ref=row.connection_ref,
+                    guild_id=a.guild.id,
                 )
 
         first, second = await asyncio.gather(read_token(), read_token())
@@ -696,6 +732,91 @@ class TestTokens:
             decrypt_field(refreshed.config_secrets["refresh_token"], SALT_APP_CONFIG)
             != "ghr_stored"
         )
+
+    async def test_a_member_blocked_during_a_refresh_gets_no_token(
+        self,
+        client: AsyncClient,
+        acting_user,
+        session,
+        vendor,
+        registration,
+        monkeypatch,
+    ):
+        """The vendor is asked without holding the member's row, and what it
+        answered is dropped when the row changed meanwhile."""
+        a = await acting_user(guild_role=GuildRole.member)
+        app = await _install(session, a)
+        row = await _connected_row(session, a, app, expires_in=30)
+
+        async def block():
+            await _write_during_refresh(
+                a.guild.id,
+                update(GuildAppUserConnection)
+                .where(GuildAppUserConnection.id == row.id)
+                .values(blocked_at=datetime.now(timezone.utc)),
+            )
+
+        _during_refresh(monkeypatch, vendor, block)
+        response = await client.post(
+            TOKEN_ROUTE.format(ref=row.connection_ref),
+            headers=_install_headers(a.guild, app),
+        )
+
+        assert response.status_code == 403
+        assert response.json()["detail"] == AppChannelMessages.CONNECTION_BLOCKED
+        assert vendor.refreshes == 1
+        blocked = await _member_row(session, a.guild.id, app.id)
+        assert blocked is not None
+        assert (
+            decrypt_field(blocked.config_secrets["refresh_token"], SALT_APP_CONFIG)
+            == "ghr_stored"
+        )
+
+    async def test_a_community_connection_cleared_during_a_refresh_stays_cleared(
+        self,
+        client: AsyncClient,
+        acting_user,
+        session,
+        vendor,
+        registration,
+        monkeypatch,
+    ):
+        """The install's row is locked only to store the refreshed token, so a
+        disconnect lands while the vendor is being asked, and wins."""
+        a = await acting_user(guild_role=GuildRole.superadmin)
+        app = await create_guild_app(
+            session,
+            a.guild,
+            a.user,
+            definition={**DEFINITION, "connections": [*DEFINITION["connections"], ORG]},
+            listing_uid=LISTING_UID,
+            config={"org": {"expires_at": int(time.time()) + 30}},
+            connection_refs={"org": "gcr_org"},
+            secrets={
+                "org": {
+                    "access_token": encrypt_field("gho_stored", SALT_APP_CONFIG),
+                    "refresh_token": encrypt_field("ghr_stored", SALT_APP_CONFIG),
+                }
+            },
+        )
+
+        async def disconnect():
+            await _write_during_refresh(
+                a.guild.id,
+                update(GuildApp).where(GuildApp.id == app.id).values(config={}),
+                delete(GuildAppSecret).where(GuildAppSecret.install_id == app.id),
+            )
+
+        _during_refresh(monkeypatch, vendor, disconnect)
+        response = await client.post(
+            TOKEN_ROUTE.format(ref="gcr_org"), headers=_install_headers(a.guild, app)
+        )
+
+        assert response.status_code == 409
+        assert response.json()["detail"] == AppChannelMessages.CONNECTION_NO_TOKEN
+        assert vendor.refreshes == 1
+        cleared = await _reload(session, a.guild.id, app.id)
+        assert cleared.config == {}
 
     async def test_a_refused_refresh_expires_the_connection(
         self, client: AsyncClient, acting_user, session, vendor, registration

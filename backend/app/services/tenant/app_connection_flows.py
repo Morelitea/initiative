@@ -946,49 +946,57 @@ async def complete_callback(
         loaded = await _load_for_flow(session, state)
         if loaded is None:
             return landing_url(state.return_path, "not_recorded")
-        app = loaded.app
-        fields = stored_fields((app.config or {}).get(state.connection_id))
+        fields = stored_fields((loaded.app.config or {}).get(state.connection_id))
+        install_id = loaded.app.id
+
+    # The vendor and the app are asked with no transaction open. What they
+    # answer is stored against the install as it stands once they have.
+    try:
+        vendor = await load_vendor_values(loaded.public_id)
+        tokens = await exchange_code(
+            loaded.flow,
+            vendor=vendor,
+            fields=fields,
+            code=code,
+            verifier=state.verifier,
+        )
+    except VendorRefusedError as exc:
+        logger.info("app connection: the vendor refused the code (%s)", exc)
+        return landing_url(state.return_path, "refused")
+    except (ConnectionFlowError, OidcHttpError) as exc:
+        logger.warning("app connection: the code exchange failed (%s)", exc)
+        return landing_url(state.return_path, "not_recorded")
+
+    values: dict[str, Any] = {}
+    label: Optional[str] = None
+    if loaded.flow.get("after_connect") is True:
+        params: dict[str, str] = {}
+        if state.installation_id is not None:
+            params["installation_id"] = state.installation_id
         try:
-            vendor = await load_vendor_values(loaded.public_id)
-            tokens = await exchange_code(
-                loaded.flow,
-                vendor=vendor,
-                fields=fields,
-                code=code,
-                verifier=state.verifier,
+            answer = await after_connect(
+                public_id=loaded.public_id,
+                base_url=loaded.base_url,
+                guild_id=state.guild_id,
+                install_id=install_id,
+                connection_id=state.connection_id,
+                actor="member" if state.user_id is not None else "installation",
+                access_token=tokens.access_token,
+                params=params,
             )
-        except VendorRefusedError as exc:
-            logger.info("app connection: the vendor refused the code (%s)", exc)
-            return landing_url(state.return_path, "refused")
-        except (ConnectionFlowError, OidcHttpError) as exc:
-            logger.warning("app connection: the code exchange failed (%s)", exc)
+        except HookError as exc:
+            logger.warning("app connection: after_connect failed (%s)", exc)
             return landing_url(state.return_path, "not_recorded")
+        if answer.refused:
+            return landing_url(state.return_path, "refused")
+        values = answer.values
+        label = answer.account_label
 
-        values: dict[str, Any] = {}
-        label: Optional[str] = None
-        if loaded.flow.get("after_connect") is True:
-            params: dict[str, str] = {}
-            if state.installation_id is not None:
-                params["installation_id"] = state.installation_id
-            try:
-                answer = await after_connect(
-                    public_id=loaded.public_id,
-                    base_url=loaded.base_url,
-                    guild_id=state.guild_id,
-                    install_id=app.id,
-                    connection_id=state.connection_id,
-                    actor="member" if state.user_id is not None else "installation",
-                    access_token=tokens.access_token,
-                    params=params,
-                )
-            except HookError as exc:
-                logger.warning("app connection: after_connect failed (%s)", exc)
-                return landing_url(state.return_path, "not_recorded")
-            if answer.refused:
-                return landing_url(state.return_path, "refused")
-            values = answer.values
-            label = answer.account_label
-
+    async with cohorts.system_session(state.guild_id) as session:
+        loaded = await _load_for_flow(session, state)
+        if loaded is None:
+            return landing_url(state.return_path, "not_recorded")
+        app = loaded.app
         try:
             if state.user_id is not None:
                 stored = await _store_member(
@@ -1164,32 +1172,44 @@ async def _renewed(
         raise ConnectionFlowError(AppChannelMessages.TOKEN_UNAVAILABLE, 502) from exc
 
 
-async def member_token(
-    session: AsyncSession,
-    *,
-    app: GuildApp,
-    public_id: str,
-    connection_ref: str,
-) -> Optional[TokenSet]:
-    """A member connection's access token, refreshed under the row's lock.
+async def _hold_renewal(
+    session: AsyncSession, *, guild_id: int, install_id: int, connection: str
+) -> None:
+    """Hold one connection's token for the rest of the transaction.
 
-    ``None`` when no member connection of this install has that ref. Two reads
-    arriving together wait on the lock, and the second finds the first's
-    refreshed token rather than refreshing again.
+    Two readers of a token about to expire take turns, so the second finds the
+    first's refreshed token rather than refreshing again. Nothing else waits on
+    it: the install's and the member's rows are locked only for the write that
+    stores what the vendor answered. Keyed by guild as well as install, because
+    install ids repeat across guild schemas.
     """
-    row = (
-        await session.exec(
-            select(GuildAppUserConnection)
-            .where(
-                GuildAppUserConnection.app_id == app.id,
-                GuildAppUserConnection.connection_ref == connection_ref,
+    await session.exec(
+        select(
+            func.pg_advisory_xact_lock(
+                func.hashtextextended(
+                    f"app_token:{guild_id}:{install_id}:{connection}", 0
+                )
             )
-            .with_for_update()
-            .execution_options(populate_existing=True)
         )
-    ).first()
-    if row is None:
-        return None
+    )
+
+
+async def _member_row(
+    session: AsyncSession, *, app_id: Optional[int], connection_ref: str, lock: bool
+) -> Optional[GuildAppUserConnection]:
+    query = select(GuildAppUserConnection).where(
+        GuildAppUserConnection.app_id == app_id,
+        GuildAppUserConnection.connection_ref == connection_ref,
+    )
+    if lock:
+        query = query.with_for_update()
+    return (await session.exec(query.execution_options(populate_existing=True))).first()
+
+
+def _member_tokens(
+    app: GuildApp, row: GuildAppUserConnection
+) -> tuple[dict[str, Any], TokenSet]:
+    """The flow and token set of a member connection that may be handed out."""
     if row.blocked_at is not None:
         raise ConnectionFlowError(AppChannelMessages.CONNECTION_BLOCKED, 403)
     if row.status == "expired":
@@ -1199,22 +1219,60 @@ async def member_token(
     tokens = unseal_tokens(row.config, row.config_secrets)
     if flow is None or tokens is None or row.status != "connected":
         raise ConnectionFlowError(AppChannelMessages.CONNECTION_NO_TOKEN)
+    return flow, tokens
 
+
+async def member_token(
+    session: AsyncSession,
+    *,
+    app: GuildApp,
+    public_id: str,
+    connection_ref: str,
+    guild_id: int,
+) -> Optional[TokenSet]:
+    """A member connection's access token, refreshed when it is about to
+    expire.
+
+    ``None`` when no member connection of this install has that ref. A
+    connection changed while the vendor was asked answers as it stands now,
+    and what the vendor said is dropped.
+    """
+    await _hold_renewal(
+        session, guild_id=guild_id, install_id=app.id, connection=connection_ref
+    )
+    row = await _member_row(
+        session, app_id=app.id, connection_ref=connection_ref, lock=False
+    )
+    if row is None:
+        return None
+    flow, tokens = _member_tokens(app, row)
     renewed = await _renewed(
         flow, public_id=public_id, fields=stored_fields(row.config), tokens=tokens
     )
+    if renewed is tokens:
+        await session.commit()
+        return tokens
+
+    row = await _member_row(
+        session, app_id=app.id, connection_ref=connection_ref, lock=True
+    )
+    if row is None:
+        return None
+    _, current = _member_tokens(app, row)
+    if current != tokens:
+        await session.commit()
+        return current
     if renewed is None:
         row.status = "expired"
         row.updated_at = datetime.now(timezone.utc)
         session.add(row)
         await session.commit()
         raise ConnectionFlowError(AppChannelMessages.CONNECTION_EXPIRED)
-    if renewed is not tokens:
-        row.config, row.config_secrets = seal_tokens(
-            renewed, config=row.config, secrets=row.config_secrets
-        )
-        row.updated_at = datetime.now(timezone.utc)
-        session.add(row)
+    row.config, row.config_secrets = seal_tokens(
+        renewed, config=row.config, secrets=row.config_secrets
+    )
+    row.updated_at = datetime.now(timezone.utc)
+    session.add(row)
     await session.commit()
     return renewed
 
@@ -1228,33 +1286,58 @@ async def community_token(
     guild_id: int,
 ) -> TokenSet:
     """The community connection's access token: minted for a ``jwt_bearer``
-    connection, or its stored token set, refreshed under the install's lock."""
+    connection, or its stored token set, refreshed when it is about to expire.
+
+    A connection changed while the vendor was asked answers as it stands now,
+    and what the vendor said is dropped.
+    """
     connection = app_config_service.connection_by_id(app.definition, connection_id)
     if connection is None:
         raise ConnectionFlowError(AppChannelMessages.CONNECTION_NOT_FOUND, 404)
-    fields = stored_fields((app.config or {}).get(connection_id))
     spec = token_of(connection)
     if spec is not None and spec.get("type") == "jwt_bearer":
         vendor = await load_vendor_values(public_id)
         return await mint_jwt_bearer(
             spec,
             vendor=vendor,
-            fields=fields,
+            fields=stored_fields((app.config or {}).get(connection_id)),
             cache_key=(guild_id, app.id, connection_id),
         )
 
     flow = flow_of(connection)
+    if flow is None:
+        raise ConnectionFlowError(AppChannelMessages.CONNECTION_NO_TOKEN)
+    await _hold_renewal(
+        session, guild_id=guild_id, install_id=app.id, connection=connection_id
+    )
+    await session.refresh(app)
+    stored_config = (app.config or {}).get(connection_id) or {}
+    tokens = unseal_tokens(
+        stored_config,
+        (await guild_apps_service.load_secrets(session, app)).get(connection_id),
+    )
+    if tokens is None:
+        raise ConnectionFlowError(AppChannelMessages.CONNECTION_NO_TOKEN)
+    renewed = await _renewed(
+        flow, public_id=public_id, fields=stored_fields(stored_config), tokens=tokens
+    )
+    if renewed is tokens:
+        await session.commit()
+        return tokens
+
     locked = await guild_apps_service.lock_install(session, app.id)
-    if locked is None or flow is None:
+    if locked is None:
         raise ConnectionFlowError(AppChannelMessages.CONNECTION_NO_TOKEN)
     app = locked
     all_secrets = await guild_apps_service.load_secrets(session, app)
     stored_config = (app.config or {}).get(connection_id) or {}
     stored_secrets = all_secrets.get(connection_id) or {}
-    tokens = unseal_tokens(stored_config, stored_secrets)
-    if tokens is None:
-        raise ConnectionFlowError(AppChannelMessages.CONNECTION_NO_TOKEN)
-    renewed = await _renewed(flow, public_id=public_id, fields=fields, tokens=tokens)
+    current = unseal_tokens(stored_config, stored_secrets)
+    if current != tokens:
+        await session.commit()
+        if current is None:
+            raise ConnectionFlowError(AppChannelMessages.CONNECTION_NO_TOKEN)
+        return current
     if renewed is None:
         # The grant is over: the tokens go, and the connection reads as not
         # set until the community connects it again.
@@ -1270,16 +1353,13 @@ async def community_token(
         )
         await session.commit()
         raise ConnectionFlowError(AppChannelMessages.CONNECTION_EXPIRED)
-    if renewed is not tokens:
-        config, secrets = seal_tokens(
-            renewed, config=stored_config, secrets=stored_secrets
-        )
-        app.config = _replace_entry(app.config, connection_id, config)
-        guild_apps_service.touch(app)
-        session.add(app)
-        await guild_apps_service.store_secrets(
-            session, app, _replace_entry(all_secrets, connection_id, secrets)
-        )
+    config, secrets = seal_tokens(renewed, config=stored_config, secrets=stored_secrets)
+    app.config = _replace_entry(app.config, connection_id, config)
+    guild_apps_service.touch(app)
+    session.add(app)
+    await guild_apps_service.store_secrets(
+        session, app, _replace_entry(all_secrets, connection_id, secrets)
+    )
     await session.commit()
     return renewed
 

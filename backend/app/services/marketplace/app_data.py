@@ -66,15 +66,15 @@ from app.core.security import (
     AppPlatformSigningNotConfiguredError,
     app_platform_signing_enabled,
 )
-from app.db import session as db_session
-from app.models.platform.app_service_registration import AppServiceRegistration
-from app.models.platform.publisher import Publisher
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.fields.spec import FieldType
 from app.services.marketplace.app_refs import ensure_app_guild_ref
 from app.services.marketplace.context_jwt import mint_context_token
-from app.services.marketplace.registration_lookup import live_registration_clause
+from app.services.marketplace.registration_lookup import (
+    RegistrationSnapshot,
+    load_registrations,
+)
 from app.services.query.rows import RowColumn
 from app.services.marketplace.service_apps import is_admin_only
 from app.services.safe_http import build_validated_request
@@ -550,26 +550,18 @@ async def _member_connection(
 # --- the registration -------------------------------------------------------
 
 
-async def _load_registration(public_id: str) -> AppServiceRegistration:
+async def _load_registration(public_id: str) -> RegistrationSnapshot:
     """Where this app lives and whether the operator still allows it.
 
-    Read on the system engine: a registration is deployment configuration in
-    ``public`` with no request-path grant, so it is never reachable from the
-    guild session serving the request. Read per call rather than cached, so the
-    operator's kill switch takes effect on the next request in every worker.
+    Read from the registration snapshot every request path shares
+    (:mod:`app.services.marketplace.registration_lookup`), which an operator's
+    write drops at once and a replica that did not serve it reloads within its
+    TTL.
     """
-    async with db_session.SystemSessionLocal() as system_session:
-        found = (
-            await system_session.exec(
-                select(AppServiceRegistration, live_registration_clause())
-                .join(Publisher, Publisher.id == AppServiceRegistration.publisher_id)
-                .where(AppServiceRegistration.public_id == public_id)
-            )
-        ).first()
-    if found is None:
+    row = (await load_registrations()).get(public_id)
+    if row is None:
         raise AppDataError(AppDataMessages.SERVICE_NOT_REGISTERED, 404)
-    row, live = found
-    if not live:
+    if not row.live:
         raise AppDataError(AppDataMessages.SERVICE_DISABLED, 409)
     return row
 
@@ -685,7 +677,7 @@ def _effective_ttl(endpoint: Mapping[str, Any]) -> int:
 ENDPOINTS_PATH = "/v1/endpoints"
 
 
-def _endpoints_url(registration: AppServiceRegistration) -> str:
+def _endpoints_url(registration: RegistrationSnapshot) -> str:
     """Where this app answers: the operator's base URL joined to the one path
     every app serves. A manifest names an endpoint; only a registration says
     where the app is."""
@@ -791,7 +783,7 @@ class CallingApp:
 
 async def _call_app(
     *,
-    registration: AppServiceRegistration,
+    registration: RegistrationSnapshot,
     app: GuildApp,
     guild_id: int | None,
     endpoint_id: str,

@@ -12,8 +12,9 @@ sources *it displays*. Naming a different source of the same app is refused, so
 the surface a viewer can reach is the surface they can see.
 
 **Both kill switches are real.** The guild's install and the operator's
-registration each stop the call on their own, and each is re-read per request —
-neither is something a cached body can outlive.
+registration each stop the call on their own: the install is re-read per
+request, and an operator's write drops the registration snapshot — neither is
+something a cached body can outlive.
 
 **The cache key contains every credential the response depended on.** Two members
 who connected different vendor accounts must never see each other's rows. That is
@@ -48,6 +49,7 @@ from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.marketplace.app_refs import ensure_app_guild_ref
 from app.services.marketplace import app_data as app_data_service
 from app.services.marketplace.context_jwt_test import _PRIVATE_PEM
+from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.services.tenant.dashboard_definition import normalize_dashboard_definition
 from app.testing import (
     guild_of,
@@ -491,6 +493,7 @@ class TestKillSwitches:
         registration.enabled = False
         session.add(registration)
         await session.commit()
+        invalidate_registrations()
 
         response = await client.get(
             _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
@@ -502,8 +505,8 @@ class TestKillSwitches:
     async def test_a_kill_is_not_outlived_by_a_cached_body(
         self, client, acting_user, session, upstream
     ):
-        """The registration is re-read on every request, so an entry cached a
-        moment earlier is not served after the switch flips."""
+        """The operator's switch is read before the response cache, so an
+        entry cached a moment earlier is not served after it flips."""
         a, app, dashboard = await _workspace(session, acting_user)
         first = await client.get(
             _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers
@@ -514,6 +517,7 @@ class TestKillSwitches:
         registration.enabled = False
         session.add(registration)
         await session.commit()
+        invalidate_registrations()
 
         second = await client.get(
             _url(a, app, ORDERS_SUMMARY, dashboard), headers=a.headers

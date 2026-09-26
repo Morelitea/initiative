@@ -42,13 +42,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.app_scopes import app_scope
 from app.core.messages import AppDataMessages, AppHubMessages
 from app.db.session import clear_rls_context, set_rls_context
-from app.models.platform.app_service_registration import AppServiceRegistration
 from app.models.tenant.app_member_consent import AppMemberConsent, ConsentAccess
 from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.guild_app import GuildApp
 from app.services.marketplace import app_data
 from app.services.marketplace.app_data import AppDataError, CallingApp
 from app.services.marketplace.app_refs import ensure_app_ref
+from app.services.marketplace.registration_lookup import RegistrationSnapshot
 from app.services.marketplace.service_apps import is_admin_only
 from app.services.tenant.app_channels import owns_install
 from app.services.tenant.guild_apps import requested_scopes
@@ -119,7 +119,7 @@ def _callable_endpoint(
     return None
 
 
-async def _target_registration(public_id: str) -> AppServiceRegistration:
+async def _target_registration(public_id: str) -> RegistrationSnapshot:
     """The target's registration, live, or ``target_not_installed``."""
     try:
         return await app_data._load_registration(public_id)

@@ -22,9 +22,10 @@ every read rather than the schema the query runs in. ``resolve_app_ref``
 therefore takes the guild and will not answer without it.
 
 Most of it is reachable only on the system engine, and every function here
-that writes on it opens a session of its own; ``resolve_app_ref`` takes one,
-because its caller composes it with a guild-routed read in the same
-transaction. The exception is :func:`install_refs`, which an installed app's
+that writes on it opens a session of its own (the two ``ensure_`` ones only
+when this process has not seen the reference in the last minute);
+``resolve_app_ref`` takes one, because its caller composes it with a
+guild-routed read in the same transaction. The exception is :func:`install_refs`, which an installed app's
 own request runs on its routed session: ``guild_<id>_app`` may read and mint
 references in its own install's sector and nowhere else (``app.db.public_rls``).
 """
@@ -147,6 +148,12 @@ def _remember(key: tuple[int, int, str, int], ref: str, now: float) -> None:
     _install_ref_cache[key] = (ref, now + INSTALL_REF_TTL_SECONDS)
 
 
+def _forget_install(guild_id: int, install_id: int) -> None:
+    """Drop what this process remembers one install calling anybody."""
+    for key in [k for k in _install_ref_cache if k[:2] == (guild_id, install_id)]:
+        del _install_ref_cache[key]
+
+
 def forget_cached_install_refs() -> None:
     """Empty this process's install reference cache."""
     _install_ref_cache.clear()
@@ -217,24 +224,42 @@ async def install_refs(
     return found, minted
 
 
-async def ensure_app_ref(*, guild_id: int, app_install_id: int, user_id: int) -> str:
-    """This member's reference at this install, minting one on first use.
-
-    Opens a system-engine session of its own, from the guild's cohort, like
-    ``identity_refs.billing_refs``: the table is reachable only there, and the
-    caller is a request handler routed into a guild role.
-    """
+async def _ensure_install_ref(
+    *, guild_id: int, app_install_id: int, entity: IdentityEntity, entity_id: int
+) -> str:
+    """What one install calls one entity, from this process's cache or, on a
+    miss, a system-engine session of its own from the guild's cohort."""
+    key = _cache_key(guild_id, app_install_id, entity, entity_id)
+    cached = _install_ref_cache.get(key)
+    if cached is not None and cached[1] > time.monotonic():
+        return cached[0]
     async with cohorts.system_session(guild_id) as session:
         ref = await identity_refs.ensure_ref(
             session,
-            entity_type=IdentityEntity.user,
-            entity_id=user_id,
+            entity_type=entity,
+            entity_id=entity_id,
             purpose=_PURPOSE,
             sector_guild_id=guild_id,
             sector_id=app_install_id,
         )
         await session.commit()
+    _remember(key, ref, time.monotonic())
     return ref
+
+
+async def ensure_app_ref(*, guild_id: int, app_install_id: int, user_id: int) -> str:
+    """This member's reference at this install, minting one on first use.
+
+    The table is reachable only on the system engine, and the caller is a
+    request handler routed into a guild role, so a miss opens a session of its
+    own, like ``identity_refs.billing_refs``.
+    """
+    return await _ensure_install_ref(
+        guild_id=guild_id,
+        app_install_id=app_install_id,
+        entity=IdentityEntity.user,
+        entity_id=user_id,
+    )
 
 
 async def ensure_app_guild_ref(*, guild_id: int, app_install_id: int) -> str:
@@ -244,17 +269,12 @@ async def ensure_app_guild_ref(*, guild_id: int, app_install_id: int) -> str:
     installed in two guilds holds two unrelated values for them — the same
     property the member reference has, applied to the tenant.
     """
-    async with cohorts.system_session(guild_id) as session:
-        ref = await identity_refs.ensure_ref(
-            session,
-            entity_type=IdentityEntity.guild,
-            entity_id=guild_id,
-            purpose=_PURPOSE,
-            sector_guild_id=guild_id,
-            sector_id=app_install_id,
-        )
-        await session.commit()
-    return ref
+    return await _ensure_install_ref(
+        guild_id=guild_id,
+        app_install_id=app_install_id,
+        entity=IdentityEntity.guild,
+        entity_id=guild_id,
+    )
 
 
 async def ensure_app_guild_refs(
@@ -328,6 +348,9 @@ async def reissue_app_ref(
     The old value keeps resolving for the grace window, so a call already in
     flight lands.
     """
+    _install_ref_cache.pop(
+        _cache_key(guild_id, app_install_id, IdentityEntity.user, user_id), None
+    )
     return await identity_refs.reissue_ref(
         session,
         entity_type=IdentityEntity.user,
@@ -342,6 +365,7 @@ async def reissue_install_refs(
     session: AsyncSession, *, guild_id: int, app_install_id: int
 ) -> int:
     """Replace what one install calls every member. Returns the count."""
+    _forget_install(guild_id, app_install_id)
     return await identity_refs.reissue_all_refs(
         session,
         entity_type=IdentityEntity.user,
@@ -397,6 +421,7 @@ async def drop_install_refs(*, guild_id: int, app_install_id: int) -> int:
     foreign key (``guild_apps`` lives in a guild schema and ``identity_refs``
     does not), so this stands in for the cascade the column cannot carry.
     """
+    _forget_install(guild_id, app_install_id)
     async with cohorts.system_session(guild_id) as session:
         dropped = await identity_refs.drop_sector_refs(
             session,
