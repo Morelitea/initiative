@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/api/generated/auth/auth", () => ({
   useReadSecondFactorApiV1AuthTotpGet: () => mocks.status(),
+  getReadSecondFactorApiV1AuthTotpGetQueryKey: () => ["/api/v1/auth/totp"],
   useBeginSecondFactorApiV1AuthTotpEnrollPost: (options?: {
     mutation?: { onSuccess?: (data: unknown) => void };
   }) => ({
