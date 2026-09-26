@@ -29,6 +29,7 @@ from app.api.deps import (
     require_first_party_session,
 )
 from app.db import cohorts
+from app.db import session as db_session
 from app.db.session import get_system_session, set_rls_context
 from app.core.config import API_V1_STR, settings
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -121,7 +122,6 @@ from app.schemas.platform.passkey import (
     PasskeySignUpStart,
 )
 from app.schemas.platform.user import UserCreate, UserRead
-from app.db.session import SystemSessionLocal
 from app.services import audit as audit_service
 import webauthn
 from webauthn.helpers import bytes_to_base64url
@@ -571,7 +571,7 @@ async def _register_account(
         try:
             # On a system-engine session of its own: ``session`` is routed to
             # the account by now, and the token table is the system engine's.
-            async with SystemSessionLocal() as token_session:
+            async with db_session.SystemSessionLocal() as token_session:
                 token = await user_tokens.create_token(
                     token_session,
                     user_id=user.id,
@@ -1883,7 +1883,7 @@ async def _complete_provider_login(
                 if claim_path
                 else set()
             )
-            async with SystemSessionLocal() as sync_session:
+            async with db_session.SystemSessionLocal() as sync_session:
                 sync_result = await sync_oidc_assignments(
                     sync_session,
                     user_id=user.id,
@@ -2174,7 +2174,7 @@ async def _post_reset_letter(user_id: int, token: str) -> None:
     A letter that cannot be posted is logged; the person asks again.
     """
     try:
-        async with SystemSessionLocal() as letter_session:
+        async with db_session.SystemSessionLocal() as letter_session:
             user = await letter_session.get(User, user_id)
             if user is not None:
                 await email_service.send_password_reset_email(

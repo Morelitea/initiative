@@ -31,8 +31,8 @@ describe("useUnreadTree", () => {
     const result = await tree();
 
     expect(result.current.hasGuild(7)).toBe(true);
-    expect(result.current.hasInitiative(9)).toBe(true);
-    expect(result.current.hasTool(9, "project")).toBe(true);
+    expect(result.current.hasInitiative(7, 9)).toBe(true);
+    expect(result.current.hasTool(7, 9, "project")).toBe(true);
   });
 
   it("lights nothing a place does not name", async () => {
@@ -40,10 +40,10 @@ describe("useUnreadTree", () => {
     const result = await tree();
 
     expect(result.current.hasGuild(8)).toBe(false);
-    expect(result.current.hasInitiative(10)).toBe(false);
-    expect(result.current.hasTool(9, "document")).toBe(false);
+    expect(result.current.hasInitiative(7, 10)).toBe(false);
+    expect(result.current.hasTool(7, 9, "document")).toBe(false);
     // The same tool in a different initiative is a different row.
-    expect(result.current.hasTool(10, "project")).toBe(false);
+    expect(result.current.hasTool(7, 10, "project")).toBe(false);
   });
 
   it("lights a community for something belonging to nothing inside it", async () => {
@@ -53,7 +53,7 @@ describe("useUnreadTree", () => {
     const result = await tree();
 
     expect(result.current.hasGuild(7)).toBe(true);
-    expect(result.current.hasInitiative(9)).toBe(false);
+    expect(result.current.hasInitiative(7, 9)).toBe(false);
   });
 
   it("counts a place naming nowhere as unread all the same", async () => {

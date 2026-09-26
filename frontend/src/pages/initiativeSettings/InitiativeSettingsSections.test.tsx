@@ -134,10 +134,8 @@ describe("initiative settings sections", () => {
   });
 
   it("gives the project manager a card with no tool switches either", async () => {
+    stubInitiative();
     server.use(
-      guildHttp.get("/initiatives/", () =>
-        HttpResponse.json([buildInitiative({ id: INITIATIVE_ID, name: "Apollo" })])
-      ),
       guildHttp.get("/initiatives/:id/roles", () =>
         HttpResponse.json([
           buildInitiativeRole({
@@ -165,10 +163,8 @@ describe("initiative settings sections", () => {
   });
 
   it("keeps Delete on a custom manager role", async () => {
+    stubInitiative();
     server.use(
-      guildHttp.get("/initiatives/", () =>
-        HttpResponse.json([buildInitiative({ id: INITIATIVE_ID, name: "Apollo" })])
-      ),
       guildHttp.get("/initiatives/:id/roles", () =>
         HttpResponse.json([
           buildInitiativeRole({
@@ -194,10 +190,8 @@ describe("initiative settings sections", () => {
 
   it("grants view along with create, and takes create away with view", async () => {
     const patches: Record<string, unknown>[] = [];
+    stubInitiative();
     server.use(
-      guildHttp.get("/initiatives/", () =>
-        HttpResponse.json([buildInitiative({ id: INITIATIVE_ID, name: "Apollo" })])
-      ),
       guildHttp.get("/initiatives/:id/roles", () =>
         HttpResponse.json([
           buildInitiativeRole({

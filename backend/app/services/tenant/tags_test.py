@@ -183,7 +183,7 @@ async def test_a_tag_assignment_is_invisible_to_a_reader_outside_the_initiative(
         outsider.g(f"/tags/{tag.id}/entities"), headers=outsider.headers
     )
     assert response.status_code == 200, response.text
-    assert response.json()["documents"] == []
+    assert response.json()["items"] == []
 
 
 async def test_the_endpoint_gate_answers_in_the_schema_the_request_is_routed_to(

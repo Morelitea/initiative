@@ -138,13 +138,15 @@ async def test_jwt_without_sub_does_not_fall_through_to_device_lookup(
     import jwt as pyjwt
 
     from app.core.config import settings
-    from app.services.platform import ws_auth as ws_auth_module
+    from app.services.auth import credentials as credentials_module
 
     async def _must_not_be_called(*args, **kwargs):  # pragma: no cover
         raise AssertionError("device-token lookup must not run for a JWT bearer")
 
     monkeypatch.setattr(
-        ws_auth_module.user_tokens, "authenticate_device_token", _must_not_be_called
+        credentials_module.user_tokens,
+        "authenticate_device_token",
+        _must_not_be_called,
     )
 
     subless_token = pyjwt.encode(
