@@ -544,10 +544,9 @@ def declines_this_credential(guild: Guild) -> bool:
     off. The key's own ``guild_id`` says nothing here: a key pinned elsewhere
     and a key pinned nowhere both address this guild the same way.
 
-    The rule itself, so the three places that apply it read the same line — the
-    guild-context gate below, the ``/uploads`` route, which resolves the guild
-    itself, and the cross-guild aggregates, which visit each guild in turn (see
-    ``app.services.cross_guild``).
+    The rule itself, so the two places that apply it read the same line — the
+    guild-context gate below and the cross-guild aggregates, which visit each
+    guild in turn (see ``app.services.cross_guild``).
     """
     return not guild.allow_api_keys and auth_context.api_key_credential()
 
@@ -568,9 +567,9 @@ def _enforce_guild_api_access(guild: Guild) -> None:
     not who made it.
 
     Covers every path that resolves its guild through
-    :func:`_load_guild_context`: REST, document downloads, the realtime sockets
-    and the keepalive. The two that resolve one themselves ask the same
-    question where they do it.
+    :func:`_load_guild_context`: REST, uploads and document downloads, the
+    realtime sockets and the keepalive. The cross-guild aggregates, which pick
+    their guilds themselves, ask the same question where they do it.
     """
     if declines_this_credential(guild):
         raise GuildAccessError(detail=GuildMessages.GUILD_API_KEYS_REFUSED)
@@ -690,6 +689,10 @@ async def _load_guild_context(
         grant = await access_grants_service.get_live_grant(
             session, user_id=current_user.id, guild_id=guild_id
         )
+        # A settings grant reaches the community's configuration and nothing
+        # of its work, so a content request needs the content grant.
+        if grant is None and not for_settings:
+            raise GuildAccessError()
         settings_grant = await access_grants_service.get_live_grant(
             session,
             user_id=current_user.id,
@@ -1077,21 +1080,15 @@ async def get_guild_settings_context(
 
 async def get_guild_session(
     session: SessionDep,
-    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+    _guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> AsyncSession:
     """The session :func:`get_guild_membership` routed, for content requests.
 
     The routing and the standing are applied there — one seam call, of which
-    this is the other half — so this adds only the refusal a content request
-    owes a settings-only grant. Context is transaction-local and replayed at
-    the start of every transaction (see ``app.db.session``), so post-commit
-    queries need no manual re-apply.
+    this is the other half. Context is transaction-local and replayed at the
+    start of every transaction (see ``app.db.session``), so post-commit queries
+    need no manual re-apply.
     """
-    if guild_context.is_settings_only:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_ACCESS_DENIED,
-        )
     return session
 
 
@@ -1454,11 +1451,6 @@ def app_scope(scope: str) -> Callable[..., Awaitable[ActorContext]]:
                 request, session, bearer_token, scope
             )
         context = await get_guild_membership(request, session, person, guild_id)
-        if context.is_settings_only:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=GuildMessages.GUILD_ACCESS_DENIED,
-            )
         return context
 
     setattr(dependency, APP_SCOPE_ATTRIBUTE, scope)
@@ -1511,11 +1503,6 @@ def app_scope_by(
                 request, session, bearer_token, scope
             )
         context = await get_guild_membership(request, session, person, guild_id)
-        if context.is_settings_only:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=GuildMessages.GUILD_ACCESS_DENIED,
-            )
         return context
 
     setattr(dependency, APP_SCOPE_ATTRIBUTE, f"by {param}")
@@ -1561,11 +1548,6 @@ def app_scope_checked(
                 request, session, bearer_token, None
             )
         context = await get_guild_membership(request, session, person, guild_id)
-        if context.is_settings_only:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=GuildMessages.GUILD_ACCESS_DENIED,
-            )
         return context
 
     label = per.replace(" ", "_")
