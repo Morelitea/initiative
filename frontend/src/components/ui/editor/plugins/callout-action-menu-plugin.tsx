@@ -1,8 +1,14 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $findMatchingParent } from "@lexical/utils";
-import { $getNodeByKey, $getSelection, $isRangeSelection } from "lexical";
-import { ChevronDown, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import {
+  $getNearestNodeFromDOMNode,
+  $getNodeByKey,
+  $getSelection,
+  $isRangeSelection,
+  type NodeKey,
+} from "lexical";
+import { Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
@@ -21,37 +27,94 @@ import {
 import { CalloutIcon } from "@/components/ui/editor/plugins/callout-icon";
 
 interface Anchor {
-  key: string;
+  key: NodeKey;
   top: number;
   left: number;
+  size: number;
 }
 
-/** A small menu at the corner of the callout the caret is in: change its
- * kind, or take the callout away and keep what it says. */
+/** How far the button reaches past the icon it sits over, so the hover mark
+ * has room around the glyph. */
+const PAD = 4;
+
+/**
+ * A callout's icon is its menu: change its kind, or take the callout away and
+ * keep what it says.
+ *
+ * A button sits over the icon of the callout the caret is in, so the menu is
+ * reachable from the keyboard; a click on any other callout's icon moves it
+ * there and opens it.
+ */
 function CalloutActionMenu({ anchorElem }: { anchorElem: HTMLElement }) {
   const { t } = useTranslation("documents");
   const [editor] = useLexicalComposerContext();
   const [anchor, setAnchor] = useState<Anchor | null>(null);
+  const [open, setOpen] = useState(false);
+  const openRef = useRef(open);
+  openRef.current = open;
 
-  const update = useCallback(() => {
-    let key: string | null = null;
+  const anchorAt = useCallback(
+    (key: NodeKey | null): Anchor | null => {
+      const icon = key
+        ? editor.getElementByKey(key)?.querySelector<HTMLElement>(":scope > .callout-icon")
+        : null;
+      if (!key || !icon) return null;
+      const rect = icon.getBoundingClientRect();
+      const host = anchorElem.getBoundingClientRect();
+      return {
+        key,
+        top: rect.top - host.top - PAD,
+        left: rect.left - host.left - PAD,
+        size: rect.width + PAD * 2,
+      };
+    },
+    [editor, anchorElem]
+  );
+
+  const followCaret = useCallback(() => {
+    // An open menu stays with the callout it was opened on.
+    if (openRef.current) return;
+    let key: NodeKey | null = null;
     editor.getEditorState().read(() => {
       const selection = $getSelection();
       if (!$isRangeSelection(selection)) return;
-      const callout = $findMatchingParent(selection.anchor.getNode(), $isCalloutNode);
-      key = callout ? callout.getKey() : null;
+      key = $findMatchingParent(selection.anchor.getNode(), $isCalloutNode)?.getKey() ?? null;
     });
-    const element = key ? editor.getElementByKey(key) : null;
-    if (!key || !element) {
-      setAnchor(null);
-      return;
-    }
-    const rect = element.getBoundingClientRect();
-    const host = anchorElem.getBoundingClientRect();
-    setAnchor({ key, top: rect.top - host.top + 6, left: rect.right - host.left - 30 });
-  }, [editor, anchorElem]);
+    setAnchor(anchorAt(key));
+  }, [editor, anchorAt]);
 
-  useEffect(() => editor.registerUpdateListener(() => update()), [editor, update]);
+  useEffect(() => editor.registerUpdateListener(() => followCaret()), [editor, followCaret]);
+
+  // Closed, the button goes back to the callout the caret is in.
+  useEffect(() => {
+    if (!open) followCaret();
+  }, [open, followCaret]);
+
+  useEffect(
+    () =>
+      editor.registerRootListener((root, previous) => {
+        const onPointerDown = (event: PointerEvent) => {
+          const icon = (event.target as HTMLElement | null)?.closest?.(".callout-icon");
+          if (!icon || !editor.isEditable()) return;
+          let key: NodeKey | null = null;
+          editor.read(() => {
+            const node = $getNearestNodeFromDOMNode(icon);
+            key = $isCalloutNode(node) ? node.getKey() : null;
+          });
+          // An embed draws the same icon, and has no menu.
+          const next = anchorAt(key);
+          if (!next) return;
+          // Leave the caret where it was; this is a menu, not a place to write.
+          event.preventDefault();
+          setAnchor(next);
+          setOpen(true);
+        };
+        previous?.removeEventListener("pointerdown", onPointerDown);
+        root?.addEventListener("pointerdown", onPointerDown);
+        return () => root?.removeEventListener("pointerdown", onPointerDown);
+      }),
+    [editor, anchorAt]
+  );
 
   const setVariant = (variant: CalloutVariant) => {
     if (!anchor) return;
@@ -80,29 +143,26 @@ function CalloutActionMenu({ anchorElem }: { anchorElem: HTMLElement }) {
     return null;
   }
   return (
-    <div className="absolute z-10" style={{ top: anchor.top, left: anchor.left }}>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          className="flex h-6 w-6 items-center justify-center rounded bg-background/80 text-muted-foreground hover:bg-accent"
-          aria-label={t("editor.calloutActions")}
-        >
-          <ChevronDown className="h-4 w-4" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          {CALLOUT_VARIANTS.map((variant) => (
-            <DropdownMenuItem key={variant} onSelect={() => setVariant(variant)}>
-              <CalloutIcon variant={variant} className="size-4" />
-              {t(`editor.calloutKinds.${variant}`)}
-            </DropdownMenuItem>
-          ))}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={remove}>
-            <Trash2 className="size-4" />
-            {t("editor.removeCallout")}
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger
+        className="absolute z-10 cursor-pointer rounded-md hover:bg-foreground/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-foreground/10"
+        style={{ top: anchor.top, left: anchor.left, width: anchor.size, height: anchor.size }}
+        aria-label={t("editor.calloutActions")}
+      />
+      <DropdownMenuContent align="start">
+        {CALLOUT_VARIANTS.map((variant) => (
+          <DropdownMenuItem key={variant} onSelect={() => setVariant(variant)}>
+            <CalloutIcon variant={variant} className="size-4" />
+            {t(`editor.calloutKinds.${variant}`)}
           </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={remove}>
+          <Trash2 className="size-4" />
+          {t("editor.removeCallout")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

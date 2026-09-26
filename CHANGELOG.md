@@ -10,7 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Safety numbers in messages**, so you can check who you're talking to. A new device has to be approved by your other devices.
-- **Embeds** (`![[`) and **task checkbox chips** in documents.
+- **Embeds** (`![[`) and **task checkbox chips** in documents. An embedded document or wiki page shows what it says, not just its name.
+- **Callouts and embeds fold** to their first line, and stay folded for everyone who opens the page.
 - **Full-size pictures**: click a picture in any text to open it.
 - **Unread dots that lead to the item**, with unread comments highlighted.
 - **One-tap 👍** on comments and posts.
