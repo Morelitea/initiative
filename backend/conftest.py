@@ -14,6 +14,7 @@ import hashlib
 import os
 from collections.abc import AsyncGenerator
 from contextlib import suppress
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -29,7 +30,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa as _rsa
 from httpx import ASGITransport, AsyncClient
 from starlette.requests import HTTPConnection
 from sqlalchemy import event, text
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -539,11 +540,10 @@ def _disable_hibp_check(monkeypatch):
 
 
 @pytest.fixture(scope="function")
-async def engine():
-    """Create a test database engine."""
-    test_engine = create_async_engine(TEST_DATABASE_URL, echo=False, pool_pre_ping=True)
-    yield test_engine
-    await test_engine.dispose()
+async def engine(_worker_engines):
+    """The test database engine, as the superuser."""
+    yield _worker_engines.superuser
+    await _worker_engines.superuser.dispose()
 
 
 def _test_url_for_role(role: str) -> str:
@@ -645,9 +645,68 @@ _provisioned_guild_ids: set[int] = set()
 #: paths that give each community a session of its own are the ones exercised.
 _TEST_COHORTS = 2
 
+#: The provisioning render of this worker's migrated ``guild_template``, made
+#: by the first test and handed to every test after it.
+_template_bundle: Any = None
+
+
+@dataclass(frozen=True)
+class _WorkerEngines:
+    """The engines app code reaches during a test, built once per worker.
+
+    A test runs on an event loop of its own and a connection belongs to the
+    loop that opened it, so the harness empties every pool when a test ends;
+    the engines, and the dialect set-up their first connection paid for, are
+    kept.
+    """
+
+    superuser: AsyncEngine
+    system: AsyncEngine
+    query: AsyncEngine
+    app: AsyncEngine
+    cohort_request: tuple[AsyncEngine, ...]
+    cohort_system: tuple[AsyncEngine, ...]
+
+    def app_engines(self) -> tuple[AsyncEngine, ...]:
+        """Every engine but the superuser's, which ``engine`` empties."""
+        return (
+            self.system,
+            self.query,
+            self.app,
+            *self.cohort_request,
+            *self.cohort_system,
+        )
+
+
+@pytest.fixture(scope="session")
+def _worker_engines() -> _WorkerEngines:
+    def _make(role: str) -> AsyncEngine:
+        return create_async_engine(
+            _test_url_for_role(role), echo=False, pool_pre_ping=True
+        )
+
+    engines = _WorkerEngines(
+        superuser=_make("superuser"),
+        system=_make("app_admin"),
+        query=_make("app_user"),
+        app=_make("app_user"),
+        cohort_request=tuple(_make("app_user") for _ in range(_TEST_COHORTS)),
+        cohort_system=tuple(_make("app_admin") for _ in range(_TEST_COHORTS)),
+    )
+    # Two cohorts, each with a request and a system pool on this worker's
+    # database, so every test that reaches a community through a session of its
+    # own (the sockets, the cross-community reads, the sweeps) does so from
+    # that community's cohort — and a route outside it raises. The platform
+    # system pool is tagged as in production, so its routes are counted.
+    # Tagging adds listeners, so it happens here, once per engine.
+    cohorts.use_request_engines(list(engines.cohort_request))
+    cohorts.use_system_engines(list(engines.cohort_system))
+    cohorts.tag_engine(engines.system, cohorts.PLATFORM_SYSTEM)
+    return engines
+
 
 @pytest.fixture(autouse=True)
-async def _schema_test_harness(engine, monkeypatch):
+async def _schema_test_harness(engine, _worker_engines, monkeypatch):
     """Make every test schema-per-guild aware.
 
     - Installs the before_flush router so direct-session (factory) guild-scoped
@@ -676,72 +735,47 @@ async def _schema_test_harness(engine, monkeypatch):
     install_guild_routing()
     monkeypatch.setattr(db_session, "provisioning_engine", engine)
 
-    # The provisioning bundle reflects the LIVE guild_template; reset it per
-    # test so a stale render can't leak across the per-worker test DB lifecycle.
-    schema_provisioning.reset_provisioning_bundle()
+    # The provisioning bundle reflects the live guild_template. Tests leave
+    # the template as they found it, so it is rendered once per worker, and
+    # every test starts from that render whatever the one before it cached.
+    global _template_bundle
+    if _template_bundle is None:
+        schema_provisioning.reset_provisioning_bundle()
+        _template_bundle = await schema_provisioning.get_provisioning_bundle()
+    monkeypatch.setattr(schema_provisioning, "_bundle", _template_bundle)
 
-    test_system_engine = create_async_engine(
-        _test_url_for_role("app_admin"), echo=False, pool_pre_ping=True
-    )
-    monkeypatch.setattr(db_session, "system_engine", test_system_engine)
+    engines = _worker_engines
+    monkeypatch.setattr(db_session, "system_engine", engines.system)
 
     # The query surface keeps a pool of its own, so it needs pointing at this
     # worker's database like the others — it is created at import against the
     # configured one.
-    test_query_engine = create_async_engine(
-        _test_url_for_role("app_user"), echo=False, pool_pre_ping=True
-    )
-    monkeypatch.setattr(db_session, "query_engine", test_query_engine)
+    monkeypatch.setattr(db_session, "query_engine", engines.query)
     monkeypatch.setattr(
         db_session,
         "SystemSessionLocal",
         async_sessionmaker(
-            bind=test_system_engine,
+            bind=engines.system,
             autoflush=False,
             expire_on_commit=False,
             class_=AsyncSession,
         ),
     )
 
-    test_app_engine = create_async_engine(
-        _test_url_for_role("app_user"), echo=False, pool_pre_ping=True
-    )
-    monkeypatch.setattr(db_session, "engine", test_app_engine)
+    monkeypatch.setattr(db_session, "engine", engines.app)
     monkeypatch.setattr(
         db_session,
         "AsyncSessionLocal",
         async_sessionmaker(
-            bind=test_app_engine,
+            bind=engines.app,
             autoflush=False,
             expire_on_commit=False,
             class_=AsyncSession,
         ),
     )
 
-    # Two cohorts, each with a request and a system pool on this worker's
-    # database, so every test that reaches a community through a session of its
-    # own (the sockets, the cross-community reads, the sweeps) does so from
-    # that community's cohort — and a route outside it raises. The platform
-    # system pool is tagged as in production, so its routes are counted.
-    test_cohort_engines = [
-        create_async_engine(
-            _test_url_for_role("app_user"), echo=False, pool_pre_ping=True
-        )
-        for _ in range(_TEST_COHORTS)
-    ]
-    test_cohort_system_engines = [
-        create_async_engine(
-            _test_url_for_role("app_admin"), echo=False, pool_pre_ping=True
-        )
-        for _ in range(_TEST_COHORTS)
-    ]
     monkeypatch.setattr(settings, "DB_COHORTS", _TEST_COHORTS)
     monkeypatch.setattr(cohorts, "STRICT", True)
-    monkeypatch.setattr(cohorts, "_request_makers", None)
-    monkeypatch.setattr(cohorts, "_system_makers", None)
-    cohorts.use_request_engines(test_cohort_engines)
-    cohorts.use_system_engines(test_cohort_system_engines)
-    cohorts.tag_engine(test_system_engine, cohorts.PLATFORM_SYSTEM)
 
     _provisioned_guild_ids.clear()
     _orig_provision_guild = schema_provisioning.provision_guild
@@ -756,13 +790,12 @@ async def _schema_test_harness(engine, monkeypatch):
         schema_provisioning, "provision_guild", _tracking_provision_guild
     )
     yield
-    # Community steps a commit started finish before the pools close.
-    await cohorts.settle_all()
-    await test_system_engine.dispose()
-    await test_query_engine.dispose()
-    await test_app_engine.dispose()
-    for cohort_engine in (*test_cohort_engines, *test_cohort_system_engines):
-        await cohort_engine.dispose()
+    try:
+        # Community steps a commit started finish before the pools close.
+        await cohorts.settle_all()
+    finally:
+        for worker_engine in engines.app_engines():
+            await worker_engine.dispose()
 
 
 @pytest.fixture(scope="function")
