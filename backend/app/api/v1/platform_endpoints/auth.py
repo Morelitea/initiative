@@ -98,6 +98,7 @@ from app.models.platform.user import (
     UserStatus,
 )
 from app.models.platform.guild import Guild, GuildRole
+from app.schemas.base import MAX_TITLE_LENGTH, strip_to_plain_text
 from app.schemas.platform.token import Token
 from app.schemas.platform.second_factor import SecondFactorChallengeAnswer
 from app.schemas.platform.auth import (
@@ -1739,7 +1740,12 @@ async def _complete_provider_login(
     # missing/false claim is treated as unverified (some IdPs omit it entirely).
     email_verified = claims.get("email_verified") is True
     name_claim = claims.get("name") or claims.get("preferred_username")
-    full_name = name_claim if isinstance(name_claim, str) and name_claim else None
+    # Held to the same plain-text rule and length as a name typed on the profile.
+    full_name = (
+        strip_to_plain_text(name_claim).strip()[:MAX_TITLE_LENGTH] or None
+        if isinstance(name_claim, str)
+        else None
+    )
     picture_claim = claims.get("picture")
     avatar_url = (
         picture_claim if isinstance(picture_claim, str) and picture_claim else None

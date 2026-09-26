@@ -1200,7 +1200,8 @@ async def test_oidc_callback_provisions_new_user_and_sets_cookie(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
     """Happy path: a verified id_token provisions the unknown user, links the
-    federated identity, and issues the web session cookie."""
+    federated identity, and issues the web session cookie. The name claim is
+    stored as plain text."""
     await _enable_platform_oidc(session)
     idp = FakeIdp()
     _wire_fake_idp(monkeypatch, idp)
@@ -1212,7 +1213,7 @@ async def test_oidc_callback_provisions_new_user_and_sets_cookie(
             "email": "new@example.com",
             "username": "new",
             "email_verified": True,
-            "name": "New User",
+            "name": "<b>New</b> User",
         },
     )
     assert response.status_code in (302, 307)
