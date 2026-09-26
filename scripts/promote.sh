@@ -394,12 +394,10 @@ check_unreleased_content() {
 # that DOES touch backend/ fails that job instead, on a drift that has nothing
 # to do with the change being shipped. Both paths need this.
 #
-# Exports the OpenAPI spec from the backend (no running server needed), then
-# runs orval + biome-format to match exactly what the CI job does (see
-# .github/workflows/ci.yml). The project formats with biome — using
-# `pnpm prettier` here produced subtle whitespace differences that failed the
-# drift check. Errors are surfaced (no `2>/dev/null` suppression) so a broken
-# regen fails the release rather than silently shipping stale types.
+# Exports the OpenAPI spec from the backend (no running server needed) and
+# hands it to generate-api.sh --from-spec, the same call the CI job makes.
+# Errors are surfaced (no `2>/dev/null` suppression) so a broken regen fails
+# the release rather than silently shipping stale types.
 #
 # $1: the version being released, or empty when no bump is happening (the
 #     regen still runs, to catch a picked schema change whose generated
@@ -414,8 +412,11 @@ regenerate_api_types() {
     fi
 
     dim "  Exporting OpenAPI spec and regenerating frontend types..."
-    (cd backend && .venv/bin/python scripts/export_openapi.py ../frontend/openapi.json)
-    (cd frontend && pnpm orval && pnpm format:api)
+    local spec
+    spec="$(mktemp)"
+    (cd backend && .venv/bin/python scripts/export_openapi.py "$spec")
+    frontend/scripts/generate-api.sh --from-spec "$spec"
+    rm -f "$spec"
 
     if git diff --quiet frontend/src/api/generated/; then
         return 0
