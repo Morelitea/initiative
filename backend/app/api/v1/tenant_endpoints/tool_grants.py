@@ -43,11 +43,10 @@ from app.api.deps import (
     ActorContext,
     ActorSessionDep,
     ActorUserDep,
-    GuildContext,
     RLSSessionDep,
     app_scope,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
 from app.api.v1.tenant_endpoints.tool_lists import TOOL_LISTS, ToolListSpec
 from app.core.tools import Tool
@@ -57,7 +56,6 @@ from app.services.content_sockets import resource_room, sockets
 
 router = APIRouter(route_class=ActorRoute)
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 SharingWrite = Annotated[
     ActorContext, Depends(app_scope(resource_access.SHARING_WRITE))

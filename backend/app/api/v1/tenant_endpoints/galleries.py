@@ -51,7 +51,7 @@ from app.api.deps import (
     RLSSessionDep,
     app_scope,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
 from app.core.messages import (
     AttachmentMessages,
@@ -129,7 +129,6 @@ MAX_IMAGE_PAGE_SIZE = 200
 
 router = APIRouter(route_class=ActorRoute)
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 #: The routes an installed app may call, under the galleries scopes.
 GalleriesRead = Annotated[ActorContext, Depends(app_scope("galleries:read"))]

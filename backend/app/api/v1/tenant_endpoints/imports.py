@@ -32,8 +32,8 @@ from app.api.deps import (
     GuildContext,
     RLSSessionDep,
     get_current_active_user,
-    get_guild_membership,
     require_seat,
+    GuildContextDep,
 )
 from app.core.messages import ImportEngineMessages
 from app.core.version import get_version
@@ -76,7 +76,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 _LIST_LIMIT = 50
 

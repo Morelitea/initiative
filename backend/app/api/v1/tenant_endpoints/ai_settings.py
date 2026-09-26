@@ -19,12 +19,11 @@ from app.api.deps import (
     GuildContext,
     RLSSessionDep,
     SettingsRLSSessionDep,
-    get_current_active_user,
     get_guild_membership,
     require_guild_roles,
+    CurrentUser,
 )
 from app.models.platform.guild import GuildRole
-from app.models.platform.user import User
 from app.schemas.ai_settings import (
     AIConnectionCreate,
     AIConnectionResponse,
@@ -55,7 +54,6 @@ GuildSeatWriteContext = Annotated[
     Depends(require_guild_roles(GuildRole.superadmin, settings=True, write=True)),
 ]
 GuildMemberContext = Annotated[GuildContext, Depends(get_guild_membership)]
-CurrentUser = Annotated[User, Depends(get_current_active_user)]
 
 
 # --- Guild connections (guild admin — guild config mode) ---------------------

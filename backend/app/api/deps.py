@@ -72,6 +72,7 @@ from app.db.session import (
     apply_install_standing,
     clear_rls_context,
     get_session,
+    get_system_session,
     restore_rls_context,
     save_rls_context,
     set_rls_context,
@@ -96,6 +97,7 @@ from app.models.platform.user import (
 from app.services.platform import access_grants as access_grants_service
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
+SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl=f"{API_V1_STR}/auth/token", auto_error=False
@@ -389,6 +391,7 @@ async def get_active_user_exempt_from_factor(
     return await _active_user(request, current_user)
 
 
+CurrentUser = Annotated[User, Depends(get_current_active_user)]
 #: For the handful of routes above. Everything else takes ``CurrentUser``.
 FactorExemptUser = Annotated[User, Depends(get_active_user_exempt_from_factor)]
 
@@ -807,6 +810,9 @@ async def get_guild_membership(
         raise_for_guild_access(exc)
 
 
+GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+
+
 def raise_for_guild_access(exc: GuildAccessError) -> NoReturn:
     """Turn a refusal from the seam into the response it owes the caller.
 
@@ -926,6 +932,11 @@ def require_guild_roles(
         return context
 
     return dependency
+
+
+GuildAdminContext = Annotated[
+    GuildContext, Depends(require_guild_roles(GuildRole.admin))
+]
 
 
 def _note_privileged_request(current_user: User, guild_context: GuildContext) -> None:

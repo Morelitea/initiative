@@ -17,11 +17,15 @@ from typing import Annotated, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from webauthn.helpers import bytes_to_base64url
 
-from app.api.deps import UserSessionDep, get_current_active_user, require_capability
+from app.api.deps import (
+    UserSessionDep,
+    get_current_active_user,
+    require_capability,
+    SystemSessionDep,
+)
 from app.core.capabilities import Capability, user_has_capability
 from app.core.audit_events import AuditEventType
 from app.core.messages import AccessGrantMessages, AuthMessages
-from app.db.session import get_system_session
 from app.models.platform.user import User
 from app.models.platform.access_grant import (
     AccessGrantPurpose,
@@ -48,7 +52,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 router = APIRouter()
 
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 AccessRequestDep = Annotated[
     User, Depends(require_capability(Capability.ACCESS_REQUEST))
 ]

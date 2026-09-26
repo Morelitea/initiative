@@ -17,7 +17,7 @@ from app.api.deps import (
     RLSSessionDep,
     SessionDep,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
 from app.core.messages import FilterPresetMessages, ProjectMessages
 from app.models.platform.user import User
@@ -36,8 +36,6 @@ from app.services.tenant import filter_presets as filter_presets_service
 router = APIRouter(
     prefix="/projects/{project_id}/filter-presets", tags=["filter-presets"]
 )
-
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 async def _require_manageable_project(

@@ -41,9 +41,9 @@ from app.api.deps import (
     UploadUserDep,
     establish_guild_access,
     get_current_active_user,
-    get_guild_membership,
     GuildAccessError,
     GuildContext,
+    GuildContextDep,
 )
 from app.core.messages import (
     AttachmentMessages,
@@ -121,7 +121,6 @@ async def attached_projects(
 
 router = APIRouter(route_class=ActorRoute)
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 #: The routes an installed app may call, under the documents scopes.
 DocumentsRead = Annotated[ActorContext, Depends(app_scope("documents:read"))]
 DocumentsWrite = Annotated[ActorContext, Depends(app_scope("documents:write"))]

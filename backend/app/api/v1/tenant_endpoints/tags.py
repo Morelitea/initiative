@@ -12,12 +12,11 @@ from app.api.deps import (
     ActorSessionDep,
     ActorUserDep,
     IncludeDeletedDep,
-    GuildContext,
     RLSSessionDep,
     SessionDep,
     app_scope,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
 from app.core.app_scopes import tool_resource
 from app.core.messages import AppMessages, TagMessages
@@ -47,7 +46,6 @@ from app.schemas.tenant.tag import (
 # ``test_any_guild_member_can_manage_the_tag_dictionary``.
 router = APIRouter(route_class=ActorRoute)
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 #: The routes an installed app may call, under the tags scopes.
 TagsRead = Annotated[ActorContext, Depends(app_scope("tags:read"))]
 TagsWrite = Annotated[ActorContext, Depends(app_scope("tags:write"))]

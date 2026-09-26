@@ -19,6 +19,7 @@ from app.api.deps import (
     get_guild_membership,
     GuildContext,
     require_guild_roles,
+    GuildAdminContext,
 )
 from app.core.audit_events import AuditEventType
 from app.core.messages import (
@@ -72,9 +73,6 @@ from app.services.content_sockets import sockets as content_sockets
 from app.services import rls as rls_service
 from app.services.membership import initiative_scope_clause
 
-GuildAdminContext = Annotated[
-    GuildContext, Depends(require_guild_roles(GuildRole.admin))
-]
 
 router = APIRouter(route_class=ActorRoute)
 

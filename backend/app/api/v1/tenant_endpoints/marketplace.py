@@ -22,7 +22,6 @@ from typing import Annotated, Optional
 
 from fastapi import (
     APIRouter,
-    Depends,
     File,
     Form,
     HTTPException,
@@ -34,14 +33,12 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 
 from app.api.deps import (
-    GuildContext,
     RLSSessionDep,
-    get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
+    CurrentUser,
 )
 from app.core.messages import ImportEngineMessages, MarketplaceMessages
 from app.models.platform.marketplace import MarketplaceListing
-from app.models.platform.user import User
 from app.schemas.platform.marketplace import (
     ListingKind,
     ListingStartFrom,
@@ -87,8 +84,6 @@ from app.services.platform import app_settings as app_settings_service
 
 router = APIRouter()
 
-CurrentUser = Annotated[User, Depends(get_current_active_user)]
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 MAX_PAGE_SIZE = 100
 

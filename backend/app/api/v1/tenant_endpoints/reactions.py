@@ -10,10 +10,9 @@ from typing import Annotated, NoReturn
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.deps import (
-    GuildContext,
     RLSSessionDep,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
 from app.core.reactions import ReactionTarget
 from app.models.platform.user import User
@@ -25,7 +24,6 @@ from app.schemas.tenant.reaction import (
 from app.services.tenant import reactions as reactions_service
 
 router = APIRouter()
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 def _raise(exc: reactions_service.ReactionError) -> NoReturn:

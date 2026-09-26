@@ -37,7 +37,7 @@ from app.api.deps import (
     RLSSessionDep,
     app_scope,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
 from app.core.messages import WikiMessages
 from app.core.relationships import RelationshipType
@@ -75,7 +75,6 @@ router = APIRouter(route_class=ActorRoute)
 #: item is — for a caller holding nothing but that id.
 pages_router = APIRouter(route_class=ActorRoute)
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 #: The routes an installed app may call, under the wikis scopes.
 WikisRead = Annotated[ActorContext, Depends(app_scope("wikis:read"))]

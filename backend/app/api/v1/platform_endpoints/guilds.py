@@ -31,6 +31,7 @@ from app.api.deps import (
     holds_guild_role,
     raise_for_guild_access,
     get_current_active_user,
+    SystemSessionDep,
 )
 from app.api.v1.platform_endpoints.password_recheck import (
     require_password_or_recent_proof,
@@ -52,7 +53,6 @@ from app.services.platform.identity_refs import billing_refs
 from app.services.marketplace import app_refs
 from app.db import cohorts
 from app.db.schema_provisioning import deprovision_guild
-from app.db.session import get_system_session
 from app.core.audit_events import AuditEventType
 from app.services import audit as audit_service
 from app.services import email as email_service
@@ -126,7 +126,6 @@ from app.services.tenant import app_connections as app_connections_service
 from app.services.tenant import app_revocation as app_revocation_service
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

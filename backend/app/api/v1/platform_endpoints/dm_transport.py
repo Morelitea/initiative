@@ -16,7 +16,6 @@ from typing import Annotated
 
 from fastapi import (
     APIRouter,
-    Depends,
     Header,
     HTTPException,
     Path,
@@ -25,12 +24,11 @@ from fastapi import (
     status,
 )
 
-from app.api.deps import UserSessionDep, get_current_active_user
+from app.api.deps import UserSessionDep, CurrentUser
 from app.core.auth_context import device_token_id
 from app.core.messages import DirectMessageTransportMessages as Messages
 from app.core.rate_limit import limiter
 from app.core.user_display import handle_of
-from app.models.platform.user import User
 from app.schemas.platform.dm_transport import (
     MAX_GROUP_MEMBERS,
     DmConversationCreate,
@@ -57,7 +55,6 @@ from app.services.platform import dm_transport as service
 me_router = APIRouter()
 user_router = APIRouter()
 
-CurrentUser = Annotated[User, Depends(get_current_active_user)]
 TargetUserId = Annotated[int, Path(ge=1)]
 
 #: Every refusal that is about the pair answers the same way, so the endpoint is

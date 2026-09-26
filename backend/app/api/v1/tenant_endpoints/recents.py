@@ -24,11 +24,10 @@ from sqlmodel import select
 
 from app.db.session import require_guild_context
 from app.api.deps import (
-    GuildContext,
     RLSSessionDep,
     UserSessionDep,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
 from app.core.tools import Tool
 from app.services.tenant.tags import TOOL_TAG_LINKS
@@ -49,8 +48,6 @@ router = APIRouter()
 # recents operation and mounts under /c/{guild_id}/recents. The cross-guild
 # tabs-bar list stays on the top-level router above — fully separate endpoints.
 guild_router = APIRouter()
-
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 @dataclass(frozen=True)

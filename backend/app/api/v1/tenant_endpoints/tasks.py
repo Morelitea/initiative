@@ -20,8 +20,7 @@ from app.api.deps import (
     UserSessionDep,
     app_scope,
     get_current_active_user,
-    get_guild_membership,
-    GuildContext,
+    GuildContextDep,
 )
 from app.core.audit_events import AuditEventType
 from app.core.messages import ChecklistMessages, TaskMessages
@@ -76,7 +75,6 @@ ProjectsWrite = Annotated[ActorContext, Depends(app_scope("projects:write"))]
 # under /api/v1/me; user-scoped (no guild context), routes per member guild
 # itself via gather_across_guilds.
 me_router = APIRouter()
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 # Positions are stored as NUMERIC(20, 10); two stored values differ by at least

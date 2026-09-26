@@ -18,14 +18,13 @@ Both go through ``app.services.auth.provider_probe`` and are rate limited,
 because both spend the deployment's egress.
 """
 
-from typing import Annotated, List, Optional
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Request, status
-from sqlmodel.ext.asyncio.session import AsyncSession
+from fastapi import APIRouter, Request, status
 
+from app.api.deps import SystemSessionDep
 from app.api.v1.platform_endpoints.operator import ConfigManageDep
 from app.core.rate_limit import limiter
-from app.db.session import get_system_session
 from app.schemas.platform.settings import (
     AuthProviderOwnerRead,
     AuthProviderCreate,
@@ -38,7 +37,6 @@ from app.schemas.platform.settings import (
 from app.services.auth import provider_defaults, provider_probe, provider_registry
 
 router = APIRouter()
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 
 @router.get("/", response_model=List[AuthProviderOwnerRead])

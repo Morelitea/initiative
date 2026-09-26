@@ -20,10 +20,9 @@ from typing import Annotated, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import require_capability
+from app.api.deps import require_capability, SystemSessionDep
 from app.core.capabilities import Capability
 from app.core.messages import AppServiceMessages
-from app.db.session import get_system_session
 from app.models.platform.publisher import Publisher
 from app.models.platform.user import User
 from app.schemas.platform.app_service import (
@@ -43,7 +42,6 @@ from app.services.tenant import app_connection_flows as flows_service
 router = APIRouter()
 publishers_router = APIRouter()
 
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 #: Wiring app services is deployment configuration — owner tier, like the rest
 #: of the platform settings wall.
 AppsManageDep = Annotated[User, Depends(require_capability(Capability.APPS_MANAGE))]

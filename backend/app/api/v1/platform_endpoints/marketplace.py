@@ -24,7 +24,6 @@ from typing import Annotated
 
 from fastapi import (
     APIRouter,
-    Depends,
     File,
     HTTPException,
     Response,
@@ -35,14 +34,12 @@ from fastapi.responses import JSONResponse
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import SessionDep, UserSessionDep, get_current_active_user
+from app.api.deps import SessionDep, UserSessionDep, SystemSessionDep, CurrentUser
 from app.api.v1.platform_endpoints.operator import ConfigManageDep
 from app.core.audit_events import AuditEventType
 from app.core.messages import MarketplaceMessages
 from app.core.messages import MarketplaceRegistryMessages as RegistryCodes
-from app.db.session import get_system_session
 from app.models.platform.marketplace_registry import MarketplaceMedia
-from app.models.platform.user import User
 from app.schemas.platform.marketplace import (
     ListingMediaRead,
     ListingUploadRequest,
@@ -71,8 +68,6 @@ from app.services.marketplace import operator_catalog as operator_catalog_servic
 
 router = APIRouter()
 
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
-CurrentUser = Annotated[User, Depends(get_current_active_user)]
 
 #: A mirrored image is addressed by the hex SHA-256 of its own bytes.
 _DIGEST_LENGTH = 64

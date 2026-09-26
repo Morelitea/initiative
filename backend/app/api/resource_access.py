@@ -19,9 +19,7 @@ from fastapi import Depends, HTTPException, status
 
 from app.api.deps import (
     ActorContext,
-    GuildContext,
     get_current_active_user,
-    get_guild_membership,
 )
 from app.core.app_scopes import AppScopeAccess, scope_name, tool_resource
 from app.core.messages import AppMessages, InitiativeMessages
@@ -50,7 +48,6 @@ from app.services.tenant import named_people
 from app.services.tenant import project_grants
 from app.services.tenant import queues as queues_service
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 
 

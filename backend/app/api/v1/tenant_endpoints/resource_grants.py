@@ -18,10 +18,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api import resource_access
 from app.api.deps import (
-    GuildContext,
     RLSSessionDep,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
 from app.models.platform.user import User
 from app.schemas.tenant.resource_grant import (
@@ -31,8 +30,6 @@ from app.schemas.tenant.resource_grant import (
 )
 
 router = APIRouter()
-
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 def _outcome_for(status_code: int) -> str | None:

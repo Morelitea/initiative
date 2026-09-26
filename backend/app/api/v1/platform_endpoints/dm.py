@@ -11,12 +11,11 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
+from fastapi import APIRouter, HTTPException, Path, Query, Response, status
 from sqlalchemy import text
 
-from app.api.deps import UserSessionDep, get_current_active_user
+from app.api.deps import UserSessionDep, CurrentUser
 from app.core.messages import DirectMessageMessages
-from app.models.platform.user import User
 from app.models.platform.contact_grant import ContactGrantKind
 from app.schemas.platform.dm import (
     ConnectionRequestCreate,
@@ -37,7 +36,6 @@ from app.services.platform import user_ignores as user_ignores_service
 me_router = APIRouter()
 user_router = APIRouter()
 
-CurrentUser = Annotated[User, Depends(get_current_active_user)]
 TargetUserId = Annotated[int, Path(ge=1)]
 
 

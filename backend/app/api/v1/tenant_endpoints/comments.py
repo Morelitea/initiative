@@ -8,11 +8,10 @@ from app.api.deps import (
     ActorSessionDep,
     ActorUserDep,
     IncludeDeletedDep,
-    GuildContext,
     RLSSessionDep,
     app_scope,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
 from app.models.platform.user import User
 from app.schemas.tenant.comment import (
@@ -26,7 +25,6 @@ from app.services.tenant import attachments as attachments_service
 from app.services.tenant import comments as comments_service
 
 router = APIRouter(route_class=ActorRoute)
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 #: The routes an installed app may call, under the comments scopes.
 CommentsRead = Annotated[ActorContext, Depends(app_scope("comments:read"))]
 CommentsWrite = Annotated[ActorContext, Depends(app_scope("comments:write"))]

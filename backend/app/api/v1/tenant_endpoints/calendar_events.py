@@ -31,8 +31,8 @@ from app.api.deps import (
     UserSessionDep,
     app_scope,
     get_current_active_user,
-    get_guild_membership,
     GuildContext,
+    GuildContextDep,
 )
 from app.core.identity_boundary import PersonId
 from app.models.tenant.calendar import Calendar
@@ -85,7 +85,6 @@ router = APIRouter(route_class=ActorRoute)
 me_router = APIRouter()
 logger = logging.getLogger(__name__)
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 #: The routes an installed app may call. An event answers to its calendar, so
 #: they name the calendars scopes.
 CalendarsRead = Annotated[ActorContext, Depends(app_scope("calendars:read"))]

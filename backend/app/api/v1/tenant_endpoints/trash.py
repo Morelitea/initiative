@@ -25,8 +25,8 @@ from app.api.deps import (
     GuildContext,
     RLSSessionDep,
     get_current_active_user,
-    get_guild_membership,
     require_guild_roles,
+    GuildContextDep,
 )
 from app.core.audit_events import AuditEventType
 from app.core.messages import TrashMessages
@@ -56,9 +56,6 @@ from app.services.tenant.soft_delete import (
 
 
 router = APIRouter()
-
-
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 #: Wire name -> (model, the column that labels its rows). A target's table is

@@ -12,10 +12,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.deps import (
-    GuildContext,
     RLSSessionDep,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
 from app.core.messages import SupportMessages
 from app.models.platform.user import User
@@ -27,8 +26,6 @@ from app.schemas.tenant.support import (
 from app.services.tenant import support as support_service
 
 router = APIRouter()
-
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 @router.get("", response_model=SupportAvailability)

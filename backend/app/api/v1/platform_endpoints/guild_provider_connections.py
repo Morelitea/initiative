@@ -30,10 +30,10 @@ from app.api.deps import (
     SeatWriteSessionDep,
     SettingsAdminContextDep,
     get_current_active_user,
+    SystemSessionDep,
 )
 from app.api.v1.platform_endpoints.guilds import _require_guild_auth_option
 from app.core.guild_auth_options import GuildAuthOption
-from app.db.session import get_system_session
 from app.models.platform.user import User
 from app.schemas.platform.settings import (
     ConnectableProviderRead,
@@ -50,7 +50,6 @@ from app.services.auth import guild_provider_connections as connections
 from app.services.platform import guilds as guilds_service
 
 router = APIRouter()
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 
 

@@ -29,8 +29,9 @@ from webauthn.helpers.exceptions import WebAuthnException
 
 from app.api.deps import (
     FactorExemptUser,
-    get_current_active_user,
     require_first_party_session,
+    SystemSessionDep,
+    CurrentUser,
 )
 from app.api.v1.platform_endpoints.password_recheck import (
     require_password_or_recent_proof,
@@ -49,7 +50,7 @@ from app.core.messages import AuthMessages, NativeMessages
 from app.core.transitions import NATIVE_SIGN_IN_CODE
 from app.core.rate_limit import get_user_or_ip_key, limiter
 from app.core.security import has_usable_password
-from app.db.session import get_system_session, get_session
+from app.db.session import get_session
 from app.models.platform.user import SIGN_IN_STATUSES, User
 from app.models.platform.user_passkey import UserPasskey
 from app.schemas.platform.passkey import (
@@ -83,9 +84,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
-CurrentUser = Annotated[User, Depends(get_current_active_user)]
 #: Adding and removing a way in are done by the person in a session of their
 #: own rather than through a standing credential.
 FirstPartyOnly = Depends(require_first_party_session)

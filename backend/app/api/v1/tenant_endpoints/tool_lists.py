@@ -48,11 +48,10 @@ from app.api.deps import (
     ActorContext,
     ActorSessionDep,
     ActorUserDep,
-    GuildContext,
     RLSSessionDep,
     app_scope,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
 from app.core.app_scopes import AppScopeAccess, scope_name, tool_resource
 from app.api.v1.tenant_endpoints import calendars as calendars_endpoints
@@ -133,7 +132,6 @@ from app.services.tenant import wikis as wikis_service
 
 router = APIRouter(route_class=ActorRoute)
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 
 

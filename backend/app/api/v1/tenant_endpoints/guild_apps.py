@@ -41,16 +41,15 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import routed_guild_id
 from app.api.deps import (
-    GuildContext,
     RLSSessionDep,
     SeatContextDep,
     SeatSessionDep,
     SeatWriteContextDep,
     SeatWriteSessionDep,
-    get_current_active_user,
-    get_guild_membership,
     require_first_party_session,
     require_seat,
+    GuildContextDep,
+    CurrentUser,
 )
 from app.core.audit_events import AuditEventType
 from app.core.messages import (
@@ -60,7 +59,6 @@ from app.core.messages import (
 )
 from app.db import cohorts
 from app.models.platform.guild import GuildMembership
-from app.models.platform.user import User
 from app.models.tenant.app_member_consent import AppMemberConsent
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.initiative import Initiative
@@ -127,8 +125,6 @@ router = APIRouter()
 #: about.
 initiative_router = APIRouter()
 
-CurrentUser = Annotated[User, Depends(get_current_active_user)]
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 #: What an admin sets on an install itself, as opposed to its configuration or
 #: its version. A record of one of these says which of them moved; placement is

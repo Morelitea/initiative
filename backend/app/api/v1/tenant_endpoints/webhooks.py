@@ -55,11 +55,10 @@ from app.api.actor_route import ActorRoute
 from app.api.deps import (
     ActorContext,
     ActorSessionDep,
-    GuildContext,
     RLSSessionDep,
     app_scope_checked,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
 from app.core import webhook_events
 from app.core.messages import WebhookSubscriptionMessages
@@ -89,7 +88,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(route_class=ActorRoute)
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 #: The routes an installed app may call. Registering asks the read scope of
 #: each event type's tool, which the service checks once it has the body;
 #: removing reaches only the install's own subscriptions.

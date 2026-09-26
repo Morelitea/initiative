@@ -18,8 +18,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import (
     CREDENTIAL_DEVICE_TOKEN,
-    get_current_active_user,
     require_first_party_session,
+    SystemSessionDep,
+    CurrentUser,
 )
 from app.api.v1.platform_endpoints.password_recheck import require_password
 from app.api.v1.platform_endpoints.session_opening import (
@@ -38,7 +39,7 @@ from app.core.rate_limit import (
     sign_in_allowance_left,
 )
 from app.core.security import get_password_hash, has_usable_password
-from app.db.session import get_system_session, get_session
+from app.db.session import get_session
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.user import User, UserStatus
 from app.schemas.platform.auth import VerificationSendResponse
@@ -56,9 +57,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
-CurrentUser = Annotated[User, Depends(get_current_active_user)]
 #: Giving up a way in is done by the person in a session of their own rather
 #: than through a standing credential.
 FirstPartyOnly = Depends(require_first_party_session)

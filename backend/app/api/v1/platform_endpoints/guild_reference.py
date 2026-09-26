@@ -35,12 +35,11 @@ from pydantic import ValidationError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import SessionDep, oauth2_scheme
+from app.api.deps import SessionDep, oauth2_scheme, SystemSessionDep
 from app.api.v1.platform_endpoints.app_installation import installation_caller
 from app.core.app_access_token import is_access_token
 from app.core.config import settings
 from app.core.messages import BundledChannelMessages
-from app.db.session import get_system_session
 from app.models.platform.app_service_registration import (
     AppServiceRegistration,
     RegistrationSource,
@@ -70,8 +69,6 @@ ANSWERABLE_PURPOSES: frozenset[IdentityPurpose] = frozenset({IdentityPurpose.bil
 
 #: Not part of the OpenAPI schema: service-to-service, and no browser calls it.
 router = APIRouter(include_in_schema=False)
-
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 
 def _sector_refused() -> HTTPException:

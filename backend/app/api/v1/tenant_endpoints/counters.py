@@ -24,8 +24,7 @@ from app.api.deps import (
     RLSSessionDep,
     app_scope,
     get_current_active_user,
-    get_guild_membership,
-    GuildContext,
+    GuildContextDep,
 )
 from app.core.messages import CounterMessages
 from app.models.tenant.counter import (
@@ -66,7 +65,6 @@ router = APIRouter(route_class=ActorRoute)
 counters_router = APIRouter(route_class=ActorRoute)
 logger = logging.getLogger(__name__)
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 #: The routes an installed app may call, under the counter groups scopes. A
 #: group's counters and their commands answer to the group's own scopes.
 CounterGroupsRead = Annotated[ActorContext, Depends(app_scope("counter_groups:read"))]

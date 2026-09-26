@@ -18,11 +18,10 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.deps import (
-    GuildContext,
     RLSSessionDep,
     UserSessionDep,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
 from app.core.messages import ModerationMessages
 from app.core.moderation import parse_target
@@ -42,8 +41,6 @@ from app.services.tenant import sharing_overview
 
 router = APIRouter()
 me_router = APIRouter()
-
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 def _read(

@@ -12,12 +12,11 @@ from app.api.deps import (
     ActorContext,
     ActorSessionDep,
     ActorUserDep,
-    GuildContext,
     RLSSessionDep,
     SessionDep,
     app_scope,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
 from app.db.guild_standing import InstallContext
 from app.models.tenant.initiative import Initiative
@@ -53,7 +52,6 @@ initiative_router = APIRouter(
     route_class=ActorRoute,
 )
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 #: The routes an installed app may call. A status column is its project's, so
 #: it answers to the projects scopes.
 ProjectsRead = Annotated[ActorContext, Depends(app_scope("projects:read"))]

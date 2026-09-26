@@ -16,10 +16,9 @@ from sqlmodel import select
 
 from app.api import resource_access
 from app.api.deps import (
-    GuildContext,
     RLSSessionDep,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
 from app.core.tools import Tool
 from app.models.platform.user import User
@@ -30,8 +29,6 @@ from app.services.content_sockets import sockets
 from app.services.tenant import tags as tags_service
 
 router = APIRouter()
-
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 @router.put("/{tool}/{tool_id}/tags", response_model=List[TagSummary])

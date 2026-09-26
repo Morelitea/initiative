@@ -24,11 +24,10 @@ from app.api.deps import (
     ActorSessionDep,
     ActorUserDep,
     IncludeDeletedDep,
-    GuildContext,
     RLSSessionDep,
     get_current_active_user,
     app_scope,
-    get_guild_membership,
+    GuildContextDep,
 )
 from app.core.messages import CalendarMessages, GuildMessages
 from app.core.tools import Tool
@@ -50,7 +49,6 @@ from app.services.tenant import tags as tags_service
 
 router = APIRouter(route_class=ActorRoute)
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 #: The routes an installed app may call, under the calendars scopes.
 CalendarsRead = Annotated[ActorContext, Depends(app_scope("calendars:read"))]
 CalendarsWrite = Annotated[ActorContext, Depends(app_scope("calendars:write"))]

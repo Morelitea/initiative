@@ -19,7 +19,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.v1.platform_endpoints.operator import ConfigManageDep
 from app.core.intake import IntakeStream
 from app.core.messages import IntakeMessages
-from app.db.session import get_system_session
 from app.models.platform.guild import Guild
 from app.models.platform.user import User
 from app.schemas.platform.intake import (
@@ -33,11 +32,9 @@ from app.schemas.platform.intake import (
 )
 from app.services.platform import intake_setup
 from app.services.platform.intake_setup import BindingView
-from app.api.deps import get_current_active_user
+from app.api.deps import get_current_active_user, SystemSessionDep
 
 router = APIRouter()
-
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 
 def _read(view: BindingView) -> IntakeBindingRead:
