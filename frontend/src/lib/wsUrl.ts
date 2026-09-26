@@ -23,4 +23,4 @@ export const buildApiWsUrl = (subpath: string): string => {
  * relative to the guild root, e.g. `queues/5/ws`.
  */
 export const buildGuildWsUrl = (guildId: number, subpath: string): string =>
-  buildApiWsUrl(`g/${guildId}/${subpath}`);
+  buildApiWsUrl(`c/${guildId}/${subpath}`);
