@@ -270,22 +270,20 @@ def mark_system_session(session: AsyncSession) -> None:
     session.info[_KIND_KEY] = _SYSTEM
 
 
-def fans_out(session: AsyncSession) -> bool:
-    """Whether work across communities made on ``session`` gives each
-    community a session from its own cohort, rather than routing ``session``
-    into each in turn."""
-    return cohort_count() > 1 and _KIND_KEY in session.info
-
-
 @asynccontextmanager
 async def community_session(
     parent: AsyncSession, guild_id: int, *, read_only: bool = True
 ) -> AsyncIterator[AsyncSession]:
-    """A session from ``guild_id``'s cohort of the same kind as ``parent``, a
-    session :func:`fans_out` accepts, for one community's part of work across
-    several. Read-only unless ``read_only`` is False, in which case the caller
-    commits what it wrote."""
-    kind = parent.info[_KIND_KEY]
+    """A session from ``guild_id``'s cohort of the same kind as ``parent``, for
+    one community's part of work across several. ``parent`` is a request-path
+    session or one from :func:`system_session`. Read-only unless ``read_only``
+    is False, in which case the caller commits what it wrote."""
+    kind = parent.info.get(_KIND_KEY)
+    if kind is None:
+        raise TypeError(
+            "work across communities needs a request-path session or one from "
+            "cohorts.system_session"
+        )
     maker = system_sessionmaker if kind == _SYSTEM else request_sessionmaker
     async with maker(guild_id)() as session:
         session.info[_KIND_KEY] = kind

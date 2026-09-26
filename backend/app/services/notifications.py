@@ -811,11 +811,9 @@ async def clear_digest_queue_across_guilds(
     session: AsyncSession, user_id: int, models: Sequence[type]
 ) -> None:
     """Platform-path variant: a digest queue is guild-scoped, so visit each
-    of the user's guild schemas. When each community is visited on a session
-    of its own (``gather_across_guilds`` with cohorts), each one's deletes are
-    committed there; otherwise they are flushed on ``session``, which is left
-    routed into the last guild with its identity map expunged, and ride the
-    caller's transaction. Either way the caller restores its own context."""
+    of the user's guild schemas. Each community is visited on a session of its
+    own (``gather_across_guilds``), and its deletes are committed there, not in
+    the caller's transaction."""
     from app.services import cross_guild
 
     guild_ids = await cross_guild.member_guild_ids(session, user_id)
@@ -1088,7 +1086,7 @@ async def _send_digests(
         )
         if not batch:
             continue
-        # Send: re-load the user (gather expunged it) in a shared-table context.
+        # Send: re-load the user, fresh, in a shared-table context.
         session.expunge_all()
         await set_rls_context(session, user_id=user_id)
         user = (
@@ -1819,7 +1817,7 @@ async def _send_overdue(
         )
         if not tasks:
             continue
-        # Re-load the user (the gather expunged it) to send + stamp it. The
+        # Re-load the user, fresh, to send + stamp it. The
         # email/stamp touch only shared tables, so the user-only context is fine.
         session.expunge_all()
         await set_rls_context(session, user_id=user_id)

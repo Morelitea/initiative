@@ -26,6 +26,7 @@ from app.testing.factories import (
     create_initiative,
     create_user,
 )
+from app.testing.routing import platform_session
 from app.testing.schema_harness import route_session_to_guild
 
 
@@ -803,7 +804,8 @@ async def test_list_memberships_reads_retention_per_guild(session: AsyncSession)
     )
     await session.commit()
 
-    memberships = await guild_service.list_memberships(session, user_id=user.id)
+    async with platform_session(user) as caller:
+        memberships = await guild_service.list_memberships(caller, user_id=user.id)
     by_guild = {
         guild.id: retention
         for guild, _membership, retention, _count, _admin in memberships

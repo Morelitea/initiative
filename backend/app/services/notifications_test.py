@@ -107,7 +107,6 @@ async def _add_attendee(session, initiative, event, user, *, rsvp=RSVPStatus.pen
 
 
 async def _reminders_for(session: AsyncSession, user_id: int) -> list[Notification]:
-    # The pass leaves the session routed into the last community it visited.
     # The bell is read on the platform context, so read it back there.
     await set_rls_context(session)
     result = await session.exec(

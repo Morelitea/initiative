@@ -15,6 +15,7 @@ from app.testing import (
     create_project,
     create_task,
     create_user,
+    platform_session,
 )
 
 
@@ -41,7 +42,8 @@ async def test_user_stats_reads_guild_schema(session):
         assignees=[user],
     )
 
-    stats = await stats_service.get_user_stats(session, user=user, guild_id=guild.id)
+    async with platform_session(user) as caller:
+        stats = await stats_service.get_user_stats(caller, user=user, guild_id=guild.id)
     assert stats.tasks_completed_total == 2
     assert any(
         g.guild_id == guild.id and g.completed_count == 2 for g in stats.guild_breakdown
@@ -68,6 +70,7 @@ async def test_user_stats_all_guilds_aggregates(session):
             )
         totals += count
 
-    stats = await stats_service.get_user_stats(session, user=user, guild_id=None)
+    async with platform_session(user) as caller:
+        stats = await stats_service.get_user_stats(caller, user=user, guild_id=None)
     assert stats.tasks_completed_total == totals  # 3, summed across both guilds
     assert len(stats.guild_breakdown) == 2

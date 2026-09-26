@@ -19,7 +19,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.user import User
 
-__all__ = ["as_role", "route_as", "route_as_install", "route_system"]
+__all__ = [
+    "as_role",
+    "platform_session",
+    "route_as",
+    "route_as_install",
+    "route_system",
+]
 
 
 async def route_as(
@@ -108,6 +114,20 @@ async def route_system(session: AsyncSession, *, guild_id: int, **kwargs) -> Non
     from app.db.session import set_rls_context
 
     await set_rls_context(session, guild_id=guild_id, **kwargs)
+
+
+@asynccontextmanager
+async def platform_session(user: User) -> AsyncIterator[AsyncSession]:
+    """A request-path session on the platform context ``user``'s requests run
+    in, as ``UserSessionDep`` hands one to a ``/me/*`` route: work across
+    communities made on it reads each one from its own cohort."""
+    from app.db import cohorts
+    from app.db.session import set_rls_context
+
+    async with cohorts.request_sessionmaker(None)() as session:
+        cohorts.mark_request_session(session)
+        await set_rls_context(session, user_id=user.id, platform_role=user.role.value)
+        yield session
 
 
 @asynccontextmanager
