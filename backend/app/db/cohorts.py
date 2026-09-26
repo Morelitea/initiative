@@ -1,4 +1,5 @@
-"""Communities divided into cohorts, and a request and a system pool for each.
+"""Communities divided into cohorts, and a request, a system and a query pool
+for each.
 
 A database connection keeps the catalog of every table it has opened for as
 long as it lives, and each community is a schema of its own, so a connection
@@ -10,9 +11,10 @@ its own, means a connection only ever opens its own cohort's schemas.
 Everything else asks it.
 
 With one cohort (the default) there is nothing to divide: requests draw from
-the one request pool, ``app.db.session.AsyncSessionLocal``, and system work
-from the one system pool, ``app.db.session.SystemSessionLocal``, as they always
-have, and nothing in this module is built.
+the one request pool, ``app.db.session.AsyncSessionLocal``, system work from
+the one system pool, ``app.db.session.SystemSessionLocal``, and reader-written
+SQL from ``app.db.session.query_engine``, as they always have, and nothing in
+this module is built.
 
 What a session routes into is noted on the connection it runs on
 (:func:`note_route`), so a connection that serves a community outside its
@@ -92,6 +94,9 @@ _system_makers: list[async_sessionmaker[AsyncSession]] | None = None
 #: Each cohort's sessionmaker on DATABASE_URL_QUERY, built on first use.
 _read_makers: list[async_sessionmaker[AsyncSession]] | None = None
 
+#: Each cohort's sessionmaker for reader-written SQL, built on first use.
+_query_makers: list[async_sessionmaker[AsyncSession]] | None = None
+
 
 class CrossCohortRoute(RuntimeError):
     """A connection was routed into a community outside its cohort."""
@@ -140,20 +145,27 @@ def tag_engine(engine: AsyncEngine, tag: int | str) -> None:
     event.listen(engine.sync_engine, "close", closed)
 
 
-def _build_makers(url: str, label: str) -> list[async_sessionmaker[AsyncSession]]:
+def _build_makers(
+    url: str, label: str, *, log_text: bool = True, **pool: Any
+) -> list[async_sessionmaker[AsyncSession]]:
+    """A sessionmaker per cohort on ``url``. ``pool`` sizes each cohort's pool,
+    ``DB_POOL_SIZE`` and ``DB_MAX_OVERFLOW`` unless it says otherwise."""
     from app.db.session import instrument_engine
 
+    pool.setdefault("pool_size", settings.DB_POOL_SIZE)
+    pool.setdefault("max_overflow", settings.DB_MAX_OVERFLOW)
     makers = []
     divided = cohort_count() > 1
     for cohort in range(cohort_count()):
         engine = create_async_engine(
             cohort_url(url, cohort) if divided else url,
             echo=False,
-            pool_size=settings.DB_POOL_SIZE,
-            max_overflow=settings.DB_MAX_OVERFLOW,
             pool_recycle=settings.DB_POOL_RECYCLE_SECONDS,
+            **pool,
         )
-        instrument_engine(engine, f"{label}/{cohort}" if divided else label)
+        instrument_engine(
+            engine, f"{label}/{cohort}" if divided else label, log_text=log_text
+        )
         if divided:
             tag_engine(engine, cohort)
         makers.append(_sessionmaker(engine))
@@ -189,6 +201,13 @@ def use_system_engines(engines: list[AsyncEngine]) -> None:
     order. For the test suite, as :func:`use_request_engines`."""
     global _system_makers
     _system_makers = _cohort_makers(engines)
+
+
+def use_query_engines(engines: list[AsyncEngine]) -> None:
+    """Serve the cohorts' reader-written SQL from ``engines``, one per cohort
+    in order. For the test suite, as :func:`use_request_engines`."""
+    global _query_makers
+    _query_makers = _cohort_makers(engines)
 
 
 def request_sessionmaker(guild_id: int | None) -> async_sessionmaker[AsyncSession]:
@@ -249,6 +268,29 @@ async def read_session(guild_id: int) -> AsyncIterator[AsyncSession]:
     async with read_sessionmaker(guild_id)() as session:
         session.info[READ_ONLY_INFO_KEY] = True
         yield session
+
+
+def query_sessionmaker(guild_id: int) -> async_sessionmaker[AsyncSession]:
+    """The sessionmaker for reader-written SQL in ``guild_id``'s community:
+    each cohort has a pool of ``QUERY_POOL_SIZE`` of its own, on
+    DATABASE_URL_QUERY when it is set."""
+    global _query_makers
+    # Looked up on the module, as in ``request_sessionmaker``.
+    from app.db import session as db_session
+
+    if cohort_count() == 1:
+        return _sessionmaker(db_session.query_engine)
+    if _query_makers is None:
+        _query_makers = _build_makers(
+            settings.DATABASE_URL_QUERY or settings.DATABASE_URL_APP,
+            "query",
+            # What a reader writes is theirs, so its text stays out of the log.
+            log_text=False,
+            pool_size=db_session.QUERY_POOL_SIZE,
+            max_overflow=0,
+            pool_timeout=db_session.QUERY_POOL_TIMEOUT_SECONDS,
+        )
+    return _query_makers[cohort_of(guild_id)]
 
 
 def addressed_guild_id(path_params: Mapping[str, Any]) -> int | None:
