@@ -285,7 +285,9 @@ async def test_a_person_creating_a_document_gets_no_install_grant(
             )
         )
     ).all()
-    assert rows == []
+    assert [(row.level, row.user_id, row.app_install_id) for row in rows] == [
+        (ResourceAccessLevel.owner, install.seat.user.id, None)
+    ]
     await person.rollback()
 
 
