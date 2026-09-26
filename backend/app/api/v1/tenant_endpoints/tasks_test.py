@@ -530,20 +530,25 @@ async def test_delete_task(client: AsyncClient, session: AsyncSession, acting_us
 async def test_assign_user_to_task(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """Test assigning a user to a task."""
+    """Anyone who can open the project can be assigned; someone it is not
+    shared with cannot."""
     user = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    # Add assignee to the initiative as a member.
     assignee = await acting_user(
         guild_role=GuildRole.member,
         guild=user.guild,
         initiative=user.initiative,
         initiative_role="member",
     )
-
     task = await _create_task(session, user.project)
-
     payload = {"assignee_ids": [assignee.user.id]}
 
+    refused = await client.patch(
+        user.g(f"/tasks/{task.id}"), headers=user.headers, json=payload
+    )
+    assert refused.status_code == 422
+    assert refused.json()["detail"] == "PERSON_CANNOT_READ"
+
+    await create_resource_grant(session, user.project, user=assignee.user)
     response = await client.patch(
         user.g(f"/tasks/{task.id}"), headers=user.headers, json=payload
     )
@@ -614,12 +619,20 @@ async def test_unassigning_withdraws_the_pending_digest_item(
 async def test_move_task_to_different_project(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """Test moving a task to a different project."""
+    """Moving a task keeps the assignees who can open the destination and
+    drops the rest."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     project1 = a.project
     project2 = await create_project(session, a.initiative, a.user, name="Project 2")
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    await create_resource_grant(session, project1, user=member.user)
 
-    task = await _create_task(session, project1)
+    task = await create_task(session, project1, assignees=[a.user, member.user])
 
     from app.services.tenant import task_statuses as task_statuses_service
 
@@ -639,6 +652,7 @@ async def test_move_task_to_different_project(
     assert response.status_code == 200
     data = response.json()
     assert data["project_id"] == project2.id
+    assert [assignee["id"] for assignee in data["assignees"]] == [a.user.id]
 
 
 async def test_duplicate_task(client: AsyncClient, session: AsyncSession, acting_user):

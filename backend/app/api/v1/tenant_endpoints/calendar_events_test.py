@@ -14,7 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy import text
 
 from app.db.schema_provisioning import guild_schema_name
-from app.core.messages import CalendarEventMessages
+from app.core.messages import CalendarEventMessages, CommonMessages
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.resource_grant import ResourceGrant
@@ -741,8 +741,8 @@ class TestGuildCalendarEvents:
                 "attendee_ids": [stranger.user.id],
             },
         )
-        assert response.status_code == 400
-        assert response.json()["detail"] == CalendarEventMessages.INVALID_ATTENDEE_IDS
+        assert response.status_code == 422
+        assert response.json()["detail"] == CommonMessages.PERSON_CANNOT_READ
 
     async def test_properties_are_refused(
         self, client: AsyncClient, acting_user, session

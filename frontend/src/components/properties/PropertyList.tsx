@@ -2,7 +2,11 @@ import { X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { type PropertySummary, PropertyType } from "@/api/generated/initiativeAPI.schemas";
+import {
+  type PropertySummary,
+  PropertyType,
+  type Tool,
+} from "@/api/generated/initiativeAPI.schemas";
 import type { MemberLike } from "@/components/members/MemberSearchSelect";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -26,6 +30,8 @@ export interface PropertyListProps {
   className?: string;
   /** Initiative that scopes any `user_reference` picker in the list. */
   initiativeId?: number | null;
+  /** See `PropertyInput`'s `canOpen`. */
+  canOpen?: { tool: Tool; id: number | null | undefined };
 }
 
 /** Pull the person a user_reference value carries so the picker can render
@@ -110,6 +116,7 @@ export const PropertyList = ({
   disabled = false,
   className,
   initiativeId,
+  canOpen,
 }: PropertyListProps) => {
   const { t } = useTranslation(["properties", "common"]);
 
@@ -289,6 +296,7 @@ export const PropertyList = ({
                   onChange={(next) => handleChange(property.property_id, next)}
                   disabled={disabled}
                   initiativeId={initiativeId}
+                  canOpen={canOpen}
                   selectedUser={userReferenceValue(property)}
                 />
               </div>

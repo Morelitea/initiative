@@ -9,6 +9,7 @@ import type {
   TaskRecurrenceOutput,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
 import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
 import { TaskPriorityOption } from "@/components/tasks/TaskPriorityOption";
@@ -152,7 +153,7 @@ export const TaskBulkEditDialog = ({
               <div className="space-y-2">
                 <Label>{t("bulkEdit.assigneesLabel")}</Label>
                 <MemberMultiSelect
-                  scope={{ type: "project", projectId }}
+                  scope={{ type: "canOpen", tool: Tool.project, id: projectId }}
                   selectedIds={assigneeIds}
                   onChange={setAssigneeIds}
                   emptyMessage={t("bulkEdit.noUsersAvailable")}

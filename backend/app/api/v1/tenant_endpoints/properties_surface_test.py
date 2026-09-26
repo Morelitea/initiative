@@ -342,7 +342,7 @@ async def test_put_refuses_an_option_the_definition_lacks(
 
 
 @surfaces
-async def test_put_refuses_a_person_outside_the_initiative(
+async def test_put_refuses_a_person_who_cannot_open_it(
     client: AsyncClient, session: AsyncSession, acting_user, surface: Surface
 ):
     a, parent = await _scene(surface, session, acting_user)
@@ -360,8 +360,8 @@ async def test_put_refuses_a_person_outside_the_initiative(
         client, a, surface, entity, [{"property_id": defn.id, "value": outsider.id}]
     )
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "PROPERTY_USER_NOT_IN_INITIATIVE"
+    assert response.status_code == 422
+    assert response.json()["detail"] == "PERSON_CANNOT_READ"
 
 
 # ---------------------------------------------------------------------------

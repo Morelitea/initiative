@@ -18,6 +18,10 @@ class CommonMessages:
     #: the zone is a real parameter rather than a formatting hint.
     UNKNOWN_TIMEZONE = "UNKNOWN_TIMEZONE"
 
+    #: Somebody named on the content (an assignee, an attendee, a person
+    #: property, a queue item's person) cannot open what it sits in.
+    PERSON_CANNOT_READ = "PERSON_CANNOT_READ"
+
     #: The write reached content that is archived or in the trash, or something
     #: under it. One code for both, because the answer is the same either way:
     #: bring it back first. See ``app.db.frozen``.
@@ -326,7 +330,6 @@ class TaskMessages:
     CANNOT_MOVE_TO_TEMPLATE = "TASK_CANNOT_MOVE_TO_TEMPLATE"
     PROJECT_MISMATCH = "TASK_PROJECT_MISMATCH"
     STATUS_NOT_FOUND = "TASK_STATUS_NOT_FOUND_FOR_PROJECT"
-    ASSIGNEES_NOT_FOUND = "TASK_ASSIGNEES_NOT_FOUND"
     INVALID_ASSIGNEE_ID = "TASK_INVALID_ASSIGNEE_ID"
     DUPLICATE_NOT_FOUND = "TASK_DUPLICATE_NOT_FOUND"
 
@@ -428,7 +431,6 @@ class PropertyMessages:
     NAME_ALREADY_EXISTS = "PROPERTY_NAME_ALREADY_EXISTS"
     INVALID_VALUE_FOR_TYPE = "PROPERTY_INVALID_VALUE_FOR_TYPE"
     OPTION_NOT_IN_DEFINITION = "PROPERTY_OPTION_NOT_IN_DEFINITION"
-    USER_NOT_IN_INITIATIVE = "PROPERTY_USER_NOT_IN_INITIATIVE"
     NOT_INITIATIVE_MEMBER = "PROPERTY_NOT_INITIATIVE_MEMBER"
     OPTIONS_REQUIRED = "PROPERTY_OPTIONS_REQUIRED"
     DUPLICATE_OPTION_VALUE = "PROPERTY_DUPLICATE_OPTION_VALUE"
@@ -885,7 +887,6 @@ class CalendarMessages:
 
 class CalendarEventMessages:
     NOT_FOUND = "CALENDAR_EVENT_NOT_FOUND"
-    INVALID_ATTENDEE_IDS = "CALENDAR_EVENT_INVALID_ATTENDEE_IDS"
     ICAL_PARSE_FAILED = "ICAL_PARSE_FAILED"
     ICAL_NO_EVENTS = "ICAL_NO_EVENTS_FOUND"
     # A guild calendar holds guild-level content only. Things defined on an

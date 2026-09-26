@@ -43,7 +43,7 @@ from app.services.permissions import (
     writable_scope_clause,
 )
 from app.services.tenant import posts as posts_service
-from app.services.tenant import project_grants
+from app.services.tenant import named_people
 from app.testing import (
     create_access_grant,
     create_resource_grant,
@@ -372,28 +372,43 @@ async def test_a_grant_left_behind_after_removal_reaches_nothing(
     )
 
 
-async def test_write_holders_follow_the_level(session, role_session, acting_user):
-    """Who may be assigned a project's tasks is who holds write on it, asked of
-    the roster and the grant rows together."""
-    w = await build_world(session, role_session, acting_user, Tool.project)
-    s = await role_session("app_user")
-    await route_as(s, user_id=w.owner.user.id, guild_id=w.guild.id)
-    project = await project_grants.get_project(s, w.row_id)
-    assert project is not None
+@pytest.mark.parametrize("tool", ALL_TOOLS, ids=lambda t: t.value)
+async def test_who_may_be_named_is_who_can_open_it(
+    session, role_session, acting_user, reading_as, tool: Tool
+):
+    """``named_people`` answers for a person what the database answers when
+    that person opens the row themselves, grant by grant."""
+    w = await build_world(session, role_session, acting_user, tool)
+    asker = await role_session("app_user")
+    await route_as(asker, user_id=w.owner.user.id, guild_id=w.guild.id)
+    governing = named_people.Governing(tool, w.row_id, w.initiative.id)
+    people = [w.co_member.user, w.admin.user]
 
-    co = w.co_member.user.id
-    for level, expected in (("owner", {co}), ("write", {co}), ("read", set())):
-        await w.grant(level, user=w.co_member.user)
-        assert await project_grants.write_holder_ids(s, project) == expected
-    await w.grant(None)
-    assert await project_grants.write_holder_ids(s, project) == set()
+    async def agree() -> None:
+        named = await named_people.readers(asker, governing, [u.id for u in people])
+        await asker.rollback()
+        for user in people:
+            reader = await reading_as(user.id, w.guild.id)
+            opens = bool(
+                (
+                    await reader.exec(select(w.model.id).where(w.model.id == w.row_id))
+                ).all()
+            )
+            await reader.rollback()
+            assert (user.id in named) == opens, (user.username, opens)
 
     role_id = await _role_id_of(session, w.initiative, w.co_member.user)
-    await w.grant("write", role_id=role_id)
-    assert await project_grants.write_holder_ids(s, project) == {co}
-
-    await w.grant("write", everyone=True)
-    assert await project_grants.write_holder_ids(s, project) == {co, w.owner.user.id}
+    for grant in (
+        {"level": None},
+        {"level": "read", "user": w.owner.user},
+        {"level": "read", "user": w.co_member.user},
+        {"level": "read", "role_id": role_id},
+        {"level": "read", "everyone": True},
+    ):
+        await w.grant(**grant)
+        await agree()
+    await _remove_from_initiative(session, w.initiative, w.co_member.user)
+    await agree()
 
 
 # ── The overrides that sit above sharing ─────────────────────────────────────

@@ -59,6 +59,7 @@ from app.api import resource_access
 from app.core.tools import Tool
 from app.db.session import require_actor_context
 from app.services.tenant import queues as queues_service
+from app.services.tenant import named_people
 from app.services.tenant import tags as tags_service
 from app.schemas.tenant.tag import TagSetRequest
 from app.services.content_sockets import sockets
@@ -374,6 +375,10 @@ async def add_queue_item(
     queue = await resource_access.load_authorized(
         session, Tool.queue, queue_id, current_user, guild_context, access="write"
     )
+    if item_in.user_id is not None:
+        await named_people.require_readers(
+            session, named_people.Governing.of(Tool.queue, queue), [item_in.user_id]
+        )
 
     item = QueueItem(
         queue_id=queue.id,
@@ -442,13 +447,19 @@ async def update_queue_item(
     guild_context: QueuesWrite,
 ) -> QueueItemRead:
     """Update a queue item. Requires write access on the queue."""
-    await resource_access.load_authorized(
+    queue = await resource_access.load_authorized(
         session, Tool.queue, queue_id, current_user, guild_context, access="write"
     )
     item = await _get_item_for_queue(session, queue_id, item_id)
 
     updated = False
     update_data = item_in.model_dump(exclude_unset=True)
+    if update_data.get("user_id") is not None:
+        await named_people.require_readers(
+            session,
+            named_people.Governing.of(Tool.queue, queue),
+            [update_data["user_id"]],
+        )
 
     for field in ("label", "position", "user_id", "color", "notes", "is_visible"):
         if field in update_data:

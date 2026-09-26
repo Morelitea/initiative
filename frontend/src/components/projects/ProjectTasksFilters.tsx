@@ -7,6 +7,7 @@ import type {
   TaskStatusCategory,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
 import {
   PropertyFilter,
@@ -112,7 +113,7 @@ export const ProjectTasksFilters = ({
           <MemberMultiSelect
             id="assignee-filter"
             variant="filter"
-            scope={{ type: "project", projectId }}
+            scope={{ type: "canOpen", tool: Tool.project, id: projectId }}
             selectedIds={assigneeIds.map(Number).filter(Number.isFinite)}
             onChange={(ids) => setAssignees({ ids: ids.map(String) })}
             tokens={[

@@ -129,10 +129,13 @@ from app.services.auth import addresses
 from app.core.audit_events import AuditEventType
 from app.services import audit as audit_service
 from app.services.auth.identity import has_federated_identity
+from app.core.tools import Tool
+from app.api import resource_access
 from app.services.tenant import app_connections as app_connections_service
 from app.services.tenant import app_member_consents as consents_service
 from app.services.tenant import app_revocation as app_revocation_service
 from app.services.tenant import initiatives as initiatives_service
+from app.services.tenant import named_people
 from app.services.tenant import ownership as ownership_service
 from app.services.platform import cookie_consent as cookie_consent_service
 from app.services.platform import guilds as guilds_service
@@ -411,6 +414,16 @@ async def search_users(
             "it, administer the community, or (an app) be placed there."
         ),
     ),
+    tool: Optional[Tool] = Query(
+        default=None,
+        description=(
+            "With ``resource_id``: only the people who can open that row, which "
+            "is who may be named on content inside it (assignees, attendees, "
+            "person properties). The caller must be able to open it too. For a "
+            "person's picker; an installed app's search does not take it."
+        ),
+    ),
+    resource_id: Optional[int] = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=0, le=100),
 ) -> UserSummaryListResponse:
@@ -459,6 +472,17 @@ async def search_users(
     )
     if initiative_id is not None:
         base = base.where(_in_initiative(initiative_id))
+    if tool is not None and resource_id is not None:
+        row = await resource_access.load_authorized(
+            session, tool, resource_id, None, guild_context
+        )
+        base = base.where(
+            MemberProfile.id.in_(
+                named_people.readers_of(
+                    named_people.Governing.of(tool, row), guild_context.guild_id
+                )
+            )
+        )
     #: Set while searching by name, and then what the page is ordered by.
     # Both calls take the guild's own setting: a name is searchable and
     # sortable only where the guild shows names, and a default here would

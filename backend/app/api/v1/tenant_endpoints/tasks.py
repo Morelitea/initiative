@@ -98,6 +98,7 @@ from app.services.ai_settings import resolve_ai_settings
 from app.services import fields as fields_registry
 from app.services.fields.spec import FieldContext, SortContext
 from app.services.tenant import properties as properties_service
+from app.services.tenant import named_people
 from app.services.tenant import tags as tags_service
 from app.core.tools import Tool
 from app.db.session import require_guild_context
@@ -595,9 +596,23 @@ async def _fetch_task(
 
 
 async def _set_task_assignees(
-    session: SessionDep, task: Task, assignee_ids: list[int] | None
+    session: SessionDep,
+    task: Task,
+    assignee_ids: list[int] | None,
+    *,
+    project: Project,
+    carried: bool = False,
 ) -> None:
+    """Replace the task's assignees. Everyone named must be able to open the
+    project; ``carried`` is a copy made from existing assignees (a duplicate, a
+    recurrence, a move), which keeps those who still can rather than refusing."""
     unique_ids = list(dict.fromkeys(assignee_ids or []))
+    governing = named_people.Governing.of(Tool.project, project)
+    if carried:
+        keep = await named_people.readers(session, governing, unique_ids)
+        unique_ids = [user_id for user_id in unique_ids if user_id in keep]
+    else:
+        await named_people.require_readers(session, governing, unique_ids)
 
     # Read the current set before replacing it, so anyone dropped can have
     # their un-sent digest item withdrawn. An explicit query rather than
@@ -610,21 +625,6 @@ async def _set_task_assignees(
             )
         ).all()
     )
-
-    stmt = (
-        select(MemberProfile).where(MemberProfile.id.in_(tuple(unique_ids)))
-        if unique_ids
-        else None
-    )
-
-    if stmt is not None:
-        result = await session.exec(stmt)
-        users = result.all()
-        if len(users) != len(unique_ids):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=TaskMessages.ASSIGNEES_NOT_FOUND,
-            )
 
     delete_stmt = delete(TaskAssignee).where(TaskAssignee.task_id == task.id)
     await session.exec(delete_stmt)
@@ -756,7 +756,12 @@ async def _advance_recurrence_if_needed(
     session.add(new_task)
     await session.flush()
     assignee_ids = [assignee.id for assignee in task.assignees]
-    await _set_task_assignees(session, new_task, assignee_ids)
+    project = await session.get(Project, task.project_id)
+    if project is None:  # the task was just read inside it
+        raise RuntimeError("a recurring task's project is gone")
+    await _set_task_assignees(
+        session, new_task, assignee_ids, project=project, carried=True
+    )
     await tags_service.copy_entity_tags(
         session,
         tags_service.TAG_LINKS["task"],
@@ -1906,7 +1911,7 @@ async def create_task(
         created_by=guild_context.user_id,
         checklist=checklist_service.normalize(task_in.checklist),
     )
-    await _set_task_assignees(session, task, task_in.assignee_ids)
+    await _set_task_assignees(session, task, task_in.assignee_ids, project=project)
     if project and task.assignees:
         assigned_by = await notifications_service.author_of(
             session, guild_context, current_user
@@ -2067,7 +2072,7 @@ async def update_task(
     new_assignees: list[MemberProfile] = []
     if assignee_ids is not None:
         existing_assignee_ids = {assignee.id for assignee in task.assignees}
-        await _set_task_assignees(session, task, assignee_ids)
+        await _set_task_assignees(session, task, assignee_ids, project=project)
         new_assignees = [
             assignee
             for assignee in task.assignees
@@ -2232,6 +2237,14 @@ async def move_task(
         await session.exec(
             delete(TaskPropertyValue).where(TaskPropertyValue.task_id == task.id)
         )
+    # Only those who can open the destination stay assigned.
+    await _set_task_assignees(
+        session,
+        task,
+        [assignee.id for assignee in task.assignees],
+        project=target_project,
+        carried=True,
+    )
 
     await _touch_project(session, source_project_id, timestamp=now)
     await _touch_project(session, target_project.id, timestamp=now)
@@ -2275,7 +2288,7 @@ async def duplicate_task(
             status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
         )
 
-    await _ensure_can_manage(
+    project = await _ensure_can_manage(
         session,
         original_task.project_id,
         current_user,
@@ -2313,7 +2326,9 @@ async def duplicate_task(
 
     # Copy assignees
     assignee_ids = [assignee.id for assignee in original_task.assignees]
-    await _set_task_assignees(session, new_task, assignee_ids)
+    await _set_task_assignees(
+        session, new_task, assignee_ids, project=project, carried=True
+    )
 
     # Copy tags (active only — links to trashed tags are not carried forward)
     await tags_service.copy_entity_tags(

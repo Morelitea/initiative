@@ -7,6 +7,7 @@ import {
   type PropertyOption,
   type PropertySummary,
   PropertyType,
+  type Tool,
 } from "@/api/generated/initiativeAPI.schemas";
 import { type MemberLike, MemberSelect } from "@/components/members/MemberSearchSelect";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,10 @@ export interface PropertyInputProps {
    *  `PropertyDefinitionRead`); required via this prop when the definition
    *  arrives as an embedded `PropertySummary`. */
   initiativeId?: number | null;
+  /** The row whose readers a `user_reference` value may name (the task's
+   *  project, the event's calendar, the document). Without it the picker
+   *  offers the initiative's members, which is what a filter wants. */
+  canOpen?: { tool: Tool; id: number | null | undefined };
   /** Display info for a pre-set `user_reference` value so the picker shows a
    *  name without a search round-trip (the server returns `{id, full_name}`
    *  on reads). */
@@ -114,6 +119,7 @@ export const PropertyInput = ({
   disabled = false,
   className,
   initiativeId,
+  canOpen,
   selectedUser,
 }: PropertyInputProps) => {
   const { t } = useTranslation(["properties", "common"]);
@@ -261,14 +267,18 @@ export const PropertyInput = ({
 
     case PropertyType.user_reference: {
       const currentId = coerceUserId(value);
-      // Scope the picker to the property's initiative — the members who can be
-      // referenced. Prefer the explicit prop, falling back to the definition's
-      // own initiative when it carries one (full PropertyDefinitionRead).
+      // The people who can open the row the value sits on; without that row
+      // (a filter), the property's initiative. Prefer the explicit prop,
+      // falling back to the definition's own initiative when it carries one.
       const scopedInitiativeId =
         initiativeId ?? ("initiative_id" in definition ? definition.initiative_id : null);
       return (
         <MemberSelect
-          scope={{ type: "initiative", initiativeId: scopedInitiativeId }}
+          scope={
+            canOpen
+              ? { type: "canOpen", ...canOpen }
+              : { type: "initiative", initiativeId: scopedInitiativeId }
+          }
           value={currentId}
           onChange={(next) => onChange(next)}
           selectedUser={selectedUser ?? null}

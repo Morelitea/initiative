@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Only people who can open something can be named on it** — a task's assignees, an event's attendees, a person property and a queue item's person must all be able to open the project, calendar, document or queue it sits in. Anyone who can open it can be picked now, including people who can only view it, and nobody else is offered or accepted. Moving a task or event, duplicating a task, a recurring task's next occurrence and a project made from a template keep only the people who can open where it lands. Taking away someone's access to a project also takes them off its tasks.
 - **Webhooks, imports and exports start sooner** — a webhook delivery goes out about a second after the change it reports, and an import or export starts as soon as it is queued, instead of waiting for the next poll. Background work also goes through each community far less often, which matters on a server with many communities.
 - **Pictures from other sites show as links** — a picture written into a description, a document's text or a notice as an address on another site is shown as a link to it, the way comments and messages already did. Pictures uploaded here show as before.
 - **Links to other sites open in a new tab** — everywhere text is shown, a link to another site opens in a new tab and a link inside Initiative stays in the one you're on. Documents used to open every link in place, and comments every link in a new tab.

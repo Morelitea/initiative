@@ -50,9 +50,8 @@ from app.models.tenant.task import (
 )
 from app.models.tenant.comment import Comment
 from app.models.tenant.initiative import Initiative
-from app.core import usernames
 from app.models.platform.notification import NotificationType
-from app.models.platform.user import User, UserStatus
+from app.models.platform.user import User
 from app.models.tenant.document import Document
 from app.api import resource_access
 from app.core.user_display import handle_of
@@ -60,11 +59,10 @@ from app.core.tools import Tool
 from app.db.session import require_actor_context, require_guild_context
 from app.services import email as email_service
 from app.services import notifications as notifications_service
-from app.services.platform import users as users_service
-from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import ownership as ownership_service
 from app.services import permissions as permissions_service
 from app.services import reachability
+from app.services.tenant import named_people
 from app.services.tenant import tags as tags_service
 from app.services.tenant import archive as archive_service
 from app.services.tenant import tool_listing
@@ -76,12 +74,6 @@ from app.services.tenant import task_description as task_description_service
 from app.services.tenant.soft_delete import trash
 from app.core.messages import ProjectMessages
 from app.core.config import settings as app_settings
-from app.db.query import (
-    MAX_ID_FILTER_VALUES,
-    clamp_page,
-    page_has_next,
-    paginate_sequence,
-)
 from app.schemas.tenant.project import (
     ProjectCan,
     ProjectCreate,
@@ -95,7 +87,7 @@ from app.schemas.tenant.project import (
     ProjectActivityResponse,
 )
 from app.schemas.tenant.task_status import TaskStatusRead
-from app.schemas.platform.user import UserPublic, UserSummaryListResponse
+from app.schemas.platform.user import UserPublic
 from app.schemas.tenant.comment import CommentAuthor
 from app.schemas.tenant.initiative import (
     InitiativeSummary,
@@ -309,14 +301,18 @@ async def _duplicate_template_tasks(
         copies.append((template_task, new_task))
     await session.flush()
 
+    # Assignees come along only where they can open the new project.
+    can_open = await named_people.readers(
+        session,
+        named_people.Governing.of(Tool.project, new_project),
+        {assignee.id for task, _ in copies for assignee in task.assignees},
+    )
     for template_task, new_task in copies:
-        if template_task.assignees:
-            session.add_all(
-                [
-                    TaskAssignee(task_id=new_task.id, user_id=assignee.id)
-                    for assignee in template_task.assignees
-                ]
-            )
+        session.add_all(
+            TaskAssignee(task_id=new_task.id, user_id=assignee.id)
+            for assignee in template_task.assignees
+            if assignee.id in can_open
+        )
         await tags_service.copy_entity_tags(
             session,
             tags_service.TAG_LINKS["task"],
@@ -1106,107 +1102,6 @@ async def read_project(
         session, Tool.project, project_id, current_user, guild_context, hydrated=True
     )
     return await _project_read_for_user(session, guild_context.user_id, project)
-
-
-@router.get("/{project_id}/members/search", response_model=UserSummaryListResponse)
-async def search_project_members(
-    project_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-    search: Optional[str] = Query(
-        default=None,
-        description="Case-insensitive substring match on the member's name.",
-    ),
-    user_id: Annotated[list[int] | None, Query(max_length=MAX_ID_FILTER_VALUES)] = None,
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=0, le=100),
-) -> UserSummaryListResponse:
-    """Slim, searchable roster of users assignable to this project's tasks.
-
-    The assignable set is the project's **write/owner DAC set** — explicit
-    per-user grants, members holding a write-access role, and every member
-    when an all-initiative-members write grant exists — computed server-side
-    via the shared permission engine. Requester needs read access to the
-    project.
-
-    Pass ``user_id`` one or more times to resolve a known selection (a picker
-    rehydrating stored ids into names/avatars) rather than searching; it
-    narrows the same assignable set, so an id outside it returns nothing.
-    """
-    project = await resource_access.load_authorized(
-        session, Tool.project, project_id, current_user, guild_context
-    )
-
-    # Candidate pool = the initiative's members. User-level grants are validated
-    # to reference initiative members when written (see replace_resource_grants),
-    # so the membership list is a complete superset of the assignable users.
-    members = await initiatives_service.initiative_roster(
-        session, project.initiative_id, with_users=True
-    )
-    shows_names = bool(guild_context.guild.show_member_names)
-    assignable: list[User] = []
-    seen: set[int] = set()
-    holders = await project_grants.write_holder_ids(session, project)
-    for member in members:
-        user = member.user
-        if user is None or user.id in seen:
-            continue
-        # A suspended account keeps its membership and its grants, and is not
-        # offered as someone to assign work to while the suspension lasts.
-        if user.status == UserStatus.suspended:
-            continue
-        if user.id in holders:
-            assignable.append(user)
-            seen.add(user.id)
-
-    term = (search or "").strip().lower()
-    if term:
-        # Matches what this guild renders, for the same reason the roster
-        # search does: a filter over a hidden field is that field.
-        name_part, number = usernames.parse_handle(term)
-        needle = name_part.lower()
-        if number is not None:
-            assignable = [
-                u
-                for u in assignable
-                if u.username.lower() == needle
-                and f"{u.discriminator:04d}".startswith(number)
-            ]
-        else:
-            assignable = [
-                u
-                for u in assignable
-                if needle in u.username.lower()
-                or (shows_names and needle in (u.full_name or "").lower())
-            ]
-    if user_id:
-        wanted = set(user_id)
-        assignable = [u for u in assignable if u.id in wanted]
-
-    assignable.sort(
-        key=lambda u: (
-            (u.full_name or "").lower() if shows_names else "",
-            u.username.lower(),
-            u.discriminator,
-            u.id,
-        )
-    )
-
-    total_count = len(assignable)
-    actual_page = clamp_page(page, page_size, total_count)
-    page_items = paginate_sequence(assignable, actual_page, page_size)
-
-    return UserSummaryListResponse(
-        items=await users_service.summaries_with_guild_role(
-            session, guild_context.guild_id, page_items
-        ),
-        total_count=total_count,
-        page=actual_page,
-        page_size=page_size,
-        has_next=page_has_next(actual_page, page_size, total_count),
-        has_prev=actual_page > 1,
-    )
 
 
 @router.patch("/{project_id}", response_model=ProjectRead)

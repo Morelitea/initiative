@@ -81,12 +81,12 @@ async def test_list_projects_member_sees_initiative_projects(
     assert project.id in project_ids
 
 
-async def test_search_project_members_returns_write_access_set(
+async def test_people_search_names_who_can_open_the_project(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """The assignable roster is the project's write/owner DAC set: the owner
-    and write-granted members, but not read-only members nor members with no
-    grant. Returns the slim UserSummary envelope."""
+    """Who may be named on a project's tasks is everyone who can open it: the
+    owner and every member it is shared with, at any level, but not a member it
+    is not shared with. Returns the slim UserSummary envelope."""
     # Every handle here is stated, the owner's included. The searches below
     # assert an exact result set, and an account that seeds no handle gets
     # ``{adjective}-{noun}`` — one of whose nouns is ``quill``, which the term
@@ -115,7 +115,7 @@ async def test_search_project_members_returns_write_access_set(
         full_name="Rob Reader",
     )
     # A member of the initiative with no grant at all.
-    await acting_user(
+    none = await acting_user(
         guild_role=GuildRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
@@ -129,18 +129,17 @@ async def test_search_project_members_returns_write_access_set(
     )
     await create_resource_grant(session, project, user=reader.user)
 
+    can_open = {"tool": "project", "resource_id": project.id}
     response = await client.get(
-        admin.g(f"/projects/{project.id}/members/search"), headers=admin.headers
+        admin.g("/users/search"), headers=admin.headers, params=can_open
     )
 
     assert response.status_code == 200
     body = response.json()
     handles = {item["username"] for item in body["items"]}
-    # Owner (admin) + write-granted member are assignable.
-    assert admin.user.username in handles
-    assert "quill" in handles
-    # Read-only and no-grant members are not.
-    assert "lantern" not in handles
+    # Everyone who can open the project can be named on its tasks.
+    assert {admin.user.username, "quill", "lantern"} <= handles
+    # A member it is not shared with cannot.
     assert "thistle" not in handles
     # Slim projection shape.
     assert set(body["items"][0].keys()) == {
@@ -162,9 +161,9 @@ async def test_search_project_members_returns_write_access_set(
 
     # The filter matches what the guild renders — the handle always.
     response = await client.get(
-        admin.g(f"/projects/{project.id}/members/search"),
+        admin.g("/users/search"),
         headers=admin.headers,
-        params={"search": "quil"},
+        params={**can_open, "search": "quil"},
     )
     assert response.status_code == 200
     body = response.json()
@@ -172,25 +171,25 @@ async def test_search_project_members_returns_write_access_set(
 
     # And her name too, because this guild takes the default and shows names.
     response = await client.get(
-        admin.g(f"/projects/{project.id}/members/search"),
+        admin.g("/users/search"),
         headers=admin.headers,
-        params={"search": "Wanda"},
+        params={**can_open, "search": "Wanda"},
     )
     assert [item["username"] for item in response.json()["items"]] == ["quill"]
 
     # Id filter (a picker resolving stored ids into handles) narrows the same
-    # assignable set — the read-only member is not resolvable through it.
+    # set — a member it is not shared with is not resolvable through it.
     response = await client.get(
-        admin.g(f"/projects/{project.id}/members/search"),
+        admin.g("/users/search"),
         headers=admin.headers,
-        params={"user_id": [writer.user.id, reader.user.id]},
+        params={**can_open, "user_id": [writer.user.id, none.user.id]},
     )
     assert response.status_code == 200
     body = response.json()
     assert [item["username"] for item in body["items"]] == ["quill"]
 
 
-async def test_search_project_members_requires_read_access(
+async def test_people_search_needs_the_caller_to_open_it_too(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A guild member with no access to the project (not in its initiative)
@@ -200,7 +199,9 @@ async def test_search_project_members_requires_read_access(
     outsider = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
 
     response = await client.get(
-        outsider.g(f"/projects/{project.id}/members/search"), headers=outsider.headers
+        outsider.g("/users/search"),
+        headers=outsider.headers,
+        params={"tool": "project", "resource_id": project.id},
     )
     # RLS hides the initiative's content from a non-member → 404.
     assert response.status_code in (403, 404)
@@ -1134,12 +1135,12 @@ async def _task_assignee_ids(session, guild_id: int, task_id: int) -> set[int]:
     )
 
 
-async def test_a_grant_change_unassigns_only_who_loses_write(
+async def test_a_grant_change_unassigns_only_who_can_no_longer_open_it(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """Nobody stays assigned to tasks they can no longer edit, and the cleanup
-    reads effective access: write kept through another grant keeps the
-    assignment."""
+    """Nobody stays assigned to a project they can no longer open, and the
+    cleanup reads effective access: a lower level, or access through another
+    grant, keeps the assignment."""
     owner = await acting_user(guild_role=GuildRole.member, initiative=True)
     member = await acting_user(
         guild_role=GuildRole.member,
@@ -1154,16 +1155,16 @@ async def test_a_grant_change_unassigns_only_who_loses_write(
     task = await create_task(session, project, assignees=[member.user])
     url = owner.g(f"/projects/{project.id}/grants")
 
-    # The per-user grant swapped for an all-members write grant: still write.
+    # The per-user grant swapped for an all-members read grant: still opens it.
     r = await client.put(
         url,
         headers=owner.headers,
-        json=[{"all_initiative_members": True, "level": "write"}],
+        json=[{"all_initiative_members": True, "level": "read"}],
     )
     assert r.status_code == 200
     assert member.user.id in await _task_assignee_ids(session, owner.guild.id, task.id)
 
-    # Every grant removed: the member drops to nothing and is unassigned.
+    # Every grant removed: the member can no longer open it and is unassigned.
     r = await client.put(url, headers=owner.headers, json=[])
     assert r.status_code == 200
     assert member.user.id not in await _task_assignee_ids(

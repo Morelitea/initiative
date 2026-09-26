@@ -931,6 +931,7 @@ export const DocumentDetailPage = () => {
                     properties={combinedProperties}
                     disabled={!canEditDocument}
                     initiativeId={document.initiative_id}
+                    canOpen={{ tool: Tool.document, id: document.id }}
                   />
                   <AddPropertyButton
                     initiativeId={document.initiative_id}

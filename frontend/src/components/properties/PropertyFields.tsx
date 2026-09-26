@@ -6,6 +6,7 @@ import {
   type PropertyDefinitionRead,
   type PropertySummary,
   PropertyType,
+  type Tool,
 } from "@/api/generated/initiativeAPI.schemas";
 import type { MemberLike } from "@/components/members/MemberSearchSelect";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,8 @@ export interface PropertyFieldsProps {
   disabled?: boolean;
   /** Initiative that scopes any ``user_reference`` picker in the list. */
   initiativeId?: number | null;
+  /** See `PropertyInput`'s `canOpen`. */
+  canOpen?: { tool: Tool; id: number | null | undefined };
   className?: string;
 }
 
@@ -87,6 +90,7 @@ export const PropertyFields = ({
   onRemove,
   disabled = false,
   initiativeId,
+  canOpen,
   className,
 }: PropertyFieldsProps) => {
   const { t } = useTranslation(["properties", "common"]);
@@ -130,6 +134,7 @@ export const PropertyFields = ({
                   onChange={(next) => onChange(property.property_id, next)}
                   disabled={disabled}
                   initiativeId={initiativeId}
+                  canOpen={canOpen}
                   selectedUser={userReferenceValue(property)}
                 />
               </div>
