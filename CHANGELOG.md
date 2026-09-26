@@ -49,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Comments** go to the trash and come back with their item.
 - **Queues and counters** reconnect after a dropped connection.
 - **Tag pages** list every tool.
+- **Archived projects** show their tasks again.
 
 ## [0.72.0] - 2026-09-24
 

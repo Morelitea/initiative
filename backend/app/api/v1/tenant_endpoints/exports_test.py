@@ -552,6 +552,31 @@ async def test_project_report_formats_render_the_live_tasks_only(
     )
 
 
+async def test_an_archived_projects_report_carries_the_tasks_archived_with_it(
+    client: AsyncClient, acting_user, session
+):
+    """Archiving the project stamps its tasks with the project's own time; the
+    report shows those, as the project's task list does, and still leaves out
+    a task archived on its own beforehand."""
+    a = await _actor_with_tasks(acting_user, session)
+    await create_task(
+        session, a.project, title="Old news", archived_at=datetime.now(timezone.utc)
+    )
+    archived = await client.post(
+        a.g(f"/archive/project/{a.project.id}"), headers=a.headers
+    )
+    assert archived.status_code == 200
+
+    resp = await _export(client, a, "project", project_id=a.project.id, format="csv")
+    _assert_export(
+        resp,
+        "csv",
+        disposition_absent=(".initiative-project",),
+        present=("Task 0", "Task 1"),
+        absent=("Old news",),
+    )
+
+
 async def test_project_export_job_path_renders_json(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):
