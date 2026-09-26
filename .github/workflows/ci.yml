@@ -214,13 +214,14 @@ jobs:
           # A revision at or before RELEASED_MIGRATION has run on somebody's
           # database and is fixed. A pull request adds revisions after it;
           # it does not edit those (CLAUDE.md, "Never edit a migration that
-          # has shipped"). Additions pass; modifications at or before the
-          # line fail.
+          # has shipped"). Additions pass; an edit, rename or deletion at or
+          # before the line fails. --no-renames reports a rename as the old
+          # path deleted, so the frozen name is what gets checked.
           FROZEN=$(tr -d '[:space:]' < RELEASED_MIGRATION)
-          EDITED=$(git diff --name-only --diff-filter=M "origin/${{ github.base_ref }}...HEAD" -- backend/alembic/versions \
+          EDITED=$(git diff --name-only --no-renames --diff-filter=MDT "origin/${{ github.base_ref }}...HEAD" -- backend/alembic/versions \
             | grep -oE '[0-9]{8}_[0-9]{4}' | awk -v frozen="$FROZEN" '$0 <= frozen' || true)
           if [[ -n "$EDITED" ]]; then
-            echo "::error::Edited a released migration (freeze line $FROZEN): $(echo $EDITED | tr '\n' ' ')"
+            echo "::error::Edited, renamed or removed a released migration (freeze line $FROZEN): $(echo $EDITED | tr '\n' ' ')"
             echo "Add a new revision that converges both histories instead."
             exit 1
           fi
