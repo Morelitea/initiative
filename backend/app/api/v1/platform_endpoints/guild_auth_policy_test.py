@@ -441,16 +441,20 @@ async def test_an_ordinary_admin_reads_the_seats_surfaces_but_writes_neither(
     assert offered.status_code == 200
 
     writes = (
-        client.put(_policy(guild_id), headers=admin.headers, json={"policy": "open"}),
-        client.put(
+        lambda: client.put(
+            _policy(guild_id), headers=admin.headers, json={"policy": "open"}
+        ),
+        lambda: client.put(
             _policy(guild_id),
             headers=admin.headers,
             json={"policy": "required", "provider_id": 1},
         ),
-        client.post(connections, headers=admin.headers, json={"provider_id": 1}),
+        lambda: client.post(
+            connections, headers=admin.headers, json={"provider_id": 1}
+        ),
     )
     for write in writes:
-        refused = await write
+        refused = await write()
         assert refused.status_code == 403, refused.text
         assert refused.json()["detail"] == "GUILD_SUPERADMIN_REQUIRED"
 

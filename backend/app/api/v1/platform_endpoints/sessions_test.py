@@ -309,7 +309,7 @@ class _LiveAccountSession:
 
 
 @pytest.fixture
-def streams(monkeypatch):
+async def streams(monkeypatch):
     """A socket register the endpoints under test report to, whose guild and
     resource checks pass, so a socket closes on its credential or not at all."""
     auth_context.set_session_credential(None)

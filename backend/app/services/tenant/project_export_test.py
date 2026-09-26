@@ -38,6 +38,7 @@ from app.testing import (
     create_project,
     create_property_definition,
     create_user,
+    route_as,
 )
 
 
@@ -161,7 +162,8 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
         session, target_initiative, assignee, role_name="member"
     )
 
-    # Import
+    # Import, as the importer's request would: through the seam.
+    await route_as(session, user_id=owner.id, guild_id=guild.id)
     result = await import_service.import_project(
         session,
         envelope=envelope,

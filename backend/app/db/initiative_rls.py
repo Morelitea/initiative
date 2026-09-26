@@ -358,6 +358,10 @@ class InitiativePath:
     #: and renders no separate ``dac`` leg; ``predicate`` is the read form of
     #: the same call.
     folded: FoldedBuilder | None = None
+    #: What a row responding to this one (a comment, an edge end) asks of its
+    #: initiative, where that is less than writing the row itself; ``None``
+    #: when the two are the same. Read by :func:`_entity_arm`.
+    responding: PathBuilder | None = None
 
 
 #: Types stored once per unordered pair, as a SQL list. A symmetric edge
@@ -462,6 +466,9 @@ def direct_or_guild() -> InitiativePath:
         initiative_expr=lambda r: f"{r}.initiative_id",
         parents=_no_parents,
         dac=_dac_self(),
+        # Commenting on a guild-level row is a member's, as adding an event to
+        # it is: the writer rule above is for the row itself.
+        responding=lambda t, w: _access(f"{t}.initiative_id", w),
     )
 
 
@@ -964,7 +971,8 @@ def _entity_arm(table: str) -> str:
         return "(NOT p_need_write AND NOT p_need_share_write) OR " + path.folded(
             "re", "p_need_write", "p_need_share_write"
         )
-    legs = [f"(NOT p_need_write OR ({path.predicate('re', True)}))"]
+    member = path.responding or path.predicate
+    legs = [f"(NOT p_need_write OR ({member('re', True)}))"]
     dac = _entity_dac(table)
     if dac is not None:
         sharing = dac.predicate("re", "UPDATE", True)
