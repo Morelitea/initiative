@@ -29,6 +29,7 @@ from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant import ownership as ownership_service
 from app.services.tenant import tags as tags_service
 from app.testing import (
+    route_as,
     assign_tag,
     checklist_items,
     create_guild,
@@ -161,7 +162,8 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
         session, target_initiative, assignee, role_name="member"
     )
 
-    # Import
+    # Import, routed as the importer the way an import runs.
+    await route_as(session, user_id=owner.id, guild_id=guild.id)
     result = await import_service.import_project(
         session,
         envelope=envelope,
