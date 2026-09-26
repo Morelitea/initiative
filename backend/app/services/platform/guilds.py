@@ -16,6 +16,7 @@ from app.core.intake import IntakeStream
 from app.core.encryption import encrypt_field, SALT_EMAIL
 from app.core.messages import GuildMessages
 from app.db import cohorts
+from app.db.guild_migrations import GUILD_SCHEMA_REGEX
 from app.models.platform.guild import (
     BANNER_TEXT_COLORS,
     GUILD_ADMIN_ROLES,
@@ -144,7 +145,8 @@ async def get_primary_guild(session: AsyncSession) -> Guild:
     user_count = (await session.exec(select(func.count()).select_from(User))).one()
     schema_count = (
         await session.exec(
-            text("SELECT count(*) FROM pg_namespace WHERE nspname ~ '^guild_[0-9]+$'")
+            text("SELECT count(*) FROM pg_namespace WHERE nspname ~ :pat"),
+            params={"pat": GUILD_SCHEMA_REGEX},
         )
     ).one()[0]
     if user_count or schema_count:

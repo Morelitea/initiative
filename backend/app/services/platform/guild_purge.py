@@ -33,6 +33,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
 from app.db import cohorts
+from app.db.guild_migrations import GUILD_SCHEMA_REGEX
 from app.db.schema_provisioning import deprovision_guild
 from app.db.session import SystemSessionLocal, set_rls_context
 from app.models.platform.guild import Guild, GuildStatus
@@ -277,13 +278,14 @@ async def _orphaned_guild_ids(session: AsyncSession) -> list[int]:
         text(
             "SELECT substring(n.nspname FROM 7)::int AS guild_id "
             "FROM pg_namespace n "
-            "WHERE n.nspname ~ '^guild_[0-9]+$' "
+            "WHERE n.nspname ~ :pat "
             "AND NOT EXISTS ("
             "SELECT 1 FROM public.guilds g "
             "WHERE g.id = substring(n.nspname FROM 7)::int"
             ") "
             "ORDER BY 1"
-        )
+        ),
+        params={"pat": GUILD_SCHEMA_REGEX},
     )
     return [row[0] for row in rows]
 

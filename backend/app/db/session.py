@@ -459,12 +459,9 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     # Lazy import avoids a circular import — schema_provisioning imports this
     # module.
     from app.db.schema_provisioning import (
-        guild_query_role_name,
-        guild_readonly_role_name,
+        GuildRoleKind,
         guild_role_name,
         guild_schema_name,
-        guild_superadmin_role_name,
-        guild_support_role_name,
         platform_role_name,
     )
 
@@ -511,18 +508,18 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
             guild_id is None and not pam_active and settings_guild_id is not None
         )
         if seat:
-            name_fn = guild_superadmin_role_name
+            kind = GuildRoleKind.seat
         elif query:
             # A query runs as the query role whatever else the request is:
             # a member's, a read-only member's, or a grantee's.
-            name_fn = guild_query_role_name
+            kind = GuildRoleKind.query
         elif read_only_grant or read_only or settings_only:
-            name_fn = guild_readonly_role_name
+            kind = GuildRoleKind.read_only
         elif support_grant:
-            name_fn = guild_support_role_name
+            kind = GuildRoleKind.support
         else:
-            name_fn = guild_role_name
-        role_target = name_fn(route_guild)
+            kind = GuildRoleKind.full
+        role_target = guild_role_name(route_guild, kind)
 
     satisfied = params.get("satisfied_providers")
     if satisfied == SYSTEM_SATISFIED:
@@ -600,7 +597,11 @@ def _render_install_bind_params(params: dict[str, Any]) -> dict[str, str]:
     routing's own values, and the standing is what the install standing
     statement computed — or nothing, until it has run.
     """
-    from app.db.schema_provisioning import guild_app_role_name, guild_schema_name
+    from app.db.schema_provisioning import (
+        GuildRoleKind,
+        guild_role_name,
+        guild_schema_name,
+    )
 
     guild_id = int(params["guild_id"])
     context = params.get("context")
@@ -636,7 +637,7 @@ def _render_install_bind_params(params: dict[str, Any]) -> dict[str, str]:
         "gok": "true" if completed and context.guild_auth_ok else "false",
         **_standing_binds(standing_bind_params(context if completed else None)),
         "sp": _search_path(guild_schema_name(guild_id), "public"),
-        "role": guild_app_role_name(guild_id),
+        "role": guild_role_name(guild_id, GuildRoleKind.app),
     }
 
 

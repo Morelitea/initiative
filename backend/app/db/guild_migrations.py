@@ -46,9 +46,11 @@ import re
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
-# Guild schemas: every ``guild_<id>`` plus the ``guild_template`` the artifacts
-# also maintain (see schema_provisioning.guild_schema_name / migration 0126).
-_GUILD_SCHEMA_REGEX = "^guild_([0-9]+|template)$"
+#: Every provisioned guild schema, ``guild_<id>``
+#: (``schema_provisioning.guild_schema_name``).
+GUILD_SCHEMA_REGEX = "^guild_[0-9]+$"
+#: Those plus ``guild_template``, which guild migrations also maintain.
+GUILD_OR_TEMPLATE_SCHEMA_REGEX = "^guild_([0-9]+|template)$"
 
 _DOLLAR_TAG = re.compile(r"\$[A-Za-z_0-9]*\$")
 
@@ -130,7 +132,7 @@ def guild_schema_names(connection: Connection) -> list[str]:
     present), sorted. For guild-scoped migrations."""
     rows = connection.execute(
         text("SELECT nspname FROM pg_namespace WHERE nspname ~ :pat ORDER BY nspname"),
-        {"pat": _GUILD_SCHEMA_REGEX},
+        {"pat": GUILD_OR_TEMPLATE_SCHEMA_REGEX},
     )
     return [row[0] for row in rows]
 

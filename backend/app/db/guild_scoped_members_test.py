@@ -20,7 +20,7 @@ import pytest
 from sqlalchemy import text
 
 from app.core.config import settings
-from app.db.schema_provisioning import guild_query_role_name
+from app.db.schema_provisioning import GuildRoleKind, guild_role_name
 from app.testing import create_guild, create_guild_membership, create_user
 
 
@@ -43,7 +43,9 @@ async def _as_query_role(conn, guild_id: int):
     hand-written ``guild_1_q`` finds whatever another database left lying
     around, or nothing at all.
     """
-    await conn.execute(text(f'SET LOCAL ROLE "{guild_query_role_name(guild_id)}"'))
+    await conn.execute(
+        text(f'SET LOCAL ROLE "{guild_role_name(guild_id, GuildRoleKind.query)}"')
+    )
 
 
 async def _routed(conn, guild_id: int | None, *, pam: bool = False):

@@ -20,7 +20,7 @@ from sqlmodel import select
 
 from app.api.deps import InstallAccessError
 from app.db.guild_standing import InstallContext
-from app.db.schema_provisioning import guild_app_role_name, guild_schema_name
+from app.db.schema_provisioning import guild_schema_name, GuildRoleKind, guild_role_name
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import User, UserStatus
 from app.models.tenant.app_member_consent import AppMemberConsent, ConsentAccess
@@ -161,7 +161,7 @@ async def test_a_member_token_stands_as_the_member_within_the_install(
         )
     ).one()
     assert tuple(values) == (
-        guild_app_role_name(installed.guild.id),
+        guild_role_name(installed.guild.id, GuildRoleKind.app),
         str(member.user.id),
         "false",
         "",

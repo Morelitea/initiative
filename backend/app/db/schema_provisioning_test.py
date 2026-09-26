@@ -15,19 +15,15 @@ from sqlalchemy.exc import ProgrammingError
 import app.db.schema_provisioning as schema_provisioning
 from app.db.guild_ddl import rendered_constraint_names, rendered_trigger_names
 from app.db.schema_provisioning import (
+    GuildRoleKind,
     APP_ROLE_MACHINERY_READS,
     SUPPORT_WRITE_PROTECTED_TABLES,
     apply_guild_rls,
     strip_template_registry_objects,
     backfill_guild_schemas,
     drop_guild_schema,
-    guild_app_role_name,
-    guild_readonly_role_name,
     guild_role_name,
-    guild_superadmin_role_name,
     guild_schema_name,
-    guild_query_role_name,
-    guild_support_role_name,
     provision_guild_schema,
 )
 from app.db.tenancy import GUILD_SCOPED_TABLES
@@ -207,14 +203,7 @@ async def test_guild_role_is_scoped_to_its_own_schema(engine):
 async def test_drop_guild_schema_removes_role(engine):
     """Tearing down a guild drops ALL its roles too, not just the schema."""
     gid = _GID_ROLE_DROP
-    roles = (
-        guild_role_name(gid),
-        guild_readonly_role_name(gid),
-        guild_support_role_name(gid),
-        guild_query_role_name(gid),
-        guild_superadmin_role_name(gid),
-        guild_app_role_name(gid),
-    )
+    roles = tuple(guild_role_name(gid, kind) for kind in GuildRoleKind)
     try:
         async with engine.begin() as conn:
             await provision_guild_schema(conn, gid)
@@ -256,7 +245,7 @@ async def test_the_seat_role_is_the_guild_role_plus_the_communitys_own_settings(
         async with engine.begin() as conn:
             await provision_guild_schema(conn, gid)
         schema = guild_schema_name(gid)
-        seat = guild_superadmin_role_name(gid)
+        seat = guild_role_name(gid, GuildRoleKind.seat)
         role = guild_role_name(gid)
         async with engine.connect() as conn:
             for verb in ("SELECT", "INSERT", "UPDATE", "DELETE"):
@@ -299,7 +288,7 @@ async def test_the_app_role_holds_only_what_an_app_reaches(engine):
         async with engine.begin() as conn:
             await provision_guild_schema(conn, gid)
         schema = guild_schema_name(gid)
-        app_role = guild_app_role_name(gid)
+        app_role = guild_role_name(gid, GuildRoleKind.app)
 
         async def held(conn, table: str, verb: str) -> bool:
             return await conn.scalar(
@@ -369,7 +358,9 @@ async def test_the_app_role_is_refused_the_communitys_settings(engine):
         async with engine.begin() as conn:
             await provision_guild_schema(conn, gid)
         async with engine.connect() as conn:
-            await conn.exec_driver_sql(f'SET ROLE "{guild_app_role_name(gid)}"')
+            await conn.exec_driver_sql(
+                f'SET ROLE "{guild_role_name(gid, GuildRoleKind.app)}"'
+            )
             with pytest.raises(ProgrammingError) as exc:
                 await conn.scalar(
                     text(
@@ -397,7 +388,10 @@ async def test_the_read_roles_cannot_write_shared_tables(engine):
         async with engine.begin() as conn:
             await provision_guild_schema(conn, gid)
         async with engine.connect() as conn:
-            for role in (guild_readonly_role_name(gid), guild_query_role_name(gid)):
+            for role in (
+                guild_role_name(gid, GuildRoleKind.read_only),
+                guild_role_name(gid, GuildRoleKind.query),
+            ):
                 for table in (
                     "public.user_view_preferences",
                     "public.user_tokens",
@@ -433,7 +427,7 @@ async def test_support_role_write_capped_on_protected_tables(engine):
     rung beside a read_write grant is among what they admit."""
     gid = _GID_SUPPORT
     schema = guild_schema_name(gid)
-    support = guild_support_role_name(gid)
+    support = guild_role_name(gid, GuildRoleKind.support)
     try:
         async with engine.begin() as conn:
             await provision_guild_schema(conn, gid)
@@ -1241,16 +1235,12 @@ async def _drop_probe_table(engine):
 def _point_registry_at_probe(monkeypatch, *, sys_verbs, user_verbs):
     from app.db import system_grants
 
-    monkeypatch.setattr(
-        system_grants,
-        "SHARED_TABLE_SYSTEM_GRANTS",
-        {_PROBE_TABLE: frozenset(sys_verbs) if sys_verbs else None},
-    )
-    monkeypatch.setattr(
-        system_grants,
-        "SHARED_TABLE_APP_USER_GRANTS",
-        {_PROBE_TABLE: frozenset(user_verbs) if user_verbs else None},
-    )
+    for role, verbs in (("app_admin", sys_verbs), ("app_user", user_verbs)):
+        monkeypatch.setitem(
+            system_grants.ROLE_GRANTS,
+            role,
+            {_PROBE_TABLE: frozenset(verbs) if verbs else None},
+        )
 
 
 async def test_shared_grants_heal_restores_missing_table_and_sequence(
