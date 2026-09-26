@@ -643,9 +643,9 @@ is the reference: `user_dm_settings.send_receipts` was added to an
 already-released revision, so every 0.65 install had the table without the
 column and no upgrade path to it (issue #1420).
 
-CI enforces the line: a pull request that modifies a revision at or before
-`RELEASED_MIGRATION` fails the backend job (`Frozen migrations are unchanged`
-in `ci.yml`). That includes docstring and comment edits — nothing runs from
+CI enforces the line: a pull request that modifies, renames or deletes a
+revision at or before `RELEASED_MIGRATION` fails the backend job (`Frozen
+migrations are unchanged` in `ci.yml`). That includes docstring and comment edits — nothing runs from
 those, but the check reads the file list, so leave released files alone.
 
 ### Rules for writing frontend code
