@@ -154,7 +154,9 @@ APP_REFUSED_TABLES: frozenset[str] = frozenset(
 #: attached with the tool's value as its argument): when a request creates a
 #: tool's resource, it writes the one owner row. That row names the person who
 #: made it, the install, or, for a member token, the member it acts for. A
-#: system job names nobody, and the function writes nothing.
+#: system job names nobody, and the function writes nothing. Nor does it for a
+#: row outside any initiative: that is community level, and the calendar app
+#: whose install mounts it is named as its owner by the code that makes it.
 #: Shared, in ``public``; the row lands in the schema the trigger fired in.
 #: Restated in full by the migration that sets it (20260925_0403).
 INSTALL_OWNS_WHAT_IT_CREATES = """
@@ -168,7 +170,7 @@ DECLARE
         current_setting('app.current_user_id', true), ''
     )::integer;
 BEGIN
-    IF v_install IS NULL AND v_member IS NULL THEN
+    IF NEW.initiative_id IS NULL OR (v_install IS NULL AND v_member IS NULL) THEN
         RETURN NULL;
     END IF;
     IF v_member IS NULL THEN

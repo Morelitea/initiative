@@ -8,7 +8,8 @@ renders from ``app.db.authorization`` once these are in place:
   schema that has one is restated to build the longer value.
 - ``public.fn_install_owns_what_it_creates()`` writes the owner row for a
   person's create as well as an installed app's, so the row is written by the
-  database whoever makes the resource.
+  database whoever makes the resource. A row outside any initiative gets none:
+  it is community level, owned by the app install that mounts it.
 - Grants naming someone who is no longer in the grant's initiative are
   removed, owner rows included. Leaving an initiative takes them with it from
   now on (``tr_initiative_members_departure``, rendered by provisioning); these
@@ -137,7 +138,7 @@ END;
 $owns$;
 """
 
-#: Writing a person's owner row too.
+#: Writing a person's owner row too, and none for a community-level row.
 OWNS_FUNCTION_AFTER = """
 CREATE OR REPLACE FUNCTION public.fn_install_owns_what_it_creates() RETURNS trigger
     LANGUAGE plpgsql AS $owns$
@@ -149,7 +150,7 @@ DECLARE
         current_setting('app.current_user_id', true), ''
     )::integer;
 BEGIN
-    IF v_install IS NULL AND v_member IS NULL THEN
+    IF NEW.initiative_id IS NULL OR (v_install IS NULL AND v_member IS NULL) THEN
         RETURN NULL;
     END IF;
     IF v_member IS NULL THEN
