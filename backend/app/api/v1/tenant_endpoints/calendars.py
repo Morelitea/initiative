@@ -26,7 +26,6 @@ from app.api.deps import (
     IncludeDeletedDep,
     RLSSessionDep,
     app_scope,
-    GuildContextDep,
 )
 from app.core.messages import CalendarMessages, GuildMessages
 from app.core.tools import Tool

@@ -44,6 +44,7 @@ from app.db.session import (
     served_guild_id,
 )
 from app.testing.schema_harness import clear_search_path_pin
+from app.db.guild_migrations import GUILD_SCHEMA_REGEX
 from app.db.schema_provisioning import drop_guild_schema
 from app.db.tenancy import SHARED_TABLES
 from app.main import app
@@ -876,10 +877,8 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
                 int(schema.removeprefix("guild_"))
                 for (schema,) in (
                     await conn.execute(
-                        text(
-                            "SELECT nspname FROM pg_namespace "
-                            "WHERE nspname ~ '^guild_[0-9]+$'"
-                        )
+                        text("SELECT nspname FROM pg_namespace WHERE nspname ~ :pat"),
+                        {"pat": GUILD_SCHEMA_REGEX},
                     )
                 ).all()
             ]

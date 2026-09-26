@@ -414,7 +414,7 @@ async def _scrub_invites_addressed_to(
     still-active single-recipient invite would degrade into one anyone with the
     code could redeem. The system engine (``app_admin``) holds UPDATE but
     deliberately not DELETE on ``guild_invites`` (row removal rides the guild
-    FK cascade — see ``SHARED_TABLE_SYSTEM_GRANTS``), so this scrubs the row in
+    FK cascade — see ``SHARED_TABLE_REGISTRY``), so this scrubs the row in
     place rather than deleting it.
     """
     from app.models.platform.guild import GuildInvite

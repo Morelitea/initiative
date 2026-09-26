@@ -39,7 +39,7 @@ from app.core.config import settings
 from app.db.backfill_uploads_to_s3 import BackfillSummary, backfill_uploads_to_s3
 from app.db import session as db_session
 from app.db.session import SystemSessionLocal
-from app.db.system_grants import SHARED_TABLE_SYSTEM_GRANTS, grant_sql
+from app.db.system_grants import ROLE_GRANTS, grant_sql
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ CREATE UNLOGGED TABLE IF NOT EXISTS storage_backfill_state (
 # The system engine's verbs come from the audited shared-table registry, so the
 # lazily-created table follows the same "decide it explicitly" discipline as the
 # migrated ones (security_invariants_test compares the live catalog to it).
-_ADMIN_GRANT = grant_sql(SHARED_TABLE_SYSTEM_GRANTS["storage_backfill_state"])
+_ADMIN_GRANT = grant_sql(ROLE_GRANTS["app_admin"]["storage_backfill_state"])
 if _ADMIN_GRANT is None:
     # Every read/write in this module runs on the system engine; a registry
     # entry of "no access" would leave the service unable to operate at all,
