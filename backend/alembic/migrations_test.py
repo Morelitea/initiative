@@ -247,7 +247,7 @@ async def _administer_shared_roles() -> None:
     while holding the migration lock, which is also what every other worker
     creates roles under.
     """
-    from app.db.bootstrap import ADMINISTER_EXISTING_ROLES
+    from app.db.bootstrap import _administer_existing_roles
 
     conn = await connect_su_postgres()
     try:
@@ -256,7 +256,7 @@ async def _administer_shared_roles() -> None:
                 "SELECT set_config('app._bootstrap_role', $1, true)",
                 _parse_admin_url()["user"],
             )
-            await conn.execute(ADMINISTER_EXISTING_ROLES)
+            await conn.execute(_administer_existing_roles())
     finally:
         await conn.close()
 
