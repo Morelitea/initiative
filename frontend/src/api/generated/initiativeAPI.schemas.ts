@@ -7953,17 +7953,21 @@ export interface RecoveryCodesRegenerate {
   current_password?: string | null;
 }
 
+export type ReferenceEmbedBody = { [key: string]: unknown } | null;
+
 /**
  * A reference shown in full — ``![[ ]]`` rather than ``#``.
  *
  * The same reference and the same gate as a link; what it adds is what the
- * thing says about itself, for the kinds that carry a description.
+ * thing says about itself: its description, for the kinds that carry one,
+ * or its whole body, for the kinds that are prose.
  */
 export interface ReferenceEmbed {
   ref: string;
   entity_type: SearchEntityType;
   title: string;
   description: string | null;
+  body: ReferenceEmbedBody;
 }
 
 /**

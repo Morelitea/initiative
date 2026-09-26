@@ -179,6 +179,7 @@ class _Parser:
                 {
                     "type": "callout",
                     "variant": str(node.get("variant") or "note"),
+                    "collapsed": node.get("collapsed") is True,
                     "blocks": self.nested(children),
                 }
             )
@@ -484,8 +485,10 @@ def _md_block(block: dict, indent: str = "") -> list[str]:
     if btype == "quote":
         return [f"> {_md_runs(block.get('runs') or [])}"]
     if btype == "callout":
-        # Obsidian's callout, which GitHub reads as an alert.
-        lines = [f"> [!{block.get('variant') or 'note'}]"]
+        # Obsidian's callout, which GitHub reads as an alert. A folded one
+        # carries Obsidian's fold marker; a page or a Word file shows it open.
+        fold = "-" if block.get("collapsed") else ""
+        lines = [f"> [!{block.get('variant') or 'note'}]{fold}"]
         for index, inner in enumerate(block.get("blocks") or []):
             if index:
                 lines.append(">")

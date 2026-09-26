@@ -81,7 +81,8 @@ async def read_reference_embeds(
         description="A reference to show in full, as `kind:id` — `task:12`.",
     ),
 ) -> ReferenceEmbedList:
-    """What an embedded reference shows: the thing's name and description.
+    """What an embedded reference shows: the thing's name, and its description
+    or, for prose, its body.
 
     Absent for anything gone or out of this caller's reach, as a chip is.
     """
