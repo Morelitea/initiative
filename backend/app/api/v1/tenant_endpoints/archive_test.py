@@ -11,6 +11,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
+from app.models.tenant.task import TaskStatusCategory
 from app.testing import create_document, create_queue, create_task
 
 
@@ -154,3 +155,38 @@ async def test_the_project_going_back_takes_its_tasks_with_it(
     assert back.status_code == 200
     await session.refresh(task)
     assert task.archived_at is None
+
+
+async def test_archiving_a_projects_done_tasks_archives_each_as_archiving_it_would(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """One stamp for the batch, the live work left alone, and each task taken
+    back out on its own through the same route as any other."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    first = await create_task(
+        session, a.project, status_category=TaskStatusCategory.done
+    )
+    second = await create_task(
+        session, a.project, status_category=TaskStatusCategory.done
+    )
+    live = await create_task(session, a.project)
+
+    response = await client.post(
+        a.g("/tasks/archive-done"),
+        params={"project_id": a.project.id},
+        headers=a.headers,
+    )
+
+    assert response.json() == {"archived_count": 2}
+    for task in (first, second, live):
+        await session.refresh(task)
+    assert first.archived_at is not None
+    assert first.archived_at == second.archived_at
+    assert live.archived_at is None
+
+    back = await client.post(a.g(f"/unarchive/task/{first.id}"), headers=a.headers)
+    assert back.status_code == 200
+    await session.refresh(first)
+    await session.refresh(second)
+    assert first.archived_at is None
+    assert second.archived_at is not None

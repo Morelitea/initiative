@@ -1666,9 +1666,9 @@ export const useUpdateProjectApiV1CGuildIdProjectsProjectIdPatch = <
   );
 };
 /**
- * Soft-delete a project. Tasks are stamped with the same deleted_at so
- * they're hidden behind the parent. Restoring the project resurfaces all
- * descendants automatically.
+ * Move it to the trash with everything inside it. Restoring it brings
+ * all of that back; the trash purges it after the community's retention.
+ * Requires the delete right on it: its owner, or a guild admin.
  * @summary Delete Project
  */
 export const deleteProjectApiV1CGuildIdProjectsProjectIdDelete = (

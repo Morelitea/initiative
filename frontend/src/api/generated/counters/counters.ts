@@ -874,6 +874,9 @@ export const useUpdateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatch = <
   );
 };
 /**
+ * Move it to the trash with everything inside it. Restoring it brings
+ * all of that back; the trash purges it after the community's retention.
+ * Requires the delete right on it: its owner, or a guild admin.
  * @summary Delete Counter Group
  */
 export const deleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDelete = (

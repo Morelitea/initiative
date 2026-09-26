@@ -869,8 +869,9 @@ export const useUpdateCalendarApiV1CGuildIdCalendarsCalendarIdPatch = <
   );
 };
 /**
- * Soft-delete a calendar (cascades to its events). Requires owner
- * permission or guild admin.
+ * Move it to the trash with everything inside it. Restoring it brings
+ * all of that back; the trash purges it after the community's retention.
+ * Requires the delete right on it: its owner, or a guild admin.
  * @summary Delete Calendar
  */
 export const deleteCalendarApiV1CGuildIdCalendarsCalendarIdDelete = (

@@ -436,32 +436,6 @@ async def upgrade_dashboard(
     )
 
 
-@router.delete("/{dashboard_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_dashboard(
-    dashboard_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> None:
-    """Soft-delete a dashboard. Requires owner permission or guild admin."""
-    from app.services.tenant.soft_delete import trash
-
-    dashboard = await resource_access.load_authorized(
-        session,
-        Tool.dashboard,
-        dashboard_id,
-        current_user,
-        guild_context,
-        action=Action.delete,
-    )
-    await trash(
-        session,
-        dashboard,
-        deleted_by_user_id=current_user.id,
-    )
-    await session.commit()
-
-
 async def _check_publishing_allows(
     session: Any,
     dashboard_id: int,

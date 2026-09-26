@@ -85,7 +85,6 @@ from app.api import resource_access
 from app.core.tools import Tool
 from app.services.tenant import documents as documents_service
 from app.services.tenant import ownership as ownership_service
-from app.services.tenant import soft_delete as soft_delete_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import tool_listing
 from app.services import notifications as notifications_service
@@ -1057,35 +1056,6 @@ async def copy_document(
         user=current_user,
         guild_context=guild_context,
     )
-
-
-@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_document(
-    document_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> None:
-    """Soft-delete a document. Upload rows + filesystem blobs survive so a
-    restored document keeps its images and file body. Wikilinks pointing at
-    this document continue to reference the row but resolve to nothing
-    (the active-row filter hides it). Both URL-orphan cleanup for native
-    docs and the 1:1 Upload cleanup for file-type docs run later, at
-    hard-purge time, via ``purge_document_uploads``."""
-    document = await resource_access.load_authorized(
-        session,
-        Tool.document,
-        document_id,
-        current_user,
-        guild_context,
-        action=Action.delete,
-    )
-    await soft_delete_service.trash(
-        session,
-        document,
-        deleted_by_user_id=current_user.id,
-    )
-    await session.commit()
 
 
 @router.post("/{document_id}/mentions", status_code=status.HTTP_204_NO_CONTENT)

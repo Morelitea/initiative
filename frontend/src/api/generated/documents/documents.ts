@@ -1597,12 +1597,9 @@ export const useUpdateDocumentApiV1CGuildIdDocumentsDocumentIdPatch = <
   );
 };
 /**
- * Soft-delete a document. Upload rows + filesystem blobs survive so a
- * restored document keeps its images and file body. Wikilinks pointing at
- * this document continue to reference the row but resolve to nothing
- * (the active-row filter hides it). Both URL-orphan cleanup for native
- * docs and the 1:1 Upload cleanup for file-type docs run later, at
- * hard-purge time, via ``purge_document_uploads``.
+ * Move it to the trash with everything inside it. Restoring it brings
+ * all of that back; the trash purges it after the community's retention.
+ * Requires the delete right on it: its owner, or a guild admin.
  * @summary Delete Document
  */
 export const deleteDocumentApiV1CGuildIdDocumentsDocumentIdDelete = (

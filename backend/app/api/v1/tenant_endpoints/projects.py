@@ -70,7 +70,6 @@ from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant import task_checklist as checklist_service
 from app.services.tenant import task_completion
 from app.services.tenant import task_description as task_description_service
-from app.services.tenant.soft_delete import trash
 from app.core.messages import ProjectMessages
 from app.core.config import settings as app_settings
 from app.schemas.tenant.project import (
@@ -1211,28 +1210,6 @@ async def reorder_projects(
         current_user.id,
         visible_projects,
     )
-
-
-@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_project(
-    project_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> None:
-    """Soft-delete a project. Tasks are stamped with the same deleted_at so
-    they're hidden behind the parent. Restoring the project resurfaces all
-    descendants automatically."""
-    project = await resource_access.load_authorized(
-        session,
-        Tool.project,
-        project_id,
-        current_user,
-        guild_context,
-        action=Action.delete,
-    )
-    await trash(session, project, deleted_by_user_id=current_user.id)
-    await session.commit()
 
 
 async def read_after_write(

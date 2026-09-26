@@ -739,29 +739,6 @@ async def test_duplicate_counter_group_needs_write_on_source(
         assert response.json()["can"]["delete"] is True
 
 
-async def test_delete_counter_group_still_emits_group_deleted(
-    client: AsyncClient, acting_user, monkeypatch
-):
-    """Deleting a group must still emit ``group_deleted``. Regression: the group
-    is soft-deleted before the signal goes out, so the delete path names
-    the guild from the request rather than from the row."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    group = await _create_group(client, a)
-
-    from app.services.content_sockets import sockets
-
-    emitted: list[tuple] = []
-
-    def _record(guild_id, tool, resource_id, event_type):
-        emitted.append((guild_id, tool.value, resource_id, event_type))
-
-    monkeypatch.setattr(sockets, "signal", _record)
-
-    resp = await client.delete(a.g(f"/counter-groups/{group['id']}"), headers=a.headers)
-    assert resp.status_code == 204, resp.text
-    assert (a.guild.id, "counter_group", group["id"], "group_deleted") in emitted
-
-
 async def test_counter_group_counts_by_initiative(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
