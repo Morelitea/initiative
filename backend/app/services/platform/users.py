@@ -917,8 +917,9 @@ async def hard_delete_user(
 
 
 # The member-lookup helpers below bind to ``MemberProfile`` — the guild
-# projection — because every surface that looks a person up is inside a guild,
-# and a guild-routed session does not read ``public.users``.
+# projection — by default, because every surface that looks a member up is
+# inside a guild, and a guild-routed session does not read ``public.users``.
+# The operator roster passes ``User``, which carries the same columns.
 
 
 #: How close a typed name has to be to a member's to be worth offering.
@@ -962,7 +963,9 @@ async def summaries_with_guild_role(
     return summaries
 
 
-def name_closeness(term: str, *, shows_names: bool) -> ColumnElement[float]:
+def name_closeness(
+    term: str, *, shows_names: bool, profile=MemberProfile
+) -> ColumnElement[float]:
     """How close a member's name is to what was typed, as a rankable number.
 
     Measured against the closest RUN of the name rather than the whole of it,
@@ -973,17 +976,17 @@ def name_closeness(term: str, *, shows_names: bool) -> ColumnElement[float]:
     ``shows_names`` is the guild's own setting, so a real name is matched
     exactly where it is shown and nowhere else.
     """
-    closest = func.word_similarity(term, MemberProfile.username)
+    closest = func.word_similarity(term, profile.username)
     if shows_names:
         closest = func.greatest(
             closest,
-            func.word_similarity(term, func.coalesce(MemberProfile.full_name, "")),
+            func.word_similarity(term, func.coalesce(profile.full_name, "")),
         )
     return closest
 
 
 def member_match(
-    term: str, *, shows_names: bool
+    term: str, *, shows_names: bool, profile=MemberProfile
 ) -> tuple[ColumnElement[bool], ColumnElement[float] | None]:
     """How a typed name selects members, and what to order the answer by.
 
@@ -1000,17 +1003,17 @@ def member_match(
     if number is not None:
         return (
             and_(
-                func.lower(MemberProfile.username) == name_part.lower(),
-                func.lpad(cast(MemberProfile.discriminator, String), 4, "0").like(
+                func.lower(profile.username) == name_part.lower(),
+                func.lpad(cast(profile.discriminator, String), 4, "0").like(
                     f"{number}%"
                 ),
             ),
             None,
         )
-    matches = MemberProfile.username.ilike(f"%{name_part}%")
+    matches = profile.username.ilike(f"%{name_part}%")
     if shows_names:
-        matches = or_(matches, MemberProfile.full_name.ilike(f"%{name_part}%"))
-    closest = name_closeness(name_part, shows_names=shows_names)
+        matches = or_(matches, profile.full_name.ilike(f"%{name_part}%"))
+    closest = name_closeness(name_part, shows_names=shows_names, profile=profile)
     return or_(matches, closest >= MEMBER_MATCH_THRESHOLD), closest
 
 

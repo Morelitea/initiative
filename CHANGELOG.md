@@ -62,6 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The initiatives list leaves out who is in each one** — `GET /initiatives/` no longer includes each initiative's `members`. An app or script that read them there reads one initiative (`GET /initiatives/{id}`) or its `/members` instead.
 - **Paged lists answer the same way** — every paged list response now includes `has_prev` beside `has_next`, and a duplicate document name is refused with `409` like tags, properties and initiatives, instead of `400`. An unknown time zone on a profile or registration is refused as `UNKNOWN_TIMEZONE`; the old `USER_INVALID_TIMEZONE` code is gone.
 - **Timelines fall back to UTC** — the gallery and board timelines draw their months in UTC when the browser sends a time zone the server doesn't know, instead of refusing the request.
+- **Operator lists come a page at a time** — the Operator dashboard's Users and Communities tabs, a community's picker on the Operations settings page, and an app's Members view load one page and search on the server. `GET /api/v1/operator/users` and `GET /api/v1/settings/communities` now return `{items, total_count, page, …}` and take `search`, `sort_by`, `sort_dir`, `page` and `page_size`; scripts reading a plain list need updating.
 
 ### Fixed
 

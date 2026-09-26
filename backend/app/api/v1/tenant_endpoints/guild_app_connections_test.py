@@ -688,6 +688,21 @@ class TestConnectionVisibility:
         # Three members in the guild: the admin plus the two who connected.
         assert github["member_count"] == 3
 
+        # A page holds some of the members; the counts still cover everyone.
+        paged = (
+            await client.get(
+                a.g(f"/apps/{app.id}/members"),
+                params={"page_size": 1, "page": 2},
+                headers=a.headers,
+            )
+        ).json()
+        assert paged["total_count"] == 2
+        assert [item["user_id"] for item in paged["items"]] == [
+            max(first.user.id, second.user.id)
+        ]
+        github = next(s for s in paged["summary"] if s["connection_id"] == "github")
+        assert github["connected_count"] == 2
+
     async def test_the_members_view_carries_no_values_and_no_handles(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):

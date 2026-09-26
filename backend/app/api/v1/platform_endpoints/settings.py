@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 from typing import Any, Literal
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
 from sqlalchemy import func
 from sqlmodel import select
 
@@ -18,6 +18,7 @@ from app.core.audit_events import AuditEventType
 from app.core.config import API_V1_STR
 from app.core.config import settings as app_config
 from app.core.rate_limit import limiter
+from app.db.query import build_paginated_response, paginated_query
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.app_setting_secret import AppSettingSecret
 from app.models.platform.guild import (
@@ -58,6 +59,7 @@ from app.schemas.platform.settings import (
 from app.models.platform.guild import GuildStatus, operator_status_choices
 from app.schemas.platform.guild import (
     PlatformGuildRestore,
+    PlatformGuildStorageListResponse,
     PlatformGuildStorageRead,
     PlatformGuildStorageUpdate,
 )
@@ -927,22 +929,26 @@ def _guild_storage_read(
     )
 
 
-async def _member_tallies() -> tuple[dict[int, int], set[int]]:
-    """Each community's member count, and which communities hold their seat.
+async def _member_tallies(
+    guild_ids: list[int],
+) -> tuple[dict[int, int], set[int]]:
+    """Each listed community's member count, and which of them hold their seat.
 
-    Two grouped queries for the whole deployment, on the system engine: the
-    platform tier reads no roster but its own memberships, and this list needs
-    only the totals, not the rows behind them.
+    Two grouped queries for the page, on the system engine: the platform tier
+    reads no roster but its own memberships, and this list needs only the
+    totals, not the rows behind them.
     """
     from app.db.session import SystemSessionLocal
 
+    if not guild_ids:
+        return {}, set()
     async with SystemSessionLocal() as system_session:
         counts = dict(
             (
                 await system_session.exec(
-                    select(GuildMembership.guild_id, func.count()).group_by(
-                        GuildMembership.guild_id
-                    )
+                    select(GuildMembership.guild_id, func.count())
+                    .where(GuildMembership.guild_id.in_(guild_ids))
+                    .group_by(GuildMembership.guild_id)
                 )
             ).all()
         )
@@ -950,7 +956,10 @@ async def _member_tallies() -> tuple[dict[int, int], set[int]]:
             (
                 await system_session.exec(
                     select(GuildMembership.guild_id)
-                    .where(GuildMembership.role == GuildRole.superadmin)
+                    .where(
+                        GuildMembership.guild_id.in_(guild_ids),
+                        GuildMembership.role == GuildRole.superadmin,
+                    )
                     .distinct()
                 )
             ).all()
@@ -958,34 +967,51 @@ async def _member_tallies() -> tuple[dict[int, int], set[int]]:
     return counts, seated
 
 
-@router.get("/communities", response_model=list[PlatformGuildStorageRead])
+_GUILD_SORT_FIELDS = {"id": Guild.id, "name": Guild.name}
+
+
+@router.get("/communities", response_model=PlatformGuildStorageListResponse)
 async def list_platform_guild_storage(
     session: UserSessionDep,
     _operator: GuildsManageDep,
-) -> list[PlatformGuildStorageRead]:
-    """List every guild with its storage cap, for the Operator dashboard Guilds tab.
+    search: str | None = Query(default=None, description="Matches the name."),
+    sort_by: Literal["id", "name"] = "name",
+    sort_dir: Literal["asc", "desc"] = "asc",
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+) -> PlatformGuildStorageListResponse:
+    """One page of the deployment's guilds with their storage caps, for the
+    Operator dashboard Guilds tab.
 
     Operator/owner (``guilds.manage``). Reads only shared ``public`` tables. The
     guilds and their administration rows are read on the caller's platform
     tier, under the ``guilds.manage`` policies on both; the caps join in a
     single pass. Member counts and seats are totals read on the system engine
-    (``_member_tallies``), one grouped query each rather than per guild.
+    (``_member_tallies``), one grouped query each for the page.
     """
     # Outer join on purpose: this is the operator's view of *every* guild, and a
     # guild missing its companion row must still be listed (with blank caps) so
     # it stays manageable, rather than silently vanishing from the moderation
     # surface. Creation writes the pair together, so this is a floor, not a
     # normal case.
-    rows = (
-        await session.exec(
-            select(Guild, GuildAdministration)
-            .outerjoin(GuildAdministration, GuildAdministration.guild_id == Guild.id)
-            .order_by(Guild.name)
-        )
-    ).all()
+    base = select(Guild, GuildAdministration).outerjoin(
+        GuildAdministration, GuildAdministration.guild_id == Guild.id
+    )
+    if search and (term := search.strip()):
+        base = base.where(Guild.name.ilike(f"%{term}%"))
+    order = _GUILD_SORT_FIELDS[sort_by]
+    rows, total_count, actual_page = await paginated_query(
+        session,
+        base.order_by(
+            order.desc() if sort_dir == "desc" else order.asc(), Guild.id.asc()
+        ),
+        select(func.count()).select_from(base.subquery()),
+        page=page,
+        page_size=page_size,
+    )
     retention = await guild_purge.retention_days(session)
-    counts, seated = await _member_tallies()
-    return [
+    counts, seated = await _member_tallies([g.id for g, _ in rows])
+    items = [
         _guild_storage_read(
             g,
             administration,
@@ -995,6 +1021,9 @@ async def list_platform_guild_storage(
         )
         for g, administration in rows
     ]
+    return PlatformGuildStorageListResponse(
+        **build_paginated_response(items, total_count, actual_page, page_size)
+    )
 
 
 @router.patch("/communities/{guild_id}", response_model=PlatformGuildStorageRead)

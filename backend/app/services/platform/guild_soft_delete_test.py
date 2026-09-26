@@ -338,7 +338,7 @@ async def test_restore_asks_for_a_seat_when_the_roster_holds_none(
     session.expunge_all()
 
     listed = await client.get("/api/v1/settings/communities", headers=operator.headers)
-    entry = next(g for g in listed.json() if g["id"] == guild.id)
+    entry = next(g for g in listed.json()["items"] if g["id"] == guild.id)
     assert entry["has_seat"] is False
     assert entry["purge_at"] is not None
 
@@ -505,7 +505,7 @@ async def test_a_deployment_can_keep_deleted_communities_forever(
 
     # And the operator's list says there is no date, rather than inventing one.
     listed = await client.get("/api/v1/settings/communities", headers=operator.headers)
-    entry = next(g for g in listed.json() if g["id"] == guild.id)
+    entry = next(g for g in listed.json()["items"] if g["id"] == guild.id)
     assert entry["status"] == "deleted"
     assert entry["purge_at"] is None
 

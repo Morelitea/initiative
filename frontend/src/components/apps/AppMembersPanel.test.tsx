@@ -9,6 +9,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { buildPage } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import {
   ConsentAccess,
@@ -26,7 +27,20 @@ vi.mock("@/hooks/useGuildAppDetail", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useGuildAppDetail")>()),
   useGuildAppMembers: () => ({
     isLoading: false,
-    data: { summary: [], items: [], consents },
+    data: {
+      ...buildPage([]),
+      summary: [],
+      consents,
+      consent_summary: {
+        member_count: new Set(consents.map((row) => row.user_id)).size,
+        allowed_count: new Set(
+          consents.filter((row) => row.status === ConsentStatus.granted).map((row) => row.user_id)
+        ).size,
+        open_count: consents.filter(
+          (row) => row.status === ConsentStatus.granted || row.status === ConsentStatus.pending
+        ).length,
+      },
+    },
   }),
   useRevokeAllConnections: () => ({ mutate: vi.fn(), isPending: false }),
   useRevokeMemberConsents: () => ({ mutate: revokeMember, isPending: false }),
@@ -34,11 +48,13 @@ vi.mock("@/hooks/useGuildAppDetail", async (importOriginal) => ({
 }));
 
 vi.mock("@/hooks/useUsers", () => ({
-  useUsers: () => ({
-    data: [
-      { id: 5, full_name: "Ada" },
-      { id: 6, full_name: "Grace" },
-    ],
+  useUserSearch: () => ({
+    data: {
+      items: [
+        { id: 5, full_name: "Ada" },
+        { id: 6, full_name: "Grace" },
+      ],
+    },
   }),
 }));
 

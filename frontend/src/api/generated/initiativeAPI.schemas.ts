@@ -4344,6 +4344,15 @@ export interface GuildAppConsentRead {
 }
 
 /**
+ * Every member's answers to this app's requests, counted.
+ */
+export interface GuildAppConsentSummary {
+  member_count: number;
+  allowed_count: number;
+  open_count: number;
+}
+
+/**
  * Keep the pinned version, and stop being asked about this one.
  */
 export interface GuildAppDecline {
@@ -4515,10 +4524,22 @@ export interface GuildAppMemberConsent {
   user_id: number;
 }
 
+/**
+ * One page of the members who connected to this app or answered it.
+ *
+ * ``summary`` and ``consent_summary`` count across every member; ``items``
+ * and ``consents`` are the rows of the members on this page.
+ */
 export interface GuildAppMembersResponse {
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
   summary: GuildAppConnectionSummary[];
   items: GuildAppMemberConnection[];
   consents: GuildAppMemberConsent[];
+  consent_summary: GuildAppConsentSummary;
 }
 
 /**
@@ -6485,6 +6506,18 @@ export interface OperatorUserRead {
 }
 
 /**
+ * One page of the operator roster.
+ */
+export interface OperatorUserListResponse {
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
+  items: OperatorUserRead[];
+}
+
+/**
  * The name part a moderator sets on someone else's account.
  *
  * The number is not here and never will be: it is drawn, not chosen, by
@@ -6885,6 +6918,18 @@ export interface PlatformGuildStorageRead {
   auth_options: GuildAuthOption[];
   banner_image_enabled: boolean;
   support_enabled: boolean;
+}
+
+/**
+ * One page of the operator's community list.
+ */
+export interface PlatformGuildStorageListResponse {
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
+  items: PlatformGuildStorageRead[];
 }
 
 /**
@@ -9773,6 +9818,42 @@ export type ProviderCallbackApiV1AuthProviderSlugCallbackGetParams = {
   state?: string | null;
 };
 
+export type ListAllUsersApiV1OperatorUsersGetParams = {
+  /**
+   * Matches the handle's name part; a whole handle (`foobar#1234`) pins one account.
+   */
+  search?: string | null;
+  sort_by?: ListAllUsersApiV1OperatorUsersGetSortBy;
+  sort_dir?: ListAllUsersApiV1OperatorUsersGetSortDir;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  page_size?: number;
+};
+
+export type ListAllUsersApiV1OperatorUsersGetSortBy =
+  | (typeof ListAllUsersApiV1OperatorUsersGetSortBy)[keyof typeof ListAllUsersApiV1OperatorUsersGetSortBy]
+  | null;
+
+export const ListAllUsersApiV1OperatorUsersGetSortBy = {
+  id: "id",
+  username: "username",
+  status: "status",
+} as const;
+
+export type ListAllUsersApiV1OperatorUsersGetSortDir =
+  (typeof ListAllUsersApiV1OperatorUsersGetSortDir)[keyof typeof ListAllUsersApiV1OperatorUsersGetSortDir];
+
+export const ListAllUsersApiV1OperatorUsersGetSortDir = {
+  asc: "asc",
+  desc: "desc",
+} as const;
+
 export type ExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetParams = {
   user_id?: number[] | null;
 };
@@ -9835,6 +9916,40 @@ export type ListAccessGrantQueueApiV1AccessGrantsQueueGetParams = {
    */
   offset?: number;
 };
+
+export type ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams = {
+  /**
+   * Matches the name.
+   */
+  search?: string | null;
+  sort_by?: ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortBy;
+  sort_dir?: ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortDir;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  page_size?: number;
+};
+
+export type ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortBy =
+  (typeof ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortBy)[keyof typeof ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortBy];
+
+export const ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortBy = {
+  id: "id",
+  name: "name",
+} as const;
+
+export type ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortDir =
+  (typeof ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortDir)[keyof typeof ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortDir];
+
+export const ListPlatformGuildStorageApiV1SettingsCommunitiesGetSortDir = {
+  asc: "asc",
+  desc: "desc",
+} as const;
 
 export type CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostParams =
   {
@@ -10837,6 +10952,18 @@ export type ReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsG
    * What the form has answered so far, as a JSON object. Only the answers a source's `needs` names are ever forwarded.
    */
   params?: string | null;
+};
+
+export type ListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetParams = {
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  page_size?: number;
 };
 
 export type ListCalendarEventsApiV1CGuildIdCalendarEventsGetParams = {

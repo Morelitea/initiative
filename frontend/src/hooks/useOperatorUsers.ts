@@ -1,11 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import type {
   AccountDeletionResponse,
   DeletionEligibilityResponse,
   ExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetParams,
+  ListAllUsersApiV1OperatorUsersGetParams,
   OperatorDeletionEligibilityResponse,
   OperatorUserDeleteRequest,
+  OperatorUserListResponse,
   OperatorUserRead,
   UserRole,
   VerificationSendResponse,
@@ -39,11 +41,16 @@ import type { QueryOpts } from "@/types/query";
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
-/** Fetch all platform users (operator endpoint). */
-export const usePlatformUsers = (options?: QueryOpts<OperatorUserRead[]>) => {
-  return useQuery<OperatorUserRead[]>({
-    queryKey: getListAllUsersApiV1OperatorUsersGetQueryKey(),
-    queryFn: () => listAllUsersApiV1OperatorUsersGet(),
+/** One page of platform users (operator endpoint), searched and sorted on the
+ *  server. The previous page stays on screen while the next one loads. */
+export const usePlatformUsers = (
+  params: ListAllUsersApiV1OperatorUsersGetParams,
+  options?: QueryOpts<OperatorUserListResponse>
+) => {
+  return useQuery<OperatorUserListResponse>({
+    queryKey: getListAllUsersApiV1OperatorUsersGetQueryKey(params),
+    queryFn: () => listAllUsersApiV1OperatorUsersGet(params),
+    placeholderData: keepPreviousData,
     ...options,
   });
 };

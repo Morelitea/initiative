@@ -18,9 +18,10 @@ changes the next request without anything else being told.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Sequence
 
 from sqlalchemy import delete as sa_delete
+from sqlalchemy import distinct, func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -37,6 +38,8 @@ from app.core.clock import utcnow
 
 __all__ = [
     "ConsentRequest",
+    "ConsentTallies",
+    "consent_tallies",
     "delete_install_consents",
     "delete_member_consents",
     "find_consent",
@@ -152,15 +155,18 @@ async def list_member_consents(
 
 
 async def list_install_consents(
-    session: AsyncSession, *, install_id: int
+    session: AsyncSession,
+    *,
+    install_id: int,
+    user_ids: Optional[Sequence[int]] = None,
 ) -> list[AppMemberConsent]:
     """Every member's rows for one install, for the seat's members view:
-    grouped by member, app-wide first within each, then by purpose."""
-    rows = (
-        await session.exec(
-            select(AppMemberConsent).where(AppMemberConsent.install_id == install_id)
-        )
-    ).all()
+    grouped by member, app-wide first within each, then by purpose.
+    ``user_ids`` narrows it to those members, one page of that view."""
+    stmt = select(AppMemberConsent).where(AppMemberConsent.install_id == install_id)
+    if user_ids is not None:
+        stmt = stmt.where(AppMemberConsent.user_id.in_(user_ids))
+    rows = (await session.exec(stmt)).all()
     return sorted(
         rows,
         key=lambda row: (
@@ -170,6 +176,33 @@ async def list_install_consents(
             row.id or 0,
         ),
     )
+
+
+@dataclass(frozen=True)
+class ConsentTallies:
+    """Across one install: how many members answered, how many allowed at
+    least one request, and how many answers still stand or wait."""
+
+    members: int
+    allowed: int
+    open: int
+
+
+async def consent_tallies(session: AsyncSession, *, install_id: int) -> ConsentTallies:
+    """:class:`ConsentTallies` for one install, in one query."""
+    standing = AppMemberConsent.revoked_at.is_(None)
+    members, allowed, open_count = (
+        await session.exec(
+            select(
+                func.count(distinct(AppMemberConsent.user_id)),
+                func.count(distinct(AppMemberConsent.user_id)).filter(
+                    standing, AppMemberConsent.granted_access.is_not(None)
+                ),
+                func.count().filter(standing),
+            ).where(AppMemberConsent.install_id == install_id)
+        )
+    ).one()
+    return ConsentTallies(members=members, allowed=allowed, open=open_count)
 
 
 async def get_member_consent(

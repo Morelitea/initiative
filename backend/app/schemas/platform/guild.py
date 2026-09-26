@@ -9,6 +9,7 @@ from app.core.guild_auth_options import GuildAuthOption
 from app.core.login_methods import LoginMethod
 from app.core.messages import GuildMessages
 from app.schemas.base import RawTextStr, RichTextStr, SanitizedBaseModel, TitleStr
+from app.schemas.query import PageMeta
 
 from app.core.email_masking import mask_email
 from app.models.platform.guild import (
@@ -339,6 +340,12 @@ class PlatformGuildStorageRead(SanitizedBaseModel):
     # Off by default: the deployment that receives them is the one that decides
     # it is staffing them.
     support_enabled: bool = False
+
+
+class PlatformGuildStorageListResponse(PageMeta):
+    """One page of the operator's community list."""
+
+    items: List[PlatformGuildStorageRead]
 
 
 class PlatformGuildRestore(SanitizedBaseModel):

@@ -1,3 +1,4 @@
+import type { PaginationState, SortingState } from "@tanstack/react-table";
 import { CalendarClock, Download, LockOpen, Mail, Trash2, UserCheck } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -20,6 +21,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { useAuth } from "@/hooks/useAuth";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
   useExportPlatformUsersCsv,
   useOperatorClearAgeBlock,
@@ -35,18 +37,13 @@ import { Capability, hasCapability } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
 import { getUserHandle } from "@/lib/userDisplay";
 
-// Accounts ordered by how much of the app is left to them, rather than
-// alphabetically — "anonymized, active, deactivated, suspended" is an order
-// no one is looking for. Sorting brings the accounts needing attention
-// together at one end.
-const STATUS_ORDER: Record<string, number> = {
-  active: 0,
-  suspended: 1,
-  deactivated: 2,
-  // On its way out, and the one an operator is most likely to be looking for.
-  deleted: 3,
-  anonymized: 4,
-};
+/** How long typing settles before the roster is asked again. */
+const SEARCH_SETTLES_MS = 250;
+
+/** The columns the server sorts the roster by. Status sorts by how much of the
+ *  app is left to an account, which brings the ones needing attention together
+ *  at one end. */
+const SORT_FIELDS = new Set(["id", "username", "status"]);
 
 export const SettingsPlatformUsersPage = () => {
   const { t, i18n } = useTranslation(["settings", "common"]);
@@ -78,15 +75,38 @@ export const SettingsPlatformUsersPage = () => {
     canManageRoles: hasCapability(user, Capability.rolesAssign),
   };
 
-  const usersQuery = usePlatformUsers({ enabled: canView });
+  // Searched, sorted and paged on the server: the roster is every account on
+  // the deployment, so the table only ever holds the page on screen.
+  const [draft, setDraft] = useState("");
+  const search = useDebouncedValue(draft, SEARCH_SETTLES_MS);
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const sort = sorting[0];
+  const usersQuery = usePlatformUsers(
+    {
+      search: search.trim() || undefined,
+      page,
+      page_size: pageSize,
+      ...(sort && SORT_FIELDS.has(sort.id)
+        ? {
+            sort_by: sort.id as "id" | "username" | "status",
+            sort_dir: sort.desc ? ("desc" as const) : ("asc" as const),
+          }
+        : {}),
+    },
+    { enabled: canView }
+  );
+  const rows = usersQuery.data?.items ?? [];
+  const totalCount = usersQuery.data?.total_count ?? 0;
 
   // Read the row back out of the query, so a save re-renders the sheet with
   // what was actually persisted.
-  const managing = usersQuery.data?.find((row) => row.id === managingId) ?? null;
+  const managing = rows.find((row) => row.id === managingId) ?? null;
 
   const resetPassword = useOperatorTriggerPasswordReset({
     onSuccess: (_data, userId) => {
-      const handle = usersQuery.data?.find((u) => u.id === userId)?.username ?? "account";
+      const handle = rows.find((u) => u.id === userId)?.username ?? "account";
       toast.success(t("platformUsers.resetSuccess", { handle }));
       setResettingUserId(null);
     },
@@ -108,7 +128,7 @@ export const SettingsPlatformUsersPage = () => {
 
   const reactivateUser = useOperatorReactivateUser({
     onSuccess: (_data, userId) => {
-      const handle = usersQuery.data?.find((u) => u.id === userId)?.username ?? "account";
+      const handle = rows.find((u) => u.id === userId)?.username ?? "account";
       toast.success(t("platformUsers.reactivateSuccess", { handle }));
     },
     onError: (error: unknown) => {
@@ -118,7 +138,7 @@ export const SettingsPlatformUsersPage = () => {
 
   const restoreUser = useOperatorRestoreUser({
     onSuccess: (_data, userId) => {
-      const handle = usersQuery.data?.find((u) => u.id === userId)?.username ?? "account";
+      const handle = rows.find((u) => u.id === userId)?.username ?? "account";
       toast.success(t("platformUsers.restoreSuccess", { handle }));
     },
     onError: (error: unknown) => {
@@ -192,9 +212,6 @@ export const SettingsPlatformUsersPage = () => {
     },
     {
       id: "username",
-      // The whole handle, number included — what the cell draws and what
-      // somebody pastes in from a ticket. Accessing the bare name would leave
-      // the filter box unable to match the thing it is labelled for.
       accessorFn: (row) => getUserHandle(row),
       header: ({ column }) => (
         <SortHeader column={column} label={t("platformUsers.columnHandle")} />
@@ -204,7 +221,6 @@ export const SettingsPlatformUsersPage = () => {
       // any of this.
       cell: ({ row }) => <UserHandle user={row.original} className="text-sm" />,
       enableSorting: true,
-      sortFn: "alphanumeric",
     },
     {
       id: "status",
@@ -213,8 +229,6 @@ export const SettingsPlatformUsersPage = () => {
         <SortHeader column={column} label={t("platformUsers.columnStatus")} />
       ),
       enableSorting: true,
-      sortFn: (rowA, rowB) =>
-        (STATUS_ORDER[rowA.original.status] ?? 99) - (STATUS_ORDER[rowB.original.status] ?? 99),
       cell: ({ row }) => {
         const platformUser = row.original;
         // A deleted account is the one status with a date attached and a way
@@ -383,7 +397,7 @@ export const SettingsPlatformUsersPage = () => {
             variant="outline"
             size="sm"
             onClick={exportAllUsersCsv}
-            disabled={!usersQuery.data?.length}
+            disabled={!totalCount}
           >
             <Download className="h-4 w-4" />
             {t("platformUsers.exportAll")}
@@ -392,13 +406,35 @@ export const SettingsPlatformUsersPage = () => {
         <CardContent className="space-y-4">
           <DataTable
             columns={userColumns}
-            data={usersQuery.data}
+            data={rows}
             getRowId={(row) => String(row.id)}
             enableFilterInput
-            filterInputColumnKey="username"
             filterInputPlaceholder={t("platformUsers.filterPlaceholder")}
+            filterValue={draft}
+            onFilterValueChange={(value) => {
+              setDraft(value);
+              setPage(1);
+            }}
+            manualSorting
+            sorting={sorting}
+            onSortingChange={(next) => {
+              setSorting(next);
+              setPage(1);
+            }}
             enableResetSorting
             enablePagination
+            manualPagination
+            pageCount={Math.max(1, Math.ceil(totalCount / pageSize))}
+            rowCount={totalCount}
+            pageIndex={page - 1}
+            onPaginationChange={(next: PaginationState) => {
+              if (next.pageSize !== pageSize) {
+                setPageSize(next.pageSize);
+                setPage(1);
+              } else {
+                setPage(next.pageIndex + 1);
+              }
+            }}
           />
         </CardContent>
 

@@ -1,11 +1,13 @@
 import logging
-from typing import Annotated, List
+from typing import Annotated, Literal, Optional
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Response
+from sqlalchemy import case, func
 from sqlmodel import select
 
 from app.api.deps import UserSessionDep, require_capability, SystemSessionDep
+from app.db.query import build_paginated_response, paginated_query
 from app.core.audit_events import AuditEventType
 from app.core.user_display import handle_of
 from app.core.usernames import UsernameError
@@ -17,7 +19,11 @@ from app.core.capabilities import (
 )
 from app.models.platform.user import User, UserStatus
 from app.models.platform.user_token import UserTokenPurpose
-from app.schemas.platform.user import OperatorUserRead, AccountDeletionResponse
+from app.schemas.platform.user import (
+    OperatorUserListResponse,
+    OperatorUserRead,
+    AccountDeletionResponse,
+)
 from app.schemas.platform.auth import VerificationSendResponse
 from app.schemas.platform.operator import (
     OperatorSuspensionUpdate,
@@ -73,21 +79,82 @@ RolesAssignDep = Annotated[User, Depends(require_capability(Capability.ROLES_ASS
 ConfigManageDep = Annotated[User, Depends(require_capability(Capability.CONFIG_MANAGE))]
 
 
-@router.get("/users", response_model=List[OperatorUserRead])
+#: Accounts ordered by how much of the app is left to them, so sorting on
+#: status brings the ones needing attention together at one end.
+_STATUS_RANK = {
+    UserStatus.active: 0,
+    UserStatus.suspended: 1,
+    UserStatus.deactivated: 2,
+    UserStatus.deleted: 3,
+    UserStatus.anonymized: 4,
+}
+
+_USER_SORT_FIELDS = {
+    "id": User.id,
+    "username": User.username,
+    "status": case(_STATUS_RANK, value=User.status, else_=len(_STATUS_RANK)),
+}
+
+
+@router.get("/users", response_model=OperatorUserListResponse)
 async def list_all_users(
     session: UserSessionDep,
     _current_user: UsersReadDep,
-) -> List[OperatorUserRead]:
-    """List all users in the platform (``users.read``).
+    search: Optional[str] = Query(
+        default=None,
+        description=(
+            "Matches the handle's name part; a whole handle (`foobar#1234`) "
+            "pins one account."
+        ),
+    ),
+    sort_by: Optional[Literal["id", "username", "status"]] = None,
+    sort_dir: Literal["asc", "desc"] = "asc",
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+) -> OperatorUserListResponse:
+    """One page of the platform's accounts (``users.read``).
 
     Platform-scoped: runs on the role-scoped session (``platform_<tier>``), so the
     cross-user read is authorized by RLS (``users_platform_read``, support+) rather
     than the system engine. Initiative roles are guild-scoped and
     deliberately NOT loaded here — a platform user view exposes platform data only.
+
+    Ordered by ``sort_by`` when given; otherwise nearest match first while
+    searching, and oldest account first while not.
     """
-    stmt = select(User).order_by(User.created_at.asc())
-    result = await session.exec(stmt)
-    return await users_service.to_operator_read(list(result.all()))
+    base = select(User)
+    closest = None
+    if search and (term := search.strip()):
+        matches, closest = users_service.member_match(
+            term, shows_names=False, profile=User
+        )
+        base = base.where(matches)
+
+    if sort_by is not None:
+        order = _USER_SORT_FIELDS[sort_by]
+        data_stmt = base.order_by(
+            order.desc() if sort_dir == "desc" else order.asc(), User.id.asc()
+        )
+    elif closest is not None:
+        data_stmt = base.order_by(closest.desc(), User.id.asc())
+    else:
+        data_stmt = base.order_by(User.id.asc())
+
+    users, total_count, actual_page = await paginated_query(
+        session,
+        data_stmt,
+        select(func.count()).select_from(base.subquery()),
+        page=page,
+        page_size=page_size,
+    )
+    return OperatorUserListResponse(
+        **build_paginated_response(
+            await users_service.to_operator_read(users),
+            total_count,
+            actual_page,
+            page_size,
+        )
+    )
 
 
 #: ``email`` is masked here exactly as it is in the roster this exports, so

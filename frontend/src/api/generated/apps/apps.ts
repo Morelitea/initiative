@@ -41,6 +41,7 @@ import type {
   GuildAppUpdate,
   GuildAppUpgrade,
   HTTPValidationError,
+  ListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetParams,
   ReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGetParams,
   ReadAppParamOptionsApiV1CGuildIdAppsAppIdEndpointsEndpointIdOptionsGetParams,
 } from "../initiativeAPI.schemas";
@@ -3018,7 +3019,8 @@ export const useRevokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDelete = <
   );
 };
 /**
- * Who has connected which of this app's per-member connections.
+ * Who has connected which of this app's per-member connections, and who
+ * answered its requests to act as them — a page of members at a time.
  *
  * Guild admins only, and never secret values: what this supports is governance
  * — seeing which vendor account somebody connected as, and ending it — rather
@@ -3028,20 +3030,22 @@ export const useRevokeMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdDelete = <
 export const listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet = (
   guildId: number,
   appId: number,
+  params?: ListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<GuildAppMembersResponse>(
-    { url: `/api/v1/c/${guildId}/apps/${appId}/members`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/apps/${appId}/members`, method: "GET", params, signal },
     options
   );
 };
 
 export const getListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetQueryKey = (
   guildId: number,
-  appId: number
+  appId: number,
+  params?: ListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetParams
 ) => {
-  return [`/api/v1/c/${guildId}/apps/${appId}/members`] as const;
+  return [`/api/v1/c/${guildId}/apps/${appId}/members`, ...(params ? [params] : [])] as const;
 };
 
 export const getListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetQueryOptions = <
@@ -3050,6 +3054,7 @@ export const getListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetQueryOptions 
 >(
   guildId: number,
   appId: number,
+  params?: ListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -3065,12 +3070,18 @@ export const getListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetQueryOptions 
 
   const queryKey =
     queryOptions?.queryKey ??
-    getListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetQueryKey(guildId, appId);
+    getListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetQueryKey(guildId, appId, params);
 
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet>>
   > = ({ signal }) =>
-    listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet(guildId, appId, requestOptions, signal);
+    listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet(
+      guildId,
+      appId,
+      params,
+      requestOptions,
+      signal
+    );
 
   return {
     queryKey,
@@ -3096,6 +3107,7 @@ export function useListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet<
 >(
   guildId: number,
   appId: number,
+  params: undefined | ListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -3122,6 +3134,7 @@ export function useListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet<
 >(
   guildId: number,
   appId: number,
+  params?: ListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -3148,6 +3161,7 @@ export function useListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet<
 >(
   guildId: number,
   appId: number,
+  params?: ListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -3170,6 +3184,7 @@ export function useListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet<
 >(
   guildId: number,
   appId: number,
+  params?: ListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -3185,6 +3200,7 @@ export function useListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet<
   const queryOptions = getListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetQueryOptions(
     guildId,
     appId,
+    params,
     options
   );
 
