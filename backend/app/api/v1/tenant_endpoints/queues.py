@@ -23,7 +23,6 @@ from app.core.relationships import Related, RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.document import Document
 from app.models.tenant.task import Task
-from app.services.permissions import Action
 from app.services.tenant import relationships
 from app.api.actor_route import ActorRoute
 from app.api.deps import (
@@ -327,29 +326,6 @@ async def update_queue(
     if updated:
         sockets.signal(routed_guild_id(session), Tool.queue, queue_id, "queue_updated")
     return result
-
-
-@router.delete("/{queue_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_queue(
-    queue_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> None:
-    """Soft-delete a queue. Cascades to its items. Requires owner permission
-    or guild admin."""
-    from app.services.tenant.soft_delete import trash
-
-    queue = await resource_access.load_authorized(
-        session, Tool.queue, queue_id, current_user, guild_context, action=Action.delete
-    )
-    await trash(
-        session,
-        queue,
-        deleted_by_user_id=current_user.id,
-    )
-    await session.commit()
-    sockets.signal(guild_context.guild_id, Tool.queue, queue_id, "queue_deleted")
 
 
 # ---------------------------------------------------------------------------

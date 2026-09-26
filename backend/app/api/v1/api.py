@@ -53,6 +53,7 @@ from app.api.v1.tenant_endpoints import (
     task_statuses,
     tasks,
     tool_grants,
+    tool_lifecycle,
     tool_lists,
     tool_views,
     tools,
@@ -340,6 +341,8 @@ guild_router.include_router(tool_views.router)
 # path. The routes carry their own tags (see tenant_endpoints/tool_grants.py),
 # so none is added here.
 guild_router.include_router(tool_grants.router)
+# Deleting: DELETE /{tool}/{id}, the same way (tenant_endpoints/tool_lifecycle.py).
+guild_router.include_router(tool_lifecycle.router)
 guild_router.include_router(guild_search.router, prefix="/search", tags=["search"])
 guild_router.include_router(
     smart_chips.router, prefix="/smart-chips", tags=["smart-chips"]

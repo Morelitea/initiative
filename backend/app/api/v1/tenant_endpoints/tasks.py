@@ -52,6 +52,7 @@ from app.services import ai_generation as ai_generation_service
 from app.services import audit as audit_service
 from app.services import notifications as notifications_service
 from app.services.ai_settings import resolve_ai_settings
+from app.services.tenant import archive as archive_service
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
@@ -874,12 +875,11 @@ async def archive_done_tasks(
         default=None, description="Specific done status to archive (optional)"
     ),
 ) -> ArchiveDoneResponse:
-    """Archive all tasks in 'done' status category for a project."""
+    """Archive every live task in a 'done' status of a project, as archiving
+    each one would, under one stamp."""
     project = await resource_access.load_authorized(
         session, _GOVERNING, project_id, current_user, guild_context, access="write"
     )
-
-    # Build the query to find done tasks
     statement = (
         select(Task)
         .join(Task.task_status)
@@ -889,24 +889,13 @@ async def archive_done_tasks(
             TaskStatus.category == TaskStatusCategory.done,
         )
     )
-
-    # Optionally filter by specific status
     if task_status_id is not None:
         statement = statement.where(Task.task_status_id == task_status_id)
-
-    result = await session.exec(statement)
-    tasks = result.all()
-
+    tasks = (await session.exec(statement)).all()
     if not tasks:
         return ArchiveDoneResponse(archived_count=0)
 
-    now = datetime.now(timezone.utc)
-    for task in tasks:
-        task.archived_at = now
-        task.updated_at = now
-        session.add(task)
-
-    _touch_project(project, now)
+    _touch_project(project, await archive_service.archive_entities(session, tasks))
     await session.commit()
     return ArchiveDoneResponse(archived_count=len(tasks))
 

@@ -74,7 +74,6 @@ from app.schemas.tenant.post_poll import (
     serialize_poll,
 )
 from app.schemas.tenant.timeline import TimelineResponse
-from app.services.permissions import Action
 from app.services import notifications as notifications_service
 from app.services import rls as rls_service
 from app.services.notifications import AppAuthor
@@ -572,32 +571,6 @@ async def set_post_pin(
     return serialize_post(
         hydrated, user_id=guild_context.user_id, context=guild_context
     )
-
-
-@router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_post(
-    post_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> None:
-    """Soft-delete a post. Requires owner permission or guild admin."""
-    from app.services.tenant.soft_delete import trash
-
-    post = await resource_access.load_authorized(
-        session,
-        Tool.post,
-        post_id,
-        current_user,
-        guild_context,
-        action=Action.delete,
-    )
-    await trash(
-        session,
-        post,
-        deleted_by_user_id=current_user.id,
-    )
-    await session.commit()
 
 
 # ---------------------------------------------------------------------------

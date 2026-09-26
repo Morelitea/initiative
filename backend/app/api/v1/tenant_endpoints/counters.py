@@ -47,7 +47,6 @@ from app.schemas.tenant.counter import (
     serialize_counter_group,
     _validate_counter_constraints,
 )
-from app.services.permissions import Action
 from app.services.tenant import counters as counters_service
 from app.api import resource_access
 from app.core.tools import Tool
@@ -270,34 +269,6 @@ async def update_counter_group(
             routed_guild_id(session), Tool.counter_group, group_id, "group_updated"
         )
     return result
-
-
-@router.delete("/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_counter_group(
-    group_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> None:
-    from app.services.tenant.soft_delete import trash
-
-    group = await resource_access.load_authorized(
-        session,
-        Tool.counter_group,
-        group_id,
-        current_user,
-        guild_context,
-        action=Action.delete,
-    )
-    await trash(
-        session,
-        group,
-        deleted_by_user_id=current_user.id,
-    )
-    await session.commit()
-    sockets.signal(
-        guild_context.guild_id, Tool.counter_group, group_id, "group_deleted"
-    )
 
 
 # ---------------------------------------------------------------------------

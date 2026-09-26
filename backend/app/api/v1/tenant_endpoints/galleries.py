@@ -463,33 +463,6 @@ async def update_gallery(
     )
 
 
-@router.delete("/{gallery_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_gallery(
-    gallery_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
-) -> None:
-    """Soft-delete a gallery and its pictures. Requires owner permission or
-    guild admin."""
-    from app.services.tenant.soft_delete import trash
-
-    gallery = await resource_access.load_authorized(
-        session,
-        Tool.gallery,
-        gallery_id,
-        current_user,
-        guild_context,
-        action=Action.delete,
-    )
-    await trash(
-        session,
-        gallery,
-        deleted_by_user_id=current_user.id,
-    )
-    await session.commit()
-
-
 async def read_after_write(
     session: RLSSessionDep,
     gallery_id: int,

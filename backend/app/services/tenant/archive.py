@@ -24,7 +24,7 @@ flushed explicitly rather than assumed.
 """
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Sequence
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -58,9 +58,12 @@ ARCHIVE_CHILDREN = _archivable_tree()
 
 
 async def _levels(
-    session: AsyncSession, entity: ArchiveMixin, *, matching: Optional[datetime]
+    session: AsyncSession,
+    entities: Sequence[ArchiveMixin],
+    *,
+    matching: Optional[datetime],
 ) -> list[Level]:
-    """The entity and every archivable descendant, grouped by depth.
+    """The entities and every archivable descendant, grouped by depth.
 
     ``matching`` picks the set: ``None`` takes the ones still live (what
     archiving stamps), a timestamp takes the ones this archiving stamped (what
@@ -71,7 +74,7 @@ async def _levels(
         column = model.archived_at
         return column.is_(None) if matching is None else column == matching
 
-    return await subtree_levels(session, [entity], tree=ARCHIVE_CHILDREN, where=where)
+    return await subtree_levels(session, entities, tree=ARCHIVE_CHILDREN, where=where)
 
 
 async def _write(
@@ -89,9 +92,20 @@ async def archive_entity(session: AsyncSession, entity: ArchiveMixin) -> datetim
     when it was last asked about. The caller commits."""
     if entity.archived_at is not None:
         return entity.archived_at
-    await session.flush()
+    return await archive_entities(session, [entity])
+
+
+async def archive_entities(
+    session: AsyncSession, entities: Sequence[ArchiveMixin]
+) -> datetime:
+    """Archive live rows and everything inside them, all under one stamp, so
+    each one's unarchive puts back what this took. Rows already archived keep
+    the stamp they have. The caller commits."""
     archived_at = datetime.now(timezone.utc)
-    await _write(session, await _levels(session, entity, matching=None), archived_at)
+    live = [entity for entity in entities if entity.archived_at is None]
+    if live:
+        await session.flush()
+        await _write(session, await _levels(session, live, matching=None), archived_at)
     return archived_at
 
 
@@ -103,7 +117,7 @@ async def unarchive_entity(session: AsyncSession, entity: ArchiveMixin) -> None:
     await session.flush()
     # Collected before anything is cleared, because the set is defined by the
     # timestamp being cleared.
-    levels = await _levels(session, entity, matching=entity.archived_at)
+    levels = await _levels(session, [entity], matching=entity.archived_at)
     await _write(session, levels, None)
 
 

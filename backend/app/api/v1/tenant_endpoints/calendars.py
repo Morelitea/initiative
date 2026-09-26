@@ -25,7 +25,6 @@ from app.api.deps import (
     ActorUserDep,
     IncludeDeletedDep,
     RLSSessionDep,
-    get_current_active_user,
     app_scope,
     GuildContextDep,
 )
@@ -41,7 +40,6 @@ from app.schemas.tenant.calendar import (
     serialize_calendar,
 )
 from app.services import permissions as permissions_service
-from app.services.permissions import Action
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import guild_apps as guild_apps_service
 from app.services.tenant import ownership as ownership_service
@@ -240,33 +238,6 @@ async def update_calendar(
     return serialize_calendar(
         hydrated, user_id=guild_context.user_id, context=guild_context
     )
-
-
-@router.delete("/{calendar_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_calendar(
-    calendar_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> None:
-    """Soft-delete a calendar (cascades to its events). Requires owner
-    permission or guild admin."""
-    from app.services.tenant.soft_delete import trash
-
-    calendar = await resource_access.load_authorized(
-        session,
-        Tool.calendar,
-        calendar_id,
-        current_user,
-        guild_context,
-        action=Action.delete,
-    )
-    await trash(
-        session,
-        calendar,
-        deleted_by_user_id=current_user.id,
-    )
-    await session.commit()
 
 
 # ---------------------------------------------------------------------------

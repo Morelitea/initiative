@@ -62,7 +62,6 @@ from app.schemas.tenant.wiki import (
     serialize_document_as_page,
     serialize_wiki_page_summary,
 )
-from app.services.permissions import Action
 from app.services.tenant import comments as comments_service
 from app.services.tenant import content_references
 from app.services.tenant import relationships as relationships_service
@@ -258,25 +257,6 @@ async def update_wiki(
     return serialize_wiki(
         hydrated, user_id=guild_context.user_id, context=guild_context
     )
-
-
-@router.delete("/{wiki_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_wiki(
-    wiki_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
-) -> None:
-
-    wiki = await resource_access.load_authorized(
-        session, Tool.wiki, wiki_id, current_user, guild_context, action=Action.delete
-    )
-    await soft_delete_service.trash(
-        session,
-        wiki,
-        deleted_by_user_id=current_user.id,
-    )
-    await session.commit()
 
 
 async def read_after_write(

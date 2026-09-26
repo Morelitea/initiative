@@ -883,29 +883,6 @@ async def test_create_queue_with_grants(
     assert len(user_grants) == 1
 
 
-async def test_delete_queue_still_emits_queue_deleted(
-    client: AsyncClient, acting_user, monkeypatch
-):
-    """Deleting a queue must still emit ``queue_deleted``. Regression: the queue
-    is soft-deleted before the signal goes out, so the delete path names
-    the guild from the request rather than from the row."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    queue = await _create_queue_via_api(client, a)
-
-    from app.services.content_sockets import sockets
-
-    emitted: list[tuple] = []
-
-    def _record(guild_id, tool, resource_id, event_type):
-        emitted.append((guild_id, tool.value, resource_id, event_type))
-
-    monkeypatch.setattr(sockets, "signal", _record)
-
-    resp = await client.delete(a.g(f"/queues/{queue['id']}"), headers=a.headers)
-    assert resp.status_code == 204, resp.text
-    assert (a.guild.id, "queue", queue["id"], "queue_deleted") in emitted
-
-
 async def test_queue_counts_by_initiative(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
