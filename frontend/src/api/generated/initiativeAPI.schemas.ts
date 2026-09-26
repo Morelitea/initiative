@@ -11122,6 +11122,18 @@ export type ListMyProjectsApiV1MeProjectsGetParams = {
   guild_ids?: number[] | null;
   search?: string | null;
   /**
+   * Narrow to projects the caller created.
+   */
+  created_by_me?: boolean;
+  /**
+   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered over the summaries themselves, which carry no initiative name.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
+  /**
    * @minimum 1
    */
   page?: number;
@@ -11130,17 +11142,23 @@ export type ListMyProjectsApiV1MeProjectsGetParams = {
    * @maximum 100
    */
   page_size?: number;
-  sort_by?: string | null;
-  sort_dir?: string | null;
-  /**
-   * Narrow to projects the caller created.
-   */
-  created_by_me?: boolean;
 };
 
 export type ListMyDocumentsApiV1MeDocumentsGetParams = {
   guild_ids?: number[] | null;
   search?: string | null;
+  /**
+   * Narrow to documents the caller created.
+   */
+  created_by_me?: boolean;
+  /**
+   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered over the summaries themselves, which carry no initiative name.
+   */
+  sort_by?: string | null;
+  /**
+   * asc (default) or desc.
+   */
+  sort_dir?: string | null;
   /**
    * @minimum 1
    */
@@ -11150,17 +11168,14 @@ export type ListMyDocumentsApiV1MeDocumentsGetParams = {
    * @maximum 100
    */
   page_size?: number;
-  sort_by?: string | null;
-  sort_dir?: string | null;
-  /**
-   * Narrow to documents the caller wrote.
-   */
-  created_by_me?: boolean;
 };
 
 export type ListMyQueuesApiV1MeQueuesGetParams = {
   guild_ids?: number[] | null;
   search?: string | null;
+  /**
+   * Narrow to queues the caller created.
+   */
   created_by_me?: boolean;
   /**
    * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered over the summaries themselves, which carry no initiative name.
@@ -11184,6 +11199,9 @@ export type ListMyQueuesApiV1MeQueuesGetParams = {
 export type ListMyCounterGroupsApiV1MeCounterGroupsGetParams = {
   guild_ids?: number[] | null;
   search?: string | null;
+  /**
+   * Narrow to counter groups the caller created.
+   */
   created_by_me?: boolean;
   /**
    * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered over the summaries themselves, which carry no initiative name.
@@ -11212,7 +11230,7 @@ export type ListMyCalendarsApiV1MeCalendarsGetParams = {
    */
   created_by_me?: boolean;
   /**
-   * Order by one of: name, updated_at, created_at. Omit for this view's own order, which is by name.
+   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered over the summaries themselves, which carry no initiative name.
    */
   sort_by?: string | null;
   /**
@@ -11233,6 +11251,9 @@ export type ListMyCalendarsApiV1MeCalendarsGetParams = {
 export type ListMyDashboardsApiV1MeDashboardsGetParams = {
   guild_ids?: number[] | null;
   search?: string | null;
+  /**
+   * Narrow to dashboards the caller created.
+   */
   created_by_me?: boolean;
   /**
    * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered over the summaries themselves, which carry no initiative name.
@@ -11256,6 +11277,9 @@ export type ListMyDashboardsApiV1MeDashboardsGetParams = {
 export type ListMyPostsApiV1MePostsGetParams = {
   guild_ids?: number[] | null;
   search?: string | null;
+  /**
+   * Narrow to posts the caller created.
+   */
   created_by_me?: boolean;
   /**
    * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered over the summaries themselves, which carry no initiative name.
@@ -11279,6 +11303,9 @@ export type ListMyPostsApiV1MePostsGetParams = {
 export type ListMyGalleriesApiV1MeGalleriesGetParams = {
   guild_ids?: number[] | null;
   search?: string | null;
+  /**
+   * Narrow to galleries the caller created.
+   */
   created_by_me?: boolean;
   /**
    * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered over the summaries themselves, which carry no initiative name.
@@ -11302,6 +11329,9 @@ export type ListMyGalleriesApiV1MeGalleriesGetParams = {
 export type ListMyWikisApiV1MeWikisGetParams = {
   guild_ids?: number[] | null;
   search?: string | null;
+  /**
+   * Narrow to wikis the caller created.
+   */
   created_by_me?: boolean;
   /**
    * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered over the summaries themselves, which carry no initiative name.

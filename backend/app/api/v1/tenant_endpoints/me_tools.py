@@ -93,28 +93,20 @@ _SORT_BY_DESCRIPTION = (
 )
 
 
-def _guild_ids() -> ListParam:
-    return ListParam("guild_ids", Optional[List[int]], Query(default=None))
-
-
-def _created_by_me(description: Optional[str] = None) -> ListParam:
-    return ListParam(
-        "created_by_me", bool, Query(default=False, description=description)
-    )
-
-
-def _shared_params(page_size: ListParam) -> tuple[ListParam, ...]:
+def _params(tool: Tool, page_size: ListParam) -> tuple[ListParam, ...]:
     """The parameters a My Tools list publishes, in the order it publishes them.
 
-    Only the page window differs between the tools that take this set, so it is
-    the argument. The three lists that predate the page publish the same seven
-    in their own order and spell them out below, which is what keeps their
-    generated clients as they are.
+    Only the page window differs between tools, so it is the argument.
     """
+    plural = tool.plural.replace("_", " ")
     return (
-        _guild_ids(),
+        ListParam("guild_ids", Optional[List[int]], Query(default=None)),
         search_param(None),
-        _created_by_me(),
+        ListParam(
+            "created_by_me",
+            bool,
+            Query(default=False, description=f"Narrow to {plural} the caller created."),
+        ),
         sort_by_param(_SORT_BY_DESCRIPTION),
         sort_dir_param(),
         page_param(),
@@ -133,7 +125,7 @@ class MyToolList:
 
     What to eager-load, how a page of rows becomes the summaries that tool's
     list response carries, the order it falls back to when the request asks for
-    none, the parameters its route publishes, and its published description.
+    none, its page window, and its published description.
     """
 
     loader_options: Callable[[], list]
@@ -142,7 +134,8 @@ class MyToolList:
     serialize: Callable[[AsyncSession, list, User], Awaitable[list]]
     #: (row) -> the sort key used when the request names no order
     default_key: Callable[[Any], Any]
-    params: tuple[ListParam, ...]
+    #: The page window; the other parameters are every tool's.
+    page_size: ListParam
     list_doc: str
     default_desc: bool = True
     #: (values) -> extra fields on the list response.
@@ -183,18 +176,7 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
         loader_options=projects_endpoints.project_load_options,
         serialize=_serialize_projects,
         default_key=lambda row: row.updated_at,
-        # This list published its sort pair undescribed and after the page
-        # window, and its page window starts at one. Kept as it stands so the
-        # generated client is unchanged.
-        params=(
-            _guild_ids(),
-            search_param(None),
-            page_param(),
-            page_size_param(20, ge=1, le=100),
-            sort_by_param(None),
-            sort_dir_param(None),
-            _created_by_me("Narrow to projects the caller created."),
-        ),
+        page_size=page_size_param(20, ge=1, le=100),
         list_doc=(
             "List projects across all guilds the current user belongs to.\n"
             "\n"
@@ -214,15 +196,7 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
             "sort_by": values.get("sort_by"),
             "sort_dir": values.get("sort_dir"),
         },
-        params=(
-            _guild_ids(),
-            search_param(None),
-            page_param(),
-            page_size_param(20, ge=0, le=100),
-            sort_by_param(None),
-            sort_dir_param(None),
-            _created_by_me("Narrow to documents the caller wrote."),
-        ),
+        page_size=page_size_param(20, ge=0, le=100),
         list_doc=(
             "Documents that reach the current user across every guild they "
             "belong to.\n"
@@ -236,14 +210,14 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
         loader_options=queues_service.list_loader_options,
         serialize=_summaries(QueueSummary),
         default_key=lambda row: row.updated_at,
-        params=_shared_params(page_size_param(20, ge=0, le=100)),
+        page_size=page_size_param(20, ge=0, le=100),
         list_doc="Queues that reach the caller across every guild they belong to.",
     ),
     Tool.counter_group: MyToolList(
         loader_options=counters_service.list_loader_options,
         serialize=_summaries(CounterGroupSummary),
         default_key=lambda row: row.updated_at,
-        params=_shared_params(page_size_param(20, ge=0, le=100)),
+        page_size=page_size_param(20, ge=0, le=100),
         list_doc=(
             "Counter groups that reach the caller across every guild they belong to."
         ),
@@ -255,18 +229,7 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
         # grouping panel, which is read down rather than scanned for what moved.
         default_key=lambda row: (row.name or "").lower(),
         default_desc=False,
-        params=(
-            _guild_ids(),
-            search_param(None),
-            _created_by_me("Narrow to calendars the caller created."),
-            sort_by_param(
-                "Order by one of: name, updated_at, created_at. Omit for this "
-                "view's own order, which is by name."
-            ),
-            sort_dir_param(),
-            page_param(),
-            page_size_param(200, ge=1, le=200),
-        ),
+        page_size=page_size_param(200, ge=1, le=200),
         list_doc=(
             "List the calendars visible to the user across all their guilds — "
             "the\n"
@@ -291,7 +254,7 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
         serialize=_summaries(DashboardSummary),
         default_key=lambda row: (row.name or "").lower(),
         default_desc=False,
-        params=_shared_params(page_size_param(20, ge=0, le=100)),
+        page_size=page_size_param(20, ge=0, le=100),
         list_doc="Dashboards that reach the caller across every guild they belong to.",
     ),
     Tool.post: MyToolList(
@@ -301,7 +264,7 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
         # scheduled draft — which only its writers see here — sorts by the day
         # it will land, not by the day somebody started it.
         default_key=lambda row: row.published_at or row.scheduled_for or row.created_at,
-        params=_shared_params(page_size_param(20, ge=0, le=50)),
+        page_size=page_size_param(20, ge=0, le=50),
         list_doc=(
             "Posts that reach the caller across every guild they belong to.\n"
             "\n"
@@ -314,7 +277,7 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
         loader_options=galleries_service.list_loader_options,
         serialize=_summaries(GallerySummary),
         default_key=lambda row: row.updated_at,
-        params=_shared_params(page_size_param(20, ge=0, le=100)),
+        page_size=page_size_param(20, ge=0, le=100),
         list_doc=(
             "Galleries that reach the caller across every guild they belong "
             "to.\n"
@@ -333,7 +296,7 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
         loader_options=wikis_service.list_loader_options,
         serialize=_summaries(WikiSummary),
         default_key=lambda row: row.updated_at,
-        params=_shared_params(page_size_param(20, ge=0, le=100)),
+        page_size=page_size_param(20, ge=0, le=100),
         list_doc=(
             "Wikis that reach the caller across every guild they belong to.\n"
             "\n"
@@ -465,7 +428,7 @@ def _mount(tool: Tool, spec: MyToolList) -> None:
             **build_paginated_response(items, total_count, page, page_size, **extras)
         )
 
-    list_rows.__signature__ = _signature(spec.params)
+    list_rows.__signature__ = _signature(_params(tool, spec.page_size))
     me_router.add_api_route(
         f"/{tool.route_segment}",
         list_rows,
