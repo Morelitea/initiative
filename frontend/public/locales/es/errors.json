@@ -347,6 +347,7 @@
   "CALENDAR_WRITE_ACCESS_REQUIRED": "Necesitas acceso de escritura a este calendario",
   "CALENDAR_GRANT_CANNOT_MANAGE_MEMBERS": "El acceso temporal no puede gestionar el uso compartido del calendario",
   "CALENDAR_EVENT_NOT_FOUND": "Evento no encontrado",
+  "CALENDAR_EVENT_ENDS_BEFORE_START": "Un evento no puede terminar antes de empezar",
   "CALENDAR_EVENT_GUILD_CALENDAR_NO_PROPERTIES": "Las propiedades personalizadas pertenecen a una iniciativa, así que los eventos de un calendario de comunidad no pueden tenerlas",
   "CALENDAR_EVENT_GUILD_CALENDAR_NO_DOCUMENTS": "Los documentos pertenecen a una iniciativa, así que los eventos de un calendario de comunidad no pueden enlazarlos",
   "CALENDAR_EVENT_CANNOT_CROSS_SCOPE": "Los eventos no se pueden mover entre un calendario de comunidad y el calendario de una iniciativa",

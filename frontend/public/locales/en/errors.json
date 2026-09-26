@@ -347,6 +347,7 @@
   "CALENDAR_WRITE_ACCESS_REQUIRED": "You need write access to this calendar",
   "CALENDAR_GRANT_CANNOT_MANAGE_MEMBERS": "Temporary access can't manage calendar sharing",
   "CALENDAR_EVENT_NOT_FOUND": "Event not found",
+  "CALENDAR_EVENT_ENDS_BEFORE_START": "An event can't end before it starts",
   "CALENDAR_EVENT_GUILD_CALENDAR_NO_PROPERTIES": "Custom properties belong to an initiative, so events on a community calendar can't have them",
   "CALENDAR_EVENT_GUILD_CALENDAR_NO_DOCUMENTS": "Documents belong to an initiative, so events on a community calendar can't link them",
   "CALENDAR_EVENT_CANNOT_CROSS_SCOPE": "Events can't move between a community calendar and an initiative's calendar",

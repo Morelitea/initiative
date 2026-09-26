@@ -882,6 +882,7 @@ class CalendarEventMessages:
     NOT_FOUND = "CALENDAR_EVENT_NOT_FOUND"
     ICAL_PARSE_FAILED = "ICAL_PARSE_FAILED"
     ICAL_NO_EVENTS = "ICAL_NO_EVENTS_FOUND"
+    ENDS_BEFORE_START = "CALENDAR_EVENT_ENDS_BEFORE_START"
     # A guild calendar holds guild-level content only. Things defined on an
     # initiative — custom properties, documents — have no counterpart at guild
     # scope, so an event there cannot carry them; and an event cannot be moved

@@ -858,7 +858,7 @@ async def update_calendar_event(
         if event.end_at < event.start_at:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="end_at must be after start_at",
+                detail=CalendarEventMessages.ENDS_BEFORE_START,
             )
         event.updated_at = datetime.now(timezone.utc)
         session.add(event)

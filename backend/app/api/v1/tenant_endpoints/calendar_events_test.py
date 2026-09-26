@@ -215,7 +215,8 @@ async def test_create_multi_day_timed_event_is_allowed(
 async def test_create_event_rejects_end_before_start(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """end_at before start_at is still rejected."""
+    """end_at before start_at is still rejected, on create and on an update
+    that moves only one end."""
     (
         organizer,
         _attendee,
@@ -236,6 +237,15 @@ async def test_create_event_rejects_end_before_start(
         },
     )
     assert response.status_code == 422
+
+    event = await create_calendar_event(session, calendar, organizer.user)
+    response = await client.patch(
+        organizer.g(f"/calendar-events/{event.id}"),
+        headers=organizer.headers,
+        json={"end_at": "2000-01-01T00:00:00Z"},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == CalendarEventMessages.ENDS_BEFORE_START
 
 
 async def test_create_event_requires_calendar_write(
