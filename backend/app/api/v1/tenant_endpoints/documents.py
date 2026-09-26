@@ -127,8 +127,7 @@ DocumentsRead = Annotated[ActorContext, Depends(app_scope("documents:read"))]
 DocumentsWrite = Annotated[ActorContext, Depends(app_scope("documents:write"))]
 
 # Upper bound on the ``ids`` filter, matching the page_size ceiling: the
-# filter exists to hydrate one page worth of known documents, not to smuggle
-# an unbounded IN list into the query.
+# filter hydrates one page worth of known documents.
 MAX_DOCUMENT_IDS = 100
 
 
@@ -1273,8 +1272,8 @@ async def _load_download_document(
     """
     from app.db.schema_provisioning import guild_schema_name
 
-    # Guard the SET ROLE sink: if the guild schema/role isn't provisioned,
-    # establish_guild_access would fault rather than 404. The catalog answers
+    # If the guild schema/role isn't provisioned, establish_guild_access would
+    # fault rather than 404. The catalog answers
     # this for any login.
     schema_exists = (
         await session.exec(

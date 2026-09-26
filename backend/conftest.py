@@ -43,6 +43,7 @@ from app.db.session import (
     served_guild_id,
 )
 from app.testing.schema_harness import clear_search_path_pin
+from app.db.schema_provisioning import drop_guild_schema
 from app.db.tenancy import SHARED_TABLES
 from app.main import app
 
@@ -828,18 +829,15 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
 
     # Session is now closed (its rollback released any lock on public.guilds the
     # create-guild endpoint's trailing SELECT left held). Clean up on a fresh
-    # connection: drop the per-guild schemas/roles provisioned during the test
-    # (cluster-global roles must not leak between tests), then truncate public.
-    # Per-guild schema/role cleanup only matters if THIS test provisioned a
-    # guild schema (tracked in _provisioned_guild_ids). Most tests don't, so
-    # skip the two catalog scans + DROPs entirely for them.
-    roles: list[str] = []
-    schemas: list[str] = []
+    # connection: drop the per-guild schemas and roles provisioned during the test
+    # (cluster-global roles must not leak between tests — guild ids restart with
+    # the identity below), then truncate public. Only a test that provisioned a
+    # guild schema (tracked in _provisioned_guild_ids) pays for the catalog scan.
+    guild_ids: list[int] = []
     if _provisioned_guild_ids:
-        async with engine.begin() as conn:
-            await conn.exec_driver_sql("SET lock_timeout = '10s'")
-            schemas = [
-                schema
+        async with engine.connect() as conn:
+            guild_ids = [
+                int(schema.removeprefix("guild_"))
                 for (schema,) in (
                     await conn.execute(
                         text(
@@ -849,29 +847,15 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
                     )
                 ).all()
             ]
-            # Only the suite's own prefixed roles (test_guild_<id>) — never a
-            # co-located dev DB's unprefixed guild_<id> roles (they share this
-            # cluster-global catalog but belong to that database).
-            role_pattern = f"^{settings.GUILD_ROLE_PREFIX}guild_[0-9]+(_ro)?$"
-            roles = [
-                r
-                for (r,) in (
-                    await conn.execute(
-                        text("SELECT rolname FROM pg_roles WHERE rolname ~ :pat"),
-                        {"pat": role_pattern},
-                    )
-                ).all()
-            ]
 
-    # One schema per transaction. A guild schema holds ~60 tables and their
+    # One guild per transaction. A guild schema holds ~60 tables and their
     # indexes, policies and triggers, and DROP ... CASCADE takes a lock on each;
     # dropping several alongside the TRUNCATE below put hundreds of locks in one
     # transaction, which several xdist workers doing it at once can exhaust
     # (``max_locks_per_transaction`` sizes one shared table for the cluster).
-    for schema in schemas:
+    for guild_id in guild_ids:
         async with engine.begin() as conn:
-            await conn.exec_driver_sql("SET lock_timeout = '10s'")
-            await conn.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
+            await drop_guild_schema(conn, guild_id)
 
     # Truncate the SHARED (public-schema) tables to reset state — one
     # multi-table TRUNCATE (a single round-trip) instead of one statement
@@ -890,16 +874,6 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
             text(f"TRUNCATE TABLE {shared_tables} RESTART IDENTITY CASCADE")
         )
         await conn.execute(text("SET session_replication_role = 'origin'"))
-
-    # Drop the suite's prefixed roles, each in its own transaction. Prefixed roles
-    # are distinct from a co-located dev DB's, so these should succeed — the
-    # suppress is belt-and-suspenders so one stuck role can't abort the rest.
-    for role in roles:
-        with suppress(Exception):
-            async with engine.begin() as rconn:
-                await rconn.exec_driver_sql("SET lock_timeout = '5s'")
-                await rconn.exec_driver_sql(f'DROP OWNED BY "{role}"')
-                await rconn.exec_driver_sql(f'DROP ROLE IF EXISTS "{role}"')
 
 
 @pytest.fixture

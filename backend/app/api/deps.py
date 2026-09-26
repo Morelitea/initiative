@@ -650,8 +650,8 @@ async def _load_guild_context(
     from the ``/c/{guild_id}/...`` path, which is only a selector, never a trust
     boundary). Access is validated fresh on every call — real membership or a
     live PAM grant, else ``GuildAccessError`` — so a stale or mistyped guild id
-    fails closed. The caller has already coerced ``guild_id`` to ``int`` before
-    it reaches the privileged ``SET ROLE``/``search_path`` sink.
+    fails closed. The caller has already coerced ``guild_id`` to ``int``; it
+    names the role and ``search_path`` the session assumes.
 
     Transport-agnostic: it takes only the resolved ``guild_id``. A personal
     API key limited to one guild is refused every other one here, so the rule

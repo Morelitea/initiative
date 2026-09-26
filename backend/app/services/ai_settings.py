@@ -970,9 +970,10 @@ async def set_member_pref(
 # ---------------------------------------------------------------------------
 # Connection probe (test / list models on a STORED connection)
 # ---------------------------------------------------------------------------
-# The destination + key come from a stored connection (never a request body), so
-# there is no "inherited key + attacker base_url" surface. Ollama/custom probes
-# go through the pinned egress; ``allow_private`` is server-computed per §4.
+# The destination + key both come from a stored connection (never a request
+# body), so a probe sends a key only to the destination it was saved with.
+# Ollama/custom probes go through the pinned egress; ``allow_private`` is
+# server-computed per §4.
 
 
 def _is_openai_chat_model(model_id: str) -> bool:

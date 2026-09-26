@@ -22,7 +22,7 @@ A machine (yours, or a cloud box) with:
 curl -O https://raw.githubusercontent.com/Morelitea/initiative/main/docker-compose.example.yml
 cp docker-compose.example.yml docker-compose.yml
 
-# 2. Edit configuration — set a strong SECRET_KEY (and change the default DB passwords)
+# 2. Edit configuration — set a strong SECRET_KEY and POSTGRES_PASSWORD
 nano docker-compose.yml
 
 # 3. Start it
@@ -31,10 +31,12 @@ docker compose up -d
 # 4. Open http://localhost:8173 — the first person to register becomes the owner
 ```
 
-The example file ships **PostgreSQL 17** and sensible defaults already wired together, so it works as-is once you set a `SECRET_KEY`. Initiative listens on port **8173** by default.
+The example file ships **PostgreSQL 17** and sensible defaults already wired together, so it works as-is once you set a `SECRET_KEY` and a `POSTGRES_PASSWORD`. It refuses to start without either. Initiative listens on port **8173** by default.
 
-!!! warning "Change the secrets before going live"
-    At an absolute minimum: set a strong, unique **`SECRET_KEY`** and change the default **database password** (`POSTGRES_PASSWORD`).
+!!! warning "Choose both secrets once, and keep them"
+    Make **`SECRET_KEY`** and **`POSTGRES_PASSWORD`** strong and unique. `openssl rand -hex 32` makes a good one of each.
+
+    PostgreSQL reads **`POSTGRES_PASSWORD`** only when it first creates the database. Changing it afterwards doesn't change the password, it just stops Initiative connecting.
 
     The `SECRET_KEY` signs sessions *and* encrypts sensitive data. Keep it somewhere safe, and don't change it casually later on a whim — doing so invalidates existing sessions and every encrypted value.
 
