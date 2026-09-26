@@ -529,6 +529,11 @@ APP_PLATFORM_ISSUER = "initiative"
 #: ``aud`` is this prefix plus the registration's public_id, so a token minted
 #: for one app is not accepted by another.
 APP_PLATFORM_AUDIENCE_PREFIX = "initiative-app:"
+#: ``typ`` in the header of each kind of token an app receives (RFC 8725
+#: §3.11): a call to an endpoint or a hook, and a page handoff. An app checks it
+#: to take each kind only where it expects that kind.
+APP_CONTEXT_TOKEN_TYPE = "initiative-context+jwt"
+APP_HANDOFF_TOKEN_TYPE = "initiative-handoff+jwt"
 
 
 def app_platform_audience(public_id: str) -> str:

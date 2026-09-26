@@ -60,6 +60,7 @@ from app.db.guild_standing import GuildContext
 from app.db.session import routed_guild_id
 from app.core.messages import AppServiceMessages, GuildAppMessages
 from app.core.security import (
+    APP_HANDOFF_TOKEN_TYPE,
     APP_PLATFORM_ISSUER,
     AppPlatformSigningNotConfiguredError,
     app_platform_audience,
@@ -257,7 +258,9 @@ async def mint_embed_handoff(
     # answer instead of two shapes that both mean none.
     if initiative_id is not None:
         payload["initiative_id"] = initiative_id
-    headers: dict[str, Any] | None = {"kid": kid} if kid else None
+    headers: dict[str, Any] = {"typ": APP_HANDOFF_TOKEN_TYPE}
+    if kid:
+        headers["kid"] = kid
     token = jwt.encode(payload, key, algorithm=algorithm, headers=headers)
 
     return EmbedHandoff(

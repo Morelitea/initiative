@@ -429,6 +429,9 @@ class TestHandoff:
         assert claims["surface_id"] == "board"
         assert claims["jti"]
         assert "email" not in claims and "guild_role" not in claims
+        assert jwt.get_unverified_header(body["handoff_token"])["typ"] == (
+            "initiative-handoff+jwt"
+        )
         # Whether the viewer administers the community, and no other role.
         assert claims["guild_admin"] is True
 

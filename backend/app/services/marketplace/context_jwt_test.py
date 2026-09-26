@@ -149,6 +149,9 @@ class TestClaims:
     def test_the_key_id_is_stamped_so_a_rotation_can_be_followed(self):
         assert jwt.get_unverified_header(_mint())["kid"] == KEY_ID
 
+    def test_it_is_typed_as_a_context_token(self):
+        assert jwt.get_unverified_header(_mint())["typ"] == "initiative-context+jwt"
+
     @pytest.mark.parametrize("scope", ["endpoint", "lifecycle"])
     def test_the_scope_vocabulary_is_what_it_declares(self, scope):
         assert _claims(_mint(scope=scope))["scope"] == scope
