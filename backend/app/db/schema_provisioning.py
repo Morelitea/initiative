@@ -12,12 +12,12 @@ Per-request routing (search_path + SET ROLE in `set_rls_context`) sends
 guild-scoped queries into the schema, where the RLS policies (deferring to
 `initiative_access`) enforce initiative membership for non-admin roles.
 
-`backfill_guild_schemas` re-runs that idempotent provisioning for *every*
-existing guild on every boot (`main.on_startup`). This closes two drift gaps: a
-guild provisioned before guild_template gained a table/column/index never
-receives it, and a crash mid-provision can leave a guild row whose schema
-doesn't exist. Provisioning is ~0.2s/guild and idempotent, so a plain
-sequential loop heals both with no extra bookkeeping.
+`backfill_guild_schemas` runs on every boot and brings each guild up to date:
+a guild provisioned before guild_template gained a table/column/index, or
+before a registry changed, gets the parts that changed since; a crash
+mid-provision that left a guild row without its schema gets all of them. Each
+schema's comment records a digest per part, so a boot with nothing changed
+touches no guild.
 """
 
 from __future__ import annotations
@@ -258,6 +258,14 @@ def billing_role_name() -> str:
     return f"{settings.PLATFORM_ROLE_PREFIX}initiative_billing"
 
 
+#: What provisioning applies to a guild schema, in the order it applies them.
+#: A schema's comment records one digest per part; a boot re-applies only the
+#: parts whose digest moved, except that new structure re-applies every part,
+#: since the others reach the tables it adds.
+PARTS = ("schema", "grants", "rls", "capture", "search")
+_STAMP_PREFIX = "provisioned:"
+
+
 @dataclass(frozen=True)
 class ProvisioningBundle:
     """The per-process render of everything provisioning applies.
@@ -266,21 +274,39 @@ class ProvisioningBundle:
     ``guild_template`` schema; ``rls_ddl`` is rendered from the
     ``INITIATIVE_PATHS`` registry (see ``app.db.guild_ddl``). There are no
     committed artifacts — new guilds match the template + registry by
-    construction. ``stamp`` hashes both renders plus the rendered grant
-    statements, so ANY provisioning-relevant change (a guild migration, a
-    registry edit, a grants change) produces a new stamp and a one-time
-    re-provisioning sweep on the next boot.
+    construction. ``digests`` hashes each part's render (the grants as
+    rendered statements), so a guild migration, a registry edit or a grants
+    change moves the digest of the part it touches and nothing else.
     """
 
     schema_ddl: str
     rls_ddl: str
     capture_ddl: str
     search_ddl: str
-    stamp: str
+    digests: dict[str, str]
+
+    @property
+    def stamp(self) -> str:
+        """The schema comment a guild carries once every part is applied."""
+        return _STAMP_PREFIX + ",".join(f"{p}={self.digests[p]}" for p in PARTS)
+
+    def stale_parts(self, stamp: str | None) -> tuple[str, ...]:
+        """The parts a schema commented ``stamp`` still needs, in apply order."""
+        applied = dict(
+            item.split("=", 1)
+            for item in (stamp or "").removeprefix(_STAMP_PREFIX).split(",")
+            if "=" in item
+        )
+        stale = tuple(p for p in PARTS if applied.get(p) != self.digests[p])
+        return PARTS if "schema" in stale else stale
 
 
 _bundle: ProvisioningBundle | None = None
 _bundle_lock = asyncio.Lock()
+
+
+def _digest(*renders: str) -> str:
+    return hashlib.sha256("\n".join(renders).encode()).hexdigest()[:12]
 
 
 async def get_provisioning_bundle() -> ProvisioningBundle:
@@ -291,54 +317,31 @@ async def get_provisioning_bundle() -> ProvisioningBundle:
     async with _bundle_lock:
         if _bundle is not None:
             return _bundle
-        from app.db.event_capture import (
-            CAPTURE_FUNCTION_SQL,
-            render_guild_capture_ddl,
-        )
+        from app.db.event_capture import render_guild_capture_ddl
         from app.db.guild_ddl import render_guild_rls_ddl, render_guild_schema_ddl
-        from app.db.search_index import (
-            DEPENDENT_FUNCTION_SQL,
-            SEARCH_FUNCTION_SQL,
-            WRITE_FUNCTION_SQL,
-            render_guild_search_ddl,
-        )
+        from app.db.search_index import render_guild_search_ddl
 
         schema_ddl = await render_guild_schema_ddl(db_session.provisioning_engine)
         rls_ddl = render_guild_rls_ddl()
         capture_ddl = render_guild_capture_ddl()
         # Naming the operator class in the rendered text is what makes the
-        # stamp move when it is installed later, so the sweep rebuilds indexes
+        # digest move when it is installed later, so the sweep rebuilds indexes
         # that were created without it.
         opclass = f"public.{SEARCH_OPCLASS}" if await search_operator_ready() else None
         search_ddl = render_guild_search_ddl(opclass)
-        digest = hashlib.sha256()
-        digest.update(schema_ddl.encode())
-        digest.update(rls_ddl.encode())
-        digest.update(capture_ddl.encode())
-        digest.update(CAPTURE_FUNCTION_SQL.encode())
-        digest.update(search_ddl.encode())
-        digest.update(SEARCH_FUNCTION_SQL.encode())
-        digest.update(WRITE_FUNCTION_SQL.encode())
-        digest.update(DEPENDENT_FUNCTION_SQL.encode())
-        digest.update(
-            "\n".join(
-                _grant_statements(
-                    "__stamp__",
-                    "__stamp_role__",
-                    "__stamp_ro__",
-                    "__stamp_support__",
-                    "__stamp_q__",
-                    "__stamp_seat__",
-                    "__stamp_app__",
-                )
-            ).encode()
-        )
+        grants = _grant_statements("__stamp__", *_guild_roles(0))
         _bundle = ProvisioningBundle(
             schema_ddl=schema_ddl,
             rls_ddl=rls_ddl,
             capture_ddl=capture_ddl,
             search_ddl=search_ddl,
-            stamp=f"provisioned:{digest.hexdigest()[:16]}",
+            digests={
+                "schema": _digest(schema_ddl),
+                "grants": _digest(*grants),
+                "rls": _digest(rls_ddl),
+                "capture": _digest(capture_ddl),
+                "search": _digest(search_ddl),
+            },
         )
         return _bundle
 
@@ -386,29 +389,52 @@ async def apply_guild_rls(conn: AsyncConnection, schema: str) -> None:
     )
 
 
+async def apply_guild_trigger_functions(conn: AsyncConnection) -> None:
+    """Re-assert the shared ``public`` functions the capture and search
+    triggers call, from their registries.
+
+    Migrations create them, but a migration freezes the body it was written
+    with; the registries are the current truth, so re-rendering them here is
+    what lets a change to the capture or search rule reach existing installs
+    on the next boot rather than needing a migration per edit. Runs once per
+    boot, ahead of the guild back-fill, not once per guild. Idempotent
+    ``CREATE OR REPLACE``.
+    """
+    from app.db.event_capture import CAPTURE_FUNCTION_SQL
+    from app.db.search_index import (
+        DEPENDENT_FUNCTION_SQL,
+        SEARCH_FUNCTION_SQL,
+        WRITE_FUNCTION_SQL,
+    )
+
+    raw = await conn.get_raw_connection()
+    # The write function first: both search trigger functions call it.
+    await raw.driver_connection.execute(
+        "SET check_function_bodies = false;\n"
+        + "\n".join(
+            (
+                CAPTURE_FUNCTION_SQL,
+                WRITE_FUNCTION_SQL,
+                SEARCH_FUNCTION_SQL,
+                DEPENDENT_FUNCTION_SQL,
+            )
+        )
+    )
+
+
 async def apply_guild_capture(conn: AsyncConnection, schema: str) -> None:
     """Install the change-capture triggers on ``schema``'s evented tables.
 
     Schema-relative + idempotent (``DROP TRIGGER IF EXISTS`` + ``CREATE
     TRIGGER``), so a re-run re-asserts them harmlessly. Every trigger calls the
     one ``public.capture_change`` (qualified, so it resolves regardless of
-    search_path); the per-table initiative lookups it runs resolve against the
-    guild-local tables through the caller's search_path, the same way the RLS
-    policies' EXISTS joins do. Requires ``public.capture_change`` to exist
-    (created by migration 20260815_0184).
+    search_path), kept current by :func:`apply_guild_trigger_functions`; the
+    per-table initiative lookups it runs resolve against the guild-local
+    tables through the caller's search_path, the same way the RLS policies'
+    EXISTS joins do.
     """
-    from app.db.event_capture import CAPTURE_FUNCTION_SQL
-
     ddl = (await get_provisioning_bundle()).capture_ddl
     raw = await conn.get_raw_connection()
-    # Re-assert the shared function before the triggers that call it. A migration
-    # creates it, but a migration freezes the body it was written with — the
-    # registry is the current truth, so re-rendering here is what lets a change
-    # to the capture rule reach existing installs on the next boot rather than
-    # needing a migration per edit. Idempotent CREATE OR REPLACE.
-    await raw.driver_connection.execute(
-        "SET check_function_bodies = false;\n" + CAPTURE_FUNCTION_SQL
-    )
     await raw.driver_connection.execute(
         f'SET search_path TO "{schema}", public;\n{ddl}\nSET search_path TO public;'
     )
@@ -417,28 +443,11 @@ async def apply_guild_capture(conn: AsyncConnection, schema: str) -> None:
 async def apply_guild_search(conn: AsyncConnection, schema: str) -> None:
     """Install the search-index refresh triggers on ``schema``'s indexed tables.
 
-    Same shape as :func:`apply_guild_capture`: re-assert the shared function
-    from the registry (so a change to what is indexed reaches existing installs
-    on the next boot rather than needing a migration per edit), then the
-    per-table triggers, both idempotent.
+    Same shape as :func:`apply_guild_capture`: per-table triggers calling
+    shared functions that :func:`apply_guild_trigger_functions` keeps current.
     """
-    from app.db.search_index import (
-        DEPENDENT_FUNCTION_SQL,
-        SEARCH_FUNCTION_SQL,
-        WRITE_FUNCTION_SQL,
-    )
-
     ddl = (await get_provisioning_bundle()).search_ddl
     raw = await conn.get_raw_connection()
-    # The write function first: both trigger functions call it.
-    await raw.driver_connection.execute(
-        "SET check_function_bodies = false;\n"
-        + WRITE_FUNCTION_SQL
-        + "\n"
-        + SEARCH_FUNCTION_SQL
-        + "\n"
-        + DEPENDENT_FUNCTION_SQL
-    )
     await raw.driver_connection.execute(
         f'SET search_path TO "{schema}", public;\n{ddl}\nSET search_path TO public;'
     )
@@ -710,55 +719,91 @@ async def _exec_batch(conn: AsyncConnection, statements: list[str]) -> None:
     await raw.driver_connection.execute(";\n".join(statements) + ";")
 
 
-async def _role_exists(conn: AsyncConnection, role: str) -> bool:
+def _guild_roles(guild_id: int) -> tuple[str, str, str, str, str, str]:
+    """A guild's six roles, in the order :func:`_grant_statements` takes them."""
     return (
-        await conn.scalar(
-            text("SELECT 1 FROM pg_roles WHERE rolname = :r"), {"r": role}
+        guild_role_name(guild_id),
+        guild_readonly_role_name(guild_id),
+        guild_support_role_name(guild_id),
+        guild_query_role_name(guild_id),
+        guild_superadmin_role_name(guild_id),
+        guild_app_role_name(guild_id),
+    )
+
+
+async def _existing_roles(conn: AsyncConnection, roles: tuple[str, ...]) -> set[str]:
+    rows = await conn.execute(
+        text("SELECT rolname FROM pg_roles WHERE rolname = ANY(:r)"),
+        {"r": list(roles)},
+    )
+    return set(rows.scalars())
+
+
+#: Namespace for the per-guild provisioning lock, so the key cannot collide
+#: with another feature's advisory lock on the same guild id. Key 0, which no
+#: guild has, orders the shared trigger functions.
+_PROVISION_LOCK_NAMESPACE = 0x50524F56  # "PROV"
+
+#: How many guilds one process back-fills at once.
+_BACKFILL_CONCURRENCY = 4
+
+
+async def _lock_guild(conn: AsyncConnection, guild_id: int, *, wait: bool) -> bool:
+    """Take the guild's provisioning lock, held to the end of the transaction.
+
+    With ``wait=False``, returns False at once when another process holds it.
+    """
+    params = {"ns": _PROVISION_LOCK_NAMESPACE, "gid": guild_id}
+    if wait:
+        await conn.execute(text("SELECT pg_advisory_xact_lock(:ns, :gid)"), params)
+        return True
+    return bool(
+        await conn.scalar(text("SELECT pg_try_advisory_xact_lock(:ns, :gid)"), params)
+    )
+
+
+async def _apply_parts(
+    conn: AsyncConnection, guild_id: int, parts: tuple[str, ...]
+) -> None:
+    """Apply ``parts`` of the bundle to ``guild_<id>``, then stamp the schema.
+
+    Every part is idempotent (``IF NOT EXISTS``, ``CREATE OR REPLACE``, drop
+    and re-create), so re-applying one that was current changes nothing.
+    """
+    schema = guild_schema_name(guild_id)
+    if "schema" in parts:
+        await conn.exec_driver_sql(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
+        await apply_guild_schema(conn, schema)  # canonical Alembic-owned table DDL
+    if "grants" in parts:
+        roles = _guild_roles(guild_id)
+        existing = await _existing_roles(conn, roles)
+        await _exec_batch(
+            conn,
+            [
+                *(f'CREATE ROLE "{r}" NOLOGIN' for r in roles if r not in existing),
+                *_grant_statements(schema, *roles),
+            ],
         )
-    ) is not None
-
-
-async def _ensure_role(conn: AsyncConnection, role: str) -> None:
-    if not await _role_exists(conn, role):
-        await conn.exec_driver_sql(f'CREATE ROLE "{role}" NOLOGIN')
+    if "rls" in parts:
+        await apply_guild_rls(conn, schema)  # initiative-level RLS policies
+    if "capture" in parts:
+        await apply_guild_capture(conn, schema)  # change-capture triggers
+    if "search" in parts:
+        await apply_guild_search(conn, schema)  # search-index refresh triggers
+    # Constant hex digests, safe to inline.
+    stamp = (await get_provisioning_bundle()).stamp
+    await conn.exec_driver_sql(f"COMMENT ON SCHEMA \"{schema}\" IS '{stamp}'")
 
 
 async def provision_guild_schema(conn: AsyncConnection, guild_id: int) -> str:
-    """Create/refresh ``guild_<id>`` (schema + tables + scoped role). Idempotent.
+    """Create/refresh ``guild_<id>`` (schema, tables, roles, grants, policies,
+    triggers) under the guild's provisioning lock. Idempotent.
 
-    Needs a privileged connection (CREATEROLE + CREATE on the database). The
-    table DDL and grants run as a single round-trip; ``IF NOT EXISTS`` makes a
-    re-run back-fill any newly-manifested table and re-apply grants harmlessly.
+    Needs a privileged connection (CREATEROLE + CREATE on the database).
     """
-    schema = guild_schema_name(guild_id)
-    role = guild_role_name(guild_id)
-    ro_role = guild_readonly_role_name(guild_id)
-    support_role = guild_support_role_name(guild_id)
-    query_role = guild_query_role_name(guild_id)
-    seat_role = guild_superadmin_role_name(guild_id)
-    app_role = guild_app_role_name(guild_id)
-    await conn.exec_driver_sql(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
-    await _ensure_role(conn, role)
-    await _ensure_role(conn, ro_role)
-    await _ensure_role(conn, support_role)
-    await _ensure_role(conn, query_role)
-    await _ensure_role(conn, seat_role)
-    await _ensure_role(conn, app_role)
-    await apply_guild_schema(conn, schema)  # canonical Alembic-owned table DDL
-    await _exec_batch(
-        conn,
-        _grant_statements(
-            schema, role, ro_role, support_role, query_role, seat_role, app_role
-        ),
-    )
-    await apply_guild_rls(conn, schema)  # initiative-level RLS policies
-    await apply_guild_capture(conn, schema)  # change-capture triggers
-    await apply_guild_search(conn, schema)  # search-index refresh triggers
-    # Stamp the artifacts' version so the boot back-fill can skip this guild
-    # until they change (constant hex literal, safe to inline).
-    stamp = (await get_provisioning_bundle()).stamp
-    await conn.exec_driver_sql(f"COMMENT ON SCHEMA \"{schema}\" IS '{stamp}'")
-    return schema
+    await _lock_guild(conn, guild_id, wait=True)
+    await _apply_parts(conn, guild_id, PARTS)
+    return guild_schema_name(guild_id)
 
 
 async def drop_guild_schema(conn: AsyncConnection, guild_id: int) -> None:
@@ -772,15 +817,10 @@ async def drop_guild_schema(conn: AsyncConnection, guild_id: int) -> None:
     await conn.exec_driver_sql("SET lock_timeout = '10s'")
     await conn.exec_driver_sql(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE')
     provisioning_login, _ = settings.database_login("DATABASE_URL")
-    for role in (
-        guild_role_name(guild_id),
-        guild_readonly_role_name(guild_id),
-        guild_support_role_name(guild_id),
-        guild_query_role_name(guild_id),
-        guild_superadmin_role_name(guild_id),
-        guild_app_role_name(guild_id),
-    ):
-        if await _role_exists(conn, role):
+    roles = _guild_roles(guild_id)
+    existing = await _existing_roles(conn, roles)
+    for role in roles:
+        if role in existing:
             # DROP OWNED requires the role's PRIVILEGES, not just ADMIN OPTION
             # on it (PG16+ separates the two). The provisioning login
             # administers every guild role, so grant itself membership first —
@@ -828,30 +868,51 @@ class BackfillSummary:
     total: int
     provisioned: int
     failed: int
-    skipped: int = 0  # stamp matched — provisioned by the current artifacts
+    skipped: int = 0  # every part current, here or in another process
     failed_guild_ids: list[int] = field(default_factory=list)
 
 
-async def backfill_guild_schemas() -> BackfillSummary:
-    """Re-provision every guild schema the current artifacts haven't built yet.
+async def _backfill_guild(guild_id: int, *, wait: bool) -> bool | None:
+    """Apply the parts ``guild_<id>`` is missing, under its provisioning lock.
 
-    Enumerates guild ids (and their schema-comment stamps) from the
-    provisioning engine, then runs the idempotent ``provision_guild`` for each
-    guild whose stamp doesn't match the bundle stamp — i.e. its
-    schema predates the current template structure / rendered RLS /
-    grants version, is missing entirely, or was never stamped. Because
-    provisioning re-runs the canonical DDL (``CREATE ... IF NOT EXISTS``) and
-    re-applies grants, this back-fills any table/column/index/grant added
-    since, then re-stamps. Already-stamped guilds are skipped, so a boot with
-    unchanged artifacts is O(changed guilds), not O(all guilds) — set
-    ``FORCE_GUILD_BACKFILL=true`` to sweep everything regardless.
+    Returns whether anything was applied, or None when ``wait`` is False and
+    another process holds the lock.
+    """
+    bundle = await get_provisioning_bundle()
+    async with db_session.provisioning_engine.begin() as conn:
+        if not await _lock_guild(conn, guild_id, wait=wait):
+            return None
+        # Read again under the lock: another process may have just done it.
+        stamp = await conn.scalar(
+            text("SELECT obj_description(to_regnamespace(:s), 'pg_namespace')"),
+            {"s": guild_schema_name(guild_id)},
+        )
+        parts = PARTS if settings.FORCE_GUILD_BACKFILL else bundle.stale_parts(stamp)
+        if parts:
+            await _apply_parts(conn, guild_id, parts)
+        return bool(parts)
+
+
+async def backfill_guild_schemas() -> BackfillSummary:
+    """Bring every guild schema up to the current bundle.
+
+    Enumerates guild ids and their schema-comment stamps, and for each guild
+    whose stamp is behind applies the parts that moved: every part for a
+    schema that is missing, unstamped or behind on structure, otherwise only
+    the grants, policies or triggers whose render changed. Set
+    ``FORCE_GUILD_BACKFILL=true`` to re-apply every part of every guild.
+
+    Several processes booting at once share the work: each guild is applied
+    under its advisory lock, a first pass takes only the guilds nobody else
+    holds, and a second waits for the rest and re-reads their stamps, so every
+    process returns with every guild current and each guild applied once.
 
     Per-guild failures are logged with the guild id and skipped so one broken
-    guild can't take down boot for the rest; ``provision_guild`` runs each guild
-    in its own transaction, so a failure rolls back only that guild. Returns a
-    summary for the caller to log.
+    guild can't take down boot for the rest; each guild runs in its own
+    transaction, so a failure rolls back only that guild. Returns a summary
+    for the caller to log.
     """
-    stamp = (await get_provisioning_bundle()).stamp
+    bundle = await get_provisioning_bundle()
 
     # The template carries structure only. Earlier boots rendered the
     # registries into it as well, and those copies bind functions the
@@ -864,6 +925,10 @@ async def backfill_guild_schemas() -> BackfillSummary:
             logger.info("guild_template: removed %d rendered objects", stripped)
     except Exception:  # noqa: BLE001 — never block boot on the template
         logger.exception("guild_template clean-up failed")
+
+    async with db_session.provisioning_engine.begin() as conn:
+        await _lock_guild(conn, 0, wait=True)
+        await apply_guild_trigger_functions(conn)
 
     # Enumerate on the SYSTEM engine, not the provisioning engine: guild ids
     # live in the RLS-forced public.guilds, and the provisioner is a pure DDL
@@ -883,26 +948,34 @@ async def backfill_guild_schemas() -> BackfillSummary:
                 )
             )
         ).all()
+    behind = [
+        gid
+        for gid, stamp in rows
+        if settings.FORCE_GUILD_BACKFILL or bundle.stale_parts(stamp)
+    ]
 
-    provisioned = 0
-    skipped = 0
+    limit = asyncio.Semaphore(_BACKFILL_CONCURRENCY)
     failed_guild_ids: list[int] = []
-    for gid, comment in rows:
-        if comment == stamp and not settings.FORCE_GUILD_BACKFILL:
-            skipped += 1
-            continue
-        try:
-            await provision_guild(gid)
-            provisioned += 1
-        except Exception:  # noqa: BLE001 — one broken guild must not block boot
-            failed_guild_ids.append(gid)
-            logger.exception("guild schema back-fill failed for guild %s", gid)
+
+    async def backfill(guild_id: int, wait: bool) -> bool | None:
+        async with limit:
+            try:
+                return await _backfill_guild(guild_id, wait=wait)
+            except Exception:  # noqa: BLE001 — one broken guild must not block boot
+                failed_guild_ids.append(guild_id)
+                logger.exception("guild schema back-fill failed for guild %s", guild_id)
+                return False
+
+    first = await asyncio.gather(*(backfill(gid, False) for gid in behind))
+    held = [gid for gid, applied in zip(behind, first, strict=True) if applied is None]
+    second = await asyncio.gather(*(backfill(gid, True) for gid in held))
+    provisioned = sum(1 for applied in (*first, *second) if applied)
 
     return BackfillSummary(
         total=len(rows),
         provisioned=provisioned,
         failed=len(failed_guild_ids),
-        skipped=skipped,
+        skipped=len(rows) - provisioned - len(failed_guild_ids),
         failed_guild_ids=failed_guild_ids,
     )
 

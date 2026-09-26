@@ -5,6 +5,7 @@ collide with real data, and drop it in teardown. Runs against the test DB as
 the owning role (the ``engine`` fixture), which has DDL privileges.
 """
 
+import asyncio
 import re
 
 import pytest
@@ -57,6 +58,8 @@ _GID_BACKFILL_DRIFT = 990_113
 _GID_BACKFILL_OK_A = 990_114
 _GID_BACKFILL_OK_B = 990_115
 _GID_BACKFILL_FAIL = 990_116
+_GID_BACKFILL_PARTIAL = 990_117
+_GID_BACKFILL_HELD = 990_118
 
 
 async def _insert_public_guild(conn, gid: int, name: str) -> None:
@@ -952,18 +955,16 @@ async def test_backfill_continues_past_a_failing_guild(engine, monkeypatch):
                 await _insert_public_guild(conn, gid, name)
 
         # Force exactly one guild's provisioning to blow up; the real function
-        # handles every other id. backfill_guild_schemas calls provision_guild as
-        # a module-level name, so patching it here is enough.
-        real_provision_guild = schema_provisioning.provision_guild
+        # handles every other id. The sweep calls _apply_parts as a
+        # module-level name, so patching it here is enough.
+        real_apply_parts = schema_provisioning._apply_parts
 
-        async def _flaky_provision_guild(guild_id: int) -> str:
+        async def _flaky_apply_parts(conn, guild_id: int, parts) -> None:
             if guild_id == bad:
                 raise RuntimeError("forced provisioning failure")
-            return await real_provision_guild(guild_id)
+            await real_apply_parts(conn, guild_id, parts)
 
-        monkeypatch.setattr(
-            schema_provisioning, "provision_guild", _flaky_provision_guild
-        )
+        monkeypatch.setattr(schema_provisioning, "_apply_parts", _flaky_apply_parts)
 
         summary = await backfill_guild_schemas()
 
@@ -1004,6 +1005,70 @@ async def test_backfill_continues_past_a_failing_guild(engine, monkeypatch):
             )
 
 
+async def test_backfill_applies_only_stale_parts_and_waits_for_a_held_guild(
+    engine, monkeypatch
+):
+    """A guild behind on one part gets that part alone. A guild another
+    process holds the provisioning lock on is waited for, and found current
+    once it lets go, rather than applied a second time."""
+    partial, held = _GID_BACKFILL_PARTIAL, _GID_BACKFILL_HELD
+    bundle = await schema_provisioning.get_provisioning_bundle()
+    stale_rls = bundle.stamp.replace(f"rls={bundle.digests['rls']}", "rls=old")
+    try:
+        async with engine.begin() as conn:
+            for gid, name in ((partial, "backfill-partial"), (held, "backfill-held")):
+                await _insert_public_guild(conn, gid, name)
+                await provision_guild_schema(conn, gid)
+                await conn.exec_driver_sql(
+                    f"COMMENT ON SCHEMA \"{guild_schema_name(gid)}\" IS '{stale_rls}'"
+                )
+
+        applied: dict[int, tuple[str, ...]] = {}
+        real_apply_parts = schema_provisioning._apply_parts
+
+        async def _recording_apply_parts(conn, guild_id: int, parts) -> None:
+            applied[guild_id] = parts
+            await real_apply_parts(conn, guild_id, parts)
+
+        monkeypatch.setattr(schema_provisioning, "_apply_parts", _recording_apply_parts)
+
+        # The other process: holds `held`'s lock with the guild brought current
+        # but not yet committed, until the sweep is waiting on it.
+        async with engine.connect() as other:
+            await other.begin()
+            await schema_provisioning._lock_guild(other, held, wait=True)
+            await other.exec_driver_sql(
+                f"COMMENT ON SCHEMA \"{guild_schema_name(held)}\" IS '{bundle.stamp}'"
+            )
+            sweep = asyncio.create_task(backfill_guild_schemas())
+            async with engine.connect() as probe:
+                while not await probe.scalar(
+                    text(
+                        "SELECT 1 FROM pg_locks WHERE locktype = 'advisory' "
+                        "AND NOT granted AND classid::bigint = :ns "
+                        "AND objid::bigint = :gid"
+                    ),
+                    {"ns": schema_provisioning._PROVISION_LOCK_NAMESPACE, "gid": held},
+                ):
+                    assert not sweep.done(), "the sweep did not wait for the lock"
+                    await asyncio.sleep(0.05)
+            await other.commit()
+        summary = await sweep
+
+        assert partial not in summary.failed_guild_ids
+        assert held not in summary.failed_guild_ids
+        assert applied.get(partial) == ("rls",)
+        assert held not in applied
+    finally:
+        async with engine.begin() as conn:
+            for gid in (partial, held):
+                await drop_guild_schema(conn, gid)
+            await conn.execute(
+                text("DELETE FROM public.guilds WHERE id = ANY(:ids)"),
+                {"ids": [partial, held]},
+            )
+
+
 async def test_rendering_the_bundle_twice_gives_the_same_stamp(engine):
     """Reflection reads the template afresh each time, and the catalog does not
     promise to return a table's constraints in the same order twice. The stamp
@@ -1022,16 +1087,17 @@ async def test_rendering_the_bundle_twice_gives_the_same_stamp(engine):
 
 
 async def test_provisioning_stamp_tracks_grant_behavior_not_cosmetics(engine):
-    """The back-fill skip stamp is derived from the RENDERED provisioning bundle
+    """The back-fill stamp is derived from the RENDERED provisioning bundle
     (live schema DDL + registry RLS + rendered grant statements) — no manual
-    version bump: a behavioral grants change moves it; a cosmetic rewrite of
-    ``_grant_statements`` does not."""
+    version bump: a behavioral grants change moves the grants digest and no
+    other; a cosmetic rewrite of ``_grant_statements`` moves nothing."""
     from unittest import mock
 
     from app.db import schema_provisioning as sp
 
     sp.reset_provisioning_bundle()
-    baseline = (await sp.get_provisioning_bundle()).stamp
+    base = await sp.get_provisioning_bundle()
+    baseline = base.stamp
 
     _original = sp._grant_statements
 
@@ -1045,14 +1111,16 @@ async def test_provisioning_stamp_tracks_grant_behavior_not_cosmetics(engine):
     try:
         with mock.patch.object(sp, "_grant_statements", _different_grants):
             sp.reset_provisioning_bundle()
-            changed = (await sp.get_provisioning_bundle()).stamp
+            changed = await sp.get_provisioning_bundle()
         with mock.patch.object(sp, "_grant_statements", _cosmetic_rewrite):
             sp.reset_provisioning_bundle()
             cosmetic = (await sp.get_provisioning_bundle()).stamp
     finally:
         sp.reset_provisioning_bundle()
 
-    assert changed != baseline, "a behavioral grants change must move the stamp"
+    assert base.stale_parts(changed.stamp) == ("grants",), (
+        "a behavioral grants change must move the grants digest alone"
+    )
     assert cosmetic == baseline, "a cosmetic rewrite must NOT move the stamp"
     assert (await sp.get_provisioning_bundle()).stamp == baseline
 

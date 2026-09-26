@@ -330,13 +330,16 @@ async def _apply_public_rls() -> None:
     migration, and a deployment applies them in ``ensure_public_rls`` moments
     after migrating. This is that step for the worker's own database, run on
     every session so a registry edit reaches a database that was migrated
-    before it."""
+    before it. The shared trigger functions the guild back-fill re-renders
+    come along for the same reason."""
     from app.db.public_rls import apply_public_rls_if_changed
+    from app.db.schema_provisioning import apply_guild_trigger_functions
 
     engine = create_async_engine(TEST_DATABASE_URL)
     try:
         async with engine.begin() as conn:
             await apply_public_rls_if_changed(conn)
+            await apply_guild_trigger_functions(conn)
     finally:
         await engine.dispose()
 
