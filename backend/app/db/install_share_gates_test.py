@@ -180,8 +180,8 @@ async def test_a_share_is_never_ownership_or_an_app_grant(
     session, acting_user, role_session, row
 ):
     """On a document open to its initiative for writing and owned by nobody,
-    the install holds write, and still writes no owner row and no grant
-    naming an app."""
+    the install holds write, and writes no owner row, no grant naming an app,
+    and, since sharing is the owner's, no share either."""
     install = await _install(session, acting_user, role_session, granted=_SHARES)
     document = await create_document(session, install.a, install.seat.user)
     await route_session_to_guild(session, install.guild.id)
@@ -215,10 +215,10 @@ async def test_a_share_is_never_ownership_or_an_app_grant(
         await s.flush()
     await s.rollback()
 
-    # A share with a person on the same document is its to make.
     s, _ = await _route(role_session, install, _SHARES)
     s.add(_share(document.id, install.a.id, user_id=install.seat.user.id))
-    await s.flush()
+    with pytest.raises(DBAPIError, match="row-level security"):
+        await s.flush()
     await s.rollback()
 
 

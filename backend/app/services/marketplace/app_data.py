@@ -74,6 +74,7 @@ from app.services.marketplace.context_jwt import mint_context_token
 from app.services.marketplace.registration_lookup import (
     RegistrationSnapshot,
     load_registrations,
+    service_public_id,
 )
 from app.services.query.rows import RowColumn
 from app.services.marketplace.service_apps import is_admin_only
@@ -106,7 +107,6 @@ __all__ = [
     "row_columns",
     "project_returns",
     "resolve_param_options",
-    "service_public_id",
     "validate_params",
 ]
 
@@ -167,18 +167,6 @@ class AppDataResult:
 
 
 # --- reading the pinned definition ------------------------------------------
-
-
-def service_public_id(definition: Mapping[str, Any] | None) -> Optional[str]:
-    """Which app service backs this install, per its pinned definition."""
-    body = definition or {}
-    if body.get("app_kind") != "service":
-        return None
-    service = body.get("service")
-    if not isinstance(service, dict):
-        return None
-    public_id = service.get("public_id")
-    return public_id if isinstance(public_id, str) and public_id else None
 
 
 def _endpoints(definition: Mapping[str, Any] | None) -> list[dict[str, Any]]:

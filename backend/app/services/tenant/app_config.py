@@ -36,12 +36,13 @@ separately as ``config_state``.
 
 from __future__ import annotations
 
+import secrets
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Optional
 
 from app.core.encryption import SALT_APP_CONFIG, decrypt_field, encrypt_field
 from app.core.messages import GuildAppMessages
-from app.services.tenant.app_connections import mint_connection_ref
 
 __all__ = [
     "RESERVED_TOKEN_KEYS",
@@ -59,9 +60,12 @@ __all__ = [
     "guild_connection_ref",
     "has_value_map",
     "is_satisfied",
+    "mint_connection_ref",
     "needs_configuration",
     "prune_to_definition",
     "runs_vendor_flow",
+    "token_of",
+    "without_tokens",
 ]
 
 #: What a plain field may hold. Generous for a hostname or an account name,
@@ -80,6 +84,20 @@ CONFIG_STATES: frozenset[str] = frozenset({"unverified", "ok", "invalid"})
 RESERVED_TOKEN_KEYS: frozenset[str] = frozenset(
     {"access_token", "refresh_token", "expires_at", "refresh_expires_at"}
 )
+
+#: Long enough that a handle is never guessed, short enough to sit in a URL the
+#: app builds. ``token_urlsafe(24)`` renders as 32 characters, which is the
+#: column width.
+_REF_ENTROPY_BYTES = 24
+
+
+def mint_connection_ref() -> str:
+    return secrets.token_urlsafe(_REF_ENTROPY_BYTES)
+
+
+def without_tokens(values: Mapping[str, Any] | None) -> dict[str, Any]:
+    """A stored map with the reserved token keys taken out."""
+    return {k: v for k, v in (values or {}).items() if k not in RESERVED_TOKEN_KEYS}
 
 
 class AppConfigError(Exception):
@@ -122,6 +140,12 @@ def connection_by_id(
         if connection.get("id") == connection_id:
             return connection
     return None
+
+
+def token_of(connection: Mapping[str, Any] | None) -> Optional[dict[str, Any]]:
+    """The connection's ``token``, when it declares one."""
+    token = (connection or {}).get("token")
+    return token if isinstance(token, dict) else None
 
 
 def runs_vendor_flow(connection: dict[str, Any] | None) -> bool:

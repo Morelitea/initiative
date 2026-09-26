@@ -650,12 +650,14 @@ async def test_a_write_naming_three_people_costs_the_same_two(
     headers = install_headers(installed, scopes)
     guild = installed.guild.id
 
-    project = await client.post(
-        guild_url(guild, "/projects/"),
-        headers=headers,
-        json={"name": "The app's", "initiative_id": installed.placed.id},
+    # Open to the initiative for writing, so every member can be named on it.
+    project = await create_project(session, installed.placed, installed.seat.user)
+    await create_resource_grant(
+        session,
+        project,
+        all_initiative_members=True,
+        level=ResourceAccessLevel.write,
     )
-    assert project.status_code == 201, project.text
     members = await client.get(guild_url(guild, "/users/search"), headers=headers)
     refs = [item["id"] for item in members.json()["items"]]
     others = [ref for ref in refs][:3]
@@ -666,7 +668,7 @@ async def test_a_write_naming_three_people_costs_the_same_two(
             guild_url(guild, "/tasks/"),
             headers=headers,
             json={
-                "project_id": project.json()["id"],
+                "project_id": project.id,
                 "title": "Three of them",
                 "assignee_ids": others,
             },

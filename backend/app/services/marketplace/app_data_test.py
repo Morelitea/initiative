@@ -20,6 +20,7 @@ import pytest
 from app.core.messages import AppDataMessages
 from app.services.marketplace.registration_lookup import RegistrationSnapshot
 from app.services.marketplace import app_data as service
+from app.services.marketplace.registration_lookup import service_public_id
 
 
 URL = "http://127.0.0.1:9100/v1/endpoints"
@@ -385,14 +386,14 @@ class TestDefinitionReading:
 
     def test_only_a_service_app_has_a_backing_service(self):
         assert (
-            service.service_public_id(
+            service_public_id(
                 {"app_kind": "service", "service": {"public_id": "acme.shop"}}
             )
             == "acme.shop"
         )
-        assert service.service_public_id({"app_kind": "tool_instance"}) is None
-        assert service.service_public_id({"app_kind": "service"}) is None
-        assert service.service_public_id(None) is None
+        assert service_public_id({"app_kind": "tool_instance"}) is None
+        assert service_public_id({"app_kind": "service"}) is None
+        assert service_public_id(None) is None
 
     def test_the_deployments_ceiling_outranks_the_manifests_request(self):
         """A listing asks for freshness; it does not get to decide it."""

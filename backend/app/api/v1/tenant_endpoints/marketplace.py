@@ -55,7 +55,6 @@ from app.services.marketplace import registration_lookup
 from app.services.import_engine.contract import ImportEngineError
 from app.services.marketplace.definitions import TOOL_LISTING_KINDS
 from app.services.marketplace.installs import (
-    ListingInstallError,
     count_install,
     installed_app_uids,
     listing_is_offered,
@@ -256,17 +255,7 @@ async def install_marketplace_listing(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=MarketplaceMessages.LISTING_NOT_FOUND,
         )
-    try:
-        listing, version = await resolve_listing_install(
-            session, uid, kind=listing.kind
-        )
-    except ListingInstallError as exc:
-        raise HTTPException(
-            status_code=(
-                status.HTTP_404_NOT_FOUND if exc.not_found else status.HTTP_409_CONFLICT
-            ),
-            detail=exc.code,
-        ) from exc
+    listing, version = await resolve_listing_install(session, uid, kind=listing.kind)
     if payload.start_from == ListingStartFrom.example and (
         example_is_generated(tool) or not version.example
     ):
@@ -290,7 +279,7 @@ async def install_marketplace_listing(
     except ImportEngineError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
     await session.commit()
-    await count_install(listing.id)
+    await count_install(guild_context.guild_id, listing.id)
     return MarketplaceInstallResult(
         kind=listing.kind,
         listing_uid=listing.uid,

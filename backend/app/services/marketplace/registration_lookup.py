@@ -215,14 +215,14 @@ async def frame_origins() -> tuple[str, ...]:
     )
 
 
-def service_public_id(definition: dict[str, Any] | None) -> Optional[str]:
+def service_public_id(definition: Mapping[str, Any] | None) -> Optional[str]:
     """The app service a pinned definition names, if it names one.
 
     Only a ``service`` app has one — a tool instance mounts one of this build's
     own tools and an embed opens a configured surface, and neither has a
     container behind it.
     """
-    if not isinstance(definition, dict):
+    if not isinstance(definition, Mapping):
         return None
     if definition.get("app_kind") != "service":
         return None

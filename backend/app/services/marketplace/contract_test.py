@@ -24,6 +24,7 @@ and every handler having a term — lives in :mod:`contract_coverage_test`.
 import pytest
 from jsonschema import Draft202012Validator
 
+from app.core.app_scopes import ALL_SCOPES
 from app.services.marketplace import contract
 from app.services.marketplace.manifest_values import (
     MAX_IDENTIFIER_LENGTH,
@@ -47,7 +48,6 @@ from app.services.marketplace.service_apps import (
     MAX_WIDGETS,
     PARAM_TYPES,
     RETURN_TYPES,
-    SCOPES,
     SURFACE_SCOPES,
 )
 
@@ -145,7 +145,7 @@ def test_vocabularies_come_from_the_validator():
     assert set(defs["endpoint"]["properties"]["direction"]["enum"]) == DIRECTIONS
     assert set(defs["endpoint"]["properties"]["actors"]["items"]["enum"]) == ACTOR_KINDS
     scope_items = props["service"]["properties"]["scopes"]["items"]["anyOf"]
-    assert set(scope_items[0]["enum"]) == SCOPES
+    assert set(scope_items[0]["enum"]) == set(ALL_SCOPES)
     assert scope_items[1] == {"$ref": "#/$defs/appScope"}
     assert defs["embed"]["properties"]["admin_only"]["type"] == "boolean"
     assert defs["endpoint"]["properties"]["admin_only"]["type"] == "boolean"

@@ -74,6 +74,7 @@ from app.models.tenant.task import Task, TaskAssignee, TaskStatus, TaskStatusCat
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.services import email as email_service
 from app.services import permissions as permissions_service
+from app.services.tenant.named_people import roster_session
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.services.guild_sweeps import Scan, Scope
 from app.services.platform import accounts as accounts_service
@@ -273,17 +274,19 @@ async def resolve_subject(session: AsyncSession, ref: Ref) -> Subject | None:
     ).scalar_one_or_none()
     if row is None:
         return None
-    members = (
-        await session.exec(
-            select(GuildMembership.user_id, GuildMembership.role).where(
-                GuildMembership.guild_id == routed_guild_id(session)
+    guild_id = routed_guild_id(session)
+    async with roster_session(session) as reader:
+        members = (
+            await reader.exec(
+                select(GuildMembership.user_id, GuildMembership.role).where(
+                    GuildMembership.guild_id == guild_id
+                )
             )
+        ).all()
+        shared = (await permissions_service.audience(reader, tool, [row.id])).get(
+            row.id, set()
         )
-    ).all()
     admins = {user_id for user_id, role in members if role in GUILD_ADMIN_ROLES}
-    shared = (await permissions_service.audience(session, tool, [row.id])).get(
-        row.id, set()
-    )
     return Subject(
         tool=tool,
         initiative_id=row.initiative_id,

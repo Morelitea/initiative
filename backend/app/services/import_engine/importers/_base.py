@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Type
 
 from pydantic import BaseModel, ValidationError
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import ImportEngineMessages
@@ -103,10 +104,25 @@ async def grant_ownership(
     cross in any envelope — who may read a thing is a fact about the community
     it was written in — so every importer writes this one row and no other.
 
+    Created on the importer's own request, the row is already there: the
+    table's owner trigger wrote it. A job's request names nobody, and the row
+    is written here.
+
     The flush is part of it: the sharing has to be in the database before the
     content it governs, and a flush orders its statements by table rather than
     by the order things were added.
     """
+    owned = (
+        await session.exec(
+            select(ResourceGrant.id).where(
+                ResourceGrant.resource_type == tool.value,
+                ResourceGrant.resource_id == entity_id,
+                ResourceGrant.level == ResourceAccessLevel.owner,
+            )
+        )
+    ).first()
+    if owned is not None:
+        return
     session.add(
         ResourceGrant(
             resource_type=tool.value,

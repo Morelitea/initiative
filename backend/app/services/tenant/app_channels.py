@@ -48,6 +48,7 @@ from app.models.tenant.app_event_outbox import AppEventOutbox
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.marketplace.app_refs import ensure_app_guild_ref
+from app.services.marketplace.registration_lookup import service_public_id
 from app.services.marketplace.service_apps import ENDPOINT_ID_PREFIX
 from app.services.tenant import app_config as app_config_service
 from app.services.tenant import app_connection_flows as flows
@@ -101,14 +102,6 @@ class AppChannelError(Exception):
 # --- which installs are this app's ------------------------------------------
 
 
-def _definition_service_id(definition: dict[str, Any] | None) -> Optional[str]:
-    service = (definition or {}).get("service")
-    if not isinstance(service, dict):
-        return None
-    public_id = service.get("public_id")
-    return public_id if isinstance(public_id, str) else None
-
-
 def owns_install(app: GuildApp, registration: RegisteredApp) -> bool:
     """Whether this install is the calling app's.
 
@@ -122,7 +115,7 @@ def owns_install(app: GuildApp, registration: RegisteredApp) -> bool:
         return False
     if not registration.listing_uid or app.listing_uid != registration.listing_uid:
         return False
-    return _definition_service_id(app.definition) == registration.public_id
+    return service_public_id(app.definition) == registration.public_id
 
 
 async def _route(session: AsyncSession, guild_id: int, *, read_only: bool) -> None:
@@ -231,10 +224,12 @@ async def config_payload(session: AsyncSession, app: GuildApp) -> dict[str, Any]
             # there is no guild-wide value for a credential a vendor issued to
             # one person.
             continue
-        values = _without_tokens((app.config or {}).get(connection_id))
+        values = app_config_service.without_tokens(
+            (app.config or {}).get(connection_id)
+        )
         values.update(
             app_config_service.decrypt_connection_secrets(
-                _without_tokens(secrets.get(connection_id))
+                app_config_service.without_tokens(secrets.get(connection_id))
             )
         )
         if values:
@@ -249,9 +244,9 @@ async def config_payload(session: AsyncSession, app: GuildApp) -> dict[str, Any]
             "connection_ref": row.connection_ref,
             "status": row.status,
             "values": {
-                **_without_tokens(row.config),
+                **app_config_service.without_tokens(row.config),
                 **app_config_service.decrypt_connection_secrets(
-                    _without_tokens(row.config_secrets)
+                    app_config_service.without_tokens(row.config_secrets)
                 ),
             },
         }
@@ -272,15 +267,6 @@ async def config_payload(session: AsyncSession, app: GuildApp) -> dict[str, Any]
         "connections": connections,
         "connection_refs": connection_refs,
         "member_connections": member_values,
-    }
-
-
-def _without_tokens(values: dict[str, Any] | None) -> dict[str, Any]:
-    """A stored map without the keys a flow keeps its tokens under."""
-    return {
-        key: value
-        for key, value in (values or {}).items()
-        if key not in app_config_service.RESERVED_TOKEN_KEYS
     }
 
 

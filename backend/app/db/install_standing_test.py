@@ -18,6 +18,7 @@ from sqlmodel import select
 from datetime import datetime, timezone
 
 from app.api.deps import InstallAccessError, VerifiedInstall, establish_install_access
+from app.core.app_scopes import ALL_SCOPES
 from app.core.tools import Tool
 from app.db.guild_standing import InstallContext
 from app.db.request_context import ContextShapeError, InstallScoped, classify
@@ -79,13 +80,19 @@ async def _install(
     *,
     granted: list[str],
     placed: str = "ab",
+    requested: tuple[str, ...] = ALL_SCOPES,
 ) -> _Install:
     """An install placed in ``placed`` (of initiatives A and B), granted
-    ``granted`` by the community's seat, with a live registration."""
+    ``granted`` by the community's seat, with a live registration and a pinned
+    manifest requesting ``requested``."""
     seat = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
     second = await create_initiative(session, seat.guild, seat.user, name="B")
+    definition = {
+        **_APP_DEFINITION,
+        "service": {**_APP_DEFINITION["service"], "scopes": list(requested)},
+    }
     app = await create_guild_app(
-        session, seat.guild, seat.user, definition=_APP_DEFINITION, listing_uid=LISTING
+        session, seat.guild, seat.user, definition=definition, listing_uid=LISTING
     )
     await create_app_service_registration(
         session, public_id=CLIENT, listing_uid=LISTING
@@ -222,7 +229,7 @@ async def test_a_narrowed_token_stands_in_one_initiative(
 
 
 @pytest.mark.parametrize(
-    "granted,token,read,write",
+    "granted,token,read,write,requested",
     [
         # The token asks for less than the seat granted.
         (
@@ -230,6 +237,7 @@ async def test_a_narrowed_token_stands_in_one_initiative(
             ["documents:read"],
             {"documents"},
             set(),
+            ALL_SCOPES,
         ),
         # The seat granted less than the token asks for: what both name is
         # used, at the lower of the two levels.
@@ -238,19 +246,32 @@ async def test_a_narrowed_token_stands_in_one_initiative(
             ["documents:write", "projects:write"],
             {"documents"},
             set(),
+            ALL_SCOPES,
         ),
         (
             ["documents:read", "projects:write"],
             ["documents:write", "projects:write"],
             {"documents", "projects"},
             {"projects"},
+            ALL_SCOPES,
+        ),
+        # A token issued before the pinned version stopped requesting a scope
+        # carries it, and it is used no more.
+        (
+            ["documents:write", "projects:write"],
+            ["documents:write", "projects:write"],
+            {"documents"},
+            {"documents"},
+            ("documents:write",),
         ),
     ],
 )
 async def test_what_an_install_uses_is_the_grant_and_the_token_together(
-    session, acting_user, role_session, granted, token, read, write
+    session, acting_user, role_session, granted, token, read, write, requested
 ):
-    install = await _install(session, acting_user, role_session, granted=granted)
+    install = await _install(
+        session, acting_user, role_session, granted=granted, requested=requested
+    )
     s, context = await _route(role_session, install, token)
     assert set(context.install_read) == read
     assert set(context.install_write) == write

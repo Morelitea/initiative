@@ -32,9 +32,12 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Mapping, Optional
+from typing import Any, Awaitable, Callable, Iterable, Mapping, Optional
 
 from app.db.session import routed_guild_id
+from app.models.tenant.guild_app import GuildApp
+from app.services.marketplace.registration_lookup import service_public_id
+from app.services.tenant.app_config import RESERVED_TOKEN_KEYS, without_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +46,7 @@ __all__ = [
     "RevocationIntent",
     "dispatch_revocations",
     "drain_revocations",
-    "intent_for",
-    "queue_revocation",
+    "queue_install_revocations",
     "queue_revocations_for_rows",
 ]
 
@@ -54,9 +56,6 @@ _SESSION_INFO_KEY = "app_credential_revocations"
 REVOKE_ATTEMPTS = 3
 #: The pause before the second and third tries, in seconds.
 retry_delays: tuple[float, ...] = (0.5, 1.0)
-
-#: The keys a flow's sealed tokens are held under.
-_SEALED_KEYS = ("access_token", "refresh_token")
 
 
 @dataclass(frozen=True)
@@ -85,14 +84,7 @@ class RevocationIntent:
     sealed_tokens: dict[str, str] = field(default_factory=dict)
 
 
-def _public_id(definition: Mapping[str, Any] | None) -> Optional[str]:
-    service = (definition or {}).get("service")
-    if isinstance(service, dict) and isinstance(service.get("public_id"), str):
-        return service["public_id"]
-    return None
-
-
-def intent_for(
+def _intent_for(
     *,
     guild_id: int,
     app_id: int,
@@ -120,40 +112,70 @@ def intent_for(
         connection_ref=connection_ref,
         user_id=user_id,
         reason=reason,
-        public_id=_public_id(definition),
+        public_id=service_public_id(definition),
         flow=dict(flow) if isinstance(flow, dict) else None,
-        fields={
-            key: value
-            for key, value in (config or {}).items()
-            if key not in ("expires_at", "refresh_expires_at")
-        },
+        fields=without_tokens(config),
         sealed_tokens={
             key: value
             for key, value in (secrets or {}).items()
-            if key in _SEALED_KEYS and isinstance(value, str)
+            if key in RESERVED_TOKEN_KEYS and isinstance(value, str)
         },
     )
 
 
-def queue_revocation(session: Any, intent: RevocationIntent) -> None:
+def _queue(session: Any, intent: RevocationIntent) -> None:
     """Record one intent, to be sent after the caller commits."""
     session.info.setdefault(_SESSION_INFO_KEY, []).append(intent)
 
 
+def queue_install_revocations(
+    session: Any,
+    app: GuildApp,
+    connection_ids: Iterable[str],
+    *,
+    secrets: Mapping[str, Any],
+    reason: str,
+) -> None:
+    """Record an intent for each of ``app``'s community connections whose
+    stored values are about to go.
+
+    Read from ``app.config``, ``secrets`` and ``app.definition`` as they are,
+    so it is called before any of them changes.
+    """
+    guild_id = routed_guild_id(session)
+    for connection_id in sorted(connection_ids):
+        _queue(
+            session,
+            _intent_for(
+                guild_id=guild_id,
+                app_id=app.id,
+                listing_uid=app.listing_uid,
+                definition=app.definition,
+                connection_id=connection_id,
+                config=(app.config or {}).get(connection_id),
+                secrets=secrets.get(connection_id),
+                reason=reason,
+            ),
+        )
+
+
 def queue_revocations_for_rows(
     session: Any,
+    rows: Iterable[Any],
     *,
-    listing_uid: str,
-    rows: Any,
     reason: str,
-    definition: Mapping[str, Any] | None = None,
+    installs: Mapping[int, tuple[str, Mapping[str, Any] | None]],
 ) -> None:
-    """Record an intent for each member connection row being deleted."""
+    """Record an intent for each member connection row whose values are about
+    to go. ``installs`` gives, per install id, its listing and the definition
+    its connections were made under."""
+    guild_id = routed_guild_id(session)
     for row in rows:
-        queue_revocation(
+        listing_uid, definition = installs.get(row.app_id, ("", None))
+        _queue(
             session,
-            intent_for(
-                guild_id=routed_guild_id(session),
+            _intent_for(
+                guild_id=guild_id,
                 app_id=row.app_id,
                 listing_uid=listing_uid,
                 definition=definition,

@@ -281,6 +281,7 @@ async def test_a_person_creating_a_document_gets_no_install_grant(
             select(ResourceGrant).where(
                 ResourceGrant.resource_type == Tool.document.value,
                 ResourceGrant.resource_id == made.id,
+                ResourceGrant.app_install_id.is_not(None),
             )
         )
     ).all()

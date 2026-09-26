@@ -58,7 +58,7 @@ from app.core.messages import (
     InitiativeMessages,
     MarketplaceMessages,
 )
-from app.db import cohorts
+from app.db.guild_standing import GuildContext
 from app.db.query import build_paginated_response, paginated_query
 from app.models.platform.guild import GuildMembership
 from app.models.tenant.app_member_consent import AppMemberConsent
@@ -101,11 +101,10 @@ from app.services.marketplace.definitions import (
     GUILD_INSTALLABLE_APP_KINDS,
 )
 from app.services.marketplace.installs import (
-    ListingInstallError,
+    count_install,
     resolve_listing_install,
 )
 from app.services.membership import initiative_scope_clause
-from app.services.platform import guilds as guilds_service
 from app.services.tenant import app_config as app_config_service
 from app.services.tenant import app_connection_flows as flows_service
 from app.services.tenant import app_connections as connections_service
@@ -115,9 +114,6 @@ from app.services.tenant import app_revocation as revocation_service
 from app.services.tenant import app_schedules as app_schedules_service
 from app.services.tenant import app_updates as app_updates_service
 from app.services.tenant import guild_apps as guild_apps_service
-from app.services.tenant import (
-    webhook_subscriptions as webhook_subscriptions_service,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -267,27 +263,6 @@ async def _load(
     return app
 
 
-async def _resolve_app_listing(
-    session: RLSSessionDep, listing_uid: str, *, already_installed: bool = False
-):
-    """The catalog rows behind an app install, as an HTTP answer.
-
-    The resolving itself is shared with dashboards (``services.marketplace``);
-    only the mapping to a status code belongs to this layer.
-    """
-    try:
-        return await resolve_listing_install(
-            session, listing_uid, kind="app", already_installed=already_installed
-        )
-    except ListingInstallError as exc:
-        raise HTTPException(
-            status_code=(
-                status.HTTP_404_NOT_FOUND if exc.not_found else status.HTTP_409_CONFLICT
-            ),
-            detail=exc.code,
-        ) from exc
-
-
 def _require_installable_kind(definition: dict) -> None:
     """Two separate refusals, because they are two different mistakes.
 
@@ -347,6 +322,50 @@ async def _flush_revocations(session) -> None:
     intents = revocation_service.drain_revocations(session)
     if intents:
         await revocation_service.dispatch_revocations(intents)
+
+
+async def _read(
+    session: AsyncSession, app: GuildApp, context: GuildContext
+) -> GuildAppRead:
+    """One install as the list reads it."""
+    return serialize_guild_app(
+        app,
+        install_state=await registration_lookup.install_state(app.definition),
+        avatar_url=await _app_avatar(session, app),
+        context=context,
+        placements=await _placements(session, app),
+        artifacts=await guild_apps_service.app_artifacts(session, app),
+    )
+
+
+async def _detail(
+    session: AsyncSession,
+    app: GuildApp,
+    context: GuildContext,
+    user_id: int,
+    *,
+    offer: Optional[app_updates_service.UpdateOffer] = None,
+) -> GuildAppDetail:
+    """One install with its connections and consents, as ``user_id`` sees it.
+
+    ``offer`` is the update offered, read here when not given.
+    """
+    if offer is None:
+        offer = await app_updates_service.update_offer(session, app)
+    return serialize_guild_app_detail(
+        app,
+        avatar_url=await _app_avatar(session, app),
+        member_rows=await _member_rows(session, app_id=app.id, user_id=user_id),
+        install_state=await registration_lookup.install_state(app.definition),
+        update_offer=offer,
+        app_names=await _app_names(session, app, offer),
+        context=context,
+        placements=await _placements(session, app),
+        artifacts=await guild_apps_service.app_artifacts(session, app),
+        consent_rows=await consents_service.list_member_consents(
+            session, install_id=app.id, user_id=user_id
+        ),
+    )
 
 
 async def _member_rows(session, *, app_id: int, user_id: int) -> dict:
@@ -416,21 +435,7 @@ async def get_guild_app(
     values, so there is nothing here that belongs to somebody else.
     """
     app = await _load(session, app_id)
-    offer = await app_updates_service.update_offer(session, app)
-    return serialize_guild_app_detail(
-        app,
-        avatar_url=await _app_avatar(session, app),
-        member_rows=await _member_rows(session, app_id=app.id, user_id=current_user.id),
-        install_state=await registration_lookup.install_state(app.definition),
-        update_offer=offer,
-        app_names=await _app_names(session, app, offer),
-        context=guild_context,
-        placements=await _placements(session, app),
-        artifacts=await guild_apps_service.app_artifacts(session, app),
-        consent_rows=await consents_service.list_member_consents(
-            session, install_id=app.id, user_id=current_user.id
-        ),
-    )
+    return await _detail(session, app, guild_context, current_user.id)
 
 
 @router.post("/", response_model=GuildAppRead, status_code=status.HTTP_201_CREATED)
@@ -464,7 +469,9 @@ async def install_guild_app(
             detail=GuildAppMessages.PLACEMENT_ROLE_INVALID,
         )
 
-    listing, version = await _resolve_app_listing(session, payload.listing_uid)
+    listing, version = await resolve_listing_install(
+        session, payload.listing_uid, kind="app"
+    )
 
     existing = (
         await session.exec(select(GuildApp).where(GuildApp.listing_uid == listing.uid))
@@ -528,15 +535,8 @@ async def install_guild_app(
         guild_context.guild_id, app.id, app.definition
     )
 
-    installed = serialize_guild_app(
-        app,
-        install_state=await registration_lookup.install_state(app.definition),
-        avatar_url=await _app_avatar(session, app),
-        context=guild_context,
-        placements=await _placements(session, app),
-        artifacts=await guild_apps_service.app_artifacts(session, app),
-    )
-    await _count_install(guild_context.guild_id, listing.id)
+    installed = await _read(session, app, guild_context)
+    await count_install(guild_context.guild_id, listing.id)
     return installed
 
 
@@ -575,8 +575,8 @@ async def upgrade_guild_app(
     # The listing is resolved here rather than inside the shared apply, so a
     # withdrawn or missing one is reported as the HTTP answer it deserves
     # instead of reading as "nothing to update to".
-    _, version = await _resolve_app_listing(
-        session, app.listing_uid, already_installed=True
+    _, version = await resolve_listing_install(
+        session, app.listing_uid, kind="app", already_installed=True
     )
     if version.version == app.listing_version:
         raise HTTPException(
@@ -653,18 +653,7 @@ async def upgrade_guild_app(
     await app_schedules_service.reconcile(
         guild_context.guild_id, app.id, app.definition
     )
-    offer = await app_updates_service.update_offer(session, app)
-    return serialize_guild_app_detail(
-        app,
-        avatar_url=await _app_avatar(session, app),
-        member_rows=await _member_rows(session, app_id=app.id, user_id=current_user.id),
-        install_state=await registration_lookup.install_state(app.definition),
-        update_offer=offer,
-        app_names=await _app_names(session, app, offer),
-        context=guild_context,
-        placements=await _placements(session, app),
-        artifacts=await guild_apps_service.app_artifacts(session, app),
-    )
+    return await _detail(session, app, guild_context, current_user.id)
 
 
 @router.post("/{app_id}/upgrade/decline", response_model=GuildAppDetail)
@@ -707,17 +696,7 @@ async def decline_guild_app_upgrade(
         )
     await session.commit()
     await session.refresh(app)
-    return serialize_guild_app_detail(
-        app,
-        avatar_url=await _app_avatar(session, app),
-        member_rows=await _member_rows(session, app_id=app.id, user_id=current_user.id),
-        install_state=await registration_lookup.install_state(app.definition),
-        update_offer=offer,
-        app_names=await _app_names(session, app, offer),
-        context=guild_context,
-        placements=await _placements(session, app),
-        artifacts=await guild_apps_service.app_artifacts(session, app),
-    )
+    return await _detail(session, app, guild_context, current_user.id, offer=offer)
 
 
 @router.patch("/{app_id}", response_model=GuildAppRead)
@@ -788,14 +767,7 @@ async def update_guild_app(
     await session.commit()
     await session.refresh(app)
     await app_installs_service.record(guild_context.guild_id, app)
-    return serialize_guild_app(
-        app,
-        install_state=await registration_lookup.install_state(app.definition),
-        avatar_url=await _app_avatar(session, app),
-        context=guild_context,
-        placements=await _placements(session, app),
-        artifacts=await guild_apps_service.app_artifacts(session, app),
-    )
+    return await _read(session, app, guild_context)
 
 
 @router.delete("/{app_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -805,14 +777,8 @@ async def uninstall_guild_app(
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
 ) -> None:
-    """Remove an app, ending its access and trashing what it created.
-
-    The two halves are deliberately different. **Credentials are deleted**, both
-    the guild's and every member's, and each app is told to let go at the vendor
-    — an uninstalled app still receiving a guild's data is the thing this
-    prevents. **Content is trashed**, because the events someone put in a guild
-    calendar are the guild's, and should survive an admin removing the app for
-    as long as the retention window allows.
+    """Remove an app, ending its access and trashing what it created
+    (:func:`~app.services.tenant.guild_apps.uninstall_app`).
 
     An app the deployment provides to every guild is not removable here (§7.7):
     the operator's registration decides whether it exists at all.
@@ -823,59 +789,8 @@ async def uninstall_guild_app(
     app = await _load(session, app_id, for_update=True)
     await _require_removable(app)
 
-    retention_days = await guilds_service.get_guild_retention_days(session)
-    connections = await connections_service.delete_app_connections(session, app=app)
-    # Every member's answers to its requests go with it. The foreign key would
-    # take them with the install row; removed here so the record counts them.
-    consents = await consents_service.delete_install_consents(
-        session, install_id=app.id
-    )
-    # An install is what makes an app present in a guild, so removing it ends
-    # what that app is sent. Switched off rather than deleted: the row records
-    # what was going where, and a reinstall registers afresh.
-    await webhook_subscriptions_service.deactivate_for_install(
-        session, guild_id=routed_guild_id(session), app_install_id=app.id
-    )
-    secrets = await guild_apps_service.load_secrets(session, app)
-    for stored_id in sorted({*(app.config or {}), *secrets}):
-        revocation_service.queue_revocation(
-            session,
-            revocation_service.intent_for(
-                guild_id=routed_guild_id(session),
-                app_id=app.id,
-                listing_uid=app.listing_uid,
-                definition=app.definition,
-                connection_id=stored_id,
-                config=(app.config or {}).get(stored_id),
-                secrets=secrets.get(stored_id),
-                reason="uninstalled",
-            ),
-        )
-    await guild_apps_service.remove_app_artifacts(
-        session,
-        app,
-        deleted_by_user_id=current_user.id,
-        retention_days=retention_days,
-    )
-    install_id = app.id
-    guild_id = routed_guild_id(session)
-    listing_uid = app.listing_uid
-    await session.delete(app)
-    # Staged before the commit that removes the row, and reading the counts the
-    # steps above returned rather than asking again.
-    await audit_service.record(
-        session,
-        event_type=AuditEventType.APP_UNINSTALLED,
-        actor_user_id=current_user.id,
-        guild_id=guild_id,
-        target_type="app",
-        target_id=install_id,
-        detail={
-            "listing_uid": listing_uid,
-            "connections": connections,
-            "consents": consents,
-        },
-    )
+    install_id, guild_id = app.id, routed_guild_id(session)
+    await guild_apps_service.uninstall_app(session, app, actor_user_id=current_user.id)
     await session.commit()
     await _flush_revocations(session)
     await app_installs_service.forget(guild_id, install_id)
@@ -921,89 +836,18 @@ async def update_guild_app_config(
     # Both configuration maps are rewritten whole below, so the row is taken
     # first — a flow completing is doing the same thing to the same values.
     app = await _load(session, app_id, for_update=True)
-
-    config = dict(app.config or {})
-    secrets = await guild_apps_service.load_secrets(session, app)
-    before = _config_fields(config, secrets)
-
-    for connection_id, submitted in payload.values.items():
-        connection = app_config_service.connection_by_id(app.definition, connection_id)
-        if connection is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=GuildAppMessages.CONFIG_UNKNOWN_CONNECTION,
-            )
-        if connection.get("scope") != "static":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=GuildAppMessages.CONNECTION_NOT_STATIC,
-            )
-        try:
-            new_config, new_secrets = app_config_service.apply_connection_values(
-                connection,
-                submitted,
-                current=config.get(connection_id) or {},
-                current_secrets=secrets.get(connection_id) or {},
-            )
-        except app_config_service.AppConfigError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
-            ) from exc
-
-        if new_config:
-            config[connection_id] = new_config
-        else:
-            config.pop(connection_id, None)
-        if new_secrets:
-            secrets[connection_id] = new_secrets
-        else:
-            secrets.pop(connection_id, None)
-        if flows_service.token_of(connection) is not None:
-            # A connection the app asks a token for is addressed by a handle.
-            app_config_service.guild_connection_ref(app, connection_id)
-
-    app.config = config
-    await guild_apps_service.store_secrets(session, app, secrets)
-    # The app has not seen these values yet, so its previous verdict no longer
-    # describes them. It reports again once it has pulled and checked.
-    app.config_state = "unverified"
-    app.config_state_detail = None
-    guild_apps_service.touch(app)
-    session.add(app)
-    # Which fields hold something different now, by name. A configuration value
-    # is the app's credential to the vendor, so none of it reaches the record.
-    moved = audit_service.changed_fields(before, _config_fields(config, secrets))[
-        "changed"
-    ]
-    if moved:
-        await audit_service.record(
-            session,
-            event_type=AuditEventType.APP_UPDATED,
-            actor_user_id=current_user.id,
-            guild_id=guild_context.guild_id,
-            target_type="app",
-            target_id=app.id,
-            detail={
-                "area": "config",
-                "changed": moved,
-                "connection_ids": sorted(payload.values),
-            },
+    try:
+        await guild_apps_service.apply_static_config(
+            session, app, payload.values, actor_user_id=current_user.id
         )
+    except app_config_service.AppConfigError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
+        ) from exc
     await session.commit()
     await session.refresh(app)
     await app_installs_service.record(guild_context.guild_id, app)
-    offer = await app_updates_service.update_offer(session, app)
-    return serialize_guild_app_detail(
-        app,
-        avatar_url=await _app_avatar(session, app),
-        member_rows=await _member_rows(session, app_id=app.id, user_id=current_user.id),
-        install_state=await registration_lookup.install_state(app.definition),
-        update_offer=offer,
-        app_names=await _app_names(session, app, offer),
-        context=guild_context,
-        placements=await _placements(session, app),
-        artifacts=await guild_apps_service.app_artifacts(session, app),
-    )
+    return await _detail(session, app, guild_context, current_user.id)
 
 
 # ---------------------------------------------------------------------------
@@ -1166,14 +1010,7 @@ async def put_guild_app_scopes(
         )
     await session.commit()
     await session.refresh(app)
-    return serialize_guild_app(
-        app,
-        install_state=await registration_lookup.install_state(app.definition),
-        avatar_url=await _app_avatar(session, app),
-        context=guild_context,
-        placements=await _placements(session, app),
-        artifacts=await guild_apps_service.app_artifacts(session, app),
-    )
+    return await _read(session, app, guild_context)
 
 
 # ---------------------------------------------------------------------------
@@ -1357,7 +1194,7 @@ async def connect_guild_app(
             user_id=user_id,
             started_by=current_user.id,
             public_id=registration.public_id,
-            fields=flows_service.stored_fields(stored_config),
+            fields=app_config_service.without_tokens(stored_config),
         )
     except flows_service.ConnectionFlowError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
@@ -1393,42 +1230,7 @@ async def disconnect_guild_app(
         # Clearing rewrites both configuration maps, so it takes the row: an app
         # writing back at the same moment must not put back what was cleared.
         app = await _load(session, app_id, for_update=True)
-        secrets = await guild_apps_service.load_secrets(session, app)
-        if (app.config or {}).get(connection_id) or secrets.get(connection_id):
-            revocation_service.queue_revocation(
-                session,
-                revocation_service.intent_for(
-                    guild_id=routed_guild_id(session),
-                    app_id=app.id,
-                    listing_uid=app.listing_uid,
-                    definition=app.definition,
-                    connection_id=connection_id,
-                    config=(app.config or {}).get(connection_id),
-                    secrets=secrets.get(connection_id),
-                    reason="disconnected",
-                ),
-            )
-        app.config = {
-            key: value
-            for key, value in (app.config or {}).items()
-            if key != connection_id
-        }
-        await guild_apps_service.store_secrets(
-            session,
-            app,
-            {key: value for key, value in secrets.items() if key != connection_id},
-        )
-        # The handle goes with them, so a token asked for by the old one is
-        # refused. Connecting again mints a fresh one.
-        app.connection_refs = {
-            key: value
-            for key, value in (app.connection_refs or {}).items()
-            if key != connection_id
-        }
-        app.config_state = "unverified"
-        app.config_state_detail = None
-        guild_apps_service.touch(app)
-        session.add(app)
+        await guild_apps_service.clear_static_connection(session, app, connection_id)
     else:
         await connections_service.disconnect(
             session,
@@ -1786,22 +1588,3 @@ async def revoke_all_member_connections(
     await connections_service.revoke_all(session, app=app)
     await session.commit()
     await _flush_revocations(session)
-
-
-async def _count_install(guild_id: int, listing_id: Optional[int]) -> None:
-    """Tally the install against its listing, after the fact and best-effort —
-    the catalog has no request-path writer, and a failed tally must not undo an
-    install that already happened. On a system session from the installing
-    community's cohort."""
-    if listing_id is None:
-        return
-    try:
-        async with cohorts.system_session(guild_id) as system_session:
-            await catalog_service.bump_installs_count(system_session, listing_id)
-            await system_session.commit()
-    except Exception:
-        logger.warning(
-            "marketplace: install count bump failed for listing %s",
-            listing_id,
-            exc_info=True,
-        )

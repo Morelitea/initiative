@@ -184,7 +184,7 @@ async def _second_install(session, role_session, installed, scopes):
         installed.seat.user,
         definition={
             "app_kind": "service",
-            "service": {"public_id": client_id, "protocol": 1},
+            "service": {"public_id": client_id, "protocol": 1, "scopes": list(scopes)},
         },
         listing_uid=listing,
     )

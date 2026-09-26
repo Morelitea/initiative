@@ -35,12 +35,13 @@ from dataclasses import dataclass
 from typing import Any, Mapping, Optional
 
 import httpx
-from sqlalchemy import or_
+from sqlalchemy import or_, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.app_scopes import app_scope
 from app.core.messages import AppDataMessages, AppHubMessages
+from app.db.guild_standing import ISSUABLE_SCOPES_SQL
 from app.db.session import clear_rls_context, set_rls_context
 from app.models.tenant.app_member_consent import AppMemberConsent, ConsentAccess
 from app.models.tenant.app_placement import AppPlacement
@@ -51,7 +52,6 @@ from app.services.marketplace.app_refs import ensure_app_ref
 from app.services.marketplace.registration_lookup import RegistrationSnapshot
 from app.services.marketplace.service_apps import is_admin_only
 from app.services.tenant.app_channels import owns_install
-from app.services.tenant.guild_apps import requested_scopes
 
 __all__ = [
     "INSTALLATION",
@@ -98,6 +98,11 @@ class HubAnswer:
     direction: str
     #: The answer came from the response cache.
     cached: bool = False
+
+
+_ISSUABLE_SQL = text(
+    f"SELECT {ISSUABLE_SCOPES_SQL} FROM guild_apps a WHERE a.id = :install_id"
+)
 
 
 def _refuse(code: str, status_code: int) -> AppDataError:
@@ -191,16 +196,11 @@ async def call_app(
 
     try:
         await set_rls_context(session, guild_id=caller.guild_id, read_only=True)
-        caller_app = (
-            await session.exec(select(GuildApp).where(GuildApp.id == caller.install_id))
-        ).first()
-        # The seat's grant and the pinned version are read now, so a scope the
-        # seat has taken back refuses the next call.
-        if (
-            caller_app is None
-            or scope not in (caller_app.granted_scopes or ())
-            or scope not in requested_scopes(caller_app.definition)
-        ):
+        # Read now, so a scope the seat has taken back refuses the next call.
+        issuable = (
+            await session.exec(_ISSUABLE_SQL, params={"install_id": caller.install_id})
+        ).scalar_one_or_none()
+        if issuable is None or scope not in issuable:
             raise _refuse(AppHubMessages.INSUFFICIENT_SCOPE, 403)
 
         registration = await _target_registration(target_public_id)
