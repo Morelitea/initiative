@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import type {
   GuildAppRead,
-  InitiativeRead,
+  InitiativeListRead,
   ProjectRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -37,7 +37,7 @@ import { resolveArtworkUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 
 export interface InitiativeSectionProps {
-  initiative: InitiativeRead;
+  initiative: InitiativeListRead;
   projects: ProjectRead[];
   activeProjectId: number | null;
   /** Per-tool sidebar counts. Every in-app list tool shows one — the rows all

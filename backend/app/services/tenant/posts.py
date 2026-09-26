@@ -33,12 +33,11 @@ from app.services.tenant import tags as tags_service
 
 
 def list_loader_options() -> list:
-    """Eager-load what a post *list* row needs: its sharing, its initiative's
-    memberships (the audience is drawn from them), the level the request holds
-    on it, and its tags."""
+    """Eager-load what a post *list* row needs: its sharing, its initiative,
+    the level the request holds on it, and its tags."""
     return [
         selectinload(Post.grants).selectinload(ResourceGrant.role),
-        selectinload(Post.initiative).selectinload(Initiative.memberships),
+        selectinload(Post.initiative),
         undefer(Post.actions),
         # Who wrote it. A notice is signed — the board shows the person above
         # the headline the way a comment shows its author — so the profile

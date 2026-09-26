@@ -1105,7 +1105,7 @@ async def test_directory_reports_the_callers_own_state(
 
     A private initiative appears to its own members — their sidebar already
     shows it — listed ahead of the joinable ones. Each card carries the roster
-    size and where the caller stands with it.
+    size and where the caller stands with it, on which role.
     """
     admin = await acting_user(guild_role=GuildRole.admin)
     mine = await create_initiative(
@@ -1134,9 +1134,11 @@ async def test_directory_reports_the_callers_own_state(
     # The creator (PM) plus the member who joined.
     assert entries[0]["member_count"] == 2
     assert entries[0]["is_member"] is True
+    assert entries[0]["role_display_name"] == "Member"
     assert entries[0]["has_pending_request"] is False
     assert entries[1]["member_count"] == 1
     assert entries[1]["is_member"] is False
+    assert entries[1]["role_display_name"] is None
     assert entries[1]["has_pending_request"] is False
 
 

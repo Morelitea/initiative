@@ -7,6 +7,7 @@ import type {
   InitiativeDirectoryEntry,
   InitiativeJoinRequestCreate,
   InitiativeJoinRequestRead,
+  InitiativeListRead,
   InitiativeRead,
   JoinRequestStatus,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -48,9 +49,9 @@ import type { QueryOpts } from "@/types/query";
  * guild, but their navigation is their own memberships. {@link useGuildInitiatives}
  * is the guild-wide listing.
  */
-export const useInitiatives = (options?: QueryOpts<InitiativeRead[]>) => {
+export const useInitiatives = (options?: QueryOpts<InitiativeListRead[]>) => {
   const guildId = useActiveGuildId();
-  return useQuery<InitiativeRead[]>({
+  return useQuery<InitiativeListRead[]>({
     queryKey: getListInitiativesApiV1CGuildIdInitiativesGetQueryKey(guildId),
     queryFn: () => listInitiativesApiV1CGuildIdInitiativesGet(guildId),
     ...options,
@@ -63,9 +64,9 @@ const GUILD_SCOPE = { scope: InitiativeListScope.guild } as const;
  * Every initiative in the guild, for the guild-settings management table.
  * Guild admins only — the endpoint answers 403 to anyone else.
  */
-export const useGuildInitiatives = (options?: QueryOpts<InitiativeRead[]>) => {
+export const useGuildInitiatives = (options?: QueryOpts<InitiativeListRead[]>) => {
   const guildId = useActiveGuildId();
-  return useQuery<InitiativeRead[]>({
+  return useQuery<InitiativeListRead[]>({
     queryKey: getListInitiativesApiV1CGuildIdInitiativesGetQueryKey(guildId, GUILD_SCOPE),
     queryFn: () => listInitiativesApiV1CGuildIdInitiativesGet(guildId, GUILD_SCOPE),
     ...options,
@@ -80,10 +81,10 @@ export const useGuildInitiatives = (options?: QueryOpts<InitiativeRead[]>) => {
  */
 export const useInitiativesForGuild = (
   guildId: number | null,
-  options?: QueryOpts<InitiativeRead[]>
+  options?: QueryOpts<InitiativeListRead[]>
 ) => {
   const { enabled: userEnabled = true, ...rest } = options ?? {};
-  return useQuery<InitiativeRead[]>({
+  return useQuery<InitiativeListRead[]>({
     queryKey: getListInitiativesApiV1CGuildIdInitiativesGetQueryKey(guildId!),
     queryFn: () => listInitiativesApiV1CGuildIdInitiativesGet(guildId!),
     enabled: !!guildId && userEnabled,

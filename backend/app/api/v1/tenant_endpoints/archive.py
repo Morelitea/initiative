@@ -38,7 +38,6 @@ from app.core.messages import GuildMessages, InitiativeMessages
 from app.core.tools import Tool, plural_of
 from app.models.platform.user import User
 from app.models.tenant._mixins import archive_models
-from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.task import Task
@@ -96,10 +95,6 @@ async def _load(session: AsyncSession, entity_type: str, entity_id: int) -> Any:
             .selectinload(ResourceGrant.role),
             selectinload(Task.project).selectinload(Project.initiative),
             selectinload(Task.project).undefer(Project.actions),
-        )
-    else:
-        stmt = stmt.options(
-            selectinload(Initiative.memberships), selectinload(Initiative.roles)
         )
     row = (await session.exec(stmt)).one_or_none()
     if row is None:

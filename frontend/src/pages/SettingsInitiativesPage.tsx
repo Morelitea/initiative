@@ -10,7 +10,7 @@ import {
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { InitiativeRead, UserGuildMember } from "@/api/generated/initiativeAPI.schemas";
+import type { InitiativeListRead, UserGuildMember } from "@/api/generated/initiativeAPI.schemas";
 import { DeleteInitiativeDialog } from "@/components/initiatives/DeleteInitiativeDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,7 @@ import {
   useAddInitiativeMember,
   useDeleteInitiative,
   useGuildInitiatives,
+  useInitiative,
   useRemoveInitiativeMember,
   useUpdateInitiativeMember,
 } from "@/hooks/useInitiatives";
@@ -43,6 +44,20 @@ import { isAdminRole } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
+
+/** An initiative's headcount, read from its roster. */
+const InitiativeMemberCountCell = ({ initiativeId }: { initiativeId: number }) => {
+  const { t } = useTranslation("initiatives");
+  const { data } = useInitiative(initiativeId);
+  if (!data) {
+    return <Skeleton className="h-4 w-16" />;
+  }
+  return (
+    <span className="text-muted-foreground text-sm">
+      {t("manage.memberCount", { count: data.members.length })}
+    </span>
+  );
+};
 
 /**
  * Per-row project-manager picker — how a guild admin staffs an initiative, and
@@ -59,13 +74,14 @@ const InitiativeManagersCell = ({
   candidates,
   adminUserIds,
 }: {
-  initiative: InitiativeRead;
+  initiative: InitiativeListRead;
   candidates: UserGuildMember[];
   adminUserIds: Set<number>;
 }) => {
   const { t } = useTranslation(["initiatives", "common"]);
   const [open, setOpen] = useState(false);
   const rolesQuery = useInitiativeRoles(initiative.id);
+  const rosterQuery = useInitiative(initiative.id);
 
   // The project manager by name first: moderator is a manager role too, and
   // this column staffs an initiative rather than hands out Full access.
@@ -81,12 +97,13 @@ const InitiativeManagersCell = ({
   );
 
   const managerIds = useMemo(
-    () => new Set(initiative.members.filter((m) => m.is_manager).map((m) => m.user.id)),
-    [initiative.members]
+    () =>
+      new Set((rosterQuery.data?.members ?? []).filter((m) => m.is_manager).map((m) => m.user.id)),
+    [rosterQuery.data]
   );
   const memberIds = useMemo(
-    () => new Set(initiative.members.map((m) => m.user.id)),
-    [initiative.members]
+    () => new Set((rosterQuery.data?.members ?? []).map((m) => m.user.id)),
+    [rosterQuery.data]
   );
 
   const onError = (error: unknown) => {
@@ -130,13 +147,13 @@ const InitiativeManagersCell = ({
     }
   };
 
-  if (rolesQuery.isLoading) {
+  if (rolesQuery.isLoading || rosterQuery.isLoading) {
     return <Skeleton className="h-9 w-36" />;
   }
 
   // An unusable picker must say so rather than sit on a spinner that never
   // resolves.
-  if (rolesQuery.isError || !managerRole) {
+  if (rolesQuery.isError || rosterQuery.isError || !managerRole) {
     return (
       <TooltipProvider delayDuration={200}>
         <Tooltip>
@@ -233,9 +250,9 @@ export const SettingsInitiativesPage = () => {
     [candidates]
   );
 
-  const [deleteTarget, setDeleteTarget] = useState<InitiativeRead | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<InitiativeListRead | null>(null);
 
-  const toggleArchive = (initiative: InitiativeRead) => {
+  const toggleArchive = (initiative: InitiativeListRead) => {
     const nextArchived = initiative.archived_at === null;
     const mutation = nextArchived ? archiveInitiative : unarchiveInitiative;
     mutation.mutate(
@@ -262,7 +279,7 @@ export const SettingsInitiativesPage = () => {
     });
   };
 
-  const columns: AppColumnDef<InitiativeRead>[] = [
+  const columns: AppColumnDef<InitiativeListRead>[] = [
     {
       accessorKey: "id",
       header: t("manage.idColumn"),
@@ -297,11 +314,7 @@ export const SettingsInitiativesPage = () => {
     {
       id: "members",
       header: t("manage.membersColumn"),
-      cell: ({ row }) => (
-        <span className="text-muted-foreground text-sm">
-          {t("manage.memberCount", { count: row.original.members.length })}
-        </span>
-      ),
+      cell: ({ row }) => <InitiativeMemberCountCell initiativeId={row.original.id} />,
     },
     {
       id: "managers",

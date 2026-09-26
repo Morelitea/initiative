@@ -27,6 +27,7 @@ import type {
   InitiativeDirectoryEntry,
   InitiativeJoinRequestCreate,
   InitiativeJoinRequestRead,
+  InitiativeListRead,
   InitiativeMemberAdd,
   InitiativeMemberUpdate,
   InitiativeRead,
@@ -78,7 +79,7 @@ export const listInitiativesApiV1CGuildIdInitiativesGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<InitiativeRead[]>(
+  return apiMutator<InitiativeListRead[]>(
     { url: `/api/v1/c/${guildId}/initiatives/`, method: "GET", params, signal },
     options
   );

@@ -547,9 +547,9 @@ async def list_directory_entries(
     Active, non-archived initiatives whose policy asks to be listed — plus the
     caller's own initiatives whatever their policy, so the directory doubles as
     the guild's complete initiative list. Each entry carries its roster size
-    and the caller's own state (in it / knocked / free to join) so the client
-    renders one call to action per card. A private initiative the caller is
-    *not* in stays unlisted.
+    and the caller's own state (in it and on which role / knocked / free to
+    join) so the client renders one call to action per card. A private
+    initiative the caller is *not* in stays unlisted.
 
     One reading for everyone, guild admin included: their authority still
     reaches every initiative, but the front page lists the ones they are in and
@@ -575,6 +575,15 @@ async def list_directory_entries(
             InitiativeMember.user_id == user_id,
         )
         .exists()
+    )
+    role_display_name = (
+        select(InitiativeRoleModel.display_name)
+        .join(InitiativeMember, InitiativeMember.role_id == InitiativeRoleModel.id)
+        .where(
+            InitiativeMember.initiative_id == Initiative.id,
+            InitiativeMember.user_id == user_id,
+        )
+        .scalar_subquery()
     )
     has_pending_request = (
         select(InitiativeJoinRequest.id)
@@ -616,6 +625,7 @@ async def list_directory_entries(
             Initiative,
             member_count,
             is_member,
+            role_display_name,
             has_pending_request,
             pending_queue_size,
         )
@@ -639,10 +649,11 @@ async def list_directory_entries(
             auto_join=initiative.auto_join,
             member_count=count,
             is_member=member,
+            role_display_name=role,
             has_pending_request=pending,
             pending_join_request_count=queue_size,
         )
-        for initiative, count, member, pending, queue_size in rows
+        for initiative, count, member, role, pending, queue_size in rows
     ]
 
 

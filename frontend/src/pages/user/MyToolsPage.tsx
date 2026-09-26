@@ -23,7 +23,7 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
+import type { InitiativeListRead } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   getListInitiativesApiV1CGuildIdInitiativesGetQueryKey,
@@ -199,7 +199,7 @@ export function MyToolsPage() {
     // `combine` rather than a `useMemo` over the results: the results array is
     // a fresh identity every render, so a memo keyed on it would never hit and
     // the table's columns would rebuild under it each time.
-    combine: (results): InitiativeRead[] => results.flatMap((result) => result.data ?? []),
+    combine: (results): InitiativeListRead[] => results.flatMap((result) => result.data ?? []),
   });
 
   const emptyDescription = createdByMe ? t("empty.descriptionMine") : t("empty.description");
