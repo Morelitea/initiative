@@ -246,7 +246,6 @@ async def sync_oidc_assignments(
     # only where they did, so a guild whose half fails keeps the member it
     # still holds initiative rows for, for the next sync to finish.
     from app.services.tenant.initiatives import (
-        clear_user_task_assignments_for_initiative,
         enroll_in_auto_join_initiatives,
         remove_user_from_guild_initiatives,
     )
@@ -264,9 +263,6 @@ async def sync_oidc_assignments(
         ).all()
         for im in stale_inits:
             if im.initiative_id not in matched_initiative_ids:
-                await clear_user_task_assignments_for_initiative(
-                    guild_session, initiative_id=im.initiative_id, user_id=user_id
-                )
                 await _record(
                     guild_session,
                     event_type=AuditEventType.INITIATIVE_MEMBER_REMOVED,

@@ -346,84 +346,38 @@ async def ensure_managers_remain(
         raise ValueError(InitiativeMessages.MUST_HAVE_PM)
 
 
-async def clear_user_task_assignments_for_initiative(
-    session: AsyncSession,
-    *,
-    initiative_id: int,
-    user_id: int,
-) -> None:
-    """Remove task assignments for a user across all projects in an initiative."""
-    from app.models.tenant.task import Task, TaskAssignee
-    from app.models.tenant.project import Project
-
-    project_ids_result = await session.exec(
-        select(Project.id).where(Project.initiative_id == initiative_id)
-    )
-    project_ids = list(project_ids_result.all())
-    if not project_ids:
-        return
-
-    task_ids_result = await session.exec(
-        select(Task.id).where(Task.project_id.in_(tuple(project_ids)))
-    )
-    task_ids = list(task_ids_result.all())
-    if not task_ids:
-        return
-
-    await session.exec(
-        delete(TaskAssignee)
-        .where(TaskAssignee.user_id == user_id)
-        .where(TaskAssignee.task_id.in_(tuple(task_ids)))
-    )
-
-
 async def remove_user_from_guild_initiatives(
     session: AsyncSession,
     *,
     guild_id: int,
     user_id: int,
 ) -> None:
-    """Remove a user from all initiatives in a guild, clearing task assignments.
+    """Take a user out of the community's content: every initiative, and the
+    community's own tools.
 
     Used by every "user leaves the guild for any reason" path: leave-guild,
     deactivate, soft-delete, hard-delete, OIDC-sync revocation, and the
     guild-admin Remove-from-guild action.
 
-    Every grant naming them in an initiative goes with the membership row
-    (``tr_initiative_members_departure``), owner rows included, so what they
-    owned is left **unowned** rather than handed to anyone: nobody inherits
-    privilege they did not ask for, which matters most in a guild with heavy
-    turnover. What they owned at the community's own level is released here.
-    Guild admins still administer all of it, and can claim it whenever they
+    Deleting each membership row runs ``tr_initiative_members_departure``,
+    which drops every grant naming them in that initiative, owner rows
+    included, and takes them off its tasks, events, person fields and queue
+    items. ``member_departs`` with no initiative does the same for content
+    that belongs to the community itself. What they owned is left **unowned**
+    rather than handed to anyone; guild admins can claim it whenever they
     choose (``app.services.tenant.ownership``).
     """
-    from app.services.tenant import ownership as ownership_service
+    from app.db.schema_provisioning import guild_schema_name
 
-    # Find initiatives in this guild where the user is a member
-    initiative_ids_result = await session.exec(
-        select(InitiativeMember.initiative_id).where(
+    await session.exec(
+        select(func.public.member_departs(guild_schema_name(guild_id), user_id, None))
+    )
+    await session.exec(
+        delete(InitiativeMember).where(
             InitiativeMember.user_id == user_id,
             InitiativeMember.initiative_id.in_(select(Initiative.id)),
         )
     )
-    initiative_ids = list(initiative_ids_result.all())
-
-    await ownership_service.release_owned_content(session, user_id=user_id)
-
-    # Clear task assignments per initiative before dropping the membership rows.
-    for init_id in initiative_ids:
-        await clear_user_task_assignments_for_initiative(
-            session,
-            initiative_id=init_id,
-            user_id=user_id,
-        )
-
-    # Remove initiative memberships
-    stmt = delete(InitiativeMember).where(
-        InitiativeMember.user_id == user_id,
-        InitiativeMember.initiative_id.in_(select(Initiative.id)),
-    )
-    await session.exec(stmt)
 
 
 async def list_initiative_roles(

@@ -707,40 +707,6 @@ async def claim_unowned_content(
     return claimed
 
 
-async def release_owned_content(
-    session: AsyncSession, *, user_id: int
-) -> dict[Tool, int]:
-    """Leave what this user owns at the community's own level — resources in
-    no initiative — unowned.
-
-    The departure hook, called from ``remove_user_from_guild_initiatives`` — the
-    choke point every guild-departure path funnels through — so leaving, being
-    removed, being deactivated, anonymized, hard-deleted or revoked by OIDC sync
-    all land the same way. What they owned inside an initiative leaves with
-    their membership of it (``tr_initiative_members_departure``).
-    """
-    released: dict[Tool, int] = {}
-    for tool in OWNABLE:
-        model = OWNABLE[tool].model
-        rows = list(
-            (
-                await session.exec(
-                    select(model).where(
-                        model.id.in_(_owner_grant_resource_ids(tool, user_id)),
-                        model.initiative_id.is_(None),
-                    )
-                )
-            )
-            .unique()
-            .all()
-        )
-        for row in rows:
-            await set_resource_owner(session, tool=tool, row=row, new_owner=None)
-        if rows:
-            released[tool] = len(rows)
-    return released
-
-
 __all__ = [
     "OWNABLE",
     "Owner",
@@ -756,7 +722,6 @@ __all__ = [
     "OwnableSpec",
     "OwnedItem",
     "claim_unowned_content",
-    "release_owned_content",
     "set_resource_owner",
     "summarize_owned_content",
     "summarize_unowned_content",

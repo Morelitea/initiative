@@ -1589,9 +1589,6 @@ async def remove_initiative_member(
             detail={"role": role_name, "via": "manager"},
         )
 
-        await initiatives_service.clear_user_task_assignments_for_initiative(
-            session, initiative_id=initiative_id, user_id=user_id
-        )
         await session.commit()
         # Removed from the initiative — drop this user's live content streams in
         # the guild immediately (initiative-level access change).

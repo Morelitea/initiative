@@ -41,6 +41,9 @@ from app.db.app_rls import (
 from app.db.initiative_rls import (
     ANSWERED,
     INITIATIVE_PATHS,
+    NAMED_PEOPLE,
+    NamedPerson,
+    initiative_of,
     INITIATIVE_SCOPED_TABLES,
     dac_asks_at_write,
     governing_path,
@@ -852,32 +855,99 @@ def _draft_block() -> str:
 
 _DEPARTURE_SECTION = """\
 -- ===========================================================================
--- Leaving an initiative: when someone's membership row is deleted, every
--- grant naming them in that initiative is deleted too, owner rows included.
--- Anything they owned there becomes unowned, and a community admin can claim
--- it. A trigger, so this happens however the membership is removed.
+-- Leaving: when someone's initiative membership row is deleted, every grant
+-- naming them in that initiative is deleted too, owner rows included, and
+-- they are taken off its content: task assignees, event attendees, person
+-- fields and queue items. Anything they owned there becomes unowned, and a
+-- community admin can claim it. A trigger, so this happens however the
+-- membership is removed. Leaving the community runs the same function once
+-- more for the community's own content (no initiative).
+--
+-- departure_*: the trigger may read and remove a row that names someone who
+-- is not a member of the row's initiative, whoever removed the membership.
 -- ==========================================================================="""
 
-#: The function ``tr_initiative_members_departure`` runs. Shared, in
-#: ``public``; the rows it removes are in the schema the trigger fired in.
-INITIATIVE_DEPARTURE_FN = """
+
+def _departs(named: NamedPerson) -> str:
+    """One statement of ``member_departs``: take the person off ``named``'s
+    rows in the initiative. Outside a trigger (the community's own content,
+    on leaving it), archived or trashed content is left as it is."""
+    initiative = initiative_of(named.table, "t", qualify="%1$I.")
+    if named.clear:
+        head = f"UPDATE %1$I.{named.table} t SET {named.column} = NULL"
+        frozen = freeze_leg(named.table, "UPDATE", alias="t")
+    else:
+        head = f"DELETE FROM %1$I.{named.table} t"
+        frozen = freeze_leg(named.table, "DELETE", alias="t")
+    return (
+        f"    EXECUTE format($q${head} WHERE t.{named.column} = $1"
+        f" AND {initiative} IS NOT DISTINCT FROM $2"
+        f" AND (pg_trigger_depth() > 0 OR NOT COALESCE({frozen}, false))$q$,"
+        " p_schema) USING p_user_id, p_initiative_id;"
+    )
+
+
+def render_departure_fns() -> str:
+    """``public.member_departs`` and the trigger function that calls it."""
+    grants = (
+        "    EXECUTE format($q$DELETE FROM %1$I.resource_grants t"
+        " WHERE t.user_id = $1 AND t.initiative_id IS NOT DISTINCT FROM $2"
+        " AND (pg_trigger_depth() > 0 OR NOT COALESCE(resource_frozen_for_grant("
+        "t.resource_type, t.resource_id, true), false))$q$, p_schema)"
+        " USING p_user_id, p_initiative_id;"
+    )
+    body = "\n".join([grants, *(_departs(n) for n in NAMED_PEOPLE)])
+    return f"""
+CREATE OR REPLACE FUNCTION public.member_departs(
+    p_schema text, p_user_id integer, p_initiative_id integer
+) RETURNS void LANGUAGE plpgsql AS $member_departs$
+BEGIN
+{body}
+END;
+$member_departs$;
+
 CREATE OR REPLACE FUNCTION public.fn_initiative_departure() RETURNS trigger
     LANGUAGE plpgsql AS $departure$
 BEGIN
-    EXECUTE format(
-        'DELETE FROM %I.resource_grants WHERE user_id = $1 AND initiative_id = $2',
-        TG_TABLE_SCHEMA
-    ) USING OLD.user_id, OLD.initiative_id;
+    PERFORM public.member_departs(TG_TABLE_SCHEMA, OLD.user_id, OLD.initiative_id);
     RETURN NULL;
 END;
 $departure$;
 """
+
 
 INITIATIVE_DEPARTURE_TRIGGER = (
     "CREATE OR REPLACE TRIGGER tr_initiative_members_departure"
     " AFTER DELETE ON initiative_members FOR EACH ROW"
     " EXECUTE FUNCTION public.fn_initiative_departure();"
 )
+
+
+def _departure_policies() -> str:
+    lines: list[str] = []
+    for named in NAMED_PEOPLE:
+        t, col = named.table, named.column
+        initiative = initiative_of(t, t)
+        departed = (
+            f"pg_trigger_depth() > 0 AND {initiative} IS NOT NULL AND NOT EXISTS"
+            " (SELECT 1 FROM initiative_members m"
+            f" WHERE m.user_id = {t}.{col} AND m.initiative_id = {initiative})"
+        )
+        write = (
+            f"departure_update ON {t} AS PERMISSIVE FOR UPDATE"
+            f"  USING ({departed}) WITH CHECK ({col} IS NULL);"
+            if named.clear
+            else f"departure_delete ON {t} AS PERMISSIVE FOR DELETE"
+            f"  USING ({departed});"
+        )
+        lines += [
+            f"DROP POLICY IF EXISTS departure_read ON {t};",
+            f"CREATE POLICY departure_read ON {t} AS PERMISSIVE FOR SELECT"
+            f"  USING ({departed});",
+            f"DROP POLICY IF EXISTS {write.split(' ON ')[0]} ON {t};",
+            f"CREATE POLICY {write}",
+        ]
+    return "\n".join(lines)
 
 
 _FREEZE_SECTION = """\
@@ -979,9 +1049,11 @@ def render_guild_rls_ddl() -> str:
         "\n\n"
         + _DEPARTURE_SECTION
         + "\n"
-        + INITIATIVE_DEPARTURE_FN
+        + render_departure_fns()
         + "\n"
         + INITIATIVE_DEPARTURE_TRIGGER
+        + "\n"
+        + _departure_policies()
     )
     guards = [f"{frozen_guard_trigger(t)};" for t in sorted(FROZEN_TABLES)]
     guards += [
