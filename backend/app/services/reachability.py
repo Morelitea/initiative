@@ -92,7 +92,7 @@ def _initiative_query(model: Any, row_id: int) -> Select[tuple[int, Optional[int
         statement = _initiative_through_parents(model, row_id)
     if live is not None:
         statement = statement.where(live.is_(None))
-    return statement
+    return statement.where(*_not_drafts(model))
 
 
 def _initiative_through_parents(model: Any, row_id: int) -> Select[Any]:
@@ -127,7 +127,23 @@ def _initiative_through_parents(model: Any, row_id: int) -> Select[Any]:
     statement = select(model.id, current.initiative_id)
     for parent, condition in joins:
         statement = statement.join(parent, condition)
-    return statement.where(model.id == row_id)
+    return statement.where(
+        model.id == row_id, *_not_drafts(*(parent for parent, _ in joins))
+    )
+
+
+def _not_drafts(*models: Any) -> list[Any]:
+    """A draft, or anything inside one, is not there to somebody the draft
+    policy hides it from (``guild_ddl.DRAFTS``)."""
+    from sqlalchemy import text
+
+    from app.db.guild_ddl import DRAFTS
+
+    return [
+        text(f"NOT ({DRAFTS[m.__tablename__]})")
+        for m in models
+        if m.__tablename__ in DRAFTS
+    ]
 
 
 async def missing_or_denied(

@@ -826,16 +826,24 @@ _DRAFT_SECTION = """\
 -- ==========================================================================="""
 
 
+#: What makes a row a draft, per table. The draft policies below and the
+#: not-found answer in ``app.services.reachability`` both read it.
+DRAFTS: dict[str, str] = {
+    "posts": "posts.published_at IS NULL",
+    "wiki_pages": "wiki_pages.is_draft",
+}
+
+
 def _draft_block() -> str:
     return "\n".join(
         [
             "DROP POLICY IF EXISTS published_read ON posts;",
             "CREATE POLICY published_read ON posts AS RESTRICTIVE FOR SELECT",
-            "  USING (published_at IS NOT NULL OR resource_access('post', posts.id,"
+            f"  USING (NOT ({DRAFTS['posts']}) OR resource_access('post', posts.id,"
             f" {_APP_MEMBER}, posts.initiative_id, true, {STANDING}));",
             "DROP POLICY IF EXISTS finished_read ON wiki_pages;",
             "CREATE POLICY finished_read ON wiki_pages AS RESTRICTIVE FOR SELECT",
-            "  USING (NOT wiki_pages.is_draft OR EXISTS (SELECT 1 FROM wikis w"
+            f"  USING (NOT ({DRAFTS['wiki_pages']}) OR EXISTS (SELECT 1 FROM wikis w"
             " WHERE w.id = wiki_pages.wiki_id AND resource_access('wiki', w.id,"
             f" {_APP_MEMBER}, w.initiative_id, true, {STANDING})));",
         ]

@@ -161,6 +161,7 @@ async def test_writing_a_project_is_not_the_rung_to_share_it(
     """Sharing is the owner's, as deleting is."""
     installed = await install_app(session, acting_user, role_session, granted=SHARE)
     project = await _open_project(session, installed, level="write")
+    before = await _grant_rows(session, installed.guild.id, project.id)
 
     refused = await client.put(
         guild_url(installed.guild.id, f"/projects/{project.id}/grants"),
@@ -169,9 +170,7 @@ async def test_writing_a_project_is_not_the_rung_to_share_it(
     )
     assert refused.status_code == 403, refused.text
     assert refused.json()["detail"] == Tool.project.owner_required_code
-    assert (ResourceAccessLevel.write, None, None, True) not in await _grant_rows(
-        session, installed.guild.id, project.id
-    )
+    assert await _grant_rows(session, installed.guild.id, project.id) == before
 
 
 async def test_an_install_shares_what_it_creates_as_it_creates_it(

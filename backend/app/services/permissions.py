@@ -250,15 +250,10 @@ async def audience(
     ids = sorted(set(resource_ids))
     if not ids:
         return {}
-    rows = (
-        await session.exec(
-            select(
-                func.resource_audience(
-                    tool.value, ids, routed_guild_id(session)
-                ).table_valued("resource_id", "user_id")
-            )
-        )
-    ).all()
+    shared = func.resource_audience(
+        tool.value, ids, routed_guild_id(session)
+    ).table_valued("resource_id", "user_id")
+    rows = (await session.exec(select(shared.c.resource_id, shared.c.user_id))).all()
     by_resource: dict[int, set[int]] = {}
     for resource_id, user_id in rows:
         by_resource.setdefault(resource_id, set()).add(user_id)
