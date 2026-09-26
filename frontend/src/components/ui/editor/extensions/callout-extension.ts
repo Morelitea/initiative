@@ -2,6 +2,7 @@ import { $isListNode } from "@lexical/list";
 import { $findMatchingParent, $insertNodeToNearestRoot, mergeRegister } from "@lexical/utils";
 import {
   $createParagraphNode,
+  $getNodeByKey,
   $getSelection,
   $isElementNode,
   $isParagraphNode,
@@ -69,6 +70,23 @@ function $calloutAtCaretStart(): CalloutNode | null {
   return first !== null && (first.is(anchor) || firstChild.is(anchor)) ? callout : null;
 }
 
+/** The folded callout the caret is hidden inside — in any line after the first,
+ * which is all a folded callout shows. */
+function $foldedAroundCaret(): CalloutNode | null {
+  const selection = $getSelection();
+  if (!$isRangeSelection(selection)) {
+    return null;
+  }
+  const anchor = selection.anchor.getNode();
+  const callout = $findMatchingParent(anchor, $isCalloutNode);
+  if (!$isCalloutNode(callout) || !callout.getCollapsed()) {
+    return null;
+  }
+  const first = callout.getFirstChild();
+  const line = $findMatchingParent(anchor, (node) => node.getParent()?.is(callout) ?? false);
+  return line !== null && first !== null && !line.is(first) ? callout : null;
+}
+
 /** Take a callout apart, leaving its blocks where it stood. */
 function $unwrap(callout: CalloutNode): void {
   for (const child of callout.getChildren()) {
@@ -82,6 +100,18 @@ export const CalloutExtension = defineExtension({
   nodes: [CalloutNode],
   register: (editor) =>
     mergeRegister(
+      // Writing where nobody can see it is not writing: a caret that lands in
+      // a folded callout's hidden lines — Enter at the end of its first, an
+      // arrow key — opens it.
+      editor.registerUpdateListener(({ editorState }) => {
+        if (!editor.isEditable()) return;
+        const key = editorState.read(() => $foldedAroundCaret()?.getKey() ?? null);
+        if (key === null) return;
+        editor.update(() => {
+          const node = $getNodeByKey(key);
+          if ($isCalloutNode(node)) node.setCollapsed(false);
+        });
+      }),
       editor.registerCommand(
         INSERT_CALLOUT_COMMAND,
         (variant) => {

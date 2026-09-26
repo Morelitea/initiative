@@ -29,12 +29,16 @@ from app.testing import (
     create_counter,
     create_comment,
     create_counter_group,
+    create_document,
     create_queue,
     create_queue_item,
     create_task,
     create_task_status,
     create_user,
+    create_wiki,
+    create_wiki_page,
 )
+from app.models.tenant.document import DocumentType
 
 
 ActingUser = Callable[..., Awaitable[Actor]]
@@ -247,6 +251,107 @@ async def test_an_embed_shows_the_name_and_the_description(
     assert body[f"counter:{counter.id}"]["title"] == "Signups"
     assert body[f"counter:{counter.id}"]["description"] is None
     assert missing not in body
+
+
+def _prose(text: str) -> dict:
+    """A Lexical body holding one paragraph."""
+    return {
+        "root": {
+            "type": "root",
+            "version": 1,
+            "children": [
+                {
+                    "type": "paragraph",
+                    "version": 1,
+                    "children": [{"type": "text", "version": 1, "text": text}],
+                }
+            ],
+        }
+    }
+
+
+async def _embeds(client, actor: Actor, *refs: str) -> dict[str, dict]:
+    response = await client.get(
+        actor.g("/smart-chips/embeds"),
+        headers=actor.headers,
+        params={"ref": list(refs)},
+    )
+    assert response.status_code == 200, response.text
+    return {item["ref"]: item for item in response.json()["items"]}
+
+
+async def test_an_embedded_text_document_shows_its_body(
+    client, session, acting_user: ActingUser
+) -> None:
+    """Prose embeds as what it says; a document that is not prose, one with
+    nothing written in it, and a kind with no body at all embed as a name."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    written = await create_document(
+        session, a.initiative, a.user, name="Lore", content=_prose("Here be dragons.")
+    )
+    blank = await create_document(session, a.initiative, a.user, name="Blank")
+    sheet = await create_document(
+        session,
+        a.initiative,
+        a.user,
+        name="Ledger",
+        document_type=DocumentType.spreadsheet,
+        content={"cells": {"A1": "1"}},
+    )
+    task = await create_task(session, a.project, title="Roll call")
+
+    body = await _embeds(
+        client,
+        a,
+        f"document:{written.id}",
+        f"document:{blank.id}",
+        f"document:{sheet.id}",
+        f"task:{task.id}",
+    )
+    assert body[f"document:{written.id}"]["title"] == "Lore"
+    assert body[f"document:{written.id}"]["body"] == _prose("Here be dragons.")
+    assert body[f"document:{blank.id}"]["body"] is None
+    assert body[f"document:{sheet.id}"]["title"] == "Ledger"
+    assert body[f"document:{sheet.id}"]["body"] is None
+    assert body[f"task:{task.id}"]["body"] is None
+
+
+async def test_an_embedded_wiki_page_shows_its_body_but_not_a_draft(
+    client, session, acting_user: ActingUser
+) -> None:
+    """A draft is hidden from a reader everywhere else, so an embed of one is
+    absent to them rather than a window onto it."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    initiative = a.initiative
+    assert initiative is not None
+    initiative.wikis_enabled = True
+    session.add(initiative)
+    await session.commit()
+    wiki = await create_wiki(session, initiative, a.user)
+    page = await create_wiki_page(
+        session, wiki, a.user, title="Rota", content=_prose("Tuesdays.")
+    )
+    draft = await create_wiki_page(
+        session,
+        wiki,
+        a.user,
+        title="Half written",
+        content=_prose("Secret."),
+        is_draft=True,
+    )
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+
+    body = await _embeds(client, b, f"wiki_page:{page.id}", f"wiki_page:{draft.id}")
+    assert body[f"wiki_page:{page.id}"]["body"] == _prose("Tuesdays.")
+    assert f"wiki_page:{draft.id}" not in body
+
+    written = await _embeds(client, a, f"wiki_page:{draft.id}")
+    assert written[f"wiki_page:{draft.id}"]["body"] == _prose("Secret.")
 
 
 async def test_a_counter_reads_its_number_and_its_ceiling(

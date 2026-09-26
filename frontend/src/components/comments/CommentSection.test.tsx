@@ -159,4 +159,38 @@ describe("CommentSection", () => {
     expect(await screen.findByText(/no one by that name/i)).toBeInTheDocument();
     expect(screen.getByRole("textbox")).toHaveValue("@al");
   });
+
+  it("puts the newest conversation first and keeps each one's replies in order", async () => {
+    const older = buildComment({ content: "Older thread", created_at: "2026-01-10T09:00:00Z" });
+    const newer = buildComment({ content: "Newer thread", created_at: "2026-01-12T09:00:00Z" });
+    const firstReply = buildComment({
+      content: "First reply",
+      parent_comment_id: older.id,
+      created_at: "2026-01-13T09:00:00Z",
+    });
+    const secondReply = buildComment({
+      content: "Second reply",
+      parent_comment_id: older.id,
+      created_at: "2026-01-14T09:00:00Z",
+    });
+
+    renderPage(() => (
+      <CommentSection
+        entityType={Tool.queue}
+        entityId={42}
+        comments={[older, firstReply, newer, secondReply]}
+        initiativeId={7}
+      />
+    ));
+
+    await screen.findByText("Newer thread");
+    const said = ["Newer thread", "Older thread", "First reply", "Second reply"].map((text) =>
+      screen.getByText(text)
+    );
+    for (let i = 1; i < said.length; i++) {
+      expect(said[i - 1].compareDocumentPosition(said[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING
+      );
+    }
+  });
 });

@@ -10,7 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Safety numbers in messages**, so you can check who you're talking to. A new device has to be approved by your other devices.
-- **Embeds** (`![[`) and **task checkbox chips** in documents.
+- **Embeds** (`![[`) and **task checkbox chips** in documents. An embedded document or wiki page shows what it says, not just its name.
+- **Callouts and embeds fold** to their first line, and stay folded for everyone who opens the page.
 - **Full-size pictures**: click a picture in any text to open it.
 - **Unread dots that lead to the item**, with unread comments highlighted.
 - **One-tap 👍** on comments and posts.
@@ -23,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Password sign-in pauses** after repeated wrong answers. Passkeys keep working.
 - **A phone restored from backup asks you to sign in again.**
 - **Links to other sites open in a new tab.**
+- **Comments show the newest conversation first.** Replies still read in order.
 - **Pictures from other sites show as links.**
 - **Ticked checklist lines stay readable** instead of being crossed out.
 - **Only people who can open something** can be assigned to it, invited to it or notified about it.
@@ -43,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Large spreadsheets** keep up with your typing.
 - **Duplicated file documents** include the file.
 - **Notifications** open the event or page they're about.
+- **The Markdown view** keeps smart chips, `#` links and @mentions instead of turning them into plain words, and a `|` inside a table cell no longer splits it.
 - **Erased accounts** show as "Deleted user" everywhere they were mentioned.
 - **Exports that keep failing** stop and tell you.
 - **Jira and Confluence CSVs** arrive as spreadsheets.

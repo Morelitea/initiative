@@ -208,6 +208,7 @@
     "cancelDrawing": "Annuler",
     "checklist": "Liste de contrôle",
     "clearFormatting": "Effacer la mise en forme",
+    "collapseCallout": "Replier l'encadré",
     "colorBlack": "Noir",
     "colorBlue": "Bleu",
     "colorDefault": "Par défaut",
@@ -231,6 +232,7 @@
     "editStatus": "Modifier le statut",
     "embed": "Intégrer",
     "embedContent": "Intégrer {{contentName}}",
+    "expandCallout": "Déplier l'encadré",
     "fontSize": "Taille de police",
     "format": "Format",
     "horizontalRule": "Règle horizontale",
@@ -284,7 +286,9 @@
   "embeds": {
     "insert": "Intégrer",
     "showAsEmbed": "Afficher en entier",
-    "showAsLink": "Afficher comme lien"
+    "showAsLink": "Afficher comme lien",
+    "expand": "Déplier",
+    "collapse": "Replier"
   },
   "outline": {
     "title": "Sommaire",

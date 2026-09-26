@@ -58,13 +58,13 @@ A few pieces are worth knowing by name:
 
 | | |
 |---|---|
-| **Callouts** | A coloured panel for the thing nobody should miss — **Info**, **Note**, **Tip**, **Success**, **Warning** or **Error**. Unlike a quote it holds anything: lists, code, a table. The little menu in its corner changes the kind or takes the panel away and keeps the words. |
+| **Callouts** | A coloured panel for the thing nobody should miss — **Info**, **Note**, **Tip**, **Success**, **Warning** or **Error**. Unlike a quote it holds anything: lists, code, a table. Click its icon to change the kind, or to take the panel away and keep the words. The arrow in its corner folds the panel down to its first line — put a title there and a long aside becomes one line until somebody wants it. |
 | **Statuses** | A word in a coloured pill — *Done*, *Blocked*, *Waiting on legal* — set by hand. Click one to change the word or the colour. For a status that keeps *itself* up to date, use a [smart chip](#smart-chips). |
 | **Merged cells** | Drag across cells in a table and **Merge cells** from the table menu joins them into one; **Unmerge cells** splits it back. For the header that sits over three columns, and the row label that runs down two. |
 | **Drawings** | A small whiteboard inside the page. Draw it, save it, and it sits there as a picture. **Edit drawing** opens it again. |
 | **Diagrams** | Flowcharts, sequence diagrams and friends, written as text in [Mermaid](https://mermaid.js.org/) and drawn as you type. **Diagram** in the `/` menu starts one; any code block set to Mermaid is drawn the same way. Someone reading the page sees the picture, and the code stays out of their way. |
 
-The **Markdown** button at the bottom of the editor shows the whole document as markdown and back. Callouts are written the way Obsidian writes them (`> [!warning]`), merged cells the way MultiMarkdown does (`||` and `^^`), columns as Pandoc's fenced divs (`:::: {.columns}`), and a drawing as its scene in an `excalidraw` code block, so all of it survives the round trip — and a file from those tools pastes in and comes out right.
+The **Markdown** button at the bottom of the editor shows the whole document as markdown and back. Callouts are written the way Obsidian writes them (`> [!warning]`, and `> [!warning]-` when folded), merged cells the way MultiMarkdown does (`||` and `^^`), columns as Pandoc's fenced divs (`:::: {.columns}`), a drawing as its scene in an `excalidraw` code block, a `#` link as `[[task:12|Roll call]]`, a smart chip as the same with the fact it shows (`[[task:12:status|Roll call]]`) and a mention as `@[Ada](4)`, so all of it survives the round trip — and a file from those tools pastes in and comes out right.
 
 !!! note "Drawings in exports"
     A Markdown export keeps each drawing the same way. Word and PDF leave drawings out: a drawing is redrawn by the browser every time it's shown, and a printed page has no browser in it.
@@ -107,14 +107,18 @@ Smart chips are a text-document thing. A whiteboard holds shapes and a spreadshe
 
 ## Embeds
 
-A chip shows one fact. An **embed** shows the whole thing: its name, and underneath it whatever description somebody wrote for it — a task's notes, a project's summary, what the calendar is for — in a panel of its own.
+A chip shows one fact. An **embed** shows the whole thing: its name, and underneath it whatever description somebody wrote for it — a task's notes, a project's summary, what the calendar is for — in a panel of its own. Embed a text document or a wiki page and you get the page itself, read-only, in a scrolling pane. A spreadsheet, a whiteboard or a file shows its name.
 
 Type `![[` and pick something, or choose **Embed** from the `/` menu. Hover any `#` link while you're writing and **Show in full** turns it into an embed; the link icon in the embed's corner turns it back.
 
 Like a chip, it reads live. Rewrite the task's description and every page embedding it says the new thing.
 
+The arrow in the embed's corner folds it down to its name. Folding a callout or an embed is saved with the page, so everyone who opens it sees it folded; somebody who can only read the page can still open it for themselves.
+
+An embedded page's own embeds show as names only, so two pages embedding each other don't go on forever.
+
 !!! tip "Embeds in markdown and exports"
-    In the **Markdown** view an embed is `![[task:12|Roll call]]`, which is how Obsidian writes one. An export can't reach back for the description, so it shows a panel with the thing's name.
+    In the **Markdown** view an embed is `![[task:12|Roll call]]`, which is how Obsidian writes one. An export can't reach back for the description or the page, so it shows a panel with the thing's name.
 
 ## Spreadsheets
 

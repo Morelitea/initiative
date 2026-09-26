@@ -13,9 +13,9 @@ import {
 } from "@/components/ui/editor/nodes/callout-node";
 
 /** `> [!info] Optional title` — Obsidian's callout, which GitHub's alerts
- * share. The `+`/`-` after the kind is Obsidian's fold marker; it is read and
- * set aside. */
-const START = /^>\s*\[!([A-Za-z-]+)\][+-]?(?:\s+(.*))?$/;
+ * share. The `+`/`-` after the kind is Obsidian's fold marker: `-` is folded,
+ * `+` open, and every callout here can fold, so only `-` changes anything. */
+const START = /^>\s*\[!([A-Za-z-]+)\]([+-]?)(?:\s+(.*))?$/;
 const QUOTED = /^>\s?/;
 
 /**
@@ -41,7 +41,7 @@ export function createCalloutTransformer(
       const body = $convertToMarkdownString(transformers(), node);
       const lines = body === "" ? [] : body.split("\n");
       return [
-        `> [!${node.getVariant()}]`,
+        `> [!${node.getVariant()}]${node.getCollapsed() ? "-" : ""}`,
         ...lines.map((line) => (line === "" ? ">" : `> ${line}`)),
       ].join("\n");
     },
@@ -52,10 +52,10 @@ export function createCalloutTransformer(
         end += 1;
         body.push(lines[end].replace(QUOTED, ""));
       }
-      const title = (startMatch[2] ?? "").trim();
+      const title = (startMatch[3] ?? "").trim();
       // The title is a line of its own, not the start of the body's first.
       const markdown = [...(title ? [`**${title}**`, ""] : []), ...body].join("\n");
-      const callout = $createCalloutNode(calloutVariantFrom(startMatch[1]));
+      const callout = $createCalloutNode(calloutVariantFrom(startMatch[1]), startMatch[2] === "-");
       $convertFromMarkdownString(markdown, transformers(), callout);
       rootNode.append(callout);
       return [true, end];

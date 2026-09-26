@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -51,7 +51,8 @@ class ReferenceEmbed(BaseModel):
     """A reference shown in full — ``![[ ]]`` rather than ``#``.
 
     The same reference and the same gate as a link; what it adds is what the
-    thing says about itself, for the kinds that carry a description.
+    thing says about itself: its description, for the kinds that carry one,
+    or its whole body, for the kinds that are prose.
     """
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
@@ -63,6 +64,9 @@ class ReferenceEmbed(BaseModel):
     title: str
     #: Its description, where the kind has one and it is filled in.
     description: Optional[str] = None
+    #: Its body as the editor stores it (Lexical JSON), where the thing is
+    #: prose — a text document, a wiki page — and has anything written in it.
+    body: Optional[Dict[str, Any]] = None
 
 
 class ReferenceEmbedList(BaseModel):

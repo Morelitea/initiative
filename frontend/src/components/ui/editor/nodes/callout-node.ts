@@ -1,18 +1,22 @@
 import { addClassNamesToElement } from "@lexical/utils";
 import {
   $applyNodeReplacement,
+  $getNodeByKey,
   type DOMConversionMap,
   type DOMConversionOutput,
   type DOMExportOutput,
   type EditorConfig,
   type ElementDOMSlot,
   ElementNode,
+  type LexicalEditor,
   type LexicalNode,
   type LexicalUpdateJSON,
   type NodeKey,
   type SerializedElementNode,
   type Spread,
 } from "lexical";
+
+import i18n from "@/i18n";
 
 /** The kinds of callout, each with its own colour and icon. The names are
  * the ones Obsidian writes as `> [!info]`, so a callout survives the trip to
@@ -59,9 +63,31 @@ export function calloutVariantFrom(name: string | null | undefined): CalloutVari
   return VARIANT_ALIASES[key] ?? "note";
 }
 
-export type SerializedCalloutNode = Spread<{ variant: CalloutVariant }, SerializedElementNode>;
+export type SerializedCalloutNode = Spread<
+  {
+    variant: CalloutVariant;
+    /** Folded to its first line. Absent in anything saved before callouts
+     * could fold, which reads as open. */
+    collapsed?: boolean;
+  },
+  SerializedElementNode
+>;
 
 const BODY_CLASS = "callout-body";
+const TOGGLE_CLASS = "callout-toggle";
+
+/** Mark a callout's element folded or open, and its button to match. */
+function showCollapsed(dom: HTMLElement, collapsed: boolean): void {
+  dom.toggleAttribute("data-collapsed", collapsed);
+  const toggle = dom.querySelector<HTMLElement>(`:scope > .${TOGGLE_CLASS}`);
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", String(!collapsed));
+    toggle.setAttribute(
+      "aria-label",
+      i18n.t(collapsed ? "documents:editor.expandCallout" : "documents:editor.collapseCallout")
+    );
+  }
+}
 
 function $convertCalloutElement(domNode: HTMLElement): DOMConversionOutput | null {
   const variant = calloutVariantFrom(domNode.getAttribute("data-callout"));
@@ -73,21 +99,28 @@ function $convertCalloutElement(domNode: HTMLElement): DOMConversionOutput | nul
  * paragraphs, lists, code — rather than a single run of text the way a quote
  * does. Its children are its body; the icon is decoration the editor draws
  * around them, never text in the document.
+ *
+ * It folds to its first line, which is where a title goes — an Obsidian
+ * callout's title is imported as that line. Folded is part of the document,
+ * saved for everyone; a reader who cannot edit folds and opens it for
+ * themselves only.
  */
 export class CalloutNode extends ElementNode {
   __variant: CalloutVariant;
+  __collapsed: boolean;
 
   static getType(): string {
     return "callout";
   }
 
   static clone(node: CalloutNode): CalloutNode {
-    return new CalloutNode(node.__variant, node.__key);
+    return new CalloutNode(node.__variant, node.__key, node.__collapsed);
   }
 
-  constructor(variant: CalloutVariant = "info", key?: NodeKey) {
+  constructor(variant: CalloutVariant = "info", key?: NodeKey, collapsed = false) {
     super(key);
     this.__variant = variant;
+    this.__collapsed = collapsed;
   }
 
   static importJSON(serialized: SerializedCalloutNode): CalloutNode {
@@ -95,7 +128,10 @@ export class CalloutNode extends ElementNode {
   }
 
   updateFromJSON(serialized: LexicalUpdateJSON<SerializedCalloutNode>): this {
-    return super.updateFromJSON(serialized).setVariant(calloutVariantFrom(serialized.variant));
+    return super
+      .updateFromJSON(serialized)
+      .setVariant(calloutVariantFrom(serialized.variant))
+      .setCollapsed(serialized.collapsed === true);
   }
 
   exportJSON(): SerializedCalloutNode {
@@ -103,6 +139,7 @@ export class CalloutNode extends ElementNode {
       ...super.exportJSON(),
       type: "callout",
       variant: this.getVariant(),
+      collapsed: this.getCollapsed(),
       version: 1,
     };
   }
@@ -122,7 +159,7 @@ export class CalloutNode extends ElementNode {
     return { element };
   }
 
-  createDOM(config: EditorConfig): HTMLElement {
+  createDOM(config: EditorConfig, editor: LexicalEditor): HTMLElement {
     const dom = document.createElement("div");
     dom.setAttribute("data-callout", this.__variant);
     if (typeof config.theme.callout === "string") {
@@ -132,9 +169,30 @@ export class CalloutNode extends ElementNode {
     icon.className = "callout-icon";
     icon.setAttribute("aria-hidden", "true");
     icon.contentEditable = "false";
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = TOGGLE_CLASS;
+    toggle.contentEditable = "false";
+    // Pressing it leaves the caret where it was.
+    toggle.addEventListener("mousedown", (event) => event.preventDefault());
+    const key = this.__key;
+    toggle.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const collapsed = !dom.hasAttribute("data-collapsed");
+      if (!editor.isEditable()) {
+        showCollapsed(dom, collapsed);
+        return;
+      }
+      editor.update(() => {
+        const node = $getNodeByKey(key);
+        if ($isCalloutNode(node)) node.setCollapsed(collapsed);
+      });
+    });
     const body = document.createElement("div");
     body.className = BODY_CLASS;
-    dom.append(icon, body);
+    dom.append(icon, toggle, body);
+    showCollapsed(dom, this.__collapsed);
     return dom;
   }
 
@@ -148,11 +206,24 @@ export class CalloutNode extends ElementNode {
     if (prevNode.__variant !== this.__variant) {
       dom.setAttribute("data-callout", this.__variant);
     }
+    if (prevNode.__collapsed !== this.__collapsed) {
+      showCollapsed(dom, this.__collapsed);
+    }
     return false;
   }
 
   getVariant(): CalloutVariant {
     return this.getLatest().__variant;
+  }
+
+  getCollapsed(): boolean {
+    return this.getLatest().__collapsed;
+  }
+
+  setCollapsed(collapsed: boolean): this {
+    const writable = this.getWritable();
+    writable.__collapsed = collapsed;
+    return writable;
   }
 
   setVariant(variant: CalloutVariant): this {
@@ -170,8 +241,11 @@ export class CalloutNode extends ElementNode {
   }
 }
 
-export function $createCalloutNode(variant: CalloutVariant = "info"): CalloutNode {
-  return $applyNodeReplacement(new CalloutNode(variant));
+export function $createCalloutNode(
+  variant: CalloutVariant = "info",
+  collapsed = false
+): CalloutNode {
+  return $applyNodeReplacement(new CalloutNode(variant, undefined, collapsed));
 }
 
 export function $isCalloutNode(node: LexicalNode | null | undefined): node is CalloutNode {
