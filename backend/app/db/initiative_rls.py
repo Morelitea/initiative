@@ -1342,6 +1342,42 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
 INITIATIVE_SCOPED_TABLES: frozenset[str] = frozenset(INITIATIVE_PATHS)
 
 
+@dataclass(frozen=True)
+class NamedPerson:
+    """A column on content that names a person. When the person leaves the
+    initiative the content belongs to, or the community, they are taken off
+    it (the departure section in ``guild_ddl``)."""
+
+    table: str
+    column: str
+    #: The row stays and the column is emptied, rather than the row deleted.
+    clear: bool = False
+
+
+NAMED_PEOPLE: tuple[NamedPerson, ...] = (
+    NamedPerson("task_assignees", "user_id"),
+    NamedPerson("task_property_values", "value_user_id"),
+    NamedPerson("calendar_event_attendees", "user_id"),
+    NamedPerson("calendar_event_property_values", "value_user_id"),
+    NamedPerson("document_property_values", "value_user_id"),
+    NamedPerson("queue_items", "user_id", clear=True),
+)
+
+
+def initiative_of(table: str, row: str, *, qualify: str = "") -> str:
+    """The initiative a row of ``table`` belongs to, as a sub-select, walked
+    through the hops its policies declare. ``qualify`` goes before each table
+    name (a schema)."""
+    hops = INITIATIVE_PATHS[table].dac.via
+    joins = f"{qualify}{hops[0][1]} h1"
+    for i, (fk, parent) in enumerate(hops[1:], start=2):
+        joins += f" JOIN {qualify}{parent} h{i} ON h{i}.id = h{i - 1}.{fk}"
+    return (
+        f"(SELECT h{len(hops)}.initiative_id FROM {joins}"
+        f" WHERE h1.id = {row}.{hops[0][0]})"
+    )
+
+
 #: Which commands ask the sharing gate at WRITE level, for the tables that
 #: deviate from the default — where every writing command does.
 #:

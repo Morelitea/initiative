@@ -53,6 +53,7 @@ from app.core.tools import Tool
 from app.db.initiative_rls import (
     COMMENT_PARENTS,
     INITIATIVE_PATHS,
+    NAMED_PEOPLE,
     governing_path,
 )
 from app.db.errors import (
@@ -514,6 +515,16 @@ def frozen_write_triggers(table: str) -> list[str]:
             )
         return out
 
+    # Leaving an initiative takes the person off what they held or were named
+    # on there, whatever state it is in (``fn_initiative_departure``): a
+    # departure is not a change to the resource.
+    departs = {n.table: n.clear for n in NAMED_PEOPLE} | {"resource_grants": False}
+
+    def on_departure(command: str, when: str) -> str:
+        if table in departs and (command == "DELETE") != departs[table]:
+            return f"pg_trigger_depth() = 0 AND ({when})"
+        return when
+
     prior = freeze_leg(table, "UPDATE", alias="OLD")
     proposed = freeze_leg(table, "UPDATE", alias="NEW")
     if prior is not None and proposed is not None:
@@ -524,7 +535,7 @@ def frozen_write_triggers(table: str) -> list[str]:
         out.append(
             f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_ancestor_update "
             f"BEFORE UPDATE ON {table} FOR EACH ROW "
-            f"WHEN ({prior} OR {proposed}) "
+            f"WHEN ({on_departure('UPDATE', f'{prior} OR {proposed}')}) "
             f"EXECUTE FUNCTION public.{guard}()"
         )
         if inherits_the_archive:
@@ -536,15 +547,12 @@ def frozen_write_triggers(table: str) -> list[str]:
             out.append(
                 f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_trashed_ancestor_update "
                 f"BEFORE UPDATE ON {table} FOR EACH ROW "
-                f"WHEN ({was} OR {will_be}) "
+                f"WHEN ({on_departure('UPDATE', f'{was} OR {will_be}')}) "
                 f"EXECUTE FUNCTION public.fn_frozen_parent_guard()"
             )
     doomed = freeze_leg(table, "DELETE", alias="OLD")
-    if doomed is not None and table == "resource_grants":
-        # Leaving an initiative removes what the person held there whatever
-        # state it is in (``fn_initiative_departure``): a departure is not a
-        # change to the resource.
-        doomed = f"pg_trigger_depth() = 0 AND {doomed}"
+    if doomed is not None:
+        doomed = on_departure("DELETE", doomed)
     if doomed is not None:
         out.append(
             f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_ancestor_delete "

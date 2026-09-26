@@ -27,10 +27,14 @@ from app.db.guild_standing import GuildContext
 from app.db.session import _RLS_PARAMS_INFO_KEY
 from app.models.platform.guild import Guild, GuildRole, GuildStatus
 from app.models.platform.user import UserRole
+from app.models.tenant.calendar_event import CalendarEventAttendee
 from app.models.tenant.document import Document
 from app.models.tenant.initiative import InitiativeMember
 from app.models.tenant.project import Project
+from app.models.tenant.property import DocumentPropertyValue, PropertyType
+from app.models.tenant.queue import QueueItem
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.models.tenant.task import TaskAssignee
 from app.services.permissions import (
     DAC_RESOURCES,
     audience,
@@ -44,9 +48,20 @@ from app.services.permissions import (
     writable_scope_clause,
 )
 from app.services.tenant import named_people
+from app.services.tenant.archive import archive_entity
+from app.services.tenant.initiatives import remove_user_from_guild_initiatives
 from app.testing import (
     create_access_grant,
+    create_calendar,
+    create_calendar_event,
+    create_document,
+    create_document_property_value,
+    create_project,
+    create_property_definition,
+    create_queue,
+    create_queue_item,
     create_resource_grant,
+    create_task,
     create_user,
     route_as,
 )
@@ -710,29 +725,99 @@ async def test_only_the_owner_changes_who_it_is_shared_with(
         await s.flush()
 
 
-async def test_leaving_an_initiative_leaves_what_you_owned_unowned(
+async def _named_on(session, initiative, owner, person, **calendar) -> dict:
+    """``person`` named on a task, an event, a person field and a queue item
+    of ``initiative`` (the event on a calendar of the community itself with
+    ``initiative_id=None``)."""
+    project = await create_project(session, initiative, owner)
+    task = await create_task(session, project, assignees=[person])
+    calendar_ = await create_calendar(session, initiative, owner, **calendar)
+    event = await create_calendar_event(session, calendar_, owner)
+    session.add(CalendarEventAttendee(calendar_event_id=event.id, user_id=person.id))
+    document = await create_document(session, initiative, owner)
+    field = await create_property_definition(
+        session, initiative, type=PropertyType.user_reference
+    )
+    await create_document_property_value(
+        session, document, field, value_user_id=person.id
+    )
+    queue = await create_queue(session, initiative, owner)
+    item = await create_queue_item(session, queue, user_id=person.id)
+    await session.commit()
+    return {
+        "project": project,
+        "calendar": calendar_,
+        "task": task.id,
+        "event": event.id,
+        "item": item.id,
+    }
+
+
+async def _still_named(session, person_id: int, named: dict) -> list[str]:
+    session.expire_all()
+    checks = {
+        "assignee": select(TaskAssignee).where(
+            TaskAssignee.task_id == named["task"],
+            TaskAssignee.user_id == person_id,
+        ),
+        "attendee": select(CalendarEventAttendee).where(
+            CalendarEventAttendee.calendar_event_id == named["event"],
+            CalendarEventAttendee.user_id == person_id,
+        ),
+        "field": select(DocumentPropertyValue).where(
+            DocumentPropertyValue.value_user_id == person_id
+        ),
+        "queue item": select(QueueItem).where(
+            QueueItem.id == named["item"], QueueItem.user_id == person_id
+        ),
+        "grant": select(ResourceGrant).where(ResourceGrant.user_id == person_id),
+    }
+    return [name for name, q in checks.items() if (await session.exec(q)).first()]
+
+
+async def test_leaving_an_initiative_takes_you_off_its_content(
     session, role_session, acting_user
 ):
     """Every grant naming someone in an initiative goes with their membership
-    of it, owner rows included — however the membership is removed."""
+    of it, owner rows included, and they are taken off its content: archived
+    content, and content the manager removing them cannot reach, included."""
     w = await build_world(session, role_session, acting_user, Tool.project)
-    await w.grant("owner", user=w.co_member.user)
+    member = w.co_member.user
+    member_id = member.id
+    await w.grant("owner", user=member)
+    named = await _named_on(session, w.initiative, w.owner.user, member)
+    await archive_entity(session, named["project"])
+    await session.commit()
+
     s = await w.role_session("app_user")
-    await route_as(s, user_id=w.admin.user.id, guild_id=w.guild.id)
+    await route_as(s, user_id=w.owner.user.id, guild_id=w.guild.id)
     await s.exec(
         delete(InitiativeMember).where(
             InitiativeMember.initiative_id == w.initiative.id,
-            InitiativeMember.user_id == w.co_member.user.id,
+            InitiativeMember.user_id == member_id,
         )
     )
     await s.commit()
 
-    left = (
-        await session.exec(
-            select(ResourceGrant).where(
-                ResourceGrant.resource_type == Tool.project.value,
-                ResourceGrant.resource_id == w.row_id,
-            )
-        )
-    ).all()
-    assert left == []
+    assert await _still_named(session, member_id, named) == []
+
+
+async def test_leaving_the_community_takes_you_off_its_own_content(
+    session, role_session, acting_user
+):
+    """The community's own tools, such as a calendar in no initiative, are
+    left the same way when someone leaves the community."""
+    w = await build_world(session, role_session, acting_user, Tool.project)
+    member = w.co_member.user
+    member_id = member.id
+    named = await _named_on(
+        session, w.initiative, w.owner.user, member, initiative_id=None
+    )
+    await create_resource_grant(session, named["calendar"], user=member)
+
+    s = await w.role_session("app_user")
+    await route_as(s, user_id=w.admin.user.id, guild_id=w.guild.id)
+    await remove_user_from_guild_initiatives(s, guild_id=w.guild.id, user_id=member_id)
+    await s.commit()
+
+    assert await _still_named(session, member_id, named) == []
