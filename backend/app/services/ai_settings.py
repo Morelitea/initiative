@@ -1024,32 +1024,65 @@ def _sort_openai_models(models: list[str]) -> list[str]:
 _MODEL_LIST_CAP = 1000
 
 
+def _error_detail(response: httpx.Response) -> str:
+    """The provider's own error message when it sent one, else the status."""
+    try:
+        error = response.json().get("error")
+    except Exception:
+        error = None
+    if isinstance(error, dict):
+        error = error.get("message")
+    return error if isinstance(error, str) and error else str(response.status_code)
+
+
+def refusal_code(
+    provider: AIProvider, response: httpx.Response, *, sent_key: bool
+) -> str:
+    """The message code for a provider's non-200 answer. What the provider
+    said is logged, not returned."""
+    logger.warning(
+        "AI provider %s answered %s: %s",
+        provider.value,
+        response.status_code,
+        _error_detail(response),
+    )
+    if response.status_code == 401 and sent_key:
+        return AIMessages.INVALID_API_KEY
+    return AIMessages.PROVIDER_ERROR
+
+
+def failure_code(provider: AIProvider, exc: Exception) -> str:
+    """The message code for a provider request that raised."""
+    if isinstance(exc, (WebhookTargetUrlError, WebhookTargetUrlPrivateError)):
+        return AIMessages.INVALID_BASE_URL
+    logger.warning("AI provider %s request failed: %r", provider.value, exc)
+    if isinstance(exc, httpx.HTTPError):
+        return AIMessages.PROVIDER_UNAVAILABLE
+    return AIMessages.PROVIDER_ERROR
+
+
 async def _list_openai_models(api_key: str | None) -> tuple[list[str], str | None]:
     if not api_key:
-        return [], "API key required"
+        return [], AIMessages.NOT_CONFIGURED
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(
                 "https://api.openai.com/v1/models",
                 headers={"Authorization": f"Bearer {api_key}"},
             )
-        if resp.status_code == 401:
-            return [], "Invalid API key"
         if resp.status_code != 200:
-            return [], f"API error: {resp.status_code}"
+            return [], refusal_code(AIProvider.openai, resp, sent_key=True)
         all_models = [m["id"] for m in resp.json().get("data", [])]
         return _sort_openai_models(
             [m for m in all_models if _is_openai_chat_model(m)]
         ), None
-    except httpx.TimeoutException:
-        return [], "Request timed out"
-    except Exception as e:  # noqa: BLE001
-        return [], str(e)
+    except Exception as exc:  # noqa: BLE001
+        return [], failure_code(AIProvider.openai, exc)
 
 
 async def _list_anthropic_models(api_key: str | None) -> tuple[list[str], str | None]:
     if not api_key:
-        return [], "API key required"
+        return [], AIMessages.NOT_CONFIGURED
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(
@@ -1057,15 +1090,11 @@ async def _list_anthropic_models(api_key: str | None) -> tuple[list[str], str | 
                 headers={"x-api-key": api_key, "anthropic-version": "2023-06-01"},
                 params={"limit": _MODEL_LIST_CAP},
             )
-        if resp.status_code == 401:
-            return [], "Invalid API key"
         if resp.status_code != 200:
-            return [], f"API error: {resp.status_code}"
+            return [], refusal_code(AIProvider.anthropic, resp, sent_key=True)
         return [m["id"] for m in resp.json().get("data", [])], None
-    except httpx.TimeoutException:
-        return [], "Request timed out"
-    except Exception as e:  # noqa: BLE001
-        return [], str(e)
+    except Exception as exc:  # noqa: BLE001
+        return [], failure_code(AIProvider.anthropic, exc)
 
 
 async def _list_ollama_models(
@@ -1077,23 +1106,17 @@ async def _list_ollama_models(
             "GET", f"{url}/api/tags", timeout=10.0, allow_private=allow_private
         )
         if resp.status_code != 200:
-            return [], f"API error: {resp.status_code}"
+            return [], refusal_code(AIProvider.ollama, resp, sent_key=False)
         return [m["name"] for m in resp.json().get("models", [])], None
-    except (WebhookTargetUrlError, WebhookTargetUrlPrivateError):
-        return [], AIMessages.INVALID_BASE_URL
-    except httpx.ConnectError:
-        return [], "Could not connect to Ollama"
-    except httpx.TimeoutException:
-        return [], "Request timed out"
-    except Exception as e:  # noqa: BLE001
-        return [], str(e)
+    except Exception as exc:  # noqa: BLE001
+        return [], failure_code(AIProvider.ollama, exc)
 
 
 async def _list_custom_models(
     api_key: str | None, base_url: str | None, *, allow_private: bool
 ) -> tuple[list[str], str | None]:
     if not base_url:
-        return [], "Base URL required"
+        return [], AIMessages.INVALID_BASE_URL
     url = base_url.rstrip("/")
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else None
     try:
@@ -1104,21 +1127,11 @@ async def _list_custom_models(
             timeout=10.0,
             allow_private=allow_private,
         )
-        if resp.status_code == 401:
-            return [], "Invalid API key"
-        if resp.status_code == 404:
-            return [], "Models endpoint not available"
         if resp.status_code != 200:
-            return [], f"API error: {resp.status_code}"
+            return [], refusal_code(AIProvider.custom, resp, sent_key=bool(api_key))
         return [m["id"] for m in resp.json().get("data", [])][:_MODEL_LIST_CAP], None
-    except (WebhookTargetUrlError, WebhookTargetUrlPrivateError):
-        return [], AIMessages.INVALID_BASE_URL
-    except httpx.ConnectError:
-        return [], "Could not connect"
-    except httpx.TimeoutException:
-        return [], "Request timed out"
-    except Exception as e:  # noqa: BLE001
-        return [], str(e)
+    except Exception as exc:  # noqa: BLE001
+        return [], failure_code(AIProvider.custom, exc)
 
 
 async def _list_models(
@@ -1136,7 +1149,7 @@ async def _list_models(
         return await _list_ollama_models(base_url, allow_private=allow_private)
     if provider == AIProvider.custom:
         return await _list_custom_models(api_key, base_url, allow_private=allow_private)
-    return [], f"Unknown provider: {provider}"
+    return [], AIMessages.NOT_CONFIGURED
 
 
 async def _probe(conn: _ConnRow, api_key: str | None) -> AIConnectionTestResponse:
@@ -1153,12 +1166,10 @@ async def _probe(conn: _ConnRow, api_key: str | None) -> AIConnectionTestRespons
         if conn.model.split(":")[0] not in base:
             return AIConnectionTestResponse(
                 success=False,
-                message=f"Model '{conn.model}' not found.",
+                message=AIMessages.MODEL_NOT_FOUND,
                 available_models=models,
             )
-    return AIConnectionTestResponse(
-        success=True, message="Connection successful", available_models=models or None
-    )
+    return AIConnectionTestResponse(success=True, available_models=models or None)
 
 
 async def test_platform_connection(

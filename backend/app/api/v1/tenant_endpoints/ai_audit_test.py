@@ -14,6 +14,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
+from app.core.messages import AIMessages
 from app.models.platform.guild import GuildRole
 from app.schemas.ai_settings import AIProvider, ConnectionScope, ResolvedAISettings
 from app.testing import create_document, create_task, emitted
@@ -140,5 +141,6 @@ async def test_a_deployment_with_no_ai_sends_nothing_and_records_nothing(
         a.g(f"/tasks/{task.id}/ai/checklist"), headers=a.headers
     )
     assert response.status_code == 400
+    assert response.json()["detail"] == AIMessages.NOT_ENABLED
 
     assert emitted(capfd, AuditEventType.AI_REQUEST_SENT) == []

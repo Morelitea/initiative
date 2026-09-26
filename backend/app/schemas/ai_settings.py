@@ -190,7 +190,8 @@ class AIConnectionTestResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     success: bool
-    message: str
+    #: The failure's message code; none on success.
+    message: Optional[str] = None
     available_models: Optional[list[str]] = None
 
 

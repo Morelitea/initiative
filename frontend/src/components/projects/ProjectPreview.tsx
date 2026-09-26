@@ -11,7 +11,7 @@ import {
 import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { FavoriteProjectButton } from "@/components/projects/FavoriteProjectButton";
 import { PinProjectButton } from "@/components/projects/PinProjectButton";
-import { TagBadge } from "@/components/tags/TagBadge";
+import { TagBadgeList } from "@/components/tags/TagBadge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -118,16 +118,13 @@ export const ProjectCardLink = ({
                 <ProjectProgress summary={project.task_summary} />
               </div>
             </div>
-            {project.tags && project.tags.length > 0 ? (
-              <div className="flex w-full flex-wrap gap-1">
-                {project.tags.slice(0, 4).map((tag) => (
-                  <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} nested />
-                ))}
-                {project.tags.length > 4 && (
-                  <span className="text-muted-foreground text-xs">+{project.tags.length - 4}</span>
-                )}
-              </div>
-            ) : null}
+            <TagBadgeList
+              tags={project.tags}
+              limit={4}
+              tagHref={(tag) => gp(`/tags/${tag.id}`)}
+              nested
+              className="w-full"
+            />
           </CardFooter>
         </Card>
       </Link>
@@ -216,24 +213,13 @@ export const ProjectRowLink = ({
                       <InitiativeLabel initiative={project.initiative} nested />
                     ) : null}
                   </div>
-                  {project.tags && project.tags.length > 0 ? (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {project.tags.slice(0, 4).map((tag) => (
-                        <TagBadge
-                          key={tag.id}
-                          tag={tag}
-                          size="sm"
-                          to={gp(`/tags/${tag.id}`)}
-                          nested
-                        />
-                      ))}
-                      {project.tags.length > 4 && (
-                        <span className="text-muted-foreground text-xs">
-                          +{project.tags.length - 4}
-                        </span>
-                      )}
-                    </div>
-                  ) : null}
+                  <TagBadgeList
+                    tags={project.tags}
+                    limit={4}
+                    tagHref={(tag) => gp(`/tags/${tag.id}`)}
+                    nested
+                    className="mt-2"
+                  />
                 </div>
                 <div className="flex-1">
                   <ProjectProgress summary={project.task_summary} />

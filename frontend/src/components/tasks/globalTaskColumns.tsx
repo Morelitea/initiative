@@ -10,7 +10,7 @@ import {
 import { TaskBlockersHoverCard } from "@/components/projects/TaskBlockersHoverCard";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
 import { SortHeader } from "@/components/SortIcon";
-import { TagBadge } from "@/components/tags/TagBadge";
+import { TagBadgeList } from "@/components/tags/TagBadge";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
 import { DateCell } from "@/components/tasks/TaskDateCell";
 import { TaskPrioritySelector } from "@/components/tasks/TaskPrioritySelector";
@@ -116,25 +116,12 @@ export function sharedTaskColumns<T extends TaskListRead>({
     tags: {
       id: "tags",
       header: () => <span className="font-medium">{t("tasks:columns.tags")}</span>,
-      cell: ({ row }) => {
-        const task = row.original;
-        const taskTags = task.tags ?? [];
-        if (taskTags.length === 0) {
-          return <span className="text-muted-foreground text-sm">&mdash;</span>;
-        }
-        return (
-          <div className="flex flex-wrap gap-1">
-            {taskTags.slice(0, 3).map((tag) => (
-              <TagBadge key={tag.id} tag={tag} size="sm" to={tagHref(task, tag.id)} />
-            ))}
-            {taskTags.length > 3 && (
-              <span className="text-muted-foreground text-xs">
-                {t("tasks:columns.moreTags", { count: taskTags.length - 3 })}
-              </span>
-            )}
-          </div>
-        );
-      },
+      cell: ({ row }) =>
+        row.original.tags.length === 0 ? (
+          <span className="text-muted-foreground text-sm">&mdash;</span>
+        ) : (
+          <TagBadgeList tags={row.original.tags} tagHref={(tag) => tagHref(row.original, tag.id)} />
+        ),
     },
   };
 }

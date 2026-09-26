@@ -583,7 +583,7 @@ const projectHooks = {
   create: projectEndpoints.create,
   useDetail: detailHook(projectEndpoints),
   useCreate: createHook(projectEndpoints, "projects:createDialog.createError"),
-  useDelete: deleteHook(projectEndpoints, "projects:detail.loadError"),
+  useDelete: deleteHook(projectEndpoints, "projects:detail.deleteError"),
   useSetGrants: grantsHook(projectEndpoints, "projects:settings.access.updateError"),
 };
 

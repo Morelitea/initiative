@@ -110,7 +110,7 @@
   "detail": {
     "backToProjects": "← Volver a proyectos",
     "loading": "Cargando proyecto…",
-    "loadError": "No se pudo cargar el proyecto.",
+    "deleteError": "No se pudo eliminar el proyecto en este momento.",
     "notFound": "Proyecto no encontrado",
     "notFoundDescription": "Este proyecto puede haber sido eliminado o el enlace está roto.",
     "noAccess": "Acceso denegado",

@@ -8,7 +8,7 @@ import {
   Tool,
 } from "@/api/generated/initiativeAPI.schemas";
 import { LazyImage } from "@/components/shared/LazyImage";
-import { TagBadge } from "@/components/tags/TagBadge";
+import { TagBadgeList } from "@/components/tags/TagBadge";
 import { Badge } from "@/components/ui/badge";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -97,16 +97,12 @@ export const GalleryCard = ({ gallery, className }: GalleryCardProps) => {
         <p className="text-muted-foreground text-xs">
           {t("card.updated", { date: relativeUpdatedAt })}
         </p>
-        {gallery.tags.length > 0 ? (
-          <div className="flex flex-wrap gap-1 pt-1">
-            {gallery.tags.slice(0, 3).map((tag) => (
-              <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} nested />
-            ))}
-            {gallery.tags.length > 3 && (
-              <span className="text-muted-foreground text-xs">+{gallery.tags.length - 3}</span>
-            )}
-          </div>
-        ) : null}
+        <TagBadgeList
+          tags={gallery.tags}
+          tagHref={(tag) => gp(`/tags/${tag.id}`)}
+          nested
+          className="pt-1"
+        />
       </div>
     </Link>
   );

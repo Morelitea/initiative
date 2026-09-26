@@ -25,7 +25,7 @@ import { useTranslation } from "react-i18next";
 
 import type { InitiativeListRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { SortHeader } from "@/components/SortIcon";
-import { TagBadge } from "@/components/tags/TagBadge";
+import { TagBadgeList } from "@/components/tags/TagBadge";
 import { DataTable } from "@/components/ui/data-table";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { guildPath } from "@/lib/guildUrl";
@@ -107,14 +107,7 @@ const TagsCell = ({ row }: { row: ToolRow }) => {
     return <span className="text-muted-foreground text-sm">—</span>;
   }
   return (
-    <div className="flex flex-wrap gap-1">
-      {row.tags.slice(0, 3).map((tag) => (
-        <TagBadge key={tag.id} tag={tag} size="sm" to={guildPath(row.guildId, `/tags/${tag.id}`)} />
-      ))}
-      {row.tags.length > 3 && (
-        <span className="text-muted-foreground text-xs">+{row.tags.length - 3}</span>
-      )}
-    </div>
+    <TagBadgeList tags={row.tags} tagHref={(tag) => guildPath(row.guildId, `/tags/${tag.id}`)} />
   );
 };
 

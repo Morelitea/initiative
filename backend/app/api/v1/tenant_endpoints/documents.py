@@ -1138,7 +1138,7 @@ async def generate_summary(
         )
         return GenerateDocumentSummaryResponse(summary=summary)
     except AIGenerationError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=e.status_code, detail=e.code)
 
 
 @router.put("/{document_id}/properties", response_model=DocumentRead)

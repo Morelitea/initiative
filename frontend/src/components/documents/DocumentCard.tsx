@@ -6,7 +6,7 @@ import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { PropertyValueCell } from "@/components/properties/PropertyValueCell";
 import { nonEmptyPropertySummaries } from "@/components/properties/propertyHelpers";
 import { LazyImage } from "@/components/shared/LazyImage";
-import { TagBadge } from "@/components/tags/TagBadge";
+import { TagBadgeList } from "@/components/tags/TagBadge";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
@@ -117,16 +117,7 @@ export const DocumentCard = ({ document, className }: DocumentCardProps) => {
           <p className="text-muted-foreground text-xs">
             {t("card.updated", { date: relativeUpdatedAt })}
           </p>
-          {document.tags && document.tags.length > 0 ? (
-            <div className="flex flex-wrap gap-1">
-              {document.tags.slice(0, 3).map((tag) => (
-                <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} nested />
-              ))}
-              {document.tags.length > 3 && (
-                <span className="text-muted-foreground text-xs">+{document.tags.length - 3}</span>
-              )}
-            </div>
-          ) : null}
+          <TagBadgeList tags={document.tags} tagHref={(tag) => gp(`/tags/${tag.id}`)} nested />
           {(() => {
             const propertyChips = nonEmptyPropertySummaries(document.properties);
             if (propertyChips.length === 0) return null;

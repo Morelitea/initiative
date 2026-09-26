@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **AI errors are translated** — when AI generation or a connection test fails, the message is now in your language and says what to do: turn AI on, add or fix the key, fix the base URL, or try again when the provider is back. The provider's own error text goes to the server log instead. For API callers, a failure on the provider's side answers `502` with `AI_PROVIDER_UNAVAILABLE` or `AI_PROVIDER_ERROR`, other failures answer `400` with an `AI_*` code, and a connection test's `message` is that code, or empty when the test passes.
 - **Imports bring in the people they name** — when an import assigns someone a task, invites them to an event or names them in a property, it now shares what it imports with them. If you manage the initiative, anyone not yet in it is added as a member. Anyone who still can't open it is listed as not placed. Calendar imports now ask who their attendees are too.
 - **Only people who can open something can be named on it** — a task's assignees, an event's attendees, a person property and a queue item's person must all be able to open the project, calendar, document or queue it sits in. Anyone who can open it can be picked now, including people who can only view it, and nobody else is offered or accepted. Moving a task or event, duplicating a task, a recurring task's next occurrence and a project made from a template keep only the people who can open where it lands. Taking away someone's access to a project also takes them off its tasks.
 - **Webhooks, imports and exports start sooner** — a webhook delivery goes out about a second after the change it reports, and an import or export starts as soon as it is queued, instead of waiting for the next poll. Background work also goes through each community far less often, which matters on a server with many communities.
@@ -64,6 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A failed project delete says so** — it used to say the project couldn't be loaded.
 - **Changing a task's priority from My Tasks saves it** — the priority menu on **My Tasks** saves to the task's own community, and the priority shows in your language.
 - **A detail page says why it can't open** — a project, document, task or tool page you can't open says whether you have no access to it or it doesn't exist, and a failed request shows the error instead of calling the page missing. Wikis and counters used to say "not found" even when you had no access.
 - **Back works in the create task and document dialogs** — with one community, **Back** from choosing an initiative now stays on the community step instead of jumping forward again.

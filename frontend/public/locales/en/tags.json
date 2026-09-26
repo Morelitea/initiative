@@ -53,7 +53,8 @@
     "expand": "Expand"
   },
   "badge": {
-    "remove": "Remove {{name}} tag"
+    "remove": "Remove {{name}} tag",
+    "more": "+{{count}}"
   },
   "updated": "Tag updated.",
   "deleted": "Tag deleted.",

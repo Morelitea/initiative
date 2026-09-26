@@ -151,7 +151,7 @@ async def test_probe_reports_a_model_the_catalog_does_not_have(monkeypatch):
     _stub_catalog(monkeypatch, _openai_compatible_catalog(400))
     result = await ai_settings._probe(_custom_conn("vendor/nope"), "key")
     assert result.success is False
-    assert "not found" in result.message
+    assert result.message == AIMessages.MODEL_NOT_FOUND
 
 
 async def test_probe_does_not_reject_against_a_truncated_catalog(monkeypatch):

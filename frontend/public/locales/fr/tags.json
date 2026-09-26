@@ -53,7 +53,8 @@
     "expand": "Développer"
   },
   "badge": {
-    "remove": "Supprimer l'étiquette {{name}}"
+    "remove": "Supprimer l'étiquette {{name}}",
+    "more": "+{{count}}"
   },
   "updated": "Étiquette mise à jour.",
   "deleted": "Étiquette supprimée.",

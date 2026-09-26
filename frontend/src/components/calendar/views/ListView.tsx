@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { PropertyValueCell } from "@/components/properties/PropertyValueCell";
 import { nonEmptyPropertySummaries } from "@/components/properties/propertyHelpers";
-import { TagBadge } from "@/components/tags/TagBadge";
+import { TagBadgeList } from "@/components/tags/TagBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -163,18 +163,7 @@ export function ListView({
                     ))}
                   </div>
                 )}
-                {entry.tags && entry.tags.length > 0 && (
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {entry.tags.slice(0, 3).map((tag) => (
-                      <TagBadge key={tag.id} tag={tag} size="sm" />
-                    ))}
-                    {entry.tags.length > 3 && (
-                      <span className="text-muted-foreground text-xs">
-                        +{entry.tags.length - 3}
-                      </span>
-                    )}
-                  </div>
-                )}
+                <TagBadgeList tags={entry.tags ?? []} className="mt-1" />
               </div>
 
               {/* Attendee avatars */}
