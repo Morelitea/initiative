@@ -130,7 +130,6 @@
     "noInitiatives": "Aucune initiative ici à laquelle vous pouvez ajouter des documents."
   },
   "detail": {
-    "invalidId": "Identifiant de document invalide.",
     "loading": "Chargement du document…",
     "notFound": "Document introuvable",
     "notFoundDescription": "Ce document a peut-être été supprimé ou vous avez suivi un lien invalide.",

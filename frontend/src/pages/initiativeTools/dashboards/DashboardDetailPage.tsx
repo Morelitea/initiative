@@ -1,5 +1,5 @@
 import { Link, useParams } from "@tanstack/react-router";
-import { SearchX, Settings, ShieldAlert } from "lucide-react";
+import { Settings } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -11,7 +11,7 @@ import { DashboardUpdateBadge } from "@/components/initiativeTools/dashboards/Da
 import { PublishedViewNotice } from "@/components/initiativeTools/dashboards/PublishedViewNotice";
 import { WidgetConfigDialog } from "@/components/initiativeTools/dashboards/WidgetConfigDialog";
 import { WidgetPicker } from "@/components/initiativeTools/dashboards/WidgetPicker";
-import { StatusMessage } from "@/components/StatusMessage";
+import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,7 +20,6 @@ import { useDashboardEditor } from "@/hooks/useDashboardEditor";
 import { useDashboard, useWidgetCatalog } from "@/hooks/useDashboards";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useRecordRecentView } from "@/hooks/useRecents";
-import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
@@ -59,33 +58,13 @@ export function DashboardDetailPage() {
   const configuring =
     editor.definition.widgets.find((widget) => widget.id === configuringId) ?? null;
 
-  if (!Number.isFinite(parsedId)) {
-    return <p className="text-destructive">{t("notFound")}</p>;
-  }
-
-  if (dashboardQuery.isError) {
-    const status = getHttpStatus(dashboardQuery.error);
-    const backTo = gp(toolListRoute(Tool.dashboard, initiativeId));
-    const backLabel = t("backToDashboards");
-
-    if (status === 403) {
-      return (
-        <StatusMessage
-          icon={<ShieldAlert />}
-          title={t("noAccess")}
-          description={t("noAccessDescription")}
-          backTo={backTo}
-          backLabel={backLabel}
-        />
-      );
-    }
+  if (!Number.isFinite(parsedId) || dashboardQuery.isError) {
     return (
-      <StatusMessage
-        icon={<SearchX />}
-        title={t("notFound")}
-        description={t("notFoundDescription")}
-        backTo={backTo}
-        backLabel={backLabel}
+      <ToolAccessStatus
+        error={dashboardQuery.error}
+        keys="dashboards:"
+        backTo={gp(toolListRoute(Tool.dashboard, initiativeId))}
+        backLabel={t("backToDashboards")}
       />
     );
   }

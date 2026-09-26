@@ -20,13 +20,12 @@
 import { Link } from "@tanstack/react-router";
 import type { PaginationState } from "@tanstack/react-table";
 import type { ParseKeys } from "i18next";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { InitiativeListRead, Tool } from "@/api/generated/initiativeAPI.schemas";
-import { SortIcon } from "@/components/SortIcon";
+import { SortHeader } from "@/components/SortIcon";
 import { TagBadge } from "@/components/tags/TagBadge";
-import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { guildPath } from "@/lib/guildUrl";
@@ -119,18 +118,6 @@ const TagsCell = ({ row }: { row: ToolRow }) => {
   );
 };
 
-/** A column header that toggles that column's sort. The arrow reads the
- *  table's own state, which the page keeps in the address bar. */
-const SortHeader = ({ column, label }: { column: AppColumn<ToolRow>; label: string }) => {
-  const isSorted = column.getIsSorted();
-  return (
-    <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-      {label}
-      <SortIcon isSorted={isSorted} />
-    </Button>
-  );
-};
-
 /** The columns a tool's list endpoint can order by, as it names them. */
 export const TOOL_SORT_FIELDS = ["name", "initiative", "updated_at"] as const;
 export type ToolSortField = (typeof TOOL_SORT_FIELDS)[number];
@@ -175,8 +162,6 @@ interface ToolTableProps {
   communities?: Map<number, string>;
   totalCount: number;
   page: number;
-  /** Computed by the page, which also uses it to recover an out-of-range page. */
-  pageCount: number;
   pageSize: number;
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
@@ -198,7 +183,6 @@ export const ToolTable = ({
   communities,
   totalCount,
   page,
-  pageCount,
   pageSize,
   onPageChange,
   onPageSizeChange,
@@ -210,6 +194,14 @@ export const ToolTable = ({
   sortFields = TOOL_SORT_FIELDS,
 }: ToolTableProps) => {
   const { t } = useTranslation("guildHome");
+
+  const pageCount = Math.max(1, Math.ceil(totalCount / pageSize));
+  // A bookmarked page outlives the rows it pointed at, and a hand-typed one may
+  // never have had any. There are still rows, so land back on the first page
+  // rather than showing an empty table over them.
+  useEffect(() => {
+    if (totalCount > 0 && page > pageCount) onPageChange(1);
+  }, [totalCount, page, pageCount, onPageChange]);
 
   const initiativesByKey = useMemo(
     () =>

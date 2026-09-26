@@ -62,6 +62,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Changing a task's priority from My Tasks saves it** — the priority menu on **My Tasks** saves to the task's own community, and the priority shows in your language.
+- **A detail page says why it can't open** — a project, document, task or tool page you can't open says whether you have no access to it or it doesn't exist, and a failed request shows the error instead of calling the page missing. Wikis and counters used to say "not found" even when you had no access.
+- **Back works in the create task and document dialogs** — with one community, **Back** from choosing an initiative now stays on the community step instead of jumping forward again.
 - **Break-glass access no longer offers admin-only actions** — someone reaching a community through a break-glass grant was shown buttons to create or delete initiatives and to add community calendars, which the server refused.
 - **Archived things can be exported** — the owner of an archived project, document or other tool is now offered its export, which the server always allowed.
 - **Granted access no longer offers to create tools** — someone reaching a community through a read and write access grant was shown buttons to create projects and documents, which the server refused.

@@ -5,12 +5,13 @@ import { useTranslation } from "react-i18next";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { WikiPageTree } from "@/components/initiativeTools/wikis/WikiPageTree";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
+import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useCreateWikiPage, useWiki, useWikiPages } from "@/hooks/useWikis";
 import { useGuildPath } from "@/lib/guildUrl";
-import { wikiPageRoute } from "@/lib/tools";
+import { toolListRoute, wikiPageRoute } from "@/lib/tools";
 
 /**
  * A wiki, opened.
@@ -48,12 +49,12 @@ export const WikiDetailPage = () => {
 
   if (!validIds || wikiQuery.isError) {
     return (
-      <Card className="mx-auto mt-10 max-w-md">
-        <CardHeader>
-          <CardTitle>{t("notFound")}</CardTitle>
-          <CardDescription>{t("notFoundDescription")}</CardDescription>
-        </CardHeader>
-      </Card>
+      <ToolAccessStatus
+        error={wikiQuery.error}
+        keys="wikis:"
+        backTo={gp(toolListRoute(Tool.wiki, initiativeId))}
+        backLabel={t("backToWikis")}
+      />
     );
   }
 

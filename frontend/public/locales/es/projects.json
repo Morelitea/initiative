@@ -108,7 +108,6 @@
     "createProject": "Crear proyecto"
   },
   "detail": {
-    "invalidProjectId": "ID de proyecto no válido.",
     "backToProjects": "← Volver a proyectos",
     "loading": "Cargando proyecto…",
     "loadError": "No se pudo cargar el proyecto.",
@@ -307,16 +306,10 @@
   },
   "table": {
     "reorder": "Reordenar",
-    "dateWindow": "Rango de fechas",
     "doneColumn": "Terminado",
     "markInProgress": "Marcar tarea como en progreso",
     "markDone": "Marcar tarea como terminada",
     "taskColumn": "Tarea",
-    "startDateColumn": "Fecha de inicio",
-    "dueDateColumn": "Fecha de vencimiento",
-    "priorityColumn": "Prioridad",
-    "tagsColumn": "Etiquetas",
-    "moreTagsCount": "+{{count}}",
     "tagGroup": "Etiqueta",
     "untagged": "Sin etiqueta",
     "commentsColumn": "Comentarios",

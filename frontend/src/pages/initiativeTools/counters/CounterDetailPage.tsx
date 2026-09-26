@@ -18,6 +18,7 @@ import { CounterNumberView } from "@/components/initiativeTools/counters/views/C
 import { CounterProgressBarView } from "@/components/initiativeTools/counters/views/CounterProgressBarView";
 import { CounterSegmentedClockView } from "@/components/initiativeTools/counters/views/CounterSegmentedClockView";
 import { CounterFocusSkeleton } from "@/components/skeletons/PageSkeletons";
+import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -127,12 +128,13 @@ export function CounterDetailPage() {
 
   if (groupQuery.isError || !group) {
     return (
-      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-background px-4 text-center">
-        <h1 className="font-semibold text-2xl">{t("notFound")}</h1>
-        <p className="text-muted-foreground text-sm">{t("notFoundDescription")}</p>
-        <Button variant="outline" asChild>
-          <Link to={gp(toolListRoute(Tool.counter_group, initiativeId))}>{t("backToGroups")}</Link>
-        </Button>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-background px-4">
+        <ToolAccessStatus
+          error={groupQuery.error}
+          keys="counterGroups:"
+          backTo={gp(toolListRoute(Tool.counter_group, initiativeId))}
+          backLabel={t("backToGroups")}
+        />
       </div>
     );
   }
