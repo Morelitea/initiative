@@ -28,6 +28,7 @@ from app.api.deps import (
     UserSessionDep,
     GuildAccessError,
     establish_guild_access,
+    holds_guild_role,
     raise_for_guild_access,
     get_current_active_user,
 )
@@ -61,6 +62,7 @@ from app.models.platform.guild import (
     GuildCategory,
     GuildRole,
     GuildStatus,
+    LIVE_STATUS_VALUES,
 )
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.platform.guild_image import (
@@ -74,6 +76,7 @@ from app.schemas.platform.guild import (
     CommunityGuildPage,
     CommunityGuildRead,
     GuildBannerRead,
+    GuildCan,
     GuildEntitlementsRead,
     GuildApiAccessRead,
     GuildApiAccessUpdate,
@@ -136,6 +139,36 @@ def _position_of(guild_context: GuildContext) -> int:
     return membership.position if membership is not None else 0
 
 
+def _can_of(guild_context: GuildContext) -> GuildCan:
+    """What the caller may do in the community, by the standing: each flag is
+    what the guard on the routes that do the thing asks."""
+    return GuildCan(
+        # The seam admitted the request, which a community in time out refuses.
+        enter=True,
+        content=not guild_context.is_settings_only,
+        administer=holds_guild_role(guild_context, GuildRole.admin, settings=True),
+        configure=guild_context.writes_settings,
+        administer_content=holds_guild_role(guild_context, GuildRole.admin),
+        seat=guild_context.seat,
+    )
+
+
+def _can_of_membership(guild: Guild, role: GuildRole) -> GuildCan:
+    """The same answers for a membership row read without a standing, as the
+    caller's own list is: the row's rung asked of the ladder the standing's
+    admin fact is rendered from, and the lifecycle status the seam admits a
+    member by."""
+    administers = role.reaches(GuildRole.admin)
+    return GuildCan(
+        enter=guild.status in LIVE_STATUS_VALUES,
+        content=True,
+        administer=administers,
+        configure=administers,
+        administer_content=administers,
+        seat=role.reaches(GuildRole.superadmin),
+    )
+
+
 def _serialize_guild(
     guild: Guild,
     *,
@@ -145,7 +178,7 @@ def _serialize_guild(
     member_count: int = 0,
     administration: GuildAdministration | None = None,
     images: dict[GuildImageVariant, str] | None = None,
-    writes_settings: bool | None = None,
+    can: GuildCan | None = None,
     closed_contact: str | None = None,
 ) -> GuildRead:
     """Build one entry of the caller's own guild list.
@@ -167,15 +200,14 @@ def _serialize_guild(
     the caller may read but no request path may write. Callers serving a member
     pass ``None`` for it and never read the row at all.
 
-    ``writes_settings`` is the caller's standing, where the caller has one
-    (``GuildContext.writes_settings``); left out, the membership row answers.
+    ``can`` is the caller's standing, where the caller has one
+    (:func:`_can_of`); left out, the membership row answers.
 
     ``closed_contact`` is who a suspended guild's admins are told to contact;
     it reaches the payload only for that guild and that rung.
     """
     # The rung decides, not the caller: passing the row for a member still
     # serves a member's payload, so this stays the one place the split is made.
-    # Not on the wire — a reader asks the ladder the same question.
     is_admin = role.reaches(GuildRole.admin)
     admin_row = administration if is_admin else None
     return GuildRead(
@@ -185,7 +217,7 @@ def _serialize_guild(
         created_at=guild.created_at,
         updated_at=guild.updated_at,
         role=role,
-        can_write_settings=is_admin if writes_settings is None else writes_settings,
+        can=_can_of_membership(guild, role) if can is None else can,
         position=position,
         # Trash retention window — set from the admin-only trash settings tab.
         retention_days=retention_days if is_admin else None,
@@ -671,7 +703,7 @@ async def read_guild(
     return _serialize_guild(
         guild,
         role=guild_context.rung,
-        writes_settings=guild_context.writes_settings,
+        can=_can_of(guild_context),
         position=_position_of(guild_context),
         retention_days=await guilds_service.get_guild_retention_days(session),
         member_count=await guilds_service.count_members(session, guild_id=guild_id),
@@ -789,7 +821,7 @@ async def update_guild(
     return _serialize_guild(
         guild,
         role=guild_context.rung,
-        writes_settings=guild_context.writes_settings,
+        can=_can_of(guild_context),
         position=_position_of(guild_context),
         retention_days=retention_days,
         member_count=member_count,
@@ -1026,7 +1058,7 @@ async def _guild_payload_after_image_change(
     return _serialize_guild(
         guild,
         role=guild_context.rung,
-        writes_settings=guild_context.writes_settings,
+        can=_can_of(guild_context),
         position=_position_of(guild_context),
         retention_days=await guilds_service.get_guild_retention_days(session),
         member_count=await guilds_service.count_members(session, guild_id=guild_id),

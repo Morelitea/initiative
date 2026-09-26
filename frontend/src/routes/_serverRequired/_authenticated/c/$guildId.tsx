@@ -7,7 +7,6 @@ import { GuildStatusNotice, guildStatusNoticeApplies } from "@/components/guilds
 import { StatusMessage } from "@/components/StatusMessage";
 import { GuildHomeSkeleton, PageSkeleton } from "@/components/skeletons/PageSkeletons";
 import { useGuilds } from "@/hooks/useGuilds";
-import { guildIsClosed } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_serverRequired/_authenticated/c/$guildId")({
   beforeLoad: async ({ context, params, cause }) => {
@@ -37,7 +36,7 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/c/$guildId
 
     // A closed community is never adopted as this tab's guild: nothing inside
     // it answers, so nothing should be asked of it. The component says so.
-    if (guildIsClosed(guild)) {
+    if (!guild.can.enter) {
       return { urlGuildId: guildId, urlGuild: null };
     }
 
@@ -78,7 +77,7 @@ export function GuildLayout() {
   // Verify membership — must happen before syncing guild context
   const guild = !loading ? guilds.find((g) => g.id === guildId) : undefined;
   const isMember = Boolean(guild);
-  const closed = guildIsClosed(guild);
+  const closed = guild !== undefined && !guild.can.enter;
 
   // Sync guild context only after membership is confirmed.
   // This prevents setting an invalid guild ID on the API client,

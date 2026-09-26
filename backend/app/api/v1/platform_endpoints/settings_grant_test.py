@@ -443,7 +443,14 @@ async def test_the_admin_rung_runs_the_community_without_entering_it(
     entry = await client.get(f"/api/v1/communities/{guild.id}", headers=headers)
     assert entry.status_code == 200, entry.text
     assert entry.json()["role"] == "admin"
-    assert entry.json()["can_write_settings"] is False
+    assert entry.json()["can"] == {
+        "enter": True,
+        "content": False,
+        "administer": True,
+        "configure": False,
+        "administer_content": False,
+        "seat": False,
+    }
 
     renamed = await client.patch(
         f"/api/v1/communities/{guild.id}",
@@ -489,10 +496,18 @@ async def test_the_admin_rung_writes_beside_a_read_write_grant(
     )
     assert renamed.status_code == 200, renamed.text
     assert renamed.json()["name"] == "Renamed By Support"
-    assert renamed.json()["can_write_settings"] is True
+    assert renamed.json()["can"]["configure"] is True
 
     entry = await client.get(f"/api/v1/communities/{guild.id}", headers=headers)
-    assert entry.json()["can_write_settings"] is True
+    # The content grant opens the work, and still makes nobody its administrator.
+    assert entry.json()["can"] == {
+        "enter": True,
+        "content": True,
+        "administer": True,
+        "configure": True,
+        "administer_content": False,
+        "seat": False,
+    }
 
     content = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=headers)
     assert content.status_code == 200, content.text
@@ -651,13 +666,21 @@ async def test_a_members_guild_list_says_whether_they_change_its_settings(
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(session, user=member, guild=guild)
 
-    for user, expected in ((admin, True), (member, False)):
+    for user, administers in ((admin, True), (member, False)):
         listed = await client.get(
             "/api/v1/communities/", headers=get_auth_headers(user)
         )
         assert listed.status_code == 200, listed.text
         (entry,) = [row for row in listed.json() if row["id"] == guild.id]
-        assert entry["can_write_settings"] is expected
+        assert entry["can"] == {
+            "enter": True,
+            "content": True,
+            "administer": administers,
+            "configure": administers,
+            "administer_content": administers,
+            # The creator is seated as its superadmin.
+            "seat": administers,
+        }
 
 
 async def test_a_member_does_not_read_the_settings_entry(

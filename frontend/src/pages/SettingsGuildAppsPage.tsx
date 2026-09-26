@@ -50,7 +50,6 @@ import { declaredEmbeds } from "@/lib/appSurfaces";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
-import { holdsGuildSeat } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
 export function SettingsGuildAppsPage() {
@@ -61,7 +60,7 @@ export function SettingsGuildAppsPage() {
   // Installing an app, and the credentials that authorize the whole
   // community, are the seat's. Connecting your own account is not, and
   // happens from the app itself rather than here.
-  const holdsTheSeat = holdsGuildSeat(activeGuild);
+  const holdsTheSeat = Boolean(activeGuild?.can.seat);
 
   const apps = appsQuery.data?.items ?? [];
 

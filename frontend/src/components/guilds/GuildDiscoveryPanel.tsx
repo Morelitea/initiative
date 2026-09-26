@@ -35,7 +35,6 @@ import { useAppConfig } from "@/hooks/useAppConfig";
 import { useGuilds } from "@/hooks/useGuilds";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { GUILD_CATEGORIES, guildCategoryLabel } from "@/lib/guildCategories";
-import { administersGuild } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
 import { CommunityAutoJoinPrompt } from "./CommunityAutoJoinPrompt";
@@ -59,7 +58,7 @@ export const GuildDiscoveryPanel = () => {
     setError(null);
   }, [activeGuild]);
 
-  if (!communityDirectoryEnabled || !activeGuild || !administersGuild(activeGuild)) {
+  if (!communityDirectoryEnabled || !activeGuild?.can.administer) {
     return null;
   }
 

@@ -56,11 +56,7 @@ import { useFavoriteProjects, useProjects } from "@/hooks/useProjects";
 import { useTags } from "@/hooks/useTags";
 import { useToolCountsByInitiative } from "@/hooks/useToolCountsByInitiative";
 import { guildPath } from "@/lib/guildUrl";
-import {
-  administersGuild,
-  canAccessOperatorDashboard,
-  canManagePlatformConfig,
-} from "@/lib/permissions";
+import { canAccessOperatorDashboard, canManagePlatformConfig } from "@/lib/permissions";
 import { getItem, setItem } from "@/lib/storage";
 import { TOOLS, toolDetailRoute } from "@/lib/tools";
 
@@ -80,7 +76,7 @@ export const AppSidebar = () => {
   // initiative is that initiative's own `can`.
   // The gear opens the community's own configuration, which a settings
   // grant reaches as well as its admin does.
-  const isGuildAdmin = administersGuild(activeGuild);
+  const isGuildAdmin = Boolean(activeGuild?.can.administer);
   // Two separate platform areas: config (Platform settings) vs operational
   // (Operator dashboard). Each surfaced independently per capability.
   const showPlatformSettings = canManagePlatformConfig(user);

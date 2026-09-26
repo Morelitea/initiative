@@ -1,9 +1,10 @@
 import type {
   GuildBannerRead,
+  GuildCan,
   GuildInviteStatus,
   GuildRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import { rungReaches } from "@/lib/permissions";
+import { isAdminRole } from "@/lib/permissions";
 
 let counter = 0;
 
@@ -14,6 +15,21 @@ export function buildBanner(overrides: Partial<GuildBannerRead> = {}): GuildBann
     text_color: "#ffffff",
     text_align: "center",
     fade: "strong",
+    ...overrides,
+  };
+}
+
+/** What the server answers for a membership at `role`: an administrator runs
+ *  the community and its work, and the seat is the top rung. */
+export function guildCan(role: string = "member", overrides: Partial<GuildCan> = {}): GuildCan {
+  const administers = isAdminRole(role);
+  return {
+    enter: true,
+    content: true,
+    administer: administers,
+    configure: administers,
+    administer_content: administers,
+    seat: role === "superadmin",
     ...overrides,
   };
 }
@@ -33,8 +49,7 @@ export function buildGuild(overrides: Partial<GuildRead> = {}): GuildRead {
     banner: buildBanner(),
     online_count: 0,
     role,
-    // A member's entry: the membership row's administrator changes settings.
-    can_write_settings: rungReaches(role, "admin"),
+    can: guildCan(role),
     position: counter - 1,
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",

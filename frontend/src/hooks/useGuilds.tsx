@@ -49,11 +49,6 @@ export type GuildEntry = GuildRead & {
   /** The separate settings rung held for this community. It never confers
    * content access and must not be represented as a roster role. */
   grantSettingsLevel?: "admin" | "superadmin" | null;
-  /** Whether this entry reaches the community's work at all. A settings-only
-   * grant does not — the server refuses every content route for one — so the
-   * surfaces built on content are not offered with it. Absent means yes,
-   * which is what a membership is. */
-  reachesContent?: boolean;
 };
 
 interface GuildContextValue {
@@ -115,11 +110,17 @@ const grantEntry = (grant: AccessGrantRead, settingsGrant?: AccessGrantRead): Gu
   // community's own ladder, borrowed. A guild's own payload carries the same
   // field, so a screen asks one question whichever way it was reached.
   role: settingsGrantLevel(settingsGrant) ?? "member",
-  // A settings grant carries no content access; a content grant is what does.
-  reachesContent: grant.purpose === "content",
-  // Answered by the community's own entry (`GET /communities/{id}`) for a settings
-  // grant; until then, and for a content grant, nothing here is changed.
-  can_write_settings: false,
+  // What a content grant alone reaches: the work, and none of the community's
+  // own configuration. A settings grant's answer is the community's own entry
+  // (`GET /communities/{id}`); until it arrives, nothing is offered.
+  can: {
+    enter: true,
+    content: grant.purpose === "content",
+    administer: false,
+    configure: false,
+    administer_content: false,
+    seat: false,
+  },
   position: Number.MAX_SAFE_INTEGER,
   retention_days: null,
   max_storage_bytes: null,
@@ -161,9 +162,9 @@ const grantEntry = (grant: AccessGrantRead, settingsGrant?: AccessGrantRead): Gu
 
 /**
  * A settings grant's entry, with the community's own answer laid over it: the
- * rung, what may be changed, and the administration fields the grant does not
- * carry. What the grant says about itself stays. Best-effort — without an
- * answer the entry changes nothing.
+ * rung, what the caller may do there, and the administration fields the grant
+ * does not carry. What the grant says about itself stays. Best-effort — without
+ * an answer the entry changes nothing.
  */
 const withSettingsEntry = async (entry: GuildEntry): Promise<GuildEntry> => {
   if (!entry.grantSettingsLevel) return entry;
@@ -175,7 +176,6 @@ const withSettingsEntry = async (entry: GuildEntry): Promise<GuildEntry> => {
       banner: entry.banner,
       position: entry.position,
       content_read_only: entry.content_read_only,
-      reachesContent: entry.reachesContent,
       accessType: entry.accessType,
       grantExpiresAt: entry.grantExpiresAt,
       grantAccessLevel: entry.grantAccessLevel,
@@ -367,7 +367,11 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       // the switcher is populated and the pages it still holds can be opened.
       // The grant list is unknown here, so the exclusion set is only widened.
       if (isOfflineCacheEnabled() && isNoAnswerError(err)) {
-        const remembered = readOfflineGuilds<GuildEntry>(currentServerKey());
+        // An entry an earlier build remembered carries no `can`, so it has
+        // nothing to say about what may be done there and is left out.
+        const remembered = readOfflineGuilds<GuildEntry>(currentServerKey())?.filter(
+          (guild) => guild.can !== undefined
+        );
         if (remembered && remembered.length > 0) {
           hasFetchedRef.current = true;
           showingRememberedGuildsRef.current = true;

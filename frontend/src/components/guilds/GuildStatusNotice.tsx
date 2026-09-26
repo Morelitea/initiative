@@ -17,7 +17,6 @@ import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { useGuildPaymentIssue } from "@/hooks/useGuildPaymentIssue";
 import type { GuildEntry } from "@/hooks/useGuilds";
 import { useSupportAvailability } from "@/hooks/useSupport";
-import { holdsGuildSeat } from "@/lib/permissions";
 
 const SEEN_KEY_PREFIX = "guild-status-notice:";
 
@@ -38,7 +37,7 @@ const markSeenThisSession = (key: string) => {
 };
 
 export const guildStatusNoticeApplies = (guild: GuildEntry): boolean =>
-  guild.accessType !== "grant" && holdsGuildSeat(guild) && guild.status === GuildStatus.read_only;
+  guild.accessType !== "grant" && guild.can.seat && guild.status === GuildStatus.read_only;
 
 type Stage = "notice" | "help" | "closed";
 

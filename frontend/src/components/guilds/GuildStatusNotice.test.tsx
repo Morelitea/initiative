@@ -2,7 +2,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildGuild } from "@/__tests__/factories";
+import { buildGuild, guildCan } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { GuildEntry } from "@/hooks/useGuilds";
 
@@ -47,7 +47,9 @@ describe("guildStatusNoticeApplies", () => {
     expect(guildStatusNoticeApplies(seatGuild({ status: "active" }))).toBe(false);
     // A suspended guild is closed rather than noticed: its seat reaches nothing in it.
     expect(guildStatusNoticeApplies(seatGuild({ status: "suspended" }))).toBe(false);
-    expect(guildStatusNoticeApplies(seatGuild({ role: "admin" }))).toBe(false);
+    expect(guildStatusNoticeApplies(seatGuild({ role: "admin", can: guildCan("admin") }))).toBe(
+      false
+    );
     expect(guildStatusNoticeApplies(seatGuild({ accessType: "grant" }))).toBe(false);
   });
 });

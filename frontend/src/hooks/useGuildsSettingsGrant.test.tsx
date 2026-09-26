@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildGuild, buildUser } from "@/__tests__/factories";
+import { buildGuild, buildUser, guildCan } from "@/__tests__/factories";
 
 const get = vi.fn();
 
@@ -150,7 +150,12 @@ describe("settings grants in the community switcher", () => {
       }
       if (path === "/communities/8") {
         return Promise.resolve({
-          data: buildGuild({ id: 8, role: "admin", can_write_settings: false, retention_days: 30 }),
+          data: buildGuild({
+            id: 8,
+            role: "admin",
+            can: guildCan("admin", { content: false, configure: false, administer_content: false }),
+            retention_days: 30,
+          }),
         });
       }
       throw new Error(`Unexpected read: ${path}`);
@@ -163,7 +168,7 @@ describe("settings grants in the community switcher", () => {
           {JSON.stringify({
             access: activeGuild?.accessType,
             settings: activeGuild?.grantSettingsLevel,
-            writes: activeGuild?.can_write_settings,
+            can: activeGuild?.can,
             retention: activeGuild?.retention_days,
           })}
         </output>
@@ -178,7 +183,14 @@ describe("settings grants in the community switcher", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText('{"access":"grant","settings":"admin","writes":false,"retention":30}')
+        screen.getByText(
+          JSON.stringify({
+            access: "grant",
+            settings: "admin",
+            can: guildCan("admin", { content: false, configure: false, administer_content: false }),
+            retention: 30,
+          })
+        )
       ).toBeVisible()
     );
     expect(get).toHaveBeenCalledWith("/communities/8");

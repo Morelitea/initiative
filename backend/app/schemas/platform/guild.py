@@ -76,6 +76,34 @@ class GuildCreate(GuildBase):
     owner_user_id: Optional[int] = Field(default=None, ge=1)
 
 
+class GuildCan(SanitizedBaseModel):
+    """What the caller may do in a community, as the server answers it.
+
+    Each flag is the check the routes that do the thing run, so a client reads
+    its affordances here rather than working them out from a rung."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    #: Open it at all. False for a community in time out, which its
+    #: administrators still see listed; the flags below say what the rung
+    #: carries once it is lifted.
+    enter: bool = False
+    #: Reach its work. A settings grant reaches the configuration alone.
+    content: bool = False
+    #: Run its configuration, roster and invites: its administrator, or a
+    #: settings grant at either rung.
+    administer: bool = False
+    #: Change that configuration: its administrator, or a settings grant
+    #: beside a ``read_write`` content grant.
+    configure: bool = False
+    #: Administer its work — create and delete initiatives, add the
+    #: community's own calendars. The membership row's administrator; no
+    #: grant makes one.
+    administer_content: bool = False
+    #: Hold its top seat: sign-in, billing, AI, apps, data and deletion.
+    seat: bool = False
+
+
 class GuildRead(GuildBase):
     """A guild as its own members see it (``GET /communities/`` and friends).
 
@@ -97,16 +125,10 @@ class GuildRead(GuildBase):
 
     id: int
     #: The rung this caller holds in the community: the membership row's own,
-    #: or the one a live settings grant confers for its window. It is the only
-    #: thing here that says what they may do — administering is this reaching
-    #: ``admin`` and the seat is it reaching ``superadmin``, asked of the
-    #: ladder rather than answered again as a flag apiece.
+    #: or the one a live settings grant confers for its window. Shown as it
+    #: stands; what it lets them do is ``can``.
     role: GuildRole
-    #: Whether this caller may change the configuration its rung reaches. The
-    #: membership row's administrator does; a settings grant does only beside
-    #: a ``read_write`` content grant. The same rule the settings routes refuse
-    #: a change by.
-    can_write_settings: bool = False
+    can: GuildCan = Field(default_factory=GuildCan)
     position: int
     created_at: datetime
     updated_at: datetime

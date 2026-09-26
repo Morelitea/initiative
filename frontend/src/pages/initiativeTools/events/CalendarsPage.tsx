@@ -68,7 +68,6 @@ import { useUpdateTask } from "@/hooks/useTasks";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useGuildPath } from "@/lib/guildUrl";
-import { administersGuildContent } from "@/lib/permissions";
 import { getProjectColor } from "@/lib/projectColor";
 import { PRIORITY_ORDER } from "@/lib/sorting";
 import { getItem, setItem } from "@/lib/storage";
@@ -349,7 +348,7 @@ export const CalendarsView = ({
   // calendars are its admins' to add. The solo deep link is one calendar's
   // surface, so it offers no list to add to.
   const canCreateCalendars = guildScope
-    ? administersGuildContent(activeGuild)
+    ? Boolean(activeGuild?.can.administer_content)
     : solo
       ? false
       : (canCreate ?? canCreateCalendarsDerived);

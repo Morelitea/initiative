@@ -49,7 +49,7 @@ import {
 } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { administersGuild, holdsGuildSeat, rungReaches } from "@/lib/permissions";
+import { isAdminRole } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
 import { getUrlHandle, getUserDisplayName, getUserHandle } from "@/lib/userDisplay";
 
@@ -96,8 +96,8 @@ export const SettingsUsersPage = () => {
   // Running the community, not reaching its work: the roster and its
   // invites answer to the guild's own ladder, and to a settings grant
   // standing in on it. Platform role has nothing to do with it.
-  const isGuildAdmin = administersGuild(activeGuild);
-  const roleOptions = holdsGuildSeat(activeGuild) ? SEAT_ROLE_OPTIONS : GUILD_ROLE_OPTIONS;
+  const isGuildAdmin = Boolean(activeGuild?.can.administer);
+  const roleOptions = activeGuild?.can.seat ? SEAT_ROLE_OPTIONS : GUILD_ROLE_OPTIONS;
 
   const activeGuildId = activeGuild?.id ?? null;
 
@@ -162,9 +162,7 @@ export const SettingsUsersPage = () => {
   // admin roster rather than every member.
   const guildAdmins = useMemo(
     () =>
-      (usersQuery.data ?? []).filter(
-        (m) => rungReaches(m.guild_role, "admin") && m.status !== "anonymized"
-      ),
+      (usersQuery.data ?? []).filter((m) => isAdminRole(m.guild_role) && m.status !== "anonymized"),
     [usersQuery.data]
   );
 
@@ -443,7 +441,7 @@ export const SettingsUsersPage = () => {
               </Button>
             </div>
           </form>
-          {atUserLimit && billing && activeGuildId && holdsGuildSeat(activeGuild) ? (
+          {atUserLimit && billing && activeGuildId && activeGuild?.can.seat ? (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-muted-foreground text-sm">
                 {planName

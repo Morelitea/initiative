@@ -41,7 +41,6 @@ import { useServer } from "@/hooks/useServer";
 import { useServerForm } from "@/hooks/useServerForm";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { holdsGuildSeat } from "@/lib/permissions";
 
 /**
  * Guild sign-in configuration (Settings → Security), in two halves.
@@ -137,7 +136,7 @@ export const SettingsGuildSecurityPage = () => {
   // The seat above admin holds a community's sign-in configuration, and this
   // page is all of it — so it is theirs to reach, not only theirs to write.
   // The tab is gated the same way; this is the direct-URL half.
-  const isSuperadmin = holdsGuildSeat(activeGuild);
+  const isSuperadmin = Boolean(activeGuild?.can.seat);
 
   const policyQuery = useGuildAuthPolicy(guildId, {
     enabled: guildId > 0 && mayConfigureProviders,
