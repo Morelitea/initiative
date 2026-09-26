@@ -18,7 +18,7 @@ import httpx
 import pytest
 
 from app.core.messages import AppDataMessages
-from app.models.platform.app_service_registration import AppServiceRegistration
+from app.services.marketplace.registration_lookup import RegistrationSnapshot
 from app.services.marketplace import app_data as service
 
 
@@ -367,11 +367,16 @@ class TestDefinitionReading:
         """A registration may carry two addresses. This one is Initiative's own
         server calling the app, so it uses the address meant for that — the
         browser address is for what a browser opens."""
-        registration = AppServiceRegistration(
+        registration = RegistrationSnapshot(
             public_id="acme.shop",
-            publisher_id=1,
+            listing_uid=None,
             base_url="http://acme-shop:8200",
             embed_origin="https://shop.example.com",
+            allowed_origins=(),
+            keys={},
+            mandatory=False,
+            enabled=True,
+            live=True,
         )
 
         assert service._endpoints_url(registration) == (

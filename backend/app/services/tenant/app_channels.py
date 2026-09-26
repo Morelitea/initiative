@@ -294,8 +294,8 @@ async def connection_token(
     """One usable access token for a connection of this install, by its ref.
 
     A member's connection must be connected and not blocked; its token is
-    refreshed under the row's lock when it is close to expiring, and a refresh
-    the vendor refuses leaves the connection ``expired``. A guild-wide
+    refreshed when it is close to expiring, once however many ask at once, and
+    a refresh the vendor refuses leaves the connection ``expired``. A guild-wide
     connection answers its ``jwt_bearer`` token, or its own stored token.
     """
     try:
@@ -314,6 +314,7 @@ async def connection_token(
                 app=app,
                 public_id=registration.public_id,
                 connection_ref=connection_ref,
+                guild_id=routed_guild_id(session),
             )
             if member is None:
                 raise AppChannelError(
