@@ -71,5 +71,5 @@ export const fetchAllPages = async <
     console.warn(`fetchAllPages: stopped after ${MAX_PAGES} pages with has_next still true`);
   }
 
-  return { ...response, items: merged, has_next: false, page: 1 } as TResponse;
+  return { ...response, items: merged, has_next: false, has_prev: false, page: 1 } as TResponse;
 };

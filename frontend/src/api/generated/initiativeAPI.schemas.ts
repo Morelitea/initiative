@@ -1473,13 +1473,12 @@ export interface BreakGlassRequirements {
   passkey_enrolled: boolean;
 }
 
-export type ResourceGrantSchemaLevel =
-  (typeof ResourceGrantSchemaLevel)[keyof typeof ResourceGrantSchemaLevel];
+export type ResourceAccessLevel = (typeof ResourceAccessLevel)[keyof typeof ResourceAccessLevel];
 
-export const ResourceGrantSchemaLevel = {
-  read: "read",
-  write: "write",
+export const ResourceAccessLevel = {
   owner: "owner",
+  write: "write",
+  read: "read",
 } as const;
 
 /**
@@ -1506,7 +1505,7 @@ export const ResourceGrantSchemaLevel = {
  * decide, not a resource owner's sharing panel.
  */
 export interface ResourceGrantSchema {
-  level: ResourceGrantSchemaLevel;
+  level: ResourceAccessLevel;
   user_id?: number | null;
   role_id?: number | null;
   all_initiative_members?: boolean;
@@ -1920,11 +1919,12 @@ export interface CalendarEventDocumentRead {
 }
 
 export interface CalendarEventListResponse {
-  items: CalendarEventSummary[];
   total_count: number;
   page: number;
   page_size: number;
   has_next: boolean;
+  has_prev: boolean;
+  items: CalendarEventSummary[];
 }
 
 export interface CalendarEventRSVPUpdate {
@@ -1987,14 +1987,6 @@ export interface ToolCan {
 export interface CalendarSummary {
   archived_at: string | null;
   can: ToolCan;
-  /**
-   * @minLength 1
-   * @maxLength 255
-   */
-  name: string;
-  description: string | null;
-  /** @maxLength 32 */
-  color: string;
   id: number;
   initiative_id: number | null;
   guild_id: number;
@@ -2004,27 +1996,28 @@ export interface CalendarSummary {
   comments_enabled: boolean;
   tags: TagSummary[];
   grants: ResourceGrantSchema[];
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  description: string | null;
+  /** @maxLength 32 */
+  color: string;
 }
 
 export interface CalendarListResponse {
-  items: CalendarSummary[];
   total_count: number;
   page: number;
   page_size: number;
   has_next: boolean;
+  has_prev: boolean;
+  items: CalendarSummary[];
 }
 
 export interface CalendarRead {
   archived_at: string | null;
   can: ToolCan;
-  /**
-   * @minLength 1
-   * @maxLength 255
-   */
-  name: string;
-  description: string | null;
-  /** @maxLength 32 */
-  color: string;
   id: number;
   initiative_id: number | null;
   guild_id: number;
@@ -2034,6 +2027,14 @@ export interface CalendarRead {
   comments_enabled: boolean;
   tags: TagSummary[];
   grants: ResourceGrantSchema[];
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  description: string | null;
+  /** @maxLength 32 */
+  color: string;
 }
 
 export interface CalendarUpdate {
@@ -2066,11 +2067,12 @@ export const Capability = {
   appsmanage: "apps.manage",
 } as const;
 
-export type CaptchaSettingsResponseProvider =
-  | (typeof CaptchaSettingsResponseProvider)[keyof typeof CaptchaSettingsResponseProvider]
-  | null;
+/**
+ * The registration captcha vendors ``CAPTCHA_PROVIDER`` may name.
+ */
+export type CaptchaProvider = (typeof CaptchaProvider)[keyof typeof CaptchaProvider];
 
-export const CaptchaSettingsResponseProvider = {
+export const CaptchaProvider = {
   hcaptcha: "hcaptcha",
   turnstile: "turnstile",
   recaptcha: "recaptcha",
@@ -2083,24 +2085,14 @@ export const CaptchaSettingsResponseProvider = {
  * as the storage and email pages above.
  */
 export interface CaptchaSettingsResponse {
-  provider: CaptchaSettingsResponseProvider;
+  provider: CaptchaProvider | null;
   site_key: string | null;
   has_secret_key: boolean;
   enforcing: boolean;
 }
 
-export type CaptchaSettingsUpdateProvider =
-  | (typeof CaptchaSettingsUpdateProvider)[keyof typeof CaptchaSettingsUpdateProvider]
-  | null;
-
-export const CaptchaSettingsUpdateProvider = {
-  hcaptcha: "hcaptcha",
-  turnstile: "turnstile",
-  recaptcha: "recaptcha",
-} as const;
-
 export interface CaptchaSettingsUpdate {
-  provider?: CaptchaSettingsUpdateProvider;
+  provider?: CaptchaProvider | null;
   site_key?: string | null;
   secret_key?: string | null;
 }
@@ -2688,30 +2680,31 @@ export interface CounterGroupDuplicateRequest {
 export interface CounterGroupSummary {
   archived_at: string | null;
   can: ToolCan;
+  id: number;
+  initiative_id: number;
+  guild_id: number;
+  created_by: number | null;
+  created_at: string;
+  updated_at: string;
+  comments_enabled: boolean;
+  tags: TagSummary[];
+  grants: ResourceGrantSchema[];
   /**
    * @minLength 1
    * @maxLength 255
    */
   name: string;
   description: string | null;
-  id: number;
-  initiative_id: number;
-  guild_id: number;
-  created_by: number | null;
   counter_count: number;
-  comments_enabled: boolean;
-  tags: TagSummary[];
-  created_at: string;
-  updated_at: string;
-  grants: ResourceGrantSchema[];
 }
 
 export interface CounterGroupListResponse {
-  items: CounterGroupSummary[];
   total_count: number;
   page: number;
   page_size: number;
   has_next: boolean;
+  has_prev: boolean;
+  items: CounterGroupSummary[];
 }
 
 /**
@@ -2740,22 +2733,22 @@ export interface CounterRead {
 export interface CounterGroupRead {
   archived_at: string | null;
   can: ToolCan;
+  id: number;
+  initiative_id: number;
+  guild_id: number;
+  created_by: number | null;
+  created_at: string;
+  updated_at: string;
+  comments_enabled: boolean;
+  tags: TagSummary[];
+  grants: ResourceGrantSchema[];
   /**
    * @minLength 1
    * @maxLength 255
    */
   name: string;
   description: string | null;
-  id: number;
-  initiative_id: number;
-  guild_id: number;
-  created_by: number | null;
   counter_count: number;
-  comments_enabled: boolean;
-  tags: TagSummary[];
-  created_at: string;
-  updated_at: string;
-  grants: ResourceGrantSchema[];
   counters: CounterRead[];
 }
 
@@ -2899,31 +2892,32 @@ export interface DashboardInstalledListings {
 export interface DashboardSummary {
   archived_at: string | null;
   can: ToolCan;
-  /**
-   * @minLength 1
-   * @maxLength 255
-   */
-  name: string;
-  description: string | null;
   id: number;
   initiative_id: number;
   guild_id: number;
   created_by: number | null;
   created_at: string;
   updated_at: string;
-  listing_uid: string | null;
-  listing_version: string | null;
   comments_enabled: boolean;
   tags: TagSummary[];
   grants: ResourceGrantSchema[];
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  description: string | null;
+  listing_uid: string | null;
+  listing_version: string | null;
 }
 
 export interface DashboardListResponse {
-  items: DashboardSummary[];
   total_count: number;
   page: number;
   page_size: number;
   has_next: boolean;
+  has_prev: boolean;
+  items: DashboardSummary[];
 }
 
 export type DashboardReadDefinition = { [key: string]: unknown };
@@ -2942,23 +2936,23 @@ export interface PublishedOver {
 export interface DashboardRead {
   archived_at: string | null;
   can: ToolCan;
-  /**
-   * @minLength 1
-   * @maxLength 255
-   */
-  name: string;
-  description: string | null;
   id: number;
   initiative_id: number;
   guild_id: number;
   created_by: number | null;
   created_at: string;
   updated_at: string;
-  listing_uid: string | null;
-  listing_version: string | null;
   comments_enabled: boolean;
   tags: TagSummary[];
   grants: ResourceGrantSchema[];
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  description: string | null;
+  listing_uid: string | null;
+  listing_version: string | null;
   definition: DashboardReadDefinition;
   config: DashboardReadConfig;
   published_over: PublishedOver[];
@@ -3519,23 +3513,23 @@ export const DocumentType = {
 export interface DocumentSummary {
   archived_at: string | null;
   can: ToolCan;
-  name: string;
-  initiative_id: number;
-  featured_image_url: string | null;
-  is_template: boolean;
   id: number;
+  initiative_id: number;
   guild_id: number;
   created_by: number | null;
   created_at: string;
   updated_at: string;
+  comments_enabled: boolean;
+  tags: TagSummary[];
+  grants: ResourceGrantSchema[];
+  name: string;
+  featured_image_url: string | null;
+  is_template: boolean;
   initiative: InitiativeSummary | null;
   owner: UserPublic | null;
   owner_app: OwnerAppSummary | null;
   projects: DocumentProjectLink[];
   comment_count: number;
-  comments_enabled: boolean;
-  grants: ResourceGrantSchema[];
-  tags: TagSummary[];
   properties: PropertySummary[];
   document_type: DocumentType;
   file_url: string | null;
@@ -3547,11 +3541,12 @@ export interface DocumentSummary {
 }
 
 export interface DocumentListResponse {
-  items: DocumentSummary[];
   total_count: number;
   page: number;
   page_size: number;
   has_next: boolean;
+  has_prev: boolean;
+  items: DocumentSummary[];
   sort_by: string | null;
   sort_dir: string | null;
 }
@@ -3561,23 +3556,23 @@ export type DocumentReadContent = { [key: string]: unknown };
 export interface DocumentRead {
   archived_at: string | null;
   can: ToolCan;
-  name: string;
-  initiative_id: number;
-  featured_image_url: string | null;
-  is_template: boolean;
   id: number;
+  initiative_id: number;
   guild_id: number;
   created_by: number | null;
   created_at: string;
   updated_at: string;
+  comments_enabled: boolean;
+  tags: TagSummary[];
+  grants: ResourceGrantSchema[];
+  name: string;
+  featured_image_url: string | null;
+  is_template: boolean;
   initiative: InitiativeSummary | null;
   owner: UserPublic | null;
   owner_app: OwnerAppSummary | null;
   projects: DocumentProjectLink[];
   comment_count: number;
-  comments_enabled: boolean;
-  grants: ResourceGrantSchema[];
-  tags: TagSummary[];
   properties: PropertySummary[];
   document_type: DocumentType;
   file_url: string | null;
@@ -4096,11 +4091,12 @@ export interface GalleryImageRead {
 }
 
 export interface GalleryImageListResponse {
-  items: GalleryImageRead[];
   total_count: number;
   page: number;
   page_size: number;
   has_next: boolean;
+  has_prev: boolean;
+  items: GalleryImageRead[];
 }
 
 export interface GalleryImageUpdate {
@@ -4130,34 +4126,35 @@ export interface GalleryImageVersionRead {
 export interface GallerySummary {
   archived_at: string | null;
   can: ToolCan;
-  /**
-   * @minLength 1
-   * @maxLength 255
-   */
-  name: string;
-  description: string | null;
   id: number;
   initiative_id: number;
   guild_id: number;
   created_by: number | null;
   created_at: string;
   updated_at: string;
+  comments_enabled: boolean;
+  tags: TagSummary[];
+  grants: ResourceGrantSchema[];
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  description: string | null;
   image_count: number;
   cover_image_id: number | null;
   cover: GalleryCover | null;
   preview: GalleryCover[];
-  comments_enabled: boolean;
   comment_count: number;
-  tags: TagSummary[];
-  grants: ResourceGrantSchema[];
 }
 
 export interface GalleryListResponse {
-  items: GallerySummary[];
   total_count: number;
   page: number;
   page_size: number;
   has_next: boolean;
+  has_prev: boolean;
+  items: GallerySummary[];
 }
 
 /**
@@ -4167,26 +4164,26 @@ export interface GalleryListResponse {
 export interface GalleryRead {
   archived_at: string | null;
   can: ToolCan;
-  /**
-   * @minLength 1
-   * @maxLength 255
-   */
-  name: string;
-  description: string | null;
   id: number;
   initiative_id: number;
   guild_id: number;
   created_by: number | null;
   created_at: string;
   updated_at: string;
+  comments_enabled: boolean;
+  tags: TagSummary[];
+  grants: ResourceGrantSchema[];
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  description: string | null;
   image_count: number;
   cover_image_id: number | null;
   cover: GalleryCover | null;
   preview: GalleryCover[];
-  comments_enabled: boolean;
   comment_count: number;
-  tags: TagSummary[];
-  grants: ResourceGrantSchema[];
 }
 
 export interface GalleryUpdate {
@@ -7059,18 +7056,21 @@ export type PostReadBody = { [key: string]: unknown };
 export interface PostRead {
   archived_at: string | null;
   can: ToolCan;
+  id: number;
+  initiative_id: number;
+  guild_id: number;
+  created_by: number | null;
+  created_at: string;
+  updated_at: string;
+  comments_enabled: boolean;
+  tags: TagSummary[];
+  grants: ResourceGrantSchema[];
   /**
    * @minLength 1
    * @maxLength 255
    */
   name: string;
-  id: number;
-  initiative_id: number;
-  guild_id: number;
-  created_by: number | null;
   author: CommentAuthor | null;
-  created_at: string;
-  updated_at: string;
   excerpt: string;
   pinned_at: string | null;
   pinned_by: number | null;
@@ -7081,22 +7081,20 @@ export interface PostRead {
   is_published: boolean;
   is_read: boolean;
   read_count: number;
-  comments_enabled: boolean;
   reactions_enabled: boolean;
   comment_count: number;
-  tags: TagSummary[];
-  grants: ResourceGrantSchema[];
   reactions: ReactionGroup[];
   body: PostReadBody;
   poll: PollRead | null;
 }
 
 export interface PostListResponse {
-  items: PostRead[];
   total_count: number;
   page: number;
   page_size: number;
   has_next: boolean;
+  has_prev: boolean;
+  items: PostRead[];
 }
 
 /**
@@ -7286,11 +7284,12 @@ export interface ProjectRead {
 }
 
 export interface ProjectListResponse {
-  items: ProjectRead[];
   total_count: number;
   page: number;
   page_size: number;
   has_next: boolean;
+  has_prev: boolean;
+  items: ProjectRead[];
 }
 
 export interface ProjectReorderRequest {
@@ -7745,55 +7744,56 @@ export interface QueueItemUpdate {
 export interface QueueSummary {
   archived_at: string | null;
   can: ToolCan;
+  id: number;
+  initiative_id: number;
+  guild_id: number;
+  created_by: number | null;
+  created_at: string;
+  updated_at: string;
+  comments_enabled: boolean;
+  tags: TagSummary[];
+  grants: ResourceGrantSchema[];
   /**
    * @minLength 1
    * @maxLength 255
    */
   name: string;
   description: string | null;
-  id: number;
-  initiative_id: number;
-  guild_id: number;
-  created_by: number | null;
   current_round: number;
   is_active: boolean;
   item_count: number;
-  created_at: string;
-  updated_at: string;
-  comments_enabled: boolean;
-  tags: TagSummary[];
-  grants: ResourceGrantSchema[];
 }
 
 export interface QueueListResponse {
-  items: QueueSummary[];
   total_count: number;
   page: number;
   page_size: number;
   has_next: boolean;
+  has_prev: boolean;
+  items: QueueSummary[];
 }
 
 export interface QueueRead {
   archived_at: string | null;
   can: ToolCan;
+  id: number;
+  initiative_id: number;
+  guild_id: number;
+  created_by: number | null;
+  created_at: string;
+  updated_at: string;
+  comments_enabled: boolean;
+  tags: TagSummary[];
+  grants: ResourceGrantSchema[];
   /**
    * @minLength 1
    * @maxLength 255
    */
   name: string;
   description: string | null;
-  id: number;
-  initiative_id: number;
-  guild_id: number;
-  created_by: number | null;
   current_round: number;
   is_active: boolean;
   item_count: number;
-  created_at: string;
-  updated_at: string;
-  comments_enabled: boolean;
-  tags: TagSummary[];
-  grants: ResourceGrantSchema[];
   items: QueueItemRead[];
   current_item: QueueItemRead | null;
 }
@@ -8433,6 +8433,16 @@ export interface SpreadsheetImportRead {
   sheets?: SpreadsheetImportReadSheetsItem[];
 }
 
+/**
+ * Where uploads are kept: ``STORAGE_BACKEND``.
+ */
+export type StorageBackendKind = (typeof StorageBackendKind)[keyof typeof StorageBackendKind];
+
+export const StorageBackendKind = {
+  local: "local",
+  s3: "s3",
+} as const;
+
 export type StorageBackfillStatusResponseStatus =
   (typeof StorageBackfillStatusResponseStatus)[keyof typeof StorageBackfillStatusResponseStatus];
 
@@ -8455,16 +8465,8 @@ export interface StorageBackfillStatusResponse {
   error: string | null;
 }
 
-export type StorageSettingsResponseBackend =
-  (typeof StorageSettingsResponseBackend)[keyof typeof StorageSettingsResponseBackend];
-
-export const StorageSettingsResponseBackend = {
-  local: "local",
-  s3: "s3",
-} as const;
-
 export interface StorageSettingsResponse {
-  backend: StorageSettingsResponseBackend;
+  backend: StorageBackendKind;
   s3_bucket: string | null;
   s3_region: string;
   s3_endpoint_url: string | null;
@@ -8475,16 +8477,8 @@ export interface StorageSettingsResponse {
   s3_local_fallback: boolean;
 }
 
-export type StorageSettingsUpdateBackend =
-  (typeof StorageSettingsUpdateBackend)[keyof typeof StorageSettingsUpdateBackend];
-
-export const StorageSettingsUpdateBackend = {
-  local: "local",
-  s3: "s3",
-} as const;
-
 export interface StorageSettingsUpdate {
-  backend?: StorageSettingsUpdateBackend;
+  backend?: StorageBackendKind;
   s3_bucket?: string | null;
   s3_region?: string;
   s3_endpoint_url?: string | null;
@@ -8754,12 +8748,12 @@ export interface TaskCreate {
 }
 
 export interface TaskListResponse {
-  items: TaskListRead[];
   total_count: number;
   page: number;
   page_size: number;
   has_next: boolean;
   has_prev: boolean;
+  items: TaskListRead[];
   sorting: string | null;
 }
 
@@ -9185,12 +9179,12 @@ export interface UserStatsResponse {
  * Paginated envelope for the slim user search/typeahead endpoints.
  */
 export interface UserSummaryListResponse {
-  items: UserSummary[];
   total_count: number;
   page: number;
   page_size: number;
   has_next: boolean;
   has_prev: boolean;
+  items: UserSummary[];
 }
 
 /**
@@ -9415,18 +9409,21 @@ export const WikiReadingWidth = {
 export interface WikiSummary {
   archived_at: string | null;
   can: ToolCan;
-  /**
-   * @minLength 1
-   * @maxLength 255
-   */
-  name: string;
-  description: string | null;
   id: number;
   initiative_id: number;
   guild_id: number;
   created_by: number | null;
   created_at: string;
   updated_at: string;
+  comments_enabled: boolean;
+  tags: TagSummary[];
+  grants: ResourceGrantSchema[];
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  description: string | null;
   page_count: number;
   home_page_id: number | null;
   page_order: WikiPageOrder;
@@ -9436,18 +9433,16 @@ export interface WikiSummary {
   reading_width: WikiReadingWidth;
   accent_color: string | null;
   template_page_id: number | null;
-  comments_enabled: boolean;
   comment_count: number;
-  tags: TagSummary[];
-  grants: ResourceGrantSchema[];
 }
 
 export interface WikiListResponse {
-  items: WikiSummary[];
   total_count: number;
   page: number;
   page_size: number;
   has_next: boolean;
+  has_prev: boolean;
+  items: WikiSummary[];
 }
 
 export type WikiPageCreateContent = { [key: string]: unknown } | null;
@@ -9618,18 +9613,21 @@ export interface WikiPageUpdate {
 export interface WikiRead {
   archived_at: string | null;
   can: ToolCan;
-  /**
-   * @minLength 1
-   * @maxLength 255
-   */
-  name: string;
-  description: string | null;
   id: number;
   initiative_id: number;
   guild_id: number;
   created_by: number | null;
   created_at: string;
   updated_at: string;
+  comments_enabled: boolean;
+  tags: TagSummary[];
+  grants: ResourceGrantSchema[];
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  description: string | null;
   page_count: number;
   home_page_id: number | null;
   page_order: WikiPageOrder;
@@ -9639,10 +9637,7 @@ export interface WikiRead {
   reading_width: WikiReadingWidth;
   accent_color: string | null;
   template_page_id: number | null;
-  comments_enabled: boolean;
   comment_count: number;
-  tags: TagSummary[];
-  grants: ResourceGrantSchema[];
 }
 
 export interface WikiUpdate {
