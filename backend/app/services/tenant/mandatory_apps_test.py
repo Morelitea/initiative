@@ -104,9 +104,6 @@ class TestAtGuildCreation:
         assert [app.listing_uid for app in apps] == [PROVIDED_UID]
         assert apps[0].name == "Provided app"
         assert apps[0].app_kind == "service"
-        # No local content: a service app's install is the row and its pinned
-        # definition.
-        assert apps[0].artifacts == []
 
     async def test_a_registration_switched_off_installs_nowhere(
         self, client: AsyncClient, session: AsyncSession, mandatory_registration

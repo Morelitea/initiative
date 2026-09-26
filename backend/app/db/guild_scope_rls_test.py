@@ -16,10 +16,13 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.testing import (
     create_guild,
+    create_guild_calendar,
     create_guild_membership,
     create_initiative,
+    create_resource_grant,
     create_user,
     route_as,
 )
@@ -133,3 +136,30 @@ class TestBoundariesStillHold:
         s = await role_session("app_user")
         with pytest.raises(DBAPIError):
             await s.exec(text(f"SELECT count(*) FROM guild_{guild.id}.calendars"))
+
+
+class TestGuildLevelTools:
+    async def test_a_guild_calendar_is_written_by_the_guild_admin(
+        self, session, role_session
+    ):
+        """Its sharing decides who writes what a guild calendar holds; the row
+        itself is the admin's, whatever grant a member holds on it."""
+        admin = await create_user(session)
+        guild = await create_guild(session, creator=admin)
+        member = await create_user(session)
+        await create_guild_membership(session, user=member, guild=guild)
+        calendar = await create_guild_calendar(session, guild, admin)
+        await create_resource_grant(
+            session, calendar, level=ResourceAccessLevel.write, user=member
+        )
+
+        for user, renamed in ((member, 0), (admin, 1)):
+            s = await role_session("app_user")
+            await route_as(s, user_id=user.id, guild_id=guild.id)
+            result = await s.exec(
+                text("UPDATE calendars SET name = 'Renamed' WHERE id = :id").bindparams(
+                    id=calendar.id
+                )
+            )
+            assert result.rowcount == renamed
+            await s.rollback()

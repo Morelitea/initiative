@@ -443,6 +443,30 @@ def direct() -> InitiativePath:
     )
 
 
+def direct_or_guild() -> InitiativePath:
+    """Own ``initiative_id`` column, or none: a tool made for the whole guild.
+
+    A row naming an initiative is gated like any :func:`direct` row. A row
+    naming none belongs to the guild, where the initiative gate has nothing to
+    decide: every member reads it as its sharing allows, and writing it is the
+    guild admin's (or a live write grant's), or the installed app's on a token
+    not narrowed to one initiative. Sharing still applies on top, which is how
+    the admin decides who writes what the row holds.
+    """
+    writer = f"({_GUILD_ADMIN} OR {_P.pam_write} OR {_UNNARROWED_INSTALL})"
+    return InitiativePath(
+        predicate=lambda t, w: (
+            f"({_access(f'{t}.initiative_id', w)}"
+            f" AND ({t}.initiative_id IS NOT NULL OR {writer}))"
+            if w
+            else _access(f"{t}.initiative_id", w)
+        ),
+        initiative_expr=lambda r: f"{r}.initiative_id",
+        parents=_no_parents,
+        dac=_dac_self(),
+    )
+
+
 #: A sharing leg that the walk to the parent has already answered. Rendered as
 #: a literal rather than left out, because a polymorphic path composes one arm
 #: per target type and an arm has to be something; the planner folds it away,
@@ -1195,7 +1219,7 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "documents": direct(),
     "queues": direct(),
     "counter_groups": direct(),
-    "calendars": direct(),
+    "calendars": direct_or_guild(),
     "dashboards": direct(),
     "posts": direct(),
     "galleries": direct(),

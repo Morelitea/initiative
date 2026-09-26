@@ -6,24 +6,23 @@ nature (a club's own events calendar), and a tool that lives in one initiative
 cannot be that.
 
 The row is *installation state*, not content. It records which listing was
-installed, at which version, what the install produced (``artifacts``), and how
-the guild configured it (``config`` / ``config_secrets``). The content itself is
-an ordinary row in an ordinary table — a guild-level ``calendars`` row, for
-instance — governed by its own grants like anything else. That split is
+installed, at which version, and how the guild configured it (``config`` /
+``config_secrets``). The content itself is an ordinary row in an ordinary table
+— a guild-level ``calendars`` row, for instance — owned by the install and
+governed by its own grants like anything else. That split is
 deliberate: apps mount existing tools at guild scope rather than introducing a
 parallel one.
 
-One install can produce more than one thing, so ``artifacts`` is a list of
-``{"type": …, "id": …}`` rather than a single id on ``config``. Removal walks
-that list through a per-type handler, which is what lets a later app mount two
-tools at once without the removal path growing a special case.
+What an install produced is the guild-level content it owns: an owner grant
+naming the install (``resource_grants.app_install_id``), which goes when the
+install does. There is no list on this row to keep in step with it.
 
 ``config_secrets`` holds the values a guild admin typed into an app's connection
 form, encrypted per key. This row is the custodian: the values are written
 through the API and never read back out of it — a read reports only whether a
 value is present.
 
-Managing apps is a guild-admin action; the row is readable by any member of the
+Managing apps is the seat's action, which only its role writes; the row is readable by any member of the
 guild, because the sidebar has to know an app is there. What a member may do
 *inside* an app is decided by that instance's grants, not here.
 """
@@ -127,12 +126,6 @@ class GuildApp(CreatedByMixin, table=True):
     connection_refs: dict[str, Any] = Field(
         default_factory=dict,
         sa_column=Column(JSONB, nullable=False, server_default="{}"),
-    )
-
-    # What this install created: ``[{"type": "calendar", "id": 7}, …]``.
-    artifacts: list[Any] = Field(
-        default_factory=list,
-        sa_column=Column(JSONB, nullable=False, server_default="[]"),
     )
 
     # Whether this install is placed in each initiative created after it.

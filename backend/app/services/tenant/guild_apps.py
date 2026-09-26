@@ -5,18 +5,17 @@ Three shapes, and the difference is what the app brings with it.
 A **tool instance** mounts one of this build's own tools at guild scope.
 Installing creates an ordinary row in that tool's ordinary table with no
 initiative — a guild-level calendar is a `calendars` row with `initiative_id`
-NULL — and records it in the app's `artifacts`, so the sidebar can link straight
-to it. Nothing about the tool changes: same table, same UI, same sharing, same
-trash. The content is seeded shared with everyone in the guild, which is what
-makes an app useful the moment it lands. From there its grants behave like any
-other instance's: remove the everyone grant to make it private, add write grants
-to let particular members or roles post. Guild admins keep full authority
-through the existing admin override.
+NULL — owned by the install, so the sidebar can link straight to it. Nothing
+about the tool changes: same table, same UI, same sharing, same trash. The
+content is seeded shared with everyone in the guild, which is what makes an app
+useful the moment it lands. From there the guild admin decides its sharing:
+remove the everyone grant to make it private, add write grants to let
+particular members or roles post in it. Writing the row itself is the admin's.
 
-An install is not limited to what it created on the way in. A member adding a
-guild calendar records it here too (`record_artifact`), because the app is the
-container: it is the entry that reaches the content, so removing it takes the
-content with it rather than stranding rows nothing links to.
+An install is not limited to what it created on the way in. A guild admin
+adding another guild calendar gives it to the install too, because the app is
+the container: it is the entry that reaches the content, so removing it takes
+the content with it rather than stranding rows nothing links to.
 
 An **embed** brings none. It opens a surface the operator configured, so there
 is no row to create, nothing to share, and nothing to trash on the way out —
@@ -28,11 +27,12 @@ A **service** app brings connections rather than content: what it needs is
 configuration, which lives on the install row and in each member's own
 connection. It creates no artifacts here.
 
-**Artifacts are a list, not a field.** An install may produce more than one
-thing, so what it produced is recorded as `[{"type": …, "id": …}]` and removal
-walks the list through :data:`ARTIFACT_HANDLERS`. Every tool an app may mount
-has a handler — asserted by a test rather than left to be noticed the day an
-uninstall quietly leaves a row behind.
+**Artifacts are what the install owns.** An install may produce more than
+one thing; what it produced is every guild-level row whose owner grant names
+it, read as `[{"type": …, "id": …}]`, and removal walks that through
+:data:`ARTIFACT_HANDLERS`. Every tool an app may mount has a handler — asserted
+by a test rather than left to be noticed the day an uninstall quietly leaves a
+row behind.
 """
 
 from __future__ import annotations
@@ -43,8 +43,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Awaitable, Callable, Iterable, Optional
 
-from sqlalchemy import cast, delete, update
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import delete
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -74,6 +73,7 @@ __all__ = [
     "SurfaceAccess",
     "SurfaceOpenability",
     "app_artifacts",
+    "artifacts_by_install",
     "declared_surfaces",
     "create_app_artifacts",
     "find_mounting_app",
@@ -81,14 +81,12 @@ __all__ = [
     "initiative_surface_ids",
     "install_app",
     "is_placed",
-    "legacy_artifacts",
     "lock_install",
     "place_in_every_initiative",
     "place_with_roles",
     "placed_initiative_ids",
     "placement_role_ids",
     "placements_by_install",
-    "record_artifact",
     "remove_app_artifacts",
     "remove_placement",
     "set_placed_initiatives",
@@ -106,24 +104,22 @@ __all__ = [
 class ArtifactHandler:
     """How one kind of artifact is made and unmade.
 
-    ``create`` returns the id of the row it produced; ``remove`` disposes of it.
+    ``create`` makes the row, owned by the install; ``remove`` disposes of it.
     Removal is soft wherever the tool has a trash, because what an app created
     is guild content — the events someone put in a guild calendar should survive
     an admin removing the app.
     """
 
-    create: Callable[..., Awaitable[int]]
+    create: Callable[..., Awaitable[None]]
     remove: Callable[..., Awaitable[None]]
 
 
-async def _create_calendar(
-    session: AsyncSession, *, guild_id: int, created_by: int, name: str
-) -> int:
+async def _create_calendar(session: AsyncSession, *, app: GuildApp, name: str) -> None:
     calendar = Calendar(
         # No initiative: this belongs to the guild. Its grants decide who reads
-        # and writes it, exactly as for an initiative calendar.
+        # and writes what it holds, exactly as for an initiative calendar.
         initiative_id=None,
-        created_by=created_by,
+        created_by=app.created_by,
         name=name,
     )
     session.add(calendar)
@@ -133,7 +129,7 @@ async def _create_calendar(
         ResourceGrant(
             resource_type="calendar",
             resource_id=calendar.id,
-            user_id=created_by,
+            app_install_id=app.id,
             level=ResourceAccessLevel.owner,
             initiative_id=None,
         )
@@ -151,7 +147,6 @@ async def _create_calendar(
         )
     )
     await session.flush()
-    return calendar.id  # ty: ignore[invalid-return-type] — flushed row, id is set
 
 
 async def _remove_calendar(
@@ -183,48 +178,41 @@ ARTIFACT_HANDLERS: dict[str, ArtifactHandler] = {
 }
 
 
-def legacy_artifacts(definition: dict, config: dict) -> list[dict[str, Any]]:
-    """The artifacts an install recorded before ``artifacts`` existed.
+async def artifacts_by_install(
+    session: AsyncSession, install_ids: Iterable[int]
+) -> dict[int, list[dict[str, Any]]]:
+    """What each install produced, as ``[{"type": …, "id": …}]``, in one query.
 
-    Tool-instance installs used to keep the id of the row they created under a
-    per-tool key on ``config``. Migration 20260812_0171 rewrites those rows, and
-    this is the same reading in Python: shared so the migration's behaviour is
-    testable without a database, and so a row that somehow escaped it still
-    resolves rather than reading as an install that created nothing.
+    An install's artifacts are the guild-level rows it owns: the owner grant
+    naming the install is the record, so there is no second list to keep in
+    step with it.
     """
-    tool = (definition or {}).get("tool")
-    if tool not in ARTIFACT_HANDLERS:
-        return []
-    value = (config or {}).get(f"{tool}_id")
-    if not isinstance(value, int) or isinstance(value, bool):
-        return []
-    return [{"type": tool, "id": value}]
+    ids = list(install_ids)
+    if not ids:
+        return {}
+    rows = await session.exec(
+        select(
+            ResourceGrant.app_install_id,
+            ResourceGrant.resource_type,
+            ResourceGrant.resource_id,
+        )
+        .where(
+            col(ResourceGrant.app_install_id).in_(ids),
+            ResourceGrant.level == ResourceAccessLevel.owner,
+            col(ResourceGrant.initiative_id).is_(None),
+            col(ResourceGrant.resource_type).in_(ARTIFACT_HANDLERS),
+        )
+        .order_by(col(ResourceGrant.app_install_id), col(ResourceGrant.resource_id))
+    )
+    grouped: dict[int, list[dict[str, Any]]] = {install_id: [] for install_id in ids}
+    for install_id, artifact_type, artifact_id in rows.all():
+        grouped[install_id].append({"type": artifact_type, "id": artifact_id})
+    return grouped
 
 
-def app_artifacts(app: GuildApp) -> list[dict[str, Any]]:
-    """What this install produced, as ``[{"type": …, "id": …}]``.
-
-    Entries naming a type this build has no handler for are dropped: they cannot
-    be linked to or removed, so reporting them would only promise something no
-    code can keep.
-    """
-    stored = app.artifacts or []
-    if not isinstance(stored, list):
-        stored = []
-    artifacts: list[dict[str, Any]] = []
-    for entry in stored:
-        if not isinstance(entry, dict):
-            continue
-        artifact_type = entry.get("type")
-        artifact_id = entry.get("id")
-        if artifact_type not in ARTIFACT_HANDLERS:
-            continue
-        if not isinstance(artifact_id, int) or isinstance(artifact_id, bool):
-            continue
-        artifacts.append({"type": artifact_type, "id": artifact_id})
-    if artifacts:
-        return artifacts
-    return legacy_artifacts(app.definition or {}, app.config or {})
+async def app_artifacts(session: AsyncSession, app: GuildApp) -> list[dict[str, Any]]:
+    """What one install produced; see :func:`artifacts_by_install`."""
+    return (await artifacts_by_install(session, [app.id]))[app.id]
 
 
 async def lock_install(session: AsyncSession, app_id: int) -> Optional[GuildApp]:
@@ -236,6 +224,11 @@ async def lock_install(session: AsyncSession, app_id: int) -> Optional[GuildApp]
     overlapping would have the second write carry a value read before the first
     landed, and the first change would be gone with no sign that it had been
     made. Taking the row first puts them in an order instead.
+
+    Removal takes it too, before reading what the install owns. Giving the
+    install something waits on it, because the owner grant's foreign key names
+    this row, so the new content is either among what removal reads or finds
+    the install gone.
 
     Answers ``None`` if the row is gone, which is the same answer as this guild
     never having had the install.
@@ -250,9 +243,7 @@ async def lock_install(session: AsyncSession, app_id: int) -> Optional[GuildApp]
     ).first()
 
 
-async def find_mounting_app(
-    session: AsyncSession, *, guild_id: int, tool: str, for_update: bool = False
-) -> Optional[GuildApp]:
+async def find_mounting_app(session: AsyncSession, *, tool: str) -> Optional[GuildApp]:
     """The install that mounts ``tool`` at guild scope, if this guild has one.
 
     A tool-instance install is the container for what it mounts, so this is the
@@ -260,75 +251,29 @@ async def find_mounting_app(
     asked before creating one, and answered from the install rows rather than
     from the content, since an install with everything trashed is still the
     container.
-
-    ``for_update`` holds the row for the rest of the transaction, and is how
-    putting something *into* an app orders itself against removing the app.
-    Removal takes the same lock before it reads what to trash, so the two happen
-    in an order rather than at once: whichever is second either trashes the new
-    content along with the rest, or finds no install and refuses. Without the
-    lock a calendar could be committed just as its app went away, and would then
-    be live with nothing that reaches it and no removal that knows about it.
     """
     apps = (await session.exec(select(GuildApp))).all()
     for app in apps:
-        if (app.definition or {}).get("app_kind") != "tool_instance":
-            continue
-        if (app.definition or {}).get("tool") == tool:
-            return app if not for_update else await lock_install(session, app.id)
+        definition = app.definition or {}
+        if (
+            definition.get("app_kind") == "tool_instance"
+            and definition.get("tool") == tool
+        ):
+            return app
     return None
 
 
-async def record_artifact(
-    session: AsyncSession, app: GuildApp, *, artifact_type: str, artifact_id: int
-) -> None:
-    """Add something to what this install is answerable for.
-
-    Everything made inside an app is made *by* the app as far as removal is
-    concerned: uninstalling walks ``artifacts`` and trashes every entry, so a
-    calendar someone added to the guild calendar leaves with it rather than
-    outliving the only entry that reached it.
-
-    The append is done by the database, not in Python. Any member may add a
-    calendar, so two of them can be adding one at the same moment — and reading
-    the list, appending, and writing the whole value back would have the second
-    write carry a list taken before the first landed. ``||`` appends to whatever
-    the stored value is when the statement runs, so both entries survive
-    whichever order they arrive in.
-    """
-    entry = [{"type": artifact_type, "id": artifact_id}]
-    await session.exec(
-        update(GuildApp)
-        .where(GuildApp.id == app.id)
-        .values(
-            artifacts=GuildApp.artifacts.op("||")(cast(entry, JSONB)),
-            updated_at=datetime.now(timezone.utc),
-        )
-        .execution_options(synchronize_session=False)
-    )
-    # The row has moved on without this copy of it, so send the next read of
-    # those two back to the database rather than to a value we know is behind.
-    session.expire(app, ["artifacts", "updated_at"])
-
-
-async def create_app_artifacts(
-    session: AsyncSession,
-    *,
-    definition: dict,
-    guild_id: int,
-    created_by: int,
-    name: str,
-) -> list[dict[str, Any]]:
-    """Create what the app mounts, and return what it produced.
+async def create_app_artifacts(session: AsyncSession, app: GuildApp) -> None:
+    """Create what the app mounts, owned by its install.
 
     Only a tool instance produces anything. An embed opens a surface that
     already exists, and a **service** app brings connections rather than
     content — its install is the row plus the definition it pinned, and what it
-    offers is served from the container the operator registered. Both answer
-    with an empty list rather than being a case the installer has to know
-    about.
+    offers is served from the container the operator registered.
     """
+    definition = app.definition or {}
     if definition.get("app_kind") != "tool_instance":
-        return []
+        return
 
     tool = definition.get("tool")
     handler = ARTIFACT_HANDLERS.get(tool or "")
@@ -338,10 +283,7 @@ async def create_app_artifacts(
         # teaching about a new one.
         raise ValueError(f"cannot mount {tool!r} at guild scope")
 
-    artifact_id = await handler.create(
-        session, guild_id=guild_id, created_by=created_by, name=name
-    )
-    return [{"type": tool, "id": artifact_id}]
+    await handler.create(session, app=app, name=app.name)
 
 
 async def install_app(
@@ -373,13 +315,6 @@ async def install_app(
     already checked against the manifest and the ceiling by the caller. It is
     written with the row, so the install never exists without its consent.
     """
-    artifacts = await create_app_artifacts(
-        session,
-        definition=definition,
-        guild_id=guild_id,
-        created_by=created_by,
-        name=name,
-    )
     app = GuildApp(
         listing_uid=listing_uid,
         listing_version=listing_version,
@@ -388,12 +323,12 @@ async def install_app(
         definition=definition,
         config={},
         config_secrets={},
-        artifacts=artifacts,
         granted_scopes=sorted(set(granted_scopes)),
         created_by=created_by,
     )
     session.add(app)
     await session.flush()
+    await create_app_artifacts(session, app)
     # Staged in the caller's transaction, after the flush that gives the install
     # its id, so the record and the install land together or not at all.
     await audit_service.record(
@@ -420,13 +355,14 @@ async def remove_app_artifacts(
     deleted_by_user_id: Optional[int],
     retention_days: Optional[int],
 ) -> None:
-    """Trash everything the app created.
+    """Trash everything the app owns at guild scope.
 
     Through the ordinary soft-delete path, so removing an app is recoverable for
     as long as the guild's retention window allows — the events someone put in a
-    guild calendar should not evaporate because an admin removed the app.
+    guild calendar should not evaporate because an admin removed the app. The
+    caller holds the install row (:func:`lock_install`).
     """
-    for artifact in app_artifacts(app):
+    for artifact in await app_artifacts(session, app):
         handler = ARTIFACT_HANDLERS[artifact["type"]]
         await handler.remove(
             session,

@@ -59,6 +59,7 @@ import { useCalendarEntries } from "@/hooks/useCalendarEntries";
 import { useRescheduleCalendarEvent } from "@/hooks/useCalendarEvents";
 import { useCalendar, useCalendarsList } from "@/hooks/useCalendars";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
+import { useGuilds } from "@/hooks/useGuilds";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useProjects } from "@/hooks/useProjects";
@@ -67,6 +68,7 @@ import { useUpdateTask } from "@/hooks/useTasks";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useGuildPath } from "@/lib/guildUrl";
+import { administersGuildContent } from "@/lib/permissions";
 import { getProjectColor } from "@/lib/projectColor";
 import { PRIORITY_ORDER } from "@/lib/sorting";
 import { getItem, setItem } from "@/lib/storage";
@@ -338,15 +340,16 @@ export const CalendarsView = ({
   // Creating a CALENDAR is the role-permission gate; creating an EVENT is
   // write access on at least one calendar (the project→task pattern). An
   // explicit canCreate prop (e.g. from InitiativeDetailPage) wins.
+  const { activeGuild } = useGuilds();
   const { canCreate: canCreateCalendarsDerived } = useToolCreateAccess(Tool.calendar, {
     initiativeId,
     enabled: !guildOnly,
   });
-  // At guild scope there is no initiative role to consult: any member of the
-  // guild may add a calendar to the app, and owns what they made. The solo deep
-  // link is one calendar's surface, so it offers no list to add to.
+  // At guild scope there is no initiative role to consult: the guild's
+  // calendars are its admins' to add. The solo deep link is one calendar's
+  // surface, so it offers no list to add to.
   const canCreateCalendars = guildScope
-    ? true
+    ? administersGuildContent(activeGuild)
     : solo
       ? false
       : (canCreate ?? canCreateCalendarsDerived);
