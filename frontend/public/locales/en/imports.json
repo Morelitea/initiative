@@ -84,6 +84,7 @@
     "people": {
       "prompt": "Who are these people here?",
       "note": "Pick who each person is here. Exact handle matches are filled in; leave one blank to keep just their name.",
+      "access": "Anyone assigned, invited or named in a property is added to the initiative if you manage it, and gets access to what's imported.",
       "comments_one": "{{count}} comment",
       "comments_other": "{{count}} comments",
       "unmapped": "Nobody here",
@@ -100,7 +101,7 @@
       "initiativesCreated_other": "{{count}} initiatives created",
       "perTool": "{{created}} created · {{failed}} failed · {{skipped}} skipped",
       "assets": "{{restored}} files restored, {{deduped}} already present",
-      "unmatchedHandles": "Some people couldn't be matched by handle: {{handles}}",
+      "unmatchedHandles": "Some people weren't placed. Nobody here matched them, or you can't add them to this initiative: {{handles}}",
       "failedEntries": "Items that failed to import:",
       "nothing": "Nothing was imported."
     },
@@ -241,8 +242,8 @@
     "importing": "Importing…",
     "success": "Imported \"{{name}}\".",
     "queued": "Import started — you'll get a notification when it finishes.",
-    "warningUnmatched_one": "{{count}} person couldn't be matched by handle: {{handles}}",
-    "warningUnmatched_other": "{{count}} people couldn't be matched by handle: {{handles}}",
+    "warningUnmatched_one": "{{count}} person wasn't placed. Nobody here matched them, or you can't add them to this initiative: {{handles}}",
+    "warningUnmatched_other": "{{count}} people weren't placed. Nobody here matched them, or you can't add them to this initiative: {{handles}}",
     "error": "Import failed."
   },
   "entry": {

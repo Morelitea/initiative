@@ -25,13 +25,15 @@ opens the row themselves.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import Any, Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy import and_, exists, false, or_, true
 from sqlalchemy import Select
+from sqlalchemy import delete as sa_delete
+from sqlalchemy import update as sa_update
 from sqlalchemy import select as sa_select
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql.elements import ColumnElement
@@ -50,7 +52,15 @@ from app.models.tenant.initiative import (
     InitiativeRoleModel,
     InitiativeRolePermission,
 )
+from app.models.tenant.calendar_event import CalendarEvent, CalendarEventAttendee
+from app.models.tenant.property import (
+    CalendarEventPropertyValue,
+    DocumentPropertyValue,
+    TaskPropertyValue,
+)
+from app.models.tenant.queue import QueueItem
 from app.models.tenant.resource_grant import ResourceGrant
+from app.models.tenant.task import Task, TaskAssignee
 from app.services.platform.users import visible_to_other_people
 
 _ADMIN_RUNGS = [rung for rung in GUILD_LADDER if rung.reaches(GuildRole.admin)]
@@ -196,3 +206,99 @@ async def require_readers(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=CommonMessages.PERSON_CANNOT_READ,
         )
+
+
+# --- Where content names somebody --------------------------------------------
+
+
+@dataclass(frozen=True)
+class PersonRef:
+    """A column naming a person on content inside a tool. ``within`` picks the
+    rows inside one governing row; ``clears`` empties the column rather than
+    deleting the row, where the row is more than the name (a property value,
+    a queue item)."""
+
+    column: Any
+    within: Callable[[int], ColumnElement[bool]]
+    clears: bool = False
+
+
+#: Every person column, by the tool whose sharing decides who it may name.
+PERSON_REFS: dict[Tool, tuple[PersonRef, ...]] = {
+    Tool.project: (
+        PersonRef(
+            TaskAssignee.user_id,
+            lambda pid: TaskAssignee.task_id.in_(
+                sa_select(Task.id).where(Task.project_id == pid)
+            ),
+        ),
+        PersonRef(
+            TaskPropertyValue.value_user_id,
+            lambda pid: TaskPropertyValue.task_id.in_(
+                sa_select(Task.id).where(Task.project_id == pid)
+            ),
+            clears=True,
+        ),
+    ),
+    Tool.calendar: (
+        PersonRef(
+            CalendarEventAttendee.user_id,
+            lambda cid: CalendarEventAttendee.calendar_event_id.in_(
+                sa_select(CalendarEvent.id).where(CalendarEvent.calendar_id == cid)
+            ),
+        ),
+        PersonRef(
+            CalendarEventPropertyValue.value_user_id,
+            lambda cid: CalendarEventPropertyValue.event_id.in_(
+                sa_select(CalendarEvent.id).where(CalendarEvent.calendar_id == cid)
+            ),
+            clears=True,
+        ),
+    ),
+    Tool.document: (
+        PersonRef(
+            DocumentPropertyValue.value_user_id,
+            lambda did: DocumentPropertyValue.document_id == did,
+            clears=True,
+        ),
+    ),
+    Tool.queue: (
+        PersonRef(
+            QueueItem.user_id, lambda qid: QueueItem.queue_id == qid, clears=True
+        ),
+    ),
+}
+
+
+async def named_on(session: AsyncSession, governing: Governing) -> set[int]:
+    """Everyone the content inside the governing row names."""
+    named: set[int] = set()
+    for ref in PERSON_REFS.get(governing.tool, ()):
+        named.update(
+            (
+                await session.exec(
+                    select(ref.column)
+                    .where(ref.within(governing.resource_id), ref.column.is_not(None))
+                    .distinct()
+                )
+            ).all()
+        )
+    return named
+
+
+async def sweep(session: AsyncSession, governing: Governing) -> set[int]:
+    """Take everyone who cannot open the governing row off the content inside
+    it, and answer who that was."""
+    named = await named_on(session, governing)
+    gone = named - await readers(session, governing, named)
+    if not gone:
+        return gone
+    for ref in PERSON_REFS.get(governing.tool, ()):
+        table = ref.column.class_
+        where = (ref.within(governing.resource_id), ref.column.in_(gone))
+        await session.exec(
+            sa_update(table).where(*where).values({ref.column.key: None})
+            if ref.clears
+            else sa_delete(table).where(*where)
+        )
+    return gone

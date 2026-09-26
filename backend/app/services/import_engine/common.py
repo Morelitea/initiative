@@ -279,7 +279,6 @@ def decode_property_value(
             pv.value_handle,
             people=people if people is not None else PeopleMap(),
             member_handles=initiative_member_handles,
-            member_ids=frozenset(initiative_member_handles.values()),
         )
         if uid is None:
             # Drop the value rather than the whole row; the UI renders the

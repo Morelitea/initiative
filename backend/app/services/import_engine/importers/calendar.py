@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 from sqlmodel import select
@@ -36,8 +36,8 @@ from app.schemas.tenant.import_envelopes import (
 )
 from app.services.import_engine.common import (
     ensure_tag,
-    load_initiative_member_handles,
     handle_key,
+    load_initiative_member_handles,
     parse_datetime,
     unique_name,
 )
@@ -49,7 +49,16 @@ from app.services.import_engine.importers._base import (
     parse_envelope,
     resolve_property_values,
 )
+from app.services.import_engine.people import (
+    PeopleMap,
+    bring_in_named,
+    initiative_member_id,
+)
 from app.services.tenant import tags as tags_service
+from app.services.tenant.named_people import Governing
+
+if TYPE_CHECKING:
+    from app.schemas.tenant.backup_export import ManifestPerson
 
 
 class CalendarImporter(NamesPeopleInPassing):
@@ -62,6 +71,24 @@ class CalendarImporter(NamesPeopleInPassing):
     def count(self, validated: BaseModel) -> int:
         envelope: CalendarEnvelope = validated  # ty: ignore[invalid-assignment] — validate() returned this model
         return len(envelope.events) + 1
+
+    def people(self, validated: BaseModel) -> list["ManifestPerson"]:
+        """Everyone a person property or a mention names, and every attendee:
+        the people step says who each of them is here."""
+        from app.schemas.tenant.backup_export import ManifestPerson
+
+        envelope: CalendarEnvelope = validated  # ty: ignore[invalid-assignment] — validate() returned this model
+        listed = {handle_key(p.handle): p for p in super().people(validated)}
+        for event in envelope.events:
+            for attendee in event.attendees:
+                if attendee.handle:
+                    listed.setdefault(
+                        handle_key(attendee.handle),
+                        ManifestPerson(
+                            handle=attendee.handle, name=None, comment_count=0
+                        ),
+                    )
+        return sorted(listed.values(), key=lambda p: p.handle.lower())
 
     async def apply(
         self,
@@ -114,6 +141,7 @@ class CalendarImporter(NamesPeopleInPassing):
         props_matched = 0
         attendees_matched = 0
         unmatched_handles: set[str] = set()
+        named_handles: dict[int, str] = {}
         warnings: list[str] = []
 
         for item in env.events:
@@ -128,6 +156,7 @@ class CalendarImporter(NamesPeopleInPassing):
                         importer=importer,
                         member_handles=member_handles,
                         unmatched_handles=unmatched_handles,
+                        named_handles=named_handles,
                         context=context,
                     )
             except Exception:
@@ -142,6 +171,12 @@ class CalendarImporter(NamesPeopleInPassing):
             attendees_matched += counts["attendees_matched"]
 
         await session.flush()
+        gone = await bring_in_named(
+            session,
+            Governing.of(Tool.calendar, calendar),
+            initiative_id=target_initiative.id,
+        )
+        unmatched_handles.update(named_handles[user_id] for user_id in gone)
         return EnvelopeImportResult(
             entity_id=calendar.id,
             entity_title=calendar.name,
@@ -172,6 +207,7 @@ class CalendarImporter(NamesPeopleInPassing):
         importer: User,
         member_handles: dict[str, int],
         unmatched_handles: set[str],
+        named_handles: dict[int, str],
         context: ImportContext | None = None,
     ) -> dict[str, int]:
         start_at = parse_datetime(item.start_at)
@@ -209,13 +245,18 @@ class CalendarImporter(NamesPeopleInPassing):
         for attendee in item.attendees:
             if not attendee.handle:
                 continue
-            uid = member_handles.get(handle_key(attendee.handle))
+            uid = initiative_member_id(
+                attendee.handle,
+                people=context.people if context is not None else PeopleMap(),
+                member_handles=member_handles,
+            )
             if uid is None:
                 unmatched_handles.add(attendee.handle)
                 continue
             if uid in seen_user_ids:
                 continue
             seen_user_ids.add(uid)
+            named_handles.setdefault(uid, attendee.handle)
             try:
                 rsvp = RSVPStatus(attendee.rsvp)
             except ValueError:
@@ -250,6 +291,9 @@ class CalendarImporter(NamesPeopleInPassing):
             member_handles=member_handles,
             people=context.people if context is not None else None,
         )
+        unmatched_handles.update(attached.unmatched)
+        for user_id, handle in attached.named.items():
+            named_handles.setdefault(user_id, handle)
         for prop_id, column_kwargs in attached.column_kwargs_by_id.items():
             session.add(
                 CalendarEventPropertyValue(
