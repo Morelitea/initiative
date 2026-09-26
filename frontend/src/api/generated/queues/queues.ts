@@ -795,8 +795,9 @@ export const useUpdateQueueApiV1CGuildIdQueuesQueueIdPatch = <
   );
 };
 /**
- * Soft-delete a queue. Cascades to its items. Requires owner permission
- * or guild admin.
+ * Move it to the trash with everything inside it. Restoring it brings
+ * all of that back; the trash purges it after the community's retention.
+ * Requires the delete right on it: its owner, or a guild admin.
  * @summary Delete Queue
  */
 export const deleteQueueApiV1CGuildIdQueuesQueueIdDelete = (

@@ -766,6 +766,9 @@ export const useUpdateWikiApiV1CGuildIdWikisWikiIdPatch = <
   );
 };
 /**
+ * Move it to the trash with everything inside it. Restoring it brings
+ * all of that back; the trash purges it after the community's retention.
+ * Requires the delete right on it: its owner, or a guild admin.
  * @summary Delete Wiki
  */
 export const deleteWikiApiV1CGuildIdWikisWikiIdDelete = (

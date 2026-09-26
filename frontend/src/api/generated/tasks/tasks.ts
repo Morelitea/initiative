@@ -966,7 +966,8 @@ export const useReorderTasksApiV1CGuildIdTasksReorderPost = <
   );
 };
 /**
- * Archive all tasks in 'done' status category for a project.
+ * Archive every live task in a 'done' status of a project, as archiving
+ * each one would, under one stamp.
  * @summary Archive Done Tasks
  */
 export const archiveDoneTasksApiV1CGuildIdTasksArchiveDonePost = (
