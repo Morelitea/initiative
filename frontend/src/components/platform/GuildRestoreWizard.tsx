@@ -24,9 +24,9 @@ import { useTranslation } from "react-i18next";
 
 import type { PlatformGuildStorageRead } from "@/api/generated/initiativeAPI.schemas";
 import { GuildStatus } from "@/api/generated/initiativeAPI.schemas";
+import { AsyncCombobox } from "@/components/ui/async-combobox";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import {
   Select,
   SelectContent,
@@ -59,11 +59,17 @@ export const GuildRestoreWizard = ({
   const needsSeat = !guild.has_seat;
   const wizard = useWizard<Step>(needsSeat ? "seat" : "status");
   const [seatUserId, setSeatUserId] = useState<string>("");
+  const [seatLabel, setSeatLabel] = useState<string | null>(null);
+  const [seatSearch, setSeatSearch] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [status, setStatus] = useState<GuildStatus>(GuildStatus.active);
 
-  // Only fetched when it is actually going to be asked — this is every account
-  // on the deployment, and most restores never need it.
-  const usersQuery = usePlatformUsers({ enabled: open && needsSeat });
+  // Searched on the server, and only while the picker is open: the accounts
+  // are every account on the deployment, and most restores never ask.
+  const usersQuery = usePlatformUsers(
+    { search: seatSearch || undefined, page_size: 25 },
+    { enabled: open && needsSeat && pickerOpen }
+  );
 
   const restore = useRestoreGuild({
     onSuccess: (row) => {
@@ -84,7 +90,7 @@ export const GuildRestoreWizard = ({
       },
     });
 
-  const userItems = (usersQuery.data ?? []).map((user) => ({
+  const userItems = (usersQuery.data?.items ?? []).map((user) => ({
     value: String(user.id),
     label: user.full_name ? `${user.full_name} (${user.username})` : user.username,
     hint: user.email,
@@ -101,15 +107,19 @@ export const GuildRestoreWizard = ({
       >
         <div className="space-y-2">
           <Label htmlFor="guild-restore-seat">{t("guilds.restore.seatLabel")}</Label>
-          <SearchableCombobox
+          <AsyncCombobox
             className="w-full"
-            value={seatUserId}
-            onValueChange={setSeatUserId}
+            value={seatUserId || null}
+            selectedLabel={seatLabel}
+            onValueChange={(value) => {
+              setSeatUserId(value);
+              setSeatLabel(userItems.find((item) => item.value === value)?.label ?? null);
+            }}
+            onSearchChange={setSeatSearch}
+            onOpenChange={setPickerOpen}
             items={userItems}
-            disabled={usersQuery.isLoading}
-            placeholder={
-              usersQuery.isLoading ? t("common:loading") : t("guilds.restore.seatPlaceholder")
-            }
+            loading={usersQuery.isFetching}
+            placeholder={t("guilds.restore.seatPlaceholder")}
             emptyMessage={t("guilds.restore.seatEmpty")}
             aria-label={t("guilds.restore.seatLabel")}
           />

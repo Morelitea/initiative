@@ -44,6 +44,7 @@ export {
   buildNotificationPlace,
   resetCounter as resetNotificationCounter,
 } from "./notification.factory";
+export { buildPage } from "./page.factory";
 export { buildLexicalBody, buildPoll, buildPollOption, buildPost } from "./post.factory";
 export {
   buildDefaultTaskStatuses,

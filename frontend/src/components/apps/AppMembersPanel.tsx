@@ -52,7 +52,7 @@ import {
   useRevokeMemberConnection,
   useRevokeMemberConsents,
 } from "@/hooks/useGuildAppDetail";
-import { useUsers } from "@/hooks/useUsers";
+import { useUserSearch } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { getUserDisplayName } from "@/lib/userDisplay";
@@ -66,25 +66,40 @@ export interface AppMembersPanelProps {
 
 export function AppMembersPanel({ appId, enabled }: AppMembersPanelProps) {
   const { t } = useTranslation(["apps", "common"]);
-  const membersQuery = useGuildAppMembers(appId, enabled);
-  const usersQuery = useUsers();
+  const [page, setPage] = useState(1);
+  const membersQuery = useGuildAppMembers(appId, page, enabled);
+  const summary = membersQuery.data?.summary ?? [];
+  const items = membersQuery.data?.items ?? [];
+  const consents = membersQuery.data?.consents ?? [];
+  // Names for the members on this page only, rather than the whole roster.
+  const pageUserIds = [...new Set([...items, ...consents].map((row) => row.user_id))].sort(
+    (a, b) => a - b
+  );
+  const usersQuery = useUserSearch({
+    userIds: pageUserIds,
+    pageSize: Math.max(pageUserIds.length, 1),
+    enabled: enabled && pageUserIds.length > 0,
+  });
   const revokeAll = useRevokeAllConnections(appId);
   const [confirmingRevokeAll, setConfirmingRevokeAll] = useState(false);
 
   if (!enabled) return null;
   if (membersQuery.isLoading) return <Skeleton className="h-24 w-full" />;
 
-  const summary = membersQuery.data?.summary ?? [];
-  const items = membersQuery.data?.items ?? [];
-  const consents = membersQuery.data?.consents ?? [];
+  const consentSummary = membersQuery.data?.consent_summary;
+  const totalCount = membersQuery.data?.total_count ?? 0;
+  const pageSize = membersQuery.data?.page_size ?? 1;
+  const pageCount = Math.max(1, Math.ceil(totalCount / pageSize));
+  // The server's page, which falls back to the first when this one emptied.
+  const current = membersQuery.data?.page ?? page;
 
-  if (!summary.length && !consents.length) {
+  if (!summary.length && !consentSummary?.member_count) {
     return <p className="text-muted-foreground text-sm">{t("apps:members.noPersonal")}</p>;
   }
 
   const nameFor = (userId: number) =>
     getUserDisplayName(
-      usersQuery.data?.find((user) => user.id === userId),
+      usersQuery.data?.items.find((user) => user.id === userId),
       t("apps:members.unknownMember", { id: userId })
     );
 
@@ -103,8 +118,38 @@ export function AppMembersPanel({ appId, enabled }: AppMembersPanelProps) {
       {/* The inbound direction, beside the outbound one: both answer "what does
           this app have of this member's", so an admin governing one finds the
           other in the same place. */}
-      {consents.length > 0 && (
-        <MemberConsents appId={appId} consents={consents} nameFor={nameFor} />
+      {consentSummary && consentSummary.member_count > 0 && (
+        <MemberConsents
+          appId={appId}
+          consents={consents}
+          allowedCount={consentSummary.allowed_count}
+          anyOpen={consentSummary.open_count > 0}
+          nameFor={nameFor}
+        />
+      )}
+
+      {pageCount > 1 && (
+        <div className="flex items-center justify-end gap-2">
+          <span className="text-muted-foreground text-sm">
+            {t("common:pageOf", { current, total: pageCount })}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage(current - 1)}
+            disabled={!membersQuery.data?.has_prev}
+          >
+            {t("common:previous")}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage(current + 1)}
+            disabled={!membersQuery.data?.has_next}
+          >
+            {t("common:next")}
+          </Button>
+        </div>
       )}
 
       {summary.length > 0 && (
@@ -173,10 +218,16 @@ function consentStatusKey(consent: GuildAppMemberConsent) {
 function MemberConsents({
   appId,
   consents,
+  allowedCount,
+  anyOpen,
   nameFor,
 }: {
   appId: number;
+  /** The answers of the members on this page. */
   consents: GuildAppMemberConsent[];
+  /** Across every member, not just this page. */
+  allowedCount: number;
+  anyOpen: boolean;
   nameFor: (userId: number) => string;
 }) {
   const { t } = useTranslation(["apps", "common"]);
@@ -188,10 +239,6 @@ function MemberConsents({
   for (const consent of consents) {
     byMember.set(consent.user_id, [...(byMember.get(consent.user_id) ?? []), consent]);
   }
-  const allowedCount = [...byMember.values()].filter((rows) =>
-    rows.some((row) => row.status === ConsentStatus.granted)
-  ).length;
-  const anyOpen = consents.some(isOpen);
 
   return (
     <section className="space-y-2">

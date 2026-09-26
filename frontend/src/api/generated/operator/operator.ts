@@ -24,9 +24,11 @@ import type {
   AccountDeletionResponse,
   ExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetParams,
   HTTPValidationError,
+  ListAllUsersApiV1OperatorUsersGetParams,
   OperatorDeletionEligibilityResponse,
   OperatorSuspensionUpdate,
   OperatorUserDeleteRequest,
+  OperatorUserListResponse,
   OperatorUserRead,
   OperatorUsernameUpdate,
   PlatformRoleUpdate,
@@ -54,44 +56,53 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 };
 
 /**
- * List all users in the platform (``users.read``).
+ * One page of the platform's accounts (``users.read``).
  *
  * Platform-scoped: runs on the role-scoped session (``platform_<tier>``), so the
  * cross-user read is authorized by RLS (``users_platform_read``, support+) rather
  * than the system engine. Initiative roles are guild-scoped and
  * deliberately NOT loaded here — a platform user view exposes platform data only.
+ *
+ * Ordered by ``sort_by`` when given; otherwise nearest match first while
+ * searching, and oldest account first while not.
  * @summary List All Users
  */
 export const listAllUsersApiV1OperatorUsersGet = (
+  params?: ListAllUsersApiV1OperatorUsersGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<OperatorUserRead[]>(
-    { url: `/api/v1/operator/users`, method: "GET", signal },
+  return apiMutator<OperatorUserListResponse>(
+    { url: `/api/v1/operator/users`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListAllUsersApiV1OperatorUsersGetQueryKey = () => {
-  return [`/api/v1/operator/users`] as const;
+export const getListAllUsersApiV1OperatorUsersGetQueryKey = (
+  params?: ListAllUsersApiV1OperatorUsersGetParams
+) => {
+  return [`/api/v1/operator/users`, ...(params ? [params] : [])] as const;
 };
 
 export const getListAllUsersApiV1OperatorUsersGetQueryOptions = <
   TData = Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>,
   TError = ErrorType<HTTPValidationError>,
->(options?: {
-  query?: Partial<
-    UseQueryOptions<Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>, TError, TData>
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}) => {
+>(
+  params?: ListAllUsersApiV1OperatorUsersGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getListAllUsersApiV1OperatorUsersGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getListAllUsersApiV1OperatorUsersGetQueryKey(params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>> = ({
     signal,
-  }) => listAllUsersApiV1OperatorUsersGet(requestOptions, signal);
+  }) => listAllUsersApiV1OperatorUsersGet(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>,
@@ -109,6 +120,7 @@ export function useListAllUsersApiV1OperatorUsersGet<
   TData = Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  params: undefined | ListAllUsersApiV1OperatorUsersGetParams,
   options: {
     query: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>, TError, TData>
@@ -129,6 +141,7 @@ export function useListAllUsersApiV1OperatorUsersGet<
   TData = Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  params?: ListAllUsersApiV1OperatorUsersGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>, TError, TData>
@@ -149,6 +162,7 @@ export function useListAllUsersApiV1OperatorUsersGet<
   TData = Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  params?: ListAllUsersApiV1OperatorUsersGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>, TError, TData>
@@ -165,6 +179,7 @@ export function useListAllUsersApiV1OperatorUsersGet<
   TData = Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  params?: ListAllUsersApiV1OperatorUsersGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listAllUsersApiV1OperatorUsersGet>>, TError, TData>
@@ -173,7 +188,7 @@ export function useListAllUsersApiV1OperatorUsersGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListAllUsersApiV1OperatorUsersGetQueryOptions(options);
+  const queryOptions = getListAllUsersApiV1OperatorUsersGetQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

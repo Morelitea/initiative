@@ -1,3 +1,4 @@
+import type { PaginationState, SortingState } from "@tanstack/react-table";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -20,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { usePlatformGuilds, useUpdateGuildStorage } from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -163,12 +165,32 @@ export const OperatorDashboardGuildsPage = () => {
   const { user } = useAuth();
   const canManageGuilds = hasCapability(user, Capability.guildsManage);
 
-  const guildsQuery = usePlatformGuilds({ enabled: canManageGuilds });
+  // Searched, sorted and paged on the server, so the table holds one page of
+  // the deployment's communities rather than all of them.
+  const [draft, setDraft] = useState("");
+  const search = useDebouncedValue(draft, 250);
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const sort = sorting[0];
+  const guildsQuery = usePlatformGuilds(
+    {
+      search: search.trim() || undefined,
+      page,
+      page_size: pageSize,
+      ...(sort?.id === "id" || sort?.id === "name"
+        ? { sort_by: sort.id, sort_dir: sort.desc ? ("desc" as const) : ("asc" as const) }
+        : {}),
+    },
+    { enabled: canManageGuilds }
+  );
+  const rows = guildsQuery.data?.items ?? [];
+  const totalCount = guildsQuery.data?.total_count ?? 0;
   const { billing } = useAppConfig();
   // Which community's operator settings are open. The sheet reads the row from
   // the query, so a save re-renders it with the saved values.
   const [managingId, setManagingId] = useState<number | null>(null);
-  const managing = guildsQuery.data?.find((guild) => guild.id === managingId) ?? null;
+  const managing = rows.find((guild) => guild.id === managingId) ?? null;
 
   const columns: AppColumnDef<PlatformGuildStorageRead>[] = [
     {
@@ -186,6 +208,7 @@ export const OperatorDashboardGuildsPage = () => {
     {
       accessorKey: "member_count",
       header: t("guilds.columns.users"),
+      enableSorting: false,
       cell: ({ row }) => (
         <span className="text-sm tabular-nums">
           {row.original.max_users == null
@@ -266,13 +289,35 @@ export const OperatorDashboardGuildsPage = () => {
       <CardContent className="space-y-4">
         <DataTable
           columns={columns}
-          data={guildsQuery.data}
+          data={rows}
           getRowId={(guild) => String(guild.id)}
           enableFilterInput
-          filterInputColumnKey="name"
           filterInputPlaceholder={t("guilds.filterByName")}
+          filterValue={draft}
+          onFilterValueChange={(value) => {
+            setDraft(value);
+            setPage(1);
+          }}
+          manualSorting
+          sorting={sorting}
+          onSortingChange={(next) => {
+            setSorting(next);
+            setPage(1);
+          }}
           enableResetSorting
           enablePagination
+          manualPagination
+          pageCount={Math.max(1, Math.ceil(totalCount / pageSize))}
+          rowCount={totalCount}
+          pageIndex={page - 1}
+          onPaginationChange={(next: PaginationState) => {
+            if (next.pageSize !== pageSize) {
+              setPageSize(next.pageSize);
+              setPage(1);
+            } else {
+              setPage(next.pageIndex + 1);
+            }
+          }}
         />
         <p className="text-muted-foreground text-xs">
           {billing?.manages_plans ? t("guilds.helpTextBilling") : t("guilds.helpText")}

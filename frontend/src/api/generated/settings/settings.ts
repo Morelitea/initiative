@@ -37,12 +37,14 @@ import type {
   HTTPValidationError,
   InterfaceSettingsResponse,
   InterfaceSettingsUpdate,
+  ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams,
   LoginMethodsUpdate,
   NotificationSettingsResponse,
   NotificationSettingsUpdate,
   OIDCSettingsResponse,
   PlatformAuthSettingsResponse,
   PlatformGuildRestore,
+  PlatformGuildStorageListResponse,
   PlatformGuildStorageRead,
   PlatformGuildStorageUpdate,
   PushSettingsResponse,
@@ -3027,50 +3029,59 @@ export function useGetFcmConfigApiV1SettingsFcmConfigGet<
 }
 
 /**
- * List every guild with its storage cap, for the Operator dashboard Guilds tab.
+ * One page of the deployment's guilds with their storage caps, for the
+ * Operator dashboard Guilds tab.
  *
  * Operator/owner (``guilds.manage``). Reads only shared ``public`` tables. The
  * guilds and their administration rows are read on the caller's platform
  * tier, under the ``guilds.manage`` policies on both; the caps join in a
  * single pass. Member counts and seats are totals read on the system engine
- * (``_member_tallies``), one grouped query each rather than per guild.
+ * (``_member_tallies``), one grouped query each for the page.
  * @summary List Platform Guild Storage
  */
 export const listPlatformGuildStorageApiV1SettingsCommunitiesGet = (
+  params?: ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<PlatformGuildStorageRead[]>(
-    { url: `/api/v1/settings/communities`, method: "GET", signal },
+  return apiMutator<PlatformGuildStorageListResponse>(
+    { url: `/api/v1/settings/communities`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListPlatformGuildStorageApiV1SettingsCommunitiesGetQueryKey = () => {
-  return [`/api/v1/settings/communities`] as const;
+export const getListPlatformGuildStorageApiV1SettingsCommunitiesGetQueryKey = (
+  params?: ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams
+) => {
+  return [`/api/v1/settings/communities`, ...(params ? [params] : [])] as const;
 };
 
 export const getListPlatformGuildStorageApiV1SettingsCommunitiesGetQueryOptions = <
   TData = Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
   TError = ErrorType<HTTPValidationError>,
->(options?: {
-  query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
-      TError,
-      TData
-    >
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}) => {
+>(
+  params?: ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getListPlatformGuildStorageApiV1SettingsCommunitiesGetQueryKey();
+    queryOptions?.queryKey ??
+    getListPlatformGuildStorageApiV1SettingsCommunitiesGetQueryKey(params);
 
   const queryFn: QueryFunction<
     Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>
-  > = ({ signal }) => listPlatformGuildStorageApiV1SettingsCommunitiesGet(requestOptions, signal);
+  > = ({ signal }) =>
+    listPlatformGuildStorageApiV1SettingsCommunitiesGet(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
@@ -3089,6 +3100,7 @@ export function useListPlatformGuildStorageApiV1SettingsCommunitiesGet<
   TData = Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  params: undefined | ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -3113,6 +3125,7 @@ export function useListPlatformGuildStorageApiV1SettingsCommunitiesGet<
   TData = Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  params?: ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -3137,6 +3150,7 @@ export function useListPlatformGuildStorageApiV1SettingsCommunitiesGet<
   TData = Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  params?: ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -3157,6 +3171,7 @@ export function useListPlatformGuildStorageApiV1SettingsCommunitiesGet<
   TData = Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsCommunitiesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  params?: ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -3169,7 +3184,10 @@ export function useListPlatformGuildStorageApiV1SettingsCommunitiesGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListPlatformGuildStorageApiV1SettingsCommunitiesGetQueryOptions(options);
+  const queryOptions = getListPlatformGuildStorageApiV1SettingsCommunitiesGetQueryOptions(
+    params,
+    options
+  );
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

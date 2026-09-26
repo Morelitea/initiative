@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   clearProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultDelete,
@@ -30,12 +30,14 @@ import type {
   GuildNarrowingPending,
   InterfaceSettingsResponse,
   InterfaceSettingsUpdate,
+  ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams,
   LoginMethodsUpdate,
   NotificationSettingsResponse,
   NotificationSettingsUpdate,
   OIDCSettingsResponse,
   PlatformAuthSettingsResponse,
   PlatformGuildRestore,
+  PlatformGuildStorageListResponse,
   PlatformGuildStorageRead,
   PlatformGuildStorageUpdate,
   PlatformProviderDefaultRead,
@@ -204,14 +206,18 @@ export const useFcmConfig = () => {
 };
 
 /**
- * Every guild with its storage cap, for the platform settings → Guilds tab.
- * Owner-only (`config.manage`); pass `{ enabled }` to skip the request for
- * non-owners.
+ * One page of guilds with their storage caps, for the platform settings →
+ * Guilds tab, searched and sorted on the server. Operator and above
+ * (`guilds.manage`); pass `{ enabled }` to skip the request for anyone else.
  */
-export const usePlatformGuilds = (options?: QueryOpts<PlatformGuildStorageRead[]>) => {
-  return useQuery<PlatformGuildStorageRead[]>({
-    queryKey: getListPlatformGuildStorageApiV1SettingsCommunitiesGetQueryKey(),
-    queryFn: () => listPlatformGuildStorageApiV1SettingsCommunitiesGet(),
+export const usePlatformGuilds = (
+  params: ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams,
+  options?: QueryOpts<PlatformGuildStorageListResponse>
+) => {
+  return useQuery<PlatformGuildStorageListResponse>({
+    queryKey: getListPlatformGuildStorageApiV1SettingsCommunitiesGetQueryKey(params),
+    queryFn: () => listPlatformGuildStorageApiV1SettingsCommunitiesGet(params),
+    placeholderData: keepPreviousData,
     ...options,
   });
 };

@@ -10,20 +10,26 @@
  * The levers themselves live in the sheet behind Manage, and each one is drawn
  * only for a viewer whose capability would carry it.
  */
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildUser } from "@/__tests__/factories";
+import { buildPage, buildUser } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { OperatorUserRead, UserRead, UserRole } from "@/api/generated/initiativeAPI.schemas";
 
 // The roster the mocked hook serves. Each test sets it, so no test depends on
 // what another left behind.
-const state = vi.hoisted(() => ({ roster: [] as OperatorUserRead[] }));
+const state = vi.hoisted(() => ({
+  roster: [] as OperatorUserRead[],
+  search: undefined as string | null | undefined,
+}));
 
 vi.mock("@/hooks/useOperatorUsers", () => ({
-  usePlatformUsers: () => ({ data: state.roster, isLoading: false, isError: false }),
+  usePlatformUsers: (params: { search?: string | null }) => {
+    state.search = params.search;
+    return { data: buildPage(state.roster), isLoading: false, isError: false };
+  },
   useOperatorTriggerPasswordReset: () => ({ mutate: vi.fn(), isPending: false }),
   useOperatorSetUsername: () => ({ mutate: vi.fn(), isPending: false }),
   useOperatorClearAgeBlock: () => ({ mutate: vi.fn(), isPending: false }),
@@ -97,19 +103,18 @@ describe("SettingsPlatformUsersPage", () => {
     expect(screen.getAllByText("Password sign-in off")).toHaveLength(1);
   });
 
-  it("matches a whole handle pasted in, not just the name part", async () => {
+  it("searches the server with a whole handle pasted in", async () => {
     const rows = masked();
     renderRoster(rows);
 
     const box = await screen.findByPlaceholderText(/filter by handle/i);
     const whole = `owner#${String(rows[0].discriminator).padStart(4, "0")}`;
 
-    // What somebody pastes out of a ticket. Filtering the bare name would
-    // match nothing here, while still looking right for a typed prefix.
+    // What somebody pastes out of a ticket, sent as it was typed: the server
+    // pins the one account that handle names.
     await userEvent.type(box, whole);
 
-    expect(screen.getByText("owner")).toBeInTheDocument();
-    expect(screen.queryByText("member-one")).not.toBeInTheDocument();
+    await waitFor(() => expect(state.search).toBe(whole));
   });
 
   it("offers a sort control on every identifying column, and only those", async () => {

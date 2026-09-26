@@ -8,7 +8,7 @@
  * configuring — which the list shows.
  */
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 
 import {
   blockMemberConnectionApiV1CGuildIdAppsAppIdMembersUserIdConnectionsConnectionIdBlockPost,
@@ -54,11 +54,13 @@ export const useGuildAppDetail = (appId: number) => {
 };
 
 /** Guild admins only; the server refuses everyone else. */
-export const useGuildAppMembers = (appId: number, enabled: boolean) => {
+/** One page of the members who connected to the app or answered it. */
+export const useGuildAppMembers = (appId: number, page: number, enabled: boolean) => {
   const guildId = useActiveGuildId();
   return useQuery<GuildAppMembersResponse>({
-    queryKey: guildAppMembersKey(guildId, appId),
-    queryFn: () => listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet(guildId, appId),
+    queryKey: [...guildAppMembersKey(guildId, appId), page],
+    queryFn: () => listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet(guildId, appId, { page }),
+    placeholderData: keepPreviousData,
     enabled,
   });
 };
