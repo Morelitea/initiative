@@ -110,6 +110,7 @@ from app.services.tenant import app_connections as connections_service
 from app.services.tenant import app_member_consents as consents_service
 from app.services.tenant import app_handoff as handoff_service
 from app.services.tenant import app_revocation as revocation_service
+from app.services.tenant import app_schedules as app_schedules_service
 from app.services.tenant import app_updates as app_updates_service
 from app.services.tenant import guild_apps as guild_apps_service
 from app.services.tenant import (
@@ -523,6 +524,9 @@ async def install_guild_app(
         ) from exc
     await session.refresh(app)
     await app_installs_service.record(guild_context.guild_id, app)
+    await app_schedules_service.reconcile(
+        guild_context.guild_id, app.id, app.definition
+    )
 
     installed = serialize_guild_app(
         app,
@@ -646,6 +650,9 @@ async def upgrade_guild_app(
     await session.commit()
     await _flush_revocations(session)
     await session.refresh(app)
+    await app_schedules_service.reconcile(
+        guild_context.guild_id, app.id, app.definition
+    )
     offer = await app_updates_service.update_offer(session, app)
     return serialize_guild_app_detail(
         app,

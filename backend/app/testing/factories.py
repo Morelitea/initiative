@@ -63,6 +63,7 @@ from app.models.platform.guild_administration import GuildAdministration
 from app.services.marketplace import app_installs
 from app.services.marketplace import catalog as marketplace_catalog
 from app.services.marketplace.registration_lookup import invalidate_registrations
+from app.services.tenant import app_schedules
 from app.services.tenant.dashboard_definition import (
     normalize_dashboard_definition,
 )
@@ -1224,6 +1225,7 @@ async def create_guild_app(
     await session.commit()
     await session.refresh(app)
     await app_installs.record(guild.id, app)
+    await app_schedules.reconcile(guild.id, app.id, app.definition)
     return app
 
 

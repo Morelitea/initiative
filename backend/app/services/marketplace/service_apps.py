@@ -75,6 +75,7 @@ __all__ = [
     "app_widget_type",
     "is_admin_only",
     "normalize_service_app_definition",
+    "schedule_minutes",
 ]
 
 # --- vocabulary -------------------------------------------------------------
@@ -249,6 +250,11 @@ MAX_TOKEN_LIFETIME_SECONDS = contract.cap("tokenLifetimeSeconds")
 MAX_TEMPLATE_LENGTH = contract.cap("urlLength")
 MAX_SELECT_OPTIONS = contract.cap("selectOptions")
 MAX_ACCESS_HINT_SCOPES = contract.cap("accessHintScopes")
+#: How many schedules an app may declare, and the bounds of each interval.
+MAX_SCHEDULES = contract.cap("schedules")
+SCHEDULE_MIN_MINUTES = contract.cap("scheduleMinMinutes")
+SCHEDULE_MAX_MINUTES = contract.cap("scheduleMaxMinutes")
+MAX_SCHEDULE_EVERY_LENGTH = contract.cap("scheduleEveryLength")
 MAX_REQUIRES_TERMS = contract.cap("requiresTerms")
 MAX_WIDGETS = contract.cap("widgets")
 MAX_WIDGET_ENDPOINTS = contract.cap("widgetEndpoints")
@@ -901,6 +907,42 @@ def _webhooks(
             "field": field,
         },
     }
+
+
+def schedule_minutes(every: str) -> int:
+    """A schedule's interval in minutes: ``15m`` is 15, ``6h`` is 360."""
+    count = int(every[:-1])
+    return count * 60 if every.endswith("h") else count
+
+
+def _schedules(raw: Any) -> list[dict[str, str]]:
+    """The intervals at which Initiative calls the app's ``schedule`` hook:
+    each a unique id and a whole number of minutes or hours, within the
+    bounds."""
+    schedules: list[dict[str, str]] = []
+    for entry in require_list(raw, "service app: schedules", MAX_SCHEDULES):
+        schedule = require_mapping(entry, "service app: schedule")
+        schedule_id = check_identifier(
+            schedule.get("id"), what="service app: schedule id"
+        )
+        if any(kept["id"] == schedule_id for kept in schedules):
+            fail(f"service app: two schedules share the id {schedule_id!r}")
+        every = schedule.get("every")
+        what = f"service app: schedule {schedule_id!r}"
+        if not (
+            isinstance(every, str)
+            and 2 <= len(every) <= MAX_SCHEDULE_EVERY_LENGTH
+            and every[-1] in "mh"
+            and all(character in "0123456789" for character in every[:-1])
+        ):
+            fail(f"{what}: every is a whole number of minutes or hours, like '15m'")
+        if not SCHEDULE_MIN_MINUTES <= schedule_minutes(every) <= SCHEDULE_MAX_MINUTES:
+            fail(
+                f"{what}: every is at least {SCHEDULE_MIN_MINUTES}m and at most "
+                f"{SCHEDULE_MAX_MINUTES // 60}h"
+            )
+        schedules.append({"id": schedule_id, "every": every})
+    return schedules
 
 
 # --- what an app offers -----------------------------------------------------
@@ -1732,6 +1774,7 @@ def normalize_service_app_definition(definition: Any) -> dict[str, Any]:
     webhooks = _webhooks(
         body.get("webhooks"), vendor_keys=vendor_keys, connections=connections
     )
+    schedules = _schedules(body.get("schedules"))
 
     # One list for every direction, so a caller resolves an id without being
     # told which kind of thing it is first.
@@ -1795,6 +1838,8 @@ def normalize_service_app_definition(definition: Any) -> dict[str, Any]:
         cleaned["connections"] = connections
     if webhooks is not None:
         cleaned["webhooks"] = webhooks
+    if schedules:
+        cleaned["schedules"] = schedules
     if endpoints:
         cleaned["endpoints"] = endpoints
     if widgets:

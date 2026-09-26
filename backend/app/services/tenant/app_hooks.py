@@ -37,6 +37,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import select
 
 from app.core import metrics
+from app.db import cohorts
 from app.db import session as db_session
 from app.db.session import set_rls_context
 from app.models.tenant.app_hook_delivery import DELIVERY_ID_MAX_LENGTH, AppHookDelivery
@@ -123,7 +124,7 @@ async def _already_accepted(
 ) -> Optional[bool]:
     """Whether this install already accepted the delivery, or ``None`` when
     there is no install of this app to forward it to."""
-    async with db_session.SystemSessionLocal() as session:
+    async with cohorts.system_session(install.guild_id) as session:
         await set_rls_context(session, guild_id=install.guild_id, read_only=True)
         app = (
             await session.exec(
@@ -146,7 +147,7 @@ async def _already_accepted(
 
 async def _record(install: app_installs.IndexedInstall, delivery_id: str) -> None:
     expires_at = datetime.now(timezone.utc) + DELIVERY_TTL
-    async with db_session.SystemSessionLocal() as session:
+    async with cohorts.system_session(install.guild_id) as session:
         await set_rls_context(session, guild_id=install.guild_id)
         await session.exec(
             pg_insert(AppHookDelivery)

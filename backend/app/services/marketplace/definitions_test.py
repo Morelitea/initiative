@@ -644,6 +644,36 @@ def _with_source(**endpoint_overrides) -> dict:
     )
 
 
+class TestSchedules:
+    def test_intervals_from_five_minutes_to_a_day_are_kept(self):
+        schedules = [
+            {"id": "fast", "every": "5m"},
+            {"id": "daily", "every": "24h"},
+            {"id": "minutes", "every": "1440m"},
+        ]
+        assert _normalize(schedules=schedules)["schedules"] == schedules
+
+    @pytest.mark.parametrize(
+        ("every", "problem"),
+        [
+            ("4m", "at least 5m"),
+            ("25h", "at most 24h"),
+            ("15", "whole number"),
+            ("1.5h", "whole number"),
+            ("١٥m", "whole number"),
+        ],
+    )
+    def test_an_interval_out_of_bounds_or_shape_is_refused(self, every, problem):
+        with pytest.raises(ListingDefinitionError, match=problem):
+            _normalize(schedules=[{"id": "sync", "every": every}])
+
+    def test_two_schedules_may_not_share_an_id(self):
+        with pytest.raises(ListingDefinitionError, match="share the id"):
+            _normalize(
+                schedules=[{"id": "sync", "every": "5m"}, {"id": "sync", "every": "1h"}]
+            )
+
+
 class TestRequires:
     def test_an_item_may_only_require_a_connection_that_exists(self):
         with pytest.raises(ListingDefinitionError, match="unknown connection"):

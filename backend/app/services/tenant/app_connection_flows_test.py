@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlparse
 
 import cryptography.fernet
@@ -20,6 +21,7 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from httpx import AsyncClient
+from sqlalchemy import update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -33,10 +35,11 @@ from app.db.session import set_rls_context
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.platform.app_install import AppInstall
 from app.models.tenant.app_hook_delivery import AppHookDelivery
+from app.models.tenant.app_schedule_run import AppScheduleRun
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.marketplace.registration_lookup import load_registrations
-from app.services.tenant import app_connection_flows, app_revocation
+from app.services.tenant import app_connection_flows, app_revocation, app_schedules
 from app.testing import (
     create_app_service_registration,
     create_guild_app,
@@ -157,6 +160,7 @@ DEFINITION = {
             "field": "installation_id",
         },
     },
+    "schedules": [{"id": "check-installation", "every": "15m"}],
 }
 
 
@@ -1040,9 +1044,11 @@ class TestVendorWebhooks:
     async def test_disconnecting_and_uninstalling_remove_the_route(
         self, client: AsyncClient, acting_user, session, vendor, registration
     ):
+        """And uninstalling removes the install's schedules."""
         a = await acting_user(guild_role=GuildRole.superadmin)
         app = await _install(session, a, config=_connected("42"))
         assert (await _indexed(session, a.guild.id, app.id)).hook_route == "42"
+        assert set(await _runs(session, a.guild.id)) == {"check-installation"}
 
         response = await client.delete(
             a.g(f"/apps/{app.id}/connections/workspace"), headers=a.headers
@@ -1053,3 +1059,124 @@ class TestVendorWebhooks:
         response = await client.delete(a.g(f"/apps/{app.id}"), headers=a.headers)
         assert response.status_code == 204, response.text
         assert await _indexed(session, a.guild.id, app.id) is None
+        assert await _runs(session, a.guild.id) == {}
+
+
+# ---------------------------------------------------------------------------
+# Schedules
+# ---------------------------------------------------------------------------
+
+
+async def _runs(session: AsyncSession, guild_id: int) -> dict[str, AppScheduleRun]:
+    await route_session_to_guild(session, guild_id)
+    session.expunge_all()
+    runs = (await session.exec(select(AppScheduleRun))).all()
+    return {run.schedule_id: run for run in runs}
+
+
+async def _due(session: AsyncSession, guild_id: int) -> None:
+    """Bring every schedule in the community due."""
+    await route_session_to_guild(session, guild_id)
+    await session.exec(
+        update(AppScheduleRun).values(
+            next_due_at=datetime.now(timezone.utc) - timedelta(seconds=1)
+        )
+    )
+    await session.commit()
+
+
+async def _run_due(worker: AsyncSession, guild_id: int) -> None:
+    """One minute pass's visit to the community, on a system session."""
+    await set_rls_context(worker, guild_id=guild_id)
+    await app_schedules.run_due(worker, guild_id)
+
+
+def _schedule_calls(vendor: FakeVendor) -> list[tuple[dict, dict]]:
+    """Each schedule hook call, with its token's claims."""
+    return [
+        (
+            call,
+            jwt.decode(
+                token.removeprefix("Bearer "), options={"verify_signature": False}
+            ),
+        )
+        for name, call, token in vendor.hooks
+        if name == "schedule"
+    ]
+
+
+class TestSchedules:
+    async def test_two_workers_run_a_due_schedule_once(
+        self, acting_user, session, role_session, vendor, registration
+    ):
+        seat = await acting_user(guild_role=GuildRole.superadmin)
+        app = await _install(session, seat)
+        await _due(session, seat.guild.id)
+
+        workers = [await role_session() for _ in range(2)]
+        await asyncio.gather(*(_run_due(w, seat.guild.id) for w in workers))
+
+        [(call, claims)] = _schedule_calls(vendor)
+        assert call == {"schedule": "check-installation", "since": None}
+        assert (claims["scope"], claims["hook"]) == ("lifecycle", "schedule")
+        assert claims["app_install_id"] == app.id
+
+    async def test_since_is_the_last_success(
+        self, acting_user, session, role_session, vendor, registration
+    ):
+        """A success is next due one interval later, plus up to a tenth of it,
+        and a failure after it leaves ``since`` where the success put it."""
+        seat = await acting_user(guild_role=GuildRole.superadmin)
+        guild_id = seat.guild.id
+        await _install(session, seat)
+        worker = await role_session()
+
+        started = datetime.now(timezone.utc)
+        await _due(session, guild_id)
+        await _run_due(worker, guild_id)
+        run = (await _runs(session, guild_id))["check-installation"]
+        assert run.last_success_at >= started
+        wait = run.next_due_at - run.last_success_at
+        assert timedelta(minutes=15) <= wait <= timedelta(minutes=17)
+
+        for status in (500, 200):
+            vendor.hook_status = status
+            await _due(session, guild_id)
+            await _run_due(worker, guild_id)
+
+        since = run.last_success_at.isoformat()
+        calls = [call["since"] for call, _ in _schedule_calls(vendor)]
+        assert calls == [None, since, since]
+
+    async def test_a_switched_off_install_is_not_called(
+        self, acting_user, session, role_session, vendor, registration
+    ):
+        seat = await acting_user(guild_role=GuildRole.superadmin)
+        await _install(session, seat, enabled=False)
+        await _due(session, seat.guild.id)
+
+        await _run_due(await role_session(), seat.guild.id)
+
+        assert _schedule_calls(vendor) == []
+        run = (await _runs(session, seat.guild.id))["check-installation"]
+        assert (run.failures, run.claimed_until) == (0, None)
+
+    async def test_a_failing_schedule_backs_off_to_ten_intervals(
+        self, acting_user, session, role_session, vendor, registration
+    ):
+        seat = await acting_user(guild_role=GuildRole.superadmin)
+        guild_id = seat.guild.id
+        await _install(session, seat)
+        worker = await role_session()
+        vendor.hook_status = 500
+
+        waits = []
+        for _ in range(4):
+            await _due(session, guild_id)
+            before = datetime.now(timezone.utc)
+            await _run_due(worker, guild_id)
+            run = (await _runs(session, guild_id))["check-installation"]
+            minutes = round((run.next_due_at - before).total_seconds() / 60)
+            waits.append((run.failures, minutes))
+
+        assert waits == [(1, 30), (2, 60), (3, 120), (4, 150)]

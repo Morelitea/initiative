@@ -41,14 +41,14 @@ async def minute_pass() -> None:
     visit per community.
 
     Webhook deliveries (retries that have come due, and anything a lost wake
-    left), data-job claims, both digests, event reminders and scheduled posts,
-    and every :data:`OVERDUE_EVERY`-th pass the overdue digests. Posts are
-    published in active communities only: a hold must not keep announcing new
-    notices to its members.
+    left), apps' due schedules, data-job claims, both digests, event reminders
+    and scheduled posts, and every :data:`OVERDUE_EVERY`-th pass the overdue
+    digests. Posts are published in active communities only: a hold must not
+    keep announcing new notices to its members.
     """
     from app.services import notifications
     from app.services.guild_sweeps import Scope, each_guild
-    from app.services.tenant import outbox_poller, post_publication
+    from app.services.tenant import app_schedules, outbox_poller, post_publication
 
     now = datetime.now(timezone.utc)
     scans = [
@@ -68,6 +68,7 @@ async def minute_pass() -> None:
     await each_guild(
         [
             (Scope.ACTIVE, outbox_poller.drain_guild),
+            (Scope.ACTIVE, app_schedules.run_due),
             *_claims(),
             (
                 Scope.ACTIVE,
