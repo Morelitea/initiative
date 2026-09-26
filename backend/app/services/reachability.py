@@ -135,12 +135,13 @@ def _initiative_through_parents(model: Any, row_id: int) -> Select[Any]:
 def _not_drafts(*models: Any) -> list[Any]:
     """A draft, or anything inside one, is not there to somebody the draft
     policy hides it from (``guild_ddl.DRAFTS``)."""
-    from sqlalchemy import text
+    from sqlalchemy import Boolean, literal_column, not_
+    from sqlalchemy.sql.expression import Grouping
 
     from app.db.guild_ddl import DRAFTS
 
     return [
-        text(f"NOT ({DRAFTS[m.__tablename__]})")
+        not_(Grouping(literal_column(DRAFTS[m.__tablename__], Boolean)))
         for m in models
         if m.__tablename__ in DRAFTS
     ]
