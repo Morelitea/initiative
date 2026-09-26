@@ -35,7 +35,7 @@ import { useTranslation } from "react-i18next";
 
 import type {
   InitiativeDirectoryEntry,
-  InitiativeRead,
+  InitiativeListRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { InitiativeJoinPolicy } from "@/api/generated/initiativeAPI.schemas";
 import { RequestToJoinDialog } from "@/components/initiatives/RequestToJoinDialog";
@@ -45,7 +45,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useAuth } from "@/hooks/useAuth";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives, useJoinInitiative } from "@/hooks/useInitiatives";
 import { useToolCountsByInitiative } from "@/hooks/useToolCountsByInitiative";
@@ -85,7 +84,6 @@ const buildCardTint = (hexColor: string): CSSProperties => ({
 export const InitiativeDirectory = ({ entries, onCreate }: InitiativeDirectoryProps) => {
   const { t } = useTranslation(["guildHome", "initiatives", "nav"]);
   const gp = useGuildPath();
-  const { user } = useAuth();
   const { isGuildAdmin } = useInitiativeAccess();
   const guildId = useActiveGuildId();
 
@@ -106,13 +104,13 @@ export const InitiativeDirectory = ({ entries, onCreate }: InitiativeDirectoryPr
   const walksIn = (entry: InitiativeDirectoryEntry) =>
     isGuildAdmin || entry.join_policy === InitiativeJoinPolicy.open;
 
-  // Only a card the reader can enter shows counts and a role — for the rest
+  // Only a card the reader can enter shows counts — for the rest
   // RLS would answer zero anyway — so nothing is fetched for a directory of
   // strangers.
   const initiativesQuery = useInitiatives({ enabled: hasEnterable });
   const toolCounts = useToolCountsByInitiative({ enabled: hasEnterable });
 
-  const membershipById = new Map<number, InitiativeRead>(
+  const membershipById = new Map<number, InitiativeListRead>(
     (initiativesQuery.data ?? []).map((initiative) => [initiative.id, initiative])
   );
 
@@ -149,15 +147,11 @@ export const InitiativeDirectory = ({ entries, onCreate }: InitiativeDirectoryPr
    * carries no role still gets the plain "you're in" mark.
    */
   const renderMembershipBadge = (entry: InitiativeDirectoryEntry) => {
-    const membership = membershipById
-      .get(entry.id)
-      ?.members.find((member) => member.user.id === user?.id);
-    const roleLabel = membership?.role_display_name ?? membership?.role_name;
-    if (roleLabel) {
+    if (entry.role_display_name) {
       return (
         <Badge variant="secondary" className="shrink-0 gap-1">
           <Check className="h-3 w-3" aria-hidden="true" />
-          {roleLabel}
+          {entry.role_display_name}
         </Badge>
       );
     }

@@ -361,8 +361,8 @@ async def test_reads_the_initiatives_it_is_placed_in(
     [only] = listed.json()
     assert only["id"] == installed.placed.id
     assert isinstance(only["guild_id"], str)
-    # The roster is the members scope's to read.
-    assert only["members"] == []
+    # A list names no roster; one initiative's read carries it.
+    assert "members" not in only
     assert_names_nobody(listed.text, [installed.seat.user.id, guild_id])
 
     read = await client.get(
@@ -370,6 +370,7 @@ async def test_reads_the_initiatives_it_is_placed_in(
     )
     assert read.status_code == 200, read.text
     assert read.json()["name"] == installed.placed.name
+    # The roster is the members scope's to read.
     assert read.json()["members"] == []
     assert_names_nobody(read.text, [installed.seat.user.id, guild_id])
 

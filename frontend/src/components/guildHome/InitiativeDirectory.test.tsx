@@ -8,7 +8,6 @@ import {
   buildInitiative,
   buildInitiativeDirectoryEntry,
   buildInitiativeJoinRequest,
-  buildInitiativeMember,
   buildUser,
   initiativeCan,
 } from "@/__tests__/factories";
@@ -74,28 +73,19 @@ const group = (name: string) => screen.getByRole("heading", { name }).parentElem
 
 /** The reader's own row inside an initiative they belong to — the listing the
  *  card reads its badge and its counts from. Returns the reader. */
-const stubMembership = (
-  member: Parameters<typeof buildInitiativeMember>[0],
-  initiative: Parameters<typeof buildInitiative>[0] = {}
-) => {
+const stubMembership = (initiative: Parameters<typeof buildInitiative>[0] = {}) => {
   const user = buildUser({ id: 42 });
   server.use(
     guildHttp.get("/initiatives/", () =>
-      HttpResponse.json([
-        buildInitiative({
-          id: 7,
-          name: "Apollo",
-          ...initiative,
-          members: [buildInitiativeMember({ user: { ...user, id: 42 }, ...member })],
-        }),
-      ])
+      HttpResponse.json([buildInitiative({ id: 7, name: "Apollo", ...initiative })])
     )
   );
   return user;
 };
 
 /** The card for an initiative the reader is in. */
-const memberEntry = () => buildInitiativeDirectoryEntry({ id: 7, name: "Apollo", is_member: true });
+const memberEntry = (overrides: Parameters<typeof buildInitiativeDirectoryEntry>[0] = {}) =>
+  buildInitiativeDirectoryEntry({ id: 7, name: "Apollo", is_member: true, ...overrides });
 
 /** Records each knock the page sends, and answers however this case needs. */
 const stubJoinRequests = (answer?: () => Response) => {
@@ -221,13 +211,9 @@ describe("InitiativeDirectory", () => {
   );
 
   it("names the reader's role on a card they're in", async () => {
-    const user = stubMembership({
-      role_name: "project_manager",
-      role_display_name: "Project Manager",
-      is_manager: true,
-    });
+    const user = stubMembership();
 
-    renderDirectory([memberEntry()], user);
+    renderDirectory([memberEntry({ role_display_name: "Project Manager" })], user);
 
     // The badge says WHAT you are there, which already implies that you're in.
     expect(await screen.findByText("Project Manager")).toBeInTheDocument();
@@ -235,14 +221,11 @@ describe("InitiativeDirectory", () => {
   });
 
   it("counts what is inside an initiative you're in, tool by tool", async () => {
-    const user = stubMembership(
-      {},
-      {
-        queues_enabled: true,
-        // Calendars stay off for this reader, so they get no stat.
-        can: initiativeCan({ view: [Tool.project, Tool.queue] }),
-      }
-    );
+    const user = stubMembership({
+      queues_enabled: true,
+      // Calendars stay off for this reader, so they get no stat.
+      can: initiativeCan({ view: [Tool.project, Tool.queue] }),
+    });
     server.use(
       guildHttp.get("/projects/counts/by-initiative", () =>
         HttpResponse.json({ counts: { "7": 3 } })

@@ -1,18 +1,20 @@
 import { useMemo } from "react";
 
-import type { InitiativeRead, Tool } from "@/api/generated/initiativeAPI.schemas";
+import type { InitiativeListRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { useAuth } from "@/hooks/useAuth";
 import { type GuildEntry, useGuilds } from "@/hooks/useGuilds";
 import { useInitiatives, useInitiativesForGuild } from "@/hooks/useInitiatives";
 
-const byName = (a: InitiativeRead, b: InitiativeRead) => a.name.localeCompare(b.name);
+const byName = (a: InitiativeListRead, b: InitiativeListRead) => a.name.localeCompare(b.name);
 
 /**
  * The initiatives to navigate by, from the server's list: the caller's own, or
  * every one a grant reaches — without the archived ones (they stay manageable
  * from guild settings → Initiatives), by name.
  */
-export const liveInitiatives = (initiatives: InitiativeRead[] | undefined): InitiativeRead[] =>
+export const liveInitiatives = (
+  initiatives: InitiativeListRead[] | undefined
+): InitiativeListRead[] =>
   (initiatives ?? []).filter((initiative) => initiative.archived_at === null).sort(byName);
 
 /**

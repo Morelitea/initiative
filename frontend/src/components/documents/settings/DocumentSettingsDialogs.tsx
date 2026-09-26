@@ -1,7 +1,7 @@
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import type { InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
+import type { InitiativeListRead } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -39,7 +39,7 @@ interface DocumentSettingsDialogsProps {
   onCopyInitiativeIdChange: (id: string) => void;
   onCopy: (initiativeId: string, title: string) => void;
   isCopying: boolean;
-  copyableInitiatives: InitiativeRead[];
+  copyableInitiatives: InitiativeListRead[];
   isLoadingInitiatives: boolean;
 }
 

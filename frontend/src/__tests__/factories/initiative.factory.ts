@@ -1,8 +1,8 @@
 import type {
+  InitiativeCan,
   InitiativeDirectoryEntry,
   InitiativeJoinRequestRead,
   InitiativeMemberRead,
-  InitiativeCan,
   InitiativeRead,
   InitiativeRoleRead,
   PermissionKey,
@@ -143,6 +143,7 @@ export function buildInitiativeDirectoryEntry(
     auto_join: false,
     member_count: 3,
     is_member: false,
+    role_display_name: null,
     has_pending_request: false,
     // Reads zero for anyone who couldn't answer the queue anyway.
     pending_join_request_count: 0,

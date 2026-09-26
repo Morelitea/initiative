@@ -5272,6 +5272,7 @@ export interface InitiativeDirectoryEntry {
   auto_join: boolean;
   member_count: number;
   is_member: boolean;
+  role_display_name: string | null;
   has_pending_request: boolean;
   pending_join_request_count: number;
 }
@@ -5353,6 +5354,34 @@ export interface InitiativeJoinRequestRead {
   resolved_at: string | null;
   resolved_by: number | null;
   prior_denials: number;
+}
+
+/**
+ * An initiative as a list names it: the row and what the caller may do in
+ * it, without its roster. :class:`InitiativeRead` adds the roster.
+ */
+export interface InitiativeListRead {
+  projects_enabled: boolean;
+  documents_enabled: boolean;
+  queues_enabled: boolean;
+  counter_groups_enabled: boolean;
+  calendars_enabled: boolean;
+  dashboards_enabled: boolean;
+  posts_enabled: boolean;
+  galleries_enabled: boolean;
+  wikis_enabled: boolean;
+  name: string;
+  description: string | null;
+  color: string | null;
+  id: number;
+  guild_id: number | null;
+  is_default: boolean;
+  archived_at: string | null;
+  join_policy: InitiativeJoinPolicy;
+  auto_join: boolean;
+  created_at: string;
+  updated_at: string;
+  can: InitiativeCan;
 }
 
 /**
@@ -5439,8 +5468,8 @@ export interface InitiativeRead {
   auto_join: boolean;
   created_at: string;
   updated_at: string;
-  members: InitiativeMemberRead[];
   can: InitiativeCan;
+  members: InitiativeMemberRead[];
 }
 
 export type PermissionKey = (typeof PermissionKey)[keyof typeof PermissionKey];

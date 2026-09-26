@@ -11,6 +11,8 @@ import type {
   ToolCan,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
+  getGetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGetQueryKey,
+  getInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGet,
   getListInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGetQueryKey,
   listInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGet,
 } from "@/api/generated/initiatives/initiatives";
@@ -138,7 +140,7 @@ export function BulkEditAccessDialog({
     return [...ids];
   }, [items]);
 
-  // Fetch initiative data to get member lists + names
+  // Fetch initiative names
   const { data: initiatives = [] } = useInitiatives({ enabled: open });
 
   const initiativeNameById = useMemo(() => {
@@ -150,22 +152,33 @@ export function BulkEditAccessDialog({
   // Every member across the relevant initiatives, for resolving names in both
   // grant (pick) and revoke (already-granted) modes — works for tools whose
   // summaries don't embed the initiative (queues, counters).
+  const memberQueries = useQueries({
+    queries: initiativeIds.map((id) => ({
+      queryKey: getGetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGetQueryKey(
+        guildId,
+        id
+      ),
+      queryFn: () =>
+        getInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGet(guildId, id),
+      enabled: open,
+    })),
+  });
+
   const membersById = useMemo(() => {
     const map = new Map<number, SelectableUser>();
-    for (const initiative of initiatives) {
-      if (!initiativeIds.includes(initiative.id)) continue;
-      for (const member of initiative.members) {
-        if (!map.has(member.user.id)) {
-          map.set(member.user.id, {
-            id: member.user.id,
-            name: getUserDisplayName(member.user),
-            handle: getUserHandle(member.user),
+    for (const query of memberQueries) {
+      for (const member of query.data ?? []) {
+        if (!map.has(member.id)) {
+          map.set(member.id, {
+            id: member.id,
+            name: getUserDisplayName(member),
+            handle: getUserHandle(member),
           });
         }
       }
     }
     return map;
-  }, [initiatives, initiativeIds]);
+  }, [memberQueries]);
 
   // Fetch roles for each relevant initiative (reuses same query key as useInitiativeRoles)
   const roleQueries = useQueries({

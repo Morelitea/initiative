@@ -50,7 +50,10 @@ function stubTable(members: ReturnType<typeof buildInitiativeMember>[]) {
   const calls: { method: string; url: string; body?: unknown }[] = [];
   server.use(
     guildHttp.get("/initiatives/", () =>
-      HttpResponse.json([buildInitiative({ id: INITIATIVE_ID, name: "Apollo", members })])
+      HttpResponse.json([buildInitiative({ id: INITIATIVE_ID, name: "Apollo" })])
+    ),
+    guildHttp.get("/initiatives/:id", () =>
+      HttpResponse.json(buildInitiative({ id: INITIATIVE_ID, name: "Apollo", members }))
     ),
     guildHttp.get("/initiatives/:id/roles", () => HttpResponse.json([PM_ROLE, MEMBER_ROLE])),
     guildHttp.get("/users/", () =>

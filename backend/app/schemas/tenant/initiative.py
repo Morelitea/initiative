@@ -179,10 +179,9 @@ class InitiativeMemberRead(_MemberToolFlags):
     role_display_name: Optional[str] = None
     is_manager: bool = False
     #: Whether this member's role carries "Full access" — reaching every item
-    #: in the initiative however it is shared, and managing that sharing. Read
-    #: here rather than asked per initiative, because the sidebar needs it for
-    #: every one it draws. A guild admin clears it without holding it, so the
-    #: client folds that in the way it already does for ``is_manager``.
+    #: in the initiative however it is shared, and managing that sharing. A
+    #: guild admin clears it without holding it, so the client folds that in
+    #: the way it already does for ``is_manager``.
     override_share_restrictions: bool = False
     joined_at: datetime
     oidc_managed: bool = False
@@ -203,7 +202,10 @@ class InitiativeCan(SanitizedBaseModel):
     create: List[Tool] = Field(default_factory=list)
 
 
-class InitiativeRead(InitiativeBase):
+class InitiativeListRead(InitiativeBase):
+    """An initiative as a list names it: the row and what the caller may do in
+    it, without its roster. :class:`InitiativeRead` adds the roster."""
+
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
@@ -222,8 +224,11 @@ class InitiativeRead(InitiativeBase):
     auto_join: bool = False
     created_at: datetime
     updated_at: datetime
-    members: List[InitiativeMemberRead] = Field(default_factory=list)
     can: InitiativeCan = Field(default_factory=InitiativeCan)
+
+
+class InitiativeRead(InitiativeListRead):
+    members: List[InitiativeMemberRead] = Field(default_factory=list)
 
 
 class InitiativeDirectoryEntry(SanitizedBaseModel):
@@ -252,6 +257,8 @@ class InitiativeDirectoryEntry(SanitizedBaseModel):
     auto_join: bool = False
     member_count: int = 0
     is_member: bool = False
+    #: The caller's role here, when they are a member.
+    role_display_name: Optional[str] = None
     has_pending_request: bool = False
     # How many people are waiting at this door — the badge on a manager's card.
     # Zero for everyone who could not act on the queue anyway (see
@@ -384,6 +391,35 @@ def initiative_can(initiative: "Initiative") -> InitiativeCan:
     )
 
 
+def _initiative_fields(initiative: "Initiative", context: "ActorContext") -> dict:
+    return dict(
+        id=initiative.id,
+        guild_id=context.guild_id,
+        name=initiative.name,
+        description=initiative.description,
+        color=initiative.color,
+        is_default=initiative.is_default,
+        archived_at=getattr(initiative, "archived_at", None),
+        join_policy=getattr(
+            initiative, "join_policy", InitiativeJoinPolicy.private.value
+        ),
+        auto_join=getattr(initiative, "auto_join", False),
+        created_at=initiative.created_at,
+        updated_at=initiative.updated_at,
+        can=initiative_can(initiative),
+        **{
+            t.view_permission: getattr(initiative, t.view_permission, False)
+            for t in Tool
+        },
+    )
+
+
+def serialize_initiative_listing(
+    initiative: "Initiative", *, context: "ActorContext"
+) -> InitiativeListRead:
+    return InitiativeListRead(**_initiative_fields(initiative, context))
+
+
 def serialize_initiative(
     initiative: "Initiative", *, context: "ActorContext"
 ) -> InitiativeRead:
@@ -410,24 +446,4 @@ def serialize_initiative(
                 **member_tool_flags(initiative, membership),
             )
         )
-    return InitiativeRead(
-        id=initiative.id,
-        guild_id=context.guild_id,
-        name=initiative.name,
-        description=initiative.description,
-        color=initiative.color,
-        is_default=initiative.is_default,
-        archived_at=getattr(initiative, "archived_at", None),
-        join_policy=getattr(
-            initiative, "join_policy", InitiativeJoinPolicy.private.value
-        ),
-        auto_join=getattr(initiative, "auto_join", False),
-        created_at=initiative.created_at,
-        updated_at=initiative.updated_at,
-        members=members,
-        can=initiative_can(initiative),
-        **{
-            t.view_permission: getattr(initiative, t.view_permission, False)
-            for t in Tool
-        },
-    )
+    return InitiativeRead(**_initiative_fields(initiative, context), members=members)
