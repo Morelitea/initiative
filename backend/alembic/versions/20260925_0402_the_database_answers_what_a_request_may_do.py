@@ -212,24 +212,20 @@ _STALE = """
 def _drop_stale_grants(bind, schema: str) -> None:
     """Remove ``schema``'s stale grants. ``resource_grants`` is FORCE RLS and a
     migration carries no request context, so the owner's policies are lifted
-    for the statement and restored after it; its triggers (the freeze, the
-    change capture) are about requests and are held for the same span."""
+    before anything reads it and restored after; its triggers (the freeze, the
+    change capture) are about requests and are held while rows are removed."""
     table = f"{schema}.resource_grants"
-    stale = bind.execute(
-        sa.text(f"SELECT count(*) {_STALE.format(schema=schema)}")
-    ).scalar()
-    if not stale:
-        return
+    count = sa.text(f"SELECT count(*) {_STALE.format(schema=schema)}")
     op.execute(f"ALTER TABLE {table} NO FORCE ROW LEVEL SECURITY")
-    op.execute(f"ALTER TABLE {table} DISABLE TRIGGER USER")
     try:
-        op.execute(f"DELETE {_STALE.format(schema=schema)}")
-        left = bind.execute(
-            sa.text(f"SELECT count(*) {_STALE.format(schema=schema)}")
-        ).scalar()
-        assert left == 0, f"{schema}: {left} of {stale} stale grants remain"
+        stale = bind.execute(count).scalar()
+        if stale:
+            op.execute(f"ALTER TABLE {table} DISABLE TRIGGER USER")
+            op.execute(f"DELETE {_STALE.format(schema=schema)}")
+            op.execute(f"ALTER TABLE {table} ENABLE TRIGGER USER")
+            left = bind.execute(count).scalar()
+            assert left == 0, f"{schema}: {left} of {stale} stale grants remain"
     finally:
-        op.execute(f"ALTER TABLE {table} ENABLE TRIGGER USER")
         op.execute(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY")
 
 
