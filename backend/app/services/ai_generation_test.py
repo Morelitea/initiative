@@ -10,6 +10,7 @@ import json
 import httpx
 import pytest
 
+from app.core.messages import AIMessages
 from app.schemas.ai_settings import AIProvider, ConnectionScope, ResolvedAISettings
 from app.services import ai_generation
 
@@ -58,7 +59,7 @@ async def test_custom_private_base_url_rejected(monkeypatch):
 
     with pytest.raises(ai_generation.AIGenerationError) as exc:
         await ai_generation.generate_description(None, _User(), 1, _Task())
-    assert str(exc.value) == "AI_INVALID_BASE_URL"
+    assert str(exc.value) == AIMessages.INVALID_BASE_URL
 
 
 async def test_ollama_private_permitted_and_pinned(monkeypatch):
@@ -101,7 +102,7 @@ async def test_ollama_generation_does_not_allow_private_for_guild_scope(monkeypa
 
     with pytest.raises(ai_generation.AIGenerationError) as exc:
         await ai_generation.generate_description(None, _User(), 1, _Task())
-    assert str(exc.value) == "AI_INVALID_BASE_URL"
+    assert str(exc.value) == AIMessages.INVALID_BASE_URL
 
 
 _CHOICES = {"choices": [{"message": {"content": " generated text "}}]}
@@ -117,7 +118,7 @@ _CHOICES = {"choices": [{"message": {"content": " generated text "}}]}
             {"authorization": "Bearer test-key"},
             {"temperature": 0.7, "max_tokens": 500},
             _CHOICES,
-            "Invalid OpenAI API key",
+            AIMessages.INVALID_API_KEY,
         ),
         (
             AIProvider.anthropic,
@@ -126,7 +127,7 @@ _CHOICES = {"choices": [{"message": {"content": " generated text "}}]}
             {"x-api-key": "test-key", "anthropic-version": "2023-06-01"},
             {"max_tokens": 500},
             {"content": [{"text": " generated text "}]},
-            "Invalid Anthropic API key",
+            AIMessages.INVALID_API_KEY,
         ),
         (
             AIProvider.ollama,
@@ -135,7 +136,7 @@ _CHOICES = {"choices": [{"message": {"content": " generated text "}}]}
             {},
             {"stream": False},
             {"message": {"content": " generated text "}},
-            "Ollama API error: 401",
+            AIMessages.PROVIDER_ERROR,
         ),
         (
             AIProvider.custom,
@@ -144,7 +145,7 @@ _CHOICES = {"choices": [{"message": {"content": " generated text "}}]}
             {"authorization": "Bearer test-key"},
             {"temperature": 0.7, "max_tokens": 500},
             _CHOICES,
-            "Invalid API key",
+            AIMessages.INVALID_API_KEY,
         ),
     ],
 )
@@ -153,7 +154,8 @@ async def test_every_provider_through_one_request_path(
 ):
     """Each provider's request carries its own endpoint, credentials and body
     shape, its reply is read from where that provider puts the text, and a
-    rejected request reads as that provider's error."""
+    rejected request reads as a bad key where one was sent, else as the
+    provider's error."""
     sent: list[httpx.Request] = []
     status = 200
 

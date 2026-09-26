@@ -110,7 +110,7 @@
   "detail": {
     "backToProjects": "← Zurück zu den Projekten",
     "loading": "Projekt wird geladen…",
-    "loadError": "Projekt konnte nicht geladen werden.",
+    "deleteError": "Das Projekt kann derzeit nicht gelöscht werden.",
     "notFound": "Projekt nicht gefunden",
     "notFoundDescription": "Dieses Projekt wurde möglicherweise gelöscht oder du bist einem fehlerhaften Link gefolgt.",
     "noAccess": "Zugriff verweigert",

@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 
 import { type DashboardSummary, Tool } from "@/api/generated/initiativeAPI.schemas";
-import { TagBadge } from "@/components/tags/TagBadge";
+import { TagBadgeList } from "@/components/tags/TagBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useGuildPath } from "@/lib/guildUrl";
 import { toolDetailRoute } from "@/lib/tools";
@@ -33,16 +33,7 @@ export const DashboardCard = ({ dashboard, className }: DashboardCardProps) => {
           )}
         </CardHeader>
         <CardContent className="space-y-2 pt-0">
-          {dashboard.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {dashboard.tags.slice(0, 3).map((tag) => (
-                <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} nested />
-              ))}
-              {dashboard.tags.length > 3 && (
-                <span className="text-muted-foreground text-xs">+{dashboard.tags.length - 3}</span>
-              )}
-            </div>
-          )}
+          <TagBadgeList tags={dashboard.tags} tagHref={(tag) => gp(`/tags/${tag.id}`)} nested />
         </CardContent>
       </Card>
     </Link>

@@ -110,7 +110,7 @@
   "detail": {
     "backToProjects": "← Retour aux projets",
     "loading": "Chargement du projet…",
-    "loadError": "Impossible de charger le projet.",
+    "deleteError": "Impossible de supprimer le projet pour l'instant.",
     "notFound": "Projet introuvable",
     "notFoundDescription": "Ce projet a peut-être été supprimé ou vous avez suivi un lien invalide.",
     "noAccess": "Accès refusé",

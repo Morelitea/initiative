@@ -1414,6 +1414,16 @@ class AIMessages:
     CONNECTION_NOT_FOUND = "AI_CONNECTION_NOT_FOUND"
     MEMBER_KEYS_DISABLED = "AI_MEMBER_KEYS_DISABLED"
     INVALID_API_KEY = "AI_INVALID_API_KEY"
+    NOT_ENABLED = "AI_NOT_ENABLED"
+    #: No provider is chosen, or the chosen one needs a key and has none.
+    NOT_CONFIGURED = "AI_NOT_CONFIGURED"
+    #: The provider could not be reached or did not answer in time.
+    PROVIDER_UNAVAILABLE = "AI_PROVIDER_UNAVAILABLE"
+    #: The provider answered with an error or a reply that could not be read.
+    PROVIDER_ERROR = "AI_PROVIDER_ERROR"
+    DOCUMENT_EMPTY = "AI_DOCUMENT_EMPTY"
+    #: The connection names a model its provider does not list.
+    MODEL_NOT_FOUND = "AI_MODEL_NOT_FOUND"
 
 
 class NativeMessages:

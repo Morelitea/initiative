@@ -9,7 +9,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { TagBadge } from "@/components/tags/TagBadge";
+import { buildTagSummary } from "@/__tests__/factories";
+import { TagBadge, TagBadgeList } from "@/components/tags/TagBadge";
 
 const tag = (name: string) => ({ id: 1, name, color: "#3b82f6" });
 
@@ -77,5 +78,30 @@ describe("TagBadge", () => {
     badgeFor("bug");
 
     expect(screen.getByText("bug")).toBeInTheDocument();
+  });
+});
+
+describe("TagBadgeList", () => {
+  it.each([
+    { count: 0, limit: undefined, shown: 0, more: null },
+    { count: 3, limit: undefined, shown: 3, more: null },
+    { count: 5, limit: undefined, shown: 3, more: "+2" },
+    { count: 5, limit: 4, shown: 4, more: "+1" },
+  ])("shows $shown of $count tags at limit $limit", ({ count, limit, shown, more }) => {
+    const tags = Array.from({ length: count }, () => buildTagSummary());
+
+    render(<TagBadgeList tags={tags} limit={limit} />);
+
+    expect(screen.queryAllByText(/^Tag \d+$/)).toHaveLength(shown);
+    const overflow = screen.queryByText(/^\+\d+$/);
+    expect(overflow?.textContent ?? null).toBe(more);
+    // The collapsed tags are still named, on the count's title.
+    expect(overflow?.title ?? null).toBe(
+      more &&
+        tags
+          .slice(shown)
+          .map((tag) => tag.name)
+          .join(", ")
+    );
   });
 });

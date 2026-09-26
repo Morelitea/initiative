@@ -19,23 +19,27 @@ from app.core.messages import AIMessages
 from app.models.tenant.task import Task
 from app.models.platform.user import User
 from app.schemas.ai_settings import AIProvider
-from app.services.ai_settings import resolve_ai_settings
+from app.services.ai_settings import failure_code, refusal_code, resolve_ai_settings
 from app.services.safe_http import request_public_target
-from app.services.webhook_target_url import (
-    WebhookTargetUrlError,
-    WebhookTargetUrlPrivateError,
-)
 
 # Maximum output lengths to prevent excessive LLM responses
 _MAX_CHECKLIST_ITEM_LENGTH = 200
 _MAX_DESCRIPTION_LENGTH = 2000
 _MAX_SUMMARY_LENGTH = 5000
 
+_PROVIDER_FAULTS = frozenset(
+    {AIMessages.PROVIDER_UNAVAILABLE, AIMessages.PROVIDER_ERROR}
+)
+
 
 class AIGenerationError(Exception):
-    """Raised when AI generation fails."""
+    """A generation that failed, with the message code and status the
+    endpoint answers: a fault on the provider's side is a bad gateway."""
 
-    pass
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+        self.status_code = 502 if code in _PROVIDER_FAULTS else 400
 
 
 @dataclass(frozen=True)
@@ -96,7 +100,7 @@ async def generate_document_summary(
     # Convert Lexical JSON to markdown for better AI comprehension
     markdown_content = lexical_to_markdown(document_content)
     if not markdown_content.strip():
-        raise AIGenerationError("Document has no content to summarize")
+        raise AIGenerationError(AIMessages.DOCUMENT_EMPTY)
 
     prompt = _build_summary_prompt(
         document_name, markdown_content, locale=user.locale or "en"
@@ -367,8 +371,6 @@ def _choice_content(data: Any) -> str:
 class _ProviderAdapter:
     """The parts of a chat completion that differ by provider."""
 
-    #: Names the provider in error messages; empty for a custom endpoint.
-    label: str
     default_model: str
     headers: Callable[[str | None], dict[str, str]]
     body: Callable[[str, str, str, _Job], dict[str, Any]]
@@ -382,7 +384,6 @@ class _ProviderAdapter:
 
 _ADAPTERS: dict[AIProvider, _ProviderAdapter] = {
     AIProvider.openai: _ProviderAdapter(
-        label="OpenAI",
         default_model="gpt-4o-mini",
         endpoint="https://api.openai.com/v1/chat/completions",
         headers=_bearer,
@@ -390,7 +391,6 @@ _ADAPTERS: dict[AIProvider, _ProviderAdapter] = {
         content=_choice_content,
     ),
     AIProvider.anthropic: _ProviderAdapter(
-        label="Anthropic",
         default_model="claude-3-5-haiku-20241022",
         endpoint="https://api.anthropic.com/v1/messages",
         headers=lambda api_key: {
@@ -401,7 +401,6 @@ _ADAPTERS: dict[AIProvider, _ProviderAdapter] = {
         content=lambda data: data["content"][0]["text"],
     ),
     AIProvider.ollama: _ProviderAdapter(
-        label="Ollama",
         default_model="llama3.2",
         path="/api/chat",
         default_base_url="http://localhost:11434",
@@ -410,7 +409,6 @@ _ADAPTERS: dict[AIProvider, _ProviderAdapter] = {
         content=lambda data: data["message"]["content"],
     ),
     AIProvider.custom: _ProviderAdapter(
-        label="",
         default_model="default",
         path="/chat/completions",
         headers=_bearer,
@@ -418,21 +416,6 @@ _ADAPTERS: dict[AIProvider, _ProviderAdapter] = {
         content=_choice_content,
     ),
 }
-
-
-def _sentence(text: str) -> str:
-    return text[:1].upper() + text[1:]
-
-
-def _error_detail(response: httpx.Response) -> str:
-    """The provider's own error message when it sent one, else the status."""
-    try:
-        error = response.json().get("error")
-    except Exception:
-        error = None
-    if isinstance(error, dict):
-        error = error.get("message")
-    return error if isinstance(error, str) and error else str(response.status_code)
 
 
 async def _generate(
@@ -451,16 +434,14 @@ async def _generate(
     resolved = await resolve_ai_settings(session, user, guild_id)
 
     if not resolved.enabled:
-        raise AIGenerationError("AI features are not enabled")
+        raise AIGenerationError(AIMessages.NOT_ENABLED)
 
-    if not resolved.api_key and resolved.provider != AIProvider.ollama:
-        raise AIGenerationError("No API key configured for AI provider")
-
-    if not resolved.provider:
-        raise AIGenerationError("No AI provider configured")
+    if not resolved.provider or (
+        not resolved.api_key and resolved.provider != AIProvider.ollama
+    ):
+        raise AIGenerationError(AIMessages.NOT_CONFIGURED)
 
     adapter = _ADAPTERS[resolved.provider]
-    prefix = f"{adapter.label} " if adapter.label else ""
     base_url = (resolved.base_url or adapter.default_base_url or "").rstrip("/")
     headers = adapter.headers(resolved.api_key)
     body = adapter.body(resolved.model or adapter.default_model, *prompt, job)
@@ -471,7 +452,7 @@ async def _generate(
                     adapter.endpoint, headers=headers, json=body
                 )
         elif not base_url:
-            raise AIGenerationError("Base URL is required for custom provider")
+            raise AIGenerationError(AIMessages.INVALID_BASE_URL)
         else:
             response = await request_public_target(
                 "POST",
@@ -482,21 +463,17 @@ async def _generate(
                 allow_private=resolved.allow_private,
             )
 
-        if response.status_code == 401 and headers:
-            raise AIGenerationError(f"Invalid {prefix}API key")
         if response.status_code != 200:
-            raise AIGenerationError(f"{prefix}API error: {_error_detail(response)}")
+            raise AIGenerationError(
+                refusal_code(
+                    resolved.provider, response, sent_key=bool(resolved.api_key)
+                )
+            )
         return adapter.content(response.json())
-    except (WebhookTargetUrlError, WebhookTargetUrlPrivateError) as exc:
-        raise AIGenerationError(AIMessages.INVALID_BASE_URL) from exc
-    except httpx.ConnectError:
-        raise AIGenerationError(f"Could not connect to {adapter.label or base_url}")
-    except httpx.TimeoutException:
-        raise AIGenerationError(_sentence(f"{prefix}request timed out"))
     except AIGenerationError:
         raise
-    except Exception as e:
-        raise AIGenerationError(_sentence(f"{prefix}request failed: {e}"))
+    except Exception as exc:
+        raise AIGenerationError(failure_code(resolved.provider, exc)) from exc
 
 
 # ---------------------------------------------------------------------------

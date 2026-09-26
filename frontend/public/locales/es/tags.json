@@ -53,7 +53,8 @@
     "expand": "Expandir"
   },
   "badge": {
-    "remove": "Quitar etiqueta {{name}}"
+    "remove": "Quitar etiqueta {{name}}",
+    "more": "+{{count}}"
   },
   "updated": "Etiqueta actualizada.",
   "deleted": "Etiqueta eliminada.",

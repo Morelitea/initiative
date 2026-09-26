@@ -67,7 +67,7 @@ export interface AIConnectionResponse {
 
 export interface AIConnectionTestResponse {
   success: boolean;
-  message: string;
+  message: string | null;
   available_models: string[] | null;
 }
 

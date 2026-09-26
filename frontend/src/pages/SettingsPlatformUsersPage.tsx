@@ -9,7 +9,7 @@ import {
   canManageUser,
   UserOperatorSettingsSheet,
 } from "@/components/platform/UserOperatorSettingsSheet";
-import { SortIcon } from "@/components/SortIcon";
+import { SortHeader } from "@/components/SortIcon";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { UserHandle } from "@/components/UserHandle";
 import { Badge } from "@/components/ui/badge";
@@ -32,27 +32,8 @@ import {
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { Capability, hasCapability } from "@/lib/permissions";
-import type { AppColumn, AppColumnDef } from "@/lib/table";
+import type { AppColumnDef } from "@/lib/table";
 import { getUserHandle } from "@/lib/userDisplay";
-
-/**
- * The header of a sortable column: the label, and the arrow that says which
- * way it is pointing. Every sortable column on this table uses it, so they
- * click alike and none of them is the odd one out that looks like plain text.
- */
-const sortableHeader =
-  (label: string) =>
-  ({ column }: { column: AppColumn<OperatorUserRead> }) => {
-    const isSorted = column.getIsSorted();
-    return (
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-          {label}
-          <SortIcon isSorted={isSorted} />
-        </Button>
-      </div>
-    );
-  };
 
 // Accounts ordered by how much of the app is left to them, rather than
 // alphabetically — "anonymized, active, deactivated, suspended" is an order
@@ -201,7 +182,7 @@ export const SettingsPlatformUsersPage = () => {
   const userColumns: AppColumnDef<OperatorUserRead>[] = [
     {
       accessorKey: "id",
-      header: sortableHeader(t("platformUsers.columnId")),
+      header: ({ column }) => <SortHeader column={column} label={t("platformUsers.columnId")} />,
       cell: ({ row }) => (
         <p className="font-mono text-muted-foreground text-sm">{row.original.id}</p>
       ),
@@ -215,7 +196,9 @@ export const SettingsPlatformUsersPage = () => {
       // somebody pastes in from a ticket. Accessing the bare name would leave
       // the filter box unable to match the thing it is labelled for.
       accessorFn: (row) => getUserHandle(row),
-      header: sortableHeader(t("platformUsers.columnHandle")),
+      header: ({ column }) => (
+        <SortHeader column={column} label={t("platformUsers.columnHandle")} />
+      ),
       // The handle is the whole of the identification here. An account's real
       // name is its own to give out, and an operator does not need it to do
       // any of this.
@@ -226,7 +209,9 @@ export const SettingsPlatformUsersPage = () => {
     {
       id: "status",
       accessorFn: (row) => row.status,
-      header: sortableHeader(t("platformUsers.columnStatus")),
+      header: ({ column }) => (
+        <SortHeader column={column} label={t("platformUsers.columnStatus")} />
+      ),
       enableSorting: true,
       sortFn: (rowA, rowB) =>
         (STATUS_ORDER[rowA.original.status] ?? 99) - (STATUS_ORDER[rowB.original.status] ?? 99),

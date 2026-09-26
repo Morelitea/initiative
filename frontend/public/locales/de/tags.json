@@ -53,7 +53,8 @@
     "expand": "Ausklappen"
   },
   "badge": {
-    "remove": "Tag {{name}} entfernen"
+    "remove": "Tag {{name}} entfernen",
+    "more": "+{{count}}"
   },
   "updated": "Tag aktualisiert.",
   "deleted": "Tag gelöscht.",

@@ -110,7 +110,7 @@
   "detail": {
     "backToProjects": "← Back to projects",
     "loading": "Loading project…",
-    "loadError": "Unable to load project.",
+    "deleteError": "Unable to delete the project right now.",
     "notFound": "Project not found",
     "notFoundDescription": "This project may have been deleted or you may have followed a broken link.",
     "noAccess": "Access denied",

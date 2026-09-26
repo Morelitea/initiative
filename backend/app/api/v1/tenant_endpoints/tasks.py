@@ -1013,7 +1013,7 @@ async def generate_task_checklist(
         )
         return GenerateChecklistResponse(items=items)
     except ai_generation_service.AIGenerationError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=e.status_code, detail=e.code)
 
 
 @router.post("/{task_id}/ai/description", response_model=GenerateDescriptionResponse)
@@ -1047,7 +1047,7 @@ async def generate_task_description(
         )
         return GenerateDescriptionResponse(description=description)
     except ai_generation_service.AIGenerationError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=e.status_code, detail=e.code)
 
 
 @router.put("/{task_id}/tags", response_model=TaskRead)

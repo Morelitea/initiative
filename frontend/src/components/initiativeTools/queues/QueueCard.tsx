@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import { type QueueSummary, Tool } from "@/api/generated/initiativeAPI.schemas";
-import { TagBadge } from "@/components/tags/TagBadge";
+import { TagBadgeList } from "@/components/tags/TagBadge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -45,16 +45,7 @@ export const QueueCard = ({ queue, className }: QueueCardProps) => {
               <span className="text-xs">{t("roundN", { count: queue.current_round })}</span>
             )}
           </div>
-          {queue.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {queue.tags.slice(0, 3).map((tag) => (
-                <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} nested />
-              ))}
-              {queue.tags.length > 3 && (
-                <span className="text-muted-foreground text-xs">+{queue.tags.length - 3}</span>
-              )}
-            </div>
-          )}
+          <TagBadgeList tags={queue.tags} tagHref={(tag) => gp(`/tags/${tag.id}`)} nested />
         </CardContent>
       </Card>
     </Link>

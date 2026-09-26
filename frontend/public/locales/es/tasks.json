@@ -37,7 +37,6 @@
     "projectPath": "Ruta del proyecto",
     "priority": "Prioridad",
     "tags": "Etiquetas",
-    "moreTags": "+{{count}}",
     "status": "Estado"
   },
   "checkbox": {
