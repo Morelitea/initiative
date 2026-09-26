@@ -349,6 +349,7 @@ _CONTEXT_SQL = (
     f"set_config('{OVERRIDE_INITIATIVES_GUC}', :ovr, true), "
     "set_config('app.install_read', :iread, true), "
     "set_config('app.install_write', :iwrite, true), "
+    "set_config('app.content_hold', :chold, true), "
     "set_config('search_path', :sp, true), "
     "set_config('role', :role, true)"
 )
@@ -370,6 +371,7 @@ _STANDING_BINDS: dict[str, str] = {
     "override_initiatives": "ovr",
     "install_read": "iread",
     "install_write": "iwrite",
+    "content_hold": "chold",
 }
 
 

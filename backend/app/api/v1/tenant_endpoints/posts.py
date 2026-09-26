@@ -77,7 +77,6 @@ from app.schemas.tenant.post_poll import (
 from app.schemas.tenant.timeline import TimelineResponse
 from app.services.permissions import Action
 from app.services import notifications as notifications_service
-from app.services import permissions as permissions_service
 from app.services import rls as rls_service
 from app.services.notifications import AppAuthor
 from app.core.search import SearchEntityType
@@ -163,20 +162,6 @@ def _poll_of(post: Post) -> PostPoll:
             detail=PostMessages.POLL_NOT_FOUND,
         )
     return poll
-
-
-def _may_edit(post: Post, user: Optional[User], guild_context: ActorContext) -> bool:
-    """Whether this caller could change the post — which is also who may see it
-    before it goes up.
-
-    The row-shaped form of ``permissions.writable_scope_clause``, leg for leg:
-    the same bypass check, then a grant at write or owner. Written this way
-    rather than through ``compute_post_permission`` so this route and the
-    board's own listing cannot disagree about which drafts exist — that one
-    also caps at read while a community is frozen, which would hide a draft
-    from its author rather than merely stop them editing it.
-    """
-    return permissions_service.may_write(post)
 
 
 async def _announce(
@@ -276,11 +261,6 @@ def board_conditions(
         search=search,
         tag_ids=tag_ids,
     )
-    conditions.append(
-        posts_service.visibility_clause(
-            user_id, context=context, initiative_id=initiative_id
-        )
-    )
     if unread and user_id is not None:
         conditions.append(posts_service.unread_clause(user_id))
     return conditions
@@ -350,19 +330,11 @@ async def read_post(
     guild_context: PostsRead,
     include_deleted: IncludeDeletedDep = False,
 ) -> PostRead:
-    """Read one notice.
-
-    A scheduled one answers 404 unless the caller could edit it: until it goes
-    up it is a draft, and the board it belongs to does not have it yet.
-    """
+    """Read one notice. A scheduled one is its writers' until it goes up; to
+    anyone else it is not there (the posts read policy)."""
     post = await resource_access.load_authorized(
         session, Tool.post, post_id, current_user, guild_context
     )
-    if not post.is_published and not _may_edit(post, current_user, guild_context):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=Tool.post.not_found_code,
-        )
     await annotate_post_rows(session, [post], user_id=guild_context.user_id)
     return serialize_post(post, user_id=guild_context.user_id, context=guild_context)
 

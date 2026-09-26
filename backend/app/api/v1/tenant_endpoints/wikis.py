@@ -63,7 +63,6 @@ from app.schemas.tenant.wiki import (
     serialize_wiki_page_summary,
 )
 from app.services.permissions import Action
-from app.services import permissions as permissions_service
 from app.services.tenant import comments as comments_service
 from app.services.tenant import content_references
 from app.services.tenant import relationships as relationships_service
@@ -127,13 +126,9 @@ async def _load_page(
         session, Tool.wiki, wiki_id, current_user, guild_context, access=access
     )
     page = await wikis_service.get_page(session, wiki.id, page_id)
-    # A draft is not part of the wiki for somebody who only reads it, so it is
-    # missing rather than refused — the same answer they get for a page that
-    # was never written.
-    if page is None or (
-        page.is_draft
-        and not permissions_service.allows(wiki, Action.edit, context=guild_context)
-    ):
+    # A draft is its writers' (the wiki_pages read policy); to anyone else it
+    # is missing, the same answer as for a page that was never written.
+    if page is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=WikiMessages.PAGE_NOT_FOUND,
@@ -322,13 +317,7 @@ async def list_wiki_pages(
     wiki = await resource_access.load_authorized(
         session, Tool.wiki, wiki_id, current_user, guild_context
     )
-    rows = await wikis_service.load_list(
-        session,
-        wiki,
-        include_drafts=permissions_service.allows(
-            wiki, Action.edit, context=guild_context
-        ),
-    )
+    rows = await wikis_service.load_list(session, wiki)
     await tags_service.annotate_tags(
         session, [row for row in rows if isinstance(row, WikiPage)]
     )

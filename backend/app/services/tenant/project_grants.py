@@ -35,7 +35,7 @@ async def get_project(session: AsyncSession, project_id: int) -> Project | None:
         .options(
             selectinload(Project.grants).selectinload(ResourceGrant.role),
             selectinload(Project.initiative),
-            undefer(Project.access_level),
+            undefer(Project.actions),
         )
     )
     return (await session.exec(stmt)).one_or_none()
@@ -62,7 +62,7 @@ async def get_project_hydrated(
                 selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
             ),
             selectinload(Project.initiative),
-            undefer(Project.access_level),
+            undefer(Project.actions),
             selectinload(Project.task_statuses),
         )
     )

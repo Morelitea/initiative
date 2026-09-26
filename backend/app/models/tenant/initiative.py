@@ -23,7 +23,7 @@ from app.models.tenant._mixins import (
     ArchiveMixin,
     CreatedByMixin,
     SoftDeleteMixin,
-    attach_initiative_standing,
+    attach_initiative_actions,
 )
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -440,7 +440,4 @@ class Initiative(
     )
 
 
-attach_initiative_standing(
-    Initiative,
-    {key.value: fallback for key, fallback in DEFAULT_PERMISSION_VALUES.items()},
-)
+attach_initiative_actions(Initiative)

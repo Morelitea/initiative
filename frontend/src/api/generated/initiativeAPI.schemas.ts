@@ -4660,6 +4660,21 @@ export interface GuildBlockerInfo {
 }
 
 /**
+ * What the caller may do in a community, as the server answers it.
+ *
+ * Each flag is the check the routes that do the thing run, so a client reads
+ * its affordances here rather than working them out from a rung.
+ */
+export interface GuildCan {
+  enter: boolean;
+  content: boolean;
+  administer: boolean;
+  configure: boolean;
+  administer_content: boolean;
+  seat: boolean;
+}
+
+/**
  * Place the people carrying one group.
  *
  * Naming an initiative places them there as well as in the community, since
@@ -4986,7 +5001,7 @@ export interface GuildRead {
   description: string | null;
   id: number;
   role: GuildRole;
-  can_write_settings: boolean;
+  can: GuildCan;
   position: number;
   created_at: string;
   updated_at: string;

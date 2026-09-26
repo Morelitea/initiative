@@ -96,7 +96,7 @@ class CalendarAdapter(ToolExportAdapter):
                 await self.fetch(session, user, guild_id, calendar_id)
                 for calendar_id in self.selection(params)
             ]
-        from app.services.permissions import level_of
+        from app.services.permissions import Action, allows
         from app.services.tenant.calendars import (
             get_calendar_for_export,
             list_calendar_ids_for_export,
@@ -113,9 +113,7 @@ class CalendarAdapter(ToolExportAdapter):
                 initiative_id=_optional_int(params, "initiative_id"),
             )
         ]
-        return [
-            calendar for calendar in calendars if level_of(calendar) == EXPORT_ACCESS
-        ]
+        return [calendar for calendar in calendars if allows(calendar, Action.export)]
 
     async def fetch(
         self,

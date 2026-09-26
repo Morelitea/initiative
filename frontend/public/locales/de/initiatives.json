@@ -215,7 +215,7 @@
     "savingRole": "Wird gespeichert...",
     "removeMemberTitle": "Mitglied entfernen?",
     "removeMemberDescription": "Möchtest du <bold>{{name}}</bold> wirklich aus dieser Initiative entfernen?",
-    "removeMemberWarning": "Dadurch wird auch der explizite Zugriff auf alle Projekte und Dokumente in dieser Initiative entzogen.",
+    "removeMemberWarning": "Dadurch verlieren sie auch den Zugriff auf alles, was in dieser Initiative mit ihnen geteilt wurde. Alles, was ihnen hier gehört, hat danach keinen Besitzer mehr, und ein Community-Admin kann es übernehmen.",
     "removing": "Wird entfernt...",
     "nameRequired": "Name ist erforderlich.",
     "roleNameRequired": "Name und Anzeigename sind erforderlich.",

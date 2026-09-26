@@ -29,7 +29,6 @@ from sqlalchemy import table as sa_table
 from sqlalchemy import update as sa_update
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.orm import selectinload
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings as app_config
@@ -249,10 +248,9 @@ async def resolve_subject(session: AsyncSession, ref: Ref) -> Subject | None:
 
     The governing tool and the hops to it come from ``governing_path`` — a task
     reaches its project by ``project_id``, an event its calendar by
-    ``calendar_id`` — so no notifier names its tool. Sharing is read with
-    ``permissions.audience_user_ids``, the rule the post audience uses; a
-    community calendar has no roster, so its grants are read against the
-    community's members.
+    ``calendar_id`` — so no notifier names its tool. Who it is shared with is
+    the schema's ``resource_audience`` (``permissions.audience``), the rule the
+    post audience uses.
     """
     kind, entity_id = ref
     table = entity_tables()[kind]
@@ -271,14 +269,7 @@ async def resolve_subject(session: AsyncSession, ref: Ref) -> Subject | None:
         table = parent
     model = tool_models()[tool.plural]
     row = (
-        await session.exec(
-            select(model)
-            .where(model.id == row_id)
-            .options(
-                selectinload(model.grants),
-                selectinload(model.initiative).selectinload(Initiative.memberships),
-            )
-        )
+        await session.exec(select(model).where(model.id == row_id))
     ).scalar_one_or_none()
     if row is None:
         return None
@@ -290,18 +281,9 @@ async def resolve_subject(session: AsyncSession, ref: Ref) -> Subject | None:
         )
     ).all()
     admins = {user_id for user_id, role in members if role in GUILD_ADMIN_ROLES}
-    if row.initiative_id is not None:
-        shared = permissions_service.audience_user_ids(row)
-    else:
-        everyone = {user_id for user_id, _role in members}
-        shared = {
-            user_id
-            for grant in row.grants or []
-            for user_id in (
-                everyone if grant.all_initiative_members else {grant.user_id}
-            )
-            if user_id in everyone
-        }
+    shared = (await permissions_service.audience(session, tool, [row.id])).get(
+        row.id, set()
+    )
     return Subject(
         tool=tool,
         initiative_id=row.initiative_id,

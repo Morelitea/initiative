@@ -20,7 +20,7 @@ from sqlmodel import Enum as SQLEnum, Field, Relationship
 from app.core.tools import Tool
 from app.models.tenant._mixins import (
     ArchiveMixin,
-    attach_access_level,
+    attach_actions,
     CommentsToggleMixin,
     CreatedByMixin,
     ListingProvenanceMixin,
@@ -189,4 +189,4 @@ class DocumentFileVersion(CreatedByMixin, table=True):
     document: Optional["Document"] = Relationship(back_populates="file_versions")
 
 
-attach_access_level(Document, Tool.document)
+attach_actions(Document, Tool.document)

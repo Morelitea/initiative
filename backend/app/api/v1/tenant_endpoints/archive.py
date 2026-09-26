@@ -44,6 +44,7 @@ from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.task import Task
 from app.schemas.tenant.archive import ArchivableType, ArchiveResponse
+from app.services.permissions import Action
 from app.services.tenant import archive as archive_service
 
 router = APIRouter(route_class=ActorRoute)
@@ -88,7 +89,7 @@ async def _load(session: AsyncSession, entity_type: str, entity_id: int) -> Any:
         stmt = stmt.options(
             selectinload(model.initiative),
             selectinload(model.grants).selectinload(ResourceGrant.role),
-            undefer(model.access_level),
+            undefer(model.actions),
         )
     elif entity_type == "task":
         stmt = stmt.options(
@@ -96,7 +97,7 @@ async def _load(session: AsyncSession, entity_type: str, entity_id: int) -> Any:
             .selectinload(Project.grants)
             .selectinload(ResourceGrant.role),
             selectinload(Task.project).selectinload(Project.initiative),
-            selectinload(Task.project).undefer(Project.access_level),
+            selectinload(Task.project).undefer(Project.actions),
         )
     else:
         stmt = stmt.options(
@@ -131,11 +132,11 @@ def _authorize(
     archiving one hides it from every member's sidebar and freezes everything
     inside it, which is a guild-wide act rather than one initiative's.
 
-    ``allow_frozen`` throughout: both directions ask for write on a row whose
-    archived state is the very thing being changed, and archiving one that is
-    already archived has to answer with the stamp it has rather than refuse. The
-    write itself is a lifecycle column, which is all the database will accept
-    here either way.
+    Either direction asks for the change the row's state allows: an edit
+    while it is live, taking it back out once it is archived — so archiving
+    one that is already archived answers with the stamp it has rather than
+    refusing. The write itself is a lifecycle column, which is all the database
+    will accept here either way.
     """
     if entity_type == "initiative":
         if not guild_context.is_admin:
@@ -150,8 +151,7 @@ def _authorize(
         governing,
         subject,
         user,
-        access="write",
-        allow_frozen=True,
+        action=Action.unarchive if subject.archived_at is not None else Action.edit,
         context=guild_context,
     )
 

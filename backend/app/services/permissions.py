@@ -4,18 +4,15 @@ The application-level permission layer for every tool. Unlike the mandatory RLS
 layer (see ``rls.py``), which PostgreSQL enforces, this resolves what a request
 may read, write or own from the ``resource_grants`` rows on a resource.
 
-What is left here is what Postgres does not answer. The guild-schema policies
-apply this same sharing rule to every content table — gate 4, rendered from
-``app/db/initiative_rls.py`` and calling ``resource_access`` — so a
-statement confined to one initiative needs no sharing clause of its own, and
-the rung a request holds on a row is the schema's own ``resource_level``,
-read off the loaded row by :func:`level_of`. The app layer keeps the
-decisions the policies do not express:
+Postgres decides. The guild-schema policies apply the sharing rule to every
+content table — gate 4, rendered from ``app/db/initiative_rls.py`` and calling
+``resource_access`` — and what a request may do to a row beyond reading it is
+the schema's own ``resource_actions``, read off the loaded row by
+:func:`actions_of`. What is left here names and composes those answers:
 
-  - :func:`require_access` — a *named* refusal on a loaded row, plus the
-    frozen-guild cap
-  - :func:`client_access` — what the client renders affordances from, the
-    same checks the routes run (:data:`ACTIONS`)
+  - :func:`require_access` — a *named* refusal on a loaded row, for an
+    action ``resource_actions`` did not answer yes to
+  - :func:`client_access` — the row's ``can``, the same answer
   - :func:`granted_scope_clause` — deliberately NARROWER than the policy for a
     list spanning initiatives (no guild-admin leg)
   - :func:`writable_scope_clause` — "which of these may I change", which a read
@@ -25,13 +22,13 @@ Guild isolation and initiative membership are separate layers, in ``rls.py`` and
 Postgres.
 """
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import Enum
-from collections.abc import Callable
 from typing import Any
 
 from fastapi import HTTPException, status
-from sqlalchemy import ColumnElement, and_, false, func, inspect, or_, true
+from sqlalchemy import ColumnElement, false, func, inspect, true
 from sqlmodel import select
 
 from app.core.audit_events import AuditEventType
@@ -51,7 +48,6 @@ from app.core.messages import (
     ProjectMessages,
 )
 from app.models.tenant.resource_grant import (
-    WRITE_LEVELS,
     ResourceAccessLevel,
     ResourceGrant,
 )
@@ -65,57 +61,6 @@ def _frozen_community(context: ActorContext | None) -> bool:
     affordance the database will reject.
     """
     return context is not None and context.content_read_only
-
-
-# ── Visibility subqueries ────────────────────────────────────────
-# IDs of a resource the user can see, from resource_grants (one query). Run under
-# RLS, so stale grants in an initiative the user left are already filtered out.
-
-
-def _granted_resource_ids(
-    resource_type: str,
-    user_id: int,
-    *,
-    levels: tuple[ResourceAccessLevel, ...] | None = None,
-):
-    """resource_ids of ``resource_type`` the user can access via a grant — their
-    own user grant, a grant to one of their initiative roles, OR an
-    all-initiative-members grant on a resource in an initiative they belong to.
-
-    ``levels`` narrows to grants issued at those levels; omitted, any grant
-    counts, which is what a read listing wants.
-
-    Grant rows only. :func:`granted_scope_clause` and
-    :func:`writable_scope_clause` are the public entry points and compose this
-    with the rest of the decision.
-    """
-    my_roles = select(InitiativeMember.role_id).where(
-        InitiativeMember.user_id == user_id
-    )
-    my_initiatives = select(InitiativeMember.initiative_id).where(
-        InitiativeMember.user_id == user_id
-    )
-    stmt = select(ResourceGrant.resource_id).where(
-        ResourceGrant.resource_type == resource_type,
-        or_(
-            ResourceGrant.user_id == user_id,
-            ResourceGrant.role_id.in_(my_roles),
-            and_(
-                ResourceGrant.all_initiative_members.is_(True),
-                or_(
-                    ResourceGrant.initiative_id.in_(my_initiatives),
-                    # Guild scope: a grant on a resource that belongs to no
-                    # initiative. "Everyone" reads as every member of the guild,
-                    # and being able to run this query at all means being in it
-                    # — the rows live in that guild's schema.
-                    ResourceGrant.initiative_id.is_(None),
-                ),
-            ),
-        ),
-    )
-    if levels is not None:
-        stmt = stmt.where(ResourceGrant.level.in_(levels))
-    return stmt
 
 
 def granted_scope_clause(
@@ -157,7 +102,7 @@ def granted_scope_clause(
         return true()
     if user_id is None:
         raise ValueError("a listing for a person names the person")
-    return id_col.in_(_granted_resource_ids(tool, user_id))
+    return func.resource_granted(tool.value, id_col, user_id, False, standing_arg())
 
 
 def listing_scope_clause(
@@ -221,7 +166,7 @@ def writable_scope_clause(
         # Spanning initiatives, what may be changed is read from grants to a
         # person; an installed app asks one initiative at a time.
         return false()
-    return id_col.in_(_granted_resource_ids(tool, user_id, levels=WRITE_LEVELS))
+    return func.resource_granted(tool.value, id_col, user_id, True, standing_arg())
 
 
 # ── Generic DAC engine (registry-driven) ─────────────────────────
@@ -294,100 +239,30 @@ def serialize_grants(row: Any, *, context: ActorContext | None) -> list:
     ]
 
 
-def level_of(row: Any) -> str | None:
-    """The rung the request holds on ``row``, as the database answered it.
+async def audience(
+    session: Any, tool: Tool, resource_ids: Iterable[int]
+) -> dict[int, set[int]]:
+    """Who each resource is shared with, by id — the schema's
+    ``resource_audience``: the people a notification may name and a notice is
+    read by. Resources shared with nobody are absent."""
+    from app.db.session import routed_guild_id
 
-    Read off ``access_level``: mapped on every shareable model and asked of
-    the schema's ``resource_level`` in the SELECT that loaded the row, so it
-    was answered for the reader the session is routed as, under the standing
-    the seam computed. A row loaded without it came through a loader that
-    does not serialize, which is where to ask for it.
-    """
-    if "access_level" in inspect(row).unloaded:
-        raise RuntimeError(
-            f"{type(row).__name__} was loaded without its access level; "
-            "undefer it in the loader"
+    ids = sorted(set(resource_ids))
+    if not ids:
+        return {}
+    rows = (
+        await session.exec(
+            select(
+                func.resource_audience(
+                    tool.value, ids, routed_guild_id(session)
+                ).table_valued("resource_id", "user_id")
+            )
         )
-    level = row.access_level
-    return _grant_level(level) if level is not None else None
-
-
-def audience_user_ids(row: Any) -> set[int]:
-    """Every user the resource's sharing reaches, by id.
-
-    The list-shaped form of :func:`effective_level`: that one answers "may this
-    person reach it", this one answers "who are they". Both read the same two
-    eagerly-loaded collections — the resource's ``grants`` and its initiative's
-    ``memberships`` — and resolve a grant the same three ways, so a notifier
-    built on this cannot address anyone the per-row check would turn away.
-
-    Standing that comes from somewhere other than a grant is deliberately not
-    here. A guild admin reaches every resource in their community and a
-    break-glass grantee reaches one for a window; neither asked to hear about
-    it. What this answers is who a thing was shared WITH, which is the only
-    honest audience for telling people something exists.
-
-    Every recipient is checked against the initiative's current roster,
-    including one named directly. A grant outlives the membership it was
-    written for — leaving an initiative does not sweep them — and RLS answers
-    the leftover with 404, so a notification built on the grant alone would
-    carry a headline and an excerpt to somebody who can no longer open the
-    thing they name. The roster is what the database enforces, so it is what
-    this counts.
-
-    Initiative-scoped resources only. On a guild-level row an all-members grant
-    means the guild's members, and there is no loaded collection here that
-    names them.
-    """
-    grants = getattr(row, "grants", None) or []
-    initiative = getattr(row, "initiative", None)
-    memberships = (
-        getattr(initiative, "memberships", None) if initiative is not None else None
-    ) or []
-    members = {m.user_id for m in memberships}
-    audience: set[int] = set()
-    for g in grants:
-        if g.user_id is not None:
-            audience.add(g.user_id)
-        elif g.role_id is not None:
-            audience.update(m.user_id for m in memberships if m.role_id == g.role_id)
-        elif getattr(g, "all_initiative_members", False):
-            audience.update(members)
-    return audience & members
-
-
-#: What a row needs, beyond being shared with you, before it is anybody's to
-#: read. A tool absent from here has nothing between "shared with me" and "I
-#: can see it"; a post has its publication, and until then it is a draft.
-READ_VISIBLE: dict[Tool, Callable[[Any], bool]] = {
-    Tool.post: lambda row: getattr(row, "published_at", None) is not None,
-}
-
-
-def may_write(row: Any) -> bool:
-    """Whether this caller could change the row.
-
-    The row-shaped form of :func:`writable_scope_clause`: the rung the
-    database answered, at :data:`WRITE_LEVELS`. Deliberately not
-    ``allows(row, Action.edit)``, which is refused while a community is frozen
-    — that answers "may I edit this right now", and the question here is
-    whether the row is this person's at all.
-    """
-    return level_of(row) in {lvl.value for lvl in WRITE_LEVELS}
-
-
-def hidden_from_reader(kind: Tool, row: Any) -> bool:
-    """Whether this row exists but is not yet this caller's to see.
-
-    Asked at every seam that resolves a single row by id — reading it,
-    exporting it, commenting on it, reacting to it — so all of them answer the
-    same way. Applied after the sharing decision, so it narrows what somebody
-    already reaches rather than widening it.
-    """
-    visible = READ_VISIBLE.get(kind)
-    if visible is None or visible(row):
-        return False
-    return not may_write(row)
+    ).all()
+    by_resource: dict[int, set[int]] = {}
+    for resource_id, user_id in rows:
+        by_resource.setdefault(resource_id, set()).add(user_id)
+    return by_resource
 
 
 #: One grantee of a resource: ``("user", id)``, ``("role", id)`` or
@@ -672,86 +547,96 @@ async def replace_resource_grants(
 
 
 class Action(str, Enum):
-    """What somebody may do to one of a tool's rows, beyond reading it."""
+    """What somebody may do to one of a tool's rows, beyond reading it — the
+    names ``resource_actions`` answers in (``app.db.authorization``)."""
 
     edit = "edit"
     delete = "delete"
     share = "share"
     export = "export"
+    unarchive = "unarchive"
+    configure = "configure"
 
 
-#: What each action asks of the caller, as :func:`require_access` arguments.
-#: The routes that do the thing pass these, and :func:`client_access` reports
-#: the same checks to the client, so a flag and its guard cannot disagree.
-#: Deleting a thing, changing who it is shared with and exporting it are the
-#: owner's (full access to its initiative counts, as everywhere).
-ACTIONS: dict[Action, dict[str, Any]] = {
-    Action.edit: {"access": "write"},
-    Action.delete: {"require_owner": True},
-    Action.share: {"require_owner": True, "manage_access": True},
-    Action.export: {"export": True},
-}
+#: The actions a tool's read reports under ``can``. ``configure`` is a
+#: project's alone (``ProjectCan``).
+TOOL_CAN: tuple[Action, ...] = (
+    Action.edit,
+    Action.delete,
+    Action.share,
+    Action.export,
+    Action.unarchive,
+)
+
+
+def actions_of(row: Any) -> frozenset[str]:
+    """What the request may do to ``row``, as the database answered it.
+
+    Read off ``actions``: mapped on every shareable model and asked of the
+    schema's ``resource_actions`` in the SELECT that loaded the row, so it was
+    answered for the reader the session is routed as, under the standing the
+    seam computed. A row loaded without it came through a loader that does not
+    decide or serialize, which is where to ask for it.
+    """
+    if "actions" in inspect(row).unloaded:
+        raise RuntimeError(
+            f"{type(row).__name__} was loaded without its actions; "
+            "undefer it in the loader"
+        )
+    return frozenset(row.actions or ())
+
+
+def allows(row: Any, action: Action) -> bool:
+    """Whether the request may take ``action`` on ``row``."""
+    return action.value in actions_of(row)
 
 
 def _refusal(
-    resource: DacResource,
-    row: Any,
-    *,
-    context: ActorContext | None,
-    access: str = "read",
-    require_owner: bool = False,
-    manage_access: bool = False,
-    export: bool = False,
-    allow_frozen: bool = False,
-) -> HTTPException | None:
-    """Why the request may not act on ``row``, or ``None`` when it may.
-
-    The body of :func:`require_access`, and of the flags :func:`client_access`
-    reports."""
-    # A frozen guild (read_only lifecycle status) caps EVERY real member at
-    # read — before the level is read, so full authority does not clear it.
-    # The flag is never set for PAM/break-glass requests, whose grants
-    # override the status by design. An export changes nothing, so it is
-    # answered from the rung alone.
-    changes = (access != "read" or require_owner) and not export
-    if changes and _frozen_community(context):
+    resource: DacResource, row: Any, action: Action, context: ActorContext | None
+) -> HTTPException:
+    """Which refusal a missing ``action`` is. Only names it: the database
+    already decided."""
+    if action is Action.export:
+        return HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ExportMessages.EXPORT_OWNER_REQUIRED,
+        )
+    if context is not None and context.content_read_only:
         return HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=resource.write_msg
         )
     # Archived or trashed content is read-only, and so is everything under it.
     # Not a permission answer — the caller may well own it — so it carries its
     # own code and its own status, and the thing to do is bring it back first.
-    if changes and not allow_frozen and row_is_frozen(row):
+    frozen = (
+        ancestor_is_frozen(row) if action is Action.unarchive else row_is_frozen(row)
+    )
+    if frozen:
         return HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=CommonMessages.CONTENT_IS_FROZEN,
         )
-    # Sharing is the resource's own to give; a borrowed content grant does not
-    # extend to it.
-    if manage_access and context is not None and context.grant_content is not None:
+    if (
+        action is Action.share
+        and context is not None
+        and context.grant_content is not None
+    ):
         return HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=resource.name.grant_cannot_manage_members_code,
         )
-    effective = level_of(row)
-    if export and effective != ResourceAccessLevel.owner.value:
-        return HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=ExportMessages.EXPORT_OWNER_REQUIRED,
-        )
-    if require_owner and effective != ResourceAccessLevel.owner.value:
+    if action in (Action.delete, Action.share):
         return HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=resource.owner_msg
         )
-    if effective is None:
+    if action is Action.configure:
         return HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=resource.denied_msg
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ProjectMessages.CONFIGURE_REQUIRED,
         )
-    if access == "write" and effective == ResourceAccessLevel.read.value:
-        return HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=resource.write_msg
-        )
-    return None
+    return HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN, detail=resource.write_msg
+    )
 
 
 def require_access(
@@ -760,49 +645,25 @@ def require_access(
     *,
     context: ActorContext | None,
     access: str = "read",
-    require_owner: bool = False,
-    manage_access: bool = False,
-    export: bool = False,
-    allow_frozen: bool = False,
+    action: Action | None = None,
 ) -> None:
-    """Raise unless the request may act on ``row``: the community's hold, the
-    row's archive, then the rung the database answered against what is asked.
+    """Raise unless the request may take ``action`` on ``row`` — ``access``
+    ``"write"`` is :attr:`Action.edit` — as ``resource_actions`` answered it.
 
-    No initiative-scope step. The row was loaded through a routed session, and
-    every content table's policy defers to ``initiative_access`` before
-    anything here runs — a row belonging to an initiative the caller is not in
-    does not arrive to be checked. What is left is the part the policies do not
-    do: saying which refusal it is.
-
-    An action spells its arguments from :data:`ACTIONS`. ``allow_frozen`` is
-    for the write that ENDS the frozen state — unarchiving, which asks for
-    write on a row that is archived by definition."""
-    refusal = _refusal(
-        resource,
-        row,
-        context=context,
-        access=access,
-        require_owner=require_owner,
-        manage_access=manage_access,
-        export=export,
-        allow_frozen=allow_frozen,
-    )
-    if refusal is not None:
-        raise refusal
-
-
-def allows(row: Any, action: Action, *, context: ActorContext | None) -> bool:
-    """Whether the request may take ``action`` on ``row`` — the answer
-    :func:`require_access` gives the route that does it."""
-    resource = _RESOURCE_BY_TABLE[row.__tablename__]
-    return _refusal(resource, row, context=context, **ACTIONS[action]) is None
+    Reading asks nothing here: the row was loaded through a routed session, and
+    a row the reader may not read does not arrive to be checked."""
+    if action is None:
+        if access != "write":
+            return
+        action = Action.edit
+    if not allows(row, action):
+        raise _refusal(resource, row, action, context)
 
 
 #: What exporting one tool asks for. An export hands the whole thing over at
-#: once, so it takes the rung that may also delete it: an owner grant, or full
-#: access to its initiative (its managers, the community's admins). The
-#: initiative and community backups read what their scope reaches instead, and
-#: pass ``"read"``.
+#: once, so it takes the rung that may also delete it — archived or not, since
+#: an export changes nothing. The initiative and community backups read what
+#: their scope reaches instead, and pass ``"read"``.
 EXPORT_ACCESS = "owner"
 
 
@@ -813,87 +674,28 @@ def require_export_access(
     context: ActorContext | None,
     access: str = EXPORT_ACCESS,
 ) -> None:
-    """Raise unless the request may export ``row``: :data:`ACTIONS`' export for
-    a tool exported on its own, a read for one inside a backup."""
+    """Raise unless the request may export ``row``: the export action for a
+    tool exported on its own, a read for one inside a backup."""
     if access == EXPORT_ACCESS:
-        require_access(resource, row, context=context, **ACTIONS[Action.export])
-    else:
-        require_access(resource, row, context=context)
-
-
-def may_unarchive(row: Any, *, context: ActorContext | None) -> bool:
-    """Whether the caller may take this row back out of the archive.
-
-    Every other change is refused while a row is archived, so this is answered
-    from the level the caller would have had if the row were live — the
-    endpoint asks the same question its own way (``allow_frozen``), so the
-    button and the handler agree.
-
-    Two things have to hold. The caller could write it if it were live. And the
-    stamp is the row's own: a row archived along with the thing above it comes
-    back with that thing, which is what the database says too, so the answer
-    here is no and the client points at the parent rather than offering a button
-    that would be refused.
-
-    A read-only guild answers no throughout — its hold is not the archive's to
-    lift.
-    """
-    if getattr(row, "archived_at", None) is None:
-        return False
-    if _frozen_community(context):
-        return False
-    if ancestor_is_frozen(row):
-        return False
-    return may_write(row)
+        require_access(resource, row, context=context, action=Action.export)
 
 
 def client_access(
     row: Any, user_id: int | None, *, context: ActorContext | None
 ) -> dict[str, bool]:
-    """What the caller may do to ``row``, for its read schema's ``can``.
-
-    Each flag is the check the route that does the thing runs, so the client
-    reads its affordances rather than working them out from a rung."""
+    """What the caller may do to ``row``, for its read schema's ``can``."""
     if user_id is None and not isinstance(context, InstallContext):
         return {}
-    return {
-        **{action.value: allows(row, action, context=context) for action in Action},
-        "unarchive": may_unarchive(row, context=context),
-    }
-
-
-# ── Project helpers above the generic engine ────────────────────
-
-
-def can_configure_project(project: Project, *, context: ActorContext | None) -> bool:
-    """Whether the request may configure the project itself.
-
-    Configuring a project — pinning it, setting its default view, curating its
-    filter presets — is a step above being able to edit its content. Three
-    ways to hold it: a guild admin, a manager of the owning initiative, or the
-    project's own owner. Plain write access is deliberately not enough, and
-    nobody configures a project while it or its community is frozen.
-
-    Read off the standing and the level the database answered, so the routes
-    that configure a project and the ``can.configure`` a project reports are
-    the same answer.
-    """
-    if context is None or _frozen_community(context) or row_is_frozen(project):
-        return False
-    if context.is_admin:
-        return True
-    # The owner's rung, which is what deleting it asks.
-    if allows(project, Action.delete, context=context):
-        return True
-    return project.initiative_id in context.manager_initiatives
+    held = actions_of(row)
+    return {action.value: action.value in held for action in TOOL_CAN}
 
 
 def require_project_configure(
     project: Project, *, context: ActorContext | None
 ) -> None:
-    """Raise 403 unless the request may configure the project (see above)."""
-    if not can_configure_project(project, context=context):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=ProjectMessages.CONFIGURE_REQUIRED,
-        )
+    """Raise 403 unless the request may configure the project itself — pin it,
+    set its default view, curate its filter presets: a guild admin, a manager of
+    the owning initiative, or the project's owner, on a live project."""
+    require_access(
+        DAC_RESOURCES[Tool.project], project, context=context, action=Action.configure
+    )

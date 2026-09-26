@@ -27,7 +27,6 @@ from app.models.tenant.initiative import (
     JoinRequestStatus,
     PermissionKey,
 )
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
@@ -378,39 +377,25 @@ async def clear_user_task_assignments_for_initiative(
     )
 
 
-async def drop_member_grants(
-    session: AsyncSession, *, user_id: int, initiative_ids: Sequence[int]
-) -> None:
-    """Delete ``user_id``'s read and write grants on every tool in
-    ``initiative_ids``: access that came with the membership goes with it.
-    Owner grants stay; they record who a resource belongs to, and grant nothing
-    once the membership row is gone."""
-    await session.exec(
-        delete(ResourceGrant).where(
-            ResourceGrant.user_id == user_id,
-            ResourceGrant.level != ResourceAccessLevel.owner,
-            ResourceGrant.initiative_id.in_(initiative_ids),
-        )
-    )
-
-
 async def remove_user_from_guild_initiatives(
     session: AsyncSession,
     *,
     guild_id: int,
     user_id: int,
 ) -> None:
-    """Remove a user from all initiatives in a guild, clearing task assignments
-    and dropping the access grants that came with membership.
+    """Remove a user from all initiatives in a guild, clearing task assignments.
 
     Used by every "user leaves the guild for any reason" path: leave-guild,
     deactivate, soft-delete, hard-delete, OIDC-sync revocation, and the
     guild-admin Remove-from-guild action.
 
-    Content they owned is left **unowned** rather than handed to anyone: nobody
-    inherits privilege they did not ask for, which matters most in a guild with
-    heavy turnover. Guild admins still administer it, and can claim it whenever
-    they choose (``app.services.tenant.ownership``).
+    Every grant naming them in an initiative goes with the membership row
+    (``tr_initiative_members_departure``), owner rows included, so what they
+    owned is left **unowned** rather than handed to anyone: nobody inherits
+    privilege they did not ask for, which matters most in a guild with heavy
+    turnover. What they owned at the community's own level is released here.
+    Guild admins still administer all of it, and can claim it whenever they
+    choose (``app.services.tenant.ownership``).
     """
     from app.services.tenant import ownership as ownership_service
 
@@ -423,10 +408,6 @@ async def remove_user_from_guild_initiatives(
     )
     initiative_ids = list(initiative_ids_result.all())
 
-    # Ownership goes first, while the user's membership rows are still in place:
-    # dropping an owner grant is a write to guild content, and its initiative-level
-    # RLS is evaluated against the *live* membership this function is about to
-    # delete.
     await ownership_service.release_owned_content(session, user_id=user_id)
 
     # Clear task assignments per initiative before dropping the membership rows.
@@ -436,8 +417,6 @@ async def remove_user_from_guild_initiatives(
             initiative_id=init_id,
             user_id=user_id,
         )
-
-    await drop_member_grants(session, user_id=user_id, initiative_ids=initiative_ids)
 
     # Remove initiative memberships
     stmt = delete(InitiativeMember).where(

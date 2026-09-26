@@ -135,7 +135,7 @@ def list_loader_options() -> list:
     reported by name), and the property values its card shows."""
     return [
         selectinload(Document.initiative),
-        undefer(Document.access_level),
+        undefer(Document.actions),
         selectinload(Document.grants).options(
             selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
         ),
@@ -237,7 +237,7 @@ async def get_document_for_grants(
         .where(Document.id == document_id)
         .options(
             selectinload(Document.initiative),
-            undefer(Document.access_level),
+            undefer(Document.actions),
             selectinload(Document.grants).options(
                 selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
             ),

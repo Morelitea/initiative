@@ -605,8 +605,7 @@ _SHARED_LEVELS = (ResourceAccessLevel.read, ResourceAccessLevel.write)
 
 #: A sharing row an installed app with ``sharing:write`` changes, as a person
 #: with its rung changes one: it holds the scope and the tool's write scope,
-#: and the rung that lets a person share, which is write on the resource
-#: (``resource_access`` asked at write, through the grantee leg). The row
+#: and the rung that lets a person share (``resource_shares``). The row
 #: shares with a person, a role or all initiative members at read or write;
 #: owner rows, a published view's rows and app grants are not a share.
 _APP_SHARE_ROW = (
@@ -615,8 +614,8 @@ _APP_SHARE_ROW = (
     f" = ANY ({IN_POLICY.field('install_write')}), false)"
     f" AND level IN ({sql_values(level.value for level in _SHARED_LEVELS)})"
     " AND app_install_id IS NULL AND dashboard_id IS NULL"
-    " AND resource_access(resource_grants.resource_type, resource_grants.resource_id,"
-    f" {_APP_MEMBER}, resource_grants.initiative_id, true, {STANDING}))"
+    " AND resource_shares(resource_grants.resource_type, resource_grants.resource_id,"
+    f" {_APP_MEMBER}, resource_grants.initiative_id, {STANDING}))"
 )
 
 #: What an installed app's request writes on ``resource_grants``: the owner
@@ -772,6 +771,104 @@ def _guild_level_guard_block(table: str) -> str:
     )
 
 
+_SHARING_SECTION = """\
+-- ===========================================================================
+-- Who a resource is shared with (resource_grants), beside the initiative gate
+-- its own policies ask: RESTRICTIVE, so each AND-combines with those.
+--
+-- A grant row is written or removed by whoever may share the resource
+-- (resource_shares: its owner's rung, held by the request itself), by a
+-- trigger (the owner row a create writes, and a departure removing what the
+-- person held), or — the owner row alone — to give an unowned resource back to
+-- whoever wrote it (resource_reclaimable).
+-- ==========================================================================="""
+
+#: Whether the request may write this grant row: the share, or a trigger.
+_SHARES_ROW = (
+    "(pg_trigger_depth() > 0 OR resource_shares(resource_grants.resource_type,"
+    f" resource_grants.resource_id, {_APP_MEMBER}, resource_grants.initiative_id,"
+    f" {STANDING}))"
+)
+#: An owner row naming the author of a resource that has no owner.
+_RECLAIMS_ROW = (
+    f"(level = '{ResourceAccessLevel.owner.value}' AND user_id IS NOT NULL"
+    " AND resource_reclaimable(resource_grants.resource_type,"
+    " resource_grants.resource_id, user_id))"
+)
+
+
+def _sharing_block() -> str:
+    """The share gate on ``resource_grants``, one RESTRICTIVE policy per write
+    command."""
+    lines = [
+        "DROP POLICY IF EXISTS shares_insert ON resource_grants;",
+        "CREATE POLICY shares_insert ON resource_grants AS RESTRICTIVE FOR INSERT",
+        f"  WITH CHECK ({_SHARES_ROW} OR {_RECLAIMS_ROW});",
+        "DROP POLICY IF EXISTS shares_update ON resource_grants;",
+        "CREATE POLICY shares_update ON resource_grants AS RESTRICTIVE FOR UPDATE",
+        f"  USING ({_SHARES_ROW}) WITH CHECK ({_SHARES_ROW} OR {_RECLAIMS_ROW});",
+        "DROP POLICY IF EXISTS shares_delete ON resource_grants;",
+        "CREATE POLICY shares_delete ON resource_grants AS RESTRICTIVE FOR DELETE",
+        f"  USING ({_SHARES_ROW});",
+    ]
+    return "\n".join(lines)
+
+
+_DRAFT_SECTION = """\
+-- ===========================================================================
+-- Work not yet out — a post that has not gone up, a wiki page still a draft —
+-- is its writers' alone: RESTRICTIVE on SELECT, so it narrows the sharing
+-- gate. Everything reached through one (comments, reactions, a poll) reads it
+-- and so answers the same.
+-- ==========================================================================="""
+
+
+def _draft_block() -> str:
+    return "\n".join(
+        [
+            "DROP POLICY IF EXISTS published_read ON posts;",
+            "CREATE POLICY published_read ON posts AS RESTRICTIVE FOR SELECT",
+            "  USING (published_at IS NOT NULL OR resource_access('post', posts.id,"
+            f" {_APP_MEMBER}, posts.initiative_id, true, {STANDING}));",
+            "DROP POLICY IF EXISTS finished_read ON wiki_pages;",
+            "CREATE POLICY finished_read ON wiki_pages AS RESTRICTIVE FOR SELECT",
+            "  USING (NOT wiki_pages.is_draft OR EXISTS (SELECT 1 FROM wikis w"
+            " WHERE w.id = wiki_pages.wiki_id AND resource_access('wiki', w.id,"
+            f" {_APP_MEMBER}, w.initiative_id, true, {STANDING})));",
+        ]
+    )
+
+
+_DEPARTURE_SECTION = """\
+-- ===========================================================================
+-- Leaving an initiative takes what came with it: every grant naming the person
+-- in that initiative goes with the membership row, owner included, so what
+-- they owned there is unowned — the community's admins recover it. A trigger,
+-- so it holds however the membership is removed.
+-- ==========================================================================="""
+
+#: The function ``tr_initiative_members_departure`` runs. Shared, in
+#: ``public``; the rows it removes are in the schema the trigger fired in.
+INITIATIVE_DEPARTURE_FN = """
+CREATE OR REPLACE FUNCTION public.fn_initiative_departure() RETURNS trigger
+    LANGUAGE plpgsql AS $departure$
+BEGIN
+    EXECUTE format(
+        'DELETE FROM %I.resource_grants WHERE user_id = $1 AND initiative_id = $2',
+        TG_TABLE_SCHEMA
+    ) USING OLD.user_id, OLD.initiative_id;
+    RETURN NULL;
+END;
+$departure$;
+"""
+
+INITIATIVE_DEPARTURE_TRIGGER = (
+    "CREATE OR REPLACE TRIGGER tr_initiative_members_departure"
+    " AFTER DELETE ON initiative_members FOR EACH ROW"
+    " EXECUTE FUNCTION public.fn_initiative_departure();"
+)
+
+
 _FREEZE_SECTION = """\
 -- ===========================================================================
 -- The lifecycle freeze: the parts that need the old row and the new row
@@ -865,6 +962,16 @@ def render_guild_rls_ddl() -> str:
     # policies join the ones already there.
     apps = [_app_block(t) for t in sorted(APP_POLICY_TABLES)]
     out += "\n\n" + _APP_SECTION + "\n\n" + "\n\n".join(apps)
+    out += "\n\n" + _SHARING_SECTION + "\n\n" + _sharing_block()
+    out += "\n\n" + _DRAFT_SECTION + "\n\n" + _draft_block()
+    out += (
+        "\n\n"
+        + _DEPARTURE_SECTION
+        + "\n"
+        + INITIATIVE_DEPARTURE_FN
+        + "\n"
+        + INITIATIVE_DEPARTURE_TRIGGER
+    )
     guards = [f"{frozen_guard_trigger(t)};" for t in sorted(FROZEN_TABLES)]
     guards += [
         f"{trigger};"

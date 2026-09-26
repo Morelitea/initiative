@@ -496,7 +496,7 @@ def _calendar_event_loader_options():
         .selectinload(Calendar.grants)
         .selectinload(ResourceGrant.role),
         selectinload(CalendarEvent.calendar).selectinload(Calendar.initiative),
-        selectinload(CalendarEvent.calendar).undefer(Calendar.access_level),
+        selectinload(CalendarEvent.calendar).undefer(Calendar.actions),
         selectinload(CalendarEvent.property_values).selectinload(
             CalendarEventPropertyValue.property_definition
         ),

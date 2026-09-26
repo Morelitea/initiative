@@ -81,7 +81,7 @@ async def _load_document(
         .where(Document.id == resource_id)
         .options(
             selectinload(Document.initiative),
-            undefer(Document.access_level),
+            undefer(Document.actions),
             selectinload(Document.grants).selectinload(ResourceGrant.role),
         )
     )
@@ -115,7 +115,7 @@ async def _load_wiki_page(
         .where(Wiki.id == page.wiki_id)
         .options(
             selectinload(Wiki.initiative),
-            undefer(Wiki.access_level),
+            undefer(Wiki.actions),
             selectinload(Wiki.grants).selectinload(ResourceGrant.role),
         )
     )

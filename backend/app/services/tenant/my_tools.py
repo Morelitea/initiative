@@ -32,7 +32,6 @@ from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative
 from app.services import permissions as permissions_service
 from app.services.tenant import archive as archive_service
-from app.services.tenant import posts as posts_service
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.services.tenant import search as search_service
 from app.services.tenant.ownership import OWNABLE
@@ -100,11 +99,6 @@ def scope_conditions(
     if "is_template" in model.model_fields:
         # A template is a blueprint for new work, and not work itself.
         conditions.append(model.is_template.is_(False))
-
-    if tool is Tool.post:
-        # A scheduled notice has not gone up: it reaches only the people who
-        # could edit it, here as on its own board.
-        conditions.append(posts_service.visibility_clause(user_id, context=context))
 
     conditions.append(
         permissions_service.granted_scope_clause(

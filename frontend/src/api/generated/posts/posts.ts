@@ -697,10 +697,8 @@ export function useGetPostTimelineApiV1CGuildIdPostsTimelineGet<
 }
 
 /**
- * Read one notice.
- *
- * A scheduled one answers 404 unless the caller could edit it: until it goes
- * up it is a draft, and the board it belongs to does not have it yet.
+ * Read one notice. A scheduled one is its writers' until it goes up; to
+ * anyone else it is not there (the posts read policy).
  * @summary Read Post
  */
 export const readPostApiV1CGuildIdPostsPostIdGet = (

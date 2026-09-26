@@ -215,7 +215,7 @@
     "savingRole": "Saving...",
     "removeMemberTitle": "Remove member?",
     "removeMemberDescription": "Are you sure you want to remove <bold>{{name}}</bold> from this initiative?",
-    "removeMemberWarning": "This will also remove their explicit access to all projects and documents in this initiative.",
+    "removeMemberWarning": "This also removes their access to everything shared with them in this initiative. Anything they own here becomes unowned, and a community admin can claim it.",
     "removing": "Removing...",
     "nameRequired": "Name is required.",
     "roleNameRequired": "Name and display name are required.",

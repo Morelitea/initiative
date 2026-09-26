@@ -73,7 +73,9 @@ async def announce_post(
     ``author`` is the person who posted it, or the installed app that did,
     named by the app's name and by no account.
     """
-    recipient_ids = sorted(posts_service.audience_user_ids(post, exclude=author.id))
+    recipient_ids = sorted(
+        await posts_service.audience_user_ids(session, post, exclude=author.id)
+    )
     author_name = notifications_service.actor_name(author)
     await notifications_service.notify(
         session,
