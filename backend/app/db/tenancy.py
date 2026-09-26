@@ -229,8 +229,12 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         "app_placements",
         "guild_ai_connections",  # the seat's AI connections (guild config mode);
         # guild-wide config, no initiative scope, written by the seat (SEAT_TABLES
-        # below). The api_key ciphertext is never returned by the API (reads
-        # expose only has_key).
+        # below).
+        # The shared key of each of those connections, one row per connection.
+        # Read and written by the seat and the system engine alone
+        # (SEAT_READ_TABLES below); members read whether there is one off
+        # guild_ai_connections.has_api_key.
+        "guild_ai_connection_keys",
         "webhook_deliveries",  # per-subscription delivery ledger, no initiative of
         # its own; read through its subscription (LEDGER_TABLES below).
         "app_hook_deliveries",  # vendor webhook deliveries an install accepted;
@@ -332,7 +336,13 @@ OWN_ROW_TABLES: dict[str, str] = {
 # ``app.db.guild_ddl.render_guild_rls_ddl``. Every entry here MUST also be in
 # ``GUILD_LEVEL_TABLES`` — enforced in ``tenancy_test.py``.
 SEAT_TABLES: frozenset[str] = frozenset(
-    {"app_placements", "guild_ai_connections", "guild_app_secrets", "guild_apps"}
+    {
+        "app_placements",
+        "guild_ai_connection_keys",
+        "guild_ai_connections",
+        "guild_app_secrets",
+        "guild_apps",
+    }
 )
 
 # --- Seat tables read by the seat alone ---------------------------------------
@@ -340,7 +350,9 @@ SEAT_TABLES: frozenset[str] = frozenset(
 # than within the schema: rendered with the same ``seat_*`` policies, whose
 # read predicate is the seat's. Every entry here MUST also be in
 # ``SEAT_TABLES`` — enforced in ``tenancy_test.py``.
-SEAT_READ_TABLES: frozenset[str] = frozenset({"guild_app_secrets"})
+SEAT_READ_TABLES: frozenset[str] = frozenset(
+    {"guild_ai_connection_keys", "guild_app_secrets"}
+)
 
 # --- Ledger overlay on guild-level tables -------------------------------------
 # Guild-level bookkeeping a system job keeps about a parent row: table ->
@@ -387,6 +399,8 @@ CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
         # An install's secret values, one row per install. The install row
         # names who made it.
         "guild_app_secrets",
+        # A connection's shared key. The connection row names who made it.
+        "guild_ai_connection_keys",
         # A ballot: ``user_id`` is the voter, which is both the author of the
         # row and its whole content.
         "post_poll_votes",

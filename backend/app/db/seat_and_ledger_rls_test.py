@@ -3,8 +3,9 @@
 ``guild_ai_connections`` is read within the community — a member's AI request
 reads the connection it runs on — and written by the seat alone.
 ``app_placements`` has the same shape: read within the community, placed by
-the seat. ``guild_app_secrets`` is read and written by the seat and the system
-engine alone, and its trigger keeps ``guild_apps.secret_fields`` in step.
+the seat. ``guild_app_secrets`` and ``guild_ai_connection_keys`` are read and
+written by the seat and the system engine alone, and the trigger on the first
+keeps ``guild_apps.secret_fields`` in step.
 ``webhook_deliveries`` is read through its subscription and written by the
 system engine. Each test acts on the real request login, routed through the
 seam, and carries no guard of its own: what the database accepts is what the
@@ -24,7 +25,7 @@ from sqlmodel import select
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserRole
-from app.models.tenant.ai_connection import GuildAIConnection
+from app.models.tenant.ai_connection import GuildAIConnection, GuildAIConnectionKey
 from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.webhook_subscription import WebhookSubscription
@@ -266,16 +267,30 @@ async def test_only_the_seat_and_the_system_engine_read_secrets(
         definition=_APP_DEFINITION,
         secrets={"admin": {"admin_token": "ciphertext"}},
     )
+    await route_session_to_guild(session, seat.guild.id)
+    connection = GuildAIConnection(
+        label="Shared", provider="openai", created_by=seat.user.id
+    )
+    session.add(connection)
+    await session.flush()
+    session.add(
+        GuildAIConnectionKey(connection_id=connection.id, api_key_encrypted="ct")
+    )
+    await session.commit()
     member = await acting_user(guild_role=GuildRole.member, guild=seat.guild)
-    read = text("SELECT install_id FROM guild_app_secrets")
+    read = text(
+        "SELECT install_id FROM guild_app_secrets "
+        "UNION ALL SELECT connection_id FROM guild_ai_connection_keys"
+    )
+    both = [(app.id,), (connection.id,)]
 
     s = await _as(role_session, user_id=member.user.id, guild_id=seat.guild.id)
     assert list(await s.exec(read)) == []
     s = await _as(role_session, user_id=seat.user.id, guild_id=seat.guild.id)
-    assert list(await s.exec(read)) == [(app.id,)]
+    assert list(await s.exec(read)) == both
     system = await role_session("app_admin")
     await set_rls_context(system, guild_id=seat.guild.id)
-    assert list(await system.exec(read)) == [(app.id,)]
+    assert list(await system.exec(read)) == both
 
 
 async def test_secret_fields_follow_the_stored_values(

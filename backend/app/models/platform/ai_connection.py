@@ -27,9 +27,6 @@ class AIConnectionColumns(SQLModel):
     provider: str = Field(sa_type=String(50), nullable=False)
     base_url: Optional[str] = Field(default=None, sa_type=String(1000), nullable=True)
     model: Optional[str] = Field(default=None, sa_type=String(500), nullable=True)
-    api_key_encrypted: Optional[str] = Field(
-        default=None, sa_type=String(2000), nullable=True
-    )
     enabled: bool = Field(
         default=True, nullable=False, sa_column_kwargs={"server_default": "true"}
     )
@@ -57,3 +54,7 @@ class PlatformAIConnection(AIConnectionColumns, table=True):
     __tablename__ = "platform_ai_connections"
     __allow_unmapped__ = True
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    api_key_encrypted: Optional[str] = Field(
+        default=None, sa_type=String(2000), nullable=True
+    )

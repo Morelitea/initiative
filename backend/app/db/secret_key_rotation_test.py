@@ -234,7 +234,7 @@ async def test_dry_run_reports_but_does_not_write(engine, monkeypatch):
 async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):
     """The guild AI key columns are guild-scoped, so they live in guild_<id>
     schemas — the sweep re-keys them there. This covers both a guild-level table
-    (guild_ai_connections) and the own-row-RLS member-key table
+    (guild_ai_connection_keys) and the own-row-RLS member-key table
     (guild_ai_member_keys). Guild data is re-keyed
     ONLY through its guild schema, never an unrouted public pathway."""
     gid = None
@@ -254,10 +254,8 @@ async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):
             )
             await conn.execute(
                 text(
-                    f'INSERT INTO "{schema}".guild_ai_connections '  # noqa: S608
-                    "(label, provider, api_key_encrypted, enabled, "
-                    " is_default, created_at, updated_at) "
-                    "VALUES ('c', 'openai', :a, true, false, now(), now())"
+                    f'INSERT INTO "{schema}".guild_ai_connection_keys '  # noqa: S608
+                    "(connection_id, api_key_encrypted) VALUES (1, :a)"
                 ),
                 {
                     "a": encrypt_field("guild-ai", SALT_AI_API_KEY, secret_key=OLD),
@@ -280,7 +278,9 @@ async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):
 
         async with engine.connect() as conn:
             conn_ct = await conn.scalar(
-                text(f'SELECT api_key_encrypted FROM "{schema}".guild_ai_connections'),
+                text(
+                    f'SELECT api_key_encrypted FROM "{schema}".guild_ai_connection_keys'  # noqa: S608
+                ),
             )
             member_ct = await conn.scalar(
                 text(f'SELECT api_key_encrypted FROM "{schema}".guild_ai_member_keys'),

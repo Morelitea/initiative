@@ -431,7 +431,7 @@ async def _generate(
     ``allow_private`` is server-computed by :func:`resolve_ai_settings` (true
     only for an operator Ollama connection), never from request input.
     """
-    resolved = await resolve_ai_settings(session, user, guild_id)
+    resolved = await resolve_ai_settings(session, user, guild_id, with_key=True)
 
     if not resolved.enabled:
         raise AIGenerationError(AIMessages.NOT_ENABLED)

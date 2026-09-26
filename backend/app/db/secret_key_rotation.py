@@ -117,7 +117,7 @@ _GUILD_SCHEMA_COLUMNS: list[tuple[str, str, bytes]] = [
     # value lives for the length of one fetch — but a rotation that lands
     # mid-import must not be what fails it.
     ("import_jobs", "secret_encrypted", SALT_IMPORT_CREDENTIAL),
-    ("guild_ai_connections", "api_key_encrypted", SALT_AI_API_KEY),
+    ("guild_ai_connection_keys", "api_key_encrypted", SALT_AI_API_KEY),
     ("guild_ai_member_keys", "api_key_encrypted", SALT_AI_API_KEY),
 ]
 

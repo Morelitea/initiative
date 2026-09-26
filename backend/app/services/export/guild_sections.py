@@ -302,6 +302,7 @@ SECTION_TABLES: dict[str, str] = {
 EXEMPT: dict[str, str] = {
     # Credentials. An archive is a file that leaves the deployment.
     "guild_ai_connections": "credentials",
+    "guild_ai_connection_keys": "credentials",
     "guild_ai_member_keys": "credentials",
     "guild_app_secrets": "credentials",
     "guild_app_user_connections": "credentials",

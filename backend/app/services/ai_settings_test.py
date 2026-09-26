@@ -110,6 +110,7 @@ def _custom_conn(model: str) -> ai_settings._ConnRow:
         base_url="https://openrouter.test/api/v1",
         model=model,
         api_key_encrypted=None,
+        has_key=False,
         enabled=True,
         is_default=True,
         allow_member_keys=False,
