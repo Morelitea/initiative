@@ -8,10 +8,14 @@
  * from this device, because then the previous user's memberships decide what
  * the current one keeps.
  */
+
+import { QueryClientProvider } from "@tanstack/react-query";
 import { render, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildGuild, buildUser } from "@/__tests__/factories";
+import { createTestQueryClient } from "@/__tests__/helpers/render";
 
 const get = vi.fn();
 
@@ -75,6 +79,14 @@ beforeEach(() => {
   currentUser = null;
 });
 
+/** The provider reads its list through React Query, so each test gets a client. */
+const withQueryClient = () => {
+  const client = createTestQueryClient();
+  return ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+};
+
 describe("a guild list that arrives for the wrong account", () => {
   it("is not allowed to prune this device against the previous user", async () => {
     const first = deferred<{ data: unknown }>();
@@ -84,7 +96,8 @@ describe("a guild list that arrives for the wrong account", () => {
     const view = render(
       <GuildProvider>
         <div />
-      </GuildProvider>
+      </GuildProvider>,
+      { wrapper: withQueryClient() }
     );
 
     await waitFor(() => expect(get).toHaveBeenCalledWith("/communities/"));
