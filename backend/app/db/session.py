@@ -85,7 +85,8 @@ QUERY_POOL_TIMEOUT_SECONDS = 5
 #: is each other rather than the requests serving every other page. Same login
 #: as the request path — the difference is the role each statement assumes and
 #: the transaction it runs in, not who connects. On a read replica when
-#: DATABASE_URL_QUERY names one.
+#: DATABASE_URL_QUERY names one. With DB_COHORTS above 1 each cohort has a pool
+#: of this size of its own (``app.db.cohorts.query_sessionmaker``).
 query_engine = create_async_engine(
     settings.DATABASE_URL_QUERY or settings.DATABASE_URL_APP,
     echo=False,

@@ -667,6 +667,7 @@ class _WorkerEngines:
     app: AsyncEngine
     cohort_request: tuple[AsyncEngine, ...]
     cohort_system: tuple[AsyncEngine, ...]
+    cohort_query: tuple[AsyncEngine, ...]
 
     def app_engines(self) -> tuple[AsyncEngine, ...]:
         """Every engine but the superuser's, which ``engine`` empties."""
@@ -676,6 +677,7 @@ class _WorkerEngines:
             self.app,
             *self.cohort_request,
             *self.cohort_system,
+            *self.cohort_query,
         )
 
 
@@ -693,15 +695,18 @@ def _worker_engines() -> _WorkerEngines:
         app=_make("app_user"),
         cohort_request=tuple(_make("app_user") for _ in range(_TEST_COHORTS)),
         cohort_system=tuple(_make("app_admin") for _ in range(_TEST_COHORTS)),
+        cohort_query=tuple(_make("app_user") for _ in range(_TEST_COHORTS)),
     )
-    # Two cohorts, each with a request and a system pool on this worker's
-    # database, so every test that reaches a community through a session of its
-    # own (the sockets, the cross-community reads, the sweeps) does so from
-    # that community's cohort — and a route outside it raises. The platform
+    # Two cohorts, each with a request, a system and a query pool on this
+    # worker's database, so every test that reaches a community through a
+    # session of its own (the sockets, the cross-community reads, the sweeps,
+    # the query surface) does so from that community's cohort — and a route
+    # outside it raises. The platform
     # system pool is tagged as in production, so its routes are counted.
     # Tagging adds listeners, so it happens here, once per engine.
     cohorts.use_request_engines(list(engines.cohort_request))
     cohorts.use_system_engines(list(engines.cohort_system))
+    cohorts.use_query_engines(list(engines.cohort_query))
     cohorts.tag_engine(engines.system, cohorts.PLATFORM_SYSTEM)
     return engines
 

@@ -183,19 +183,29 @@ async def test_reads_that_may_trail_use_the_request_pool_without_a_replica():
         assert reading.info[cohorts.READ_ONLY_INFO_KEY] is True
 
 
-async def test_reads_that_may_trail_use_the_replica_when_there_is_one(monkeypatch):
+@pytest.mark.parametrize(
+    ("makers", "sessionmaker", "pool_size"),
+    [
+        ("_read_makers", cohorts.read_sessionmaker, settings.DB_POOL_SIZE),
+        ("_query_makers", cohorts.query_sessionmaker, db_session.QUERY_POOL_SIZE),
+    ],
+)
+async def test_reads_that_may_trail_use_the_replica_when_there_is_one(
+    monkeypatch, makers, sessionmaker, pool_size
+):
     replica = "postgresql+asyncpg://app_user:pw@replica:5432/initiative"
     monkeypatch.setattr(settings, "DATABASE_URL_QUERY", replica)
     monkeypatch.setattr(settings, "DB_COHORT_DATABASE", "initiative_c{cohort}")
-    monkeypatch.setattr(cohorts, "_read_makers", None)
+    monkeypatch.setattr(cohorts, makers, None)
 
-    engines = [cohorts.read_sessionmaker(g).kw["bind"] for g in (4, 5)]
+    engines = [sessionmaker(g).kw["bind"] for g in (4, 5)]
     try:
         assert [e.url.host for e in engines] == ["replica", "replica"]
         assert [e.url.database for e in engines] == [
             f"initiative_c{cohorts.cohort_of(4)}",
             f"initiative_c{cohorts.cohort_of(5)}",
         ]
+        assert [e.pool.size() for e in engines] == [pool_size, pool_size]
     finally:
         for engine in engines:
             await engine.dispose()

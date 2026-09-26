@@ -77,8 +77,8 @@ async def test_the_canvas_answers_what_each_widget_answers(
         "SELECT priority, count(*) AS n FROM tasks GROUP BY priority",
         "SELECT title, due_date, created_at FROM tasks ORDER BY due_date LIMIT 2",
         "SELECT title FROM tasks WHERE status.category = 'done'",
-        "SELECT status.name AS s, count(*) AS n FROM tasks GROUP BY status.name",
-        "SELECT t.id, p.id FROM tasks AS t JOIN projects AS p ON p.id = t.project_id",
+        "SELECT status.name AS s, count(*) AS n FROM tasks GROUP BY status.name ORDER BY s",
+        "SELECT t.id, p.id FROM tasks AS t JOIN projects AS p ON p.id = t.project_id ORDER BY t.id",
         "SELECT count(*) AS n FROM projects",
     )
     dashboard_id = await _canvas(client, author, *statements)

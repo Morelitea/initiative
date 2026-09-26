@@ -37,10 +37,9 @@ from asyncpg.exceptions import (
     SyntaxOrAccessError,
 )
 from sqlalchemy import text
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import QueryMessages
-from app.db import session as db_session
+from app.db import cohorts
 from app.db.session import set_rls_context
 from app.services.fields.spec import FieldType
 from app.services.query.canvas import compile_canvas
@@ -330,7 +329,7 @@ async def execute(
     guild_id = _routed_guild(context)
     routed = _scoped(context, initiative_id, via_dashboard_id)
     async with _translated_failures():
-        async with AsyncSession(db_session.query_engine) as session:
+        async with cohorts.query_sessionmaker(guild_id)() as session:
             # Opened before anything else touches the connection. The bounds
             # below and the context after it are transaction-local, so they
             # need a transaction that is already open to be local *to*.
@@ -401,10 +400,10 @@ async def describe(
     """
     statement = resolve(sql)
     routed = _scoped(context, initiative_id)
-    _routed_guild(context)
+    guild_id = _routed_guild(context)
 
     async with _translated_failures():
-        async with AsyncSession(db_session.query_engine) as session:
+        async with cohorts.query_sessionmaker(guild_id)() as session:
             await session.begin()
             sqlalchemy_connection = await session.connection()
             raw = await sqlalchemy_connection.get_raw_connection()
@@ -455,7 +454,7 @@ async def _run_compiled(
     """Every statement in *statements*, as one compiled statement, in one
     transaction holding one slot."""
     keys = list(statements)
-    async with AsyncSession(db_session.query_engine) as session:
+    async with cohorts.query_sessionmaker(guild_id)() as session:
         await session.begin()
         sqlalchemy_connection = await session.connection()
         raw = await sqlalchemy_connection.get_raw_connection()
