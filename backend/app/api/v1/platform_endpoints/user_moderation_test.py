@@ -413,6 +413,8 @@ class TestNothingElse:
             ("POST", "/reactivate", None),
             ("POST", "/restore", None),
             ("DELETE", "/second-factor", None),
+            ("POST", "/reset-password", None),
+            ("DELETE", "/age-block", None),
             ("GET", "/deletion-eligibility", None),
             ("DELETE", "", {"action": "hard_delete"}),
         ],

@@ -313,16 +313,10 @@ async def clear_second_factor(
 async def trigger_password_reset(
     user_id: int,
     session: SystemSessionDep,
-    _current_user: UsersManageDep,
+    current_user: UsersManageDep,
 ) -> VerificationSendResponse:
     """Trigger a password reset email for a user (``users.manage``)."""
-    stmt = select(User).where(User.id == user_id)
-    result = await session.exec(stmt)
-    user = result.one_or_none()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
-        )
+    user = await _account_within_rank(session, user_id, current_user)
 
     if user.status != UserStatus.active:
         raise HTTPException(
@@ -683,11 +677,7 @@ async def clear_age_block(
     one person restoring another's access, which is exactly the kind of thing
     a log is for.
     """
-    user = await session.get(User, user_id)
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
-        )
+    user = await _account_within_rank(session, user_id, current_user)
     if user.age_below_minimum_at is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
