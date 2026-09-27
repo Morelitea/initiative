@@ -219,18 +219,22 @@ async def page_across_guilds(
     that order as ``(key, identity)``: ``key`` ascending, or descending when
     ``descending`` is set, then ``identity`` descending — the ORDER BY the
     fetch ran. Across guilds the guild id breaks a tie. No page reaches past a
-    guild's first ``page * page_size`` rows, so none is read further.
+    guild's first ``page * page_size`` rows, so none is read further, and the
+    merge keeps no more than that many between guilds.
     """
     limit = max(page, 1) * effective_page_size(page_size)
     total = 0
+    merged: list[tuple[int, R]] = []
 
-    async def _fetch(routed: AsyncSession, guild_id: int) -> list[tuple[int, R]]:
-        nonlocal total
+    async def _fetch(routed: AsyncSession, guild_id: int) -> list:
+        nonlocal total, merged
         rows, count = await fetch(routed, guild_id, limit)
         total += count
-        return [(guild_id, row) for row in rows]
+        merged += [(guild_id, row) for row in rows]
+        merged.sort(key=lambda pair: (order(pair[1])[1], pair[0]), reverse=True)
+        merged.sort(key=lambda pair: order(pair[1])[0], reverse=descending)
+        del merged[limit:]
+        return []
 
-    merged = await gather_across_guilds(session, user_id, guild_ids, _fetch)
-    merged.sort(key=lambda pair: (order(pair[1])[1], pair[0]), reverse=True)
-    merged.sort(key=lambda pair: order(pair[1])[0], reverse=descending)
+    await gather_across_guilds(session, user_id, guild_ids, _fetch)
     return paginate_sequence(merged, page, page_size), total

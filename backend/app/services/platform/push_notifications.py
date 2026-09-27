@@ -89,6 +89,8 @@ def channel_for(notification_type: Optional[NotificationType]) -> str:
 #: access tokens last an hour, so one credential serves every push until it
 #: nears expiry or the configured account changes.
 _credentials: tuple[str, service_account.Credentials] | None = None
+#: One refresh at a time; deliveries that queued behind it reuse its token.
+_refresh_lock = asyncio.Lock()
 
 
 async def _get_fcm_access_token(cfg: ResolvedPushConfig) -> Optional[str]:
@@ -116,7 +118,9 @@ async def _get_fcm_access_token(cfg: ResolvedPushConfig) -> Optional[str]:
             )
         credentials = _credentials[1]
         if not credentials.valid:
-            await asyncio.to_thread(credentials.refresh, Request())
+            async with _refresh_lock:
+                if not credentials.valid:
+                    await asyncio.to_thread(credentials.refresh, Request())
         return credentials.token
     except Exception as exc:
         logger.error(f"Failed to get FCM access token: {exc}", exc_info=True)
