@@ -87,7 +87,8 @@ async def test_a_traded_device_token_hands_its_device_to_the_session(
     client: AsyncClient, session: AsyncSession
 ):
     """Registered under a device token and then traded for a session, the
-    device stands while that session does."""
+    device stands while that session does, however many times the token is
+    traded."""
     from app.services.platform import user_tokens
 
     user = await create_user(session)
@@ -103,14 +104,17 @@ async def test_a_traded_device_token_hands_its_device_to_the_session(
     )
     assert register.status_code == 200, register.text
 
-    exchanged = await client.post(
-        "/api/v1/auth/device-token/exchange", json={"device_token": device_token}
-    )
-    assert exchanged.status_code == 200, exchanged.text
-
-    (row,) = await push_tokens_service.get_push_tokens_for_user(
-        session, user_id=user_id
-    )
-    await session.refresh(row)
-    assert row.device_token_id is None
-    assert row.session_id is not None
+    seen = []
+    for _ in range(2):
+        exchanged = await client.post(
+            "/api/v1/auth/device-token/exchange", json={"device_token": device_token}
+        )
+        assert exchanged.status_code == 200, exchanged.text
+        (row,) = await push_tokens_service.get_push_tokens_for_user(
+            session, user_id=user_id
+        )
+        await session.refresh(row)
+        # The installation keeps its name; the session is the latest traded for.
+        assert row.device_token_id is not None
+        seen.append(row.session_id)
+    assert None not in seen and seen[0] != seen[1]

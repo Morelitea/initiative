@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from typing import Iterable, List, Optional
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, func, or_
 from sqlmodel import select, delete, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -34,28 +34,28 @@ async def register_push_token(
     token refresh/rotation without a race-condition between SELECT and INSERT.
     """
     now = datetime.now(timezone.utc)
-    stmt = (
-        pg_insert(PushToken)
-        .values(
-            user_id=user_id,
-            push_token=push_token,
-            platform=platform,
-            device_token_id=device_token_id,
-            session_id=session_id,
-            created_at=now,
-            updated_at=now,
-        )
-        .on_conflict_do_update(
-            index_elements=["user_id", "push_token"],
-            set_=dict(
-                platform=platform,
-                device_token_id=device_token_id,
-                session_id=session_id,
-                updated_at=now,
-            ),
-        )
-        .returning(PushToken)
+    insert = pg_insert(PushToken).values(
+        user_id=user_id,
+        push_token=push_token,
+        platform=platform,
+        device_token_id=device_token_id,
+        session_id=session_id,
+        created_at=now,
+        updated_at=now,
     )
+    stmt = insert.on_conflict_do_update(
+        index_elements=["user_id", "push_token"],
+        set_=dict(
+            platform=platform,
+            # A session names no installation, so the one already known for
+            # this device is kept.
+            device_token_id=func.coalesce(
+                insert.excluded.device_token_id, PushToken.device_token_id
+            ),
+            session_id=session_id,
+            updated_at=now,
+        ),
+    ).returning(PushToken)
     result = await session.exec(stmt)
     await session.commit()
     return result.scalars().one()
@@ -81,10 +81,10 @@ async def get_push_tokens_for_user(
 async def live_for_user(session: AsyncSession, *, user_id: int) -> List[PushToken]:
     """The recipient's devices whose sign-in still stands.
 
-    A row stands while the session that registered it has a live chain, or the
-    device token it was registered under is still good. Rows whose sign-in has
-    ended are removed, and a row whose session was renewed moves to the live
-    row. Does not commit — the caller owns the transaction.
+    A row that names a session stands while that session's chain does; one
+    that names only a device token stands while the token is good. Rows whose
+    sign-in has ended are removed, and a row whose session was renewed moves
+    to the live row. Does not commit — the caller owns the transaction.
     """
     rows = await get_push_tokens_for_user(session, user_id=user_id)
     tips = await session_service.live_chain_tips(
@@ -96,8 +96,11 @@ async def live_for_user(session: AsyncSession, *, user_id: int) -> List[PushToke
     live: List[PushToken] = []
     ended: List[PushToken] = []
     for row in rows:
-        tip = tips.get(row.session_id) if row.session_id else None
-        if tip is not None:
+        if row.session_id is not None:
+            tip = tips.get(row.session_id)
+            if tip is None:
+                ended.append(row)
+                continue
             if tip != row.session_id:
                 await follow_session(session, from_id=row.session_id, to_id=tip)
             live.append(row)
@@ -131,13 +134,14 @@ async def live_for_user(session: AsyncSession, *, user_id: int) -> List[PushToke
 async def follow_device_token(
     session: AsyncSession, *, device_token_id: int, to_id: uuid.UUID
 ) -> None:
-    """Move the devices a device token registered to the session it was traded
-    for, so from then on they stand while that session does. Does not commit:
-    it lands with the session."""
+    """Move the devices a device token names to the session it was traded for,
+    so from then on they stand while that session does. The device token stays
+    on the row as the installation's name. Does not commit: it lands with the
+    session."""
     await session.exec(
         update(PushToken)
         .where(PushToken.device_token_id == device_token_id)
-        .values(session_id=to_id, device_token_id=None)
+        .values(session_id=to_id)
     )
 
 
