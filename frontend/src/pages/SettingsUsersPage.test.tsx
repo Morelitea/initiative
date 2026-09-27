@@ -28,7 +28,6 @@ vi.mock("@/api/generated/communities/communities", () => ({
 
 vi.mock("@/hooks/useUsers", () => ({
   useUsers: () => ({ data: [], isLoading: false, isError: false }),
-  useApproveUser: () => ({ mutate: vi.fn() }),
   useUpdateGuildMembership: () => ({ mutate: vi.fn() }),
   useExportGuildUsersCsv: () => ({ mutate: vi.fn() }),
 }));
