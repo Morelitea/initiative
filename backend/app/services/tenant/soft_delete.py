@@ -37,8 +37,10 @@ from typing import Iterable, Optional
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from sqlalchemy.orm import undefer
 
 from app.db import gucs
+from app.db.query import ids_in
 from app.db.session import raise_flag
 from app.db.soft_delete_filter import select_including_deleted
 from app.models.tenant._mixins import SoftDeleteMixin
@@ -51,7 +53,6 @@ from app.services.tenant.lifecycle_tree import (
     CASCADE_CHILDREN,
     Level,
     delete_rows,
-    ids_in,
     set_columns,
     subtree_levels,
 )
@@ -280,8 +281,14 @@ async def _purge_relationships(session: AsyncSession, doomed: Level) -> None:
             await relationships.purge_for_entities(session, kind, ids)
 
 
-#: The tables whose rows the purge hooks read, not just their ids.
-_PURGE_LOADS = (Comment, GalleryImage, Task, Document)
+#: The tables whose rows the purge hooks read, not just their ids, with the
+#: deferred columns those hooks read.
+_PURGE_LOADS: dict[type, tuple] = {
+    Comment: (),
+    GalleryImage: (),
+    Task: (),
+    Document: (undefer(Document.content),),
+}
 
 
 async def hard_purge_entity(
@@ -338,14 +345,14 @@ async def hard_purge_entities(
             doomed.setdefault(model, []).extend(ids)
 
     loaded: dict[type, list] = {}
-    for model in _PURGE_LOADS:
+    for model, options in _PURGE_LOADS.items():
         if doomed.get(model):
             loaded[model] = list(
                 (
                     await session.exec(
-                        select_including_deleted(model).where(
-                            ids_in(model.id, doomed[model])
-                        )
+                        select_including_deleted(model)
+                        .where(ids_in(model.id, doomed[model]))
+                        .options(*options)
                     )
                 ).all()
             )

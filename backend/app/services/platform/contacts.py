@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 
 from app.core import usernames
-from app.db.query import apply_pagination, page_has_next
+from app.db.query import apply_pagination, ids_in, page_has_next
 from app.db.session import set_rls_context
 from app.models.platform.guild import LIVE_STATUS_VALUES, Guild, GuildMembership
 from app.models.platform.guild_image import GuildImageVariant
@@ -172,7 +172,7 @@ async def guild_sections(
                 MemberProfile.id != user_id,
                 users_service.visible_to_other_people(),
                 # And a contact is somebody you could actually reach out to.
-                col(MemberProfile.id).in_(listable.get(guild_id, set())),
+                ids_in(MemberProfile.id, listable.get(guild_id, set())),
             )
         )
         closest = None

@@ -4,6 +4,8 @@ import type {
   TrashListResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 
+import { buildPage } from "./page.factory";
+
 let counter = 0;
 
 export function resetCounter(): void {
@@ -30,8 +32,7 @@ export function buildTrashListResponse(
   overrides: Partial<TrashListResponse> = {}
 ): TrashListResponse {
   return {
-    items,
-    total: items.length,
+    ...buildPage(items, { page_size: 50 }),
     retention_days: 90,
     ...overrides,
   };

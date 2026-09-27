@@ -831,7 +831,6 @@ async def update_document(
     update_data = document_in.model_dump(exclude_unset=True)
     removed_upload_urls: set[str] = set()
     released: set[str] = set()
-    previous_content_urls = attachments_service.extract_upload_urls(document.content)
     previous_featured_url = document.featured_image_url
 
     if "name" in update_data:
@@ -873,6 +872,10 @@ async def update_document(
             detail=DocumentMessages.LIVE_SESSION_OWNS_CONTENT,
         )
     if "content" in update_data:
+        await session.refresh(document, ["content"])
+        previous_content_urls = attachments_service.extract_upload_urls(
+            document.content
+        )
         try:
             document.content = documents_service.normalize_document_content(
                 update_data["content"],
@@ -1105,6 +1108,7 @@ async def generate_summary(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=DocumentMessages.AI_NATIVE_ONLY,
         )
+    await session.refresh(document, ["content"])
 
     # Written down before the request goes out, since the disclosure does not
     # wait on the reply: which document, which connection, which provider, and

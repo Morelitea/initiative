@@ -11,6 +11,7 @@ from sqlalchemy.orm import aliased, selectinload
 from sqlmodel import select, delete, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.query import ids_in
 from app.db.session import routed_guild_id
 from app.core.audit_events import AuditEventType
 from app.core.messages import InitiativeMessages
@@ -249,7 +250,7 @@ async def load_user_initiative_roles(
         .outerjoin(
             InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id
         )
-        .where(InitiativeMember.user_id.in_(tuple(user_ids)))
+        .where(ids_in(InitiativeMember.user_id, user_ids))
     )
     result = await session.exec(stmt)
     assignments: dict[int, list[UserInitiativeRole]] = {

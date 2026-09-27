@@ -37,6 +37,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dashboards load faster.**
 - **Ticking tasks in a table is instant.**
 - **Switching communities is quicker.**
+- **The trash shows a page at a time**, newest first.
+- **Calendar export saves the dates you're viewing.**
+- **API:** the member list (`GET /c/{guild_id}/users/`) and both trash lists return pages (`page`, `page_size`; trash's `total` is now `total_count`), and calendar entries and `/me/calendar-events/export.ics` require `start_after` and `start_before`, at most 400 days apart.
 - **Improved efficiency and security.**
 
 ### Removed

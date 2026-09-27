@@ -293,9 +293,13 @@ export const MyCalendarPage = () => {
     (entriesQuery.isLoading && !entriesQuery.data) ||
     (calendarsQuery.isLoading && !calendarsQuery.data);
 
+  // Exports the dates on screen — the same window the entries are read over.
   const handleExport = useCallback(async () => {
     try {
-      const params: Record<string, string | number[]> = {};
+      const params: Record<string, string | number[]> = {
+        start_after: visibleRange.start.toISOString(),
+        start_before: visibleRange.end.toISOString(),
+      };
       if (guildFilters.length > 0) {
         params.guild_ids = guildFilters;
       }
@@ -312,7 +316,7 @@ export const MyCalendarPage = () => {
     } catch {
       toast.error(t("calendars:export.exportError"));
     }
-  }, [guildFilters, t]);
+  }, [visibleRange, guildFilters, t]);
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>

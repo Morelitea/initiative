@@ -39,6 +39,7 @@ import type {
   ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams,
   GetUserStatsApiV1MeStatsGetParams,
   HTTPValidationError,
+  ListUsersApiV1CGuildIdUsersGetParams,
   OwnedContentResponse,
   OwnedDecorationsResponse,
   OwnershipTransferRequest,
@@ -48,7 +49,7 @@ import type {
   UserEmailCreate,
   UserEmailListResponse,
   UserEmailRead,
-  UserGuildMember,
+  UserGuildMemberListResponse,
   UserProfile,
   UserRead,
   UserSelfUpdate,
@@ -3052,26 +3053,33 @@ export const useDeleteMyAvatarApiV1UsersMeAvatarDelete = <
   );
 };
 /**
- * The community's roster.
+ * The community's roster, a page at a time.
  *
  * On the configuration session rather than the content one: who is in a
  * community is part of running it, which is what a settings grant reaches
  * and what an administrator keeps while its content is closed.
+ *
+ * Ordered like ``/search``: nearest first while searching, otherwise by name
+ * where the guild shows names, then by handle.
  * @summary List Users
  */
 export const listUsersApiV1CGuildIdUsersGet = (
   guildId: number,
+  params?: ListUsersApiV1CGuildIdUsersGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<UserGuildMember[]>(
-    { url: `/api/v1/c/${guildId}/users/`, method: "GET", signal },
+  return apiMutator<UserGuildMemberListResponse>(
+    { url: `/api/v1/c/${guildId}/users/`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListUsersApiV1CGuildIdUsersGetQueryKey = (guildId: number) => {
-  return [`/api/v1/c/${guildId}/users/`] as const;
+export const getListUsersApiV1CGuildIdUsersGetQueryKey = (
+  guildId: number,
+  params?: ListUsersApiV1CGuildIdUsersGetParams
+) => {
+  return [`/api/v1/c/${guildId}/users/`, ...(params ? [params] : [])] as const;
 };
 
 export const getListUsersApiV1CGuildIdUsersGetQueryOptions = <
@@ -3079,6 +3087,7 @@ export const getListUsersApiV1CGuildIdUsersGetQueryOptions = <
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
+  params?: ListUsersApiV1CGuildIdUsersGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>, TError, TData>
@@ -3088,11 +3097,12 @@ export const getListUsersApiV1CGuildIdUsersGetQueryOptions = <
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getListUsersApiV1CGuildIdUsersGetQueryKey(guildId);
+  const queryKey =
+    queryOptions?.queryKey ?? getListUsersApiV1CGuildIdUsersGetQueryKey(guildId, params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>> = ({
     signal,
-  }) => listUsersApiV1CGuildIdUsersGet(guildId, requestOptions, signal);
+  }) => listUsersApiV1CGuildIdUsersGet(guildId, params, requestOptions, signal);
 
   return {
     queryKey,
@@ -3116,6 +3126,7 @@ export function useListUsersApiV1CGuildIdUsersGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
+  params: undefined | ListUsersApiV1CGuildIdUsersGetParams,
   options: {
     query: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>, TError, TData>
@@ -3137,6 +3148,7 @@ export function useListUsersApiV1CGuildIdUsersGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
+  params?: ListUsersApiV1CGuildIdUsersGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>, TError, TData>
@@ -3158,6 +3170,7 @@ export function useListUsersApiV1CGuildIdUsersGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
+  params?: ListUsersApiV1CGuildIdUsersGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>, TError, TData>
@@ -3175,6 +3188,7 @@ export function useListUsersApiV1CGuildIdUsersGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
+  params?: ListUsersApiV1CGuildIdUsersGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listUsersApiV1CGuildIdUsersGet>>, TError, TData>
@@ -3183,7 +3197,7 @@ export function useListUsersApiV1CGuildIdUsersGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListUsersApiV1CGuildIdUsersGetQueryOptions(guildId, options);
+  const queryOptions = getListUsersApiV1CGuildIdUsersGetQueryOptions(guildId, params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

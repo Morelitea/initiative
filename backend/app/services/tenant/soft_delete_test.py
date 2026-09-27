@@ -6,6 +6,7 @@ file-type and native documents.
 """
 
 from sqlalchemy import text
+from sqlalchemy.orm import undefer
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.schema_provisioning import guild_schema_name
@@ -329,7 +330,6 @@ async def test_purge_document_uploads_escapes_like_wildcards(session: AsyncSessi
     session.add(doomed)
     session.add(decoy)
     await session.commit()
-    await session.refresh(doomed)
 
     await purge_document_uploads(session, [doomed])
     await session.commit()
@@ -401,6 +401,65 @@ async def test_trash_listing_dedupes_nested_comment_replies(
     assert ids == {parent.id}, f"reply leaked into trash listing: {ids}"
 
 
+async def test_trash_listings_page_newest_first(session: AsyncSession, client):
+    """Both trash listings are windows over one order, newest first, and walking
+    their pages meets every row once. ``/me/trash`` cuts its pages from the
+    merge of each guild's newest rows."""
+    from datetime import datetime
+
+    from app.models.platform.guild import GuildRole
+    from app.testing.factories import create_guild_membership, get_auth_headers
+
+    user = await create_user(session)
+    headers = get_auth_headers(user)
+    guilds, initiatives = [], []
+    for _ in range(2):
+        guild = await create_guild(session, creator=user)
+        await create_guild_membership(
+            session, user=user, guild=guild, role=GuildRole.admin
+        )
+        guilds.append(guild)
+        initiatives.append(await create_initiative(session, guild, user))
+    # Trashed in turn across the two guilds, so the merge interleaves them.
+    for _ in range(3):
+        for guild, initiative in zip(guilds, initiatives):
+            project = await create_project(session, initiative, user)
+            response = await client.delete(
+                f"/api/v1/c/{guild.id}/projects/{project.id}", headers=headers
+            )
+            assert response.status_code in (200, 204), response.text
+
+    async def walk(path: str) -> tuple[int, list[dict]]:
+        items: list[dict] = []
+        page = 1
+        while True:
+            response = await client.get(
+                path, params={"page": page, "page_size": 2}, headers=headers
+            )
+            assert response.status_code == 200, response.text
+            body = response.json()
+            items += body["items"]
+            if not body["has_next"]:
+                return body["total_count"], items
+            page += 1
+
+    def keyed(items: list[dict]) -> list[tuple[int, str, int]]:
+        return [(i["guild_id"], i["entity_type"], i["entity_id"]) for i in items]
+
+    guild_total, guild_items = await walk(f"/api/v1/c/{guilds[0].id}/trash/")
+    mine_total, mine_items = await walk("/api/v1/me/trash")
+
+    assert (guild_total, len(guild_items)) == (3, 3)
+    assert (mine_total, len(set(keyed(mine_items)))) == (6, 6)
+    for items in (guild_items, mine_items):
+        stamps = [datetime.fromisoformat(i["deleted_at"]) for i in items]
+        assert stamps == sorted(stamps, reverse=True)
+    assert keyed(guild_items) == [
+        key for key in keyed(mine_items) if key[0] == guilds[0].id
+    ]
+    assert {i["deleted_by_id"] for i in mine_items} == {user.id}
+
+
 async def test_purge_document_uploads_removes_all_version_blobs(session: AsyncSession):
     """A purged file document must clean up the Upload rows for ALL of its
     historical versions, not just the current blob mirrored on the documents
@@ -461,7 +520,6 @@ async def test_purge_document_uploads_removes_all_version_blobs(session: AsyncSe
         ]
     )
     await session.commit()
-    await session.refresh(doomed)
 
     await purge_document_uploads(session, [doomed])
     await session.commit()
@@ -544,7 +602,11 @@ async def test_hard_purge_unresolves_wikilinks_in_linking_documents(
     await session.commit()
 
     refreshed = (
-        await session.exec(select(Document).where(Document.id == linking.id))
+        await session.exec(
+            select(Document)
+            .where(Document.id == linking.id)
+            .options(undefer(Document.content), undefer(Document.yjs_state))
+        )
     ).one()
     wikilink_node = refreshed.content["root"]["children"][0]["children"][0]
     assert wikilink_node["type"] == "wikilink"
@@ -608,7 +670,9 @@ async def test_hard_purge_unresolves_wikilinks_in_trashed_linking_documents(
 
     refreshed = (
         await session.exec(
-            select_including_deleted(Document).where(Document.id == linking.id)
+            select_including_deleted(Document)
+            .where(Document.id == linking.id)
+            .options(undefer(Document.content))
         )
     ).one()
     wikilink_node = refreshed.content["root"]["children"][0]["children"][0]

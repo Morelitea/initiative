@@ -219,6 +219,12 @@ class UserGuildMember(UserGuildRead):
     oidc_managed: bool = False  # Whether membership is managed via OIDC claim mappings
 
 
+class UserGuildMemberListResponse(PageMeta):
+    """One page of the guild's roster."""
+
+    items: List[UserGuildMember]
+
+
 class UserSummary(UserIdentity):
     """Slim user projection for typeahead and picker surfaces.
 

@@ -64,7 +64,7 @@
   "properties": "Eigenschaften",
   "today": "Heute",
   "export": {
-    "exportIcs": ".ics exportieren",
+    "exportIcs": "Angezeigten Zeitraum exportieren (.ics)",
     "exportError": "Termine konnten nicht exportiert werden"
   },
   "import": {

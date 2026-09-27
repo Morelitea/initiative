@@ -167,7 +167,7 @@ export interface AccessGrantLimits {
  *
  * ``pending`` → (``approved`` | ``denied``); ``approved`` → (``revoked`` |
  * ``expired``). A grant is *live* only while ``approved`` and before
- * ``expires_at`` — liveness is computed, not stored (see the service).
+ * ``expires_at`` — liveness is computed, not stored (:func:`grant_is_live`).
  */
 export type AccessGrantStatus = (typeof AccessGrantStatus)[keyof typeof AccessGrantStatus];
 
@@ -8948,8 +8948,12 @@ export interface TrashItem {
 }
 
 export interface TrashListResponse {
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
   items: TrashItem[];
-  total: number;
   retention_days: number | null;
 }
 
@@ -9030,6 +9034,18 @@ export interface UserGuildMember {
   full_name: string | null;
   guild_role: string | null;
   oidc_managed: boolean;
+}
+
+/**
+ * One page of the guild's roster.
+ */
+export interface UserGuildMemberListResponse {
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
+  items: UserGuildMember[];
 }
 
 /**
@@ -10961,8 +10977,6 @@ export type ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams = {
   initiative_id?: number | null;
   scope?: "guild" | null;
   calendar_ids?: number[] | null;
-  start_after?: string | null;
-  start_before?: string | null;
   property_filters?: string | null;
   /**
    * Task filter conditions (same JSON shape as GET /tasks).
@@ -10971,6 +10985,8 @@ export type ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams = {
   tz?: string | null;
   include_events?: boolean;
   include_tasks?: boolean;
+  start_after: string;
+  start_before: string;
 };
 
 export type ListMarketplaceListingsApiV1CGuildIdMarketplaceListingsGetParams = {
@@ -11126,6 +11142,34 @@ export type ListPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGetParams = {
   initiative_id?: number | null;
 };
 
+export type ListGuildTrashApiV1CGuildIdTrashGetParams = {
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  page_size?: number;
+};
+
+export type ListUsersApiV1CGuildIdUsersGetParams = {
+  /**
+   * Matches members the way ``/search`` does: the handle, a whole handle pinning one member, and real names in a guild that shows them.
+   */
+  search?: string | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  page_size?: number;
+};
+
 export type SearchUsersApiV1CGuildIdUsersSearchGetParams = {
   /**
    * Matches the handle's name part. Type the whole handle (`foobar#1234`) to pin one member; a partial number after `#` is a prefix of the four digits as rendered. Real names are matched only in a guild that shows them.
@@ -11220,7 +11264,7 @@ export type ListMyProjectsApiV1MeProjectsGetParams = {
    */
   created_by_me?: boolean;
   /**
-   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered over the summaries themselves, which carry no initiative name.
+   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered by what the tool's own rows carry, and an initiative name is not one of them.
    */
   sort_by?: string | null;
   /**
@@ -11246,7 +11290,7 @@ export type ListMyDocumentsApiV1MeDocumentsGetParams = {
    */
   created_by_me?: boolean;
   /**
-   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered over the summaries themselves, which carry no initiative name.
+   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered by what the tool's own rows carry, and an initiative name is not one of them.
    */
   sort_by?: string | null;
   /**
@@ -11272,7 +11316,7 @@ export type ListMyQueuesApiV1MeQueuesGetParams = {
    */
   created_by_me?: boolean;
   /**
-   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered over the summaries themselves, which carry no initiative name.
+   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered by what the tool's own rows carry, and an initiative name is not one of them.
    */
   sort_by?: string | null;
   /**
@@ -11298,7 +11342,7 @@ export type ListMyCounterGroupsApiV1MeCounterGroupsGetParams = {
    */
   created_by_me?: boolean;
   /**
-   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered over the summaries themselves, which carry no initiative name.
+   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered by what the tool's own rows carry, and an initiative name is not one of them.
    */
   sort_by?: string | null;
   /**
@@ -11324,7 +11368,7 @@ export type ListMyCalendarsApiV1MeCalendarsGetParams = {
    */
   created_by_me?: boolean;
   /**
-   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered over the summaries themselves, which carry no initiative name.
+   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered by what the tool's own rows carry, and an initiative name is not one of them.
    */
   sort_by?: string | null;
   /**
@@ -11350,7 +11394,7 @@ export type ListMyDashboardsApiV1MeDashboardsGetParams = {
    */
   created_by_me?: boolean;
   /**
-   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered over the summaries themselves, which carry no initiative name.
+   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered by what the tool's own rows carry, and an initiative name is not one of them.
    */
   sort_by?: string | null;
   /**
@@ -11376,7 +11420,7 @@ export type ListMyPostsApiV1MePostsGetParams = {
    */
   created_by_me?: boolean;
   /**
-   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered over the summaries themselves, which carry no initiative name.
+   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered by what the tool's own rows carry, and an initiative name is not one of them.
    */
   sort_by?: string | null;
   /**
@@ -11402,7 +11446,7 @@ export type ListMyGalleriesApiV1MeGalleriesGetParams = {
    */
   created_by_me?: boolean;
   /**
-   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered over the summaries themselves, which carry no initiative name.
+   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered by what the tool's own rows carry, and an initiative name is not one of them.
    */
   sort_by?: string | null;
   /**
@@ -11428,7 +11472,7 @@ export type ListMyWikisApiV1MeWikisGetParams = {
    */
   created_by_me?: boolean;
   /**
-   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered over the summaries themselves, which carry no initiative name.
+   * Order by one of: name, updated_at, created_at. Omit for this tool's own default order. There is no `initiative` here — a merged cross-guild list is ordered by what the tool's own rows carry, and an initiative name is not one of them.
    */
   sort_by?: string | null;
   /**
@@ -11463,14 +11507,12 @@ export type ListMyCalendarEventsApiV1MeCalendarEventsGetParams = {
 
 export type ExportMyCalendarEventsIcsApiV1MeCalendarEventsExportIcsGetParams = {
   guild_ids?: number[] | null;
-  start_after?: string | null;
-  start_before?: string | null;
+  start_after: string;
+  start_before: string;
 };
 
 export type ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams = {
   guild_ids?: number[] | null;
-  start_after?: string | null;
-  start_before?: string | null;
   /**
    * Task filter conditions (same JSON shape as GET /me/tasks).
    */
@@ -11478,6 +11520,20 @@ export type ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams = {
   tz?: string | null;
   include_events?: boolean;
   include_tasks?: boolean;
+  start_after: string;
+  start_before: string;
+};
+
+export type ListMyTrashApiV1MeTrashGetParams = {
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  page_size?: number;
 };
 
 export type GetUserStatsApiV1MeStatsGetParams = {

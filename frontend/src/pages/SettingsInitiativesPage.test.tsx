@@ -14,8 +14,9 @@ import {
   buildGuild,
   buildInitiative,
   buildInitiativeMember,
-  buildUserGuildMember,
+  buildPage,
   buildUserPublic,
+  buildUserSummary,
 } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
@@ -56,21 +57,25 @@ function stubTable(members: ReturnType<typeof buildInitiativeMember>[]) {
       HttpResponse.json(buildInitiative({ id: INITIATIVE_ID, name: "Apollo", members }))
     ),
     guildHttp.get("/initiatives/:id/roles", () => HttpResponse.json([PM_ROLE, MEMBER_ROLE])),
-    guildHttp.get("/users/", () =>
-      HttpResponse.json([
-        buildUserGuildMember({
-          id: ADMIN_ID,
-          username: "ada",
-          full_name: "Ada Lovelace",
-          guild_role: "admin",
-        }),
-        buildUserGuildMember({
-          id: MEMBER_ID,
-          username: "bo",
-          full_name: "Bo Diddley",
-          guild_role: "member",
-        }),
-      ])
+    // The guild's member search — what the picker offers, and how it learns
+    // whether a manager is a guild admin.
+    guildHttp.get("/users/search", () =>
+      HttpResponse.json(
+        buildPage([
+          buildUserSummary({
+            id: ADMIN_ID,
+            username: "ada",
+            full_name: "Ada Lovelace",
+            guild_role: "admin",
+          }),
+          buildUserSummary({
+            id: MEMBER_ID,
+            username: "bo",
+            full_name: "Bo Diddley",
+            guild_role: "member",
+          }),
+        ])
+      )
     ),
     guildHttp.post("/initiatives/:id/members", async ({ request }) => {
       calls.push({ method: "POST", url: "members", body: await request.json() });

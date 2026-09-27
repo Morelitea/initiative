@@ -1863,7 +1863,8 @@ async def create_document(
     # rest of the caller's transaction.
     await (session.commit() if commit else session.flush())
     if commit:
-        await session.refresh(document)
+        # Every column, the deferred body included: tests read it off the row.
+        await session.refresh(document, [c.key for c in Document.__table__.columns])
     await create_resource_grant(
         session, document, level=ResourceAccessLevel.owner, user=creator, commit=commit
     )

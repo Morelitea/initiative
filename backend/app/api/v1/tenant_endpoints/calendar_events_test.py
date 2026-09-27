@@ -8,6 +8,8 @@ serialization on the list summary, and the cross-guild ``/me`` calendar list's
 DAC filter (which now keys off calendar sharing, not per-event grants).
 """
 
+from datetime import timedelta
+
 from httpx import AsyncClient
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -497,14 +499,37 @@ async def test_global_calendar_events_reads_guild_schema(
 ):
     """The cross-guild /me list must read events from the per-guild schema
     (schema-per-guild). The factory writes the event into guild_<id>; /me
-    aggregates per guild and must surface it."""
+    aggregates per guild and must surface it. So must the .ics export, which
+    requires a bounded date window."""
     a, guild, initiative, calendar, event = await _setup_event(session, acting_user)
-    response = await client.get(
-        "/api/v1/me/calendar-events", headers=get_auth_headers(a.user)
-    )
+    headers = get_auth_headers(a.user)
+    response = await client.get("/api/v1/me/calendar-events", headers=headers)
     assert response.status_code == 200
     body = response.json()
     assert event.id in {item["id"] for item in body["items"]}
+
+    window = {
+        "start_after": (event.start_at - timedelta(days=1)).isoformat(),
+        "start_before": (event.start_at + timedelta(days=1)).isoformat(),
+    }
+    export = await client.get(
+        "/api/v1/me/calendar-events/export.ics", headers=headers, params=window
+    )
+    assert export.status_code == 200, export.text
+    assert f"UID:event-{event.id}@initiative" in export.text
+
+    missing = await client.get("/api/v1/me/calendar-events/export.ics", headers=headers)
+    assert missing.status_code == 422
+    backwards = await client.get(
+        "/api/v1/me/calendar-events/export.ics",
+        headers=headers,
+        params={
+            "start_after": window["start_before"],
+            "start_before": window["start_after"],
+        },
+    )
+    assert backwards.status_code == 422
+    assert backwards.json()["detail"] == CalendarEventMessages.WINDOW_INVALID
 
 
 async def test_list_events_filters_events_without_calendar_grant(

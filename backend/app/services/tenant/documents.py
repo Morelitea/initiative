@@ -131,11 +131,13 @@ def normalize_document_content(
 
 def list_loader_options() -> list:
     """Eager-load what a document *list* row needs: its initiative, the level
-    the request holds on it, its sharing with the grant holders (the owner is
-    reported by name), and the property values its card shows."""
+    the request holds on it, a link document's address, its sharing with the
+    grant holders (the owner is reported by name), and the property values its
+    card shows. Not the body, which a list does not show."""
     return [
         selectinload(Document.initiative),
         undefer(Document.actions),
+        undefer(Document.smart_link_url),
         selectinload(Document.grants).options(
             selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
         ),
@@ -152,15 +154,16 @@ async def get_document_hydrated(
     session: AsyncSession, document_id: int, *, populate_existing: bool = False
 ) -> Document | None:
     """Load a document with everything a serialized ``DocumentRead`` or an
-    export reads: the list loader's eager loads, plus the tags, comment count
-    and owning app a response carries. :func:`get_document_for_grants` carries
-    only what the access decision needs. Uniform ``(session, id)`` shape, the
-    one ``resource_access`` registers a loader by.
+    export reads: the list loader's eager loads and the body, plus the tags,
+    comment count and owning app a response carries.
+    :func:`get_document_for_grants` carries only what the access decision
+    needs. Uniform ``(session, id)`` shape, the one ``resource_access``
+    registers a loader by.
     """
     statement = (
         select(Document)
         .where(Document.id == document_id)
-        .options(*list_loader_options())
+        .options(*list_loader_options(), undefer(Document.content))
     )
     if populate_existing:
         # Refresh a document already in the identity map, for a re-read after a
@@ -262,6 +265,7 @@ async def duplicate_document(
     is loaded. The caller commits."""
     from app.api import resource_access
 
+    await session.refresh(source, ["content"])
     content_copy = normalize_document_content(
         deepcopy(source.content),
         document_type=source.document_type,

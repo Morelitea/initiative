@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 
 from httpx import AsyncClient
 from pycrdt import Doc, Text
+from sqlalchemy.orm import undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -109,7 +110,13 @@ async def test_a_handover_merges_into_the_room_and_saves_both_views(
     )
 
     assert response.status_code == 204, response.text
-    saved = (await session.exec(select(Document).where(Document.id == doc.id))).one()
+    saved = (
+        await session.exec(
+            select(Document)
+            .where(Document.id == doc.id)
+            .options(undefer(Document.content), undefer(Document.yjs_state))
+        )
+    ).one()
     assert saved.content == CONTENT
     assert saved.yjs_state is not None
     assert _text_of(saved.yjs_state) == "written offline"
@@ -137,7 +144,13 @@ async def test_a_rendering_missing_the_rooms_edits_is_not_taken(
     )
 
     assert response.status_code == 204, response.text
-    saved = (await session.exec(select(Document).where(Document.id == doc.id))).one()
+    saved = (
+        await session.exec(
+            select(Document)
+            .where(Document.id == doc.id)
+            .options(undefer(Document.content), undefer(Document.yjs_state))
+        )
+    ).one()
     assert saved.content == {"root": {"children": []}}
     merged = _text_of(saved.yjs_state or b"")
     assert "from a peer." in merged and "offline" in merged

@@ -6,6 +6,7 @@ import zipfile
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.orm import undefer
 
 from app.models.platform.guild import GuildRole
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
@@ -198,7 +199,11 @@ async def test_envelope_import_roundtrips_document_types(client, acting_user, se
         assert resp.status_code == 201, (doc_type, resp.text)
 
     imported = list(
-        await session.exec(select(Document).where(Document.initiative_id == target.id))
+        await session.exec(
+            select(Document)
+            .where(Document.initiative_id == target.id)
+            .options(undefer(Document.content))
+        )
     )
     by_name = {d.name: d for d in imported}
     assert set(by_name) == {"Notes", "Map", "Spec"}
@@ -1425,7 +1430,11 @@ async def test_backup_assets_are_stored_as_what_their_bytes_are(
         await session.exec(select(Upload).where(Upload.filename == "typed-handout.pdf"))
     ).one()
     assert upload.content_type == "application/pdf"
-    sheet = await session.get(Document, entries["Table"]["detail"]["entity_id"])
+    sheet = await session.get(
+        Document,
+        entries["Table"]["detail"]["entity_id"],
+        options=[undefer(Document.content)],
+    )
     assert sheet.document_type == DocumentType.spreadsheet
     assert sheet.content["sheets"][0]["cells"]
 
@@ -2719,7 +2728,11 @@ async def test_a_restored_mention_links_to_whoever_its_handle_is_here(
     assert comment.content == f"@[{handle}]({c.user.id}) agreed"
 
     document = (
-        await session.exec(select(Document).where(Document.initiative_id == restored))
+        await session.exec(
+            select(Document)
+            .where(Document.initiative_id == restored)
+            .options(undefer(Document.content))
+        )
     ).one()
     post = (
         await session.exec(select(Post).where(Post.initiative_id == restored))
@@ -2768,12 +2781,16 @@ async def test_a_documents_own_export_names_its_mentions_by_handle(
     assert resp.status_code == 201, resp.text
 
     imported = (
-        await session.exec(select(Document).where(Document.initiative_id == target.id))
+        await session.exec(
+            select(Document)
+            .where(Document.initiative_id == target.id)
+            .options(undefer(Document.content))
+        )
     ).one()
     [mention] = _mentions_in(imported.content)
     assert mention["mentionUserId"] == a.user.id
     assert "mentionHandle" not in mention
-    await session.refresh(source)
+    await session.refresh(source, ["content"])
     assert source.content == said
 
 
@@ -2812,7 +2829,11 @@ async def test_a_mention_nobody_places_is_restored_as_a_name(
     await _run_import_worker(monkeypatch, role_session)
 
     document = (
-        await session.exec(select(Document).where(Document.initiative_id == target.id))
+        await session.exec(
+            select(Document)
+            .where(Document.initiative_id == target.id)
+            .options(undefer(Document.content))
+        )
     ).one()
     [mention] = _mentions_in(document.content)
     assert mention["mentionUserId"] is None
@@ -2968,7 +2989,9 @@ async def _restored(session, initiative_id: int) -> dict:
         document.name: document
         for document in (
             await session.exec(
-                select(Document).where(Document.initiative_id == initiative_id)
+                select(Document)
+                .where(Document.initiative_id == initiative_id)
+                .options(undefer(Document.content))
             )
         ).all()
     }

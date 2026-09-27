@@ -12,7 +12,6 @@ so RLS + per-resource DAC are identical. The client keeps the merge, so the
 response reuses the existing ``CalendarEventSummary`` and ``TaskListRead`` shapes.
 """
 
-from datetime import datetime
 from typing import Annotated, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -39,11 +38,10 @@ async def list_calendar_entries(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
+    window: calendar_events_api.CalendarWindowDep,
     initiative_id: Optional[int] = Query(default=None),
     scope: Optional[Literal["guild"]] = Query(default=None),
     calendar_ids: Optional[List[int]] = Query(default=None),
-    start_after: Optional[datetime] = Query(default=None),
-    start_before: Optional[datetime] = Query(default=None),
     property_filters: Optional[str] = Query(default=None),
     conditions: Optional[str] = Query(
         default=None,
@@ -54,6 +52,9 @@ async def list_calendar_entries(
     include_tasks: bool = Query(default=True),
 ) -> CalendarEntriesResponse:
     """Events + task markers for one guild's calendar over a date window.
+
+    ``start_after``/``start_before`` are required and bound both legs; the
+    window may span at most ``MAX_CALENDAR_WINDOW``.
 
     Skip a leg with ``include_events=false`` / ``include_tasks=false`` (e.g. when
     the calendar has that type toggled off). ``calendar_ids`` narrows the event
@@ -73,8 +74,8 @@ async def list_calendar_entries(
             initiative_id=initiative_id,
             guild_scope=scope == "guild",
             calendar_ids=calendar_ids,
-            start_after=start_after,
-            start_before=start_before,
+            start_after=window.start_after,
+            start_before=window.start_before,
             property_filters=property_filters,
         )
         events_out = [
@@ -92,8 +93,8 @@ async def list_calendar_entries(
             guild_context,
             conditions=conditions,
             tz=tz,
-            start_after=start_after,
-            start_before=start_before,
+            start_after=window.start_after,
+            start_before=window.start_before,
         )
 
     return CalendarEntriesResponse(events=events_out, tasks=tasks_out)
@@ -103,9 +104,8 @@ async def list_calendar_entries(
 async def list_my_calendar_entries(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    window: calendar_events_api.CalendarWindowDep,
     guild_ids: Optional[List[int]] = Query(default=None),
-    start_after: Optional[datetime] = Query(default=None),
-    start_before: Optional[datetime] = Query(default=None),
     conditions: Optional[str] = Query(
         default=None,
         description="Task filter conditions (same JSON shape as GET /me/tasks).",
@@ -127,8 +127,8 @@ async def list_my_calendar_entries(
             session,
             current_user,
             guild_ids=guild_ids,
-            start_after=start_after,
-            start_before=start_before,
+            start_after=window.start_after,
+            start_before=window.start_before,
         )
         # Already serialized inside each guild's own routed fetch.
         events_out = events
@@ -140,8 +140,8 @@ async def list_my_calendar_entries(
             current_user,
             conditions=conditions,
             tz=tz,
-            start_after=start_after,
-            start_before=start_before,
+            start_after=window.start_after,
+            start_before=window.start_before,
         )
 
     return CalendarEntriesResponse(events=events_out, tasks=tasks_out)

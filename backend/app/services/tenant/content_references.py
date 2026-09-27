@@ -27,6 +27,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any, Awaitable, Callable, Sequence
 
+from sqlalchemy.orm import undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -165,7 +166,9 @@ async def referencing_documents(
         EntityRelationship.removed_at.is_(None),  # type: ignore[union-attr]
     )
     rows = await session.exec(
-        select_including_deleted(Document).where(Document.id.in_(sources))  # type: ignore[attr-defined]
+        select_including_deleted(Document)
+        .where(Document.id.in_(sources))  # type: ignore[attr-defined]
+        .options(undefer(Document.content))
     )
     return list(rows.all())
 

@@ -164,9 +164,7 @@ def fcm(monkeypatch):
     """A deployment wired to FCM, capturing what would go on the wire."""
     calls: list[dict] = []
 
-    async def _send(
-        push_token, title, body, data=None, platform="android", channel_id=None
-    ):
+    async def _send(client, push_token, title, body, data=None, channel_id=None):
         calls.append({"title": title, "body": body})
         return (True, False)
 

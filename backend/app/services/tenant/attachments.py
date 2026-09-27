@@ -13,6 +13,7 @@ from uuid import uuid4
 from fastapi import UploadFile
 
 from app.core.image_headers import read_image_header
+from app.db.query import ids_in
 from app.services.storage import get_guild_storage
 
 logger = logging.getLogger(__name__)
@@ -313,7 +314,7 @@ async def _drop_upload_rows(session, filenames: Set[str]) -> Set[str]:
         return set()
     result = await session.exec(
         sa_delete(Upload)
-        .where(Upload.filename.in_(filenames))  # type: ignore[attr-defined]
+        .where(ids_in(Upload.filename, filenames))
         .returning(Upload.filename)
     )
     return set(result.scalars().all())
@@ -384,10 +385,15 @@ async def release_unclaimed_pasted_images(session, *, now: datetime) -> Set[str]
     """Delete pictures pasted longer ago than the grace period that nothing
     shows — the ones a closed tab never got to discard.
 
+    Each pasted picture is looked at once: one that something shows is marked
+    ``claimed_at`` and left to the edits and purges that take it out
+    (:func:`release_pasted_images`, :func:`purge_pasted_images`).
+
     Runs in one routed guild with authority to delete uploads (the trash
     sweep). Returns the stored names released; the caller commits and then
     removes the blobs.
     """
+    from sqlalchemy import update as sa_update
     from sqlmodel import select
 
     from app.models.tenant.upload import Upload
@@ -395,16 +401,20 @@ async def release_unclaimed_pasted_images(session, *, now: datetime) -> Set[str]
     rows = await session.exec(
         select(Upload.filename)
         .where(Upload.filename.startswith(PASTED_IMAGE_PREFIX))  # type: ignore[attr-defined]
+        .where(Upload.claimed_at.is_(None))
         .where(Upload.created_at < now - UNCLAIMED_PASTED_IMAGE_GRACE)
     )
-    return await _drop_upload_rows(
-        session,
-        {
-            name
-            for name in rows.all()
-            if not await _still_shown(session, name, leaving={})
-        },
-    )
+    shown: Set[str] = set()
+    unshown: Set[str] = set()
+    for name in rows.all():
+        (shown if await _still_shown(session, name, leaving={}) else unshown).add(name)
+    if shown:
+        await session.exec(
+            sa_update(Upload)
+            .where(ids_in(Upload.filename, shown))
+            .values(claimed_at=now)
+        )
+    return await _drop_upload_rows(session, unshown)
 
 
 async def purge_pasted_images(session, doomed: Iterable[Any]) -> Set[str]:
