@@ -131,7 +131,6 @@
   "PROPERTY_OPTION_NOT_IN_DEFINITION": "L'option sélectionnée n'est pas valide pour cette propriété",
   "PROPERTY_NOT_INITIATIVE_MEMBER": "Vous devez être membre de cette initiative pour gérer ses propriétés",
   "PROPERTY_OPTIONS_REQUIRED": "Les propriétés de type sélection nécessitent au moins une option",
-  "PROPERTY_OPTION_TAKEN": "Quelqu'un vient d'ajouter une option avec cette valeur. Réessayez.",
   "PROPERTY_DUPLICATE_OPTION_VALUE": "Les valeurs d'option doivent être uniques dans une propriété",
   "ATTACHMENT_IMAGE_ONLY": "Seuls les téléchargements d'images sont pris en charge",
   "ATTACHMENT_FILE_EMPTY": "Le fichier téléchargé est vide",

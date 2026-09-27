@@ -427,9 +427,6 @@ class PropertyMessages:
     OPTION_NOT_IN_DEFINITION = "PROPERTY_OPTION_NOT_IN_DEFINITION"
     NOT_INITIATIVE_MEMBER = "PROPERTY_NOT_INITIATIVE_MEMBER"
     OPTIONS_REQUIRED = "PROPERTY_OPTIONS_REQUIRED"
-    #: A member's new option names a value the property already holds as
-    #: something else; the list has changed since it was read.
-    OPTION_TAKEN = "PROPERTY_OPTION_TAKEN"
     DUPLICATE_OPTION_VALUE = "PROPERTY_DUPLICATE_OPTION_VALUE"
 
 
