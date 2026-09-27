@@ -21,14 +21,16 @@ def test_a_member_reaches_the_member_rung_and_no_further():
 
 
 def test_an_admin_reaches_admin_by_the_standing_and_not_the_seat():
-    c = _context(membership=object(), guild_role="admin", admin=True)
+    c = _context(membership=object(), guild_role="admin", guild_admin=True)
     assert c.reaches(GuildRole.admin)
     assert not c.reaches(GuildRole.superadmin)
     assert c.rung is GuildRole.admin
 
 
 def test_the_seat_reaches_every_rung():
-    c = _context(membership=object(), guild_role="superadmin", admin=True, seat=True)
+    c = _context(
+        membership=object(), guild_role="superadmin", guild_admin=True, guild_seat=True
+    )
     assert all(c.reaches(r) for r in GuildRole)
     assert c.rung is GuildRole.superadmin
 
@@ -41,7 +43,7 @@ def test_a_settings_grant_reaches_the_rung_it_lends_on_the_settings_surface():
     assert lent_admin.rung is GuildRole.admin
 
     lent_seat = _context(
-        settings_grant_level="superadmin", settings_rung="superadmin", seat=True
+        settings_grant_level="superadmin", settings_rung="superadmin", guild_seat=True
     )
     assert lent_seat.reaches(GuildRole.admin, settings=True)
     assert lent_seat.reaches(GuildRole.superadmin, settings=True)
@@ -53,7 +55,7 @@ def test_a_settings_grant_lends_no_rung_off_the_settings_surface():
     assert not lent_admin.reaches(GuildRole.admin)
 
     lent_seat = _context(
-        settings_grant_level="superadmin", settings_rung="superadmin", seat=True
+        settings_grant_level="superadmin", settings_rung="superadmin", guild_seat=True
     )
     assert not lent_seat.reaches(GuildRole.admin)
     assert not lent_seat.reaches(GuildRole.superadmin)

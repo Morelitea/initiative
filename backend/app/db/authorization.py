@@ -407,34 +407,40 @@ def sql_values(values: Iterable[str]) -> str:
 # type is shared; the function is rendered into each guild schema with the
 # gates, so a schema's policies still call only that schema's functions.
 
+
 #: ``public.standing``'s attributes, in order: the name a gate reads, its type,
 #: and the leg it is read from. The type is created by a migration, and
 #: ``authorization_test`` holds the live type to this list.
+def _read(guc: gucs.Guc) -> tuple[str, str, str]:
+    """A standing attribute that is one variable, read under its own name."""
+    return (guc.bind, guc.kind.value, guc.sql)
+
+
 STANDING_FIELDS: tuple[tuple[str, str, str], ...] = (
     ("system_session", "boolean", SYSTEM_SESSION),
     ("this_guild", "boolean", STANDING_IS_THIS_GUILD),
     ("guild_admin", "boolean", GUILD_ADMIN),
-    ("guild_auth_ok", "boolean", gucs.GUILD_AUTH_OK.sql),
-    ("scope_initiative_id", "integer", gucs.SCOPE_INITIATIVE_ID.sql),
-    ("pam_read", "boolean", gucs.PAM_READ.sql),
-    ("pam_write", "boolean", gucs.PAM_WRITE.sql),
-    ("member_initiatives", "integer[]", gucs.MEMBER_INITIATIVES.sql),
-    ("manager_initiatives", "integer[]", gucs.MANAGER_INITIATIVES.sql),
-    ("override_initiatives", "integer[]", gucs.OVERRIDE_INITIATIVES.sql),
-    ("member_role_ids", "integer[]", gucs.MEMBER_ROLE_IDS.sql),
-    ("role_grants", "text[]", gucs.ROLE_GRANTS.sql),
-    ("role_denies", "text[]", gucs.ROLE_DENIES.sql),
-    ("enabled_tools", "text[]", gucs.ENABLED_TOOLS.sql),
-    ("via_dashboard_id", "integer", gucs.VIA_DASHBOARD_ID.sql),
+    _read(gucs.GUILD_AUTH_OK),
+    _read(gucs.SCOPE_INITIATIVE_ID),
+    _read(gucs.PAM_READ),
+    _read(gucs.PAM_WRITE),
+    _read(gucs.MEMBER_INITIATIVES),
+    _read(gucs.MANAGER_INITIATIVES),
+    _read(gucs.OVERRIDE_INITIATIVES),
+    _read(gucs.MEMBER_ROLE_IDS),
+    _read(gucs.ROLE_GRANTS),
+    _read(gucs.ROLE_DENIES),
+    _read(gucs.ENABLED_TOOLS),
+    _read(gucs.VIA_DASHBOARD_ID),
     # An installed app acting in the community: which install, and the
     # resources its scopes let it read and write. Unset on every request a
     # person makes.
     ("install_id", "integer", gucs.INSTALL_ID.sql),
-    ("install_read", "text[]", gucs.INSTALL_READ.sql),
-    ("install_write", "text[]", gucs.INSTALL_WRITE.sql),
+    _read(gucs.INSTALL_READ),
+    _read(gucs.INSTALL_WRITE),
     # The community's content is on hold (``read_only``) for this reader: no
     # change to any of it, whatever their rung. A grant is not held.
-    ("content_hold", "boolean", gucs.CONTENT_HOLD.sql),
+    _read(gucs.CONTENT_HOLD),
 )
 _STANDING_NAMES = frozenset(name for name, _type, _expr in STANDING_FIELDS)
 

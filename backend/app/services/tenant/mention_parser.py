@@ -18,7 +18,7 @@ writes.
 import re
 from typing import Any, Set
 
-from sqlalchemy import JSON, cast, func, text, Text
+from sqlalchemy import JSON, cast, func, Text
 from sqlalchemy.orm.attributes import flag_modified
 from sqlmodel import update
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -26,6 +26,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.references import references_in_text
 from app.core.search import SearchEntityType
 from app.db import gucs
+from app.db.session import raise_flag
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.db.session import routed_guild_id
 
@@ -95,15 +96,6 @@ def _scrub_mentions(value: Any, user_id: int) -> tuple[Any, bool]:
     return walk(value), changed
 
 
-async def _set_purging(session: AsyncSession, on: bool) -> None:
-    """Raise or lower the transaction-local purge flag."""
-    await session.exec(
-        text("SELECT set_config(:name, :value, true)").bindparams(
-            name=gucs.PURGING.name, value="true" if on else "false"
-        )
-    )
-
-
 async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> None:
     """Scrub ``user_id``'s display name out of the CURRENTLY ROUTED guild schema.
 
@@ -135,7 +127,7 @@ async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> Non
     # has to go out of frozen content is the purge's kind of write, so the
     # scrub runs under the purge flag and lowers it again before the rest of
     # the erasure (see ``app.db.gucs.PURGING``).
-    await _set_purging(session, True)
+    await raise_flag(session, gucs.PURGING)
     rooms: list[tuple[SearchEntityType, int]] = []
     for model, columns in written_columns().items():
         for column in columns:
@@ -177,7 +169,7 @@ async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> Non
     )
 
     await session.flush()
-    await _set_purging(session, False)
+    await raise_flag(session, gucs.PURGING, False)
 
     # Drop idle collaboration rooms so a room's save can't overwrite the
     # scrubbed content with a stale in-memory copy on next disconnect. Rooms are

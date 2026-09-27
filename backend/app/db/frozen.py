@@ -41,10 +41,9 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from sqlalchemy import inspect as sa_inspect, text
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.exc import DBAPIError
 from sqlmodel import SQLModel
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 import app.db.base  # noqa: F401 — registers every model's table on the metadata
 from app.core.reactions import ReactionTarget
@@ -74,19 +73,6 @@ FROZEN_CONSTRAINT = "frozen_row_guard"
 #: The refusal that names the thing ABOVE the row: it is archived or in the
 #: trash, so this one cannot come out from under it on its own.
 FROZEN_PARENT_CONSTRAINT = "frozen_parent_guard"
-
-
-async def mark_restructuring(session: AsyncSession) -> None:
-    """Flag the current transaction as a board restructure (``app.db.gucs.RESTRUCTURING``).
-
-    Call it inside the transaction that moves the tasks, after every check that
-    should still be able to refuse; it is gone at commit.
-    """
-    await session.exec(
-        text("SELECT set_config(:name, 'true', true)").bindparams(
-            name=gucs.RESTRUCTURING.name
-        )
-    )
 
 
 #: What a frozen row may still change: the columns that describe the freeze

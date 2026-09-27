@@ -183,7 +183,7 @@ def standing(
         guild_id=guild_id,
         guild_role=GuildRole.admin.value if admin else GuildRole.member.value,
         standing_guild_id=guild_id,
-        admin=admin,
+        guild_admin=admin,
         pam_read=grant is not None,
         pam_write=grant == "read_write",
         content_read_only=read_only,

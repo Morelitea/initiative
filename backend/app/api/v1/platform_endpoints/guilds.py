@@ -146,7 +146,7 @@ def _can_of(guild_context: GuildContext) -> GuildCan:
         administer=holds_guild_role(guild_context, GuildRole.admin, settings=True),
         configure=guild_context.writes_settings,
         administer_content=holds_guild_role(guild_context, GuildRole.admin),
-        seat=guild_context.seat,
+        seat=guild_context.guild_seat,
     )
 
 

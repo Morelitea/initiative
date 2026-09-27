@@ -1,12 +1,13 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping, Optional
 
-from sqlalchemy import delete, func, text, tuple_, update
+from sqlalchemy import delete, func, tuple_, update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.notification_categories import PERSONAL_TYPES, Channel
 from app.db import gucs
+from app.db.session import raise_flag
 from app.models.platform.notification import Notification, NotificationType
 from app.services.platform import notification_prefs, notification_stream
 
@@ -55,10 +56,7 @@ async def name_recipient(session: AsyncSession, user_id: int) -> None:
     Every read and write of a recipient's line goes through here first, which is
     what lets one policy cover the lookup, the insert and the rollup.
     """
-    await session.exec(
-        text("SELECT set_config(:name, :uid, true)"),
-        params={"name": gucs.NOTIFY_TARGET_USER_ID.name, "uid": str(user_id)},
-    )
+    await raise_flag(session, gucs.NOTIFY_TARGET_USER_ID, user_id)
 
 
 async def create_notification(

@@ -30,8 +30,11 @@ variable answers the same way an explicit ``false`` does.
 
 from __future__ import annotations
 
+import json
+from collections.abc import Collection
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 __all__ = [
     "FLAGS",
@@ -98,6 +101,62 @@ class Guc:
 
     def __str__(self) -> str:
         return self.sql
+
+    # --- Writing and reading back ------------------------------------------
+
+    @property
+    def bind(self) -> str:
+        """The variable's name without its ``app.`` prefix: the bind parameter
+        a routing writes it with, and the column a standing statement returns
+        it as."""
+        return self.name.removeprefix("app.")
+
+    @property
+    def empty(self) -> str:
+        """What a routing writes where it has nothing to say."""
+        return "false" if self.kind is Kind.BOOL else ""
+
+    def encode(self, value: Any) -> str:
+        """``value`` as the text the variable holds. ``None`` is :attr:`empty`.
+
+        A set is written sorted, so one value always writes one string.
+        """
+        if value is None:
+            return self.empty
+        kind = self.kind
+        if kind is Kind.BOOL:
+            return "true" if value else "false"
+        if kind is Kind.INT:
+            return str(int(value))
+        if kind is Kind.JSON:
+            return (
+                json.dumps(value, separators=(",", ":"), sort_keys=True)
+                if value
+                else ""
+            )
+        if kind in (Kind.IDS, Kind.NAMES):
+            items = sorted(value) if isinstance(value, (set, frozenset)) else value
+            return ",".join(str(item) for item in items)
+        return str(value)
+
+    def decode(self, text: str | None) -> Any:
+        """The value a variable's text says, as :meth:`encode` wrote it."""
+        kind = self.kind
+        if kind is Kind.BOOL:
+            return text == "true"
+        if kind is Kind.INT:
+            return int(text) if text else None
+        if kind is Kind.JSON:
+            return json.loads(text) if text else None
+        if kind is Kind.IDS:
+            return tuple(int(part) for part in _parts(text))
+        if kind is Kind.NAMES:
+            return tuple(_parts(text))
+        return text or None
+
+
+def _parts(text: str | None) -> Collection[str]:
+    return [part for part in (text or "").split(",") if part]
 
 
 # --- Who the request is -------------------------------------------------------
@@ -176,8 +235,8 @@ NOTIFY_TARGET_USER_ID = Guc("app.notify_target_user_id", Kind.INT)
 #: in documents that are themselves in the trash, which would otherwise be
 #: restored holding a link to nothing.
 #:
-#: Set with ``SET LOCAL`` by ``hard_purge_entity``, so it lasts one transaction
-#: and never reaches a pooled connection.
+#: Raised by ``hard_purge_entity`` with ``app.db.session.raise_flag``, so it
+#: lasts one transaction and never reaches a pooled connection.
 PURGING = Guc("app.purging", Kind.BOOL)
 
 #: Transaction-local flag marking a transaction as a restructure of the board a
@@ -190,8 +249,9 @@ PURGING = Guc("app.purging", Kind.BOOL)
 #: while this is set. The ancestry guards do not read it: nothing about a column
 #: can put a task under a different project or initiative.
 #:
-#: Set with ``set_config(…, true)`` by ``app.db.frozen.mark_restructuring``, so
-#: it lasts one transaction and never reaches a pooled connection.
+#: Raised by the status-column routes with ``app.db.session.raise_flag``, inside
+#: the transaction that moves the tasks and after every check that should still
+#: be able to refuse. It lasts one transaction.
 RESTRUCTURING = Guc("app.restructuring", Kind.BOOL)
 
 
@@ -235,7 +295,8 @@ REQUEST_GUCS: tuple[Guc, ...] = (
 
 STANDING: tuple[Guc, ...] = tuple(g for g in REQUEST_GUCS if g.standing)
 
-#: Raised for one transaction by the code that needs them, never by a routing.
+#: Raised for one transaction by the code that needs them
+#: (``app.db.session.raise_flag``), never by a routing.
 FLAGS: tuple[Guc, ...] = (NOTIFY_TARGET_USER_ID, PURGING, RESTRUCTURING)
 
 

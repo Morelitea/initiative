@@ -15,7 +15,9 @@ from sqlalchemy.exc import DBAPIError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.errors import dbapi_sqlstate
-from app.db.frozen import FROZEN_SQLSTATE, mark_restructuring
+from app.db import gucs
+from app.db.frozen import FROZEN_SQLSTATE
+from app.db.session import raise_flag
 from app.services.tenant import archive as archive_service
 from app.services.tenant.soft_delete import soft_delete_entity
 from app.models.platform.guild import GuildRole
@@ -522,7 +524,7 @@ class TestRowFreeze:
         _u, _g, _i, project, task = workspace
         other = await create_task_status(session, project, name="Elsewhere")
         await _archive(session, task)
-        await mark_restructuring(routed)
+        await raise_flag(routed, gucs.RESTRUCTURING)
         await routed.exec(
             text("UPDATE tasks SET task_status_id = :status WHERE id = :id").bindparams(
                 status=other.id, id=task.id
@@ -535,7 +537,7 @@ class TestRowFreeze:
     ):
         _u, _g, _i, _p, task = workspace
         await _archive(session, task)
-        await mark_restructuring(routed)
+        await raise_flag(routed, gucs.RESTRUCTURING)
         await routed.commit()
         with pytest.raises(DBAPIError) as excinfo:
             await routed.exec(
