@@ -444,6 +444,43 @@ async def test_patch_removing_option_reports_orphaned_values(
 # ---------------------------------------------------------------------------
 
 
+async def test_a_member_adds_options_and_a_manager_reshapes(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Offering a new value is part of filling a field in; renaming it,
+    dropping its options or removing it is setting the initiative up."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
+    )
+    stage = {"value": "todo", "label": "To do"}
+    defn = await create_property_definition(
+        session, admin.initiative, type=PropertyType.select, options=[stage]
+    )
+    route = member.g(f"/property-definitions/{defn.id}")
+    added = [stage, {"value": "done", "label": "Done"}]
+
+    response = await client.patch(
+        route, headers=member.headers, json={"options": added}
+    )
+    assert response.status_code == 200, response.text
+
+    for change in ({"name": "Renamed"}, {"options": [added[1]]}):
+        response = await client.patch(route, headers=member.headers, json=change)
+        assert response.status_code == 403
+        assert response.json()["detail"] == "INITIATIVE_MANAGER_REQUIRED"
+    response = await client.delete(route, headers=member.headers)
+    assert response.status_code == 403
+
+    response = await client.patch(
+        route, headers=admin.headers, json={"options": [added[1]]}
+    )
+    assert response.status_code == 200, response.text
+
+
 async def test_delete_definition_cascades_to_values(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

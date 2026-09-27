@@ -20,7 +20,7 @@ from app.api.deps import (
     get_current_active_user,
     GuildContextDep,
 )
-from app.core.messages import PropertyMessages
+from app.core.messages import InitiativeMessages, PropertyMessages
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.document import Document
@@ -153,6 +153,28 @@ async def _ensure_initiative_member(
     )
 
 
+def _require_definition_manager(
+    guild_context: GuildContext, initiative_id: int
+) -> None:
+    """Reshaping or removing a definition is how the initiative is set up, so it
+    takes a manager of the initiative or an admin of the community."""
+    if guild_context.is_admin or initiative_id in guild_context.manager_initiatives:
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=InitiativeMessages.MANAGER_REQUIRED,
+    )
+
+
+def _only_adds_options(defn: PropertyDefinition, data: dict, options: list) -> bool:
+    """Whether an update keeps every existing option as it was and adds others:
+    what a member does picking a value nobody has offered yet."""
+    if set(data) != {"options"}:
+        return False
+    kept = {opt["value"]: opt for opt in _serialize_options(options) or []}
+    return all(kept.get(opt.get("value")) == opt for opt in defn.options or [])
+
+
 def _serialize_options(options: Optional[list]) -> Optional[list[dict]]:
     """Coerce PropertyOption models into plain dicts for JSONB storage."""
     if options is None:
@@ -246,6 +268,7 @@ async def update_property_definition(
     definition_id: int,
     payload: PropertyDefinitionUpdate,
     session: RLSSessionDep,
+    guild_context: GuildContextDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> PropertyDefinitionUpdateResponse:
     """Update a property definition.
@@ -258,6 +281,12 @@ async def update_property_definition(
     defn = await _get_definition_or_404(session, definition_id)
 
     data = payload.model_dump(exclude_unset=True)
+    if _only_adds_options(defn, data, payload.options or []):
+        await _ensure_initiative_member(
+            session, guild_context, defn.initiative_id, current_user
+        )
+    else:
+        _require_definition_manager(guild_context, defn.initiative_id)
 
     if "name" in data and data["name"] is not None:
         await ensure_name_free(
@@ -309,10 +338,12 @@ async def update_property_definition(
 async def delete_property_definition(
     definition_id: int,
     session: RLSSessionDep,
+    guild_context: GuildContextDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> None:
     """Delete a property definition. Cascades to remove all attached values."""
     defn = await _get_definition_or_404(session, definition_id)
+    _require_definition_manager(guild_context, defn.initiative_id)
     await session.delete(defn)
     await session.commit()
 
