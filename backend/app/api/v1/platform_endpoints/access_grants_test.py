@@ -201,6 +201,7 @@ async def test_a_requester_who_may_no_longer_ask_is_not_approved(
     assert requested.status_code == 201, requested.text
 
     demoted = await session.get(User, support.user.id)
+    assert demoted is not None
     demoted.role = UserRole.member
     session.add(demoted)
     await session.commit()
