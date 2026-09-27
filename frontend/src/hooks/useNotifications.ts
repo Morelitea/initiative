@@ -1,4 +1,5 @@
 import {
+  type Query,
   type QueryClient,
   useInfiniteQuery,
   useQuery,
@@ -155,6 +156,19 @@ export const useUnreadPlaces = (options?: {
   });
 };
 
+const OPENED_KEY = ["notifications", "opened"] as const;
+
+/**
+ * Whether a cached query is a visit's read that has already been answered.
+ * Asking it again reads nothing and clears what the visit is showing, so an
+ * invalidation of everything passes over it. One that failed is not answered
+ * and is asked again with the rest.
+ */
+export const isAnsweredVisitRead = (query: Query) =>
+  query.queryKey[0] === OPENED_KEY[0] &&
+  query.queryKey[1] === OPENED_KEY[1] &&
+  query.state.status === "success";
+
 /**
  * Opening an item reads every unread notification about it, and says what was
  * unread there so the page can show it for this visit.
@@ -167,7 +181,7 @@ export const useUnreadPlaces = (options?: {
 export const useReadOnOpen = (kind: string, id: number | undefined) => {
   const guildId = useActiveGuildId();
   const { data } = useQuery<SubjectReadResponse>({
-    queryKey: ["notifications", "opened", guildId, kind, id],
+    queryKey: [...OPENED_KEY, guildId, kind, id],
     queryFn: async () => {
       const read = await readNotificationSubjectApiV1NotificationsReadSubjectPost({
         guild_id: guildId,
