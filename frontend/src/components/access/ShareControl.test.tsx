@@ -55,9 +55,16 @@ vi.mock("@/hooks/useInitiativeRoles", () => ({
   useInitiativeRoles: () => ({ data: roles }),
 }));
 
-// The guild view names guild members rather than an initiative's.
+// The guild view searches the guild's members rather than holding an
+// initiative's, and looks up the ones already named by id.
 vi.mock("@/hooks/useUsers", () => ({
-  useUsers: () => ({ data: [alice, bob] }),
+  USER_ID_LOOKUP_MAX: 100,
+  useMemberSearch: (_scope: unknown, { userIds }: { userIds?: number[] } = {}) => ({
+    data: {
+      items: userIds?.length ? [alice, bob].filter((u) => userIds.includes(u.id)) : [alice, bob],
+    },
+    isFetching: false,
+  }),
 }));
 
 // The community's installed apps, which name an app grantee.
@@ -215,6 +222,8 @@ describe("ShareControl in its community view", () => {
 
     renderWithProviders(<ShareControl initiativeId={null} grants={grants} onChange={onChange} />);
 
+    // The grantee is named from a lookup by id, with no roster held.
+    expect(await screen.findByText("Alice")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Add people" }));
     await userEvent.click(await screen.findByText("Bob"));
 

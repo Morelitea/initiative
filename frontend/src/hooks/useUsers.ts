@@ -6,8 +6,9 @@ import type {
   AccountDeletionResponse,
   ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams,
   GuildRole,
+  ListUsersApiV1CGuildIdUsersGetParams,
   Tool,
-  UserGuildMember,
+  UserGuildMemberListResponse,
   UserRead,
   UserSummary,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -38,16 +39,20 @@ import type { QueryOpts } from "@/types/query";
 // ── Queries ─────────────────────────────────────────────────────────────────
 
 /**
- * Members of a guild. Defaults to the active guild; pass `guildIdOverride` to
- * read a specific guild's members from a cross-guild surface (e.g. the personal
- * trash view reassigning an item that lives in another guild).
+ * One page of the active guild's roster, searched and ordered on the server —
+ * the members table in guild settings. A picker wants {@link useUserSearch}
+ * instead: the same people, as the slimmer {@link UserSummary}.
  */
-export const useUsers = (options?: QueryOpts<UserGuildMember[]>, guildIdOverride?: number) => {
-  const activeGuildId = useActiveGuildId();
-  const guildId = guildIdOverride ?? activeGuildId;
-  return useQuery<UserGuildMember[]>({
-    queryKey: getListUsersApiV1CGuildIdUsersGetQueryKey(guildId),
-    queryFn: () => listUsersApiV1CGuildIdUsersGet(guildId),
+export const useUsers = (
+  params: ListUsersApiV1CGuildIdUsersGetParams,
+  options?: QueryOpts<UserGuildMemberListResponse>
+) => {
+  const guildId = useActiveGuildId();
+  return useQuery<UserGuildMemberListResponse>({
+    queryKey: getListUsersApiV1CGuildIdUsersGetQueryKey(guildId, params),
+    queryFn: () => listUsersApiV1CGuildIdUsersGet(guildId, params),
+    // Keep the page on screen while the next one (or the next search) loads.
+    placeholderData: keepPreviousData,
     ...options,
   });
 };
@@ -183,9 +188,9 @@ export const useMyDecorations = () =>
 
 /**
  * Slim, server-side member typeahead for the active guild. Returns
- * {@link UserSummary} rows (id, name, avatar, status) for a bounded page —
- * the replacement for loading the whole roster via {@link useUsers} and
- * filtering client-side. Debounce the `search` value at the call site.
+ * {@link UserSummary} rows (id, name, avatar, status, guild role) for a bounded
+ * page, so a picker never loads the whole roster to filter it client-side.
+ * Debounce the `search` value at the call site.
  */
 export const useUserSearch = ({
   search,

@@ -6,7 +6,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildUserGuildMember } from "@/__tests__/factories";
+import { buildUserGuildMember, buildUserSummary } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { OwnedContentResponse } from "@/api/generated/initiativeAPI.schemas";
 
@@ -26,10 +26,18 @@ vi.mock("@/api/generated/users/users", () => ({
 
 vi.mock("@/hooks/useActiveGuildId", () => ({ useActiveGuildId: () => 7 }));
 
+// The guild's members matching the search: the dialog offers the admins among them.
+const search = vi.hoisted(() => ({ items: [] as unknown[] }));
+vi.mock("@/hooks/useUsers", () => ({
+  USER_ID_LOOKUP_MAX: 100,
+  useUserSearch: () => ({ data: { items: search.items }, isFetching: false }),
+}));
+
 import { TransferContentOwnershipDialog } from "./TransferContentOwnershipDialog";
 
-const admin = buildUserGuildMember({ id: 11, full_name: "Ada Admin" });
+const admin = buildUserSummary({ id: 11, full_name: "Ada Admin", guild_role: "admin" });
 const member = buildUserGuildMember({ id: 12, full_name: "Mel Member" });
+search.items = [admin, buildUserSummary({ id: 12, full_name: "Mel Member", guild_role: "member" })];
 
 const content = (overrides: Partial<OwnedContentResponse> = {}): OwnedContentResponse => ({
   items: [{ tool: "project", id: 5, name: "Roadmap" }],
@@ -52,17 +60,13 @@ describe("TransferContentOwnershipDialog", () => {
     );
 
     renderWithProviders(
-      <TransferContentOwnershipDialog
-        open
-        onOpenChange={vi.fn()}
-        member={member}
-        admins={[admin]}
-      />
+      <TransferContentOwnershipDialog open onOpenChange={vi.fn()} member={member} />
     );
 
     await userEvent.click(await screen.findByRole("combobox"));
     expect(await screen.findByRole("option", { name: "Ada Admin" })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("option", { name: "Automations" }));
+    expect(screen.queryByRole("option", { name: "Mel Member" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("option", { name: /Automations/ }));
     await userEvent.click(screen.getByRole("button", { name: "Transfer" }));
 
     await waitFor(() =>
@@ -78,14 +82,13 @@ describe("TransferContentOwnershipDialog", () => {
         open
         onOpenChange={vi.fn()}
         member={null}
-        admins={[admin]}
-        defaultRecipientId={admin.id}
+        defaultRecipient={admin}
       />
     );
 
-    await userEvent.click(await screen.findByRole("combobox"));
+    await userEvent.click(await screen.findByRole("combobox", { name: "New owner" }));
     expect(await screen.findByRole("option", { name: "Ada Admin" })).toBeInTheDocument();
-    expect(screen.queryByText("Apps")).not.toBeInTheDocument();
+    expect(screen.queryByText("App")).not.toBeInTheDocument();
     await userEvent.keyboard("{Escape}");
     await userEvent.click(screen.getByRole("button", { name: "Transfer" }));
 

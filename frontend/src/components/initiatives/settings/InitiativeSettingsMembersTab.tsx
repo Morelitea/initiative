@@ -1,20 +1,22 @@
 import { Loader2 } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
   InitiativeJoinPolicy,
   InitiativeMemberRead,
   InitiativeRoleRead,
+  UserSummary,
 } from "@/api/generated/initiativeAPI.schemas";
 import { JoinPolicySection } from "@/components/initiatives/JoinPolicySection";
 import { InitiativeJoinRequestQueue } from "@/components/initiatives/settings/InitiativeJoinRequestQueue";
+import { useSeenMembers } from "@/components/members/MemberSearchSelect";
 import { UserHandle } from "@/components/UserHandle";
+import { AsyncCombobox } from "@/components/ui/async-combobox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
-import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import {
   Select,
   SelectContent,
@@ -28,12 +30,15 @@ import {
   useRemoveInitiativeMember,
   useUpdateInitiativeMember,
 } from "@/hooks/useInitiatives";
-import { useUsers } from "@/hooks/useUsers";
+import { type MemberSearchScope, useUserSearch } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { isAdminRole } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
 import { getUserDisplayName } from "@/lib/userDisplay";
+
+const GUILD_SCOPE: MemberSearchScope = { type: "guild" };
+const NONE: never[] = [];
 
 interface InitiativeSettingsMembersTabProps {
   initiativeId: number;
@@ -78,42 +83,52 @@ export const InitiativeSettingsMembersTab = ({
 }: InitiativeSettingsMembersTabProps) => {
   const { t } = useTranslation(["initiatives", "common"]);
 
-  // Fetched only for members managers (who can act on the roster) — read-only
-  // viewers never pull the full guild roster.
-  const usersQuery = useUsers({
-    enabled: canManageMembers && !!activeGuildId,
-    staleTime: 5 * 60 * 1000,
+  // The add-member picker asks the guild for the people matching what was
+  // typed, once it is open. Only a members manager is shown it.
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const candidatesQuery = useUserSearch({
+    search,
+    enabled: canManageMembers && !!activeGuildId && pickerOpen,
   });
-
+  const memberIds = useMemo(() => members.map((member) => member.user.id), [members]);
   const availableUsers = useMemo(() => {
-    if (!usersQuery.data) {
-      return [];
-    }
-    const existingIds = new Set(members.map((member) => member.user.id));
-    return usersQuery.data.filter(
+    const existingIds = new Set(memberIds);
+    return (candidatesQuery.data?.items ?? []).filter(
       (candidate) => !existingIds.has(candidate.id) && candidate.status !== "anonymized"
     );
-  }, [usersQuery.data, members]);
+  }, [candidatesQuery.data, memberIds]);
+  // The person picked, held so the trigger keeps their name (and the role
+  // select their standing) after the search moves on.
+  const [picked, setPicked] = useState<UserSummary | null>(null);
+  const pickedUser = picked && String(picked.id) === selectedUserId ? picked : null;
 
   // A guild admin's standing already reaches every initiative, so their row
   // lands on the moderator role — the server settles that on the way in. The
   // picker says so up front rather than offering a choice that would be
-  // rewritten.
+  // rewritten. Who is an admin is the guild's to say, so the members already
+  // here are looked up by id.
+  const knownMembers = useSeenMembers(
+    GUILD_SCOPE,
+    canManageMembers ? memberIds : NONE,
+    undefined,
+    NONE
+  );
   const adminIds = useMemo(
     () =>
       new Set(
-        (usersQuery.data ?? [])
-          .filter((candidate) => isAdminRole(candidate.guild_role))
-          .map((candidate) => candidate.id)
+        [...knownMembers.values()]
+          .filter((member) => isAdminRole(member.guild_role))
+          .map((member) => member.id)
       ),
-    [usersQuery.data]
+    [knownMembers]
   );
   const adminRole = useMemo(
     () =>
       roles?.find((role) => role.name === "moderator") ?? roles?.find((role) => role.is_manager),
     [roles]
   );
-  const addingAdmin = adminIds.has(Number(selectedUserId));
+  const addingAdmin = isAdminRole(pickedUser?.guild_role);
   const effectiveRoleId = addingAdmin && adminRole ? String(adminRole.id) : selectedRoleId;
 
   const addMember = useAddInitiativeMember({
@@ -322,21 +337,23 @@ export const InitiativeSettingsMembersTab = ({
           {canManageMembers ? (
             <>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                <SearchableCombobox
+                <AsyncCombobox
                   items={availableUsers.map((candidate) => ({
                     value: String(candidate.id),
                     label: getUserDisplayName(candidate),
                   }))}
                   value={selectedUserId}
-                  onValueChange={setSelectedUserId}
-                  placeholder={
-                    usersQuery.isLoading
-                      ? t("settings.loadingMembers")
-                      : availableUsers.length > 0
-                        ? t("settings.selectUser")
-                        : t("settings.everyoneAdded")
-                  }
-                  disabled={usersQuery.isLoading || availableUsers.length === 0}
+                  onValueChange={(value) => {
+                    setPicked(availableUsers.find((c) => String(c.id) === value) ?? null);
+                    setSelectedUserId(value);
+                  }}
+                  onSearchChange={setSearch}
+                  onOpenChange={setPickerOpen}
+                  selectedLabel={pickedUser ? getUserDisplayName(pickedUser) : null}
+                  loading={candidatesQuery.isFetching && availableUsers.length === 0}
+                  placeholder={t("settings.selectUser")}
+                  emptyMessage={t("settings.noOneToAdd")}
+                  aria-label={t("settings.selectUser")}
                 />
                 {roles && (
                   <Select
@@ -360,13 +377,7 @@ export const InitiativeSettingsMembersTab = ({
                   type="button"
                   variant="outline"
                   onClick={handleAddMember}
-                  disabled={
-                    !selectedUserId ||
-                    !effectiveRoleId ||
-                    addMember.isPending ||
-                    usersQuery.isLoading ||
-                    availableUsers.length === 0
-                  }
+                  disabled={!selectedUserId || !effectiveRoleId || addMember.isPending}
                 >
                   {addMember.isPending ? (
                     <>
@@ -378,7 +389,7 @@ export const InitiativeSettingsMembersTab = ({
                   )}
                 </Button>
               </div>
-              {usersQuery.isError ? (
+              {candidatesQuery.isError ? (
                 <p className="text-destructive text-xs">{t("settings.unableToLoadMembers")}</p>
               ) : null}
             </>

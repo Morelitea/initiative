@@ -10,8 +10,9 @@ import {
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { InitiativeListRead, UserGuildMember } from "@/api/generated/initiativeAPI.schemas";
+import type { InitiativeListRead } from "@/api/generated/initiativeAPI.schemas";
 import { DeleteInitiativeDialog } from "@/components/initiatives/DeleteInitiativeDialog";
+import { type MemberLike, useSeenMembers } from "@/components/members/MemberSearchSelect";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,12 +22,14 @@ import {
   CommandGroup,
   CommandInput,
   CommandItem,
+  CommandList,
 } from "@/components/ui/command";
 import { DataTable } from "@/components/ui/data-table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useArchiveEntity, useUnarchiveEntity } from "@/hooks/useArchive";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import {
@@ -37,13 +40,16 @@ import {
   useRemoveInitiativeMember,
   useUpdateInitiativeMember,
 } from "@/hooks/useInitiatives";
-import { useUsers } from "@/hooks/useUsers";
+import { type MemberSearchScope, useUserSearch } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { isAdminRole } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
+
+const GUILD_SCOPE: MemberSearchScope = { type: "guild" };
+const NONE: never[] = [];
 
 /** An initiative's headcount, read from its roster. */
 const InitiativeMemberCountCell = ({ initiativeId }: { initiativeId: number }) => {
@@ -69,19 +75,21 @@ const InitiativeMemberCountCell = ({ initiativeId }: { initiativeId: number }) =
  * the exception: they cannot hold a standard role, so unticking removes their
  * row (which is also how they leave an initiative they added themselves to).
  */
-const InitiativeManagersCell = ({
-  initiative,
-  candidates,
-  adminUserIds,
-}: {
-  initiative: InitiativeListRead;
-  candidates: UserGuildMember[];
-  adminUserIds: Set<number>;
-}) => {
+const InitiativeManagersCell = ({ initiative }: { initiative: InitiativeListRead }) => {
   const { t } = useTranslation(["initiatives", "common"]);
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(query, 250);
   const rolesQuery = useInitiativeRoles(initiative.id);
   const rosterQuery = useInitiative(initiative.id);
+
+  // Candidates are the guild's members matching what was typed, asked of the
+  // server once the picker is open.
+  const searchQuery = useUserSearch({ search: debouncedQuery, enabled: open });
+  const results = useMemo(
+    () => (searchQuery.data?.items ?? []).filter((candidate) => candidate.status !== "anonymized"),
+    [searchQuery.data]
+  );
 
   // The project manager by name first: moderator is a manager role too, and
   // this column staffs an initiative rather than hands out Full access.
@@ -104,6 +112,27 @@ const InitiativeManagersCell = ({
   const memberIds = useMemo(
     () => new Set((rosterQuery.data?.members ?? []).map((m) => m.user.id)),
     [rosterQuery.data]
+  );
+  // The current managers lead the list whatever was typed, so each can be
+  // unticked. What unticking does depends on whether they are a guild admin,
+  // which the guild answers by id.
+  const managers = useMemo<MemberLike[]>(
+    () => (rosterQuery.data?.members ?? []).filter((m) => m.is_manager).map((m) => m.user),
+    [rosterQuery.data]
+  );
+  const managerIdList = useMemo(() => [...managerIds], [managerIds]);
+  const knownManagers = useSeenMembers(
+    GUILD_SCOPE,
+    open ? managerIdList : NONE,
+    undefined,
+    results
+  );
+  const candidates = useMemo<MemberLike[]>(
+    () => [
+      ...managers.map((manager) => knownManagers.get(manager.id) ?? manager),
+      ...results.filter((candidate) => !managerIds.has(candidate.id)),
+    ],
+    [managers, knownManagers, results, managerIds]
   );
 
   const onError = (error: unknown) => {
@@ -136,7 +165,7 @@ const InitiativeManagersCell = ({
       }
       return;
     }
-    if (adminUserIds.has(userId) || !memberRole) {
+    if (isAdminRole(knownManagers.get(userId)?.guild_role) || !memberRole) {
       removeMember.mutate({ initiativeId: initiative.id, userId });
     } else {
       updateMember.mutate({
@@ -172,14 +201,17 @@ const InitiativeManagersCell = ({
     managerIds.size === 0
       ? t("manage.noManagers")
       : managerIds.size === 1
-        ? getUserDisplayName(
-            candidates.find((c) => managerIds.has(c.id)),
-            t("manage.managerCount", { count: 1 })
-          )
+        ? getUserDisplayName(managers[0], t("manage.managerCount", { count: 1 }))
         : t("manage.managerCount", { count: managerIds.size });
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setQuery("");
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -200,27 +232,38 @@ const InitiativeManagersCell = ({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[280px] p-0">
-        <Command>
-          <CommandInput placeholder={t("common:search")} />
-          <CommandEmpty>{t("manage.noCandidates")}</CommandEmpty>
-          <CommandGroup className="max-h-64 overflow-y-auto">
-            {candidates.map((candidate) => (
-              <CommandItem
-                key={candidate.id}
-                value={getUserDisplayName(candidate)}
-                disabled={pending}
-                onSelect={() => toggle(candidate.id)}
-              >
-                <Check
-                  className={cn(
-                    "mr-2 h-4 w-4",
-                    managerIds.has(candidate.id) ? "opacity-100" : "opacity-0"
-                  )}
-                />
-                {getUserDisplayName(candidate)}
-              </CommandItem>
-            ))}
-          </CommandGroup>
+        <Command shouldFilter={false}>
+          <CommandInput placeholder={t("common:search")} value={query} onValueChange={setQuery} />
+          <CommandList>
+            {searchQuery.isFetching && candidates.length === 0 ? (
+              <div className="flex items-center justify-center gap-2 py-6 text-muted-foreground text-sm">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {t("common:loading")}
+              </div>
+            ) : (
+              <CommandEmpty>{t("manage.noCandidates")}</CommandEmpty>
+            )}
+            <CommandGroup className="max-h-64 overflow-y-auto">
+              {candidates.map((candidate) => {
+                const isManager = managerIds.has(candidate.id);
+                return (
+                  <CommandItem
+                    key={candidate.id}
+                    value={String(candidate.id)}
+                    // Unticking waits until the guild has said whether this
+                    // manager is one of its admins.
+                    disabled={pending || (isManager && !knownManagers.has(candidate.id))}
+                    onSelect={() => toggle(candidate.id)}
+                  >
+                    <Check
+                      className={cn("mr-2 h-4 w-4", isManager ? "opacity-100" : "opacity-0")}
+                    />
+                    {getUserDisplayName(candidate)}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
         </Command>
       </PopoverContent>
     </Popover>
@@ -238,17 +281,6 @@ export const SettingsInitiativesPage = () => {
   const deleteInitiative = useDeleteInitiative();
   const archiveInitiative = useArchiveEntity();
   const unarchiveInitiative = useUnarchiveEntity();
-
-  // One roster fetch for the whole table; every row's manager picker reads it.
-  const usersQuery = useUsers({ enabled: isGuildAdmin, staleTime: 5 * 60 * 1000 });
-  const candidates = useMemo(
-    () => (usersQuery.data ?? []).filter((candidate) => candidate.status !== "anonymized"),
-    [usersQuery.data]
-  );
-  const adminUserIds = useMemo(
-    () => new Set(candidates.filter((c) => isAdminRole(c.guild_role)).map((c) => c.id)),
-    [candidates]
-  );
 
   const [deleteTarget, setDeleteTarget] = useState<InitiativeListRead | null>(null);
 
@@ -319,13 +351,7 @@ export const SettingsInitiativesPage = () => {
     {
       id: "managers",
       header: t("manage.managersColumn"),
-      cell: ({ row }) => (
-        <InitiativeManagersCell
-          initiative={row.original}
-          candidates={candidates}
-          adminUserIds={adminUserIds}
-        />
-      ),
+      cell: ({ row }) => <InitiativeManagersCell initiative={row.original} />,
     },
     {
       id: "status",

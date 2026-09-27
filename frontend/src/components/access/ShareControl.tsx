@@ -1,8 +1,9 @@
-import { Blocks, ChevronDown, Lock, Users, X } from "lucide-react";
+import { Blocks, ChevronDown, Loader2, Lock, Users, X } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { OwnerAppSummary, ResourceGrantSchema } from "@/api/generated/initiativeAPI.schemas";
+import { type MemberLike, useSeenMembers } from "@/components/members/MemberSearchSelect";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,10 +23,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useGuildApps } from "@/hooks/useGuildApps";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { useInitiative } from "@/hooks/useInitiatives";
-import { useUsers } from "@/hooks/useUsers";
+import { type MemberSearchScope, useMemberSearch } from "@/hooks/useUsers";
 import { resolveArtworkUrl } from "@/lib/uploadUrl";
 import { getUserDisplayName, getUserHandle } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
@@ -57,6 +59,8 @@ export interface ShareControlProps {
 }
 
 type ShareLevel = "read" | "write";
+
+const GUILD_SCOPE: MemberSearchScope = { type: "guild" };
 
 /** An app's picture, small, or the generic app mark when it has none. */
 const AppMark = ({ avatarUrl }: { avatarUrl: string | null | undefined }) =>
@@ -103,29 +107,14 @@ export const ShareControl = ({
   ownerApp,
   disabled = false,
 }: ShareControlProps) => {
-  const { t } = useTranslation("access");
+  const { t } = useTranslation(["access", "common"]);
 
-  // Guild-level resource: there is no initiative to read, so the roster comes
+  // Guild-level resource: there is no initiative to read, so the people come
   // from the guild. Roles stay empty — a guild role is not an initiative role,
   // and granting to one is not something this build does.
-  //
-  // Both rosters here are whole-list reads, and a guild's is the larger of the
-  // two. The bounded alternative is the search endpoint, but it answers with
-  // UserSummary — no email — and every row in this control shows one, so moving
-  // to it is a change to what sharing displays for all six tools rather than a
-  // swap. Worth doing as its own change; noted so it isn't re-derived.
   const guildScoped = initiativeId == null;
   const { data: roles = [] } = useInitiativeRoles(initiativeId);
   const { data: initiative } = useInitiative(initiativeId);
-  const { data: guildUsers = [] } = useUsers({ enabled: guildScoped });
-
-  const members = useMemo(
-    () =>
-      guildScoped
-        ? guildUsers.map((user) => ({ user }))
-        : (initiative?.members ?? []).map((member) => ({ user: member.user })),
-    [guildScoped, guildUsers, initiative?.members]
-  );
 
   // ── Derived grant buckets ────────────────────────────────────────────────
 
@@ -166,6 +155,37 @@ export const ShareControl = ({
 
   const allLevel: ShareLevel = allMembersGrant?.level === "write" ? "write" : "read";
 
+  // ── People: an initiative's roster, or the guild's searched ─────────────
+
+  const [peoplePickerOpen, setPeoplePickerOpen] = useState(false);
+  const [peopleQuery, setPeopleQuery] = useState("");
+  const debouncedPeopleQuery = useDebouncedValue(peopleQuery, 250);
+
+  // A guild's roster is too large to hold: the picker asks the server for the
+  // people matching what was typed, and the people already named here (owner,
+  // grantees) are looked up by id.
+  const guildSearch = useMemberSearch(GUILD_SCOPE, {
+    search: debouncedPeopleQuery,
+    enabled: guildScoped && peoplePickerOpen,
+  });
+  const guildResults = useMemo(() => guildSearch.data?.items ?? [], [guildSearch.data]);
+  const namedGuildUserIds = useMemo(
+    () =>
+      guildScoped
+        ? [...(ownerId != null ? [ownerId] : []), ...userGrants.map((g) => g.user_id as number)]
+        : [],
+    [guildScoped, ownerId, userGrants]
+  );
+  const seenGuildMembers = useSeenMembers(GUILD_SCOPE, namedGuildUserIds, undefined, guildResults);
+
+  const findMember = useCallback(
+    (userId: number): MemberLike | undefined =>
+      guildScoped
+        ? seenGuildMembers.get(userId)
+        : initiative?.members.find((m) => m.user.id === userId)?.user,
+    [guildScoped, seenGuildMembers, initiative?.members]
+  );
+
   // ── Apps: the owning install, and the ones the seat granted ──────────────
 
   const ownerAppId = useMemo(
@@ -197,21 +217,21 @@ export const ShareControl = ({
 
   const userDisplayName = useCallback(
     (userId: number): string => {
-      const member = members.find((m) => m.user.id === userId);
-      return member ? getUserDisplayName(member.user) : `User ${userId}`;
+      const member = findMember(userId);
+      return member ? getUserDisplayName(member) : `User ${userId}`;
     },
-    [members]
+    [findMember]
   );
 
   // The handle, as the line under a name — what tells two people with the same
   // name apart. Nothing to show when the name IS the handle.
   const userHandle = useCallback(
     (userId: number): string | null => {
-      const member = members.find((m) => m.user.id === userId);
-      if (!member?.user.full_name?.trim()) return null;
-      return getUserHandle(member.user) || null;
+      const member = findMember(userId);
+      if (!member?.full_name?.trim()) return null;
+      return getUserHandle(member) || null;
     },
-    [members]
+    [findMember]
   );
 
   const roleDisplayName = useCallback(
@@ -233,8 +253,12 @@ export const ShareControl = ({
   const grantedRoleIds = useMemo(() => new Set(roleGrants.map((g) => g.role_id)), [roleGrants]);
 
   const availableMembers = useMemo(
-    () => members.filter((m) => m.user.id !== ownerId && !grantedUserIds.has(m.user.id)),
-    [members, ownerId, grantedUserIds]
+    () =>
+      (guildScoped
+        ? guildResults
+        : (initiative?.members ?? []).map((member) => member.user)
+      ).filter((user) => user.id !== ownerId && !grantedUserIds.has(user.id)),
+    [guildScoped, guildResults, initiative?.members, ownerId, grantedUserIds]
   );
   const availableRoles = useMemo(
     // Full-access roles already have access (shown locked), so they're not pickable.
@@ -313,8 +337,12 @@ export const ShareControl = ({
   // ── Picker open state ────────────────────────────────────────────────────
 
   const [modePickerOpen, setModePickerOpen] = useState(false);
-  const [peoplePickerOpen, setPeoplePickerOpen] = useState(false);
   const [rolePickerOpen, setRolePickerOpen] = useState(false);
+
+  const handlePeoplePickerOpenChange = (open: boolean) => {
+    setPeoplePickerOpen(open);
+    if (!open) setPeopleQuery("");
+  };
 
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -422,7 +450,7 @@ export const ShareControl = ({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="font-medium text-sm">{t("share.people")}</Label>
-              <Popover open={peoplePickerOpen} onOpenChange={setPeoplePickerOpen}>
+              <Popover open={peoplePickerOpen} onOpenChange={handlePeoplePickerOpenChange}>
                 <PopoverTrigger asChild>
                   <Button type="button" variant="outline" size="sm" disabled={disabled}>
                     {t("share.addPeople")}
@@ -430,28 +458,41 @@ export const ShareControl = ({
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-72 p-0" align="end">
-                  <Command>
-                    <CommandInput placeholder={t("share.searchPeople")} />
+                  {/* A guild's people are matched on the server; an initiative's
+                      roster is already here and filters as you type. */}
+                  <Command shouldFilter={!guildScoped}>
+                    <CommandInput
+                      placeholder={t("share.searchPeople")}
+                      value={peopleQuery}
+                      onValueChange={setPeopleQuery}
+                    />
                     <CommandList>
-                      <CommandEmpty>{t("share.noPeople")}</CommandEmpty>
+                      {guildScoped && guildSearch.isFetching && availableMembers.length === 0 ? (
+                        <div className="flex items-center justify-center gap-2 py-6 text-muted-foreground text-sm">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          {t("common:loading")}
+                        </div>
+                      ) : (
+                        <CommandEmpty>{t("share.noPeople")}</CommandEmpty>
+                      )}
                       <CommandGroup>
                         {availableMembers.map((member) => {
-                          const displayName = getUserDisplayName(member.user);
+                          const displayName = getUserDisplayName(member);
                           return (
                             <CommandItem
-                              key={member.user.id}
-                              value={`${displayName} ${getUserHandle(member.user)}`}
+                              key={member.id}
+                              value={`${displayName} ${getUserHandle(member)}`}
                               onSelect={() => {
-                                addUser(member.user.id);
-                                setPeoplePickerOpen(false);
+                                addUser(member.id);
+                                handlePeoplePickerOpenChange(false);
                               }}
                               className="cursor-pointer"
                             >
                               <div className="flex flex-col">
                                 <span className="truncate text-sm">{displayName}</span>
-                                {member.user.full_name?.trim() && (
+                                {member.full_name?.trim() && (
                                   <span className="truncate text-muted-foreground text-xs">
-                                    {getUserHandle(member.user)}
+                                    {getUserHandle(member)}
                                   </span>
                                 )}
                               </div>

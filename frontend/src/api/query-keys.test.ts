@@ -102,13 +102,15 @@ describe("query-keys guild scoping", () => {
     // its mutations go through the platform `/api/v1/communities/...` path — a role change
     // must refresh the active guild's roster without a manual reload.
     it("guild member invalidation hits the active guild roster only", async () => {
-      const activeRoster = seed(["/api/v1/c/5/users/"]);
+      const activeRoster = seed(["/api/v1/c/5/users/", { page: 2, page_size: 20 }]);
+      const activeSearch = seed(["/api/v1/c/5/users/search", { search: "ada" }]);
       const otherRoster = seed(["/api/v1/c/7/users/"]);
 
       setInvalidationGuild(5);
       await invalidate(q.guildMembers());
 
       expect(activeRoster()).toBe(true);
+      expect(activeSearch()).toBe(true);
       expect(otherRoster()).toBe(false);
     });
 

@@ -57,6 +57,36 @@ describe("TrashTable", () => {
     expect(screen.getByText("Task")).toBeInTheDocument();
   });
 
+  it("pages through the trash, asking the server for each page", async () => {
+    const pagesAsked: (string | null)[] = [];
+    server.use(
+      http.get(myTrashEndpoint, ({ request }) => {
+        const page = new URL(request.url).searchParams.get("page");
+        pagesAsked.push(page);
+        return HttpResponse.json(
+          page === "2"
+            ? buildTrashListResponse([buildTrashItem({ name: "Older" })], {
+                page: 2,
+                total_count: 51,
+                has_prev: true,
+              })
+            : buildTrashListResponse([buildTrashItem({ name: "Newest" })], {
+                total_count: 51,
+                has_next: true,
+              })
+        );
+      })
+    );
+
+    renderWithProviders(<TrashTable variant="user" showPurgeAction={false} />);
+
+    await screen.findByText("Newest");
+    await userEvent.click(screen.getByRole("button", { name: /Next/i }));
+
+    expect(await screen.findByText("Older")).toBeInTheDocument();
+    expect(pagesAsked).toEqual(["1", "2"]);
+  });
+
   it("hides the Delete now column when showPurgeAction=false", async () => {
     server.use(
       http.get(myTrashEndpoint, () =>

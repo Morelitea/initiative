@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import type { PaginationState } from "@tanstack/react-table";
 import { Copy, Download, HandCoins, RefreshCcw, Trash2, UserMinus } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -39,12 +40,12 @@ import {
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { useBillingPortal } from "@/hooks/useBillingPortal";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { useExportGuildUsersCsv, useUpdateGuildMembership, useUsers } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { isAdminRole } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
 import { getUrlHandle, getUserDisplayName, getUserHandle } from "@/lib/userDisplay";
 
@@ -149,15 +150,19 @@ export const SettingsUsersPage = () => {
 
   const inviteRows = useMemo(() => invites, [invites]);
 
-  const usersQuery = useUsers({ enabled: isGuildAdmin });
-
-  // Ownership can only be handed to a guild admin, so the picker is the guild's
-  // admin roster rather than every member.
-  const guildAdmins = useMemo(
-    () =>
-      (usersQuery.data ?? []).filter((m) => isAdminRole(m.guild_role) && m.status !== "anonymized"),
-    [usersQuery.data]
+  // Searched and paged on the server: the table only ever holds the page on
+  // screen.
+  const [draft, setDraft] = useState("");
+  const search = useDebouncedValue(draft, 250);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const usersQuery = useUsers(
+    { search: search.trim() || undefined, page, page_size: pageSize },
+    { enabled: isGuildAdmin }
   );
+  const rows = usersQuery.data?.items ?? [];
+  const totalCount = usersQuery.data?.total_count ?? 0;
+
 
   const updateGuildMembership = useUpdateGuildMembership({
     onError: (error: unknown) => {
@@ -510,7 +515,7 @@ export const SettingsUsersPage = () => {
             variant="outline"
             size="sm"
             onClick={exportAllUsersCsv}
-            disabled={!usersQuery.data?.length}
+            disabled={totalCount === 0 && !search.trim()}
           >
             <Download className="h-4 w-4" />
             {t("users.exportAll")}
@@ -519,12 +524,28 @@ export const SettingsUsersPage = () => {
         <CardContent className="space-y-4">
           <DataTable
             columns={userColumns}
-            data={usersQuery.data}
+            data={rows}
+            getRowId={(row) => String(row.id)}
             enableFilterInput
-            filterInputColumnKey="username"
             filterInputPlaceholder={t("users.filterByHandle")}
-            enableResetSorting
+            filterValue={draft}
+            onFilterValueChange={(value) => {
+              setDraft(value);
+              setPage(1);
+            }}
             enablePagination
+            manualPagination
+            pageCount={Math.max(1, Math.ceil(totalCount / pageSize))}
+            rowCount={totalCount}
+            pageIndex={page - 1}
+            onPaginationChange={(next: PaginationState) => {
+              if (next.pageSize !== pageSize) {
+                setPageSize(next.pageSize);
+                setPage(1);
+              } else {
+                setPage(next.pageIndex + 1);
+              }
+            }}
           />
         </CardContent>
       </Card>
@@ -542,8 +563,7 @@ export const SettingsUsersPage = () => {
         open={transferTarget !== null}
         onOpenChange={(open) => !open && setTransferTarget(null)}
         member={transferTarget?.member ?? null}
-        admins={guildAdmins}
-        defaultRecipientId={user?.id}
+        defaultRecipient={user}
         onSuccess={() => void usersQuery.refetch()}
       />
     </div>
