@@ -404,6 +404,62 @@ class TestNothingElse:
             ("/api/v1/operator/users/{user_id}", "DELETE"),
         }
 
+    @pytest.mark.parametrize(
+        ("method", "path", "body"),
+        [
+            ("DELETE", "/avatar", None),
+            ("PATCH", "/username", {"username": "renamed"}),
+            ("DELETE", "/sign-in-lock", None),
+            ("POST", "/reactivate", None),
+            ("POST", "/restore", None),
+            ("DELETE", "/second-factor", None),
+            ("GET", "/deletion-eligibility", None),
+            ("DELETE", "", {"action": "hard_delete"}),
+        ],
+    )
+    async def test_an_account_that_outranks_you_is_out_of_reach(
+        self, client, session, method, path, body
+    ):
+        """Every account action holds the rank bound a suspension and a role
+        change hold."""
+        operator = await create_user(session, role=UserRole.operator)
+        owner = await create_user(session, role=UserRole.owner)
+
+        response = await client.request(
+            method,
+            f"/api/v1/operator/users/{owner.id}{path}",
+            headers=get_auth_headers(operator),
+            json=body,
+        )
+
+        assert response.status_code == 403
+        assert response.json()["detail"] == "OPERATOR_CANNOT_MANAGE_HIGHER_ROLE"
+
+    async def test_reactivate_reopens_only_a_deactivated_account(
+        self, client, session, capfd
+    ):
+        """A suspension and a pending deletion have their own ways back; the one
+        reactivate takes is recorded."""
+        moderator = await create_user(session, role=UserRole.moderator)
+        headers = get_auth_headers(moderator)
+        for held in (UserStatus.suspended, UserStatus.deleted):
+            subject = await create_user(session, status=held)
+            response = await client.post(
+                f"/api/v1/operator/users/{subject.id}/reactivate", headers=headers
+            )
+            assert response.status_code == 409
+            assert response.json()["detail"] == "OPERATOR_USER_NOT_DEACTIVATED"
+
+        closed = await create_user(session, status=UserStatus.deactivated)
+        response = await client.post(
+            f"/api/v1/operator/users/{closed.id}/reactivate", headers=headers
+        )
+        assert response.status_code == 200
+        assert response.json()["status"] == "active"
+        assert [e["event_type"] for e in _audit_entries(capfd, closed.id)] == [
+            "user.reactivated"
+        ]
+
 
 class TestTheAggregateRoutes:
     """``/me/*`` reads content across every guild without going through the
