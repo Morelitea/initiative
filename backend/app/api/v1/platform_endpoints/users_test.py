@@ -840,10 +840,14 @@ def _export_id(members: dict, name: str) -> int:
     return _NO_SUCH_USER.get(name) or members[name].user.id
 
 
-async def test_export_users_csv_as_admin(client, csv_guild):
+async def test_export_users_csv_as_admin(client, session, csv_guild):
     """A guild admin exports its members: a BOM'd CSV attachment carrying one
-    row per member of this guild, each named by handle."""
+    row per member of this guild it lists, each named by handle."""
     admin = csv_guild["admin"]
+    suspended = await session.get(User, csv_guild["two"].user.id)
+    suspended.status = UserStatus.suspended
+    session.add(suspended)
+    await session.commit()
 
     response = await client.get(admin.g("/users/export.csv"), headers=admin.headers)
 
@@ -867,7 +871,7 @@ async def test_export_users_csv_as_admin(client, csv_guild):
     ]
     assert {row[1] for row in data_rows} == {
         f"{who.user.username}#{who.user.discriminator:04d}"
-        for who in (admin, csv_guild["one"], csv_guild["two"])
+        for who in (admin, csv_guild["one"])
     }
     # No address anywhere in the file.
     assert not any("@" in cell for row in data_rows for cell in row)

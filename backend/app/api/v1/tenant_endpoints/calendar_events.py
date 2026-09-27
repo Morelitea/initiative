@@ -498,8 +498,9 @@ async def import_ical_events(
                 session.add(event)
                 await session.flush()
             created += 1
-        except Exception as exc:
-            errors.append(f"DB error for '{event.title}': {exc}")
+        except Exception:
+            logger.exception("iCal import could not save event %r", event.title)
+            errors.append(f"Could not save '{event.title}'")
 
     if created > 0:
         await session.commit()

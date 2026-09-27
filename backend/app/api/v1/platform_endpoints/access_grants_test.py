@@ -188,6 +188,30 @@ async def test_requester_cannot_approve_own(
     assert resp.json()["detail"] == "ACCESS_GRANT_CANNOT_APPROVE_OWN"
 
 
+async def test_a_requester_who_may_no_longer_ask_is_not_approved(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Approval asks about the requester as they stand when it is decided."""
+    from app.models.platform.user import User, UserRole
+
+    support = await acting_user("support")
+    owner = await acting_user("owner")
+    guild = await create_guild(session)
+    requested = await _request_access(client, support, guild, reason="ticket")
+    assert requested.status_code == 201, requested.text
+
+    demoted = await session.get(User, support.user.id)
+    demoted.role = UserRole.member
+    session.add(demoted)
+    await session.commit()
+
+    resp = await client.post(
+        f"{GRANTS}{requested.json()['id']}/approve", json={}, headers=owner.headers
+    )
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "ACCESS_GRANT_GRANTEE_INELIGIBLE"
+
+
 @pytest.mark.parametrize(
     "tier,minutes,expected",
     [

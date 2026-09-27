@@ -177,6 +177,13 @@ async def get_index(*, force: bool = False) -> tuple[LegalDocument, ...]:
         return documents
 
 
+#: The characters a document's slug is written in.
+_SLUG_CHARACTERS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789-")
+#: The types a document is served as; anything else the portal names is
+#: served as plain text.
+_DOCUMENT_TYPES = ("text/markdown", "text/plain")
+
+
 async def get_document(
     slug: str, *, if_none_match: str | None = None
 ) -> FetchedDocument:
@@ -188,6 +195,8 @@ async def get_document(
     """
     if not legal_documents_enabled():
         raise LegalPortalUnavailable("no billing portal is configured")
+    if not slug or not set(slug) <= _SLUG_CHARACTERS:
+        raise KeyError(slug)
     headers = {"Accept": "text/markdown, text/plain"}
     if if_none_match:
         headers["If-None-Match"] = if_none_match
@@ -206,9 +215,12 @@ async def get_document(
         raise KeyError(slug)
     if response.status_code >= 400:
         raise LegalPortalUnavailable(f"portal answered {response.status_code}")
+    media_type = response.headers.get("content-type", "text/markdown; charset=utf-8")
+    if not media_type.startswith(_DOCUMENT_TYPES):
+        media_type = "text/plain; charset=utf-8"
     return FetchedDocument(
         content=response.content,
-        media_type=response.headers.get("content-type", "text/markdown; charset=utf-8"),
+        media_type=media_type,
         etag=response.headers.get("etag"),
     )
 
