@@ -293,8 +293,13 @@ async def test_claiming_an_existing_account_by_verified_email_is_recorded(
     moment an identity provider claims an existing account is worth a record.
     Where the account had not proved the address, the provider's word is its
     first proof, and what the account held before it is retired."""
+    from sqlmodel import select
+
     from app.core.security import get_password_hash
+    from app.models.platform.mfa_recovery_code import MfaRecoveryCode
     from app.models.platform.user import User
+    from app.models.platform.user_passkey import UserPasskey
+    from app.services.auth import totp as totp_service
     from app.testing.oidc import FakeIdp
 
     await _enable_platform_oidc(session)
@@ -305,6 +310,17 @@ async def test_claiming_an_existing_account_by_verified_email_is_recorded(
         hashed_password=get_password_hash("set-before-proof"),
     )
     existing_id = existing.id
+    session.add(
+        UserPasskey(
+            user_id=existing_id,
+            credential_id=b"set-before-proof",
+            public_key=b"key",
+            rp_id="localhost",
+            name="Laptop",
+        )
+    )
+    await totp_service.issue_recovery_codes(session, user_id=existing_id)
+    await session.commit()
     idp = FakeIdp()
     _wire_fake_idp(monkeypatch, idp)
     capfd.readouterr()
@@ -330,3 +346,14 @@ async def test_claiming_an_existing_account_by_verified_email_is_recorded(
     row = await session.get(User, existing_id)
     assert row is not None
     assert (row.hashed_password is not None) is proved
+    kept = (
+        await session.exec(
+            select(UserPasskey).where(UserPasskey.user_id == existing_id)
+        )
+    ).all()
+    codes = (
+        await session.exec(
+            select(MfaRecoveryCode).where(MfaRecoveryCode.user_id == existing_id)
+        )
+    ).all()
+    assert (len(kept), bool(codes)) == ((1, True) if proved else (0, False))
