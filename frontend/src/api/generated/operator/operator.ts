@@ -555,6 +555,9 @@ export const useTriggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPost = 
 };
 /**
  * Reactivate a deactivated user account (``users.manage``).
+ *
+ * A suspension is lifted through ``suspension`` and a pending deletion
+ * called off through ``restore``; this reopens only a deactivated account.
  * @summary Reactivate User
  */
 export const reactivateUserApiV1OperatorUsersUserIdReactivatePost = (
@@ -763,8 +766,7 @@ export const useRestoreDeletedUserApiV1OperatorUsersUserIdRestorePost = <
  *
  * The bytes are destroyed rather than hidden. Runs on the system engine
  * because the row policies scope every request-path write to the caller's own
- * avatar, so nothing in the schema grants this — the capability check above
- * is the whole authorization.
+ * avatar, so the capability check above, bounded by rank, is what admits it.
  * @summary Remove User Avatar
  */
 export const removeUserAvatarApiV1OperatorUsersUserIdAvatarDelete = (
