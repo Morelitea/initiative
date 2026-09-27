@@ -57,6 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Queues and counters** reconnect after a dropped connection.
 - **Tag pages** list every tool.
 - **Archived projects** show their tasks again.
+- **Signing up in the app with an emailed code** keeps you signed in.
+- **Signing up with a password or passkey** on a server that sends email: confirming your address now lets you sign in, and an invite sent to that address joins you to its community when you confirm.
 
 ## [0.72.0] - 2026-09-24
 

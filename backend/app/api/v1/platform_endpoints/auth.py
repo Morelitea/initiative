@@ -97,7 +97,7 @@ from app.models.platform.user import (
     UserRole,
     UserStatus,
 )
-from app.models.platform.guild import Guild, GuildRole
+from app.models.platform.guild import Guild, GuildInvite, GuildRole
 from app.schemas.base import MAX_TITLE_LENGTH, strip_to_plain_text
 from app.schemas.platform.token import Token
 from app.schemas.platform.second_factor import SecondFactorChallengeAnswer
@@ -414,6 +414,20 @@ async def _register_account(
         # to confirm it with, and for the account that bootstraps the
         # deployment.
         address_confirmed = address_proved or is_first_user or not smtp_configured
+        # An invite bound to an address this sign-up has not proved yet waits
+        # for the proof: the verification letter carries it, and confirming
+        # the address joins the guild.
+        awaiting_invite_id: int | None = None
+        if normalized_invite and not address_confirmed:
+            try:
+                awaiting = await guilds_service.invite_awaiting_address(
+                    session, code=normalized_invite, email=normalized_email
+                )
+            except guilds_service.GuildInviteError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+                ) from exc
+            awaiting_invite_id = awaiting.id if awaiting is not None else None
         user_kwargs: dict[str, Any] = dict(
             # Filled in by ``insert_with_handle`` below, which owns the insert
             # so it can redraw the number if another registration took it.
@@ -443,13 +457,16 @@ async def _register_account(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.code
             ) from exc
 
-        addresses.record_address(
+        address = addresses.record_address(
             session,
             user_id=user.id,
             email=normalized_email,
             source=addresses.SOURCE_SIGNUP,
             verified=address_confirmed,
         )
+        await session.flush()
+        # The verification letter proves this row, so it is named by id.
+        address_id = address.id
         await dm_settings_service.seed_for_new_account(session, user_id=user.id)
         # The way in. A password is on the row already; a key is a row of its
         # own, and the set of codes beside it is how an account holding no
@@ -488,7 +505,10 @@ async def _register_account(
             },
         )
 
-        if normalized_invite:
+        if awaiting_invite_id is not None:
+            # The guild is joined when the address is confirmed.
+            await session.commit()
+        elif normalized_invite:
             try:
                 guild = await guilds_service.redeem_invite_for_user(
                     session,
@@ -560,6 +580,8 @@ async def _register_account(
                     user_id=user.id,
                     purpose=UserTokenPurpose.email_verification,
                     expires_minutes=60 * 24,
+                    user_email_id=address_id,
+                    invite_id=awaiting_invite_id,
                 )
             await email_service.send_verification_email(session, user, token)
         except email_service.EmailNotConfiguredError:
@@ -2120,8 +2142,40 @@ async def confirm_verification(
 
     record.consumed_at = datetime.now(timezone.utc)
     system_session.add(record)
+    if record.invite_id is not None:
+        await _join_awaited_invite(
+            system_session, invite_id=record.invite_id, user=user
+        )
     await system_session.commit()
+    await cohorts.settle(system_session)
     return VerificationSendResponse(status="verified")
+
+
+async def _join_awaited_invite(
+    session: AsyncSession, *, invite_id: int, user: User
+) -> None:
+    """Join the guild a sign-up's invite was waiting on its address for.
+
+    The address is proved whether or not this goes through: an invite that
+    expired, filled up or was withdrawn in the meantime joins nothing, and the
+    person can be sent another.
+    """
+    invite = await session.get(GuildInvite, invite_id)
+    if invite is None:
+        return
+    try:
+        async with session.begin_nested():
+            await guilds_service.redeem_invite_for_user(
+                session, code=invite.code, user=user
+            )
+    except (
+        guilds_service.GuildInviteError,
+        guilds_service.GuildCapacityError,
+        guilds_service.AgeConfirmationRequiredError,
+    ) as exc:
+        logger.info(
+            "Invite %s not joined on confirming user %s: %s", invite_id, user.id, exc
+        )
 
 
 async def _post_reset_letter(user_id: int, token: str) -> None:

@@ -136,6 +136,77 @@ async def test_register_with_invite_blocked_when_guild_full(
     assert response.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
 
 
+async def test_register_with_a_bound_invite_joins_on_confirming(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """With mail on, the address is not proved at sign-up, so an invite bound
+    to it waits: confirming the address joins the guild. The binding is still
+    checked when the account is made."""
+    from app.models.platform.guild import GuildMembership
+    from app.services import email as email_service
+    from app.services.platform import guilds as guild_service
+    from app.testing.factories import create_guild
+
+    settings_row = await app_settings_service.get_app_settings(session)
+    settings_row.smtp_host = "smtp.example.com"
+    settings_row.smtp_from_address = "noreply@example.com"
+    session.add(settings_row)
+    letters: list[str] = []
+
+    async def _capture(session_, user, token):
+        letters.append(token)
+
+    monkeypatch.setattr(email_service, "send_verification_email", _capture)
+    admin = await create_user(session, email="bound-admin@example.com")
+    guild = await create_guild(session, creator=admin)
+    invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by=admin.id,
+        invitee_email="bound-invitee@example.com",
+    )
+    await session.commit()
+    guild_id, code = guild.id, invite.code
+
+    def _register(email: str, username: str):
+        return client.post(
+            f"/api/v1/auth/register?invite_code={code}",
+            json={"email": email, "username": username, "password": "password1234"},
+        )
+
+    elsewhere = await _register("someone-else@example.com", "elsewhere")
+    assert elsewhere.status_code == 400
+    assert elsewhere.json()["detail"] == "INVITE_EMAIL_MISMATCH"
+
+    made = await _register("bound-invitee@example.com", "boundinvitee")
+    assert made.status_code == 201, made.text
+    user_id = made.json()["id"]
+
+    async def _memberships() -> list[int]:
+        session.expire_all()
+        return list(
+            (
+                await session.exec(
+                    select(GuildMembership.guild_id).where(
+                        GuildMembership.user_id == user_id
+                    )
+                )
+            ).all()
+        )
+
+    # Neither the invited guild nor one of its own until the address is proved.
+    assert await _memberships() == []
+
+    confirmed = await client.post(
+        "/api/v1/auth/verification/confirm", json={"token": letters[-1]}
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    assert await _memberships() == [guild_id]
+    assert await addresses.holds_address(
+        session, user_id=user_id, email="bound-invitee@example.com"
+    )
+
+
 async def test_register_duplicate_email(client: AsyncClient, session: AsyncSession):
     """Test that registration fails for duplicate email."""
     await create_user(session, email="existing@example.com")

@@ -39,6 +39,16 @@ class UserToken(SQLModel, table=True):
             nullable=True,
         ),
     )
+    # The invite a sign-up joins once this token proves its address. NULL for
+    # every other token.
+    invite_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer,
+            ForeignKey("guild_invites.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+    )
     # Device name for device_auth tokens (e.g., "John's iPhone")
     device_name: Optional[str] = Field(
         default=None,
