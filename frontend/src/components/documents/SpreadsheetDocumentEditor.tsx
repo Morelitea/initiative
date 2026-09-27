@@ -1,27 +1,19 @@
 import type { ProviderAwareness } from "@lexical/yjs";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Loader2 } from "lucide-react";
-import {
-  type ClipboardEvent,
-  type CSSProperties,
-  Fragment,
-  type KeyboardEvent,
-  memo,
-  type PointerEvent as ReactPointerEvent,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as Y from "yjs";
 
-import { FormulaCellInput } from "@/components/documents/spreadsheet/FormulaCellInput";
-import { SPREADSHEET_ORIGINS } from "@/components/documents/spreadsheet/origins";
+import { type CellHandlers, CellView } from "@/components/documents/spreadsheet/SpreadsheetCell";
 import { SpreadsheetFindBar } from "@/components/documents/spreadsheet/SpreadsheetFindBar";
 import { SpreadsheetFormulaBar } from "@/components/documents/spreadsheet/SpreadsheetFormulaBar";
+import {
+  COL_HEADER_HEIGHT,
+  LineHeader,
+  type LineHeaderActions,
+  ROW_HEADER_WIDTH,
+} from "@/components/documents/spreadsheet/SpreadsheetLineHeader";
 import { SpreadsheetSheetTabs } from "@/components/documents/spreadsheet/SpreadsheetSheetTabs";
 import {
   SpreadsheetToolbar,
@@ -29,98 +21,52 @@ import {
 } from "@/components/documents/spreadsheet/SpreadsheetToolbar";
 import { useSpreadsheetAwareness } from "@/components/documents/spreadsheet/useSpreadsheetAwareness";
 import { useSpreadsheetCells } from "@/components/documents/spreadsheet/useSpreadsheetCells";
+import { useSpreadsheetClipboard } from "@/components/documents/spreadsheet/useSpreadsheetClipboard";
+import { useSpreadsheetEditing } from "@/components/documents/spreadsheet/useSpreadsheetEditing";
+import { useSpreadsheetFill } from "@/components/documents/spreadsheet/useSpreadsheetFill";
+import { useSpreadsheetFind } from "@/components/documents/spreadsheet/useSpreadsheetFind";
 import { useSpreadsheetFormatting } from "@/components/documents/spreadsheet/useSpreadsheetFormatting";
 import { useSpreadsheetHistory } from "@/components/documents/spreadsheet/useSpreadsheetHistory";
-import { useSpreadsheetSheets } from "@/components/documents/spreadsheet/useSpreadsheetSheets";
-import { Checkbox } from "@/components/ui/checkbox";
+import { useSpreadsheetResize } from "@/components/documents/spreadsheet/useSpreadsheetResize";
 import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu";
+  ORIGIN_SELECTION,
+  type SpreadsheetSelection,
+  useSpreadsheetSelection,
+} from "@/components/documents/spreadsheet/useSpreadsheetSelection";
+import { useSpreadsheetSheets } from "@/components/documents/spreadsheet/useSpreadsheetSheets";
+import { useSpreadsheetStructure } from "@/components/documents/spreadsheet/useSpreadsheetStructure";
 import { matchHistoryShortcut } from "@/hooks/useYjsHistory";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import {
-  CEILING,
-  clipToCeiling,
-  MAX_COLS,
-  MAX_ROWS,
-  sheetGrid,
-  usedRange,
-} from "@/lib/spreadsheet/bounds";
-import {
-  type Clip,
-  type ClipMode,
-  type ClipReader,
-  clipFromSelection,
-  clipMatchesClipboard,
-  placeClip,
-} from "@/lib/spreadsheet/clipboard";
+import { MAX_COLS, MAX_ROWS, sheetGrid } from "@/lib/spreadsheet/bounds";
 import {
   parseSpreadsheetContent,
   type SpreadsheetContent,
   type SpreadsheetSheetContent,
 } from "@/lib/spreadsheet/content";
 import {
-  type CellRange,
   type CellValue,
-  cellRange,
   colIndexToLetter,
   keyOf,
   parseA1Range,
   parseKey,
   rangeContains,
 } from "@/lib/spreadsheet/coords";
-import { clipboardToCells, coerceScalar, offsetCells } from "@/lib/spreadsheet/csv";
-import { computeAutofillTarget, computeFillWrites } from "@/lib/spreadsheet/fill";
-import {
-  type CellMatch,
-  type FindOptions,
-  findInCells,
-  replaceAllInCells,
-  replaceInValue,
-} from "@/lib/spreadsheet/find";
 import { createEvaluator, type EvaluatorSheet, isFormula } from "@/lib/spreadsheet/formula";
 import {
-  extractReferences,
-  FORMULA_REF_COLORS,
-  type FormulaRefToken,
-  referenceInsertTarget,
-} from "@/lib/spreadsheet/formula-refs";
-import {
-  draftResolution,
-  formatSheetPrefix,
   MAX_SHEETS,
   type SheetId,
   type SheetMeta,
   sheetNameKey,
   visibleSheets,
 } from "@/lib/spreadsheet/sheets";
-import { type SortDirection, sortSheetByColumn } from "@/lib/spreadsheet/sort";
 import {
-  type CellFmt,
   formatCellValue,
-  MAX_COL_WIDTH,
-  MAX_ROW_HEIGHT,
-  MIN_COL_WIDTH,
-  MIN_ROW_HEIGHT,
   negativeRendersRed,
   resolveCellFormat,
   resolveCellStyle,
   styleToCss,
 } from "@/lib/spreadsheet/styles";
-import {
-  type LineAxis,
-  type LineOp,
-  rewriteReferencesToSheet,
-  transformSheet,
-} from "@/lib/spreadsheet/transform";
 import { cn } from "@/lib/utils";
 
 export type { SpreadsheetContent };
@@ -152,14 +98,9 @@ interface SpreadsheetDocumentEditorProps {
   currentUser?: { id: number; name: string } | null;
 }
 
-const ROW_HEIGHT = 28;
-const COL_WIDTH = 110;
-const ROW_HEADER_WIDTH = 56;
-const COL_HEADER_HEIGHT = 26;
 const GROW_THRESHOLD = 5;
 const ROW_GROWTH_STEP = 50;
 const COL_GROWTH_STEP = 10;
-const RESIZE_HANDLE = 5;
 // Long enough to coalesce a burst of typing, far shorter than the autosave
 // debounce it feeds (2s solo, 10s collaborating).
 const SNAPSHOT_DEBOUNCE_MS = 300;
@@ -168,32 +109,8 @@ const SNAPSHOT_DEBOUNCE_MS = 300;
 // multi-cell selection fills the range in automatically (AutoSum-style).
 const AGGREGATE_FUNCTIONS = new Set(["SUM", "AVERAGE", "MIN", "MAX", "COUNT", "COUNTA"]);
 
-interface DragState {
-  kind: "col" | "row";
-  index: number;
-  size: number;
-}
-
-/** A formula-reference highlight on one cell: its color and which of its
- *  edges sit on the boundary of the reference's box (so the four edges of a
- *  range draw a single outline rather than a grid of boxes). */
-interface RefHighlight {
-  color: string;
-  top: boolean;
-  right: boolean;
-  bottom: boolean;
-  left: boolean;
-}
-
-/** Stable empty array for non-editing cells, so they don't get a fresh
- *  ``refTokens`` prop identity every render. */
-const EMPTY_REF_TOKENS: FormulaRefToken[] = [];
-
 /** Stable empty map for the render before the workbook is bootstrapped. */
 const EMPTY_CELLS: ReadonlyMap<string, CellValue> = new Map();
-
-/** Stable empty result so a closed find bar doesn't churn its memos. */
-const EMPTY_MATCHES: CellMatch[] = [];
 
 export const SpreadsheetDocumentEditor = ({
   initialContent,
@@ -270,119 +187,25 @@ export const SpreadsheetDocumentEditor = ({
   // on these rather than the per-render ``history`` object literal.
   const { undo: undoHistory, redo: redoHistory } = history;
 
-  // ``anchor`` is where the selection started, ``focus`` is the active
-  // cell (drives editing / keyboard / the toolbar's indicator state).
-  // ``mode`` decides what formatting targets: a cell rectangle, whole
-  // columns (header click), or whole rows.
-  const [sel, setSel] = useState<{
-    anchor: { row: number; col: number };
-    focus: { row: number; col: number };
-    mode: "range" | "columns" | "rows";
-  }>({ anchor: { row: 0, col: 0 }, focus: { row: 0, col: 0 }, mode: "range" });
-  // An edit is anchored to the sheet it started on. While a formula is
-  // being typed the user can switch tabs to point at another sheet's cells,
-  // so the active sheet and the sheet being edited can differ; committing
-  // writes to ``editing.sheetId`` and returns there.
-  const [editing, setEditing] = useState<{
-    sheetId: SheetId;
-    row: number;
-    col: number;
-    draft: string;
-  } | null>(null);
-  // The block most recently copied or cut. A cut isn't destructive until a
-  // paste consumes it, so the marquee is a promise rather than a change;
-  // Escape drops it. Both modes survive a sheet switch, which is what makes
-  // copying between tabs work.
-  const [clip, setClip] = useState<Clip | null>(null);
-  const [drag, setDrag] = useState<DragState | null>(null);
-  // Find & replace. The strip is only mounted while open, so the query
-  // survives a close only as long as the component does — which is what a
-  // find bar is expected to do.
-  const [findOpen, setFindOpen] = useState(false);
-  const [findQuery, setFindQuery] = useState("");
-  const [findReplacement, setFindReplacement] = useState("");
-  const [findOptions, setFindOptions] = useState<FindOptions>({
-    matchCase: false,
-    wholeCell: false,
-  });
-  // Which header/cell drag is in progress (null = not dragging).
-  const selectingRef = useRef<null | "range" | "columns" | "rows">(null);
-  // Fill-handle drag: ``fillSourceRef`` is the rectangle captured when the
-  // drag began, ``fillTargetRef`` the latest extended rectangle. Both live in
-  // refs so the once-registered window ``mouseup`` listener reads current
-  // values (never a stale closure, the same reason ``selectingRef`` is a ref).
-  // ``fillPreview`` mirrors the target in state purely to drive the tint.
-  const fillSourceRef = useRef<CellRange | null>(null);
-  const fillTargetRef = useRef<CellRange | null>(null);
-  const [fillPreview, setFillPreview] = useState<CellRange | null>(null);
-
   const containerRef = useRef<HTMLDivElement>(null);
-  const editingInputRef = useRef<HTMLInputElement>(null);
-  const formulaBarInputRef = useRef<HTMLInputElement>(null);
-  // The editing surface point-mode reference insertion and caret restoration
-  // target: the in-cell input or the formula-bar input, whichever last gained
-  // focus. Both edit the same draft, so a formula can be built from either.
-  const activeEditorRef = useRef<HTMLInputElement | null>(null);
-  // Set when an edit is begun by focusing the formula bar, so the
-  // begin-edit auto-focus effect doesn't yank focus down into the cell input.
-  const focusBarOnEditRef = useRef(false);
-  // Set when an edit ends via the keyboard (Enter/Tab/Escape) so focus
-  // returns to the grid — otherwise it falls to <body> as the input
-  // unmounts and type-to-edit on the next cell stops working. A blur
-  // (click-away) leaves this false so focus stays where the user clicked.
-  const refocusGridRef = useRef(false);
-  // Point-mode (click/drag a cell into the formula being edited). The most
-  // recently inserted reference: ``anchor`` is the cell it started on, ``span``
-  // the draft range it currently occupies (so an extend re-splices over it).
-  // Persists across the mouseup that ends a click — a later shift-click reads
-  // it to extend into a range — and is cleared when the edit ends or the user
-  // types (which invalidates the recorded span).
-  const pointRefRef = useRef<{
-    anchor: { row: number; col: number };
-    span: { start: number; end: number };
-  } | null>(null);
-  // True only while the mouse button is held after a point-mode click, so a
-  // hover (mouseenter) extends the range during a drag but not on a stray
-  // pass-over. Cleared on mouseup (see the fill-drag listener).
-  const pointDraggingRef = useRef(false);
-  // Caret offset to restore after a point-mode splice updates the draft (the
-  // input is controlled, so the selection must be reapplied post-render).
-  const pendingCaretRef = useRef<number | null>(null);
-  const dragRef = useRef<DragState | null>(null);
-  const resizeStartRef = useRef<{ pos: number; size: number }>({ pos: 0, size: 0 });
-  // Owns the window listeners attached during a resize drag.  Held in a ref
-  // so the unmount cleanup (below) can abort an in-flight drag, preventing
-  // a stale formatting write after the editor has gone away.
-  const resizeAbortRef = useRef<AbortController | null>(null);
-  // Stable ref so the resize handler can call the latest formatting mutators
-  // without listing `formatting` (a new object every render) as a dependency.
-  const formattingRef = useRef(formatting);
-  formattingRef.current = formatting; // keep current on every render
+  // The grid's keyboard and clipboard handlers only fire while focus is
+  // inside it, so everything that takes focus elsewhere hands it back here.
+  const focusGrid = useCallback(() => containerRef.current?.focus(), []);
+  // Which header/cell drag is in progress (null = not dragging).
+  const selectingRef = useRef<SpreadsheetSelection["mode"] | null>(null);
+  useEffect(() => {
+    // Any release ends it, so a drag that ends off-grid stops extending.
+    const onUp = () => {
+      selectingRef.current = null;
+    };
+    window.addEventListener("mouseup", onUp);
+    return () => window.removeEventListener("mouseup", onUp);
+  }, []);
 
-  // Effective per-index sizes: an in-flight resize preview wins over the
-  // shared formatting value, which wins over the constant default.
-  // A hidden line is drawn at zero size — the virtualizer then lays the grid
-  // out with it collapsed, and everything downstream (offsets, the fill
-  // handle, the frozen bands) follows without knowing about hiding at all.
-  // A live resize drag still wins, so dragging a line back open works.
-  const colWidth = useCallback(
-    (c: number): number => {
-      if (drag?.kind === "col" && drag.index === c) return drag.size;
-      const fmt = formatting.columns[String(c)];
-      if (fmt?.hidden) return 0;
-      return fmt?.width ?? COL_WIDTH;
-    },
-    [drag, formatting.columns]
-  );
-  const rowHeight = useCallback(
-    (r: number): number => {
-      if (drag?.kind === "row" && drag.index === r) return drag.size;
-      const fmt = formatting.rows[String(r)];
-      if (fmt?.hidden) return 0;
-      return fmt?.height ?? ROW_HEIGHT;
-    },
-    [drag, formatting.rows]
-  );
+  const { drag, colWidth, rowHeight, startResize, resetSize } = useSpreadsheetResize({
+    readOnly,
+    formatting,
+  });
 
   // Stable refs the virtualizer's estimateSize reads, so its callback
   // identity never changes (a changing estimateSize fights the cache);
@@ -432,48 +255,6 @@ export const SpreadsheetDocumentEditor = ({
       activeSheetId: activeSheetId ?? "",
     });
   }, [sheets, cellsBySheet, activeSheetId]);
-
-  // References in the formula currently being edited, used to color the
-  // editor text and outline the cells they point at. Empty unless a formula
-  // (``=...``) is being typed.
-  const editingRefs = useMemo<FormulaRefToken[]>(
-    () => (editing && isFormula(editing.draft) ? extractReferences(editing.draft) : []),
-    [editing]
-  );
-
-  // The subset of those references that point at the sheet on screen — a
-  // reference to another sheet has no box to outline here. An unqualified
-  // reference belongs to the sheet the formula lives on, which is only the
-  // visible one when the user hasn't tabbed away mid-formula.
-  const visibleRefs = useMemo<FormulaRefToken[]>(() => {
-    if (!activeSheet) return EMPTY_REF_TOKENS;
-    const activeKey = sheetNameKey(activeSheet.name);
-    const editingHere = editing?.sheetId === activeSheetId;
-    return editingRefs.filter((token) =>
-      token.sheet === null ? editingHere : sheetNameKey(token.sheet) === activeKey
-    );
-  }, [editingRefs, activeSheet, activeSheetId, editing?.sheetId]);
-
-  // The reference highlight (color + which edges form the box boundary) for a
-  // single cell, or null. Scans the (few) tokens rather than pre-enumerating
-  // every cell of every range, so a huge ``A1:A100000`` stays cheap.
-  const refHighlightAt = useCallback(
-    (r: number, c: number): RefHighlight | null => {
-      for (const t of visibleRefs) {
-        if (r >= t.r1 && r <= t.r2 && c >= t.c1 && c <= t.c2) {
-          return {
-            color: FORMULA_REF_COLORS[t.colorIndex % FORMULA_REF_COLORS.length],
-            top: r === t.r1,
-            bottom: r === t.r2,
-            left: c === t.c1,
-            right: c === t.c2,
-          };
-        }
-      }
-      return null;
-    },
-    [visibleRefs]
-  );
 
   // Emit the JSON snapshot to the parent on every change so the
   // existing autosave hook can PATCH ``document.content``. Captured in
@@ -566,15 +347,6 @@ export const SpreadsheetDocumentEditor = ({
     [rowVirtualizer, colVirtualizer]
   );
 
-  // Keep the active cell on screen. Scrolling with the mouse doesn't move
-  // the selection, so this never fights the user — it only runs when
-  // something moved the cursor.
-  const focusRow = sel.focus.row;
-  const focusCol = sel.focus.col;
-  useEffect(() => {
-    scrollCellIntoView(focusRow, focusCol);
-  }, [focusRow, focusCol, scrollCellIntoView]);
-
   // Recompute virtual offsets when explicit sizes change (remote write,
   // local resize commit, or live drag preview). Without this the
   // virtualizer keeps stale cached sizes.
@@ -641,124 +413,29 @@ export const SpreadsheetDocumentEditor = ({
     [virtualCols, isColHidden]
   );
 
-  const selBox = useMemo(
-    () => grid.normalizeSelection(sel.anchor, sel.focus),
-    [grid, sel.anchor, sel.focus]
-  );
+  const {
+    sel,
+    setSel,
+    selBox,
+    isInSel,
+    headerActive,
+    lineBand,
+    label: selectionLabel,
+    selectCell,
+    selectLine,
+    moveSelection,
+    jumpSelection,
+    selectToDataEnd,
+  } = useSpreadsheetSelection({ grid, cells });
 
-  const isInSel = useCallback(
-    (r: number, c: number): boolean => {
-      const { r1, r2, c1, c2 } = selBox;
-      if (sel.mode === "columns") return c >= c1 && c <= c2;
-      if (sel.mode === "rows") return r >= r1 && r <= r2;
-      return r >= r1 && r <= r2 && c >= c1 && c <= c2;
-    },
-    [sel.mode, selBox]
-  );
-
-  const colHeaderActive = useCallback(
-    (c: number): boolean => sel.mode !== "rows" && c >= selBox.c1 && c <= selBox.c2,
-    [sel.mode, selBox]
-  );
-  const rowHeaderActive = useCallback(
-    (r: number): boolean => sel.mode !== "columns" && r >= selBox.r1 && r <= selBox.r2,
-    [sel.mode, selBox]
-  );
-
-  // The contiguous band a header context-menu should act on: the active
-  // multi-selection when the right-clicked header falls inside it (so
-  // insert/delete operate on every selected line), otherwise just the
-  // single clicked line.
-  const lineBand = useCallback(
-    (axis: LineAxis, index: number): { start: number; count: number } => {
-      if (axis === "col" && sel.mode === "columns" && index >= selBox.c1 && index <= selBox.c2)
-        return { start: selBox.c1, count: selBox.c2 - selBox.c1 + 1 };
-      if (axis === "row" && sel.mode === "rows" && index >= selBox.r1 && index <= selBox.r2)
-        return { start: selBox.r1, count: selBox.r2 - selBox.r1 + 1 };
-      return { start: index, count: 1 };
-    },
-    [sel.mode, selBox]
-  );
-
-  const selectCell = useCallback((row: number, col: number, extend = false) => {
-    setSel((p) =>
-      extend
-        ? { anchor: p.anchor, focus: { row, col }, mode: "range" }
-        : { anchor: { row, col }, focus: { row, col }, mode: "range" }
-    );
-  }, []);
-
-  const selectColumn = useCallback((col: number, extend = false) => {
-    setSel((p) => ({
-      anchor: extend && p.mode === "columns" ? p.anchor : { row: 0, col },
-      focus: { row: 0, col },
-      mode: "columns",
-    }));
-  }, []);
-
-  const selectRow = useCallback((row: number, extend = false) => {
-    setSel((p) => ({
-      anchor: extend && p.mode === "rows" ? p.anchor : { row, col: 0 },
-      focus: { row, col: 0 },
-      mode: "rows",
-    }));
-  }, []);
-
-  const moveSelection = useCallback(
-    (dRow: number, dCol: number, extend = false) => {
-      setSel((p) => {
-        const { row, col } = grid.step(p.focus, dRow, dCol);
-        return extend
-          ? { anchor: p.anchor, focus: { row, col }, mode: "range" }
-          : { anchor: { row, col }, focus: { row, col }, mode: "range" };
-      });
-    },
-    [grid]
-  );
-
-  // Jump to the far edge of the current block of data along one axis —
-  // Ctrl+Arrow. From a filled cell, the last filled cell before a gap; from
-  // an empty one, the next filled cell. Excel's behaviour, and the reason a
-  // sheet stays navigable when the canvas is far bigger than the data.
-  const jumpSelection = useCallback(
-    (dRow: number, dCol: number, extend = false) => {
-      setSel((p) => {
-        const filled = (row: number, col: number) => cells.get(keyOf(row, col)) != null;
-        let at = grid.clampCell(p.focus);
-        const startFilled = filled(at.row, at.col);
-        for (;;) {
-          const next = grid.step(at, dRow, dCol);
-          if (next.row === at.row && next.col === at.col) break;
-          const nextFilled = filled(next.row, next.col);
-          // Leaving data: stop on the last filled cell. Crossing a gap:
-          // stop on the first filled cell we reach.
-          if (startFilled && !nextFilled) break;
-          at = next;
-          if (!startFilled && nextFilled) break;
-        }
-        return extend
-          ? { anchor: p.anchor, focus: at, mode: "range" }
-          : { anchor: at, focus: at, mode: "range" };
-      });
-    },
-    [grid, cells]
-  );
-
-  // Select out to the end of the sheet's data (Ctrl+End) — the used range,
-  // not the canvas, which is usually far larger and mostly empty.
-  const selectToDataEnd = useCallback(
-    (extend: boolean) => {
-      const used = usedRange(cells);
-      if (!used) return;
-      const target = grid.clampCell({ row: used.r2, col: used.c2 });
-      setSel((p) =>
-        extend
-          ? { anchor: p.anchor, focus: target, mode: "range" }
-          : { anchor: target, focus: target, mode: "range" }
-      );
-    },
-    [grid, cells]
-  );
+  // Keep the active cell on screen. Scrolling with the mouse doesn't move
+  // the selection, so this never fights the user — it only runs when
+  // something moved the cursor.
+  const focusRow = sel.focus.row;
+  const focusCol = sel.focus.col;
+  useEffect(() => {
+    scrollCellIntoView(focusRow, focusCol);
+  }, [focusRow, focusCol, scrollCellIntoView]);
 
   // Name-box go-to: select the cell/range the text names (clamped to the grid)
   // and scroll its top-left into view. Invalid input is ignored — the name box
@@ -785,98 +462,12 @@ export const SpreadsheetDocumentEditor = ({
       setSel({ anchor: { row: r2, col: c2 }, focus: { row: r1, col: c1 }, mode: "range" });
       rowVirtualizer.scrollToIndex(r1, { align: "center" });
       colVirtualizer.scrollToIndex(c1, { align: "center" });
-      containerRef.current?.focus();
+      focusGrid();
     },
-    [grid, rowVirtualizer, colVirtualizer, sheets]
+    [grid, rowVirtualizer, colVirtualizer, sheets, setSel, focusGrid]
   );
 
-  // Commit a fill (drag or double-click): tile / extrapolate the source
-  // rectangle across the new region in one transaction, then keep the filled
-  // block selected. A target identical to the source (a click with no drag)
-  // is a no-op. ``null`` writes clear their cell so the map stays sparse.
-  const commitFill = useCallback(
-    (source: CellRange, target: CellRange) => {
-      if (readOnly) return;
-      const writes = computeFillWrites((r, c) => cells.get(keyOf(r, c)) ?? null, source, target);
-      if (writes.size === 0) return;
-      bulkUpdate((draft) => {
-        for (const [key, value] of writes) {
-          if (value == null) draft.delete(key);
-          else draft.set(key, value);
-        }
-      });
-      // Anchor on the target's top-left (not the source's) so an up/left
-      // fill — where target.r1/c1 sit above/left of the source — keeps the
-      // whole written region selected, not just the original cells.
-      setSel({
-        anchor: { row: target.r1, col: target.c1 },
-        focus: { row: target.r2, col: target.c2 },
-        mode: "range",
-      });
-    },
-    [readOnly, cells, bulkUpdate]
-  );
-  // The once-registered window ``mouseup`` listener calls the latest commit
-  // through this ref (its closure would otherwise capture a stale ``cells``).
-  const commitFillRef = useRef(commitFill);
-  commitFillRef.current = commitFill;
-
-  // Grab the fill handle: capture the current selection as the source and
-  // seed the preview there (a click with no drag stays a no-op).
-  const startFill = useCallback(() => {
-    if (readOnly) return;
-    fillSourceRef.current = selBox;
-    fillTargetRef.current = selBox;
-    setFillPreview(selBox);
-  }, [readOnly, selBox]);
-
-  // Extend an in-progress fill toward a hovered cell, constrained to the
-  // dominant axis (vertical vs horizontal), the way a fill handle is.
-  const extendFill = useCallback((row: number, col: number) => {
-    const source = fillSourceRef.current;
-    if (!source) return;
-    const vert = Math.max(0, row - source.r2, source.r1 - row);
-    const horiz = Math.max(0, col - source.c2, source.c1 - col);
-    let target: CellRange;
-    if (vert === 0 && horiz === 0) target = source;
-    else if (vert >= horiz)
-      target = { ...source, r1: Math.min(source.r1, row), r2: Math.max(source.r2, row) };
-    else target = { ...source, c1: Math.min(source.c1, col), c2: Math.max(source.c2, col) };
-    fillTargetRef.current = target;
-    setFillPreview(target);
-  }, []);
-
-  // Double-click the handle: fill down to the neighbor column's data extent.
-  const autofillDown = useCallback(() => {
-    if (readOnly) return;
-    const target = computeAutofillTarget(
-      (r, c) => cells.get(keyOf(r, c)) ?? null,
-      selBox,
-      dimensions
-    );
-    commitFill(selBox, target);
-  }, [readOnly, cells, selBox, dimensions, commitFill]);
-
-  // Clear the selectingRef on any pointer release so a drag that ends
-  // off-grid still stops extending the selection. A fill drag commits here.
-  useEffect(() => {
-    const onUp = () => {
-      selectingRef.current = null;
-      // End any point-mode drag, but keep the last reference so a follow-up
-      // shift-click can still extend it into a range.
-      pointDraggingRef.current = false;
-      const source = fillSourceRef.current;
-      if (source) {
-        const target = fillTargetRef.current ?? source;
-        fillSourceRef.current = null;
-        fillTargetRef.current = null;
-        setFillPreview(null);
-        commitFillRef.current(source, target);
-      }
-    };
-    window.addEventListener("mouseup", onUp);
-    return () => window.removeEventListener("mouseup", onUp);
-  }, []);
+  const fill = useSpreadsheetFill({ readOnly, cells, dimensions, selBox, setSel, bulkUpdate });
 
   const { peerSelectionsByCell } = useSpreadsheetAwareness({
     awareness,
@@ -888,127 +479,52 @@ export const SpreadsheetDocumentEditor = ({
     publishLocal: !readOnly,
   });
 
-  const beginEdit = useCallback(
-    (row: number, col: number, initialDraft?: string) => {
-      if (readOnly || !activeSheetId) return;
-      setClip((c) => (c?.mode === "cut" ? null : c)); // an edit cancels a cut (Excel)
-      const existing = cells.get(keyOf(row, col));
-      const initial =
-        initialDraft !== undefined ? initialDraft : existing == null ? "" : String(existing);
-      // The cell may be selected but scrolled out of view, in which case it
-      // isn't mounted and there is no input to type into. Bring it back
-      // first; the input focuses itself when it attaches.
-      scrollCellIntoView(row, col);
-      setEditing({ sheetId: activeSheetId, row, col, draft: initial });
-    },
-    [cells, readOnly, activeSheetId, scrollCellIntoView]
-  );
+  const clipboard = useSpreadsheetClipboard({
+    readOnly,
+    doc: docForData,
+    activeSheet,
+    cells,
+    evaluator,
+    formatting,
+    sel,
+    selBox,
+    setSel,
+    grid,
+    setCell,
+    bulkUpdate,
+    bulkUpdateOn,
+  });
+  const { clip, dropClip, dropCut } = clipboard;
 
-  const commitEdit = useCallback(
-    (next?: { row: number; col: number }) => {
-      if (!editing) return;
-      const value = coerceScalar(editing.draft);
-      setCellOn(editing.sheetId, editing.row, editing.col, value === "" ? null : value);
-      setEditing(null);
-      pointRefRef.current = null;
-      // Building a cross-sheet formula leaves the grid on the sheet that was
-      // being pointed at; committing belongs back where the formula lives.
-      if (editing.sheetId !== activeSheetId) setRequestedSheetId(editing.sheetId);
-      if (next) selectCell(next.row, next.col);
-    },
-    [editing, setCellOn, selectCell, activeSheetId]
-  );
-
-  const cancelEdit = useCallback(() => {
-    setEditing(null);
-    pointRefRef.current = null;
-  }, []);
-
-  // Hiding a sheet from the menu commits the draft on it first (see
-  // ``handleSetSheetHidden``). Undo, redo and a peer reach the same state
-  // without passing through there, so the rule is applied to the sheets
-  // themselves rather than to the one action that used to change them.
-  useEffect(() => {
-    if (!editing) return;
-    const resolution = draftResolution(sheets, editing.sheetId);
-    if (resolution === "commit") commitEdit();
-    else if (resolution === "cancel") cancelEdit();
-  }, [editing, sheets, commitEdit, cancelEdit]);
-
-  // Blur handler shared by the in-cell input and the formula-bar input. A blur
-  // that hands focus to the *other* editing surface is a surface switch, not
-  // an edit end — keep the draft alive instead of committing.
-  const handleEditorBlur = useCallback(
-    (e: React.FocusEvent<HTMLInputElement>) => {
-      const next = e.relatedTarget;
-      if (next === formulaBarInputRef.current || next === editingInputRef.current) return;
-      commitEdit();
-    },
-    [commitEdit]
-  );
-
-  // Point mode: splice the clicked cell's reference into the formula being
-  // edited. ``extend`` builds an ``A1:B3`` range from the drag anchor and
-  // overwrites the reference inserted on mousedown; otherwise it resolves the
-  // caret position (insert vs replace-the-last-ref) and seeds the drag.
-  // Returns false when the caret isn't in a reference-accepting spot, so the
-  // caller falls back to a normal (committing) click.
-  const insertReference = useCallback(
-    (row: number, col: number, extend: boolean): boolean => {
-      if (!editing) return false;
-      const input = activeEditorRef.current ?? editingInputRef.current;
-      if (!input) return false;
-      const draft = editing.draft;
-      // Pointing at a cell on a sheet other than the formula's own has to
-      // spell the sheet out — that IS the cross-sheet reference.
-      const prefix =
-        activeSheet && editing.sheetId !== activeSheetId ? formatSheetPrefix(activeSheet.name) : "";
-      const cellRef = (r: number, c: number) => `${prefix}${colIndexToLetter(c)}${r + 1}`;
-      let span: { start: number; end: number };
-      let refText: string;
-      if (extend) {
-        const last = pointRefRef.current;
-        if (!last) return false;
-        span = last.span;
-        const r1 = Math.min(last.anchor.row, row);
-        const r2 = Math.max(last.anchor.row, row);
-        const c1 = Math.min(last.anchor.col, col);
-        const c2 = Math.max(last.anchor.col, col);
-        refText =
-          r1 === r2 && c1 === c2 ? cellRef(r1, c1) : `${cellRef(r1, c1)}:${cellRef(r2, c2)}`;
-      } else {
-        const caret = input.selectionStart ?? draft.length;
-        const target = referenceInsertTarget(draft, caret);
-        if (target.kind === "none") return false;
-        span =
-          target.kind === "insert"
-            ? { start: target.at, end: target.at }
-            : { start: target.start, end: target.end };
-        refText = cellRef(row, col);
-        pointRefRef.current = { anchor: { row, col }, span };
-      }
-      const next = draft.slice(0, span.start) + refText + draft.slice(span.end);
-      const newEnd = span.start + refText.length;
-      if (pointRefRef.current) pointRefRef.current.span = { start: span.start, end: newEnd };
-      pendingCaretRef.current = newEnd;
-      setEditing({ ...editing, draft: next });
-      return true;
-    },
-    [editing, activeSheet, activeSheetId]
-  );
-
-  // Restore the caret after a point-mode splice (the controlled input resets
-  // it on re-render). Runs before paint so there's no visible jump.
-  useLayoutEffect(() => {
-    if (pendingCaretRef.current === null) return;
-    const input = activeEditorRef.current ?? editingInputRef.current;
-    if (input) {
-      const pos = pendingCaretRef.current;
-      input.focus();
-      input.setSelectionRange(pos, pos);
-    }
-    pendingCaretRef.current = null;
-  }, [editing]);
+  const {
+    editing,
+    draft,
+    beginEdit,
+    commitEdit,
+    cancelEdit,
+    leaveSheet,
+    pointMouseDown,
+    pointMouseEnter,
+    isRefOnScreen,
+    refHighlightAt,
+    onKeyDown: onEditorKeyDown,
+    onBlur: onEditorBlur,
+    cellInput,
+    formulaBar,
+  } = useSpreadsheetEditing({
+    readOnly,
+    sheets,
+    activeSheet,
+    cells,
+    grid,
+    focus: sel.focus,
+    selectCell,
+    setCellOn,
+    showSheet: setRequestedSheetId,
+    scrollCellIntoView,
+    focusGrid,
+    onBegin: dropCut,
+  });
 
   // Insert a formula from the toolbar's function menu. When an aggregate
   // (SUM/AVERAGE/…) is picked with a multi-cell range selected, drop a
@@ -1036,52 +552,22 @@ export const SpreadsheetDocumentEditor = ({
         selectCell(targetRow, targetCol);
         // Return focus to the grid so arrow keys work immediately (the menu
         // suppresses its own close-auto-focus so it can't fight this).
-        containerRef.current?.focus();
+        focusGrid();
         return;
       }
       // Begin editing the focus cell; the editing-input focus effect takes
       // over once the input mounts.
       beginEdit(sel.focus.row, sel.focus.col, `=${name}(`);
     },
-    [readOnly, selBox, sel.mode, sel.focus, grid, setCell, selectCell, beginEdit]
+    [readOnly, selBox, sel.mode, sel.focus, grid, setCell, selectCell, beginEdit, focusGrid]
   );
-
-  // Null while the edit belongs to another sheet: the in-cell input isn't
-  // mounted then, and the formula bar carries the draft instead.
-  const editingCellKey =
-    editing && editing.sheetId === activeSheetId ? `${editing.row}:${editing.col}` : null;
-  // Focus the in-cell input when it *attaches*, not when the edit begins.
-  // The two are not the same moment: typing into a cell that is selected but
-  // scrolled out of view has to scroll it back first, and the input only
-  // exists a render later. Riding on the ref covers both orders.
-  const attachEditingInput = useCallback((node: HTMLInputElement | null) => {
-    editingInputRef.current = node;
-    if (!node) return;
-    // Edit begun from the formula bar: leave focus there (the cell input is
-    // mounted as a mirror, but the user is typing in the bar).
-    if (focusBarOnEditRef.current) {
-      focusBarOnEditRef.current = false;
-      return;
-    }
-    activeEditorRef.current = node;
-    node.focus();
-  }, []);
-
-  useEffect(() => {
-    if (editingCellKey) return;
-    // Edit ended via the keyboard: pull focus back to the grid (the input
-    // has now unmounted) so the next keystroke is handled.
-    if (!refocusGridRef.current) return;
-    refocusGridRef.current = false;
-    containerRef.current?.focus();
-  }, [editingCellKey]);
 
   // Delete every cell value covered by the selection. For a range that's
   // the rectangle; for whole-column/row selections, only the cells that
   // actually hold data (the map is sparse) so a clear is bounded.
   const clearSelection = useCallback(() => {
     if (readOnly) return;
-    setClip((c) => (c?.mode === "cut" ? null : c));
+    dropCut();
     const { r1, r2, c1, c2 } = selBox;
     bulkUpdate((draft) => {
       if (sel.mode === "range") {
@@ -1097,70 +583,21 @@ export const SpreadsheetDocumentEditor = ({
         }
       }
     });
-  }, [readOnly, sel.mode, selBox, bulkUpdate]);
+  }, [readOnly, sel.mode, selBox, bulkUpdate, dropCut]);
 
-  // Resolve a cell to the value that should leave the editor (copy / cut /
-  // file export): a formula yields its computed result (or error token), a
-  // literal yields itself. Keeps exported files and pastes as data, never
-  // raw ``=...`` text whose relative refs wouldn't survive the move.
-  const resolveExport = useCallback(
-    (row: number, col: number): CellValue => {
-      const v = cells.get(keyOf(row, col)) ?? null;
-      if (!isFormula(v)) return v;
-      const { value, error } = evaluator.evaluate(row, col);
-      return error ?? value;
-    },
-    [cells, evaluator]
-  );
-
-  // The rectangle a clipboard action works on. A whole-column or whole-row
-  // selection has no bounded rectangle, so it takes the focus cell — the
-  // same choice the old TSV export made.
-  const clipRange = useCallback(
-    (): CellRange => (sel.mode === "range" ? selBox : cellRange(sel.focus.row, sel.focus.col)),
-    [sel.mode, sel.focus, selBox]
-  );
-
-  const clipReader = useMemo<ClipReader>(
-    () => ({
-      raw: (row, col) => cells.get(keyOf(row, col)) ?? null,
-      style: (row, col) => formatting.cellStyles[keyOf(row, col)],
-      display: resolveExport,
-    }),
-    [cells, formatting.cellStyles, resolveExport]
-  );
-
-  // Take the selection as a clip. The rich block is kept here; the OS
-  // clipboard gets the same block as TSV of displayed values so it can be
-  // pasted into anything else.
-  const takeClip = useCallback(
-    (mode: ClipMode): Clip | null => {
-      if (!activeSheetId || !activeSheet) return null;
-      return clipFromSelection(
-        mode,
-        { sheetId: activeSheetId, sheetName: activeSheet.name, range: clipRange() },
-        clipReader
-      );
-    },
-    [activeSheetId, activeSheet, clipRange, clipReader]
-  );
-
-  // Cut is driven from the keyboard because a non-editable grid gets no
-  // native ``cut`` event; copy and paste use theirs.
-  const handleCut = useCallback(() => {
-    if (readOnly || editing) return;
-    const taken = takeClip("cut");
-    if (!taken) return;
-    setClip(taken);
-    if (!taken.text) return;
-    // Writing to the OS clipboard is asynchronous and refusable. Whether it
-    // landed decides how a later paste breaks the tie with content copied
-    // somewhere else, so the answer is recorded rather than assumed.
-    void navigator.clipboard
-      ?.writeText(taken.text)
-      .then(() => setClip((c) => (c === taken ? { ...c, textOnClipboard: true } : c)))
-      .catch(() => {});
-  }, [readOnly, editing, takeClip]);
+  const find = useSpreadsheetFind({
+    readOnly,
+    cells,
+    focus: sel.focus,
+    selectCell,
+    setCell,
+    bulkUpdate,
+  });
+  const { setOpen: setFindOpen } = find;
+  const closeFind = useCallback(() => {
+    setFindOpen(false);
+    focusGrid();
+  }, [setFindOpen, focusGrid]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {
@@ -1177,7 +614,7 @@ export const SpreadsheetDocumentEditor = ({
       // drive it from the keyboard. Copy/paste still use the native events.
       if ((e.ctrlKey || e.metaKey) && (e.key === "x" || e.key === "X")) {
         e.preventDefault();
-        handleCut();
+        clipboard.cut();
         return;
       }
       // Find and replace.
@@ -1196,7 +633,7 @@ export const SpreadsheetDocumentEditor = ({
         case "Escape":
           if (clip) {
             e.preventDefault();
-            setClip(null);
+            dropClip();
           }
           return;
         case "ArrowDown":
@@ -1249,7 +686,9 @@ export const SpreadsheetDocumentEditor = ({
       editing,
       readOnly,
       clip,
-      handleCut,
+      clipboard.cut,
+      dropClip,
+      setFindOpen,
       undoHistory,
       redoHistory,
       sel.focus,
@@ -1262,458 +701,23 @@ export const SpreadsheetDocumentEditor = ({
     ]
   );
 
-  const handleEditingKeyDown = useCallback(
-    (e: KeyboardEvent<HTMLInputElement>) => {
-      if (!editing) return;
-      switch (e.key) {
-        case "Enter":
-          e.preventDefault();
-          refocusGridRef.current = true;
-          commitEdit({ row: editing.row + 1, col: editing.col });
-          return;
-        case "Escape":
-          e.preventDefault();
-          refocusGridRef.current = true;
-          cancelEdit();
-          return;
-        case "Tab":
-          e.preventDefault();
-          refocusGridRef.current = true;
-          commitEdit(grid.step({ row: editing.row, col: editing.col }, 0, e.shiftKey ? -1 : 1));
-          return;
-      }
-    },
-    [editing, commitEdit, cancelEdit, grid]
-  );
-
-  // Write a block into the sheet, clipped to the ceiling: cells past it can
-  // neither be rendered nor saved, so they're dropped and counted rather
-  // than written where nothing will ever show them. A cut's source clear
-  // rides in the same transaction, so the move is one undo step and peers
-  // never see the block in two places.
-  const writeBlock = useCallback(
-    (
-      block: {
-        cells: Record<string, CellValue>;
-        /** Formatting to *replace* across ``range`` — a pasted block brings
-         *  its own look, so whatever the target wore is cleared first. */
-        styles?: { range: CellRange; values: Record<string, CellFmt> };
-      },
-      clear?: { sheetId: SheetId; keys: string[] }
-    ) => {
-      const { kept, dropped } = clipToCeiling(block.cells, CEILING);
-      const styles = block.styles;
-      docForData.transact(() => {
-        if (clear) {
-          bulkUpdateOn(clear.sheetId, (draft) => {
-            for (const key of clear.keys) draft.delete(key);
-          });
-        }
-        bulkUpdate((draft) => {
-          for (const [key, value] of Object.entries(kept)) {
-            if (value === null) draft.delete(key);
-            else draft.set(key, value);
-          }
-        });
-        if (styles) {
-          grid.forEachCell(grid.clampRange(styles.range), (r, c) =>
-            formatting.updateCell(r, c, null)
-          );
-          for (const [key, fmt] of Object.entries(styles.values)) {
-            const at = parseKey(key);
-            if (!at || at[0] >= CEILING.rows || at[1] >= CEILING.cols) continue;
-            formatting.updateCell(at[0], at[1], { style: fmt.style, format: fmt.format ?? null });
-          }
-        }
-      }, SPREADSHEET_ORIGINS.PASTE);
-      if (dropped > 0) toast.info(t("documents:spreadsheet.pasteClipped", { count: dropped }));
-    },
-    [docForData, bulkUpdate, bulkUpdateOn, formatting, grid, t]
-  );
-
-  const handlePaste = useCallback(
-    (e: ClipboardEvent<HTMLDivElement>) => {
-      if (editing || readOnly || !activeSheetId) return;
-      const { row, col } = sel.focus;
-      const text = e.clipboardData.getData("text/plain");
-
-      // Our own block, still on the clipboard: paste what was actually
-      // copied — formulas and formatting — rather than the flattened text
-      // the OS clipboard had to reduce it to.
-      if (clipMatchesClipboard(clip, text)) {
-        e.preventDefault();
-        const placed = placeClip(clip, { sheetId: activeSheetId, row, col });
-        writeBlock(
-          { cells: placed.cells, styles: { range: placed.target, values: placed.styles } },
-          placed.clear.length > 0 ? { sheetId: clip.sheetId, keys: placed.clear } : undefined
-        );
-        const target = grid.clampRange(placed.target);
-        setSel({
-          anchor: { row: target.r1, col: target.c1 },
-          focus: { row: target.r2, col: target.c2 },
-          mode: "range",
-        });
-        if (clip.mode === "cut") setClip(null);
-        return;
-      }
-
-      // Pasting something copied elsewhere: a marquee still pointing at our
-      // own block is now stale and would only mislead.
-      if (clip) setClip(null);
-      if (!text) return;
-      e.preventDefault();
-      if (!text.includes("\n") && !text.includes("\r") && !text.includes("\t")) {
-        setCell(row, col, coerceScalar(text));
-        return;
-      }
-      const parsed = clipboardToCells(text);
-      writeBlock({ cells: offsetCells(parsed.cells, row, col) });
-    },
-    [editing, readOnly, activeSheetId, clip, sel.focus, grid, setCell, writeBlock]
-  );
-
-  const handleCopy = useCallback(
-    (e: ClipboardEvent<HTMLDivElement>) => {
-      if (editing) return;
-      const taken = takeClip("copy");
-      if (!taken || taken.text === "") return;
-      e.preventDefault();
-      e.clipboardData.setData("text/plain", taken.text);
-      setClip({ ...taken, textOnClipboard: true }); // supersedes any pending cut
-    },
-    [editing, takeClip]
-  );
-
-  // Sort the whole sheet by a column (right-click a column header). Rows
-  // are reordered as records, keeping every other column aligned; cell
-  // values, per-cell styles, and per-row formatting all travel with the
-  // row. Frozen header rows stay pinned (the sort starts below them).
-  const handleSortColumn = useCallback(
-    (col: number, direction: SortDirection) => {
-      if (readOnly) return;
-      setClip(null); // reordering rows would strand the block it points at
-      const result = sortSheetByColumn(cells, formatting.cellStyles, formatting.rows, {
-        column: col,
-        direction,
-        startRow: formatting.frozen.rows,
-      });
-      if (!result.changed) return;
-      // One transaction so peers see the reorder atomically and undo
-      // rolls the whole sort back in a single step. The inner store
-      // transacts flatten into this outer one (same pattern as import).
-      docForData.transact(() => {
-        bulkUpdate((draft) => {
-          draft.clear();
-          for (const [key, value] of Object.entries(result.cells)) draft.set(key, value);
-        });
-        formatting.replaceAll({
-          columns: formatting.columns,
-          rows: result.rows,
-          cellStyles: result.cellStyles,
-          frozen: formatting.frozen,
-        });
-      }, SPREADSHEET_ORIGINS.SORT);
-    },
-    [readOnly, cells, formatting, bulkUpdate, docForData]
-  );
-
-  // Insert / delete whole rows or columns (right-click a header). The
-  // pure ``transformSheet`` shifts every downstream line and remaps all
-  // four index-keyed structures plus frozen + dimensions; we apply the
-  // result in one transaction so peers see the structural change
-  // atomically and undo rolls it back in a single step. ``replaceAll``
-  // broadcasts the new dimensions through yMeta alongside the cells (the
-  // import path's pattern) so a delete actually shrinks the canvas for
-  // everyone instead of relying on the local-only auto-grow.
-  const applyLineTransform = useCallback(
-    (op: Pick<LineOp, "axis" | "mode" | "at" | "count">) => {
-      if (readOnly) return;
-      setClip(null); // shifting lines would strand the block it points at
-      if (!activeSheet) return;
-      const result = transformSheet(
-        {
-          cells,
-          cellStyles: formatting.cellStyles,
-          columns: formatting.columns,
-          rows: formatting.rows,
-          frozen: formatting.frozen,
-          dimensions,
-        },
-        { ...op, maxRows: MAX_ROWS, maxCols: MAX_COLS, sheetName: activeSheet.name }
-      );
-      if (!result) {
-        // The op was blocked by a guard (deleting the last remaining
-        // line, or inserting into a grid already at MAX). Surface why so
-        // the silent no-op is discoverable.
-        const blockedKey =
-          op.mode === "delete"
-            ? op.axis === "row"
-              ? "spreadsheet.deleteLastRowBlocked"
-              : "spreadsheet.deleteLastColumnBlocked"
-            : op.axis === "row"
-              ? "spreadsheet.maxRowsReached"
-              : "spreadsheet.maxColumnsReached";
-        toast.info(t(`documents:${blockedKey}`));
-        return;
-      }
-      docForData.transact(() => {
-        replaceAll(result.cells, result.dimensions);
-        formatting.replaceAll({
-          columns: result.columns,
-          rows: result.rows,
-          cellStyles: result.cellStyles,
-          frozen: result.frozen,
-        });
-        // A formula on another sheet that reaches into this one has to move
-        // with the lines it points at, exactly like a local reference does.
-        for (const other of sheets) {
-          if (other.id === activeSheet.id) continue;
-          const rewritten = rewriteReferencesToSheet(cellsBySheet.get(other.id) ?? EMPTY_CELLS, {
-            sheetName: activeSheet.name,
-            axis: op.axis,
-            mapIndex: result.mapIndex,
-          });
-          if (!rewritten) continue;
-          bulkUpdateOn(other.id, (draft) => {
-            for (const [key, value] of Object.entries(rewritten)) draft.set(key, value);
-          });
-        }
-      }, SPREADSHEET_ORIGINS.STRUCTURE);
-
-      // Remap the selection along the shifted axis so it tracks the same
-      // content — otherwise an insert-above leaves the stale band straddling
-      // the freshly inserted blank lines, and a later right-click would
-      // delete more than intended. ``delta`` is signed and respects capping:
-      // > 0 inserted, < 0 deleted.
-      const axisIsRow = op.axis === "row";
-      const at = Math.max(0, Math.trunc(op.at));
-      const delta =
-        (axisIsRow ? result.dimensions.rows : result.dimensions.cols) -
-        (axisIsRow ? dimensions.rows : dimensions.cols);
-      const newDim = axisIsRow ? result.dimensions.rows : result.dimensions.cols;
-      const remapIdx = (i: number): number => {
-        if (delta >= 0) return i >= at ? i + delta : i; // insert
-        const removed = -delta;
-        if (i < at) return i;
-        if (i >= at + removed) return i - removed;
-        return Math.min(at, newDim - 1); // line was inside the deleted band
-      };
-      setSel((p) => ({
-        mode: p.mode,
-        anchor: axisIsRow
-          ? { row: remapIdx(p.anchor.row), col: p.anchor.col }
-          : { row: p.anchor.row, col: remapIdx(p.anchor.col) },
-        focus: axisIsRow
-          ? { row: remapIdx(p.focus.row), col: p.focus.col }
-          : { row: p.focus.row, col: remapIdx(p.focus.col) },
-      }));
-
-      if (result.capped) {
-        // Fewer lines than requested were applied — a guard kept the last
-        // line (delete) or the grid cap left room for only some (insert).
-        // Hint so the leftover/missing line isn't a silent mystery.
-        const cappedKey =
-          op.mode === "delete"
-            ? op.axis === "row"
-              ? "spreadsheet.deleteLastRowKept"
-              : "spreadsheet.deleteLastColumnKept"
-            : op.axis === "row"
-              ? "spreadsheet.insertRowsCapped"
-              : "spreadsheet.insertColumnsCapped";
-        toast.info(t(`documents:${cappedKey}`));
-      }
-    },
-    [
+  const { sortColumn, insertLines, deleteLines, setLinesHidden, unhideAll, hasHidden } =
+    useSpreadsheetStructure({
       readOnly,
-      cells,
-      formatting,
-      dimensions,
-      replaceAll,
-      docForData,
-      t,
-      activeSheet,
+      doc: docForData,
       sheets,
       cellsBySheet,
+      activeSheet,
+      cells,
+      dimensions,
+      formatting,
+      replaceAll,
+      bulkUpdate,
       bulkUpdateOn,
-    ]
-  );
-
-  // Insert ``count`` lines before / after the band on ``axis``, then
-  // delete the whole band. "before" = left/above (at the band start);
-  // "after" = right/below (just past the band end).
-  const insertLines = useCallback(
-    (axis: LineAxis, band: { start: number; count: number }, count: number, after: boolean) => {
-      applyLineTransform({
-        axis,
-        mode: "insert",
-        at: after ? band.start + band.count : band.start,
-        count,
-      });
-    },
-    [applyLineTransform]
-  );
-  const deleteLines = useCallback(
-    (axis: LineAxis, band: { start: number; count: number }) => {
-      applyLineTransform({ axis, mode: "delete", at: band.start, count: band.count });
-    },
-    [applyLineTransform]
-  );
-
-  // --- column / row resize ----------------------------------------------
-  // Listeners are attached synchronously inside startResize (the pointerdown
-  // handler) so there is never a gap between "drag started" and "pointerup
-  // is handled".  The previous useEffect approach had an inherent race: React
-  // defers effects until after paint, so a quick release (common on Mac
-  // trackpads) could fire pointerup before the effect had a chance to run.
-  //
-  // An AbortController owns listener lifetime so:
-  //   - commit / cancel both tear down with a single ``.abort()`` call
-  //   - the unmount effect (below) aborts an in-flight drag, preventing a
-  //     stale ``formattingRef.current.updateColumn`` write into a Yjs doc
-  //     whose view has already been unmounted.
-  const startResize = useCallback(
-    (kind: "col" | "row", index: number, e: ReactPointerEvent) => {
-      if (readOnly) return;
-      e.preventDefault();
-      e.stopPropagation();
-      const size = kind === "col" ? colWidth(index) : rowHeight(index);
-      resizeStartRef.current = {
-        pos: kind === "col" ? e.clientX : e.clientY,
-        size,
-      };
-      const next = { kind, index, size };
-      dragRef.current = next;
-      setDrag(next);
-
-      // Abort any previous drag's listeners (defensive — shouldn't happen,
-      // but a missed pointerup would otherwise leak them indefinitely).
-      resizeAbortRef.current?.abort();
-      const controller = new AbortController();
-      resizeAbortRef.current = controller;
-      const { signal } = controller;
-
-      const onMove = (ev: PointerEvent) => {
-        const cur = dragRef.current;
-        if (!cur) return;
-        const delta =
-          cur.kind === "col"
-            ? ev.clientX - resizeStartRef.current.pos
-            : ev.clientY - resizeStartRef.current.pos;
-        const lo = cur.kind === "col" ? MIN_COL_WIDTH : MIN_ROW_HEIGHT;
-        const hi = cur.kind === "col" ? MAX_COL_WIDTH : MAX_ROW_HEIGHT;
-        // Round to integer: pointer coords are fractional on Retina/Mac, and
-        // sanitizeColumnFmt/RowFmt drop non-integer sizes (clampInt requires
-        // Number.isInteger), which previously caused the commit to silently
-        // delete the entry and revert to the default width/height.
-        const newSize = Math.round(Math.max(lo, Math.min(resizeStartRef.current.size + delta, hi)));
-        const updated = { ...cur, size: newSize };
-        dragRef.current = updated;
-        setDrag(updated);
-      };
-
-      const teardown = () => {
-        controller.abort();
-        if (resizeAbortRef.current === controller) resizeAbortRef.current = null;
-        dragRef.current = null;
-        setDrag(null);
-      };
-
-      const commit = () => {
-        const cur = dragRef.current;
-        if (cur) {
-          const fmt = formattingRef.current;
-          if (cur.kind === "col") fmt.updateColumn(cur.index, { width: cur.size });
-          else fmt.updateRow(cur.index, { height: cur.size });
-        }
-        teardown();
-      };
-
-      // pointercancel fires on Mac when the OS reclassifies a trackpad
-      // gesture as a scroll — the user wasn't trying to resize, so discard
-      // the in-flight drag instead of writing whatever intermediate size
-      // it happened to reach.
-      const cancel = () => {
-        teardown();
-      };
-
-      window.addEventListener("pointermove", onMove, { signal });
-      window.addEventListener("pointerup", commit, { signal });
-      window.addEventListener("pointercancel", cancel, { signal });
-    },
-    [readOnly, colWidth, rowHeight]
-  );
-
-  // Abort any in-flight resize drag when the editor unmounts so the window
-  // listeners can't fire against a stale formattingRef afterwards.
-  useEffect(() => {
-    return () => {
-      resizeAbortRef.current?.abort();
-      resizeAbortRef.current = null;
-    };
-  }, []);
-  // Hiding is formatting, not deletion: the cells keep their values, keep
-  // being read by formulas, and keep their place in the coordinate space.
-  // Only the drawing and the cursor skip them.
-  const setLinesHidden = useCallback(
-    (axis: LineAxis, band: { start: number; count: number }, hidden: boolean) => {
-      if (readOnly) return;
-      formatting.batch(() => {
-        for (let i = band.start; i < band.start + band.count; i++) {
-          if (axis === "row") formatting.updateRow(i, { hidden });
-          else formatting.updateColumn(i, { hidden });
-        }
-      });
-      // The cursor can't stay on a line that is no longer drawn.
-      if (!hidden) return;
-      setSel((p) => {
-        const inBand = (i: number) => i >= band.start && i < band.start + band.count;
-        if (axis === "row" ? !inBand(p.focus.row) : !inBand(p.focus.col)) return p;
-        const focus = grid.step(p.focus, axis === "row" ? 1 : 0, axis === "row" ? 0 : 1);
-        return { anchor: focus, focus, mode: "range" };
-      });
-    },
-    [readOnly, formatting, grid]
-  );
-
-  const hiddenRowIndexes = useMemo(
-    () =>
-      Object.entries(formatting.rows)
-        .filter(([, fmt]) => fmt?.hidden)
-        .map(([index]) => Number(index)),
-    [formatting.rows]
-  );
-  const hiddenColIndexes = useMemo(
-    () =>
-      Object.entries(formatting.columns)
-        .filter(([, fmt]) => fmt?.hidden)
-        .map(([index]) => Number(index)),
-    [formatting.columns]
-  );
-  const hasHiddenRows = hiddenRowIndexes.length > 0;
-  const hasHiddenCols = hiddenColIndexes.length > 0;
-
-  const unhideAll = useCallback(
-    (axis: LineAxis) => {
-      if (readOnly) return;
-      const indexes = axis === "row" ? hiddenRowIndexes : hiddenColIndexes;
-      formatting.batch(() => {
-        for (const i of indexes) {
-          if (axis === "row") formatting.updateRow(i, { hidden: false });
-          else formatting.updateColumn(i, { hidden: false });
-        }
-      });
-    },
-    [readOnly, formatting, hiddenRowIndexes, hiddenColIndexes]
-  );
-
-  const resetSize = useCallback(
-    (kind: "col" | "row", index: number) => {
-      if (readOnly) return;
-      if (kind === "col") formatting.updateColumn(index, { width: undefined });
-      else formatting.updateRow(index, { height: undefined });
-    },
-    [readOnly, formatting]
-  );
+      grid,
+      setSel,
+      dropClip,
+    });
 
   const totalGridWidth = colVirtualizer.getTotalSize();
   const totalGridHeight = rowVirtualizer.getTotalSize();
@@ -1725,50 +729,17 @@ export const SpreadsheetDocumentEditor = ({
   cellHandlersRef.current = {
     mouseDown: (r, c, e) => {
       if (e.button !== 0) return;
-      // Point mode: while editing a formula, clicking another cell
-      // splices its reference into the draft instead of moving the
-      // selection. preventDefault keeps the input focused (no blur →
-      // no commit). A null return means "not a reference spot" — fall
-      // through to a normal, committing click.
-      if (editing && isFormula(editing.draft)) {
-        // Shift-click extends the last inserted reference into a range;
-        // a plain click inserts/moves a single reference.
-        const extend = e.shiftKey && pointRefRef.current !== null;
-        if (insertReference(r, c, extend)) {
-          e.preventDefault();
-          pointDraggingRef.current = true;
-          return;
-        }
-      }
-      containerRef.current?.focus();
+      if (pointMouseDown(r, c, e)) return;
+      focusGrid();
       selectingRef.current = "range";
       selectCell(r, c, e.shiftKey);
     },
     mouseEnter: (r, c, e) => {
-      // A point-mode drag (button still held) extends the reference into
-      // a range. Gate on the live button state (``e.buttons``) rather
-      // than only the flag, so a missed mouseup (release off-window, HMR)
-      // can't leave the drag stuck following the cursor.
-      if (pointDraggingRef.current) {
-        if (e.buttons === 0) {
-          pointDraggingRef.current = false;
-        } else {
-          insertReference(r, c, true);
-          return;
-        }
-      }
+      if (pointMouseEnter(r, c, e)) return;
       // A fill drag in progress takes over hover: extend its preview
       // instead of moving the selection focus.
-      if (fillSourceRef.current) {
-        extendFill(r, c);
-        return;
-      }
-      if (selectingRef.current !== "range") return;
-      setSel((p) => ({
-        anchor: p.anchor,
-        focus: { row: r, col: c },
-        mode: "range",
-      }));
+      if (fill.extend(r, c)) return;
+      if (selectingRef.current === "range") selectCell(r, c, true);
     },
     doubleClick: (r, c) => beginEdit(r, c),
     toggleBoolean: (r, c) => {
@@ -1777,19 +748,12 @@ export const SpreadsheetDocumentEditor = ({
       selectCell(r, c);
       setCell(r, c, !value);
     },
-    draftChange: (draft) => {
-      // Typing invalidates the recorded reference span, so a later
-      // shift-click starts a fresh reference rather than re-splicing.
-      pointRefRef.current = null;
-      setEditing((p) => (p ? { ...p, draft } : p));
-    },
-    editingKeyDown: handleEditingKeyDown,
-    editingBlur: handleEditorBlur,
-    editingFocus: () => {
-      activeEditorRef.current = editingInputRef.current;
-    },
-    fillHandleMouseDown: startFill,
-    fillHandleDoubleClick: autofillDown,
+    draftChange: cellInput.onChange,
+    editingKeyDown: onEditorKeyDown,
+    editingBlur: onEditorBlur,
+    editingFocus: cellInput.onFocus,
+    fillHandleMouseDown: fill.start,
+    fillHandleDoubleClick: fill.autofillDown,
   };
   const cellHandlers = useMemo<CellHandlers>(
     () => ({
@@ -1797,7 +761,7 @@ export const SpreadsheetDocumentEditor = ({
       mouseEnter: (r, c, e) => cellHandlersRef.current?.mouseEnter(r, c, e),
       doubleClick: (r, c) => cellHandlersRef.current?.doubleClick(r, c),
       toggleBoolean: (r, c) => cellHandlersRef.current?.toggleBoolean(r, c),
-      draftChange: (draft) => cellHandlersRef.current?.draftChange(draft),
+      draftChange: (text) => cellHandlersRef.current?.draftChange(text),
       editingKeyDown: (e) => cellHandlersRef.current?.editingKeyDown(e),
       editingBlur: (e) => cellHandlersRef.current?.editingBlur(e),
       editingFocus: () => cellHandlersRef.current?.editingFocus(),
@@ -1807,6 +771,8 @@ export const SpreadsheetDocumentEditor = ({
     []
   );
 
+  const attachCellInput = cellInput.attach;
+  const fillPreview = fill.preview;
   const renderCell = useCallback(
     (r: number, c: number, left: number, top: number) => {
       const isActive = sel.focus.row === r && sel.focus.col === c;
@@ -1858,17 +824,14 @@ export const SpreadsheetDocumentEditor = ({
           inCut={inCut}
           inFillPreview={inFillPreview}
           showFillHandle={isFillCorner}
-          isEditing={Boolean(isEditing)}
           display={display}
           title={error ?? undefined}
           booleanValue={isBoolean ? (value as boolean) : null}
           readOnly={readOnly}
-          draft={isEditing ? editing!.draft : ""}
-          inputRef={isEditing ? attachEditingInput : null}
+          editor={isEditing ? { draft, inputRef: attachCellInput, isRefOnScreen } : null}
           peerColor={peer?.selection.color ?? null}
           peerName={peer?.user.name ?? null}
           refHighlight={refHighlightAt(r, c)}
-          refTokens={isEditing ? visibleRefs : EMPTY_REF_TOKENS}
           handlers={cellHandlers}
         />
       );
@@ -1881,12 +844,13 @@ export const SpreadsheetDocumentEditor = ({
       sel.mode,
       selBox,
       isInSel,
-      attachEditingInput,
       clip,
       fillPreview,
       editing,
       activeSheetId,
-      visibleRefs,
+      draft,
+      attachCellInput,
+      isRefOnScreen,
       refHighlightAt,
       readOnly,
       peerSelectionsByCell,
@@ -1896,165 +860,32 @@ export const SpreadsheetDocumentEditor = ({
     ]
   );
 
-  // The name box label: the active cell ref, or the selection range / band.
-  const formulaBarLabel = useMemo(() => {
-    const { r1, r2, c1, c2 } = selBox;
-    if (sel.mode === "columns") {
-      return c1 === c2 ? colIndexToLetter(c1) : `${colIndexToLetter(c1)}:${colIndexToLetter(c2)}`;
-    }
-    if (sel.mode === "rows") return r1 === r2 ? `${r1 + 1}` : `${r1 + 1}:${r2 + 1}`;
-    const ref = (r: number, c: number) => `${colIndexToLetter(c)}${r + 1}`;
-    return r1 === r2 && c1 === c2 ? ref(r1, c1) : `${ref(r1, c1)}:${ref(r2, c2)}`;
-  }, [sel.mode, selBox]);
-
-  // The formula bar mirrors the live edit draft, else the focus cell's raw
-  // value (its formula/value as stored, not the computed result).
-  // --- find & replace -----------------------------------------------------
-
-  const findMatches = useMemo(
-    () => (findOpen && findQuery ? findInCells(cells, findQuery, findOptions) : EMPTY_MATCHES),
-    [findOpen, findQuery, findOptions, cells]
-  );
-
-  // Which match the cursor is sitting on, 1-based; 0 when it isn't on one.
-  const findIndex = useMemo(() => {
-    const at = findMatches.findIndex((m) => m.row === sel.focus.row && m.col === sel.focus.col);
-    return at + 1;
-  }, [findMatches, sel.focus.row, sel.focus.col]);
-
-  // Step to the next (or previous) match and put the cursor on it, wrapping
-  // at the ends the way a find always has.
-  const stepMatch = useCallback(
-    (delta: 1 | -1) => {
-      if (findMatches.length === 0) return;
-      const current = findMatches.findIndex(
-        (m) => m.row === sel.focus.row && m.col === sel.focus.col
-      );
-      // Not on a match yet: step forward to the first one after the cursor.
-      const from =
-        current >= 0
-          ? current
-          : delta === 1
-            ? findMatches.findIndex(
-                (m) => m.row > sel.focus.row || (m.row === sel.focus.row && m.col >= sel.focus.col)
-              )
-            : -1;
-      const base = from >= 0 ? from : delta === 1 ? -1 : 0;
-      const next =
-        current >= 0 || from < 0 ? (base + delta + findMatches.length) % findMatches.length : base;
-      const target = findMatches[next];
-      if (!target) return;
-      selectCell(target.row, target.col);
-    },
-    [findMatches, sel.focus.row, sel.focus.col, selectCell]
-  );
-
-  const replaceCurrent = useCallback(() => {
-    if (readOnly || findMatches.length === 0) return;
-    const on = findMatches.find((m) => m.row === sel.focus.row && m.col === sel.focus.col);
-    if (!on) {
-      stepMatch(1);
-      return;
-    }
-    const next = replaceInValue(
-      cells.get(keyOf(on.row, on.col)) ?? null,
-      findQuery,
-      findReplacement,
-      findOptions
-    );
-    if (next === null) return;
-    setCell(on.row, on.col, next === "" ? null : coerceScalar(next));
-    stepMatch(1);
-  }, [
-    readOnly,
-    findMatches,
-    sel.focus.row,
-    sel.focus.col,
-    cells,
-    findQuery,
-    findReplacement,
-    findOptions,
-    setCell,
-    stepMatch,
-  ]);
-
-  const replaceEvery = useCallback(() => {
-    if (readOnly) return;
-    const writes = replaceAllInCells(cells, findQuery, findReplacement, findOptions, coerceScalar);
-    const count = Object.keys(writes).length;
-    if (count === 0) return;
-    bulkUpdate((draft) => {
-      for (const [key, value] of Object.entries(writes)) {
-        if (value == null) draft.delete(key);
-        else draft.set(key, value);
-      }
-    });
-    toast.success(t("documents:spreadsheet.find.replaced", { count }));
-  }, [readOnly, cells, findQuery, findReplacement, findOptions, bulkUpdate, t]);
-
-  const closeFind = useCallback(() => {
-    setFindOpen(false);
-    containerRef.current?.focus();
-  }, []);
-
+  // The formula bar shows the focus cell's raw value (its formula/value as
+  // stored, not the computed result) until an edit puts the draft there.
   const formulaBarValue = useMemo(() => {
-    if (editing) return editing.draft;
     const raw = cells.get(keyOf(sel.focus.row, sel.focus.col));
     return raw == null ? "" : String(raw);
-  }, [editing, cells, sel.focus.row, sel.focus.col]);
-
-  // Focusing the bar begins an edit of the focus cell (unless one is already
-  // live); the flag keeps focus in the bar instead of the cell input.
-  const handleFormulaBarFocus = useCallback(() => {
-    activeEditorRef.current = formulaBarInputRef.current;
-    if (readOnly || editing) return;
-    focusBarOnEditRef.current = true;
-    beginEdit(sel.focus.row, sel.focus.col);
-  }, [readOnly, editing, beginEdit, sel.focus.row, sel.focus.col]);
-
-  const handleFormulaBarChange = useCallback(
-    (draft: string) => {
-      pointRefRef.current = null;
-      setEditing((p) => {
-        if (p) return { ...p, draft };
-        if (!activeSheetId) return p;
-        return { sheetId: activeSheetId, row: sel.focus.row, col: sel.focus.col, draft };
-      });
-    },
-    [sel.focus.row, sel.focus.col, activeSheetId]
-  );
+  }, [cells, sel.focus.row, sel.focus.col]);
 
   // --- sheet tabs ---------------------------------------------------------
 
   // Each sheet keeps its own cursor, so tabbing away and back lands where
   // you left off. A ref (not state) because nothing renders from it — the
   // selection it restores is written straight into ``setSel``.
-  const selBySheetRef = useRef(new Map<SheetId, typeof sel>());
+  const selBySheetRef = useRef(new Map<SheetId, SpreadsheetSelection>());
 
   const selectSheet = useCallback(
     (id: SheetId) => {
       if (id === activeSheetId) return;
       if (activeSheetId) selBySheetRef.current.set(activeSheetId, sel);
       setRequestedSheetId(id);
-      const restored = selBySheetRef.current.get(id);
-      setSel(restored ?? { anchor: { row: 0, col: 0 }, focus: { row: 0, col: 0 }, mode: "range" });
-
-      // Mid-formula, switching tabs is how you point at another sheet, so
-      // the draft stays alive — but the in-cell input is about to unmount,
-      // so focus has to move to the formula bar or the next keystroke is
-      // lost. Anything else commits, exactly like clicking away would.
-      if (editing && isFormula(editing.draft)) {
-        activeEditorRef.current = formulaBarInputRef.current;
-        requestAnimationFrame(() => formulaBarInputRef.current?.focus());
-        return;
-      }
-      if (editing) commitEdit();
-      // The tab that was clicked now holds focus, and the grid's keyboard
-      // and clipboard handlers only fire while focus is inside it. Hand it
-      // back, or the first thing you do on the new sheet does nothing.
-      requestAnimationFrame(() => containerRef.current?.focus());
+      setSel(selBySheetRef.current.get(id) ?? ORIGIN_SELECTION);
+      if (leaveSheet()) return;
+      // The tab that was clicked now holds focus. Hand it back to the grid,
+      // or the first thing you do on the new sheet does nothing.
+      requestAnimationFrame(focusGrid);
     },
-    [activeSheetId, sel, editing, commitEdit]
+    [activeSheetId, sel, setSel, leaveSheet, focusGrid]
   );
 
   const handleAddSheet = useCallback(() => {
@@ -2063,10 +894,10 @@ export const SpreadsheetDocumentEditor = ({
       toast.info(t("documents:spreadsheet.sheets.maxReached"));
       return;
     }
-    if (editing) commitEdit();
+    commitEdit();
     setRequestedSheetId(id);
-    setSel({ anchor: { row: 0, col: 0 }, focus: { row: 0, col: 0 }, mode: "range" });
-  }, [workbook, activeSheetId, editing, commitEdit, t]);
+    setSel(ORIGIN_SELECTION);
+  }, [workbook, activeSheetId, commitEdit, setSel, t]);
 
   const handleDuplicateSheet = useCallback(
     (id: SheetId) => {
@@ -2152,16 +983,33 @@ export const SpreadsheetDocumentEditor = ({
     [workbook, t, editing, cancelEdit]
   );
 
-  // The sheet an open edit belongs to can vanish underneath it — a peer
-  // deletes it, or an undo removes it. Committing would then write into a
-  // container that no longer exists and quietly drop the draft, which reads
-  // as "saved". End the edit explicitly instead, and say why.
-  useEffect(() => {
-    if (!editing || sheets.length === 0) return;
-    if (sheets.some((s) => s.id === editing.sheetId)) return;
-    cancelEdit();
-    toast.info(t("documents:spreadsheet.sheets.editSheetRemoved"));
-  }, [editing, sheets, cancelEdit, t]);
+  const headerActions: LineHeaderActions = {
+    mouseDown: (axis, index, e) => {
+      if (e.button !== 0) return;
+      focusGrid();
+      selectingRef.current = axis === "col" ? "columns" : "rows";
+      selectLine(axis, index, e.shiftKey);
+    },
+    mouseEnter: (axis, index) => {
+      if (selectingRef.current === (axis === "col" ? "columns" : "rows"))
+        selectLine(axis, index, true);
+    },
+    // Right-click doesn't go through mousedown, so the line the menu acts on
+    // is selected here — unless it is inside a selected band of lines, which
+    // the menu then acts on whole.
+    contextMenu: (axis, index) => {
+      focusGrid();
+      const band = sel.mode === (axis === "col" ? "columns" : "rows");
+      if (!(band && headerActive(axis, index))) selectLine(axis, index);
+    },
+    startResize,
+    resetSize,
+    insert: insertLines,
+    delete: deleteLines,
+    hide: (axis, band) => setLinesHidden(axis, band, true),
+    unhideAll,
+    sort: sortColumn,
+  };
 
   return (
     <div
@@ -2215,32 +1063,33 @@ export const SpreadsheetDocumentEditor = ({
       </div>
 
       <SpreadsheetFormulaBar
-        selectionLabel={formulaBarLabel}
+        selectionLabel={selectionLabel}
         onNavigate={navigateToRef}
         value={formulaBarValue}
-        tokens={editingRefs}
-        inputRef={formulaBarInputRef}
-        onChange={handleFormulaBarChange}
-        onFocus={handleFormulaBarFocus}
-        onKeyDown={handleEditingKeyDown}
-        onBlur={handleEditorBlur}
+        draft={draft}
+        editing={editing !== null}
+        inputRef={formulaBar.inputRef}
+        onChange={formulaBar.onChange}
+        onFocus={formulaBar.onFocus}
+        onKeyDown={onEditorKeyDown}
+        onBlur={onEditorBlur}
         readOnly={readOnly}
       />
 
-      {findOpen && (
+      {find.open && (
         <SpreadsheetFindBar
-          query={findQuery}
-          replacement={findReplacement}
-          options={findOptions}
-          matchCount={findMatches.length}
-          matchIndex={findIndex}
+          query={find.query}
+          replacement={find.replacement}
+          options={find.options}
+          matchCount={find.matchCount}
+          matchIndex={find.matchIndex}
           readOnly={readOnly}
-          onQueryChange={setFindQuery}
-          onReplacementChange={setFindReplacement}
-          onOptionsChange={setFindOptions}
-          onStep={stepMatch}
-          onReplace={replaceCurrent}
-          onReplaceAll={replaceEvery}
+          onQueryChange={find.setQuery}
+          onReplacementChange={find.setReplacement}
+          onOptionsChange={find.setOptions}
+          onStep={find.step}
+          onReplace={find.replaceCurrent}
+          onReplaceAll={find.replaceEvery}
           onClose={closeFind}
         />
       )}
@@ -2254,8 +1103,9 @@ export const SpreadsheetDocumentEditor = ({
         aria-rowcount={dimensions.rows}
         aria-colcount={dimensions.cols}
         onKeyDown={handleKeyDown}
-        onPaste={handlePaste}
-        onCopy={handleCopy}
+        // An edit's input handles its own clipboard.
+        onPaste={editing ? undefined : clipboard.paste}
+        onCopy={editing ? undefined : clipboard.copy}
         className="relative min-h-0 flex-1 select-none overflow-auto focus:outline-none focus-visible:outline-2 focus-visible:outline-primary"
       >
         <div
@@ -2279,79 +1129,20 @@ export const SpreadsheetDocumentEditor = ({
               className="sticky top-0 left-0 z-30 border-border border-r border-b bg-muted"
               style={{ width: ROW_HEADER_WIDTH, height: COL_HEADER_HEIGHT }}
             />
-            {visibleCols.map((col) => {
-              const header = (
-                <button
-                  type="button"
-                  onMouseDown={(e) => {
-                    if (e.button !== 0) return;
-                    containerRef.current?.focus();
-                    selectingRef.current = "columns";
-                    selectColumn(col.index, e.shiftKey);
-                  }}
-                  onContextMenu={() => {
-                    // Highlight the column the menu will act on (right-click
-                    // doesn't go through the left-button onMouseDown path).
-                    // Keep an existing multi-column selection if the click
-                    // lands inside it so the menu acts on the whole band.
-                    containerRef.current?.focus();
-                    if (!(sel.mode === "columns" && colHeaderActive(col.index)))
-                      selectColumn(col.index);
-                  }}
-                  onMouseEnter={() => {
-                    if (selectingRef.current !== "columns") return;
-                    setSel((p) => ({
-                      anchor: p.anchor,
-                      focus: { row: 0, col: col.index },
-                      mode: "columns",
-                    }));
-                  }}
-                  className={cn(
-                    "absolute flex cursor-pointer items-center justify-center border-border border-r border-b font-mono text-xs",
-                    colHeaderActive(col.index)
-                      ? "bg-primary/20 text-foreground"
-                      : "bg-muted text-muted-foreground"
-                  )}
-                  style={{
-                    left: ROW_HEADER_WIDTH + col.start,
-                    top: 0,
-                    width: col.size,
-                    height: COL_HEADER_HEIGHT,
-                  }}
-                >
-                  {colIndexToLetter(col.index)}
-                  {!readOnly && (
-                    <div
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onPointerDown={(e) => startResize("col", col.index, e)}
-                      onDoubleClick={(e) => {
-                        e.stopPropagation();
-                        resetSize("col", col.index);
-                      }}
-                      className="absolute top-0 right-0 z-10 h-full cursor-col-resize hover:bg-primary/40"
-                      style={{ width: RESIZE_HANDLE }}
-                      aria-hidden
-                    />
-                  )}
-                </button>
-              );
-              if (readOnly) return <Fragment key={`colh-${col.index}`}>{header}</Fragment>;
-              const band = lineBand("col", col.index);
-              return (
-                <HeaderContextMenu
-                  key={`colh-${col.index}`}
-                  axis="col"
-                  band={band}
-                  onInsert={(count, after) => insertLines("col", band, count, after)}
-                  onDelete={() => deleteLines("col", band)}
-                  onSort={(direction) => handleSortColumn(col.index, direction)}
-                  onHide={() => setLinesHidden("col", band, true)}
-                  onUnhideAll={hasHiddenCols ? () => unhideAll("col") : undefined}
-                >
-                  {header}
-                </HeaderContextMenu>
-              );
-            })}
+            {visibleCols.map((col) => (
+              <LineHeader
+                key={`colh-${col.index}`}
+                axis="col"
+                index={col.index}
+                start={col.start}
+                size={col.size}
+                active={headerActive("col", col.index)}
+                readOnly={readOnly}
+                band={lineBand("col", col.index)}
+                canUnhide={hasHidden("col")}
+                actions={headerActions}
+              />
+            ))}
           </div>
 
           {/* Frozen panes use CSS ``position: sticky`` (compositor-driven)
@@ -2442,76 +1233,20 @@ export const SpreadsheetDocumentEditor = ({
             className="sticky left-0 z-10 bg-muted"
             style={{ width: ROW_HEADER_WIDTH, height: totalGridHeight }}
           >
-            {visibleRows.map((row) => {
-              const header = (
-                <button
-                  type="button"
-                  onMouseDown={(e) => {
-                    if (e.button !== 0) return;
-                    containerRef.current?.focus();
-                    selectingRef.current = "rows";
-                    selectRow(row.index, e.shiftKey);
-                  }}
-                  onContextMenu={() => {
-                    // Highlight the row the menu will act on; keep an
-                    // existing multi-row selection if the click lands inside
-                    // it so the menu acts on the whole band.
-                    containerRef.current?.focus();
-                    if (!(sel.mode === "rows" && rowHeaderActive(row.index))) selectRow(row.index);
-                  }}
-                  onMouseEnter={() => {
-                    if (selectingRef.current !== "rows") return;
-                    setSel((p) => ({
-                      anchor: p.anchor,
-                      focus: { row: row.index, col: 0 },
-                      mode: "rows",
-                    }));
-                  }}
-                  className={cn(
-                    "absolute flex cursor-pointer items-center justify-center border-border border-r border-b font-mono text-xs",
-                    rowHeaderActive(row.index)
-                      ? "bg-primary/20 text-foreground"
-                      : "bg-muted text-muted-foreground"
-                  )}
-                  style={{
-                    left: 0,
-                    top: row.start,
-                    width: ROW_HEADER_WIDTH,
-                    height: row.size,
-                  }}
-                >
-                  {row.index + 1}
-                  {!readOnly && (
-                    <div
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onPointerDown={(e) => startResize("row", row.index, e)}
-                      onDoubleClick={(e) => {
-                        e.stopPropagation();
-                        resetSize("row", row.index);
-                      }}
-                      className="absolute bottom-0 left-0 z-10 w-full cursor-row-resize hover:bg-primary/40"
-                      style={{ height: RESIZE_HANDLE }}
-                      aria-hidden
-                    />
-                  )}
-                </button>
-              );
-              if (readOnly) return <Fragment key={`rowh-${row.index}`}>{header}</Fragment>;
-              const band = lineBand("row", row.index);
-              return (
-                <HeaderContextMenu
-                  key={`rowh-${row.index}`}
-                  axis="row"
-                  band={band}
-                  onInsert={(count, after) => insertLines("row", band, count, after)}
-                  onDelete={() => deleteLines("row", band)}
-                  onHide={() => setLinesHidden("row", band, true)}
-                  onUnhideAll={hasHiddenRows ? () => unhideAll("row") : undefined}
-                >
-                  {header}
-                </HeaderContextMenu>
-              );
-            })}
+            {visibleRows.map((row) => (
+              <LineHeader
+                key={`rowh-${row.index}`}
+                axis="row"
+                index={row.index}
+                start={row.start}
+                size={row.size}
+                active={headerActive("row", row.index)}
+                readOnly={readOnly}
+                band={lineBand("row", row.index)}
+                canUnhide={hasHidden("row")}
+                actions={headerActions}
+              />
+            ))}
           </div>
 
           {/* Body cells (excludes anything covered by a frozen band). */}
@@ -2560,374 +1295,3 @@ export const SpreadsheetDocumentEditor = ({
     </div>
   );
 };
-
-/** Largest N the "insert multiple" stepper accepts; the transform also
- *  clamps to the remaining grid capacity, this just keeps the input sane. */
-const MAX_INSERT_N = 1_000;
-/** Stepper default — reset on every menu open so a value typed for one
- *  header never bleeds into another (the menus are keyed by index, so React
- *  reuses an instance across different rows/cols after an insert/delete). */
-const DEFAULT_INSERT_N = 2;
-
-interface HeaderContextMenuProps {
-  axis: LineAxis;
-  /** The contiguous band the menu acts on: the active multi-selection
-   *  when it covers this header, otherwise just the clicked line. */
-  band: { start: number; count: number };
-  onInsert: (count: number, after: boolean) => void;
-  onDelete: () => void;
-  /** Columns only — sort the whole sheet by this column. */
-  onSort?: (direction: SortDirection) => void;
-  onHide: () => void;
-  /** Reveal every hidden line on this axis. Absent when none are hidden. */
-  onUnhideAll?: () => void;
-  /** The header button that triggers the menu. */
-  children: React.ReactNode;
-}
-
-/** Right-click menu shared by the row and column headers: insert one
- *  line either side, insert N via a stepper submenu, or delete the
- *  selected band. Column headers additionally get the sort actions. */
-const HeaderContextMenu = ({
-  axis,
-  band,
-  onInsert,
-  onDelete,
-  onSort,
-  onHide,
-  onUnhideAll,
-  children,
-}: HeaderContextMenuProps) => {
-  const { t } = useTranslation(["documents", "common"]);
-  const [n, setN] = useState(DEFAULT_INSERT_N);
-  const isRow = axis === "row";
-  const before = isRow ? "insertRowAbove" : "insertColumnLeft";
-  const after = isRow ? "insertRowBelow" : "insertColumnRight";
-  const beforeN = isRow ? "insertRowsAboveN" : "insertColumnsLeftN";
-  const afterN = isRow ? "insertRowsBelowN" : "insertColumnsRightN";
-
-  return (
-    <ContextMenu onOpenChange={(open) => open && setN(DEFAULT_INSERT_N)}>
-      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem onSelect={() => onInsert(1, false)}>
-          {t(`documents:spreadsheet.${before}`)}
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={() => onInsert(1, true)}>
-          {t(`documents:spreadsheet.${after}`)}
-        </ContextMenuItem>
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>{t("documents:spreadsheet.insertMultiple")}</ContextMenuSubTrigger>
-          <ContextMenuSubContent>
-            <div className="flex items-center gap-2 px-2 py-1.5">
-              <span className="text-muted-foreground text-xs">
-                {t("documents:spreadsheet.insertCount")}
-              </span>
-              <input
-                type="number"
-                min={1}
-                max={MAX_INSERT_N}
-                value={n}
-                // biome-ignore lint/a11y/noAutofocus: focuses the stepper when the submenu opens so the user can type N immediately
-                autoFocus
-                // Keep keystrokes in the input — otherwise the menu's
-                // typeahead steals them and jumps focus to an item.
-                onKeyDown={(e) => e.stopPropagation()}
-                onFocus={(e) => e.currentTarget.select()}
-                onChange={(e) => {
-                  const next = Number.parseInt(e.target.value, 10);
-                  setN(Number.isFinite(next) ? Math.max(1, Math.min(next, MAX_INSERT_N)) : 1);
-                }}
-                className="w-16 rounded border border-border bg-background px-1.5 py-0.5 text-sm outline-none focus:border-primary"
-              />
-            </div>
-            <ContextMenuItem onSelect={() => onInsert(n, false)}>
-              {t(`documents:spreadsheet.${beforeN}`, { count: n })}
-            </ContextMenuItem>
-            <ContextMenuItem onSelect={() => onInsert(n, true)}>
-              {t(`documents:spreadsheet.${afterN}`, { count: n })}
-            </ContextMenuItem>
-          </ContextMenuSubContent>
-        </ContextMenuSub>
-        <ContextMenuSeparator />
-        <ContextMenuItem onSelect={onHide}>
-          {t(isRow ? "documents:spreadsheet.hideRows" : "documents:spreadsheet.hideColumns", {
-            count: band.count,
-          })}
-        </ContextMenuItem>
-        {onUnhideAll && (
-          <ContextMenuItem onSelect={onUnhideAll}>
-            {t(isRow ? "documents:spreadsheet.unhideRows" : "documents:spreadsheet.unhideColumns")}
-          </ContextMenuItem>
-        )}
-        <ContextMenuSeparator />
-        <ContextMenuItem onSelect={onDelete} className="text-destructive focus:text-destructive">
-          {t(isRow ? "documents:spreadsheet.deleteRows" : "documents:spreadsheet.deleteColumns", {
-            count: band.count,
-          })}
-        </ContextMenuItem>
-        {onSort && (
-          <>
-            <ContextMenuSeparator />
-            <ContextMenuItem onSelect={() => onSort("asc")}>
-              {t("documents:spreadsheet.sortAscending")}
-            </ContextMenuItem>
-            <ContextMenuItem onSelect={() => onSort("desc")}>
-              {t("documents:spreadsheet.sortDescending")}
-            </ContextMenuItem>
-          </>
-        )}
-      </ContextMenuContent>
-    </ContextMenu>
-  );
-};
-
-/** A cell's event handlers, keyed by the cell they fire on. */
-interface CellHandlers {
-  mouseDown: (row: number, col: number, e: React.MouseEvent) => void;
-  mouseEnter: (row: number, col: number, e: React.MouseEvent) => void;
-  doubleClick: (row: number, col: number) => void;
-  toggleBoolean: (row: number, col: number) => void;
-  draftChange: (draft: string) => void;
-  editingKeyDown: (e: KeyboardEvent<HTMLInputElement>) => void;
-  editingBlur: (e: React.FocusEvent<HTMLInputElement>) => void;
-  editingFocus: () => void;
-  fillHandleMouseDown: () => void;
-  fillHandleDoubleClick: () => void;
-}
-
-interface CellViewProps {
-  row: number;
-  col: number;
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-  /** Resolved style/format CSS (background, color, weight, align). */
-  cellCss: CSSProperties;
-  /** The focus cell — strong ring, the keyboard/edit target. */
-  isActive: boolean;
-  /** Inside the current selection (but not the focus cell). */
-  inSelection: boolean;
-  /** Inside the pending-cut source — draws a dashed "move" marquee. */
-  inCut: boolean;
-  /** Inside the live fill-handle drag extent — draws a preview tint. */
-  inFillPreview: boolean;
-  /** This is the selection's bottom-right corner — renders the fill nub. */
-  showFillHandle: boolean;
-  isEditing: boolean;
-  display: string;
-  /** Tooltip text — used to surface a formula error token (e.g. #DIV/0!). */
-  title?: string;
-  booleanValue: boolean | null;
-  readOnly: boolean;
-  draft: string;
-  inputRef: React.Ref<HTMLInputElement> | null;
-  /** Colors this cell as a referenced cell of the formula being edited. */
-  refHighlight: RefHighlight | null;
-  /** References in the editing draft — colors the in-cell formula text. */
-  refTokens: FormulaRefToken[];
-  peerColor: string | null;
-  peerName: string | null;
-  /** Stable for the editor's lifetime, so it never defeats the memo. */
-  handlers: CellHandlers;
-}
-
-/** The props the parent rebuilds each render, compared by their entries. */
-const SHALLOW_CELL_PROPS = new Set<string>(["cellCss", "refHighlight"]);
-
-const shallowEqual = (a: object | null, b: object | null): boolean => {
-  if (a === b) return true;
-  if (!a || !b) return false;
-  const aKeys = Object.keys(a);
-  if (aKeys.length !== Object.keys(b).length) return false;
-  return aKeys.every((k) => Object.is(a[k as keyof typeof a], b[k as keyof typeof b]));
-};
-
-const cellViewPropsEqual = (prev: CellViewProps, next: CellViewProps): boolean =>
-  (Object.keys(next) as (keyof CellViewProps)[]).every((k) =>
-    SHALLOW_CELL_PROPS.has(k)
-      ? shallowEqual(prev[k] as object | null, next[k] as object | null)
-      : Object.is(prev[k], next[k])
-  );
-
-const CellView = memo(function CellView({
-  row,
-  col,
-  left,
-  top,
-  width,
-  height,
-  cellCss,
-  isActive,
-  inSelection,
-  inCut,
-  inFillPreview,
-  showFillHandle,
-  isEditing,
-  display,
-  title,
-  booleanValue,
-  readOnly,
-  draft,
-  inputRef,
-  refHighlight,
-  refTokens,
-  peerColor,
-  peerName,
-  handlers,
-}: CellViewProps) {
-  const baseClass = useMemo(
-    () =>
-      cn(
-        "absolute box-border border-border border-r border-b text-sm",
-        (isActive || isEditing) && "z-[1] ring-2 ring-primary ring-inset"
-      ),
-    [isActive, isEditing]
-  );
-  // Fill must sit *under* the value/ring; positioning + fill on the
-  // container, text styling inherited by the value span.
-  const containerStyle = useMemo<CSSProperties>(
-    () => ({ position: "absolute", left, top, width, height, ...cellCss }),
-    [left, top, width, height, cellCss]
-  );
-  const onMouseDown = (e: React.MouseEvent) => handlers.mouseDown(row, col, e);
-  const onMouseEnter = (e: React.MouseEvent) => handlers.mouseEnter(row, col, e);
-  const onDoubleClick = () => handlers.doubleClick(row, col);
-
-  const peerOverlay =
-    peerColor && peerName ? (
-      <div
-        className="pointer-events-none absolute inset-0 z-[2]"
-        style={{ boxShadow: `inset 0 0 0 2px ${peerColor}` }}
-      >
-        <div
-          className="absolute -top-4 right-0 max-w-full truncate rounded-t px-1.5 py-0.5 font-medium text-[10px] text-slate-900 shadow-sm"
-          style={{ backgroundColor: peerColor }}
-        >
-          {peerName}
-        </div>
-      </div>
-    ) : null;
-
-  // Translucent tint for non-focus cells in the selection so the user
-  // fill underneath still reads through.
-  const selectionOverlay =
-    inSelection && !isActive ? (
-      <div className="pointer-events-none absolute inset-0 bg-primary/15" />
-    ) : null;
-
-  // Dashed "move" marquee on a cell awaiting a cut-paste.
-  const cutOverlay = inCut ? (
-    <div className="pointer-events-none absolute inset-0 z-[1] border-2 border-primary border-dashed" />
-  ) : null;
-
-  // Tint over the new region a fill drag will write (the source already
-  // reads through the selection tint, so only paint cells outside it).
-  const fillPreviewOverlay =
-    inFillPreview && !inSelection && !isActive ? (
-      <div className="pointer-events-none absolute inset-0 bg-primary/10" />
-    ) : null;
-
-  // Colored outline marking this cell as a reference of the formula being
-  // edited. Borders only on the box-boundary edges so a range reads as one
-  // rectangle rather than a grid of boxes.
-  const refOverlay = refHighlight ? (
-    <div
-      className="pointer-events-none absolute inset-0 z-[2]"
-      style={{
-        borderColor: refHighlight.color,
-        borderStyle: "solid",
-        borderTopWidth: refHighlight.top ? 2 : 0,
-        borderBottomWidth: refHighlight.bottom ? 2 : 0,
-        borderLeftWidth: refHighlight.left ? 2 : 0,
-        borderRightWidth: refHighlight.right ? 2 : 0,
-      }}
-    />
-  ) : null;
-
-  // The draggable fill handle on the selection's bottom-right corner. Its
-  // own mousedown starts the fill (stopping selection); double-click
-  // auto-fills down. Centered on the corner, above the ring/overlays.
-  const fillHandle = showFillHandle ? (
-    // biome-ignore lint/a11y/noStaticElementInteractions: pointer-only affordance; grid keyboard model owns navigation
-    <div
-      className="absolute right-0 bottom-0 z-[3] h-[7px] w-[7px] translate-x-1/2 translate-y-1/2 cursor-crosshair rounded-[1px] border border-background bg-primary"
-      onMouseDown={(e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        handlers.fillHandleMouseDown();
-      }}
-      onDoubleClick={(e) => {
-        e.stopPropagation();
-        handlers.fillHandleDoubleClick();
-      }}
-    />
-  ) : null;
-
-  if (isEditing) {
-    return (
-      <div className={baseClass} style={containerStyle}>
-        <FormulaCellInput
-          inputRef={inputRef}
-          value={draft}
-          tokens={refTokens}
-          onChange={handlers.draftChange}
-          onKeyDown={handlers.editingKeyDown}
-          onBlur={handlers.editingBlur}
-          onFocus={handlers.editingFocus}
-        />
-        {peerOverlay}
-      </div>
-    );
-  }
-
-  if (booleanValue !== null) {
-    return (
-      // biome-ignore lint/a11y/noStaticElementInteractions: cell is part of a role="grid" widget; keyboard/selection is owned by the container
-      <div
-        className={cn(baseClass, "flex cursor-cell items-center px-1.5")}
-        style={containerStyle}
-        onMouseDown={onMouseDown}
-        onMouseEnter={onMouseEnter}
-        onDoubleClick={onDoubleClick}
-      >
-        <Checkbox
-          checked={booleanValue}
-          disabled={readOnly}
-          onClick={(e) => {
-            e.stopPropagation();
-            handlers.toggleBoolean(row, col);
-          }}
-          aria-label={booleanValue ? "true" : "false"}
-        />
-        {selectionOverlay}
-        {fillPreviewOverlay}
-        {refOverlay}
-        {cutOverlay}
-        {peerOverlay}
-        {fillHandle}
-      </div>
-    );
-  }
-
-  return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: cell is part of a role="grid" widget; keyboard/selection is owned by the container
-    <div
-      className={cn(baseClass, "flex cursor-cell items-center px-1.5")}
-      style={containerStyle}
-      title={title}
-      onMouseDown={onMouseDown}
-      onMouseEnter={onMouseEnter}
-      onDoubleClick={onDoubleClick}
-    >
-      <span className="w-full truncate">{display}</span>
-      {selectionOverlay}
-      {fillPreviewOverlay}
-      {refOverlay}
-      {cutOverlay}
-      {peerOverlay}
-      {fillHandle}
-    </div>
-  );
-}, cellViewPropsEqual);
