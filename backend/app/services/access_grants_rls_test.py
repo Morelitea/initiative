@@ -26,6 +26,7 @@ from app.testing import (
     create_user,
 )
 from app.testing.schema_harness import route_session_to_guild
+from app.db.guild_standing import GuildContext
 from app.db.request_context import ContentGrantee, Platform
 
 
@@ -233,10 +234,13 @@ async def test_no_pam_flag_sees_nothing(session: AsyncSession):
 
     try:
         await _set_app_user(session)
-        # Same guild id, but NO pam flag — the grant is inactive.
+        # Same guild id, but the standing found no live grant — it is inactive.
+        inactive = GuildContext(
+            guild=None, user_id=support.id, guild_id=guild.id
+        ).with_standing({"standing_guild_id": str(guild.id)})
         await set_rls_context(
             session,
-            ContentGrantee(guild_id=guild.id, user_id=support.id, read_write=False),
+            ContentGrantee(guild_id=guild.id, user_id=support.id, standing=inactive),
         )
         # An inactive grant is not routed: no guild role is assumed (set_rls_context
         # resets to the login role) and the guild schema is not on the search_path.
