@@ -170,18 +170,14 @@ def _manager_required() -> HTTPException:
     )
 
 
-def _added_options(defn: PropertyDefinition, options: list) -> list[dict] | None:
-    """The options an update adds to ``defn``, when it changes none of those it
-    already has — what a member does picking a value nobody has offered yet."""
-    existing = {opt.get("value"): opt for opt in defn.options or []}
-    added: list[dict] = []
-    for opt in _serialize_options(options) or []:
-        held = existing.get(opt["value"])
-        if held is None:
-            added.append(opt)
-        elif held != opt:
-            return None
-    return added
+def _added_options(defn: PropertyDefinition, options: list) -> list[dict]:
+    """The options among ``options`` that ``defn`` does not have yet — what a
+    member adds picking a value nobody has offered. One it already has stays
+    as it is."""
+    existing = {opt.get("value") for opt in defn.options or []}
+    return [
+        opt for opt in _serialize_options(options) or [] if opt["value"] not in existing
+    ]
 
 
 def _serialize_options(options: Optional[list]) -> Optional[list[dict]]:
@@ -292,15 +288,14 @@ async def update_property_definition(
     data = payload.model_dump(exclude_unset=True)
     if not _manages(guild_context, defn.initiative_id):
         # A member adds options and nothing else: the ones sent that are new
-        # join the list as it stands, so two members adding at once both land.
-        added = (
-            _added_options(defn, payload.options or [])
-            if set(data) == {"options"}
-            and defn.type in {PropertyType.select, PropertyType.multi_select}
-            else None
-        )
-        if added is None:
+        # join the list as it stands, so two members adding at once both land,
+        # and the options already there are left as they are.
+        if set(data) != {"options"} or defn.type not in {
+            PropertyType.select,
+            PropertyType.multi_select,
+        }:
             raise _manager_required()
+        added = _added_options(defn, payload.options or [])
         await _ensure_initiative_member(
             session, guild_context, defn.initiative_id, current_user
         )

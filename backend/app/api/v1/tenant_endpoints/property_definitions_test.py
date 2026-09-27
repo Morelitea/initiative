@@ -448,7 +448,8 @@ async def test_a_member_adds_options_and_a_manager_reshapes(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Offering a new value is part of filling a field in; renaming it,
-    dropping its options or removing it is setting the initiative up."""
+    changing or dropping its options or removing it is setting the initiative
+    up."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     member = await acting_user(
         guild_role=GuildRole.member,
@@ -477,11 +478,17 @@ async def test_a_member_adds_options_and_a_manager_reshapes(
     options = response.json()["definition"]["options"]
     assert [opt["value"] for opt in options] == ["todo", "done", "later"]
 
+    # An option already there is left as it is.
     relabelled = {**stage, "label": "Backlog"}
-    for change in ({"name": "Renamed"}, {"options": [relabelled]}):
-        response = await client.patch(route, headers=member.headers, json=change)
-        assert response.status_code == 403
-        assert response.json()["detail"] == "INITIATIVE_MANAGER_REQUIRED"
+    response = await client.patch(
+        route, headers=member.headers, json={"options": [relabelled]}
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["definition"]["options"][0]["label"] == "To do"
+
+    response = await client.patch(route, headers=member.headers, json={"name": "New"})
+    assert response.status_code == 403
+    assert response.json()["detail"] == "INITIATIVE_MANAGER_REQUIRED"
     response = await client.delete(route, headers=member.headers)
     assert response.status_code == 403
 
