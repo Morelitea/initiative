@@ -82,9 +82,9 @@ async def require_password_or_recent_proof(
     An account that holds a password answers the question
     :func:`require_password` asks, in the same words and with the same
     ``detail``. One that holds none answers a different question: it has to be
-    on a server-side session of its own — a standing credential is not somebody
-    signing in — and that session's chain has to have begun within
-    :data:`RECENT_PROOF_MINUTES`.
+    on a server-side session of its own that records how it signed in — a
+    standing credential is not somebody signing in — and that session's chain
+    has to have begun within :data:`RECENT_PROOF_MINUTES`.
 
     The chain, not the row: a refresh mints a new row every so often and the
     sign-in is at the root of them, so the age read is the sign-in's. A step-up
@@ -97,7 +97,12 @@ async def require_password_or_recent_proof(
 
     session_id = require_session_row(request)
     row = await system_session.get(AuthSession, session_id)
-    if row is None or row.user_id != user.id or row.revoked_at is not None:
+    if (
+        row is None
+        or row.user_id != user.id
+        or row.revoked_at is not None
+        or not row.amr
+    ):
         raise _recent_proof_required()
     started = await chain_started_at(system_session, session_id=session_id)
     if started is None or datetime.now(timezone.utc) - started > timedelta(
