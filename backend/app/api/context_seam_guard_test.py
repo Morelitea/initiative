@@ -112,7 +112,7 @@ def test_the_on_behalf_sentinel_stays_in_the_seam():
 
 #: A session variable read or written by name. ``app._bootstrap_*`` is the
 #: bootstrap's own scratch, not request context.
-_SPELLED = re.compile(r"(current_setting|set_config)\(\s*'app\.[a-z]")
+_SPELLED = re.compile(r"(current_setting|set_config)\s*\(\s*'app\.[a-z]")
 
 
 def test_session_variables_are_spelled_in_the_registry_alone():
