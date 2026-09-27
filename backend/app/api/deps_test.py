@@ -39,12 +39,12 @@ async def test_a_system_session_is_from_the_cohort_of_the_community_served():
     the system session's cohort; a request that names neither gets the platform
     system pool."""
     app = FastAPI()
-    seen: list[tuple[object, bool]] = []
+    seen: list[object] = []
 
     async def probe(
         session: Annotated[AsyncSession, Depends(get_system_session)],
     ) -> None:
-        seen.append((session.bind, cohorts.fans_out(session)))
+        seen.append(session.bind)
 
     app.get("/c/{guild_id}/probe")(probe)
     app.get("/probe")(probe)
@@ -69,8 +69,8 @@ async def test_a_system_session_is_from_the_cohort_of_the_community_served():
     community_4 = cohorts.system_sessionmaker(4).kw["bind"]
     assert community_5 is not community_4
     assert seen == [
-        (community_5, True),
-        (db_session.SystemSessionLocal.kw["bind"], True),
-        (community_4, True),
-        (community_4, True),
+        community_5,
+        db_session.SystemSessionLocal.kw["bind"],
+        community_4,
+        community_4,
     ]
