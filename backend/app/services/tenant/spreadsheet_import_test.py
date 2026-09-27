@@ -279,6 +279,31 @@ def test_a_workbook_with_too_many_tabs_is_refused() -> None:
     assert excinfo.value.code == DocumentMessages.SPREADSHEET_FILE_TOO_LARGE
 
 
+def test_a_workbook_declaring_more_than_one_import_reads_is_refused(
+    monkeypatch,
+) -> None:
+    """Judged from the sizes the package declares, before the workbook opens."""
+    import io as _io
+
+    from openpyxl import Workbook
+
+    from app.services.tenant import spreadsheet_import
+
+    buffer = _io.BytesIO()
+    Workbook().save(buffer)
+    monkeypatch.setattr(spreadsheet_import, "MAX_IMPORT_XLSX_BYTES", 1024)
+    monkeypatch.setattr(
+        spreadsheet_import,
+        "load_workbook",
+        lambda *a, **k: pytest.fail("the workbook was opened"),
+    )
+
+    with pytest.raises(DocumentContentError) as excinfo:
+        parse_spreadsheet_file("big.xlsx", buffer.getvalue())
+
+    assert excinfo.value.code == DocumentMessages.SPREADSHEET_FILE_TOO_LARGE
+
+
 def test_a_sheet_claiming_more_rows_than_the_grid_is_refused() -> None:
     """The shape is judged from what the sheet declares, before anything in it
     is read — a file that would take too long never starts."""
