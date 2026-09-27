@@ -4,7 +4,7 @@ The billing write boundary's authorization lives in the database — a
 column-scoped role pinned to one guild per request by the
 ``app.billing_guild_id`` GUC. These tests connect as the real ``app_user``
 login role, assume the billing context exactly as the endpoints do
-(``set_billing_context``), and assert the role is denied everything outside
+(the ``Billing`` routing), and assert the role is denied everything outside
 its four verbs:
 
 * columns beyond the lifecycle surface of ``guilds`` (description, created_by,
@@ -28,8 +28,9 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
-from app.db.session import set_billing_context
+from app.db.session import set_rls_context
 from app.testing import create_guild, create_guild_membership
+from app.db.request_context import Billing
 
 
 async def _denied(billing_session, sql: str) -> None:
@@ -54,7 +55,7 @@ async def test_billing_role_is_confined_to_its_column_and_guild_surface(
 ):
     guild_a, guild_b = guilds
     s = await role_session("app_user")
-    await set_billing_context(s, guild_id=guild_a.id)
+    await set_rls_context(s, Billing(guild_a.id))
 
     # --- Positive controls: the four legitimate verbs work ------------------
     row = (
@@ -108,7 +109,7 @@ async def test_billing_role_is_confined_to_its_column_and_guild_surface(
     await s.rollback()  # leave no probe state behind
 
     # --- Column confinement: nothing beyond the tier/cap surface ------------
-    await set_billing_context(s, guild_id=guild_a.id)
+    await set_rls_context(s, Billing(guild_a.id))
     # ``name`` is readable (migration 0257) so a billing page can title itself.
     # It is the one column beyond the lifecycle surface, and read-only.
     named = (
@@ -222,7 +223,7 @@ async def test_unpinned_billing_guc_sees_nothing(session, role_session, guilds):
     verified body), every statement touches zero rows."""
     guild_a, _ = guilds
     s = await role_session("app_user")
-    await set_billing_context(s, guild_id=guild_a.id)
+    await set_rls_context(s, Billing(guild_a.id))
     # Clear the pin within the transaction, keeping the role.
     await s.exec(text("SELECT set_config('app.billing_guild_id', '', true)"))
     visible = (await s.exec(text("SELECT id FROM guilds"))).all()

@@ -30,6 +30,7 @@ from app.testing import (
     create_user,
     route_as,
 )
+from app.db.request_context import Platform, Unattributed
 
 
 GUILD_FLOORS = ("app_guild_base", "app_guild_base_ro")
@@ -89,7 +90,7 @@ async def _two_guilds(session):
     provider = await create_auth_provider(session)
     # Back on the setup login, whatever the factories left the session routed
     # to: the pictures are written the way the system engine writes them.
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     for guild in (one, two):
         await create_guild_auth_policy(session, guild, provider, policy="open")
         data = f"icon-{guild.id}".encode()
@@ -159,10 +160,10 @@ async def test_the_platform_floor_reads_every_community_of_its_reader(session):
     ids = (one.id, two.id)
     tier = UserRole.member.value
 
-    await set_rls_context(session, user_id=person.id, platform_role=tier)
+    await set_rls_context(session, Platform(user_id=person.id, tier=tier))
     for table in GUILD_KEYED:
         assert await _guilds_seen(session, table, ids) == {one.id, two.id}, table
 
-    await set_rls_context(session, user_id=stranger.id, platform_role=tier)
+    await set_rls_context(session, Platform(user_id=stranger.id, tier=tier))
     for table in GUILD_KEYED:
         assert await _guilds_seen(session, table, ids) == set(), table

@@ -71,6 +71,7 @@ from app.services.marketplace import (
     registration_lookup,
 )
 from app.services.marketplace.registration_lookup import RegistrationSnapshot
+from app.db.request_context import SystemGuild
 
 logger = logging.getLogger(__name__)
 
@@ -412,7 +413,7 @@ async def _read_in_community(
     into."""
     async with cohorts.system_session(guild_id) as session:
         try:
-            await set_rls_context(session, guild_id=guild_id)
+            await set_rls_context(session, SystemGuild(guild_id))
             return (await session.exec(statement, params=params)).all()
         except DBAPIError:
             return None

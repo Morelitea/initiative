@@ -183,6 +183,7 @@ from app.services.oidc_sync import extract_claim_values, sync_oidc_assignments
 from app.services.content_sockets import sockets as content_sockets
 from app.services.platform import provider_placement
 from app.models.platform.user_token import UserTokenPurpose
+from app.db.request_context import Platform
 
 router = APIRouter()
 
@@ -567,7 +568,7 @@ async def _register_account(
 
     # Everything from here is about the account, so it is read on the
     # account's own platform path.
-    await set_rls_context(session, user_id=user.id)
+    await set_rls_context(session, Platform(user_id=user.id))
     await session.refresh(user)
 
     if smtp_configured and not address_confirmed:
@@ -1150,12 +1151,9 @@ async def issue_upload_token(
     # Copy the minting session's satisfied-provider set into the scoped token
     # so media loads and the collaboration handover pass a policy-gated guild
     # exactly when the session itself would.
-    satisfied = auth_context.satisfied_providers()
     token, expires_in = create_upload_token(
         user_id=current_user.id,
-        satisfied_providers=sorted(satisfied)
-        if isinstance(satisfied, frozenset)
-        else (),
+        satisfied_providers=sorted(auth_context.satisfied_providers()),
         satisfied_claims=auth_context.satisfied_claims(),
         session_amr=auth_context.session_amr(),
     )

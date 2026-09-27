@@ -58,7 +58,7 @@ from app.schemas.tenant.dashboard import (
 )
 from app.schemas.tenant.tool import serialize_tool
 from app.api.v1.tenant_endpoints.query import REFUSAL_STATUS as _QUERY_STATUS
-from app.db.session import rls_context_params
+from app.db.session import routed_context
 from app.schemas.sql_query import QueryColumnDescription, QueryResponse
 from app.services.permissions import Action
 from app.services import audit as audit_service
@@ -578,7 +578,7 @@ async def load_dashboard_data(
     try:
         outcomes = await query_service.execute_canvas(
             statements,
-            context=rls_context_params(session),
+            context=routed_context(session),
             initiative_id=dashboard.initiative_id,
             via_dashboard_id=through,
         )
@@ -628,7 +628,7 @@ async def run_widget_query(
     try:
         result = await query_service.run(
             sql,
-            context=rls_context_params(session),
+            context=routed_context(session),
             initiative_id=dashboard.initiative_id,
             via_dashboard_id=through,
         )

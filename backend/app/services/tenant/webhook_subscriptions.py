@@ -28,6 +28,7 @@ from app.services import audit as audit_service
 from app.services import guild_work
 from app.services.marketplace.registration_lookup import service_public_id
 from app.services.marketplace.service_apps import ENDPOINT_ID_PREFIX
+from app.db.request_context import SystemGuild
 
 #: The fields a rewrite reports as moved. ``fields`` is a list of names, so
 #: it is reported as having moved and never copied.
@@ -70,7 +71,7 @@ async def app_event_emitters(
     if not wanted:
         return {}
     async with cohorts.system_session(guild_id) as session:
-        await set_rls_context(session, guild_id=guild_id, read_only=True)
+        await set_rls_context(session, SystemGuild(guild_id, read_only=True))
         definitions = (
             await session.exec(
                 select(GuildApp.definition).where(GuildApp.app_kind == "service")

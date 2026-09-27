@@ -45,6 +45,7 @@ from app.schemas.platform.settings import (
 )
 from app.services import audit as audit_service
 from app.services.platform import provider_placement
+from app.db.request_context import SystemGuild, Unattributed
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,7 @@ async def reset_to_system_baseline(session: AsyncSession) -> None:
     role, which has no write access to shared ``public`` config tables. Reset
     to the system login role before writing a rule back to ``public``.
     """
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
 
 
 async def lookup_guild_initiative(
@@ -88,7 +89,7 @@ async def lookup_guild_initiative(
     already in the identity map from being returned stale — ids are unique only
     within a schema.
     """
-    await set_rls_context(session, guild_id=guild_id)
+    await set_rls_context(session, SystemGuild(guild_id))
     try:
         initiative = (
             await session.exec(

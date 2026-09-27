@@ -21,7 +21,7 @@ from pydantic import ValidationError
 from app.api.deps import SessionDep
 from app.core.messages import BillingMessages
 from app.db import cohorts
-from app.db.session import set_billing_context
+from app.db.session import set_rls_context
 from app.schemas.platform.billing import (
     BillingGuildNameRead,
     BillingGuildNameRequest,
@@ -42,6 +42,7 @@ from app.services.platform.billing import (
     BillingReplayError,
     BillingSourceRestrictionError,
 )
+from app.db.request_context import Billing
 
 router = APIRouter(include_in_schema=False)
 
@@ -128,7 +129,7 @@ async def apply_guild_tier(
 ) -> BillingGuildTierRead:
     claims, payload = await _verify_and_parse(request, BillingGuildTierApply)
     guild_id = await _resolve_guild(payload.guild_ref)
-    await set_billing_context(session, guild_id=guild_id)
+    await set_rls_context(session, Billing(guild_id))
     await _burn_jti(session, claims)
     status_before = await billing_service.guild_lifecycle_status(session, guild_id)
     try:
@@ -177,7 +178,7 @@ async def guild_name(request: Request, session: SessionDep) -> BillingGuildNameR
     """
     claims, payload = await _verify_and_parse(request, BillingGuildNameRequest)
     guild_id = await _resolve_guild(payload.guild_ref)
-    await set_billing_context(session, guild_id=guild_id)
+    await set_rls_context(session, Billing(guild_id))
     await _burn_jti(session, claims)
 
     name = await billing_service.guild_display_name(session, guild_id)
@@ -198,7 +199,7 @@ async def guild_status(request: Request, session: SessionDep) -> BillingGuildSta
     """
     claims, payload = await _verify_and_parse(request, BillingGuildStatusRequest)
     guild_id = await _resolve_guild(payload.guild_ref)
-    await set_billing_context(session, guild_id=guild_id)
+    await set_rls_context(session, Billing(guild_id))
     await _burn_jti(session, claims)
 
     guild_status = await billing_service.guild_lifecycle_status(session, guild_id)
@@ -222,7 +223,7 @@ async def guild_usage(request: Request, session: SessionDep) -> BillingUsageRead
     """
     claims, payload = await _verify_and_parse(request, BillingUsageRequest)
     guild_id = await _resolve_guild(payload.guild_ref)
-    await set_billing_context(session, guild_id=guild_id)
+    await set_rls_context(session, Billing(guild_id))
     await _burn_jti(session, claims)
     try:
         usage_bytes = await billing_service.guild_storage_usage(guild_id)

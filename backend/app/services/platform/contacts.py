@@ -30,6 +30,7 @@ from app.services.cross_guild import gather_across_guilds
 from app.services.platform import guild_images as guild_images_service
 from app.services.platform import presence as presence_service
 from app.services.platform import users as users_service
+from app.db.request_context import Platform
 
 #: Members per guild section. Small enough that somebody in a dozen guilds gets
 #: a sane first response, and every section pages from there.
@@ -49,7 +50,7 @@ async def ordered_member_guilds(
     guild is left out, matching ``member_guild_ids`` and the ``/c/{guild_id}``
     path it stands in for.
     """
-    await set_rls_context(session, user_id=user_id)
+    await set_rls_context(session, Platform(user_id=user_id))
     rows = (
         await session.exec(
             select(Guild.id, Guild.name)
@@ -252,7 +253,7 @@ async def listable_by_guild(
         return {}
     # The rule reads who is asking from the request context, so this runs on
     # the caller's own session rather than being told an id.
-    await set_rls_context(session, user_id=user_id)
+    await set_rls_context(session, Platform(user_id=user_id))
     result: dict[int, set[int]] = {}
     for guild_id in guilds:
         rows = await session.exec(

@@ -45,7 +45,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import ImportEngineMessages
 from app.db import cohorts
-from app.db.session import SYSTEM_SATISFIED
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import UserStatus
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
@@ -369,7 +368,7 @@ async def _execute(session: AsyncSession, job: ImportJob, *, guild_id: int) -> d
                 # passed the guild auth-policy gate, it carries the system
                 # sentinel.
                 await establish_guild_access(
-                    user_session, user, guild_id, satisfied_providers=SYSTEM_SATISFIED
+                    user_session, user, guild_id, on_behalf=True
                 )
                 backup_result = await backup_service.apply_backup(
                     user_session,
@@ -400,9 +399,7 @@ async def _execute(session: AsyncSession, job: ImportJob, *, guild_id: int) -> d
         # and create permission are re-checked too — authorization is a
         # property of apply time, not enqueue time. (System sentinel: the
         # enqueueing request already passed the guild auth-policy gate.)
-        await establish_guild_access(
-            user_session, user, guild_id, satisfied_providers=SYSTEM_SATISFIED
-        )
+        await establish_guild_access(user_session, user, guild_id, on_behalf=True)
         initiative = await import_engine.load_target_initiative(
             user_session,
             guild_id=guild_id,

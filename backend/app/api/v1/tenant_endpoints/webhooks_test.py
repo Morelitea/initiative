@@ -21,6 +21,7 @@ from unittest.mock import patch
 
 
 from app.models.platform.guild import GuildRole
+from app.db.request_context import SystemGuild
 
 
 _WEBHOOK_HOST = "hooks.example.com"
@@ -103,7 +104,7 @@ async def test_dead_letter_count_is_visible_on_every_read(client, acting_user, s
     subscription_id = created.json()["id"]
     assert created.json()["dead_letter_count"] == 0
 
-    await set_rls_context(session, guild_id=a.guild.id)
+    await set_rls_context(session, SystemGuild(a.guild.id))
     await session.exec(
         sa_text(
             "INSERT INTO webhook_deliveries "

@@ -27,6 +27,7 @@ from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.initiative import InitiativeMember
 from app.services.platform import user_notifications
 from app.services.tenant import app_member_consents
+from app.db.request_context import SystemGuild, Unattributed
 
 __all__ = [
     "ConsentMemberNotInInitiative",
@@ -103,7 +104,7 @@ async def record_request(
         if belongs is None:
             return None
 
-        await set_rls_context(session, guild_id=guild_id)
+        await set_rls_context(session, SystemGuild(guild_id))
         if initiative_id is not None:
             in_initiative = (
                 await session.exec(
@@ -156,7 +157,7 @@ async def record_request(
         if created:
             # Out of the community's schema: the notification is the member's
             # own row in ``public``.
-            await set_rls_context(session)
+            await set_rls_context(session, Unattributed())
             await user_notifications.create_notification(
                 session,
                 user_id=user_id,

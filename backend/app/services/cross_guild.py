@@ -27,6 +27,7 @@ from app.models.platform.guild import (
     GuildMembership,
 )
 from app.models.platform.user import User, UserStatus
+from app.db.request_context import Platform
 
 T = TypeVar("T")
 R = TypeVar("R")
@@ -68,7 +69,7 @@ async def member_guild_ids(
     carrying one, which is the same twinning: ``/c/{guild_id}`` refuses that
     caller, so an aggregate cannot be the way its content is read instead.
     A key limited to one guild reaches that guild alone, for the same reason."""
-    await set_rls_context(session, user_id=user_id)
+    await set_rls_context(session, Platform(user_id=user_id))
     conditions = [
         GuildMembership.user_id == user_id,
         Guild.status.in_(LIVE_STATUS_VALUES),
@@ -97,8 +98,8 @@ async def gather_across_guilds(
     user_id: int,
     guild_ids: Sequence[int],
     fetch: Callable[[AsyncSession, int], Awaitable[list[T]]],
-    satisfied_providers: Sequence[int] | str | None = None,
     *,
+    on_behalf: bool = False,
     for_settings: bool = False,
     writes: bool = False,
 ) -> list[T]:
@@ -112,10 +113,10 @@ async def gather_across_guilds(
     the community's own schema. A community this caller cannot reach right now
     contributes nothing rather than raising.
 
-    ``satisfied_providers`` defaults to the ambient ``auth_context`` — the
-    session's ``sat`` on a request path — so a policy-gated guild contributes
-    exactly when the caller's session satisfies its policy. User-attributed
-    system jobs pass ``SYSTEM_SATISFIED`` explicitly.
+    The caller's session is the ambient ``auth_context`` — its ``sat`` on a
+    request path — so a policy-gated guild contributes exactly when that
+    session satisfies its policy. ``on_behalf`` is a job acting as the person
+    who asked for it (``establish_guild_access``).
 
     ``for_settings`` enters each community on its configuration surface, as
     ``/c/{guild_id}`` settings routes do (``establish_guild_access``'s
@@ -136,12 +137,9 @@ async def gather_across_guilds(
         establish_guild_access,
     )
 
-    if satisfied_providers is None:
-        ambient = auth_context.satisfied_providers()
-        satisfied_providers = ambient if isinstance(ambient, str) else sorted(ambient)
     # One shared-table read for the caller's own account, under the user-only
     # context, before we start routing into schemas.
-    await set_rls_context(session, user_id=user_id)
+    await set_rls_context(session, Platform(user_id=user_id))
     user = (await session.exec(select(User).where(User.id == user_id))).one_or_none()
     # A suspended account reaches no community, so there is nothing across them
     # to gather. Checked here rather than only in ``member_guild_ids`` because a
@@ -152,11 +150,7 @@ async def gather_across_guilds(
     contexts: dict[tuple[int, int, bool], GuildContext] = session.info.setdefault(
         _CONTEXT_CACHE_KEY, {}
     )
-    satisfied = (
-        satisfied_providers
-        if isinstance(satisfied_providers, str)
-        else frozenset(satisfied_providers or ())
-    )
+    satisfied = auth_context.satisfied_providers()
 
     async def enter(routed: AsyncSession, account: User, guild_id: int) -> bool:
         """Route ``routed`` into ``guild_id`` as ``account``; False when this
@@ -169,7 +163,8 @@ async def gather_across_guilds(
                     routed,
                     account,
                     guild_id,
-                    satisfied_providers=satisfied_providers,
+                    satisfied_providers=satisfied,
+                    on_behalf=on_behalf,
                     for_settings=for_settings,
                 )
             else:
@@ -177,7 +172,7 @@ async def gather_across_guilds(
                 # this request; what has to happen again is the routing and the
                 # standing, which is the pair this applies.
                 await apply_guild_session_context(
-                    routed, account, cached, satisfied=satisfied
+                    routed, account, cached, satisfied=satisfied, on_behalf=on_behalf
                 )
         except GuildAccessError:
             # A community this caller cannot reach right now contributes

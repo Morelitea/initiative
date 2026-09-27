@@ -33,6 +33,7 @@ from app.core import metrics
 from app.db import cohorts
 from app.db.session import set_rls_context
 from app.models.platform.guild import LIVE_STATUS_VALUES, Guild, GuildStatus
+from app.db.request_context import SystemGuild, Unattributed
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +129,7 @@ async def _communities(
     if only is not None:
         statement = statement.where(col(Guild.id).in_(list(only)))
     async with cohorts.system_session(None) as session:
-        await set_rls_context(session)
+        await set_rls_context(session, Unattributed())
         rows = (await session.exec(statement)).all()
         schemas: set[str] = set()
         if any(scope is Scope.PROVISIONED for scope, _visit in visits):
@@ -146,7 +147,7 @@ async def _visit(
     session: AsyncSession, visit: Visit, guild_id: int, *, name: str
 ) -> None:
     try:
-        await set_rls_context(session, guild_id=guild_id)
+        await set_rls_context(session, SystemGuild(guild_id))
         await visit(session, guild_id)
         await session.commit()
     except Exception:

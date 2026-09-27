@@ -50,6 +50,7 @@ from app.services.marketplace.vendor_values import (
 )
 from app.services.tenant import app_connection_flows as flows
 from app.services.tenant.app_channels import owns_install
+from app.db.request_context import SystemGuild
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +126,7 @@ async def _already_accepted(
     """Whether this install already accepted the delivery, or ``None`` when
     there is no install of this app to forward it to."""
     async with cohorts.system_session(install.guild_id) as session:
-        await set_rls_context(session, guild_id=install.guild_id, read_only=True)
+        await set_rls_context(session, SystemGuild(install.guild_id, read_only=True))
         app = (
             await session.exec(
                 select(GuildApp).where(GuildApp.id == install.install_id)
@@ -148,7 +149,7 @@ async def _already_accepted(
 async def _record(install: app_installs.IndexedInstall, delivery_id: str) -> None:
     expires_at = datetime.now(timezone.utc) + DELIVERY_TTL
     async with cohorts.system_session(install.guild_id) as session:
-        await set_rls_context(session, guild_id=install.guild_id)
+        await set_rls_context(session, SystemGuild(install.guild_id))
         await session.exec(
             pg_insert(AppHookDelivery)
             .values(

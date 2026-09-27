@@ -19,13 +19,14 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.db.schema_provisioning import guild_role_name
 from app.db.session import (
     _RLS_ESTABLISHED_INFO_KEY,
-    _RLS_PARAMS_INFO_KEY,
+    _RLS_CONTEXT_INFO_KEY,
     RLS_CONTEXT_MAX_AGE_SECONDS,
     StaleAuthorizationContext,
     set_rls_context,
 )
 from app.testing import create_guild, create_guild_membership, create_user, route_as
 from app.testing.schema_harness import route_session_to_guild
+from app.db.request_context import SystemGuild
 
 
 async def _scalar(session: AsyncSession, sql: str):
@@ -62,7 +63,7 @@ async def test_context_dies_with_transaction(session, role_session):
     assert (await _scalar(s, "SELECT current_user")) == guild_role_name(guild.id)
     await s.commit()
 
-    del s.info[_RLS_PARAMS_INFO_KEY]  # disable replay: probe the bare connection
+    del s.info[_RLS_CONTEXT_INFO_KEY]  # disable replay: probe the bare connection
     assert (await _scalar(s, "SELECT current_user")) != guild_role_name(guild.id)
     assert (
         await _scalar(s, "SELECT current_setting('app.current_user_id', true)")
@@ -95,7 +96,7 @@ async def test_system_context_exempt_from_ttl(session, role_session):
     guild = await create_guild(session, creator=user)
 
     s = await role_session("app_admin")
-    await set_rls_context(s, guild_id=guild.id)
+    await set_rls_context(s, SystemGuild(guild.id))
     await s.commit()
     s.info[_RLS_ESTABLISHED_INFO_KEY] -= RLS_CONTEXT_MAX_AGE_SECONDS + 1
 
@@ -165,25 +166,41 @@ def test_every_context_branch_binds_every_parameter():
     """
     import re
 
-    from app.db.session import _CONTEXT_SQL, _render_context_bind_params
+    from app.db.guild_standing import GuildContext, InstallContext
+    from app.db.request_context import (
+        Billing,
+        ContentGrantee,
+        Install,
+        Member,
+        Platform,
+        Unattributed,
+    )
+    from app.db.session import _CONTEXT_SQL, _bind_params
 
     required = set(re.findall(r":(\w+)", _CONTEXT_SQL))
 
+    standing = GuildContext(guild=None, user_id=7, guild_id=3)
     branches = {
-        "billing": {"billing_guild_id": 1},
-        "unrouted": {},
-        "platform": {"user_id": 7},
-        "guild": {"user_id": 7, "guild_id": 3, "guild_role": "admin"},
-        "pam": {"user_id": 7, "pam_guild_id": 3, "pam_read": True},
-        "install": {
-            "guild_id": 3,
-            "install_id": 5,
-            "token_client_id": "tests.app-service",
-            "token_scopes": frozenset({"documents:read"}),
-        },
+        "billing": Billing(1),
+        "unrouted": Unattributed(),
+        "platform": Platform(user_id=7),
+        "guild": Member(guild_id=3, user_id=7, standing=standing),
+        "pam": ContentGrantee(guild_id=3, user_id=7),
+        "install": Install(
+            guild_id=3,
+            install_id=5,
+            standing=InstallContext(
+                guild_id=3,
+                install_id=5,
+                client_id="tests.app-service",
+                token_scopes=frozenset({"documents:read"}),
+            ),
+            token_client_id="tests.app-service",
+            token_scopes=frozenset({"documents:read"}),
+        ),
     }
-    for name, params in branches.items():
-        rendered = set(_render_context_bind_params(params))
+    for name, shape in branches.items():
+        rendered = set(_bind_params(shape))
         assert rendered == required, (
             f"the {name} branch does not bind exactly the statement's "
             f"parameters — missing {sorted(required - rendered)}, "

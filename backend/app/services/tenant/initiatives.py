@@ -15,7 +15,7 @@ from app.db.query import ids_in
 from app.db.session import routed_guild_id
 from app.core.audit_events import AuditEventType
 from app.core.messages import InitiativeMessages
-from app.db.session import rls_context_params
+from app.db.session import routed_context
 from app.models.tenant.initiative import (
     BUILTIN_ROLES,
     Initiative,
@@ -675,7 +675,7 @@ def _acting_user_id(session: AsyncSession) -> int | None:
     every request path is recorded against the account making it.
     """
     try:
-        return rls_context_params(session).get("user_id")
+        return routed_context(session).user_id
     except RuntimeError:
         return None
 

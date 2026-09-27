@@ -36,7 +36,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import ExportMessages
 from app.db import cohorts
-from app.db.session import SYSTEM_SATISFIED
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import UserStatus
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
@@ -254,9 +253,7 @@ async def _execute(
             # The job is user-attributed system work — its enqueueing request
             # already passed the guild auth-policy gate, so it carries the
             # system sentinel.
-            await establish_guild_access(
-                user_session, user, guild_id, satisfied_providers=SYSTEM_SATISFIED
-            )
+            await establish_guild_access(user_session, user, guild_id, on_behalf=True)
             request = await adapter.build(
                 user_session,
                 user=user,

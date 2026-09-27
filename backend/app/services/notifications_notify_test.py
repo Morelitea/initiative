@@ -21,6 +21,7 @@ from app.testing import (
     create_user,
     route_session_to_guild,
 )
+from app.db.request_context import SystemGuild, Unattributed
 
 
 async def _mentions(user_id: int) -> list[Notification]:
@@ -118,7 +119,7 @@ async def test_a_community_admin_is_among_the_readers(session, acting_user):
     )
     admin = await acting_user(guild_role=GuildRole.admin, guild=owner.guild)
     # Routed the way a request or a sweep is, which is what names the community.
-    await set_rls_context(session, guild_id=owner.guild.id)
+    await set_rls_context(session, SystemGuild(owner.guild.id))
 
     subject = await notifications.resolve_subject(
         session, (Tool.project.value, owner.project.id)
@@ -163,7 +164,7 @@ async def test_read_notifications_are_kept_thirty_days_and_unread_forever(sessio
     now = datetime.now(timezone.utc)
     ages = {"old_read": 31, "recent_read": 29, "old_unread": 400}
     async with SystemSessionLocal() as system_session:
-        await set_rls_context(system_session)
+        await set_rls_context(system_session, Unattributed())
         for label, days in ages.items():
             system_session.add(
                 Notification(

@@ -38,6 +38,7 @@ from app.testing import (
     route_as,
     route_session_to_guild,
 )
+from app.db.request_context import SystemGuild
 
 
 async def _as(role_session, *, user_id: int, guild_id: int, settings=False):
@@ -289,7 +290,7 @@ async def test_only_the_seat_and_the_system_engine_read_secrets(
     s = await _as(role_session, user_id=seat.user.id, guild_id=seat.guild.id)
     assert list(await s.exec(read)) == both
     system = await role_session("app_admin")
-    await set_rls_context(system, guild_id=seat.guild.id)
+    await set_rls_context(system, SystemGuild(seat.guild.id))
     assert list(await system.exec(read)) == both
 
 
@@ -412,7 +413,7 @@ async def test_only_the_system_engine_writes_a_delivery(
 
     # A sweep routes with the community alone, as the poller does.
     system = await role_session("app_admin")
-    await set_rls_context(system, guild_id=a.guild.id)
+    await set_rls_context(system, SystemGuild(a.guild.id))
     updated = await system.exec(
         text("UPDATE webhook_deliveries SET attempts = 1 RETURNING txn_id")
     )

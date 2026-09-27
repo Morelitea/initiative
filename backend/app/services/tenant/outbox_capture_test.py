@@ -16,10 +16,11 @@ from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.tenant.event_outbox import EventOutbox
 from app.testing import create_resource_grant, create_tag, create_task, route_as
+from app.db.request_context import SystemGuild, Unattributed
 
 
 async def _outbox(session, guild_id: int) -> list[EventOutbox]:
-    await set_rls_context(session, guild_id=guild_id)
+    await set_rls_context(session, SystemGuild(guild_id))
     return list(await session.exec(select(EventOutbox).order_by(EventOutbox.id.asc())))
 
 
@@ -187,7 +188,7 @@ async def test_adding_a_member_reports_against_the_initiative(session, acting_us
 
     # Back to the shared baseline before building a person: an account is a
     # platform row, and this session is pointed at a guild by the actor above.
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     joiner = await create_user(session)
     await route_as(session, user_id=a.user.id, guild_id=a.guild.id)
     await create_initiative_member(session, a.initiative, joiner)
@@ -313,7 +314,7 @@ async def test_a_hard_delete_on_a_trash_table_never_surfaces(session, acting_use
     ]
     assert len(deletes_after_soft) == 1, "the soft delete should announce once"
 
-    await set_rls_context(session, guild_id=a.guild.id)
+    await set_rls_context(session, SystemGuild(a.guild.id))
     await hard_purge_entity(session, task)
     await session.commit()
 
@@ -341,7 +342,7 @@ async def test_a_hard_delete_that_was_never_trashed_still_announces(
     await session.commit()
 
     before = len(await _outbox(session, a.guild.id))
-    await set_rls_context(session, guild_id=a.guild.id)
+    await set_rls_context(session, SystemGuild(a.guild.id))
     await session.delete(membership)
     await session.commit()
 
@@ -360,7 +361,7 @@ async def test_a_trash_row_removed_outright_is_still_silent(session, acting_user
     task = await create_task(session, a.project)
 
     before = len(await _outbox(session, a.guild.id))
-    await set_rls_context(session, guild_id=a.guild.id)
+    await set_rls_context(session, SystemGuild(a.guild.id))
     await session.delete(task)
     await session.commit()
 

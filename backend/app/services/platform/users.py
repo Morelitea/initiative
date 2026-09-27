@@ -15,7 +15,7 @@ from app.core.capabilities import Capability, roles_with_capability
 from app.core import usernames
 from app.core.encryption import hash_email
 from app.db import cohorts
-from app.db.session import set_rls_context, set_system_guild_context
+from app.db.session import set_rls_context
 from app.models.platform.user import (
     ABSENT_STATUSES,
     User,
@@ -52,6 +52,7 @@ from app.models.platform.api_key import UserApiKey
 from app.models.platform.user_token import UserToken
 from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
+from app.db.request_context import SystemGuild, SystemMaintenance
 
 
 class SeatWouldBeEmptied(Exception):
@@ -185,7 +186,7 @@ async def _in_each_guild(
     runs ahead of a guild's."""
     for guild_id in guild_ids:
         async with cohorts.system_session(guild_id) as guild_session:
-            await set_rls_context(guild_session, guild_id=guild_id)
+            await set_rls_context(guild_session, SystemGuild(guild_id))
             await work(guild_session, guild_id)
             await guild_session.commit()
             await _dispatch_queued_revocations(guild_session)
@@ -546,9 +547,9 @@ async def soft_delete_user(
     user = await _drop_user_memberships(session, user_id, actor_user_id=actor_user_id)
 
     async def scrub(guild_session: AsyncSession, guild_id: int) -> None:
-        await set_system_guild_context(guild_session, guild_id=guild_id)
+        await set_rls_context(guild_session, SystemMaintenance(guild_id))
         await anonymize_user_mentions(guild_session, user_id=user_id)
-        await set_rls_context(guild_session, guild_id=guild_id)
+        await set_rls_context(guild_session, SystemGuild(guild_id))
         # Drop the user's AI credentials (member API keys) + connection
         # preference in this guild — the encrypted keys are a secret we must
         # not leave behind, and this delete is what removes them.
@@ -787,9 +788,9 @@ async def hard_delete_user(
         # text (@-mentions in comments, document mention nodes, digest name
         # snapshots). Already done if the user was anonymized first; direct
         # hard deletes need it here, before the row disappears.
-        await set_system_guild_context(guild_session, guild_id=guild_id)
+        await set_rls_context(guild_session, SystemMaintenance(guild_id))
         await anonymize_user_mentions(guild_session, user_id=user_id)
-        await set_rls_context(guild_session, guild_id=guild_id)
+        await set_rls_context(guild_session, SystemGuild(guild_id))
 
         # Per-user guild-scoped rows: each one is deleted or nulled here, in
         # every guild schema, because this loop does it and nothing else will.

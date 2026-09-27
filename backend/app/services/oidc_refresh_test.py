@@ -37,6 +37,7 @@ from app.testing.factories import (
     create_guild_provider_connection,
     create_user,
 )
+from app.db.request_context import Unattributed
 
 
 async def _configured(session: AsyncSession, slug: str):
@@ -194,7 +195,7 @@ async def _placed_by_directory(session: AsyncSession):
     )
     await session.commit()
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await sync_oidc_assignments(
         session,
         user_id=person.id,
@@ -209,7 +210,7 @@ async def _placed_by_directory(session: AsyncSession):
 
 async def _joined(session: AsyncSession, user_id: int) -> set[int]:
     session.expunge_all()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     return set(
         (
             await session.exec(
@@ -223,7 +224,7 @@ async def _joined(session: AsyncSession, user_id: int) -> set[int]:
 
 async def _sweep(session: AsyncSession, provider_id: int) -> None:
     session.expunge_all()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     provider = await session.get(AuthProvider, provider_id)
     await oidc_refresh._sweep_provider(session, provider)
 

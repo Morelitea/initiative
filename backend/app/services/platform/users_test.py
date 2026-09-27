@@ -25,6 +25,7 @@ from app.testing.factories import (
     create_guild_membership,
     create_user,
 )
+from app.db.request_context import SystemGuild, Unattributed
 
 
 async def test_the_sole_seat_is_reported(session: AsyncSession):
@@ -724,7 +725,7 @@ async def test_soft_delete_removes_membership_in_guild_schema(
     await create_initiative_member(session, initiative=initiative, user=member)
 
     # Sanity: the membership exists in the guild schema before deletion.
-    await set_rls_context(session, guild_id=guild.id)
+    await set_rls_context(session, SystemGuild(guild.id))
     before = (
         await session.exec(
             select(InitiativeMember).where(InitiativeMember.user_id == member.id)
@@ -737,7 +738,7 @@ async def test_soft_delete_removes_membership_in_guild_schema(
 
     # Re-route into the guild schema and confirm the row is gone THERE.
     session.expunge_all()
-    await set_rls_context(session, guild_id=guild.id)
+    await set_rls_context(session, SystemGuild(guild.id))
     after = (
         await session.exec(
             select(InitiativeMember).where(InitiativeMember.user_id == member.id)
@@ -746,7 +747,7 @@ async def test_soft_delete_removes_membership_in_guild_schema(
     assert after == []
 
     # And the user row itself (shared/public) is anonymized.
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     refreshed = (await session.exec(select(User).where(User.id == member.id))).one()
     assert refreshed.status == UserStatus.anonymized
 
@@ -870,7 +871,7 @@ async def test_soft_delete_scrubs_embedded_mentions(
 
     from app.db.session import set_rls_context
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await session.exec(
         text(
             f'CREATE POLICY test_erasure_system_path ON "guild_{guild.id}".comments '

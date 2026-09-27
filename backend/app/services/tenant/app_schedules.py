@@ -41,6 +41,7 @@ from app.services.marketplace.registration_lookup import load_registrations
 from app.services.marketplace.service_apps import schedule_minutes
 from app.services.tenant import app_connection_flows as flows
 from app.services.tenant.app_channels import owns_install
+from app.db.request_context import SystemGuild
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +83,7 @@ async def reconcile(
     session of their own."""
     if session is None:
         async with cohorts.system_session(guild_id) as own:
-            await set_rls_context(own, guild_id=guild_id)
+            await set_rls_context(own, SystemGuild(guild_id))
             await reconcile(guild_id, install_id, definition, session=own)
             await own.commit()
         return

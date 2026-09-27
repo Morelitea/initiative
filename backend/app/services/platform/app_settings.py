@@ -38,6 +38,7 @@ from app.models.platform.app_setting_secret import AppSettingSecret
 from app.models.platform.user_dm_settings import DmPolicy
 from app.models.tenant.guild_setting import GuildSetting
 from app.services.platform import guilds as guilds_service
+from app.db.request_context import SystemGuild
 
 GLOBAL_SETTINGS_ID = 1
 
@@ -982,6 +983,6 @@ async def ensure_defaults(session: AsyncSession) -> None:
     # guild_settings lives only in the guild schema, so it is seeded on a
     # system session from the primary guild's cohort, routed into it.
     async with cohorts.system_session(primary_guild_id) as guild_session:
-        await set_rls_context(guild_session, guild_id=primary_guild_id)
+        await set_rls_context(guild_session, SystemGuild(primary_guild_id))
         await _ensure_guild_setting(guild_session, primary_guild_id)
         await guild_session.commit()

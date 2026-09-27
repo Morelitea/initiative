@@ -44,7 +44,6 @@ from app.db.guild_standing import ActorContext, InstallContext
 from app.db import cohorts
 from app.db.initiative_rls import entity_tables, governing_path
 from app.db.session import (
-    SYSTEM_SATISFIED,
     SystemSessionLocal,
     routed_guild_id,
     set_rls_context,
@@ -86,6 +85,7 @@ from app.services.platform import (
     user_notifications,
 )
 from app.core.user_input_validators import resolve_zone
+from app.db.request_context import Platform, SystemGuild, Unattributed
 
 logger = logging.getLogger(__name__)
 
@@ -832,7 +832,7 @@ async def clear_digest_queue_across_guilds(
         user_id,
         guild_ids,
         _clear,
-        satisfied_providers=SYSTEM_SATISFIED,
+        on_behalf=True,
         writes=True,
     )
 
@@ -1019,7 +1019,7 @@ def digest_scan(spec: DigestSpec, *, now: datetime) -> Scan:
         if not pending:
             return
         async with cohorts.system_session(None) as session:
-            await set_rls_context(session)
+            await set_rls_context(session, Unattributed())
             await _send_digests(session, spec, pending, now=now)
 
     return Scan(Scope.LIVE, _waiting, _finish)
@@ -1084,14 +1084,14 @@ async def _send_digests(
             user_id,
             await member_guild_ids(session, user_id, restrict_to=list(held)),
             _take,
-            satisfied_providers=SYSTEM_SATISFIED,
+            on_behalf=True,
             writes=True,
         )
         if not batch:
             continue
         # Send: re-load the user, fresh, in a shared-table context.
         session.expunge_all()
-        await set_rls_context(session, user_id=user_id)
+        await set_rls_context(session, Platform(user_id=user_id))
         user = (
             await session.exec(select(User).where(User.id == user_id))
         ).scalar_one_or_none()
@@ -1133,7 +1133,7 @@ async def _send_digests(
             # items go back to waiting, in each community they were taken from.
             for gid, item_ids in taken.items():
                 async with cohorts.system_session(gid) as routed:
-                    await set_rls_context(routed, guild_id=gid)
+                    await set_rls_context(routed, SystemGuild(gid))
                     await routed.exec(
                         sa_update(model)
                         .where(model.id.in_(item_ids), model.processed_at == now)
@@ -1177,7 +1177,7 @@ def digest_gc_scan(*, now: datetime) -> Scan:
 
     async def _finish() -> None:
         async with cohorts.system_session(None) as session:
-            await set_rls_context(session)
+            await set_rls_context(session, Unattributed())
             # Mail that has gone out, or run out of attempts, is bookkeeping on
             # the same terms as a spent digest row.
             dropped = await email_outbox.sweep_settled(session, now=now)
@@ -1739,7 +1739,7 @@ def overdue_scan(*, now: datetime) -> Scan:
             logger.debug("overdue-digest: nothing overdue")
             return
         async with cohorts.system_session(None) as session:
-            await set_rls_context(session)
+            await set_rls_context(session, Unattributed())
             await _send_overdue(session, overdue, now=now)
 
     return Scan(Scope.LIVE, _overdue_here, _finish)
@@ -1816,14 +1816,14 @@ async def _send_overdue(
             lambda routed, gid, _uid=user_id: _overdue_tasks_for_user(
                 routed, _uid, gid
             ),
-            satisfied_providers=SYSTEM_SATISFIED,
+            on_behalf=True,
         )
         if not tasks:
             continue
         # Re-load the user, fresh, to send + stamp it. The
         # email/stamp touch only shared tables, so the user-only context is fine.
         session.expunge_all()
-        await set_rls_context(session, user_id=user_id)
+        await set_rls_context(session, Platform(user_id=user_id))
         user = (
             await session.exec(select(User).where(User.id == user_id))
         ).scalar_one_or_none()
@@ -2272,7 +2272,7 @@ async def reminder_scan(*, now: datetime) -> Scan | None:
                         session, user_id, restrict_to=sorted(guild_ids)
                     ),
                     lambda routed, gid, _uid=user_id: _dispatch(routed, gid, _uid),
-                    satisfied_providers=SYSTEM_SATISFIED,
+                    on_behalf=True,
                     writes=True,
                 )
 

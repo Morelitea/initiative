@@ -43,7 +43,7 @@ from sqlmodel import SQLModel
 
 from app.db.session import routed_guild_id
 
-from app.db.session import _RLS_ESTABLISHED_INFO_KEY, _RLS_PARAMS_INFO_KEY
+from app.db.session import _RLS_CONTEXT_INFO_KEY, _RLS_ESTABLISHED_INFO_KEY
 from app.db.tenancy import GUILD_SCOPED_TABLES
 
 _installed = False
@@ -215,7 +215,7 @@ def _replay_search_path_pin(session: Session, transaction, connection) -> None:
     pin = session.info.get(_PIN_INFO_KEY)
     if not pin:
         return
-    if session.info.get(_RLS_PARAMS_INFO_KEY) is not None:
+    if session.info.get(_RLS_CONTEXT_INFO_KEY) is not None:
         params_at = session.info.get(_RLS_ESTABLISHED_INFO_KEY, 0.0)
         if params_at >= session.info.get(_PIN_STAMP_KEY, 0.0):
             return  # production context is the newer routing intent

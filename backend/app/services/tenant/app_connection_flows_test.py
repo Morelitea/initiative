@@ -50,6 +50,7 @@ from app.testing import (
     sealed_vendor_values,
 )
 from app.testing.fake_vendor import FakeVendor
+from app.db.request_context import SystemGuild
 
 
 PUBLIC_ID = "tests.gh"
@@ -341,7 +342,7 @@ async def _write_during_refresh(guild_id: int, *statements) -> None:
     """Another request's writes, refused rather than left waiting on a lock
     the refresh holds."""
     async with cohorts.system_session(guild_id) as own:
-        await set_rls_context(own, guild_id=guild_id)
+        await set_rls_context(own, SystemGuild(guild_id))
         await own.exec(text("SET LOCAL lock_timeout = '2s'"))
         for statement in statements:
             await own.exec(statement)
@@ -708,7 +709,7 @@ class TestTokens:
 
         async def read_token():
             async with cohorts.system_session(a.guild.id) as own:
-                await set_rls_context(own, guild_id=a.guild.id)
+                await set_rls_context(own, SystemGuild(a.guild.id))
                 install = (
                     await own.exec(select(GuildApp).where(GuildApp.id == app.id))
                 ).one()
@@ -1208,7 +1209,7 @@ async def _due(session: AsyncSession, guild_id: int) -> None:
 
 async def _run_due(worker: AsyncSession, guild_id: int) -> None:
     """One minute pass's visit to the community, on a system session."""
-    await set_rls_context(worker, guild_id=guild_id)
+    await set_rls_context(worker, SystemGuild(guild_id))
     await app_schedules.run_due(worker, guild_id)
 
 

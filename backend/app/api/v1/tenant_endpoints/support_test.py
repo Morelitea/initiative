@@ -20,6 +20,7 @@ from app.testing import (
     create_project,
     create_user,
 )
+from app.db.request_context import SystemGuild, Unattributed
 
 
 async def _ask(client, actor, guild_id, **body):
@@ -32,7 +33,7 @@ async def _ask(client, actor, guild_id, **body):
 
 async def _set_support(session, guild_id: int, enabled: bool) -> None:
     """Grant the entitlement, the way the operator's Guilds tab does."""
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     row = (
         await session.exec(
             select(GuildAdministration).where(GuildAdministration.guild_id == guild_id)
@@ -51,7 +52,7 @@ async def operations(session):
     ops_initiative = await create_initiative(session, ops_guild, staff)
     ops_project = await create_project(session, ops_initiative, staff)
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     row = (await session.exec(select(AppSetting).where(AppSetting.id == 1))).first()
     if row is None:
         row = AppSetting(id=1)
@@ -59,10 +60,10 @@ async def operations(session):
     session.add(row)
     await session.commit()
 
-    await set_rls_context(session, guild_id=ops_guild.id)
+    await set_rls_context(session, SystemGuild(ops_guild.id))
     session.add(IntakeBinding(stream=IntakeStream.support, project_id=ops_project.id))
     await session.commit()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     return {"guild": ops_guild, "project": ops_project}
 
 
@@ -87,7 +88,7 @@ async def test_a_member_can_ask_for_help(client, session, acting_user, operation
     assert response.status_code == 202, response.text
     assert response.json()["accepted"] is True
 
-    await set_rls_context(session, guild_id=operations["guild"].id)
+    await set_rls_context(session, SystemGuild(operations["guild"].id))
     case = (await session.exec(select(IntakeCase))).one()
     assert case.stream == IntakeStream.support.value
     task = (await session.exec(select(Task).where(Task.id == case.task_id))).one()
@@ -104,7 +105,7 @@ async def test_the_case_names_who_asked_and_where_from(
     await _set_support(session, member.guild.id, True)
     assert (await _ask(client, member, member.guild.id)).status_code == 202
 
-    await set_rls_context(session, guild_id=operations["guild"].id)
+    await set_rls_context(session, SystemGuild(operations["guild"].id))
     case = (await session.exec(select(IntakeCase))).one()
     from app.models.tenant.property import TaskPropertyValue
 
@@ -215,7 +216,7 @@ async def test_what_is_stored_is_what_was_meant(
         await _ask(client, member, member.guild.id, subject="  Padded  ")
     ).status_code == 202
 
-    await set_rls_context(session, guild_id=operations["guild"].id)
+    await set_rls_context(session, SystemGuild(operations["guild"].id))
     case = (await session.exec(select(IntakeCase))).one()
     task = (await session.exec(select(Task).where(Task.id == case.task_id))).one()
     assert task.title == "Padded"

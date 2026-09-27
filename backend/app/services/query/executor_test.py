@@ -13,6 +13,7 @@ from asyncpg.exceptions import DatabaseDroppedError, SerializationError
 
 from app.core.messages import QueryMessages
 from app.db.guild_standing import GuildContext
+from app.db.request_context import ContentGrantee, Member, Platform
 from app.models.platform.guild import Guild
 from app.db.schema_provisioning import drop_guild_schema, provision_guild_schema
 from app.services.fields.spec import FieldType
@@ -30,7 +31,7 @@ from app.services.query import (
 _GID = 990_200
 
 
-def _context(guild_id: int, **extra) -> dict:
+def _context(guild_id: int) -> Member:
     """What the request's own session would have established.
 
     The reader's standing rides along as the ``GuildContext`` the seam built,
@@ -47,7 +48,7 @@ def _context(guild_id: int, **extra) -> dict:
         guild_admin=True,
         guild_auth_ok=True,
     )
-    return {"user_id": 1, "guild_id": guild_id, "context": standing, **extra}
+    return Member(guild_id=guild_id, user_id=1, standing=standing)
 
 
 @pytest.fixture
@@ -153,19 +154,14 @@ async def test_a_grantee_routes_by_the_grant(guild):
     executor takes whichever the request's own session recorded."""
     result = await run(
         "SELECT title FROM tasks",
-        context={
-            "user_id": 1,
-            "guild_id": None,
-            "pam_guild_id": guild,
-            "pam_read": True,
-        },
+        context=ContentGrantee(guild_id=guild, user_id=1),
     )
     assert result.columns == (QueryColumn(name="title", type=FieldType.text),)
 
 
 async def test_a_context_that_routes_nowhere_is_refused(guild):
     with pytest.raises(QueryError) as refused:
-        await run("SELECT title FROM tasks", context={"user_id": 1})
+        await run("SELECT title FROM tasks", context=Platform(user_id=1))
     assert refused.value.code == QueryMessages.MISSING_RELATION
 
 

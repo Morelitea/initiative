@@ -26,6 +26,7 @@ from app.testing.factories import (
     route_session_to_guild,
 )
 from app.services.import_engine import limits as import_limits
+from app.db.request_context import SystemGuild
 
 
 # ---------------------------------------------------------------------------
@@ -3882,7 +3883,7 @@ async def _job_secret(session, guild_id, job_id):
     from app.db.session import set_rls_context
 
     session.expunge_all()
-    await set_rls_context(session, guild_id=guild_id)
+    await set_rls_context(session, SystemGuild(guild_id))
     job = await session.get(ImportJob, job_id)
     return None if job is None else job.secret_encrypted
 

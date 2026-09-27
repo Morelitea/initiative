@@ -46,6 +46,7 @@ from app.services.platform import billing_ping
 
 from app.services.platform import account_stream
 from app.services.platform import contact_grants as contact_grants_service
+from app.db.request_context import Platform, SystemGuild, Unattributed
 
 logger = logging.getLogger(__name__)
 
@@ -338,7 +339,7 @@ def enroll_new_member_in_auto_join_initiatives(
 
     async def enroll_in_auto_join_initiatives() -> None:
         async with cohorts.system_session(guild_id) as guild_session:
-            await set_rls_context(guild_session, guild_id=guild_id)
+            await set_rls_context(guild_session, SystemGuild(guild_id))
             await initiatives_service.enroll_in_auto_join_initiatives(
                 guild_session, guild_id=guild_id, user_id=user_id
             )
@@ -376,7 +377,7 @@ def align_admin_initiative_roles(
 
     async def align_guild_admin_membership_roles() -> None:
         async with cohorts.system_session(guild_id) as guild_session:
-            await set_rls_context(guild_session, guild_id=guild_id)
+            await set_rls_context(guild_session, SystemGuild(guild_id))
             await initiatives_service.align_guild_admin_membership_roles(
                 guild_session, guild_id=guild_id, user_id=user_id
             )
@@ -535,7 +536,7 @@ async def list_memberships(
     from app.db.session import SystemSessionLocal, set_rls_context
     from app.services.cross_guild import gather_across_guilds
 
-    await set_rls_context(session, user_id=user_id)
+    await set_rls_context(session, Platform(user_id=user_id))
     pairs = (
         await session.exec(
             select(Guild, GuildMembership)
@@ -794,7 +795,7 @@ async def seed_guild_content(
     # Seeding is the system engine's, routed into the new schema: the guild
     # has no members yet and nobody is asking for anything.
     async with cohorts.system_session(guild_id) as guild_session:
-        await set_rls_context(guild_session, guild_id=guild_id)
+        await set_rls_context(guild_session, SystemGuild(guild_id))
         await create_guild_settings(guild_session, guild_id)
         try:
             # Inside a savepoint, so a failure here rolls back the app install
@@ -1391,7 +1392,7 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
     from app.services.platform import intake as intake_service
     from app.services.platform import user_notifications
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     guild = (
         await session.exec(select(Guild).where(Guild.id == guild_id))
     ).one_or_none()

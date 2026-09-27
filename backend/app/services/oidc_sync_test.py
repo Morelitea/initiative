@@ -30,6 +30,7 @@ from app.testing.factories import (
     create_initiative,
     create_user,
 )
+from app.db.request_context import SystemGuild, Unattributed
 
 
 #: What an arrival from the tenant the factory's connections narrow to carries.
@@ -40,7 +41,7 @@ async def _membership(
     session: AsyncSession, *, guild_id: int, initiative_id: int, user_id: int
 ) -> InitiativeMember | None:
     session.expunge_all()
-    await set_rls_context(session, guild_id=guild_id)
+    await set_rls_context(session, SystemGuild(guild_id))
     return (
         await session.exec(
             select(InitiativeMember).where(
@@ -84,7 +85,7 @@ async def test_claim_mapped_role_survives_auto_join(session: AsyncSession):
     )
     await session.commit()
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await sync_oidc_assignments(
         session,
         user_id=newcomer.id,
@@ -117,7 +118,7 @@ async def _guild_rule(session: AsyncSession, *, provider_id: int, guild_id: int)
 
 async def _joined(session: AsyncSession, user_id: int) -> set[int]:
     session.expunge_all()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     return set(
         (
             await session.exec(
@@ -130,7 +131,7 @@ async def _joined(session: AsyncSession, user_id: int) -> set[int]:
 
 
 async def _sync(session: AsyncSession, *, user_id: int, provider_id: int, claims):
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     result = await sync_oidc_assignments(
         session,
         user_id=user_id,
@@ -267,7 +268,7 @@ async def test_auto_join_still_covers_what_the_claims_do_not(session: AsyncSessi
     )
     await session.commit()
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await sync_oidc_assignments(
         session,
         user_id=newcomer.id,
@@ -336,7 +337,7 @@ async def test_one_providers_sign_in_leaves_anothers_memberships_alone(
 
     async def _guild_ids() -> set[int]:
         session.expunge_all()
-        await set_rls_context(session)
+        await set_rls_context(session, Unattributed())
         rows = (
             await session.exec(
                 select(GuildMembership.guild_id).where(
@@ -346,7 +347,7 @@ async def test_one_providers_sign_in_leaves_anothers_memberships_alone(
         ).all()
         return set(rows)
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await sync_oidc_assignments(
         session,
         user_id=person.id,
@@ -358,7 +359,7 @@ async def test_one_providers_sign_in_leaves_anothers_memberships_alone(
     assert await _guild_ids() == {corp_guild.id}
 
     # The partner's claims admit them to the partner guild...
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await sync_oidc_assignments(
         session,
         user_id=person.id,
@@ -372,7 +373,7 @@ async def test_one_providers_sign_in_leaves_anothers_memberships_alone(
     # ...and signing in through the corporate provider again keeps both. Its
     # claims say nothing about the partner guild because its rules do not
     # mention it, which is not the same as saying the person does not belong.
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await sync_oidc_assignments(
         session,
         user_id=person.id,
@@ -407,7 +408,7 @@ async def test_deleting_the_last_rule_hands_back_what_it_granted(
     session.add(rule)
     await session.commit()
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await sync_oidc_assignments(
         session,
         user_id=person.id,
@@ -418,7 +419,7 @@ async def test_deleting_the_last_rule_hands_back_what_it_granted(
     await session.commit()
 
     session.expunge_all()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     assert (
         await session.exec(
             select(GuildMembership).where(GuildMembership.user_id == person.id)
@@ -429,7 +430,7 @@ async def test_deleting_the_last_rule_hands_back_what_it_granted(
     await session.delete(await session.get(OIDCClaimMapping, rule.id))
     await session.commit()
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await sync_oidc_assignments(
         session,
         user_id=person.id,
@@ -440,7 +441,7 @@ async def test_deleting_the_last_rule_hands_back_what_it_granted(
     await session.commit()
 
     session.expunge_all()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     assert not (
         await session.exec(
             select(GuildMembership).where(GuildMembership.user_id == person.id)
@@ -466,7 +467,7 @@ async def test_stale_provider_claim_preserves_a_promoted_superadmin(
     session.add(rule)
     await session.commit()
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await sync_oidc_assignments(
         session,
         user_id=person.id,
@@ -477,7 +478,7 @@ async def test_stale_provider_claim_preserves_a_promoted_superadmin(
     await session.commit()
 
     session.expunge_all()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     membership = (
         await session.exec(
             select(GuildMembership).where(
@@ -491,7 +492,7 @@ async def test_stale_provider_claim_preserves_a_promoted_superadmin(
     await session.delete(await session.get(OIDCClaimMapping, rule.id))
     await session.commit()
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     result = await sync_oidc_assignments(
         session,
         user_id=person.id,
@@ -501,7 +502,7 @@ async def test_stale_provider_claim_preserves_a_promoted_superadmin(
     )
 
     session.expunge_all()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     preserved = (
         await session.exec(
             select(GuildMembership).where(
@@ -566,7 +567,7 @@ async def test_claim_sync_keeps_an_under_age_answer_out_of_a_listed_guild(
     )
     await session.commit()
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await sync_oidc_assignments(
         session,
         user_id=newcomer.id,
@@ -576,7 +577,7 @@ async def test_claim_sync_keeps_an_under_age_answer_out_of_a_listed_guild(
     )
 
     session.expunge_all()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     membership = (
         await session.exec(
             select(GuildMembership).where(

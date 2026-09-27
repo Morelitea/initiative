@@ -17,6 +17,7 @@ from app.models.tenant.app_event_outbox import AppEventOutbox
 from app.models.tenant.event_outbox import EventOutbox
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.services.tenant import outbox_poller
+from app.db.request_context import SystemGuild
 
 
 #: Stand-ins for what this subscriber calls the guild and the person who wrote.
@@ -327,7 +328,7 @@ async def test_repeated_refusals_escalate_the_backoff(
     moment = datetime.now(timezone.utc)
     for _ in range(3):
         await poller.drain_guild(system, guild_id, now=moment)
-        await set_rls_context(session, guild_id=guild_id)
+        await set_rls_context(session, SystemGuild(guild_id))
         row = (
             await session.exec(
                 sa_text(
@@ -399,7 +400,7 @@ async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
     moment = datetime.now(timezone.utc)
     for _ in range(len(poller._BACKOFF_SECONDS)):
         await poller.drain_guild(system, guild_id, now=moment)
-        await set_rls_context(session, guild_id=guild_id)
+        await set_rls_context(session, SystemGuild(guild_id))
         row = (
             await session.exec(
                 sa_text(
@@ -432,7 +433,7 @@ async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
 
     # This pass is what exhausts the first batch's schedule.
     await poller.drain_guild(system, guild_id, now=moment)
-    await set_rls_context(session, guild_id=guild_id)
+    await set_rls_context(session, SystemGuild(guild_id))
 
     dead_row = (
         await session.exec(

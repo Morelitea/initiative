@@ -9,7 +9,7 @@ from types import ModuleType
 import pytest
 from sqlalchemy import text
 
-from app.db.session import set_system_guild_context
+from app.db.session import set_rls_context
 from app.testing.factories import (
     create_comment,
     create_guild,
@@ -18,6 +18,7 @@ from app.testing.factories import (
     create_task,
     create_user,
 )
+from app.db.request_context import SystemMaintenance
 
 OUTBOX_SCAN_MIGRATION = (
     Path(__file__).resolve().parents[2]
@@ -57,7 +58,7 @@ async def test_system_guild_route_keeps_app_admin_bypass_and_denies_app_user(
     await create_comment(session, owner, task=task, content="private")
 
     admin = await role_session("app_admin")
-    await set_system_guild_context(admin, guild_id=guild.id)
+    await set_rls_context(admin, SystemMaintenance(guild.id))
     identity = (
         await admin.exec(
             text(
@@ -74,7 +75,7 @@ async def test_system_guild_route_keeps_app_admin_bypass_and_denies_app_user(
         PermissionError,
         match="system guild routing requires the configured system login",
     ):
-        await set_system_guild_context(request_session, guild_id=guild.id)
+        await set_rls_context(request_session, SystemMaintenance(guild.id))
 
 
 async def test_outbox_scan_migration_grants_only_its_columns(session, engine) -> None:

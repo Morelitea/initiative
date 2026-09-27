@@ -23,6 +23,7 @@ from app.testing.factories import (
     create_task,
     create_user,
 )
+from app.db.request_context import SystemGuild
 
 
 async def test_auto_purge_does_not_double_purge_cascaded_descendants(
@@ -127,7 +128,7 @@ async def test_auto_purge_sweeps_every_guild_schema(
     await each_guild([(Scope.ACTIVE, purge_guild)], name="trash-purge")
 
     for guild_id, initiative_id in targets:
-        await set_rls_context(admin, guild_id=guild_id)
+        await set_rls_context(admin, SystemGuild(guild_id))
         count = (
             await admin.exec(
                 text("SELECT COUNT(*) FROM initiatives WHERE id = :id"),
@@ -172,7 +173,7 @@ async def test_auto_purge_clears_content_table_guard(
     admin = await role_session("app_admin")
     await each_guild([(Scope.ACTIVE, purge_guild)], name="trash-purge")
 
-    await set_rls_context(admin, guild_id=guild.id)
+    await set_rls_context(admin, SystemGuild(guild.id))
     count = (
         await admin.exec(
             text("SELECT COUNT(*) FROM projects WHERE id = :id"),
@@ -215,7 +216,7 @@ async def test_auto_purge_skips_non_active_guilds(session: AsyncSession, role_se
 
     from app.db.session import set_rls_context
 
-    await set_rls_context(admin, guild_id=guild.id)
+    await set_rls_context(admin, SystemGuild(guild.id))
     count = (
         await admin.exec(
             text("SELECT COUNT(*) FROM initiatives WHERE id = :id"),
@@ -230,7 +231,7 @@ async def test_auto_purge_skips_non_active_guilds(session: AsyncSession, role_se
     await session.commit()
 
     await each_guild([(Scope.ACTIVE, purge_guild)], name="trash-purge")
-    await set_rls_context(admin, guild_id=guild.id)
+    await set_rls_context(admin, SystemGuild(guild.id))
     count = (
         await admin.exec(
             text("SELECT COUNT(*) FROM initiatives WHERE id = :id"),

@@ -50,6 +50,7 @@ from app.models.platform.identity_ref import (
 )
 from app.services.platform import identity_refs
 from sqlmodel.ext.asyncio.session import AsyncSession
+from app.db.request_context import SystemGuild
 
 __all__ = [
     "REF_MAX_LENGTH",
@@ -396,7 +397,7 @@ async def guild_for_app_ref(*, ref: str, public_id: str) -> int | None:
         try:
             # The install lives in the guild's own schema, so the read is
             # routed there.
-            await db_session.set_rls_context(session, guild_id=guild_id)
+            await db_session.set_rls_context(session, SystemGuild(guild_id))
             found = (
                 await session.exec(
                     select(GuildApp.id).where(

@@ -24,7 +24,8 @@ from app.api import resource_access
 from app.core.tools import Tool
 from app.db import session as db_session
 from app.db.guild_standing import GuildContext
-from app.db.session import _RLS_PARAMS_INFO_KEY
+from app.db.request_context import Member
+from app.db.session import _RLS_CONTEXT_INFO_KEY
 from app.models.platform.guild import Guild, GuildRole, GuildStatus
 from app.models.platform.user import UserRole
 from app.models.tenant.calendar_event import CalendarEventAttendee
@@ -451,12 +452,16 @@ def test_a_standing_for_another_community_is_never_read_back():
     """
 
     class _Session:
-        def __init__(self, params):
-            self.info = {_RLS_PARAMS_INFO_KEY: params}
+        def __init__(self, guild_id):
+            self.info = {
+                _RLS_CONTEXT_INFO_KEY: Member(
+                    guild_id=guild_id, user_id=0, standing=held
+                )
+            }
 
     held = standing(7, admin=True)
-    assert db_session.guild_context(_Session({"guild_id": 7, "context": held})) is held
-    assert db_session.guild_context(_Session({"guild_id": 9, "context": held})) is None
+    assert db_session.guild_context(_Session(7)) is held
+    assert db_session.guild_context(_Session(9)) is None
 
 
 async def test_a_platform_owner_holds_no_standing_bypass(

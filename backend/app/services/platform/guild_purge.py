@@ -39,6 +39,7 @@ from app.db.session import SystemSessionLocal, set_rls_context
 from app.models.platform.guild import Guild, GuildStatus
 from app.services import audit as audit_service
 from app.services.marketplace import app_refs
+from app.db.request_context import SystemGuild, Unattributed
 
 
 logger = logging.getLogger(__name__)
@@ -121,14 +122,14 @@ async def _delete_expired_hold(
     from app.services.tenant import app_connections as app_connections_service
     from app.services.tenant import app_revocation as app_revocation_service
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     guild = await _lock_expired_hold(session, guild_id, cutoff=cutoff)
     if guild is None:
         await session.commit()
         return False
 
     async with cohorts.system_session(guild_id) as guild_session:
-        await set_rls_context(guild_session, guild_id=guild_id)
+        await set_rls_context(guild_session, SystemGuild(guild_id))
         await app_connections_service.delete_guild_connections(guild_session)
         await guild_session.commit()
         revocations = app_revocation_service.drain_revocations(guild_session)
@@ -157,7 +158,7 @@ async def delete_expired_holds(session: AsyncSession, *, now: datetime) -> int:
     put on hold and not again while it stays there, so a hold written twice
     does not restart the clock.
     """
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     days = await hold_deletion_days(session)
     if days is None:
         return 0
@@ -251,7 +252,7 @@ async def purge_due_guilds(session: AsyncSession, *, now: datetime) -> int:
     Split out from the loop entry point so tests can drive it with the test
     session and a chosen ``now``.
     """
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     retention = await retention_days(session)
     if retention is None:
         # This deployment keeps deleted communities. Nothing is ever destroyed
@@ -297,7 +298,7 @@ async def reclaim_orphaned_guilds(session: AsyncSession) -> int:
     communities that still have a row, and these have none. Returns how many
     were reclaimed; one that fails again is logged and retried next pass.
     """
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     guild_ids = await _orphaned_guild_ids(session)
     # End the read before the drops, which run on the provisioning engine.
     await session.commit()

@@ -47,6 +47,7 @@ from app.models.tenant.task import Task, TaskStatus, TaskStatusCategory
 from app.schemas.tenant.property import PropertyValueInput
 from app.services.tenant import properties as properties_service
 from app.services.tenant import task_creation as task_creation_service
+from app.db.request_context import SystemGuild
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +156,7 @@ async def stream_is_bound(stream: IntakeStream) -> bool:
     if guild_id is None:
         return False
     async with cohorts.system_session(guild_id) as session:
-        await set_rls_context(session, guild_id=guild_id)
+        await set_rls_context(session, SystemGuild(guild_id))
         return await _binding_for(session, stream) is not None
 
 
@@ -334,7 +335,7 @@ async def open_case(
     if guild_id is None:
         return None
     async with cohorts.system_session(guild_id) as session:
-        await set_rls_context(session, guild_id=guild_id)
+        await set_rls_context(session, SystemGuild(guild_id))
 
         binding = await _binding_for(session, stream)
         if binding is None:

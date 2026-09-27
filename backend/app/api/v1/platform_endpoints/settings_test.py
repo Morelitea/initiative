@@ -35,6 +35,7 @@ from app.testing import (
     guild_administration,
 )
 from sqlmodel import select
+from app.db.request_context import SystemGuild, Unattributed
 
 GUILDS = "/api/v1/settings/communities"
 
@@ -1178,7 +1179,7 @@ async def _bind_support_stream(session: AsyncSession) -> None:
     initiative = await create_initiative(session, staff, staff_user)
     project = await create_project(session, initiative, staff_user)
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     row = (await session.exec(select(AppSetting).where(AppSetting.id == 1))).first()
     if row is None:
         row = AppSetting(id=1)
@@ -1186,10 +1187,10 @@ async def _bind_support_stream(session: AsyncSession) -> None:
     session.add(row)
     await session.commit()
 
-    await set_rls_context(session, guild_id=staff.id)
+    await set_rls_context(session, SystemGuild(staff.id))
     session.add(IntakeBinding(stream=IntakeStream.support, project_id=project.id))
     await session.commit()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
 
 
 async def test_help_requests_need_somewhere_to_go(client, session, owner):

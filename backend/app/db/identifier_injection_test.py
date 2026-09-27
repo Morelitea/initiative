@@ -21,6 +21,7 @@ from app.db.schema_provisioning import (
     guild_schema_name,
     platform_role_name,
 )
+from app.db.request_context import Platform
 from app.db.session import set_rls_context
 from app.models.platform.user import UserRole
 
@@ -82,12 +83,12 @@ def test_platform_role_name_is_identifier_safe_for_valid_tiers(tier):
     "hostile_platform_role",
     ["owner'; DROP ROLE app_admin; --", "superuser", "member ", "", "ADMIN"],
 )
-async def test_set_rls_context_rejects_unknown_platform_tier(hostile_platform_role):
+def test_a_routing_rejects_unknown_platform_tier(hostile_platform_role):
     """The platform tier is allow-listed against the known ladder before it can
-    reach the ``SET ROLE`` name sink — validation happens before the session is
-    touched, so a bad value fails closed."""
+    reach the ``SET ROLE`` name sink — the shape refuses it when it is built,
+    before any session is touched, so a bad value fails closed."""
     with pytest.raises(ValueError):
-        await set_rls_context(None, platform_role=hostile_platform_role)
+        Platform(user_id=1, tier=hostile_platform_role)
 
 
 async def test_set_rls_context_takes_no_role_to_claim():

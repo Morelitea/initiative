@@ -42,6 +42,7 @@ from app.models.platform.user import User
 from app.models.platform.user_notification_prefs import EmailCadence
 from app.services import email as email_service
 from app.services.platform import notification_policy, notification_prefs
+from app.db.request_context import Unattributed
 
 logger = logging.getLogger(__name__)
 
@@ -509,7 +510,7 @@ async def process_email_outbox() -> None:
     from app.db.session import SystemSessionLocal, set_rls_context
 
     async with SystemSessionLocal() as session:
-        await set_rls_context(session)
+        await set_rls_context(session, Unattributed())
         await _run_pass(session, now=datetime.now(timezone.utc))
 
 
