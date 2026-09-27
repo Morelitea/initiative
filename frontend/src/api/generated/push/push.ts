@@ -35,6 +35,9 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
  * store records, and matching the two is what lets a message wake the phone
  * that can actually read it.
  *
+ * So is the session that made it: a device is sent to while the sign-in that
+ * registered it stands, and the app registers again each time it starts.
+ *
  * A deployment that has switched push notifications off declines (403) and
  * stores nothing: there is nothing for the token to be used for, and holding
  * it would be keeping an address this deployment has said it does not send to.

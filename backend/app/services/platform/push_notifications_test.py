@@ -144,8 +144,9 @@ async def test_delivery_reads_stamps_and_prunes_on_the_system_engine(
 ):
     """The caller's session holds nothing on ``push_tokens`` here, as a
     community-routed one does not: the recipient's rows are read, the delivered
-    one stamped and the dead one dropped all the same. The same value
-    registered by another account is left alone."""
+    one stamped and the dead one dropped all the same. A device whose session
+    has ended is not sent to and is dropped too. The same value registered by
+    another account is left alone."""
     from app.models.platform.push_token import PushToken
     from app.services.platform import push_notifications, push_tokens
     from app.testing import create_user
@@ -173,11 +174,31 @@ async def test_delivery_reads_stamps_and_prunes_on_the_system_engine(
 
     monkeypatch.setattr(push_notifications, "send_push_notification", _send)
 
+    from app.services.auth import sessions as session_service
+
     recipient = await create_user(session)
     bystander = await create_user(session)
-    for user, value in ((recipient, "live"), (recipient, "gone"), (bystander, "gone")):
+    signed_in, signed_out, elsewhere = [
+        (
+            await session_service.create_session(
+                session, user_id=user.id, amr=["pwd"], satisfied_providers=[]
+            )
+        ).session.id
+        for user in (recipient, recipient, bystander)
+    ]
+    await session_service.revoke_session(session, session_id=signed_out)
+    for user, value, sid in (
+        (recipient, "live", signed_in),
+        (recipient, "gone", signed_in),
+        (recipient, "signed-out", signed_out),
+        (bystander, "gone", elsewhere),
+    ):
         await push_tokens.register_push_token(
-            session, user_id=user.id, push_token=value, platform="android"
+            session,
+            user_id=user.id,
+            push_token=value,
+            platform="android",
+            session_id=sid,
         )
     recipient_id, bystander_id = recipient.id, bystander.id
 

@@ -1,7 +1,8 @@
+import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Uuid
 from sqlmodel import Field, Index, SQLModel
 
 
@@ -33,6 +34,12 @@ class PushToken(SQLModel, table=True):
         ),
     )
     # FCM registration token (Android) or APNS device token (iOS)
+    # The session that registered this device, followed along its rotation
+    # chain to the live row. A plain uuid, as ``auth_sessions.parent_id`` is:
+    # session rows are purged on their own schedule.
+    session_id: Optional[uuid.UUID] = Field(
+        default=None, sa_column=Column(Uuid, nullable=True)
+    )
     push_token: str = Field(
         sa_column=Column(String(512), nullable=False, index=True),
     )

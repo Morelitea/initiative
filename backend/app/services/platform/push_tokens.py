@@ -5,6 +5,7 @@ policies admit that account's own rows. Delivery reads and prunes a
 recipient's rows on the system engine (``push_notifications.send_push_to_user``).
 """
 
+import uuid
 from datetime import datetime, timezone
 from typing import Iterable, List, Optional
 
@@ -13,6 +14,8 @@ from sqlmodel import select, delete, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.push_token import PushToken
+from app.services.auth import sessions as session_service
+from app.services.platform import user_tokens
 
 
 async def register_push_token(
@@ -22,6 +25,7 @@ async def register_push_token(
     push_token: str,
     platform: str,
     device_token_id: Optional[int] = None,
+    session_id: Optional[uuid.UUID] = None,
 ) -> PushToken:
     """Register or update a push notification token for a user.
 
@@ -36,6 +40,7 @@ async def register_push_token(
             push_token=push_token,
             platform=platform,
             device_token_id=device_token_id,
+            session_id=session_id,
             created_at=now,
             updated_at=now,
         )
@@ -44,6 +49,7 @@ async def register_push_token(
             set_=dict(
                 platform=platform,
                 device_token_id=device_token_id,
+                session_id=session_id,
                 updated_at=now,
             ),
         )
@@ -69,6 +75,43 @@ async def get_push_tokens_for_user(
     )
     result = await session.exec(stmt)
     return list(result.all())
+
+
+async def live_for_user(session: AsyncSession, *, user_id: int) -> List[PushToken]:
+    """The recipient's devices whose sign-in still stands.
+
+    A row stands while the session that registered it has a live chain, or the
+    device token it was registered under is still good. Rows whose sign-in has
+    ended are removed, and a row whose session was renewed moves to the live
+    row. Does not commit — the caller owns the transaction.
+    """
+    rows = await get_push_tokens_for_user(session, user_id=user_id)
+    tips = await session_service.live_chain_tips(
+        session, session_ids={r.session_id for r in rows if r.session_id}
+    )
+    devices = await user_tokens.live_device_token_ids(
+        session, token_ids={r.device_token_id for r in rows if r.device_token_id}
+    )
+    live: List[PushToken] = []
+    ended: List[int] = []
+    for row in rows:
+        tip = tips.get(row.session_id) if row.session_id else None
+        if tip is not None:
+            if tip != row.session_id:
+                row.session_id = tip
+                session.add(row)
+            live.append(row)
+        elif row.device_token_id in devices:
+            live.append(row)
+        elif row.id is not None:
+            ended.append(row.id)
+    if ended:
+        await session.exec(
+            delete(PushToken).where(
+                PushToken.user_id == user_id, PushToken.id.in_(ended)
+            )
+        )
+    return live
 
 
 async def delete_push_token(
