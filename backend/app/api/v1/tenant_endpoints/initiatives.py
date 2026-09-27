@@ -1100,6 +1100,7 @@ async def update_initiative_role(
         role.display_name = role_in.display_name
         session.add(role)
 
+    was_manager = role.is_manager
     # Update is_manager if provided (not for built-in roles)
     if role_in.is_manager is not None:
         if role.is_builtin:
@@ -1171,7 +1172,7 @@ async def update_initiative_role(
 
     holders = (
         await _member_ids(session, initiative_id, role_id=role.id)
-        if permissions_changed
+        if permissions_changed or role.is_manager != was_manager
         else []
     )
     await session.commit()

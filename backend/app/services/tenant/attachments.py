@@ -363,11 +363,19 @@ async def release_unshown(
     names = upload_names(u for u in urls if u and (not pasted_only or _is_pasted(u)))
     if not names:
         return set()
-    async with cohorts.system_session(guild_id) as session:
-        await set_rls_context(session, SystemGuild(guild_id))
-        unshown = {n for n in names if not await _still_shown(session, n, leaving={})}
-        released = await _drop_upload_rows(session, unshown)
-        await session.commit()
+    try:
+        async with cohorts.system_session(guild_id) as session:
+            await set_rls_context(session, SystemGuild(guild_id))
+            unshown = {
+                n for n in names if not await _still_shown(session, n, leaving={})
+            }
+            released = await _drop_upload_rows(session, unshown)
+            await session.commit()
+    except Exception:
+        # The edit has landed; a file that could not be released stays, which
+        # costs storage and nothing else.
+        logger.exception("Could not release uploads in guild %s", guild_id)
+        return set()
     return released
 
 
