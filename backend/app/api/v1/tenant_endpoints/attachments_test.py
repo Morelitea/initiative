@@ -241,13 +241,17 @@ async def test_taking_a_picture_out_of_a_description_deletes_it(
 async def test_a_picture_another_task_still_shows_stays(
     client: AsyncClient, session, acting_user
 ):
-    """A duplicated task shares its original's pictures."""
+    """A duplicated task shares its original's pictures, and one that shows
+    it counts wherever it is — in an initiative the editor is not in too."""
     from app.testing import create_task
 
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    other = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=True, project=True
+    )
     url = await _paste(client, a)
     task = await create_task(session, a.project, description=f"![shot]({url})")
-    await create_task(session, a.project, description=f"copy ![shot]({url})")
+    await create_task(session, other.project, description=f"copy ![shot]({url})")
     await session.commit()
 
     await _set_description(client, a, task.id, "Never mind")

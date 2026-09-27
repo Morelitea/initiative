@@ -177,7 +177,7 @@ async def update_comment(
 ) -> CommentRead:
     """Update a comment. Only the original author can edit."""
     try:
-        comment, released_images = await comments_service.update_comment(
+        comment, let_go = await comments_service.update_comment(
             session,
             comment_id=comment_id,
             user=current_user,
@@ -200,6 +200,9 @@ async def update_comment(
     # relationship — serializing would then lazy-load it mid-request.
     await session.commit()
     # A picture taken out of the comment goes once the edit has landed.
+    released_images = await attachments_service.release_unshown(
+        guild_context.guild_id, let_go, pasted_only=True
+    )
     attachments_service.delete_blobs(guild_context.guild_id, released_images)
     response = comments_service.serialize_comment(comment, viewer_id=current_user.id)
     return response

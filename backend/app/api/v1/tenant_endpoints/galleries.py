@@ -938,8 +938,9 @@ async def delete_gallery_image_version(
             galleries_service.mirror_version(image, promoted)
             image.updated_at = datetime.now(timezone.utc)
             session.add(image)
-    await session.flush()
-    released = await attachments_service.release_uploads(session, doomed_urls)
     await session.commit()
-    # Blobs after the rows, so a failed commit does not orphan files.
+    # Once the version is gone, and only if nothing else shows its files.
+    released = await attachments_service.release_unshown(
+        guild_context.guild_id, doomed_urls
+    )
     attachments_service.delete_blobs(guild_context.guild_id, released)
