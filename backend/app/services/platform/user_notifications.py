@@ -6,6 +6,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.notification_categories import PERSONAL_TYPES, Channel
+from app.db import gucs
 from app.models.platform.notification import Notification, NotificationType
 from app.services.platform import notification_prefs, notification_stream
 
@@ -55,8 +56,8 @@ async def name_recipient(session: AsyncSession, user_id: int) -> None:
     what lets one policy cover the lookup, the insert and the rollup.
     """
     await session.exec(
-        text("SELECT set_config('app.notify_target_user_id', :uid, true)"),
-        params={"uid": str(user_id)},
+        text("SELECT set_config(:name, :uid, true)"),
+        params={"name": gucs.NOTIFY_TARGET_USER_ID.name, "uid": str(user_id)},
     )
 
 

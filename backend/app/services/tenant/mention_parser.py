@@ -25,7 +25,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.references import references_in_text
 from app.core.search import SearchEntityType
-from app.db.frozen import PURGE_GUC
+from app.db import gucs
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.db.session import routed_guild_id
 
@@ -99,7 +99,7 @@ async def _set_purging(session: AsyncSession, on: bool) -> None:
     """Raise or lower the transaction-local purge flag."""
     await session.exec(
         text("SELECT set_config(:name, :value, true)").bindparams(
-            name=PURGE_GUC, value="true" if on else "false"
+            name=gucs.PURGING.name, value="true" if on else "false"
         )
     )
 
@@ -134,7 +134,7 @@ async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> Non
     # trash, keeps its words and so would keep the name. Taking something that
     # has to go out of frozen content is the purge's kind of write, so the
     # scrub runs under the purge flag and lowers it again before the rest of
-    # the erasure (see ``app.db.frozen.PURGE_GUC``).
+    # the erasure (see ``app.db.gucs.PURGING``).
     await _set_purging(session, True)
     rooms: list[tuple[SearchEntityType, int]] = []
     for model, columns in written_columns().items():

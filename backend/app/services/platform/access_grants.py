@@ -667,8 +667,7 @@ async def get_live_grant(
             AccessGrant.user_id == user_id,
             AccessGrant.guild_id == guild_id,
             AccessGrant.purpose == purpose.value,
-            AccessGrant.status == AccessGrantStatus.approved.value,
-            AccessGrant.expires_at > now,
+            AccessGrant.live(now),
         )
     )
     # At most one open grant per (user, guild) is allowed at request time;
@@ -689,8 +688,8 @@ async def list_grants(
     """List grants, optionally filtered to one grantee and/or a set of statuses.
 
     Approvers pass ``user_id=None`` for the full queue; requesters pass their
-    own id for "my requests". ``live_only`` keeps only grants that haven't yet
-    expired (pair with ``statuses=["approved"]`` for the currently-usable set).
+    own id for "my requests". ``live_only`` keeps only grants that are live:
+    approved and unexpired.
     ``limit``/``offset`` page the result (ordered newest-first) so a list that
     grows with users/usage stays bounded.
     """
@@ -700,7 +699,7 @@ async def list_grants(
     if statuses:
         stmt = stmt.where(AccessGrant.status.in_(statuses))
     if live_only:
-        stmt = stmt.where(AccessGrant.expires_at > utcnow())
+        stmt = stmt.where(AccessGrant.live(utcnow()))
     stmt = stmt.order_by(AccessGrant.requested_at.desc())
     if offset:
         stmt = stmt.offset(offset)

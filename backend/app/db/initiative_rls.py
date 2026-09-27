@@ -27,6 +27,7 @@ import re
 from dataclasses import dataclass
 from typing import Callable
 
+from app.db import gucs
 from app.core.app_scopes import tool_resource
 from app.core.reactions import ReactionTarget
 from app.core.relationships import (
@@ -42,10 +43,6 @@ from app.db.authorization import IN_POLICY, STANDING, app_narrowed, app_scope, i
 
 #: The legs a policy reads, off this statement's standing.
 _P = IN_POLICY
-
-# The request-GUC user id, NULLIF-guarded so an unset/PAM context yields NULL
-# (no membership) rather than faulting the cast for every row.
-_UID = "(NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer"
 
 # A write flag is a Python bool where the render knows the answer, or the name
 # of a SQL boolean where it does not — inside a function body, its parameter.
@@ -191,7 +188,7 @@ def _resource_call(tool: str, resource_id: str, initiative: str, write: bool) ->
     reads it applies the tool switches.
     """
     return (
-        f"resource_access({tool}, {resource_id}, {_UID}, "
+        f"resource_access({tool}, {resource_id}, {gucs.USER_ID}, "
         f"{initiative}, {_sql_bool(write)}, {STANDING})"
     )
 
@@ -239,12 +236,12 @@ def _tool_gate(
     key = tool.create_permission if creating else tool.view_permission
     default = "false" if creating else str(tool in DEFAULT_ENABLED_TOOLS).lower()
     legs.append(
-        f"initiative_role_permits({initiative}, {_UID}, '{key}', {default}, {STANDING})"
+        f"initiative_role_permits({initiative}, {gucs.USER_ID}, '{key}', {default}, {STANDING})"
     )
 
     if not creating:
         legs.append(
-            f"resource_access('{tool.value}', {resource_id}, {_UID}, "
+            f"resource_access('{tool.value}', {resource_id}, {gucs.USER_ID}, "
             f"{initiative}, {_sql_bool(write)}, {STANDING})"
         )
 
@@ -387,9 +384,7 @@ _PAM_ANY = _P.pam_any
 
 
 def _access(initiative_expr: str, write: bool) -> str:
-    return (
-        f"initiative_access({initiative_expr}, {_UID}, {_sql_bool(write)}, {STANDING})"
-    )
+    return f"initiative_access({initiative_expr}, {gucs.USER_ID}, {_sql_bool(write)}, {STANDING})"
 
 
 def _full_access(initiative_expr: str, write: bool) -> str:
@@ -1154,7 +1149,7 @@ def _search_tool_gate(t: str, write: bool) -> str:
     )
     role_arms = " ".join(
         f"WHEN '{tool.value}' THEN initiative_role_permits("
-        f"{t}.initiative_id, {_UID}, '{tool.view_permission}', "
+        f"{t}.initiative_id, {gucs.USER_ID}, '{tool.view_permission}', "
         f"{str(tool in DEFAULT_ENABLED_TOOLS).lower()}, {STANDING})"
         for tool in Tool
     )

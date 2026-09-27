@@ -543,8 +543,8 @@ _GID_QUERY_TRASH = 990_412
 #: normalises it the same way for every table, which is what makes that stable
 #: to compare.
 _QUERY_TRASH_QUAL = (
-    "((deleted_at IS NULL) OR (current_setting('app.query'::text, true)"
-    " IS DISTINCT FROM 'true'::text))"
+    "((deleted_at IS NULL) OR (( SELECT (current_setting('app.query'::text, true)"
+    " = 'true'::text)) IS NOT TRUE))"
 )
 
 
