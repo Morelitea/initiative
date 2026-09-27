@@ -71,3 +71,25 @@ def test_verifier_rejects_wrong_secret():
 
     sig = _sign("real-secret", timestamp, body)
     assert not _verify_signature("attacker-guess", timestamp, body, sig)
+
+
+async def test_a_delivery_that_outlasts_its_deadline_is_not_accepted(monkeypatch):
+    """A receiver that never finishes answering counts as a failed delivery,
+    left for a later pass."""
+    import asyncio
+
+    from app.services.tenant import webhook_dispatcher
+
+    async def _stalled(*_args, **_kwargs):
+        await asyncio.sleep(60)
+
+    monkeypatch.setattr(webhook_dispatcher, "request_public_target", _stalled)
+    monkeypatch.setattr(webhook_dispatcher, "_DEADLINE_SECONDS", 0.05)
+
+    accepted = await webhook_dispatcher.deliver(
+        target_url="https://hooks.example.com/in",
+        secret="s",
+        envelope={"event_id": "e1"},
+    )
+
+    assert accepted is False
