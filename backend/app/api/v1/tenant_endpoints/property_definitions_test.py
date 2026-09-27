@@ -478,13 +478,14 @@ async def test_a_member_adds_options_and_a_manager_reshapes(
     options = response.json()["definition"]["options"]
     assert [opt["value"] for opt in options] == ["todo", "done", "later"]
 
-    # An option already there is left as it is.
+    # An option already there, sent as something else, is refused: the list
+    # has changed since it was read.
     relabelled = {**stage, "label": "Backlog"}
     response = await client.patch(
         route, headers=member.headers, json={"options": [relabelled]}
     )
-    assert response.status_code == 200, response.text
-    assert response.json()["definition"]["options"][0]["label"] == "To do"
+    assert response.status_code == 409
+    assert response.json()["detail"] == "PROPERTY_OPTION_TAKEN"
 
     response = await client.patch(route, headers=member.headers, json={"name": "New"})
     assert response.status_code == 403

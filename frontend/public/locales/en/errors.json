@@ -129,6 +129,7 @@
   "PROPERTY_OPTION_NOT_IN_DEFINITION": "Selected option is not valid for this property",
   "PROPERTY_NOT_INITIATIVE_MEMBER": "You need to be a member of this initiative to manage its properties",
   "PROPERTY_OPTIONS_REQUIRED": "Select and multi-select properties require at least one option",
+  "PROPERTY_OPTION_TAKEN": "Someone just added an option with that value. Try again.",
   "PROPERTY_DUPLICATE_OPTION_VALUE": "Option values must be unique within a property",
   "ATTACHMENT_IMAGE_ONLY": "Only image uploads are supported",
   "ATTACHMENT_FILE_EMPTY": "Uploaded file is empty",

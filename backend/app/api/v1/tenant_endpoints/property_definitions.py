@@ -172,12 +172,21 @@ def _manager_required() -> HTTPException:
 
 def _added_options(defn: PropertyDefinition, options: list) -> list[dict]:
     """The options among ``options`` that ``defn`` does not have yet — what a
-    member adds picking a value nobody has offered. One it already has stays
-    as it is."""
-    existing = {opt.get("value") for opt in defn.options or []}
-    return [
-        opt for opt in _serialize_options(options) or [] if opt["value"] not in existing
-    ]
+    member adds picking a value nobody has offered. One it already has, sent
+    as it stands, is left as it is; one sent as something else is refused,
+    since the list changed after it was read."""
+    existing = {opt.get("value"): opt for opt in defn.options or []}
+    added: list[dict] = []
+    for opt in _serialize_options(options) or []:
+        held = existing.get(opt["value"])
+        if held is None:
+            added.append(opt)
+        elif held.get("label") != opt.get("label"):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=PropertyMessages.OPTION_TAKEN,
+            )
+    return added
 
 
 def _serialize_options(options: Optional[list]) -> Optional[list[dict]]:

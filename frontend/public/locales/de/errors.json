@@ -133,6 +133,7 @@
   "PROPERTY_OPTION_NOT_IN_DEFINITION": "Die ausgewählte Option ist für diese Eigenschaft nicht gültig",
   "PROPERTY_NOT_INITIATIVE_MEMBER": "Du musst Mitglied dieser Initiative sein, um ihre Eigenschaften zu verwalten",
   "PROPERTY_OPTIONS_REQUIRED": "Einfach- und Mehrfachauswahl-Eigenschaften erfordern mindestens eine Option",
+  "PROPERTY_OPTION_TAKEN": "Jemand hat gerade eine Option mit diesem Wert hinzugefügt. Versuche es erneut.",
   "PROPERTY_DUPLICATE_OPTION_VALUE": "Optionswerte müssen innerhalb einer Eigenschaft eindeutig sein",
   "ATTACHMENT_IMAGE_ONLY": "Es werden nur Bild-Uploads unterstützt",
   "ATTACHMENT_FILE_EMPTY": "Die hochgeladene Datei ist leer",
