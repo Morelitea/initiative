@@ -465,8 +465,10 @@ async def test_download_inline_html_svg_is_same_origin_framable_but_scriptless(
     assert response.headers.get("x-frame-options") == "SAMEORIGIN"
     csp = response.headers.get("content-security-policy", "")
     assert "frame-ancestors 'self'" in csp
-    # Stored-XSS hardening preserved: scripts still disabled
+    # Shown as a static page: sandboxed, with no scripts and no forms.
+    assert "sandbox" in csp
     assert "script-src 'none'" in csp
+    assert "form-action 'none'" in csp
     assert "attachment" not in response.headers.get("content-disposition", "")
 
 
