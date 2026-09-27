@@ -56,8 +56,8 @@ async def test_the_standing_reads_the_admin_fact_off_the_ladder(
     a = await acting_user(guild_role=rung)
     s = await role_session("app_user")
     context = await route_as(s, user_id=a.user.id, guild_id=a.guild.id)
-    assert context.admin is rung.reaches(GuildRole.admin)
-    assert context.seat is rung.reaches(GuildRole.superadmin)
+    assert context.guild_admin is rung.reaches(GuildRole.admin)
+    assert context.guild_seat is rung.reaches(GuildRole.superadmin)
 
 
 @pytest.mark.parametrize("level", list(SettingsLevel))
@@ -76,7 +76,7 @@ async def test_the_settings_rung_reads_the_grant_off_the_ladder(
     s = await role_session("app_user")
     context = await route_as(s, user_id=support.id, guild_id=a.guild.id, settings=True)
     assert context.settings_rung == level.value
-    assert context.seat is (level is SettingsLevel.superadmin)
+    assert context.guild_seat is (level is SettingsLevel.superadmin)
 
 
 @pytest.mark.parametrize("level", list(RESOURCE_LEVEL_LADDER))

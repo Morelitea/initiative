@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -28,14 +27,13 @@ from app.core.app_access_token import (
 )
 from app.core.config import settings
 from app.db import base  # noqa: F401  # ensure models are imported for Alembic
-from app.db import cohorts
+from app.db import cohorts, gucs
 from app.db.guild_standing import (
     GuildContext,
     InstallContext,
     compute_guild_standing,
     compute_install_standing,
-    empty_standing,
-    standing_bind_params,
+    standing_values,
 )
 
 logger = logging.getLogger(__name__)
@@ -299,85 +297,32 @@ def _search_path(*schemas: str) -> str:
     return ", ".join((*schemas, "pg_temp"))
 
 
-#: The GUC naming the initiatives this request holds "Full access" in. One of
-#: the standing keys: written empty by the routing statement below and filled
-#: by the standing statement (``app.db.guild_standing``).
-OVERRIDE_INITIATIVES_GUC = "app.override_initiatives"
-
 #: The whole of a routing, in one statement. It returns to the login role
 #: first and assumes the routed role last, so a statement that fails part-way
 #: leaves the transaction aborted on the login role, never wearing a stale
-#: guild role.
+#: guild role. It writes every variable in ``app.db.gucs.REQUEST_GUCS``, so a
+#: routing always states the standing too: nothing, until the statement that
+#: computes it has run (``app.db.guild_standing``).
 _CONTEXT_SQL = (
     "SELECT set_config('role', 'none', true), "
-    "set_config('app.current_user_id', :uid, true), "
-    "set_config('app.current_guild_id', :gid, true), "
-    "set_config('app.pam_guild_id', :pgid, true), "
-    "set_config('app.settings_guild_id', :setgid, true), "
-    "set_config('app.pam_read', :pr, true), "
-    "set_config('app.pam_write', :pw, true), "
-    "set_config('app.satisfied_providers', :satp, true), "
-    "set_config('app.satisfied_claims', :satc, true), "
-    "set_config('app.session_amr', :amr, true), "
-    "set_config('app.platform_role', :prole, true), "
-    "set_config('app.platform_factor', :pfac, true), "
-    "set_config('app.billing_guild_id', :bgid, true), "
-    "set_config('app.scope_initiative_id', :sinit, true), "
-    "set_config('app.via_dashboard_id', :vdash, true), "
-    "set_config('app.query', :q, true), "
-    "set_config('app.guild_auth_ok', :gok, true), "
-    # The installed app this routes, when it is one: which install, the client
-    # its token was issued to, the scopes the token carries and, for a member
-    # token, the purpose its member consented to. Written from the verified
-    # install, the way the user is written from the credential.
-    "set_config('app.current_install_id', :iid, true), "
-    "set_config('app.token_client_id', :tcid, true), "
-    "set_config('app.token_scopes', :tsc, true), "
-    "set_config('app.token_purpose', :tpur, true), "
-    # The reader's standing in the community this routes into — written here
-    # so a routing always states it, and stated as nothing until the statement
-    # that computes it has run. See app.db.guild_standing.
-    "set_config('app.standing_guild_id', :sgid, true), "
-    "set_config('app.guild_admin', :gadm, true), "
-    "set_config('app.guild_seat', :gseat, true), "
-    "set_config('app.settings_rung', :srung, true), "
-    "set_config('app.member_initiatives', :minit, true), "
-    "set_config('app.manager_initiatives', :mginit, true), "
-    "set_config('app.member_role_ids', :mrole, true), "
-    "set_config('app.role_grants', :rgr, true), "
-    "set_config('app.role_denies', :rdn, true), "
-    "set_config('app.enabled_tools', :etool, true), "
-    f"set_config('{OVERRIDE_INITIATIVES_GUC}', :ovr, true), "
-    "set_config('app.install_read', :iread, true), "
-    "set_config('app.install_write', :iwrite, true), "
-    "set_config('app.content_hold', :chold, true), "
-    "set_config('search_path', :sp, true), "
+    + "".join(
+        f"set_config('{guc.name}', :{guc.bind}, true), " for guc in gucs.REQUEST_GUCS
+    )
+    + "set_config('search_path', :search_path, true), "
     "set_config('role', :role, true)"
 )
 
 
-#: The standing keys, as the statement above names them. One mapping rather
-#: than the pair of spellings repeated at each of the three return points.
-_STANDING_BINDS: dict[str, str] = {
-    "standing_guild_id": "sgid",
-    "guild_admin": "gadm",
-    "guild_seat": "gseat",
-    "settings_rung": "srung",
-    "member_initiatives": "minit",
-    "manager_initiatives": "mginit",
-    "member_role_ids": "mrole",
-    "role_grants": "rgr",
-    "role_denies": "rdn",
-    "enabled_tools": "etool",
-    "override_initiatives": "ovr",
-    "install_read": "iread",
-    "install_write": "iwrite",
-    "content_hold": "chold",
-}
-
-
-def _standing_binds(standing: dict[str, str]) -> dict[str, str]:
-    return {bind: standing[key] for key, bind in _STANDING_BINDS.items()}
+def _binds(
+    values: dict[gucs.Guc, Any], *, search_path: str, role: str
+) -> dict[str, str]:
+    """The bind parameters for :data:`_CONTEXT_SQL`: each variable's value as
+    its text, and empty where ``values`` names none."""
+    return {
+        **{guc.bind: guc.encode(values.get(guc)) for guc in gucs.REQUEST_GUCS},
+        "search_path": search_path,
+        "role": role,
+    }
 
 
 def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
@@ -406,7 +351,6 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     # The standing, as the seam's statement computed it — or nothing, which is
     # what a routing writes until that statement has run.
     context = params.get("context")
-    standing = standing_bind_params(context)
     if context is not None and context.standing_guild_id is not None:
         # Recomputed from the grant rows by the same statement, so the grant
         # flags a replay writes are the database's answer rather than what the
@@ -420,37 +364,13 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     if billing_guild_id is not None:
         from app.db.schema_provisioning import billing_role_name
 
-        return {
-            "uid": "",
-            "gid": "",
-            "pgid": "",
-            "setgid": "",
-            "pr": "false",
-            "pw": "false",
-            "satp": "",
-            "satc": "",
-            # No session at all on this path, so it recorded nothing about
-            # how anybody signed in.
-            "amr": "",
-            # No account either, so no rung and no standing under the
-            # deployment's own rule.
-            "prole": "",
-            "pfac": "false",
-            "bgid": str(int(billing_guild_id)),
-            "iid": "",
-            "tcid": "",
-            "tsc": "",
-            "tpur": "",
-            "sinit": "",
-            "vdash": "",
-            "q": "false",
-            # No person and no community, so no standing either: the role is
-            # the whole of what this path may read.
-            "gok": "false",
-            **_standing_binds(empty_standing()),
-            "sp": _search_path("public"),
-            "role": billing_role_name(),
-        }
+        # No person, no session and no community: the role is the whole of
+        # what this path may read.
+        return _binds(
+            {gucs.BILLING_GUILD_ID: billing_guild_id},
+            search_path=_search_path("public"),
+            role=billing_role_name(),
+        )
 
     # Route guild-scoped tables to the active guild's schema AND assume that
     # guild's role. The login role has no standing access to any guild schema
@@ -536,24 +456,6 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     else:
         satp = ""
 
-    # What each satisfied provider asserted for the claims some community
-    # narrows it by, as the JSON object the gate reads with ``->``. Empty
-    # string when the credential records none, which the gate treats as
-    # nothing asserted.
-    claims = params.get("satisfied_claims") or {}
-    satc = json.dumps(claims, separators=(",", ":"), sort_keys=True) if claims else ""
-
-    # Which of the markers a community can ask about the credential recorded,
-    # comma-joined the way the satisfied-provider set above is. The vocabulary
-    # is closed (``POLICY_AMR_MARKERS``), so the delimiter cannot appear inside
-    # a value; sorted so one session always writes one string. Empty when the
-    # credential recorded none, which every leg reads as unanswered.
-    amr = ",".join(sorted(params.get("session_amr") or ()))
-    # And whether the account answers the deployment's own second-factor rule:
-    # a factor it holds, or one this session presented. Read beside the rung
-    # the rule is scoped by, which every routed request already carries.
-    pfac = "true" if params.get("platform_factor") else "false"
-
     # The community's sign-in gate, which the standing statement answers from
     # the database for a person. A context with no person behind it is not a
     # session to gate — the same first leg public.guild_auth_satisfied() reads
@@ -562,36 +464,33 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     system_session = user_id is None or satp == SYSTEM_SATISFIED
     guild_auth_ok = system_session or (context is not None and context.guild_auth_ok)
 
-    return {
-        "uid": str(int(user_id)) if user_id is not None else "",
-        "gid": str(int(guild_id)) if guild_id is not None else "",
-        "pgid": str(int(pam_guild_id)) if pam_guild_id is not None else "",
-        "setgid": str(int(settings_guild_id)) if settings_guild_id is not None else "",
-        "amr": amr,
-        "prole": platform_role or "",
-        "pfac": pfac,
-        "pr": "true" if pam_read else "false",
-        "pw": "true" if pam_write else "false",
-        "satp": satp,
-        "satc": satc,
-        "bgid": "",
-        "iid": "",
-        "tcid": "",
-        "tsc": "",
-        "tpur": "",
-        "gok": "true" if guild_auth_ok else "false",
-        **_standing_binds(standing),
-        "sinit": str(int(scope_initiative_id))
-        if scope_initiative_id is not None
-        else "",
-        "vdash": str(int(via_dashboard_id)) if via_dashboard_id is not None else "",
-        # Reader-written SQL, as the policies see it. The role already says
-        # so; this says it where a policy can read it, which is what lets a
-        # rule apply to the query surface and nowhere else.
-        "q": "true" if query else "false",
-        "sp": sp,
-        "role": role_target,
-    }
+    return _binds(
+        {
+            **standing_values(context),
+            gucs.USER_ID: user_id,
+            gucs.GUILD_ID: guild_id,
+            gucs.PAM_GUILD_ID: pam_guild_id,
+            gucs.SETTINGS_GUILD_ID: settings_guild_id,
+            gucs.PAM_READ: pam_read,
+            gucs.PAM_WRITE: pam_write,
+            gucs.SATISFIED_PROVIDERS: satp,
+            # What each satisfied provider asserted for the claims some
+            # community narrows it by, as the JSON object the gate reads.
+            gucs.SATISFIED_CLAIMS: params.get("satisfied_claims"),
+            # The markers the credential recorded, from a closed vocabulary
+            # (``POLICY_AMR_MARKERS``), so the delimiter cannot appear inside
+            # one.
+            gucs.SESSION_AMR: sorted(params.get("session_amr") or ()),
+            gucs.PLATFORM_ROLE: platform_role,
+            gucs.PLATFORM_FACTOR: bool(params.get("platform_factor")),
+            gucs.SCOPE_INITIATIVE_ID: scope_initiative_id,
+            gucs.VIA_DASHBOARD_ID: via_dashboard_id,
+            gucs.QUERY: query,
+            gucs.GUILD_AUTH_OK: guild_auth_ok,
+        },
+        search_path=sp,
+        role=role_target,
+    )
 
 
 def _render_install_bind_params(params: dict[str, Any]) -> dict[str, str]:
@@ -617,35 +516,23 @@ def _render_install_bind_params(params: dict[str, Any]) -> dict[str, str]:
     )
     scope_initiative_id = params.get("scope_initiative_id")
     member_user_id = params.get("member_user_id")
-    return {
-        "uid": str(int(member_user_id)) if member_user_id is not None else "",
-        "gid": str(guild_id),
-        "pgid": "",
-        "setgid": "",
-        "pr": "false",
-        "pw": "false",
-        "satp": "",
-        "satc": "",
-        "amr": "",
-        "prole": "",
-        "pfac": "false",
-        "bgid": "",
-        "iid": str(int(params["install_id"])),
-        "tcid": str(params.get("token_client_id") or ""),
-        # The vocabulary is closed (``app.core.app_scopes``), so the delimiter
-        # cannot appear inside a scope; sorted so one token writes one string.
-        "tsc": ",".join(sorted(params.get("token_scopes") or ())),
-        "tpur": str(params.get("token_purpose") or ""),
-        "sinit": str(int(scope_initiative_id))
-        if scope_initiative_id is not None
-        else "",
-        "vdash": "",
-        "q": "false",
-        "gok": "true" if completed and context.guild_auth_ok else "false",
-        **_standing_binds(standing_bind_params(context if completed else None)),
-        "sp": _search_path(guild_schema_name(guild_id), "public"),
-        "role": guild_role_name(guild_id, GuildRoleKind.app),
-    }
+    return _binds(
+        {
+            **standing_values(context if completed else None),
+            gucs.USER_ID: member_user_id,
+            gucs.GUILD_ID: guild_id,
+            gucs.INSTALL_ID: params["install_id"],
+            gucs.TOKEN_CLIENT_ID: params.get("token_client_id") or None,
+            # A closed vocabulary (``app.core.app_scopes``), so the delimiter
+            # cannot appear inside a scope.
+            gucs.TOKEN_SCOPES: sorted(params.get("token_scopes") or ()),
+            gucs.TOKEN_PURPOSE: params.get("token_purpose"),
+            gucs.SCOPE_INITIATIVE_ID: scope_initiative_id,
+            gucs.GUILD_AUTH_OK: completed and context.guild_auth_ok,
+        },
+        search_path=_search_path(guild_schema_name(guild_id), "public"),
+        role=guild_role_name(guild_id, GuildRoleKind.app),
+    )
 
 
 def _replay_rls_context(session: SyncSession, transaction, connection) -> None:
@@ -1046,6 +933,21 @@ def require_actor_context(session: AsyncSession) -> GuildContext | InstallContex
             "before a decision is made from one"
         )
     return context
+
+
+async def raise_flag(session: AsyncSession, flag: gucs.Guc, value: Any = True) -> None:
+    """Set one of :data:`app.db.gucs.FLAGS` for the current transaction.
+
+    A flag is not part of the routing: it is raised inside the transaction that
+    does the work, lasts until that transaction ends, and is never replayed.
+    """
+    if flag not in gucs.FLAGS:
+        raise ValueError(f"{flag.name} is not a transaction flag")
+    await session.exec(
+        text("SELECT set_config(:name, :value, true)").bindparams(
+            name=flag.name, value=flag.encode(value)
+        )
+    )
 
 
 async def set_billing_context(session: AsyncSession, *, guild_id: int) -> None:

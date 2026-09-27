@@ -44,7 +44,7 @@ def _context(guild_id: int, **extra) -> dict:
         user_id=1,
         guild_id=guild_id,
         standing_guild_id=guild_id,
-        admin=True,
+        guild_admin=True,
         guild_auth_ok=True,
     )
     return {"user_id": 1, "guild_id": guild_id, "context": standing, **extra}

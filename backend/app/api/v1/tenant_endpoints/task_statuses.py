@@ -18,7 +18,9 @@ from app.api.deps import (
     get_current_active_user,
     GuildContextDep,
 )
+from app.db import gucs
 from app.db.guild_standing import InstallContext
+from app.db.session import raise_flag
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.task import Task, TaskStatus, TaskStatusCategory
@@ -32,7 +34,6 @@ from app.schemas.tenant.task_status import (
     TaskStatusUpdate,
 )
 from app.core.messages import InitiativeMessages, TaskStatusMessages
-from app.db.frozen import mark_restructuring
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant import task_completion
@@ -236,7 +237,7 @@ async def update_task_status(
         # boundary without any task row being written, so realign their
         # completion timestamps here. The archived and trashed tasks in the
         # column cross with it: the column is what changed, not them.
-        await mark_restructuring(session)
+        await raise_flag(session, gucs.RESTRUCTURING)
         await task_completion.resync_status_tasks(
             session,
             status_id=target.id,
@@ -413,7 +414,7 @@ async def delete_task_status(
                     )
                 )
             )
-        await mark_restructuring(session)
+        await raise_flag(session, gucs.RESTRUCTURING)
         await session.exec(
             update(Task)
             .where(Task.task_status_id == target.id)

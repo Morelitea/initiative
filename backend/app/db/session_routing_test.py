@@ -35,7 +35,7 @@ def _params(**overrides):
 def test_member_routes_to_full_guild_role():
     bind = _render_context_bind_params(_params(guild_id=3))
     assert bind["role"] == guild_role_name(3)
-    assert bind["gid"] == "3"
+    assert bind["current_guild_id"] == "3"
 
 
 def test_read_only_member_routes_to_ro_role_keeping_membership_gucs():
@@ -44,7 +44,7 @@ def test_read_only_member_routes_to_ro_role_keeping_membership_gucs():
     membership legs, once the standing is computed) behave normally."""
     bind = _render_context_bind_params(_params(guild_id=3, read_only=True))
     assert bind["role"] == guild_role_name(3, GuildRoleKind.read_only)
-    assert bind["gid"] == "3"
+    assert bind["current_guild_id"] == "3"
 
 
 def test_read_only_admin_also_routes_to_ro_role():
@@ -55,7 +55,7 @@ def test_read_only_admin_also_routes_to_ro_role():
 def test_pam_read_grant_still_routes_to_ro_role():
     bind = _render_context_bind_params(_params(pam_guild_id=3, pam_read=True))
     assert bind["role"] == guild_role_name(3, GuildRoleKind.read_only)
-    assert bind["gid"] == ""
+    assert bind["current_guild_id"] == ""
 
 
 def test_pam_write_grant_routes_to_support_role():
@@ -72,11 +72,11 @@ def test_settings_grant_routes_without_content_grant_flags():
     """A settings rung on its own reads: the SELECT-only role, no content flags."""
     bind = _render_context_bind_params(_params(settings_guild_id=3))
     assert bind["role"] == guild_role_name(3, GuildRoleKind.read_only)
-    assert bind["sp"] == f"{guild_schema_name(3)}, public, pg_temp"
-    assert bind["gid"] == ""
-    assert bind["pgid"] == ""
-    assert bind["pr"] == "false"
-    assert bind["pw"] == "false"
+    assert bind["search_path"] == f"{guild_schema_name(3)}, public, pg_temp"
+    assert bind["current_guild_id"] == ""
+    assert bind["pam_guild_id"] == ""
+    assert bind["pam_read"] == "false"
+    assert bind["pam_write"] == "false"
 
 
 def test_member_and_break_glass_keep_full_role():
@@ -99,15 +99,15 @@ class TestSearchPathNamesEverySchema:
 
     def test_guild_route_names_guild_schema_then_public(self):
         out = _render_context_bind_params(_params(guild_id=3))
-        assert out["sp"] == f"{guild_schema_name(3)}, public, pg_temp"
+        assert out["search_path"] == f"{guild_schema_name(3)}, public, pg_temp"
 
     def test_platform_route_names_public(self):
         out = _render_context_bind_params(_params(platform_role="member"))
-        assert out["sp"] == "public, pg_temp"
+        assert out["search_path"] == "public, pg_temp"
 
     def test_billing_route_names_public(self):
         out = _render_context_bind_params(_params(billing_guild_id=5))
-        assert out["sp"] == "public, pg_temp"
+        assert out["search_path"] == "public, pg_temp"
 
     @pytest.mark.parametrize(
         "overrides",
@@ -135,7 +135,7 @@ class TestSearchPathNamesEverySchema:
     def test_every_route_ends_at_pg_temp(self, overrides):
         """One helper renders them all, so no route can drift off the pattern."""
         out = _render_context_bind_params(_params(**overrides))
-        assert out["sp"].endswith(", pg_temp")
+        assert out["search_path"].endswith(", pg_temp")
 
 
 class TestTheInstallRoute:
@@ -155,23 +155,23 @@ class TestTheInstallRoute:
     def test_it_assumes_the_app_role_and_names_no_person(self):
         out = self._install()
         assert out["role"] == guild_role_name(3, GuildRoleKind.app)
-        assert out["sp"] == f"{guild_schema_name(3)}, public, pg_temp"
-        assert out["uid"] == ""
-        assert out["gid"] == "3"
-        assert (out["pgid"], out["setgid"], out["pr"], out["pw"]) == (
+        assert out["search_path"] == f"{guild_schema_name(3)}, public, pg_temp"
+        assert out["current_user_id"] == ""
+        assert out["current_guild_id"] == "3"
+        assert (out["pam_guild_id"], out["settings_guild_id"], out["pam_read"], out["pam_write"]) == (
             "",
             "",
             "false",
             "false",
         )
-        assert out["iid"] == "5"
-        assert out["tcid"] == "tests.app"
-        assert out["tsc"] == "comments:read,documents:write"
+        assert out["current_install_id"] == "5"
+        assert out["token_client_id"] == "tests.app"
+        assert out["token_scopes"] == "comments:read,documents:write"
 
     def test_until_its_standing_is_computed_it_stands_nowhere(self):
         out = self._install()
-        assert out["gok"] == "false"
-        assert (out["sgid"], out["minit"], out["rgr"], out["iread"]) == (
+        assert out["guild_auth_ok"] == "false"
+        assert (out["standing_guild_id"], out["member_initiatives"], out["role_grants"], out["install_read"]) == (
             "",
             "",
             "",
@@ -179,11 +179,11 @@ class TestTheInstallRoute:
         )
 
     def test_it_narrows_to_one_initiative(self):
-        assert self._install(scope_initiative_id=9)["sinit"] == "9"
+        assert self._install(scope_initiative_id=9)["scope_initiative_id"] == "9"
 
     def test_a_person_route_names_no_install(self):
         out = _render_context_bind_params(_params(guild_id=3))
-        assert (out["iid"], out["tcid"], out["tsc"], out["iread"]) == ("", "", "", "")
+        assert (out["current_install_id"], out["token_client_id"], out["token_scopes"], out["install_read"]) == ("", "", "", "")
 
 
 class TestTheSeatRoute:
@@ -193,12 +193,12 @@ class TestTheSeatRoute:
     def test_a_seat_request_by_a_member_assumes_the_seat_role(self):
         out = _render_context_bind_params(_params(guild_id=3, seat=True))
         assert out["role"] == guild_role_name(3, GuildRoleKind.seat)
-        assert out["gid"] == "3"
+        assert out["current_guild_id"] == "3"
 
     def test_a_seat_request_by_a_settings_grantee_assumes_it_too(self):
         out = _render_context_bind_params(_params(settings_guild_id=4, seat=True))
         assert out["role"] == guild_role_name(4, GuildRoleKind.seat)
-        assert out["setgid"] == "4"
+        assert out["settings_guild_id"] == "4"
 
     def test_an_ordinary_request_by_the_same_person_does_not(self):
         out = _render_context_bind_params(_params(guild_id=3))
@@ -211,7 +211,7 @@ class TestTheSeatRoute:
             _params(pam_guild_id=4, pam_read=True, settings_guild_id=4)
         )
         assert out["role"] == guild_role_name(4, GuildRoleKind.read_only)
-        assert out["setgid"] == "4"
+        assert out["settings_guild_id"] == "4"
 
     def test_a_settings_only_grant_reads(self):
         """The rung alone is a view; a read_write grant beside it is what

@@ -383,7 +383,7 @@ async def test_a_read_only_community_writes_nothing(session, acting_user, role_s
     )
     await _set_guild_status(session, install, GuildStatus.read_only)
     s, context = await _route(role_session, install, ["documents:write"])
-    assert context.live and context.read_only
+    assert context.live and context.content_hold
     assert set(context.install_read) == {"documents"}
     assert context.install_write == ()
     assert not any(pair.endswith(":create_documents") for pair in context.role_grants)

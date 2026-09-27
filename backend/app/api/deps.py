@@ -891,7 +891,7 @@ def require_seat(
     """Raise 403 unless this request holds the community's seat, by the
     standing — the membership row's, or lent by a settings grant at that
     rung."""
-    if not context.seat:
+    if not context.guild_seat:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
 
 
@@ -1656,7 +1656,7 @@ async def get_guild_seat_context(
         )
     except GuildAccessError as exc:
         raise_for_guild_access(exc)
-    if not context.seat:
+    if not context.guild_seat:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=GuildMessages.GUILD_SUPERADMIN_REQUIRED,

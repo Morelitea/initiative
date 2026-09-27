@@ -37,9 +37,9 @@ from typing import Iterable, Optional
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sqlalchemy import text
 
 from app.db import gucs
+from app.db.session import raise_flag
 from app.db.soft_delete_filter import select_including_deleted
 from app.models.tenant._mixins import SoftDeleteMixin
 from app.models.tenant.comment import Comment
@@ -329,11 +329,7 @@ async def hard_purge_entities(
     # Purge is the one lifecycle step that writes frozen content instead of only
     # removing it — the wikilink unresolve below reaches documents that are
     # themselves in the trash. Transaction-local (see app.db.gucs.PURGING).
-    await session.exec(
-        text("SELECT set_config(:name, 'true', true)").bindparams(
-            name=gucs.PURGING.name
-        )
-    )
+    await raise_flag(session, gucs.PURGING)
 
     levels = await subtree_levels(session, roots)
     doomed: Level = {}

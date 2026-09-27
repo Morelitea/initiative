@@ -86,8 +86,8 @@ def _context(role: GuildRole) -> GuildContext:
         membership=GuildMembership(guild_id=1, user_id=2, role=role),
         guild_role=role.value,
         standing_guild_id=1,
-        admin=role in GUILD_ADMIN_ROLES,
-        seat=role is GuildRole.superadmin,
+        guild_admin=role in GUILD_ADMIN_ROLES,
+        guild_seat=role is GuildRole.superadmin,
     )
 
 
