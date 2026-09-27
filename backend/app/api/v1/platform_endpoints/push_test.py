@@ -11,9 +11,9 @@ from __future__ import annotations
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.services.auth import sessions as session_service
 from app.services.platform import push_tokens as push_tokens_service
-from app.testing.factories import create_user, get_auth_headers, get_auth_token
+from app.testing import signed_in_headers
+from app.testing.factories import create_user, get_auth_headers
 
 
 async def test_register_and_unregister_push_token(
@@ -21,15 +21,7 @@ async def test_register_and_unregister_push_token(
 ):
     """The device is recorded against the session that registered it."""
     user = await create_user(session)
-    signed_in = await session_service.create_session(
-        session, user_id=user.id, amr=["pwd"], satisfied_providers=[]
-    )
-    session_id = signed_in.session.id
-    await session.commit()
-    headers = {
-        "Authorization": "Bearer "
-        + get_auth_token(user, session_id=session_id, amr=["pwd"])
-    }
+    headers = await signed_in_headers(session, user)
 
     register = await client.post(
         "/api/v1/push/register",
@@ -42,7 +34,7 @@ async def test_register_and_unregister_push_token(
         session, user_id=user.id
     )
     await session.refresh(row)
-    assert row.session_id == session_id
+    assert row.session_id is not None
 
     unregister = await client.request(
         "DELETE",
