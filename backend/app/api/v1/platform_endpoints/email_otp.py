@@ -16,7 +16,15 @@ import logging
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Request,
+    Response,
+    status,
+)
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,6 +42,7 @@ from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages
 from app.core.email_i18n import SUPPORTED_EMAIL_LOCALES
 from app.core.rate_limit import get_real_client_ip, limiter
+from app.db import session as db_session
 from app.db.session import get_session
 from app.models.platform.user import SIGN_IN_STATUSES, User
 from app.models.platform.user_email import UserEmail
@@ -101,11 +110,41 @@ async def _registration_open(
     return True
 
 
+async def _post_code_letter(
+    *, user_id: int | None, email: str, code: str, minutes: int, locale: str
+) -> None:
+    """Post a sign-in or sign-up code once the response has gone.
+
+    After the response, on a session of its own, so the answer takes the same
+    time whichever address it names. A letter that cannot be posted is logged;
+    the person asks again.
+    """
+    try:
+        async with db_session.SystemSessionLocal() as letter_session:
+            if user_id is None:
+                await email_service.send_sign_up_code_email(
+                    letter_session,
+                    email=email,
+                    code=code,
+                    minutes=minutes,
+                    locale=locale,
+                )
+                return
+            user = await letter_session.get(User, user_id)
+            if user is not None:
+                await email_service.send_sign_in_code_email(
+                    letter_session, user, email=email, code=code, minutes=minutes
+                )
+    except Exception:
+        logger.exception("Could not post a sign-in code")
+
+
 @router.post("/email-otp/send", response_model=EmailOtpSent)
 @limiter.limit("5/15minutes")
 async def send_sign_in_code(
     request: Request,
     payload: EmailOtpSend,
+    background: BackgroundTasks,
     session: SessionDep,
     system_session: SystemSessionDep,
 ) -> EmailOtpSent:
@@ -148,30 +187,16 @@ async def send_sign_in_code(
         native=payload.native,
         email=address if signing_up else None,
     )
-    minutes = int(email_otp_service.CODE_TTL.total_seconds() // 60)
-    try:
-        if recipient is not None:
-            await email_service.send_sign_in_code_email(
-                system_session,
-                recipient,
-                email=address,
-                code=issued.code,
-                minutes=minutes,
-            )
-        elif signing_up:
-            await email_service.send_sign_up_code_email(
-                system_session,
-                email=address,
-                code=issued.code,
-                minutes=minutes,
-                locale=_requested_locale(request),
-            )
-    except email_service.EmailNotConfiguredError:  # pragma: no cover
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AuthMessages.EMAIL_OTP_CANNOT_SEND,
-        ) from None
     await system_session.commit()
+    if recipient is not None or signing_up:
+        background.add_task(
+            _post_code_letter,
+            user_id=recipient.id if recipient is not None else None,
+            email=address,
+            code=issued.code,
+            minutes=int(email_otp_service.CODE_TTL.total_seconds() // 60),
+            locale=_requested_locale(request),
+        )
     return EmailOtpSent(challenge=issued.handle)
 
 
