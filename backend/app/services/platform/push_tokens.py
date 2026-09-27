@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Iterable, List, Optional
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy import and_, or_
 from sqlmodel import select, delete, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -93,25 +94,54 @@ async def live_for_user(session: AsyncSession, *, user_id: int) -> List[PushToke
         session, token_ids={r.device_token_id for r in rows if r.device_token_id}
     )
     live: List[PushToken] = []
-    ended: List[int] = []
+    ended: List[PushToken] = []
     for row in rows:
         tip = tips.get(row.session_id) if row.session_id else None
         if tip is not None:
             if tip != row.session_id:
-                row.session_id = tip
-                session.add(row)
+                await follow_session(session, from_id=row.session_id, to_id=tip)
             live.append(row)
         elif row.device_token_id in devices:
             live.append(row)
-        elif row.id is not None:
-            ended.append(row.id)
+        else:
+            ended.append(row)
     if ended:
+        # Only a row still naming the sign-in read above: one registered again
+        # in the meantime names its new session and stays.
         await session.exec(
             delete(PushToken).where(
-                PushToken.user_id == user_id, PushToken.id.in_(ended)
+                PushToken.user_id == user_id,
+                or_(
+                    *(
+                        and_(
+                            PushToken.id == row.id,
+                            PushToken.session_id.is_not_distinct_from(row.session_id),
+                            PushToken.device_token_id.is_not_distinct_from(
+                                row.device_token_id
+                            ),
+                        )
+                        for row in ended
+                    )
+                ),
             )
         )
     return live
+
+
+async def follow_session(
+    session: AsyncSession, *, from_id: uuid.UUID, to_id: uuid.UUID
+) -> None:
+    """Move the devices one session registered to the session taking its place.
+
+    Called wherever a session is succeeded — a refresh, a step-up, a
+    replacement — so a device's row names a live row of its sign-in. Does not
+    commit: it lands with the session change.
+    """
+    await session.exec(
+        update(PushToken)
+        .where(PushToken.session_id == from_id)
+        .values(session_id=to_id)
+    )
 
 
 async def delete_push_token(

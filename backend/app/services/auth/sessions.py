@@ -347,6 +347,9 @@ async def rotate_session(
     )
     session.add(child)
     await session.flush()
+    from app.services.platform import push_tokens
+
+    await push_tokens.follow_session(session, from_id=row.id, to_id=child.id)
     return RotationResult(
         RefreshOutcome.ROTATED,
         issued=IssuedSession(session=child, refresh_token=raw),

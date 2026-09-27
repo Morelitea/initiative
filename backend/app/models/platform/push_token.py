@@ -38,7 +38,7 @@ class PushToken(SQLModel, table=True):
     # chain to the live row. A plain uuid, as ``auth_sessions.parent_id`` is:
     # session rows are purged on their own schedule.
     session_id: Optional[uuid.UUID] = Field(
-        default=None, sa_column=Column(Uuid, nullable=True)
+        default=None, sa_column=Column(Uuid, nullable=True, index=True)
     )
     push_token: str = Field(
         sa_column=Column(String(512), nullable=False, index=True),

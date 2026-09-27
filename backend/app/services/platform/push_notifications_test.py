@@ -276,3 +276,32 @@ async def test_access_token_is_reused_until_it_lapses(monkeypatch):
 
     assert await push_notifications._get_fcm_access_token(_cfg("b")) == "token-2"
     assert built == [{"account": "a"}, {"account": "b"}]
+
+
+async def test_a_renewed_session_carries_its_device(session):
+    """A refresh moves the device to the row that succeeds its session."""
+    from app.services.auth import sessions as session_service
+    from app.services.platform import push_tokens
+    from app.testing import create_user
+
+    user = await create_user(session)
+    user_id = user.id
+    issued = await session_service.create_session(
+        session, user_id=user_id, amr=["pwd"], satisfied_providers=[]
+    )
+    await push_tokens.register_push_token(
+        session,
+        user_id=user_id,
+        push_token="phone",
+        platform="android",
+        session_id=issued.session.id,
+    )
+    rotated = await session_service.rotate_session(
+        session, raw_refresh_token=issued.refresh_token
+    )
+    renewed_id = rotated.issued.session.id
+    await session.commit()
+
+    (row,) = await push_tokens.get_push_tokens_for_user(session, user_id=user_id)
+    await session.refresh(row)
+    assert row.session_id == renewed_id
