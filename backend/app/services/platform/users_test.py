@@ -234,9 +234,12 @@ async def test_a_second_seat_lets_the_account_go(session: AsyncSession):
     assert reloaded.status == UserStatus.deactivated
 
 
-async def test_deactivate_user(session: AsyncSession):
-    """Deactivation flips status, drops memberships, bumps token_version,
-    and leaves PII intact so an operator can later reactivate."""
+async def test_deactivate_user(session: AsyncSession, monkeypatch):
+    """Deactivation flips status, drops memberships (telling billing),
+    bumps token_version, and leaves PII intact so an operator can later
+    reactivate."""
+    from app.services.platform import billing_ping
+
     user = await create_user(
         session, email="todeactivate@example.com", full_name="Original Name"
     )
@@ -251,8 +254,11 @@ async def test_deactivate_user(session: AsyncSession):
     )
 
     original_token_version = user.token_version
+    pinged: list[int] = []
+    monkeypatch.setattr(billing_ping, "notify_membership_changed", pinged.append)
 
     await user_service.deactivate_user(session, user.id)
+    assert pinged == [guild.id]
 
     stmt = select(User).where(User.id == user.id)
     result = await session.exec(stmt)
