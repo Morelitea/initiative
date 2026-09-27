@@ -570,16 +570,21 @@ async def test_deletion_eligibility_surfaces_the_services_answer(client, acting_
     assert body["blockers"] == []
 
 
-async def test_delete_user_as_admin(client, acting_user):
-    """A guild admin removes a member from the guild."""
+async def test_delete_user_as_admin(client, acting_user, monkeypatch):
+    """A guild admin removes a member from the guild, and billing hears of it."""
+    from app.services.platform import billing_ping
+
     admin = await acting_user(guild_role=GuildRole.admin)
     member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    pinged: list[int] = []
+    monkeypatch.setattr(billing_ping, "notify_membership_changed", pinged.append)
 
     response = await client.delete(
         admin.g(f"/users/{member.user.id}"), headers=admin.headers
     )
 
     assert response.status_code == 204
+    assert pinged == [admin.guild.id]
 
 
 async def test_user_cannot_update_email_via_patch(client, acting_user):

@@ -90,6 +90,7 @@ async def create_token(
     purpose: UserTokenPurpose,
     expires_minutes: int = DEFAULT_TOKEN_TTL_MINUTES,
     user_email_id: int | None = None,
+    invite_id: int | None = None,
 ) -> str:
     await _delete_existing_tokens(session, user_id, purpose, user_email_id)
     token_value = secrets.token_urlsafe(48)
@@ -99,6 +100,7 @@ async def create_token(
         token=_hash_token(token_value),
         purpose=purpose,
         user_email_id=user_email_id,
+        invite_id=invite_id,
         expires_at=expires_at,
     )
     session.add(token)

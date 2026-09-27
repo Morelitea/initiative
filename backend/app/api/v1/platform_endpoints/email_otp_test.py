@@ -37,8 +37,8 @@ def _catch_codes(monkeypatch) -> list[tuple[str, str]]:
     return caught
 
 
-async def _ask(client: AsyncClient, address: str) -> str:
-    response = await client.post(SEND_URL, json={"email": address})
+async def _ask(client: AsyncClient, address: str, *, native: bool = False) -> str:
+    response = await client.post(SEND_URL, json={"email": address, "native": native})
     assert response.status_code == 200, response.text
     return response.json()["challenge"]
 
@@ -352,9 +352,11 @@ async def test_signing_in_this_way_needs_no_password(
 REGISTER_URL = "/api/v1/auth/email-otp/register"
 
 
-async def _sign_up_to_ticket(client: AsyncClient, caught, address: str) -> str:
+async def _sign_up_to_ticket(
+    client: AsyncClient, caught, address: str, *, native: bool = False
+) -> str:
     """Ask at an unheld address, answer the code, and take the ticket."""
-    handle = await _ask(client, address)
+    handle = await _ask(client, address, native=native)
     answered = await client.post(
         VERIFY_URL, json={"challenge": handle, "code": caught[-1][1]}
     )
@@ -416,6 +418,25 @@ async def test_the_ticket_makes_the_account_and_signs_it_in(
     ).scalar_one()
     # No password: the address it proved is its way in.
     assert account.hashed_password is None
+
+
+async def test_the_app_signing_up_keeps_its_session(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The app keeps its refresh token itself, so the sign-up hands it one."""
+    await _permit(session)
+    _catch_codes(monkeypatch)
+    caught = _catch_sign_ups(monkeypatch)
+    ticket = await _sign_up_to_ticket(
+        client, caught, "app-arrival@example.com", native=True
+    )
+
+    made = await client.post(
+        REGISTER_URL, json={"registration_ticket": ticket, "username": "apparrival"}
+    )
+
+    assert made.status_code == 201, made.text
+    assert made.json()["refresh_token"]
 
 
 async def test_the_address_it_proved_needs_no_confirming(

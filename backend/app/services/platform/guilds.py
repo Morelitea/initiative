@@ -1611,12 +1611,7 @@ def invite_is_active(invite: GuildInvite) -> bool:
     return True
 
 
-async def redeem_invite_for_user(
-    session: AsyncSession,
-    *,
-    code: str,
-    user: User,
-) -> Guild:
+async def _live_invite(session: AsyncSession, *, code: str) -> GuildInvite:
     invite = await get_invite_by_code(session, code=code)
     if not invite:
         raise GuildInviteError(GuildMessages.INVITE_NOT_FOUND)
@@ -1628,6 +1623,35 @@ async def redeem_invite_for_user(
     target_guild = await get_guild(session, guild_id=invite.guild_id)
     if target_guild.status != GuildStatus.active.value:
         raise GuildInviteError(GuildMessages.INVITE_EXPIRED_OR_USED)
+    return invite
+
+
+async def invite_awaiting_address(
+    session: AsyncSession, *, code: str, email: str
+) -> GuildInvite | None:
+    """The invite a sign-up at ``email`` joins once it proves the address.
+
+    For a sign-up that has not proved its address yet. An invite bound to that
+    address waits for the proof rather than being redeemed now; one bound to
+    another address is refused, as redeeming it would be. ``None`` for an
+    invite that binds no address, which is redeemed with the account.
+    """
+    invite = await _live_invite(session, code=code)
+    bound_email = invite.invitee_email
+    if not bound_email:
+        return None
+    if addresses.normalize(bound_email) != addresses.normalize(email):
+        raise GuildInviteError(GuildMessages.INVITE_EMAIL_MISMATCH)
+    return invite
+
+
+async def redeem_invite_for_user(
+    session: AsyncSession,
+    *,
+    code: str,
+    user: User,
+) -> Guild:
+    invite = await _live_invite(session, code=code)
 
     # Email binding. An invite with no bound address
     # (``invitee_email_encrypted`` is NULL) is a shareable link that any

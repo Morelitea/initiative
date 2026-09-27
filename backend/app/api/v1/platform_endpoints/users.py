@@ -135,6 +135,7 @@ from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import named_people
 from app.services.tenant import ownership as ownership_service
 from app.services.platform import cookie_consent as cookie_consent_service
+from app.services.platform import billing_ping
 from app.services.platform import guilds as guilds_service
 from app.services.platform import guild_images as images_service
 from app.services.platform import legal as legal_service
@@ -1884,6 +1885,7 @@ async def delete_user(
         target_id=guild_context.guild_id,
         detail={"role": removed_role.value, "via": "admin"},
     )
+    billing_ping.notify_membership_changed(guild_context.guild_id)
     await session.commit()
     # Kicked from the guild — drop the user's live content streams immediately
     # (guild-level access change), consistent with the other removal paths.
