@@ -23,6 +23,8 @@ import type {
 import type {
   EntityType,
   HTTPValidationError,
+  ListGuildTrashApiV1CGuildIdTrashGetParams,
+  ListMyTrashApiV1MeTrashGetParams,
   RestoreResponse,
   TrashListResponse,
 } from "../initiativeAPI.schemas";
@@ -48,7 +50,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 };
 
 /**
- * Everything in the active guild's trash (guild-admin only).
+ * The active guild's trash, newest first (guild-admin only).
  *
  * This is the guild settings trash view. Members use the user-scoped
  * ``GET /me/trash`` for their own deletions; they never reach this endpoint.
@@ -56,17 +58,21 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  */
 export const listGuildTrashApiV1CGuildIdTrashGet = (
   guildId: number,
+  params?: ListGuildTrashApiV1CGuildIdTrashGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<TrashListResponse>(
-    { url: `/api/v1/c/${guildId}/trash/`, method: "GET", signal },
+    { url: `/api/v1/c/${guildId}/trash/`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListGuildTrashApiV1CGuildIdTrashGetQueryKey = (guildId: number) => {
-  return [`/api/v1/c/${guildId}/trash/`] as const;
+export const getListGuildTrashApiV1CGuildIdTrashGetQueryKey = (
+  guildId: number,
+  params?: ListGuildTrashApiV1CGuildIdTrashGetParams
+) => {
+  return [`/api/v1/c/${guildId}/trash/`, ...(params ? [params] : [])] as const;
 };
 
 export const getListGuildTrashApiV1CGuildIdTrashGetQueryOptions = <
@@ -74,6 +80,7 @@ export const getListGuildTrashApiV1CGuildIdTrashGetQueryOptions = <
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
+  params?: ListGuildTrashApiV1CGuildIdTrashGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -88,11 +95,11 @@ export const getListGuildTrashApiV1CGuildIdTrashGetQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getListGuildTrashApiV1CGuildIdTrashGetQueryKey(guildId);
+    queryOptions?.queryKey ?? getListGuildTrashApiV1CGuildIdTrashGetQueryKey(guildId, params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof listGuildTrashApiV1CGuildIdTrashGet>>> = ({
     signal,
-  }) => listGuildTrashApiV1CGuildIdTrashGet(guildId, requestOptions, signal);
+  }) => listGuildTrashApiV1CGuildIdTrashGet(guildId, params, requestOptions, signal);
 
   return {
     queryKey,
@@ -116,6 +123,7 @@ export function useListGuildTrashApiV1CGuildIdTrashGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
+  params: undefined | ListGuildTrashApiV1CGuildIdTrashGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -141,6 +149,7 @@ export function useListGuildTrashApiV1CGuildIdTrashGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
+  params?: ListGuildTrashApiV1CGuildIdTrashGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -166,6 +175,7 @@ export function useListGuildTrashApiV1CGuildIdTrashGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
+  params?: ListGuildTrashApiV1CGuildIdTrashGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -187,6 +197,7 @@ export function useListGuildTrashApiV1CGuildIdTrashGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
+  params?: ListGuildTrashApiV1CGuildIdTrashGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -199,7 +210,7 @@ export function useListGuildTrashApiV1CGuildIdTrashGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListGuildTrashApiV1CGuildIdTrashGetQueryOptions(guildId, options);
+  const queryOptions = getListGuildTrashApiV1CGuildIdTrashGetQueryOptions(guildId, params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -426,7 +437,8 @@ export const usePurgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDelete 
   );
 };
 /**
- * The current user's trashed entities across every guild they belong to.
+ * The current user's trashed entities across every guild they belong to,
+ * newest first.
  *
  * User-scoped: shows what *you* deleted, in any guild — this is the personal
  * trash on the user settings page. The all-guild view (everything in one
@@ -436,32 +448,41 @@ export const usePurgeTrashEntityApiV1CGuildIdTrashEntityTypeEntityIdPurgeDelete 
  * @summary List My Trash
  */
 export const listMyTrashApiV1MeTrashGet = (
+  params?: ListMyTrashApiV1MeTrashGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<TrashListResponse>({ url: `/api/v1/me/trash`, method: "GET", signal }, options);
+  return apiMutator<TrashListResponse>(
+    { url: `/api/v1/me/trash`, method: "GET", params, signal },
+    options
+  );
 };
 
-export const getListMyTrashApiV1MeTrashGetQueryKey = () => {
-  return [`/api/v1/me/trash`] as const;
+export const getListMyTrashApiV1MeTrashGetQueryKey = (
+  params?: ListMyTrashApiV1MeTrashGetParams
+) => {
+  return [`/api/v1/me/trash`, ...(params ? [params] : [])] as const;
 };
 
 export const getListMyTrashApiV1MeTrashGetQueryOptions = <
   TData = Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>,
   TError = ErrorType<HTTPValidationError>,
->(options?: {
-  query?: Partial<
-    UseQueryOptions<Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>, TError, TData>
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}) => {
+>(
+  params?: ListMyTrashApiV1MeTrashGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getListMyTrashApiV1MeTrashGetQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getListMyTrashApiV1MeTrashGetQueryKey(params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>> = ({
     signal,
-  }) => listMyTrashApiV1MeTrashGet(requestOptions, signal);
+  }) => listMyTrashApiV1MeTrashGet(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>,
@@ -479,6 +500,7 @@ export function useListMyTrashApiV1MeTrashGet<
   TData = Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  params: undefined | ListMyTrashApiV1MeTrashGetParams,
   options: {
     query: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>, TError, TData>
@@ -499,6 +521,7 @@ export function useListMyTrashApiV1MeTrashGet<
   TData = Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  params?: ListMyTrashApiV1MeTrashGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>, TError, TData>
@@ -519,6 +542,7 @@ export function useListMyTrashApiV1MeTrashGet<
   TData = Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  params?: ListMyTrashApiV1MeTrashGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>, TError, TData>
@@ -535,6 +559,7 @@ export function useListMyTrashApiV1MeTrashGet<
   TData = Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  params?: ListMyTrashApiV1MeTrashGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>, TError, TData>
@@ -543,7 +568,7 @@ export function useListMyTrashApiV1MeTrashGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListMyTrashApiV1MeTrashGetQueryOptions(options);
+  const queryOptions = getListMyTrashApiV1MeTrashGetQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

@@ -7,7 +7,8 @@ calendar (``PUT /calendars/{id}/grants``), never per event.
 """
 
 import logging
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Annotated, Any, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -95,6 +96,41 @@ logger = logging.getLogger(__name__)
 #: they name the calendars scopes.
 CalendarsRead = Annotated[ActorContext, Depends(app_scope("calendars:read"))]
 CalendarsWrite = Annotated[ActorContext, Depends(app_scope("calendars:write"))]
+
+
+#: The widest date window a calendar read may ask for: the year view plus
+#: margin for time-zone offsets.
+MAX_CALENDAR_WINDOW = timedelta(days=400)
+
+
+@dataclass(frozen=True)
+class CalendarWindow:
+    start_after: datetime
+    start_before: datetime
+
+
+def calendar_window(
+    start_after: datetime = Query(),
+    start_before: datetime = Query(),
+) -> CalendarWindow:
+    """The date window a calendar read covers, required and bounded.
+
+    A bound without a zone is read as UTC. The window must not end before it
+    starts, nor span more than ``MAX_CALENDAR_WINDOW``.
+    """
+    if start_after.tzinfo is None:
+        start_after = start_after.replace(tzinfo=timezone.utc)
+    if start_before.tzinfo is None:
+        start_before = start_before.replace(tzinfo=timezone.utc)
+    if not timedelta(0) <= start_before - start_after <= MAX_CALENDAR_WINDOW:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=CalendarEventMessages.WINDOW_INVALID,
+        )
+    return CalendarWindow(start_after=start_after, start_before=start_before)
+
+
+CalendarWindowDep = Annotated[CalendarWindow, Depends(calendar_window)]
 
 
 # ---------------------------------------------------------------------------
@@ -343,11 +379,11 @@ async def list_my_calendar_events(
 async def export_my_calendar_events_ics(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    window: CalendarWindowDep,
     guild_ids: Optional[List[int]] = Query(default=None),
-    start_after: Optional[datetime] = Query(default=None),
-    start_before: Optional[datetime] = Query(default=None),
 ) -> Response:
-    """Export cross-guild calendar events as an .ics file.
+    """Export cross-guild calendar events starting within a date window as an
+    .ics file.
 
     Schema-per-guild: aggregate per guild schema via ``gather_across_guilds``
     — events live only in the per-guild schemas, so no one query spans them.
@@ -355,12 +391,12 @@ async def export_my_calendar_events_ics(
 
     def _fetch(guild_session, guild_id):  # type: ignore[no-untyped-def]
         context = require_guild_context(guild_session)
-        conditions = [calendars_service.tool_enabled_clause()]
-        if start_after is not None:
-            conditions.append(CalendarEvent.start_at >= start_after)
-        if start_before is not None:
-            conditions.append(CalendarEvent.start_at <= start_before)
-        conditions.append(_cross_guild_event_dac_clause(context, current_user.id))
+        conditions = [
+            calendars_service.tool_enabled_clause(),
+            CalendarEvent.start_at >= window.start_after,
+            CalendarEvent.start_at <= window.start_before,
+            _cross_guild_event_dac_clause(context, current_user.id),
+        ]
         stmt = (
             select(CalendarEvent)
             .join(Calendar, Calendar.id == CalendarEvent.calendar_id)
@@ -600,18 +636,20 @@ async def query_guild_calendar_events(
         )
     )
 
-    count_subq = select(CalendarEvent.id).where(*conditions).subquery()
-    count_stmt = select(func.count()).select_from(count_subq)
-    total_count = (await session.exec(count_stmt)).one()
-
     stmt = (
         select(CalendarEvent)
         .where(*conditions)
         .options(*_calendar_event_loader_options())
         .order_by(CalendarEvent.start_at.asc(), CalendarEvent.id.asc())
     )
-    if page is not None:
-        stmt = apply_pagination(stmt, page, page_size)
+    if page is None:
+        events = await _exec_events(session, stmt)
+        return events, len(events)
+
+    count_subq = select(CalendarEvent.id).where(*conditions).subquery()
+    count_stmt = select(func.count()).select_from(count_subq)
+    total_count = (await session.exec(count_stmt)).one()
+    stmt = apply_pagination(stmt, page, page_size)
     return await _exec_events(session, stmt), total_count
 
 

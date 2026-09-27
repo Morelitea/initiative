@@ -146,10 +146,12 @@ class CollaborationRoom:
             if self._loaded:
                 return
             spec = resource_for(self.resource_type)
-            statement = select(spec.model).where(spec.model.id == self.resource_id)
+            statement = select(
+                spec.model.id, getattr(spec.model, YJS_STATE_COLUMN)
+            ).where(spec.model.id == self.resource_id)
             row = (await session.exec(statement)).one_or_none()
             if row:
-                await self.initialize_from_db(yjs_state=getattr(row, YJS_STATE_COLUMN))
+                await self.initialize_from_db(yjs_state=row[1])
             self._loaded = True
 
     async def initialize_from_db(self, yjs_state: Optional[bytes]) -> None:

@@ -5,9 +5,13 @@ Under schema-per-guild a routed session only sees one guild's schema, so a
 each guild's schema in turn and merge the results. Per-schema ids collide across
 guilds, so callers must keep each item's ``guild_id``, and each guild is
 visited on a session of its own.
+
+A paged list across guilds is :func:`page_across_guilds`: each guild answers
+with its first rows in the list's order and how many it has, and the page is
+cut from their merge.
 """
 
-from typing import Awaitable, Callable, Optional, Sequence, TypeVar
+from typing import Any, Awaitable, Callable, Optional, Sequence, TypeVar
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -15,6 +19,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core import auth_context
 from app.db import cohorts
 from app.db.guild_standing import GuildContext
+from app.db.query import effective_page_size, paginate_sequence
 from app.db.session import set_rls_context
 from app.models.platform.guild import (
     LIVE_STATUS_VALUES,
@@ -24,6 +29,7 @@ from app.models.platform.guild import (
 from app.models.platform.user import User, UserStatus
 
 T = TypeVar("T")
+R = TypeVar("R")
 
 #: Where this session remembers each (user, guild)'s standing. On
 #: ``session.info``, so its lifetime is the session's — i.e. the request's.
@@ -192,3 +198,39 @@ async def gather_across_guilds(
                 if writes:
                     await routed.commit()
     return results
+
+
+async def page_across_guilds(
+    session: AsyncSession,
+    user_id: int,
+    guild_ids: Sequence[int],
+    fetch: Callable[[AsyncSession, int, int], Awaitable[tuple[Sequence[R], int]]],
+    *,
+    order: Callable[[R], tuple[Any, Any]],
+    descending: bool,
+    page: int,
+    page_size: int,
+) -> tuple[list[tuple[int, R]], int]:
+    """One page of a list ordered across guilds, as ``(guild_id, row)`` pairs,
+    and the list's total.
+
+    ``fetch(session, guild_id, limit)`` answers with the guild's first ``limit``
+    rows in the list's order and how many rows it has in all. ``order(row)`` is
+    that order as ``(key, identity)``: ``key`` ascending, or descending when
+    ``descending`` is set, then ``identity`` descending — the ORDER BY the
+    fetch ran. Across guilds the guild id breaks a tie. No page reaches past a
+    guild's first ``page * page_size`` rows, so none is read further.
+    """
+    limit = max(page, 1) * effective_page_size(page_size)
+    total = 0
+
+    async def _fetch(routed: AsyncSession, guild_id: int) -> list[tuple[int, R]]:
+        nonlocal total
+        rows, count = await fetch(routed, guild_id, limit)
+        total += count
+        return [(guild_id, row) for row in rows]
+
+    merged = await gather_across_guilds(session, user_id, guild_ids, _fetch)
+    merged.sort(key=lambda pair: (order(pair[1])[1], pair[0]), reverse=True)
+    merged.sort(key=lambda pair: order(pair[1])[0], reverse=descending)
+    return paginate_sequence(merged, page, page_size), total

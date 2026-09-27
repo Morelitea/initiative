@@ -1546,14 +1546,15 @@ export function useListMyCalendarEventsApiV1MeCalendarEventsGet<
 }
 
 /**
- * Export cross-guild calendar events as an .ics file.
+ * Export cross-guild calendar events starting within a date window as an
+ * .ics file.
  *
  * Schema-per-guild: aggregate per guild schema via ``gather_across_guilds``
  * — events live only in the per-guild schemas, so no one query spans them.
  * @summary Export My Calendar Events Ics
  */
 export const exportMyCalendarEventsIcsApiV1MeCalendarEventsExportIcsGet = (
-  params?: ExportMyCalendarEventsIcsApiV1MeCalendarEventsExportIcsGetParams,
+  params: ExportMyCalendarEventsIcsApiV1MeCalendarEventsExportIcsGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -1573,7 +1574,7 @@ export const getExportMyCalendarEventsIcsApiV1MeCalendarEventsExportIcsGetQueryO
   TData = Awaited<ReturnType<typeof exportMyCalendarEventsIcsApiV1MeCalendarEventsExportIcsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ExportMyCalendarEventsIcsApiV1MeCalendarEventsExportIcsGetParams,
+  params: ExportMyCalendarEventsIcsApiV1MeCalendarEventsExportIcsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1613,7 +1614,7 @@ export function useExportMyCalendarEventsIcsApiV1MeCalendarEventsExportIcsGet<
   TData = Awaited<ReturnType<typeof exportMyCalendarEventsIcsApiV1MeCalendarEventsExportIcsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: undefined | ExportMyCalendarEventsIcsApiV1MeCalendarEventsExportIcsGetParams,
+  params: ExportMyCalendarEventsIcsApiV1MeCalendarEventsExportIcsGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -1638,7 +1639,7 @@ export function useExportMyCalendarEventsIcsApiV1MeCalendarEventsExportIcsGet<
   TData = Awaited<ReturnType<typeof exportMyCalendarEventsIcsApiV1MeCalendarEventsExportIcsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ExportMyCalendarEventsIcsApiV1MeCalendarEventsExportIcsGetParams,
+  params: ExportMyCalendarEventsIcsApiV1MeCalendarEventsExportIcsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1663,7 +1664,7 @@ export function useExportMyCalendarEventsIcsApiV1MeCalendarEventsExportIcsGet<
   TData = Awaited<ReturnType<typeof exportMyCalendarEventsIcsApiV1MeCalendarEventsExportIcsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ExportMyCalendarEventsIcsApiV1MeCalendarEventsExportIcsGetParams,
+  params: ExportMyCalendarEventsIcsApiV1MeCalendarEventsExportIcsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -1684,7 +1685,7 @@ export function useExportMyCalendarEventsIcsApiV1MeCalendarEventsExportIcsGet<
   TData = Awaited<ReturnType<typeof exportMyCalendarEventsIcsApiV1MeCalendarEventsExportIcsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ExportMyCalendarEventsIcsApiV1MeCalendarEventsExportIcsGetParams,
+  params: ExportMyCalendarEventsIcsApiV1MeCalendarEventsExportIcsGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<

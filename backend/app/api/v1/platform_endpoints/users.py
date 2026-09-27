@@ -90,6 +90,7 @@ from app.schemas.platform.user import (
     ProfileDecorations,
     UsernameClaim,
     UserGuildMember,
+    UserGuildMemberListResponse,
     UserProfile,
     UserRead,
     UserSelfUpdate,
@@ -278,43 +279,70 @@ async def get_user_stats(
     return stats
 
 
-@guild_router.get("/", response_model=List[UserGuildMember])
+@guild_router.get("/", response_model=UserGuildMemberListResponse)
 async def list_users(
     session: SettingsRLSSessionDep,
     _current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: SettingsContextDep,
-) -> List[UserGuildMember]:
-    """The community's roster.
+    search: Optional[str] = Query(
+        default=None,
+        description=(
+            "Matches members the way ``/search`` does: the handle, a whole "
+            "handle pinning one member, and real names in a guild that shows "
+            "them."
+        ),
+    ),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=100),
+) -> UserGuildMemberListResponse:
+    """The community's roster, a page at a time.
 
     On the configuration session rather than the content one: who is in a
     community is part of running it, which is what a settings grant reaches
     and what an administrator keeps while its content is closed.
+
+    Ordered like ``/search``: nearest first while searching, otherwise by name
+    where the guild shows names, then by handle.
     """
-    stmt = (
+    base = (
         select(MemberProfile, GuildMembership.role, GuildMembership.oidc_provider_id)
         .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
         .where(
             GuildMembership.guild_id == guild_context.guild_id,
             users_service.visible_to_other_people(),
         )
-        .order_by(MemberProfile.created_at.asc())
     )
-    result = await session.exec(stmt)
-    rows = result.all()
+    shows_names = bool(guild_context.guild.show_member_names)
+    closest = None
+    if search and (term := search.strip()):
+        matches, closest = users_service.member_match(term, shows_names=shows_names)
+        base = base.where(matches)
+
+    count_stmt = select(func.count()).select_from(base.subquery())
+    data_stmt = base.order_by(
+        *users_service.member_order(closest, shows_names=shows_names),
+        MemberProfile.username.asc(),
+        MemberProfile.discriminator.asc(),
+        MemberProfile.id.asc(),
+    )
+    rows, total_count, actual_page = await paginated_query(
+        session, data_stmt, count_stmt, page=page, page_size=page_size
+    )
     users = [row[0] for row in rows]
     await initiatives_service.load_user_initiative_roles(session, users)
 
     # ``oidc_managed`` stays a yes/no on the wire: a roster wants to know that
     # SSO placed somebody, not which provider did.
-    response = []
+    items = []
     for user, guild_role, oidc_provider_id in rows:
         member = UserGuildMember.model_validate(user)
         member.guild_role = guild_role.value
         member.oidc_managed = oidc_provider_id is not None
-        # Copy initiative_roles from loaded user
         member.initiative_roles = getattr(user, "initiative_roles", [])
-        response.append(member)
-    return response
+        items.append(member)
+    return UserGuildMemberListResponse(
+        **build_paginated_response(items, total_count, actual_page, page_size)
+    )
 
 
 def _in_initiative(initiative_id: int):

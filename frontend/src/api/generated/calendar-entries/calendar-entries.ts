@@ -47,6 +47,9 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 /**
  * Events + task markers for one guild's calendar over a date window.
  *
+ * ``start_after``/``start_before`` are required and bound both legs; the
+ * window may span at most ``MAX_CALENDAR_WINDOW``.
+ *
  * Skip a leg with ``include_events=false`` / ``include_tasks=false`` (e.g. when
  * the calendar has that type toggled off). ``calendar_ids`` narrows the event
  * leg to named calendars — a surface showing a single calendar asks for
@@ -59,7 +62,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  */
 export const listCalendarEntriesApiV1CGuildIdCalendarEntriesGet = (
   guildId: number,
-  params?: ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams,
+  params: ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -81,7 +84,7 @@ export const getListCalendarEntriesApiV1CGuildIdCalendarEntriesGetQueryOptions =
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams,
+  params: ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -127,7 +130,7 @@ export function useListCalendarEntriesApiV1CGuildIdCalendarEntriesGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: undefined | ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams,
+  params: ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -153,7 +156,7 @@ export function useListCalendarEntriesApiV1CGuildIdCalendarEntriesGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams,
+  params: ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -179,7 +182,7 @@ export function useListCalendarEntriesApiV1CGuildIdCalendarEntriesGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams,
+  params: ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -201,7 +204,7 @@ export function useListCalendarEntriesApiV1CGuildIdCalendarEntriesGet<
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams,
+  params: ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -237,7 +240,7 @@ export function useListCalendarEntriesApiV1CGuildIdCalendarEntriesGet<
  * @summary List My Calendar Entries
  */
 export const listMyCalendarEntriesApiV1MeCalendarEntriesGet = (
-  params?: ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams,
+  params: ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -257,7 +260,7 @@ export const getListMyCalendarEntriesApiV1MeCalendarEntriesGetQueryOptions = <
   TData = Awaited<ReturnType<typeof listMyCalendarEntriesApiV1MeCalendarEntriesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams,
+  params: ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -296,7 +299,7 @@ export function useListMyCalendarEntriesApiV1MeCalendarEntriesGet<
   TData = Awaited<ReturnType<typeof listMyCalendarEntriesApiV1MeCalendarEntriesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: undefined | ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams,
+  params: ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -321,7 +324,7 @@ export function useListMyCalendarEntriesApiV1MeCalendarEntriesGet<
   TData = Awaited<ReturnType<typeof listMyCalendarEntriesApiV1MeCalendarEntriesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams,
+  params: ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -346,7 +349,7 @@ export function useListMyCalendarEntriesApiV1MeCalendarEntriesGet<
   TData = Awaited<ReturnType<typeof listMyCalendarEntriesApiV1MeCalendarEntriesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams,
+  params: ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -367,7 +370,7 @@ export function useListMyCalendarEntriesApiV1MeCalendarEntriesGet<
   TData = Awaited<ReturnType<typeof listMyCalendarEntriesApiV1MeCalendarEntriesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams,
+  params: ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<

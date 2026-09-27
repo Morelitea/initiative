@@ -299,19 +299,23 @@ async def test_switching_assignment_channels_off_keeps_the_queue_while_one_is_on
 
 
 async def test_list_users_lists_this_guilds_members(client, acting_user):
-    """The roster is this guild's members and nobody else's.
+    """The roster is this guild's members and nobody else's, a page at a time.
 
     Members are named by handle. An address is never a guild's to hand out, so
-    it is absent from the shape entirely.
+    it is absent from the shape entirely. Pages are ordered by name, and a
+    search narrows them the way the picker's does.
     """
     caller = await acting_user(
-        guild_role=GuildRole.member, username="user-one", full_name="User One"
+        guild_role=GuildRole.member,
+        username="user-one",
+        full_name="User One",
+        initiative=True,
     )
     await acting_user(
         guild_role=GuildRole.member,
         guild=caller.guild,
-        username="user-two",
-        full_name="User Two",
+        username="zed-two",
+        full_name="Zed Two",
     )
     await acting_user(guild_role=GuildRole.member)  # somebody in another guild
 
@@ -319,8 +323,32 @@ async def test_list_users_lists_this_guilds_members(client, acting_user):
 
     assert response.status_code == 200
     data = response.json()
-    assert {user["username"] for user in data} == {"user-one", "user-two"}
-    assert all("email" not in user for user in data)
+    assert data["total_count"] == 2
+    assert {user["username"] for user in data["items"]} == {"user-one", "zed-two"}
+    assert all("email" not in user for user in data["items"])
+    [roles] = [
+        u["initiative_roles"] for u in data["items"] if u["id"] == caller.user.id
+    ]
+    assert [(r["initiative_id"], r["role"]) for r in roles] == [
+        (caller.initiative.id, "project_manager")
+    ]
+
+    pages = [
+        (
+            await client.get(
+                caller.g(f"/users/?page={page}&page_size=1"), headers=caller.headers
+            )
+        ).json()
+        for page in (1, 2)
+    ]
+    assert [p["items"][0]["username"] for p in pages] == ["user-one", "zed-two"]
+    assert [(p["has_next"], p["has_prev"]) for p in pages] == [
+        (True, False),
+        (False, True),
+    ]
+
+    searched = await client.get(caller.g("/users/?search=zed"), headers=caller.headers)
+    assert [u["username"] for u in searched.json()["items"]] == ["zed-two"]
 
 
 async def test_search_users_returns_slim_paginated_envelope(client, acting_user):

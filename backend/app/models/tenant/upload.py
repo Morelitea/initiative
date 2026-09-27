@@ -31,3 +31,8 @@ class Upload(CreatedByMixin, table=True):
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
+    # When the pasted-image sweep found a pasted picture saved into something;
+    # from then on, edits and purges release it. NULL for everything else.
+    claimed_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )

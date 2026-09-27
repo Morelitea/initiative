@@ -19,6 +19,7 @@ import re
 from typing import Any, Set
 
 from sqlalchemy import JSON, cast, func, Text
+from sqlalchemy.orm import undefer
 from sqlalchemy.orm.attributes import flag_modified
 from sqlmodel import update
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -142,8 +143,10 @@ async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> Non
                     .execution_options(include_deleted=True, synchronize_session=False)
                 )
                 continue
-            stmt = select_including_deleted(model).where(
-                cast(field, Text).op("~")(f"{node}|{markdown}")
+            stmt = (
+                select_including_deleted(model)
+                .where(cast(field, Text).op("~")(f"{node}|{markdown}"))
+                .options(undefer(field))
             )
             for row in (await session.exec(stmt)).all():
                 scrubbed, changed = _scrub_mentions(getattr(row, column), user_id)

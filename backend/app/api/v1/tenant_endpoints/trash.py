@@ -1,10 +1,10 @@
 """Trash-can endpoints: list / restore / immediate-purge.
 
 Guild routes operate on the guild in the ``/c/{guild_id}`` path; the
-cross-guild ``/me/trash`` view (see ``me_trash.py``) spans the user's guilds. The list
-endpoint uses 9 separate per-entity queries merged in Python rather than a
-literal SQL UNION ALL — pragmatic and easier to filter; the spec calls out
-moving to a polymorphic trash index later if it gets slow.
+cross-guild ``/me/trash`` view (see ``me_trash.py``) spans the user's guilds.
+A guild's listing is one statement: a UNION ALL over the trashable models,
+each leg selecting only the columns a :class:`TrashItem` carries, ordered and
+paged in SQL, with the deleter's name joined onto the page.
 
 Cascade dedup: children whose parent was cascaded-trashed at the same
 ``deleted_at`` (over the same edges the cascade walks) are filtered out so the trash table doesn't list 200 tasks
@@ -16,7 +16,8 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import Subquery, Text, cast, func, literal, select, union_all
 from sqlalchemy.orm import aliased
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -31,10 +32,11 @@ from app.api.deps import (
 from app.core.audit_events import AuditEventType
 from app.core.messages import TrashMessages
 from app.core.tools import TRASH_TARGETS, plural_of
+from app.db.query import build_paginated_response
 from app.db.soft_delete_filter import SOFT_DELETE_MODELS, select_including_deleted
 from app.models.tenant.comment import Comment
 from app.models.platform.guild import GuildRole
-from app.models.platform.user import User
+from app.models.platform.user import User, UserStatus
 from app.models.platform.user_profile_view import MemberProfile
 from app.schemas.tenant.trash import (
     EntityType,
@@ -72,105 +74,133 @@ ENTITY_REGISTRY: dict[str, tuple[type[SQLModel], str]] = {
 }
 
 
-def _truncate(value: str, *, limit: int = 80) -> str:
+#: A trash listing's page window.
+TrashPage = Annotated[int, Query(ge=1)]
+TrashPageSize = Annotated[int, Query(ge=1, le=100)]
+
+_NAME_LIMIT = 80
+
+
+def _truncate(value: str, *, limit: int = _NAME_LIMIT) -> str:
     if len(value) <= limit:
         return value
     return value[: limit - 1] + "…"
 
 
-async def _resolve_display_name(
-    session: AsyncSession,
-    user_id: Optional[int],
-    cache: dict[Optional[int], str],
-) -> str:
-    if user_id is None:
+def _trashed(only_deleted_by: Optional[int]) -> Subquery:
+    """This guild's trash listing, one UNION ALL leg per trashable model.
+
+    ``only_deleted_by`` narrows to one user's deletions (the personal view);
+    ``None`` lists everything (the admin view).
+    """
+    legs = []
+    for entity_type, (model, name_field) in ENTITY_REGISTRY.items():
+        leg = select(
+            literal(entity_type, Text).label("entity_type"),
+            model.id.label("entity_id"),
+            # One character past the limit is enough to tell a name was cut.
+            func.left(cast(getattr(model, name_field), Text), _NAME_LIMIT + 1).label(
+                "name"
+            ),
+            model.deleted_at,
+            model.deleted_by,
+            model.purge_at,
+        ).where(model.deleted_at.is_not(None))
+        if only_deleted_by is not None:
+            leg = leg.where(model.deleted_by == only_deleted_by)
+
+        # Cascade dedup: exclude children whose parent (any of them) is also
+        # trashed at the same deleted_at — they come back with it, and one of
+        # them restored alone would sit under a parent that is still in the
+        # bin. Alias the parent — required when the parent is the same table as
+        # the child (Comment threaded replies via parent_comment_id), otherwise
+        # unaliased ``Comment.id == Comment.parent_comment_id`` references the
+        # same row in both clauses.
+        for parent_model, fk_col in CASCADE_PARENTS.get(model, []):
+            parent = aliased(parent_model)
+            leg = leg.where(
+                ~select(parent.id)
+                .where(parent.id == getattr(model, fk_col))
+                .where(parent.deleted_at == model.deleted_at)
+                .exists()
+            )
+        legs.append(leg)
+    return union_all(*legs).subquery("trashed")
+
+
+def _newest_first(rows: Subquery) -> tuple:
+    """Most recently trashed first; kind then id, both descending, break a tie.
+
+    The kind compares bytewise, which is how :func:`page_across_guilds` compares
+    it when ``/me/trash`` merges guilds."""
+    return (
+        rows.c.deleted_at.desc(),
+        rows.c.entity_type.collate("C").desc(),
+        rows.c.entity_id.desc(),
+    )
+
+
+def _deleted_by_display(row) -> str:
+    if row.deleted_by is None:
         return "Deleted user"
-    if user_id in cache:
-        return cache[user_id]
-    user = await session.get(MemberProfile, user_id)
-    if user is None:
-        display = f"Deleted user #{user_id}"
-    else:
-        # Mirror frontend getUserDisplayName: anonymized rows have wiped PII,
-        # so we surface the id rather than the empty/synthetic name fields.
-        if getattr(user.status, "value", str(user.status)) == "anonymized":
-            display = f"Deleted user #{user_id}"
-        else:
-            display = display_name(user) or f"User #{user_id}"
-    cache[user_id] = display
-    return display
+    # Mirror frontend getUserDisplayName: anonymized rows have wiped PII, so
+    # we surface the id rather than the empty/synthetic name fields.
+    if row.profile_id is None or row.status == UserStatus.anonymized:
+        return f"Deleted user #{row.deleted_by}"
+    return display_name(row) or f"User #{row.deleted_by}"
 
 
-async def _list_trashed_for_model(
-    session: AsyncSession,
-    model: type[SQLModel],
-    *,
-    only_deleted_by: Optional[int],
-) -> list[SQLModel]:
-    stmt = select_including_deleted(model).where(model.deleted_at.is_not(None))
-    if only_deleted_by is not None:
-        stmt = stmt.where(model.deleted_by == only_deleted_by)
-
-    # Cascade dedup: exclude children whose parent (any of them) is also
-    # trashed at the same deleted_at — they come back with it, and one of them
-    # restored alone would sit under a parent that is still in the bin. Alias the parent — required when the
-    # parent is the same table as the child (Comment threaded replies via
-    # parent_comment_id), otherwise unaliased ``Comment.id == Comment.parent_comment_id``
-    # references the same row in both clauses.
-    for parent_model, fk_col in CASCADE_PARENTS.get(model, []):
-        fk = getattr(model, fk_col)
-        parent_alias = aliased(parent_model)
-        sub = (
-            select_including_deleted(parent_alias)
-            .where(parent_alias.id == fk)
-            .where(parent_alias.deleted_at == model.deleted_at)
-        )
-        stmt = stmt.where(~sub.exists())
-
-    result = await session.exec(stmt)
-    return list(result.all())
-
-
-async def _collect_trash_items(
+async def trash_page(
     session: AsyncSession,
     guild_id: int,
     *,
     only_deleted_by: Optional[int],
-    name_cache: Optional[dict[Optional[int], str]] = None,
-) -> list[TrashItem]:
-    """Gather one guild's trashed entities as TrashItems.
+    limit: int,
+    offset: int = 0,
+) -> tuple[list[TrashItem], int]:
+    """One window of a guild's trash, newest first, and how much it holds.
 
-    ``only_deleted_by`` filters to a single user's deletions (the personal
-    view); ``None`` returns everything in the guild (the admin view). The
-    ``name_cache`` is shared by the cross-guild aggregate so a user who appears
-    in several guilds is only resolved once.
+    The deleter's name is joined onto the window alone, read through the
+    guild's own member view so it is named the way the guild names people.
     """
-    if name_cache is None:
-        name_cache = {}
-    items: list[TrashItem] = []
-    for entity_type, (model, name_field) in ENTITY_REGISTRY.items():
-        rows = await _list_trashed_for_model(
-            session,
-            model,
-            only_deleted_by=only_deleted_by,
+    trashed = _trashed(only_deleted_by)
+    window = (
+        select(trashed)
+        .order_by(*_newest_first(trashed))
+        .limit(limit)
+        .offset(offset)
+        .subquery("page_rows")
+    )
+    rows = await session.exec(
+        select_including_deleted(
+            window,
+            MemberProfile.id.label("profile_id"),
+            MemberProfile.status,
+            MemberProfile.full_name,
+            MemberProfile.username,
+            MemberProfile.discriminator,
         )
-        for row in rows:
-            raw_name = getattr(row, name_field) or ""
-            name = _truncate(str(raw_name))
-            display = await _resolve_display_name(session, row.deleted_by, name_cache)
-            items.append(
-                TrashItem(
-                    entity_type=entity_type,
-                    entity_id=row.id,
-                    guild_id=guild_id,
-                    name=name,
-                    deleted_at=row.deleted_at,
-                    deleted_by_id=row.deleted_by,
-                    deleted_by_display=display,
-                    purge_at=row.purge_at,
-                )
-            )
-    return items
+        .select_from(window)
+        .outerjoin(MemberProfile, MemberProfile.id == window.c.deleted_by)
+        .order_by(*_newest_first(window))
+    )
+    items = [
+        TrashItem(
+            entity_type=row.entity_type,
+            entity_id=row.entity_id,
+            guild_id=guild_id,
+            name=_truncate(row.name or ""),
+            deleted_at=row.deleted_at,
+            deleted_by_id=row.deleted_by,
+            deleted_by_display=_deleted_by_display(row),
+            purge_at=row.purge_at,
+        )
+        for row in rows
+    ]
+    count = await session.exec(
+        select_including_deleted(func.count()).select_from(trashed)
+    )
+    return items, count.one()
 
 
 @router.get("/", response_model=TrashListResponse)
@@ -179,19 +209,26 @@ async def list_guild_trash(
     guild_context: Annotated[
         GuildContext, Depends(require_guild_roles(GuildRole.admin))
     ],
+    page: TrashPage = 1,
+    page_size: TrashPageSize = 50,
 ) -> TrashListResponse:
-    """Everything in the active guild's trash (guild-admin only).
+    """The active guild's trash, newest first (guild-admin only).
 
     This is the guild settings trash view. Members use the user-scoped
     ``GET /me/trash`` for their own deletions; they never reach this endpoint.
     """
-    items = await _collect_trash_items(
-        session, guild_context.guild_id, only_deleted_by=None
+    items, total_count = await trash_page(
+        session,
+        guild_context.guild_id,
+        only_deleted_by=None,
+        limit=page_size,
+        offset=(page - 1) * page_size,
     )
-    items.sort(key=lambda i: i.deleted_at, reverse=True)
     retention_days = await guilds_service.get_guild_retention_days(session)
     return TrashListResponse(
-        items=items, total=len(items), retention_days=retention_days
+        **build_paginated_response(
+            items, total_count, page, page_size, retention_days=retention_days
+        )
     )
 
 

@@ -29,6 +29,7 @@ import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
+from sqlalchemy.orm import undefer
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.references import (
@@ -305,7 +306,9 @@ async def resolve_references(
         if column is None:
             continue
         model, field = column
-        row = await session.get(model, entity_id)
+        row = await session.get(
+            model, entity_id, options=[undefer(getattr(model, field))]
+        )
         if row is None:
             continue
         before = getattr(row, field)

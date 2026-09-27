@@ -1,8 +1,7 @@
 """Resolved push-notification (FCM) configuration with a process-wide cache.
 
 ``app.services.platform.push_notifications`` mints an FCM access token from
-``_get_fcm_access_token``, which is synchronous and holds no database session —
-and the credential it needs is the service-account JSON on
+``_get_fcm_access_token``, which holds no database session — and the credential it needs is the service-account JSON on
 ``app_setting_secrets``, which no request-path role may read. So the resolved
 configuration is a process-level snapshot here, the same shape
 ``app.services.storage_config`` and ``app.services.captcha_config`` use.

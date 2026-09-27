@@ -616,9 +616,14 @@ async def linked_documents(session: AsyncSession, wiki_id: int) -> list[Any]:
         return []
 
     # RLS is the gate, as everywhere else: a document the reader may not see
-    # simply does not come back, and the wiki is shorter by one row.
+    # simply does not come back, and the wiki is shorter by one row. The body
+    # comes along for the headings the navigation draws.
     rows = (
-        await session.exec(select(Document).where(Document.id.in_(document_ids)))
+        await session.exec(
+            select(Document)
+            .where(Document.id.in_(document_ids))
+            .options(undefer(Document.content), undefer(Document.smart_link_url))
+        )
     ).all()
     return list(rows)
 

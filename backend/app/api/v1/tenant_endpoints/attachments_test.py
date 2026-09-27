@@ -430,9 +430,13 @@ async def test_only_a_pasted_picture_can_be_discarded(
 async def test_the_sweep_takes_pictures_nobody_saved_once_their_grace_is_over(
     client: AsyncClient, session, acting_user
 ):
-    """A tab closed rather than left never discards what it pasted."""
+    """A tab closed rather than left never discards what it pasted. A saved
+    one is claimed and not looked at again."""
     from datetime import datetime, timedelta, timezone
 
+    from sqlmodel import select
+
+    from app.models.tenant.upload import Upload
     from app.services.tenant.attachments import (
         UNCLAIMED_PASTED_IMAGE_GRACE,
         release_unclaimed_pasted_images,
@@ -443,7 +447,7 @@ async def test_the_sweep_takes_pictures_nobody_saved_once_their_grace_is_over(
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     unsaved = await _paste(client, a)
     saved = await _paste(client, a)
-    await create_task(session, a.project, description=f"![shot]({saved})")
+    task = await create_task(session, a.project, description=f"![shot]({saved})")
     await session.commit()
 
     await route_session_to_guild(session, a.guild.id)
@@ -455,6 +459,20 @@ async def test_the_sweep_takes_pictures_nobody_saved_once_their_grace_is_over(
     released = await release_unclaimed_pasted_images(session, now=later)
 
     assert released == {unsaved.rsplit("/", 1)[1]}
+    saved_name = saved.rsplit("/", 1)[1]
+    claimed_at = (
+        await session.exec(
+            select(Upload.claimed_at).where(Upload.filename == saved_name)
+        )
+    ).one()
+    assert claimed_at == later
+
+    # Once claimed, the sweep leaves it alone even when nothing shows it.
+    task.description = "No picture"
+    session.add(task)
+    await session.commit()
+    assert await release_unclaimed_pasted_images(session, now=later) == set()
+    assert await _stored(session, a.guild.id, saved)
 
 
 async def _edit_comment(client: AsyncClient, a, comment_id: int, text: str) -> None:

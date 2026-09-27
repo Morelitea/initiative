@@ -23,13 +23,13 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from functools import cache
 from typing import Any, Optional
 
-from sqlalchemy import Integer, any_, bindparam, delete, update
+from sqlalchemy import delete, update
 from sqlalchemy import inspect as sa_inspect
-from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import RelationshipDirection
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.query import ids_in
 from app.db.soft_delete_filter import SOFT_DELETE_MODELS, select_including_deleted
 
 #: parent model -> [(child model, fk column on the child)]
@@ -83,11 +83,6 @@ def parents_first(models: Iterable[type]) -> tuple[type, ...]:
         else:  # pragma: no cover — the tables' keys would have to form a loop
             raise RuntimeError(f"cascade tree has a cycle among {pending}")
     return tuple(placed)
-
-
-def ids_in(column: Any, ids: Iterable[int]) -> Any:
-    """``column = ANY(:ids)`` — one bound array, however many ids there are."""
-    return column == any_(bindparam(None, list(ids), type_=ARRAY(Integer)))
 
 
 def group_by_model(rows: Iterable[SQLModel]) -> Level:

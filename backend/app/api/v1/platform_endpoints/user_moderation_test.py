@@ -207,7 +207,7 @@ class TestSuspension:
             f"/api/v1/c/{guild.id}/users/", headers=get_auth_headers(member)
         )
         assert response.status_code == 200
-        assert member.id in {row["id"] for row in response.json()}
+        assert member.id in {row["id"] for row in response.json()["items"]}
 
     async def test_they_vanish_from_the_roster(
         self, client, session, moderator_and_member
@@ -223,7 +223,7 @@ class TestSuspension:
         response = await client.get(
             f"/api/v1/c/{guild.id}/users/", headers=get_auth_headers(onlooker)
         )
-        assert member.id not in {row["id"] for row in response.json()}
+        assert member.id not in {row["id"] for row in response.json()["items"]}
 
     async def test_they_vanish_from_the_picker(
         self, client, session, moderator_and_member

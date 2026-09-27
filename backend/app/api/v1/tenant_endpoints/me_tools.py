@@ -36,6 +36,7 @@ from dataclasses import dataclass
 from typing import Annotated, Any, Awaitable, Callable, List, Optional
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import ColumnElement, func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -53,7 +54,7 @@ from app.api.v1.tenant_endpoints.tool_lists import (
 )
 from app.core.tools import Tool
 from app.db.session import require_guild_context
-from app.db.query import build_paginated_response, paginate_sequence
+from app.db.query import build_paginated_response
 from app.models.platform.user import User
 from app.schemas.tenant.calendar import CalendarSummary
 from app.schemas.tenant.counter import CounterGroupSummary
@@ -64,7 +65,11 @@ from app.schemas.tenant.post import PostRead
 from app.schemas.tenant.queue import QueueSummary
 from app.schemas.tenant.tool import ToolSummaryBase, serialize_tool
 from app.schemas.tenant.wiki import WikiSummary
-from app.services.cross_guild import gather_across_guilds, member_guild_ids
+from app.services.cross_guild import (
+    gather_across_guilds,
+    member_guild_ids,
+    page_across_guilds,
+)
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import counters as counters_service
 from app.services.tenant import dashboards as dashboards_service
@@ -89,7 +94,8 @@ CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 _SORT_BY_DESCRIPTION = (
     "Order by one of: name, updated_at, created_at. Omit for this tool's own "
     "default order. There is no `initiative` here — a merged cross-guild list "
-    "is ordered over the summaries themselves, which carry no initiative name."
+    "is ordered by what the tool's own rows carry, and an initiative name is "
+    "not one of them."
 )
 
 
@@ -132,8 +138,8 @@ class MyToolList:
     #: async (session, rows, user) -> the response's ``items``. Runs inside the
     #: guild's routed session, so relationships resolve in its schema.
     serialize: Callable[[AsyncSession, list, User], Awaitable[list]]
-    #: (row) -> the sort key used when the request names no order
-    default_key: Callable[[Any], Any]
+    #: (model) -> the SQL sort key used when the request names no order
+    default_key: Callable[[Any], ColumnElement[Any]]
     #: The page window; the other parameters are every tool's.
     page_size: ListParam
     list_doc: str
@@ -175,7 +181,7 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
     Tool.project: MyToolList(
         loader_options=projects_endpoints.project_load_options,
         serialize=_serialize_projects,
-        default_key=lambda row: row.updated_at,
+        default_key=lambda model: model.updated_at,
         page_size=page_size_param(20, ge=1, le=100),
         list_doc=(
             "List projects across all guilds the current user belongs to.\n"
@@ -189,7 +195,7 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
     Tool.document: MyToolList(
         loader_options=documents_service.list_loader_options,
         serialize=_serialize_documents,
-        default_key=lambda row: row.updated_at,
+        default_key=lambda model: model.updated_at,
         # The one list that echoes the order it was asked for back to the
         # client, which its page reads to keep its column headers in step.
         response_extras=lambda values: {
@@ -209,14 +215,14 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
     Tool.queue: MyToolList(
         loader_options=queues_service.list_loader_options,
         serialize=_summaries(QueueSummary),
-        default_key=lambda row: row.updated_at,
+        default_key=lambda model: model.updated_at,
         page_size=page_size_param(20, ge=0, le=100),
         list_doc="Queues that reach the caller across every guild they belong to.",
     ),
     Tool.counter_group: MyToolList(
         loader_options=counters_service.list_loader_options,
         serialize=_summaries(CounterGroupSummary),
-        default_key=lambda row: row.updated_at,
+        default_key=lambda model: model.updated_at,
         page_size=page_size_param(20, ge=0, le=100),
         list_doc=(
             "Counter groups that reach the caller across every guild they belong to."
@@ -227,7 +233,7 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
         serialize=_summaries(CalendarSummary),
         # By name, like the calendar list inside a guild: this one backs a
         # grouping panel, which is read down rather than scanned for what moved.
-        default_key=lambda row: (row.name or "").lower(),
+        default_key=my_tools_service.name_key,
         default_desc=False,
         page_size=page_size_param(200, ge=1, le=200),
         list_doc=(
@@ -236,12 +242,11 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
             "backing data for the My Calendar grouping panel and the My Tools "
             "table.\n"
             "\n"
-            "Mirrors ``list_my_calendar_events``: visit each member guild "
-            "schema under\n"
-            "the user's own RLS context (guild isolation + DAC hold), merge, "
-            "and\n"
-            "paginate in Python (per-schema SQL can't limit across schemas). "
-            "The WHERE\n"
+            "Visits each member guild schema under the user's own RLS context "
+            "(guild\n"
+            "isolation + DAC hold); each orders and limits its own rows in SQL, "
+            "and the\n"
+            "page is cut from their merge. The WHERE\n"
             "legs are ``my_tools.scope_conditions`` — the same rules every "
             "cross-guild\n"
             "tool list reads; a guild calendar answers to no initiative switch "
@@ -252,7 +257,7 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
     Tool.dashboard: MyToolList(
         loader_options=dashboards_service.dashboard_loader_options,
         serialize=_summaries(DashboardSummary),
-        default_key=lambda row: (row.name or "").lower(),
+        default_key=my_tools_service.name_key,
         default_desc=False,
         page_size=page_size_param(20, ge=0, le=100),
         list_doc="Dashboards that reach the caller across every guild they belong to.",
@@ -263,7 +268,9 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
         # The board's own date: when it went up, or when it is due to. A
         # scheduled draft — which only its writers see here — sorts by the day
         # it will land, not by the day somebody started it.
-        default_key=lambda row: row.published_at or row.scheduled_for or row.created_at,
+        default_key=lambda model: func.coalesce(
+            model.published_at, model.scheduled_for, model.created_at
+        ),
         page_size=page_size_param(20, ge=0, le=50),
         list_doc=(
             "Posts that reach the caller across every guild they belong to.\n"
@@ -276,7 +283,7 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
     Tool.gallery: MyToolList(
         loader_options=galleries_service.list_loader_options,
         serialize=_summaries(GallerySummary),
-        default_key=lambda row: row.updated_at,
+        default_key=lambda model: model.updated_at,
         page_size=page_size_param(20, ge=0, le=100),
         list_doc=(
             "Galleries that reach the caller across every guild they belong "
@@ -295,7 +302,7 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
     Tool.wiki: MyToolList(
         loader_options=wikis_service.list_loader_options,
         serialize=_summaries(WikiSummary),
-        default_key=lambda row: row.updated_at,
+        default_key=lambda model: model.updated_at,
         page_size=page_size_param(20, ge=0, le=100),
         list_doc=(
             "Wikis that reach the caller across every guild they belong to.\n"
@@ -332,44 +339,83 @@ async def list_across_guilds(
 ) -> tuple[list, int]:
     """One page of ``tool`` across every guild the caller belongs to.
 
-    Visits each guild's schema in turn and merges — per-schema ids collide, so
-    a single statement can't span them. Ordering and slicing therefore happen
-    over the merged list rather than in SQL.
+    Two passes, since per-schema ids collide and no statement spans guilds:
+
+    1. **Order.** Each guild answers with the sort key and id of its first
+       ``page * page_size`` rows, ordered and limited in SQL, and its count;
+       the page is cut from their merge.
+    2. **Load.** Only the rows on that page are loaded and serialized, from
+       the guilds that contribute to it. By id alone, so a concurrent edit
+       cannot take a row the first pass counted off the page.
     """
     spec = MY_TOOL_LISTS[tool]
     model = my_tools_service.tool_model(tool)
-    target_guilds = await member_guild_ids(
-        session, current_user.id, restrict_to=guild_ids
-    )
-
-    async def _fetch(guild_session: AsyncSession, guild_id: int) -> list:
-        statement = (
-            select(model)
-            .where(
-                *my_tools_service.scope_conditions(
-                    tool,
-                    user_id=current_user.id,
-                    context=require_guild_context(guild_session),
-                    search=search,
-                    created_by_me=created_by_me,
-                )
-            )
-            .options(*spec.loader_options())
-        )
-        rows = list((await guild_session.exec(statement)).unique().all())
-        # Serialize inside the routed session: relationships resolve in this
-        # guild's schema, and the next guild expunges these rows.
-        return await spec.serialize(guild_session, rows, current_user)
-
-    items = await gather_across_guilds(session, current_user.id, target_guilds, _fetch)
-    items = my_tools_service.sort_merged(
-        items,
+    key, descending = my_tools_service.sort_key(
+        model,
         sort_by,
         sort_dir,
         default=spec.default_key,
         default_desc=spec.default_desc,
     )
-    return paginate_sequence(items, page, page_size), len(items)
+    target_guilds = await member_guild_ids(
+        session, current_user.id, restrict_to=guild_ids
+    )
+
+    async def _keys(
+        guild_session: AsyncSession, _guild_id: int, limit: int
+    ) -> tuple[list, int]:
+        conditions = my_tools_service.scope_conditions(
+            tool,
+            user_id=current_user.id,
+            context=require_guild_context(guild_session),
+            search=search,
+            created_by_me=created_by_me,
+        )
+        rows = await guild_session.exec(
+            select(key, model.id)
+            .where(*conditions)
+            .order_by(key.desc() if descending else key.asc(), model.id.desc())
+            .limit(limit)
+        )
+        count = await guild_session.exec(
+            select(func.count(model.id)).where(*conditions)
+        )
+        return list(rows.all()), count.one()
+
+    window, total_count = await page_across_guilds(
+        session,
+        current_user.id,
+        target_guilds,
+        _keys,
+        order=lambda row: (row[0], row[1]),
+        descending=descending,
+        page=page,
+        page_size=page_size,
+    )
+
+    # (guild, id) -> where it sits on the page, so the loaded rows come back in
+    # the merged order rather than in guild order.
+    placement: dict[tuple[int, int], int] = {}
+    wanted: dict[int, list[int]] = {}
+    for index, (guild_id, row) in enumerate(window):
+        placement[(guild_id, row[1])] = index
+        wanted.setdefault(guild_id, []).append(row[1])
+
+    async def _load(guild_session: AsyncSession, guild_id: int) -> list:
+        statement = (
+            select(model)
+            .where(model.id.in_(wanted[guild_id]))
+            .options(*spec.loader_options())
+        )
+        rows = list((await guild_session.exec(statement)).unique().all())
+        # Serialize inside the routed session: relationships resolve in this
+        # guild's schema, and the next guild expunges these rows.
+        items = await spec.serialize(guild_session, rows, current_user)
+        return [(placement[(guild_id, item.id)], item) for item in items]
+
+    loaded = await gather_across_guilds(session, current_user.id, sorted(wanted), _load)
+    loaded.sort(key=lambda pair: pair[0])
+    return [item for _, item in loaded], total_count
 
 
 # ---------------------------------------------------------------------------

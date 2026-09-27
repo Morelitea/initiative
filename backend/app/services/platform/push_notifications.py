@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from typing import Any, Dict, Optional
@@ -84,49 +85,58 @@ def channel_for(notification_type: Optional[NotificationType]) -> str:
     return PUSH_CHANNELS.get(notification_type, DEFAULT_CHANNEL)
 
 
-def _get_fcm_access_token(cfg: ResolvedPushConfig) -> Optional[str]:
-    """Get OAuth2 access token from service account credentials.
+#: The service-account credential and the JSON it was built from. Google
+#: access tokens last an hour, so one credential serves every push until it
+#: nears expiry or the configured account changes.
+_credentials: tuple[str, service_account.Credentials] | None = None
+
+
+async def _get_fcm_access_token(cfg: ResolvedPushConfig) -> Optional[str]:
+    """An OAuth2 access token for the configured service account.
 
     Returns None if FCM is not configured or credentials are invalid.
 
     ``cfg`` is passed in rather than read here: the credential lives on
     ``app_setting_secrets``, which only the system engine may read, so it is
-    resolved by ``push_config`` on a session of its own before this
-    synchronous call.
+    resolved by ``push_config`` on a session of its own. The token is reused
+    while it is valid; a refresh is a blocking HTTP call, so it runs on a
+    worker thread.
     """
+    global _credentials
     if not cfg.enabled or not cfg.service_account_json:
         return None
 
     try:
-        # Parse service account JSON
-        service_account_info = json.loads(cfg.service_account_json)
-
-        # Create credentials
-        credentials = service_account.Credentials.from_service_account_info(
-            service_account_info,
-            scopes=FCM_SCOPES,
-        )
-
-        # Refresh to get access token
-        credentials.refresh(Request())
-
+        if _credentials is None or _credentials[0] != cfg.service_account_json:
+            _credentials = (
+                cfg.service_account_json,
+                service_account.Credentials.from_service_account_info(
+                    json.loads(cfg.service_account_json), scopes=FCM_SCOPES
+                ),
+            )
+        credentials = _credentials[1]
+        if not credentials.valid:
+            await asyncio.to_thread(credentials.refresh, Request())
         return credentials.token
     except Exception as exc:
         logger.error(f"Failed to get FCM access token: {exc}", exc_info=True)
         return None
 
 
-async def _send_to_fcm(
-    token: str,
+async def send_push_notification(
+    client: httpx.AsyncClient,
+    *,
+    push_token: str,
     title: str,
     body: str,
     data: Optional[Dict[str, Any]] = None,
     channel_id: Optional[str] = None,
 ) -> tuple[bool, bool]:
-    """Send a push notification via FCM HTTP v1 API.
+    """Send a push notification to one device via the FCM HTTP v1 API.
 
     Args:
-        token: FCM registration token
+        client: The HTTP client the whole fan-out shares
+        push_token: FCM registration token
         title: Notification title
         body: Notification body
         data: Optional data payload (must be string key-value pairs)
@@ -148,14 +158,14 @@ async def _send_to_fcm(
         logger.warning("FCM not enabled, skipping push notification")
         return (False, False)
 
-    access_token = _get_fcm_access_token(cfg)
+    access_token = await _get_fcm_access_token(cfg)
     if not access_token:
         logger.error("Failed to get FCM access token")
         return (False, False)
 
     # Build FCM message
     fcm_message: dict[str, Any] = {
-        "token": token,
+        "token": push_token,
         "notification": {
             "title": title,
             "body": body,
@@ -175,7 +185,6 @@ async def _send_to_fcm(
     if data:
         fcm_message["data"] = {k: str(v) for k, v in data.items()}
 
-    # Send to FCM
     url = FCM_API_URL.format(project_id=cfg.project_id)
     headers = {
         "Authorization": f"Bearer {access_token}",
@@ -183,67 +192,38 @@ async def _send_to_fcm(
     }
 
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                url, json=message, headers=headers, timeout=10.0
-            )
+        response = await client.post(url, json=message, headers=headers)
 
-            if response.status_code == 200:
-                logger.info(
-                    f"Push notification sent successfully to token: {token[:20]}..."
-                )
-                return (True, False)
-            elif response.status_code in (404, 410):
-                # Token invalid or unregistered - should be deleted
-                logger.warning(
-                    f"FCM token invalid (status {response.status_code}): {token[:20]}..."
-                )
-                return (False, True)
-            elif response.status_code == 401:
-                # Credentials issue - don't delete token
-                logger.error(
-                    f"FCM authentication failed (status {response.status_code}): {response.text}"
-                )
-                return (False, False)
-            else:
-                # Other error - don't delete token (might be temporary)
-                logger.error(
-                    f"FCM request failed (status {response.status_code}): {response.text}"
-                )
-                return (False, False)
+        if response.status_code == 200:
+            logger.info(
+                f"Push notification sent successfully to token: {push_token[:20]}..."
+            )
+            return (True, False)
+        elif response.status_code in (404, 410):
+            # Token invalid or unregistered - should be deleted
+            logger.warning(
+                f"FCM token invalid (status {response.status_code}): {push_token[:20]}..."
+            )
+            return (False, True)
+        elif response.status_code == 401:
+            # Credentials issue - don't delete token
+            logger.error(
+                f"FCM authentication failed (status {response.status_code}): {response.text}"
+            )
+            return (False, False)
+        else:
+            # Other error - don't delete token (might be temporary)
+            logger.error(
+                f"FCM request failed (status {response.status_code}): {response.text}"
+            )
+            return (False, False)
 
     except httpx.TimeoutException:
-        logger.warning(f"FCM request timed out for token: {token[:20]}...")
+        logger.warning(f"FCM request timed out for token: {push_token[:20]}...")
         return (False, False)
     except Exception as exc:
         logger.error(f"Failed to send FCM notification: {exc}", exc_info=True)
         return (False, False)
-
-
-async def send_push_notification(
-    push_token: str,
-    title: str,
-    body: str,
-    data: Optional[Dict[str, Any]] = None,
-    platform: str = "android",
-    channel_id: Optional[str] = None,
-) -> tuple[bool, bool]:
-    """Send a push notification to a single device.
-
-    Args:
-        push_token: FCM registration token
-        title: Notification title
-        body: Notification body
-        data: Optional data payload
-        platform: Platform identifier ('android' or 'ios')
-        channel_id: Android notification channel to deliver on
-
-    Returns:
-        Tuple of (success, should_delete_token):
-        - success: True if notification was sent successfully
-        - should_delete_token: True if token is invalid and should be deleted
-    """
-    return await _send_to_fcm(push_token, title, body, data, channel_id)
 
 
 async def _recipient_locale(user_id: int) -> str:
@@ -362,26 +342,27 @@ async def send_push_to_user(
 
     channel_id = channel_for(notification_type)
 
-    for token_record in tokens:
-        success, should_delete = await send_push_notification(
-            push_token=token_record.push_token,
-            title=title,
-            body=body,
-            data=data,
-            platform=token_record.platform,
-            channel_id=channel_id,
-        )
-
-        if success:
-            successful += 1
-            if token_record.id is not None:
-                delivered_ids.append(token_record.id)
-        elif should_delete:
-            # Token is invalid (404/410 from FCM), mark for deletion
-            logger.info(
-                f"Deleting invalid push token: {token_record.push_token[:20]}..."
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        for token_record in tokens:
+            success, should_delete = await send_push_notification(
+                client,
+                push_token=token_record.push_token,
+                title=title,
+                body=body,
+                data=data,
+                channel_id=channel_id,
             )
-            tokens_to_delete.append(token_record.push_token)
+
+            if success:
+                successful += 1
+                if token_record.id is not None:
+                    delivered_ids.append(token_record.id)
+            elif should_delete:
+                # Token is invalid (404/410 from FCM), mark for deletion
+                logger.info(
+                    f"Deleting invalid push token: {token_record.push_token[:20]}..."
+                )
+                tokens_to_delete.append(token_record.push_token)
 
     await _record_delivery(
         user_id, delivered_ids=delivered_ids, dead_tokens=tokens_to_delete

@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.messages import CalendarEventMessages
 from app.models.platform.guild import GuildRole
 from app.testing import (
     create_calendar,
@@ -85,7 +86,12 @@ async def test_guild_entries_include_flags_skip_legs(
     only_tasks = await client.get(
         a.g("/calendar-entries/"),
         headers=a.headers,
-        params={"initiative_id": a.initiative.id, "include_events": "false"},
+        params={
+            "initiative_id": a.initiative.id,
+            "start_after": WINDOW_START,
+            "start_before": WINDOW_END,
+            "include_events": "false",
+        },
     )
     assert only_tasks.status_code == 200
     assert only_tasks.json()["events"] == []
@@ -94,7 +100,12 @@ async def test_guild_entries_include_flags_skip_legs(
     only_events = await client.get(
         a.g("/calendar-entries/"),
         headers=a.headers,
-        params={"initiative_id": a.initiative.id, "include_tasks": "false"},
+        params={
+            "initiative_id": a.initiative.id,
+            "start_after": WINDOW_START,
+            "start_before": WINDOW_END,
+            "include_tasks": "false",
+        },
     )
     assert only_events.status_code == 200
     assert len(only_events.json()["events"]) == 1
@@ -194,6 +205,25 @@ async def test_guild_entries_windows_tasks_by_params(
     task_ids = {t["id"] for t in response.json()["tasks"]}
     assert in_window.id in task_ids
     assert out_window.id not in task_ids
+
+    # The window is required, may not run backwards, and is bounded.
+    missing = await client.get(
+        a.g("/calendar-entries/"),
+        headers=a.headers,
+        params={"initiative_id": a.initiative.id, "start_after": WINDOW_START},
+    )
+    assert missing.status_code == 422
+    for start, end in (
+        (WINDOW_END, WINDOW_START),
+        (WINDOW_START, (NOW + timedelta(days=400)).isoformat()),
+    ):
+        refused = await client.get(
+            a.g("/calendar-entries/"),
+            headers=a.headers,
+            params={"start_after": start, "start_before": end},
+        )
+        assert refused.status_code == 422
+        assert refused.json()["detail"] == CalendarEventMessages.WINDOW_INVALID
 
 
 # ---------------------------------------------------------------------------
@@ -319,3 +349,16 @@ async def test_me_entries_windows_tasks_by_params(
     task_ids = {t["id"] for t in response.json()["tasks"]}
     assert in_window.id in task_ids
     assert out_window.id not in task_ids
+
+    missing = await client.get("/api/v1/me/calendar-entries", headers=headers)
+    assert missing.status_code == 422
+    too_wide = await client.get(
+        "/api/v1/me/calendar-entries",
+        headers=headers,
+        params={
+            "start_after": WINDOW_START,
+            "start_before": (NOW + timedelta(days=400)).isoformat(),
+        },
+    )
+    assert too_wide.status_code == 422
+    assert too_wide.json()["detail"] == CalendarEventMessages.WINDOW_INVALID

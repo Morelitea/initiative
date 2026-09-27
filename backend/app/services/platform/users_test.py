@@ -11,6 +11,7 @@ Tests the business logic in app.services.users including:
 from datetime import datetime, timezone
 
 import pytest
+from sqlalchemy.orm import undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -933,7 +934,13 @@ async def test_soft_delete_scrubs_embedded_mentions(
     assert project_description == f"lead: @[{ANONYMIZED_MENTION_NAME}]({victim_id})"
 
     for model, row_id in ((Document, document.id), (WikiPage, page.id)):
-        refreshed = (await session.exec(select(model).where(model.id == row_id))).one()
+        refreshed = (
+            await session.exec(
+                select(model)
+                .where(model.id == row_id)
+                .options(undefer(model.content), undefer(model.yjs_state))
+            )
+        ).one()
         node = refreshed.content["root"]["children"][0]["children"][0]
         assert node["mentionName"] == ANONYMIZED_MENTION_NAME, model
         assert node["text"] == ANONYMIZED_MENTION_NAME, model

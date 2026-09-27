@@ -168,9 +168,7 @@ async def test_delivery_reads_stamps_and_prunes_on_the_system_engine(
 
     monkeypatch.setattr(push_config, "ensure_push_config_fresh", _enabled)
 
-    async def _send(
-        push_token, title, body, data=None, platform="android", channel_id=None
-    ):
+    async def _send(client, push_token, title, body, data=None, channel_id=None):
         return (True, False) if push_token == "live" else (False, True)
 
     monkeypatch.setattr(push_notifications, "send_push_notification", _send)
@@ -207,3 +205,51 @@ async def test_delivery_reads_stamps_and_prunes_on_the_system_engine(
     assert set(held) == {(recipient_id, "live"), (bystander_id, "gone")}
     assert held[(recipient_id, "live")].last_used_at is not None
     assert held[(bystander_id, "gone")].last_used_at is None
+
+
+async def test_access_token_is_reused_until_it_lapses(monkeypatch):
+    """One credential per service account: refreshed when it is not valid,
+    reused while it is, and rebuilt when the configured account changes."""
+    from app.services.platform import push_config, push_notifications
+
+    built: list[dict] = []
+
+    class _Credentials:
+        def __init__(self, info):
+            built.append(info)
+            self.valid = False
+            self.token = None
+            self.refreshes = 0
+
+        def refresh(self, _request):
+            self.refreshes += 1
+            self.valid = True
+            self.token = f"token-{len(built)}"
+
+    monkeypatch.setattr(
+        push_notifications.service_account.Credentials,
+        "from_service_account_info",
+        lambda info, scopes: _Credentials(info),
+    )
+    monkeypatch.setattr(push_notifications, "_credentials", None)
+
+    def _cfg(account: str) -> push_config.ResolvedPushConfig:
+        return push_config.ResolvedPushConfig(
+            enabled=True,
+            project_id="p",
+            application_id=None,
+            api_key=None,
+            sender_id=None,
+            service_account_json=f'{{"account": "{account}"}}',
+        )
+
+    assert await push_notifications._get_fcm_access_token(_cfg("a")) == "token-1"
+    assert await push_notifications._get_fcm_access_token(_cfg("a")) == "token-1"
+    assert push_notifications._credentials[1].refreshes == 1
+
+    push_notifications._credentials[1].valid = False
+    assert await push_notifications._get_fcm_access_token(_cfg("a")) == "token-1"
+    assert push_notifications._credentials[1].refreshes == 2
+
+    assert await push_notifications._get_fcm_access_token(_cfg("b")) == "token-2"
+    assert built == [{"account": "a"}, {"account": "b"}]

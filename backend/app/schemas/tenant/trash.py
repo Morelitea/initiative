@@ -8,6 +8,7 @@ from pydantic import ConfigDict
 
 from app.core.tools import TRASH_TARGETS
 from app.schemas.base import SanitizedBaseModel
+from app.schemas.query import PageMeta
 
 
 # Derived from the Tool enum plus the non-tool trashable extras, exactly the way
@@ -35,11 +36,8 @@ class TrashItem(SanitizedBaseModel):
     purge_at: Optional[datetime] = None
 
 
-class TrashListResponse(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
+class TrashListResponse(PageMeta):
     items: list[TrashItem]
-    total: int
     retention_days: Optional[int] = None
 
 

@@ -11,8 +11,10 @@ Tests the API key endpoints at /api/v1/users/me/api-keys including:
 from datetime import datetime, timedelta, timezone
 
 from httpx import AsyncClient
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.models.platform.api_key import UserApiKey
 from app.models.platform.guild import GuildRole
 from app.testing.factories import (
     create_guild,
@@ -195,6 +197,23 @@ async def test_authenticate_with_api_key(client: AsyncClient, session: AsyncSess
     data = auth_response.json()
     assert data["email"] == "test@example.com"
     assert data["full_name"] == "Test User"
+
+    # Use is recorded, but a key used again within the hour is not rewritten.
+    key = (
+        await session.exec(select(UserApiKey).where(UserApiKey.user_id == user.id))
+    ).one()
+    first_use = key.last_used_at
+    assert first_use is not None
+    await client.get("/api/v1/users/me", headers=api_key_headers)
+    await session.refresh(key)
+    assert key.last_used_at == first_use
+
+    key.last_used_at = first_use - timedelta(hours=2)
+    session.add(key)
+    await session.commit()
+    await client.get("/api/v1/users/me", headers=api_key_headers)
+    await session.refresh(key)
+    assert key.last_used_at > first_use
 
 
 async def test_api_key_works_for_platform_members(
