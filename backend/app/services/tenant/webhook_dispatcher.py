@@ -27,7 +27,7 @@ from typing import Any
 
 import httpx
 
-from app.services.safe_http import request_public_target
+from app.services.safe_http import ResponseTooLargeError, request_public_target
 from app.services.webhook_target_url import (
     WebhookTargetUrlError,
     WebhookTargetUrlPrivateError,
@@ -86,7 +86,7 @@ async def deliver(
     }
 
     try:
-        response = await asyncio.wait_for(
+        answer = await asyncio.wait_for(
             request_public_target(
                 "POST",
                 target_url,
@@ -97,6 +97,10 @@ async def deliver(
             ),
             timeout=_DEADLINE_SECONDS,
         )
+        status_code: int | None = answer.status_code
+    except ResponseTooLargeError as exc:
+        # Only the status is read, and it arrived before the body did.
+        status_code = exc.status_code
     except (WebhookTargetUrlError, WebhookTargetUrlPrivateError) as exc:
         logger.warning(
             "webhook delivery skipped — target failed validation: target=%s err=%s",
@@ -117,12 +121,12 @@ async def deliver(
     # request is pinned to a validated address and not followed, so treating 3xx
     # as success would drop the batch from retry without a receiver ever having
     # seen it.
-    if not 200 <= response.status_code < 300:
+    if status_code is None or not 200 <= status_code < 300:
         logger.warning(
             "webhook delivery not accepted: target=%s event=%s status=%s",
             target_url,
             envelope.get("event_id"),
-            response.status_code,
+            status_code,
         )
         return False
 
