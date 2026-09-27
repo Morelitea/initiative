@@ -601,7 +601,7 @@ async def create_conversation(
 
 
 async def unreachable_pair(
-    session: AsyncSession, *, member_ids: Iterable[int]
+    session: AsyncSession, *, actor_id: int, member_ids: Iterable[int]
 ) -> tuple[int, int] | None:
     """The first two on this roster who cannot message each other, if any.
 
@@ -610,16 +610,36 @@ async def unreachable_pair(
     other and neither can start. The rule is ``can_ask`` both ways, the same
     table a pair passes, asked across the roster.
 
+    The proposer's own pairs are asked first, and the rest of the roster only
+    once the proposer can reach everybody on it: the answer is about people
+    the proposer already has a way to message.
+
     Deliberately ``can_ask`` and not "already open": requiring an accepted
     request between every pair would mean nobody could ever be introduced to
     anybody.
     """
-    ids = sorted(set(member_ids))
-    if len(ids) < 2:
+    others = sorted(set(member_ids) - {actor_id})
+    if not others:
+        return None
+    own = (
+        await session.exec(
+            text(
+                "SELECT id FROM unnest(CAST(:ids AS int[])) AS t(id) "
+                "WHERE public.dm_roster_unreachable_pair(ARRAY[:actor, id]) "
+                "IS NOT NULL ORDER BY id LIMIT 1"
+            ).bindparams(ids=others, actor=actor_id)
+        )
+    ).first()
+    if own is not None:
+        low, high = sorted((actor_id, own[0]))
+        return (low, high)
+    if len(others) < 2:
         return None
     row = (
         await session.exec(
-            text("SELECT public.dm_roster_unreachable_pair(:ids)").bindparams(ids=ids)
+            text("SELECT public.dm_roster_unreachable_pair(:ids)").bindparams(
+                ids=others
+            )
         )
     ).scalar_one()
     if row is None:
@@ -655,7 +675,10 @@ async def create_group_conversation(
         raise DmTransportError(Messages.ROSTER_TOO_SMALL)
     if len(members) > MAX_GROUP_MEMBERS:
         raise DmTransportError(Messages.ROSTER_TOO_LARGE)
-    if await unreachable_pair(session, member_ids=members) is not None:
+    if (
+        await unreachable_pair(session, actor_id=actor_id, member_ids=members)
+        is not None
+    ):
         raise DmTransportError(Messages.ROSTER_NOT_REACHABLE)
 
     conversation = await _conversation_with_roster(

@@ -1133,6 +1133,16 @@ class TestProposingAGroup:
         assert checked.json()["unreachable_pair"] == sorted([b.user.id, c.user.id])
         assert checked.json()["too_large"] is False
 
+        # Asked by somebody who cannot reach C, the answer is their own pair.
+        d = await acting_user()
+        await _set_policy(session, d.user, DmPolicy.public)
+        asked = await client.post(
+            "/api/v1/me/dm/roster-check",
+            json={"user_ids": [b.user.id, c.user.id]},
+            headers=d.headers,
+        )
+        assert asked.json()["unreachable_pair"] == sorted([d.user.id, c.user.id])
+
     async def test_a_reachable_roster_checks_clean(self, client, session, acting_user):
         a = await acting_user()
         b = await acting_user()
