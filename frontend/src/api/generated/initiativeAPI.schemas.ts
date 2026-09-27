@@ -4726,18 +4726,6 @@ export interface GuildClaimRuleRead {
 }
 
 /**
- * Change where a group lands. Its provider is not editable: a group value
- * means nothing without knowing who asserted it, so a rule pointed at
- * another provider is a different rule.
- */
-export interface GuildClaimRuleUpdate {
-  claim_value?: string | null;
-  guild_role?: string | null;
-  initiative_id?: number | null;
-  initiative_role_id?: number | null;
-}
-
-/**
  * One rule the platform wrote for a provider: which arrivals it matches,
  * and where they land.
  */
@@ -8407,19 +8395,6 @@ export const SmartChipAspect = {
   checklist: "checklist",
 } as const;
 
-export type SmartChipKind = (typeof SmartChipKind)[keyof typeof SmartChipKind];
-
-export const SmartChipKind = {
-  "calendar_event:when": "calendar_event:when",
-  "counter:value": "counter:value",
-  "project:progress": "project:progress",
-  "task:assignee": "task:assignee",
-  "task:due": "task:due",
-  "task:priority": "task:priority",
-  "task:status": "task:status",
-  "task:checklist": "task:checklist",
-} as const;
-
 /**
  * How a chip is coloured when nothing more specific applies.
  *
@@ -9055,31 +9030,6 @@ export interface UserGuildMember {
   full_name: string | null;
   guild_role: string | null;
   oidc_managed: boolean;
-}
-
-/**
- * One account, as the guild administering its membership reads it back.
- *
- * The membership surfaces ask one thing about somebody and this is the
- * answer: the handle, the picture, the standing, when the account started,
- * and where the person sits in the guild's initiatives. None of the account's
- * own business comes with it — no address, no platform tier, no word on
- * whether the address was ever confirmed, no preferences.
- *
- * Nor does the name, and it is absent here rather than blanked on the way
- * out. A real name is rendered on the surfaces that draw people — a roster, a
- * picker, a byline — and only in a guild that asked for names; those shapes
- * say so by carrying ``GuildNameVisibility``. Reading back an account is not
- * one of them, so the field is not in the shape at all.
- */
-export interface UserGuildRead {
-  id: number;
-  username: string;
-  discriminator: number;
-  avatar_url: string | null;
-  status: UserStatus;
-  created_at: string;
-  initiative_roles: UserInitiativeRole[];
 }
 
 /**
@@ -9776,6 +9726,19 @@ export interface SortField {
   field: string;
   dir?: SortDir;
 }
+
+export type SmartChipKind = (typeof SmartChipKind)[keyof typeof SmartChipKind];
+
+export const SmartChipKind = {
+  "calendar_event:when": "calendar_event:when",
+  "counter:value": "counter:value",
+  "project:progress": "project:progress",
+  "task:assignee": "task:assignee",
+  "task:due": "task:due",
+  "task:priority": "task:priority",
+  "task:status": "task:status",
+  "task:checklist": "task:checklist",
+} as const;
 
 export type GetVersionApiV1VersionGet200 = { [key: string]: string };
 

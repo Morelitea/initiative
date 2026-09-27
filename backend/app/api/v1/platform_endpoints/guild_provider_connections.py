@@ -40,7 +40,6 @@ from app.schemas.platform.settings import (
     GuildClaimRuleCreate,
     GuildClaimRuleRead,
     GuildClaimRulesResponse,
-    GuildClaimRuleUpdate,
     GuildProviderConnectionCreate,
     GuildProviderConnectionRead,
     GuildProviderConnectionUpdate,
@@ -197,25 +196,6 @@ async def create_guild_claim_rule(
     return await claim_rules.create_rule(
         system_session,
         guild_id=guild_id,
-        payload=payload,
-        actor_user_id=current_user.id,
-    )
-
-
-@router.patch("/{guild_id}/auth/rules/{rule_id}", response_model=GuildClaimRuleRead)
-async def update_guild_claim_rule(
-    guild_id: int,
-    rule_id: int,
-    payload: GuildClaimRuleUpdate,
-    _session: SeatWriteSessionDep,
-    system_session: SystemSessionDep,
-    current_user: CurrentUserDep,
-) -> GuildClaimRuleRead:
-    await _require_connection_option(system_session, guild_id)
-    return await claim_rules.update_rule(
-        system_session,
-        guild_id=guild_id,
-        rule_id=rule_id,
         payload=payload,
         actor_user_id=current_user.id,
     )

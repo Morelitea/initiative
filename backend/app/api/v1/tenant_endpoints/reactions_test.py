@@ -119,11 +119,12 @@ class TestReactionToggle:
             )
             assert resp.status_code == 200, resp.text
 
-        seen = await client.get(
-            a.g(f"/reactions/comment/{comment_id}"), headers=a.headers
+        listed = await client.get(
+            a.g("/comments/"), headers=a.headers, params={"task_id": task.id}
         )
-        assert seen.status_code == 200
-        group = seen.json()["groups"][0]
+        assert listed.status_code == 200
+        [comment] = listed.json()
+        group = comment["reactions"][0]
         assert group["count"] == 2
         # "reacted" is answered for the caller, not for whoever reacted last.
         assert group["reacted"] is True
@@ -137,14 +138,11 @@ class TestReactionToggle:
         comment_id = await _comment_on_task(client, a, task.id)
 
         for emoji in (PARTY, THUMBS):
-            await client.put(
+            seen = await client.put(
                 a.g(f"/reactions/comment/{comment_id}"),
                 headers=a.headers,
                 json={"emoji": emoji},
             )
-        seen = await client.get(
-            a.g(f"/reactions/comment/{comment_id}"), headers=a.headers
-        )
         assert [g["emoji"] for g in seen.json()["groups"]] == [PARTY, THUMBS]
 
     async def test_comment_read_carries_its_reactions(
@@ -391,13 +389,14 @@ class TestReactionAccess:
             json={"emoji": THUMBS},
         )
 
-        seen = await client.get(
-            a.g(f"/reactions/comment/{comment_id}"), headers=b.headers
+        listed = await client.get(
+            a.g("/comments/"), headers=b.headers, params={"task_id": task.id}
         )
-        assert seen.status_code == 200
-        assert seen.json()["groups"][0]["count"] == 1
+        assert listed.status_code == 200
+        [comment] = listed.json()
+        assert comment["reactions"][0]["count"] == 1
         # "reacted" answers for the caller, who has not reacted here.
-        assert seen.json()["groups"][0]["reacted"] is False
+        assert comment["reactions"][0]["reacted"] is False
 
         added = await client.put(
             a.g(f"/reactions/comment/{comment_id}"),
@@ -421,10 +420,12 @@ class TestReactionAccess:
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
 
-        seen = await client.get(
-            a.g(f"/reactions/comment/{comment_id}"), headers=b.headers
+        refused = await client.put(
+            a.g(f"/reactions/comment/{comment_id}"),
+            headers=b.headers,
+            json={"emoji": THUMBS},
         )
-        assert seen.status_code == 403
+        assert refused.status_code == 403
 
     async def test_outsider_to_the_initiative_gets_404(
         self, client, session, acting_user
@@ -439,11 +440,13 @@ class TestReactionAccess:
             guild_role=GuildRole.member, guild=a.guild, initiative=True
         )
 
-        seen = await client.get(
-            a.g(f"/reactions/comment/{comment_id}"), headers=b.headers
+        refused = await client.put(
+            a.g(f"/reactions/comment/{comment_id}"),
+            headers=b.headers,
+            json={"emoji": THUMBS},
         )
-        assert seen.status_code == 404
-        assert seen.json()["detail"] == ReactionMessages.TARGET_NOT_FOUND
+        assert refused.status_code == 404
+        assert refused.json()["detail"] == ReactionMessages.TARGET_NOT_FOUND
 
     async def test_other_guild_cannot_reach_the_target(
         self, client, session, acting_user
@@ -457,10 +460,12 @@ class TestReactionAccess:
 
         # Addressed at the outsider's OWN guild: the id belongs to another
         # schema entirely, so there is nothing there to react to.
-        seen = await client.get(
-            b.g(f"/reactions/comment/{comment_id}"), headers=b.headers
+        refused = await client.put(
+            b.g(f"/reactions/comment/{comment_id}"),
+            headers=b.headers,
+            json={"emoji": THUMBS},
         )
-        assert seen.status_code == 404
+        assert refused.status_code == 404
 
     async def test_comment_with_the_switch_off_refuses_reactions(
         self, client, session, acting_user

@@ -23,7 +23,7 @@ from app.api.deps import (
     require_capability,
     SystemSessionDep,
 )
-from app.core.capabilities import Capability, user_has_capability
+from app.core.capabilities import Capability
 from app.core.audit_events import AuditEventType
 from app.core.messages import AccessGrantMessages, AuthMessages
 from app.models.platform.user import User
@@ -430,28 +430,6 @@ async def read_access_grant_limits(
     return AccessGrantLimits(
         max_duration_minutes=service.max_minutes_for_role(current_user.role),
     )
-
-
-@router.get("/{grant_id}", response_model=AccessGrantRead)
-async def get_access_grant(
-    grant_id: int,
-    session: UserSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-) -> AccessGrantRead:
-    grant = await service.get_grant(session, grant_id)
-    if grant is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AccessGrantMessages.NOT_FOUND
-        )
-    # Owners of the request, or approvers, may view it.
-    if grant.user_id != current_user.id and not user_has_capability(
-        current_user, Capability.ACCESS_APPROVE
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=AuthMessages.INSUFFICIENT_PRIVILEGES,
-        )
-    return await _one(grant)
 
 
 @router.post("/{grant_id}/approve", response_model=AccessGrantRead)

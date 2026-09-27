@@ -39,6 +39,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Switching communities is quicker.**
 - **Improved efficiency and security.**
 
+### Removed
+
+- **API routes the app no longer uses**: single reads of an access grant, an app registration, an app's placements, your consents to an app and a target's reactions; editing a community's group rule; clearing one view preference; the smart-chip kinds list; each tool's `DELETE …/view` (use `/recents`); `POST /auth/verification/send`; and a community's `POST /users/{id}/approve`. The lists and detail reads carry the same data.
+
 ### Fixed
 
 - **Whiteboards and offline edits** are no longer lost.

@@ -149,15 +149,6 @@ async def create_app_service(
     return await _read_one(session, row.id)
 
 
-@router.get("/{registration_id}", response_model=AppServiceRegistrationRead)
-async def read_app_service(
-    registration_id: int,
-    session: SystemSessionDep,
-    _owner: AppsManageDep,
-) -> AppServiceRegistrationRead:
-    return await _read_one(session, registration_id)
-
-
 @router.patch("/{registration_id}", response_model=AppServiceRegistrationRead)
 async def update_app_service(
     registration_id: int,

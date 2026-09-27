@@ -412,22 +412,21 @@ async def test_the_queue_is_read_by_approvers_on_their_own_tier(
 async def test_a_grantee_reads_their_own_grant_and_not_somebody_elses(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """One grant, read on the caller's tier: its holder reads it with the
+    """One grant, read on the caller's tier: its holder lists it with the
     community it names; another requester is not shown it."""
     host = await acting_user("owner", guild_role=GuildRole.admin)
     support = await acting_user("support")
     other = await acting_user("support")
     grant = await _approved_grant(session, grantee=support, host=host)
 
-    own = await client.get(f"{GRANTS}{grant.id}", headers=support.headers)
+    own = await client.get(GRANTS, headers=support.headers)
     assert own.status_code == 200, own.text
-    assert own.json()["guild_name"] == host.guild.name
+    row = next(g for g in own.json() if g["id"] == grant.id)
+    assert row["guild_name"] == host.guild.name
 
     listed = await client.get(GRANTS, headers=other.headers)
     assert listed.status_code == 200, listed.text
     assert grant.id not in {g["id"] for g in listed.json()}
-    theirs = await client.get(f"{GRANTS}{grant.id}", headers=other.headers)
-    assert theirs.status_code == 404, theirs.text
 
 
 @pytest.mark.parametrize(

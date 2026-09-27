@@ -49,31 +49,6 @@ async def test_put_overwrites_existing(client: AsyncClient, session: AsyncSessio
     assert get_resp.json() == {"items": {"my-tasks": {"v": 2}}}
 
 
-async def test_delete_removes_row(client: AsyncClient, session: AsyncSession):
-    user = await create_user(session)
-    headers = get_auth_headers(user)
-    await client.put(
-        "/api/v1/user-view-preferences/my-tasks",
-        headers=headers,
-        json={"value": {"v": 1}},
-    )
-    delete_resp = await client.delete(
-        "/api/v1/user-view-preferences/my-tasks", headers=headers
-    )
-    assert delete_resp.status_code == 204
-    get_resp = await client.get("/api/v1/user-view-preferences", headers=headers)
-    assert get_resp.json() == {"items": {}}
-
-
-async def test_delete_missing_is_idempotent(client: AsyncClient, session: AsyncSession):
-    user = await create_user(session)
-    response = await client.delete(
-        "/api/v1/user-view-preferences/never-written",
-        headers=get_auth_headers(user),
-    )
-    assert response.status_code == 204
-
-
 async def test_cross_user_isolation_via_application_filter(
     client: AsyncClient, session: AsyncSession
 ):

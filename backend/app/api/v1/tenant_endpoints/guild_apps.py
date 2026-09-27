@@ -32,7 +32,7 @@ nothing, whether or not the guild wanted it.
 
 import logging
 from datetime import datetime, timezone
-from typing import Annotated, Any, List, Optional
+from typing import Annotated, Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, union
@@ -855,31 +855,6 @@ async def update_guild_app_config(
 # ---------------------------------------------------------------------------
 
 
-def _placement_reads(rows) -> list[AppPlacementRead]:
-    return [
-        AppPlacementRead(
-            initiative_id=row.initiative_id, role_ids=list(row.role_ids or [])
-        )
-        for row in sorted(rows, key=lambda row: row.initiative_id)
-    ]
-
-
-@router.get("/{app_id}/placements", response_model=list[AppPlacementRead])
-async def list_guild_app_placements(
-    app_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUser,
-    guild_context: GuildContextDep,
-) -> list[AppPlacementRead]:
-    """Where this app appears, and which roles open it in each initiative.
-
-    Readable by every member, as the same rows are on the app read itself:
-    placement is the community's answer to where an app belongs.
-    """
-    app = await _load(session, app_id)
-    return _placement_reads(await _placements(session, app))
-
-
 @router.put("/{app_id}/placements/{initiative_id}", response_model=AppPlacementRead)
 async def put_guild_app_placement(
     app_id: int,
@@ -1264,24 +1239,6 @@ async def _own_consent(
             detail=GuildAppMessages.CONSENT_NOT_FOUND,
         )
     return row
-
-
-@router.get("/{app_id}/consents", response_model=List[GuildAppConsentRead])
-async def list_my_consents(
-    app_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUser,
-    guild_context: GuildContextDep,
-) -> List[GuildAppConsentRead]:
-    """What this app has asked to do as you, one line per purpose, and how you
-    answered. Yours only."""
-    app = await _load(session, app_id)
-    return [
-        serialize_consent(row)
-        for row in await consents_service.list_member_consents(
-            session, install_id=app.id, user_id=current_user.id
-        )
-    ]
 
 
 @router.put("/{app_id}/consents/{consent_id}", response_model=GuildAppConsentRead)

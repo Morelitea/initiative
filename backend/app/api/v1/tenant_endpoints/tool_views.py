@@ -1,13 +1,13 @@
-"""Recent views — one pair of routes, mounted once for every tool.
+"""Recent views — one route, mounted once for every tool.
 
-Opening a tool puts it in the layout header's tabs bar; closing the tab takes
-it out again. Neither act depends on which tool it is beyond naming the row, so
-the pair is mounted per ``Tool`` straight out of the resource-access registry
-rather than written nine times over. Loading and authorizing is
-``resource_access.load_authorized`` — the same gate every other read of that
-tool goes through, so each tool keeps its own refusals without restating them —
-and the storage is ``services.tenant.recent_views``, whose cross-guild read
-side is ``tenant_endpoints/recents.py``.
+Opening a tool puts it in the layout header's tabs bar. The act does not depend
+on which tool it is beyond naming the row, so the route is mounted per ``Tool``
+straight out of the resource-access registry rather than written nine times
+over. Loading and authorizing is ``resource_access.load_authorized`` — the same
+gate every other read of that tool goes through, so each tool keeps its own
+refusals without restating them — and the storage is
+``services.tenant.recent_views``, whose cross-guild side — listing and closing
+tabs — is ``tenant_endpoints/recents.py``.
 
 Each route keeps the path, method, status code, tag and name its tool already
 had, so the published surface and the generated client are unchanged.
@@ -20,7 +20,7 @@ had, so the published surface and the generated client are unchanged.
 from enum import Enum
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, status
+from fastapi import APIRouter, Depends, Path
 
 from app.api import resource_access
 from app.api.deps import (
@@ -49,7 +49,7 @@ def _title(path_param: str) -> str:
 
 
 def _mount(tool: Tool, cfg: resource_access.ResourceAccessConfig) -> None:
-    """Mount ``POST``/``DELETE`` ``/{id}/view`` for one tool."""
+    """Mount ``POST /{id}/view`` for one tool."""
     entity_id_param = Annotated[
         int, Path(alias=cfg.path_param, title=_title(cfg.path_param))
     ]
@@ -82,26 +82,6 @@ def _mount(tool: Tool, cfg: resource_access.ResourceAccessConfig) -> None:
             last_viewed_at=record.last_viewed_at,
         )
 
-    async def clear_view(
-        entity_id: entity_id_param,
-        session: RLSSessionDep,
-        current_user: CurrentUserDep,
-        guild_context: GuildContextDep,
-    ) -> None:
-        """Close this entity's tab: drop the caller's own recent-view row.
-
-        Idempotent — a tab that is not open stays closed.
-        """
-        row = await resource_access.load_authorized(
-            session, tool, entity_id, current_user, guild_context
-        )
-        await recent_views_service.clear_view(
-            session,
-            user_id=current_user.id,
-            entity_type=tool.value,
-            entity_id=row.id,
-        )
-
     path = f"/{tool.route_segment}/{{{cfg.path_param}}}/view"
     tags: list[str | Enum] = [_TAGS.get(tool, tool.plural)]
     router.add_api_route(
@@ -110,14 +90,6 @@ def _mount(tool: Tool, cfg: resource_access.ResourceAccessConfig) -> None:
         methods=["POST"],
         response_model=RecentViewWrite,
         name=f"record_{tool.value}_view",
-        tags=tags,
-    )
-    router.add_api_route(
-        path,
-        clear_view,
-        methods=["DELETE"],
-        status_code=status.HTTP_204_NO_CONTENT,
-        name=f"clear_{tool.value}_view",
         tags=tags,
     )
 

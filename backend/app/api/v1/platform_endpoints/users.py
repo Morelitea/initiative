@@ -90,7 +90,6 @@ from app.schemas.platform.user import (
     ProfileDecorations,
     UsernameClaim,
     UserGuildMember,
-    UserGuildRead,
     UserProfile,
     UserRead,
     UserSelfUpdate,
@@ -1435,62 +1434,6 @@ async def update_users_me(
     payload.has_federated_identity = is_sso_account
     payload.has_password = has_usable_password(current_user.hashed_password)
     return payload
-
-
-@guild_router.post("/{user_id}/approve", response_model=UserGuildRead)
-async def approve_user(
-    user_id: int,
-    session: SystemSessionDep,
-    guild_session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildAdminContext,
-) -> User:
-    """Let a pending member of this guild sign in.
-
-    The account write runs on the system engine: the row is another account's,
-    and an account is not a guild's to write. ``GuildAdminContext`` plus the
-    membership join below are the authorization — the guild admin may only
-    reach someone who is already a member of the guild they administer.
-
-    Answers with ``UserGuildRead`` — the account as the guild reads it, which
-    is the standing that just changed and the handle it belongs to. The row
-    loaded here is the whole ``User``, because the write needs it; what leaves
-    is the guild's read of it, with its initiative roles read on the request's
-    own routed session.
-    """
-    stmt = (
-        select(User)
-        .join(GuildMembership, GuildMembership.user_id == User.id)
-        .where(
-            User.id == user_id,
-            GuildMembership.guild_id == guild_context.guild_id,
-        )
-    )
-    result = await session.exec(stmt)
-    user = result.one_or_none()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
-        )
-
-    if user.status == UserStatus.anonymized:
-        # Anonymized rows are permanently empty husks — no PII to restore,
-        # no login to reactivate. Refuse rather than misleadingly succeed.
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AuthMessages.CANNOT_REACTIVATE_ANONYMIZED,
-        )
-
-    if user.status != UserStatus.active:
-        user.status = UserStatus.active
-        user.updated_at = datetime.now(timezone.utc)
-        session.add(user)
-        await session.commit()
-        await session.refresh(user)
-    # Initiative roles live in the guild schema, which the routed session
-    # reads as the admin the caller is.
-    await initiatives_service.load_user_initiative_roles(guild_session, [user])
-    return user
 
 
 @router.get("/me/deletion-eligibility", response_model=DeletionEligibilityResponse)

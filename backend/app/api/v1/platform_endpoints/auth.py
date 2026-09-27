@@ -2070,36 +2070,6 @@ async def provider_callback(
     )
 
 
-@router.post("/verification/send", response_model=VerificationSendResponse)
-@limiter.limit("5/15minutes")
-async def resend_verification_email(
-    request: Request,
-    session: SessionDep,
-    system_session: SystemSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-) -> VerificationSendResponse:
-    if await addresses.has_proven_address(session, user_id=current_user.id):
-        return VerificationSendResponse(status="already_verified")
-    try:
-        token = await user_tokens.create_token(
-            system_session,
-            user_id=current_user.id,
-            purpose=UserTokenPurpose.email_verification,
-            expires_minutes=60 * 24,
-        )
-        await email_service.send_verification_email(session, current_user, token)
-    except email_service.EmailNotConfiguredError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AuthMessages.SMTP_NOT_CONFIGURED,
-        ) from None
-    except RuntimeError as exc:  # pragma: no cover
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)
-        ) from exc
-    return VerificationSendResponse(status="sent")
-
-
 @router.post("/verification/confirm", response_model=VerificationSendResponse)
 @limiter.limit("5/15minutes")
 async def confirm_verification(
