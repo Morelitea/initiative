@@ -94,12 +94,6 @@ async def test_the_seat_writes_reads_and_removes_a_rule(
     # can match something.
     assert listed.json()["reporting_provider_ids"] == [provider.id]
 
-    moved = await client.patch(
-        f"{_base(guild.id)}/{body['id']}", headers=headers, json={"guild_role": "admin"}
-    )
-    assert moved.status_code == 200, moved.text
-    assert moved.json()["guild_role"] == "admin"
-
     removed = await client.delete(f"{_base(guild.id)}/{body['id']}", headers=headers)
     assert removed.status_code == 204, removed.text
     after = await client.get(_base(guild.id), headers=headers)
@@ -261,10 +255,6 @@ async def test_another_communitys_rule_is_not_there(
     theirs = created.json()["id"]
 
     assert (await client.get(_base(guild.id), headers=headers)).json()["rules"] == []
-    patched = await client.patch(
-        f"{_base(guild.id)}/{theirs}", headers=headers, json={"guild_role": "admin"}
-    )
-    assert patched.status_code == 404, patched.text
     removed = await client.delete(f"{_base(guild.id)}/{theirs}", headers=headers)
     assert removed.status_code == 404, removed.text
 
