@@ -70,6 +70,8 @@ class PropertyEntitiesResult(BaseModel):
 async def _get_definition_or_404(
     session: AsyncSession,
     definition_id: int,
+    *,
+    lock: bool = False,
 ) -> PropertyDefinition:
     """Fetch a definition by id, relying on RLS for scope enforcement.
 
@@ -79,6 +81,8 @@ async def _get_definition_or_404(
     what decides which guild's row an id resolves to.
     """
     stmt = select(PropertyDefinition).where(PropertyDefinition.id == definition_id)
+    if lock:
+        stmt = stmt.with_for_update()
     result = await session.exec(stmt)
     defn = result.one_or_none()
     if defn is None:
@@ -153,26 +157,31 @@ async def _ensure_initiative_member(
     )
 
 
-def _require_definition_manager(
-    guild_context: GuildContext, initiative_id: int
-) -> None:
+def _manages(guild_context: GuildContext, initiative_id: int) -> bool:
     """Reshaping or removing a definition is how the initiative is set up, so it
     takes a manager of the initiative or an admin of the community."""
-    if guild_context.is_admin or initiative_id in guild_context.manager_initiatives:
-        return
-    raise HTTPException(
+    return guild_context.is_admin or initiative_id in guild_context.manager_initiatives
+
+
+def _manager_required() -> HTTPException:
+    return HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail=InitiativeMessages.MANAGER_REQUIRED,
     )
 
 
-def _only_adds_options(defn: PropertyDefinition, data: dict, options: list) -> bool:
-    """Whether an update keeps every existing option as it was and adds others:
-    what a member does picking a value nobody has offered yet."""
-    if set(data) != {"options"}:
-        return False
-    kept = {opt["value"]: opt for opt in _serialize_options(options) or []}
-    return all(kept.get(opt.get("value")) == opt for opt in defn.options or [])
+def _added_options(defn: PropertyDefinition, options: list) -> list[dict] | None:
+    """The options an update adds to ``defn``, when it changes none of those it
+    already has — what a member does picking a value nobody has offered yet."""
+    existing = {opt.get("value"): opt for opt in defn.options or []}
+    added: list[dict] = []
+    for opt in _serialize_options(options) or []:
+        held = existing.get(opt["value"])
+        if held is None:
+            added.append(opt)
+        elif held != opt:
+            return None
+    return added
 
 
 def _serialize_options(options: Optional[list]) -> Optional[list[dict]]:
@@ -278,15 +287,32 @@ async def update_property_definition(
     select / multi_select definition returns ``orphaned_value_count`` so
     the SPA can warn about dangling values.
     """
-    defn = await _get_definition_or_404(session, definition_id)
+    defn = await _get_definition_or_404(session, definition_id, lock=True)
 
     data = payload.model_dump(exclude_unset=True)
-    if _only_adds_options(defn, data, payload.options or []):
+    if not _manages(guild_context, defn.initiative_id):
+        # A member adds options and nothing else: the ones sent that are new
+        # join the list as it stands, so two members adding at once both land.
+        added = (
+            _added_options(defn, payload.options or [])
+            if set(data) == {"options"}
+            and defn.type in {PropertyType.select, PropertyType.multi_select}
+            else None
+        )
+        if added is None:
+            raise _manager_required()
         await _ensure_initiative_member(
             session, guild_context, defn.initiative_id, current_user
         )
-    else:
-        _require_definition_manager(guild_context, defn.initiative_id)
+        defn.options = [*(defn.options or []), *added]
+        defn.updated_at = datetime.now(timezone.utc)
+        session.add(defn)
+        await session.commit()
+        await session.refresh(defn)
+        return PropertyDefinitionUpdateResponse(
+            definition=PropertyDefinitionRead.model_validate(defn),
+            orphaned_value_count=0,
+        )
 
     if "name" in data and data["name"] is not None:
         await ensure_name_free(
@@ -343,7 +369,8 @@ async def delete_property_definition(
 ) -> None:
     """Delete a property definition. Cascades to remove all attached values."""
     defn = await _get_definition_or_404(session, definition_id)
-    _require_definition_manager(guild_context, defn.initiative_id)
+    if not _manages(guild_context, defn.initiative_id):
+        raise _manager_required()
     await session.delete(defn)
     await session.commit()
 

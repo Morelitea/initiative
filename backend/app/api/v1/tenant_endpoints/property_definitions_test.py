@@ -468,7 +468,17 @@ async def test_a_member_adds_options_and_a_manager_reshapes(
     )
     assert response.status_code == 200, response.text
 
-    for change in ({"name": "Renamed"}, {"options": [added[1]]}):
+    # Sent from a list that was already out of date, the other addition stays.
+    later = {"value": "later", "label": "Later"}
+    response = await client.patch(
+        route, headers=member.headers, json={"options": [later, stage]}
+    )
+    assert response.status_code == 200, response.text
+    options = response.json()["definition"]["options"]
+    assert [opt["value"] for opt in options] == ["todo", "done", "later"]
+
+    relabelled = {**stage, "label": "Backlog"}
+    for change in ({"name": "Renamed"}, {"options": [relabelled]}):
         response = await client.patch(route, headers=member.headers, json=change)
         assert response.status_code == 403
         assert response.json()["detail"] == "INITIATIVE_MANAGER_REQUIRED"
