@@ -128,6 +128,19 @@ async def live_for_user(session: AsyncSession, *, user_id: int) -> List[PushToke
     return live
 
 
+async def follow_device_token(
+    session: AsyncSession, *, device_token_id: int, to_id: uuid.UUID
+) -> None:
+    """Move the devices a device token registered to the session it was traded
+    for, so from then on they stand while that session does. Does not commit:
+    it lands with the session."""
+    await session.exec(
+        update(PushToken)
+        .where(PushToken.device_token_id == device_token_id)
+        .values(session_id=to_id, device_token_id=None)
+    )
+
+
 async def follow_session(
     session: AsyncSession, *, from_id: uuid.UUID, to_id: uuid.UUID
 ) -> None:

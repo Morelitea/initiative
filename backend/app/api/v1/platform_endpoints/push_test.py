@@ -81,3 +81,36 @@ async def test_unregister_cannot_delete_other_users_token(
         session, user_id=owner.id
     )
     assert [t.push_token for t in remaining] == [token_value]
+
+
+async def test_a_traded_device_token_hands_its_device_to_the_session(
+    client: AsyncClient, session: AsyncSession
+):
+    """Registered under a device token and then traded for a session, the
+    device stands while that session does."""
+    from app.services.platform import user_tokens
+
+    user = await create_user(session)
+    user_id = user.id
+    device_token = await user_tokens.create_device_token(
+        session, user_id=user_id, device_name="Phone"
+    )
+    await session.commit()
+    register = await client.post(
+        "/api/v1/push/register",
+        headers={"Authorization": f"DeviceToken {device_token}"},
+        json={"push_token": "phone-token", "platform": "android"},
+    )
+    assert register.status_code == 200, register.text
+
+    exchanged = await client.post(
+        "/api/v1/auth/device-token/exchange", json={"device_token": device_token}
+    )
+    assert exchanged.status_code == 200, exchanged.text
+
+    (row,) = await push_tokens_service.get_push_tokens_for_user(
+        session, user_id=user_id
+    )
+    await session.refresh(row)
+    assert row.device_token_id is None
+    assert row.session_id is not None

@@ -129,6 +129,7 @@ import webauthn
 from webauthn.helpers import bytes_to_base64url
 
 from app.services.auth import addresses
+from app.services.platform import push_tokens
 from app.services.auth import (
     guild_provider_connections as guild_connections,
 )
@@ -1289,6 +1290,9 @@ async def exchange_device_token(
             token_version=token_version,
             amr=handed_over,
             device_name=device_name,
+        )
+        await push_tokens.follow_device_token(
+            system_session, device_token_id=record.id, to_id=issued.session.id
         )
     return issued.to_token(include_refresh=True)
 
