@@ -5,7 +5,7 @@ import { server } from "@/__tests__/helpers/msw-server";
 import { forgetPushOnThisDevice, registerPushToken } from "@/lib/pushRegistration";
 
 describe("pushRegistration", () => {
-  it("withdraws the token this device registered, once", async () => {
+  it("withdraws every token this device registered, once", async () => {
     const withdrawn: unknown[] = [];
     server.use(
       http.post("*/push/register", () => HttpResponse.json({ status: "registered" })),
@@ -19,9 +19,13 @@ describe("pushRegistration", () => {
     expect(withdrawn).toEqual([]);
 
     await registerPushToken("phone-token", "android");
+    await registerPushToken("rotated-token", "android");
     await forgetPushOnThisDevice();
     await forgetPushOnThisDevice();
 
-    expect(withdrawn).toEqual([{ push_token: "phone-token" }]);
+    expect(withdrawn).toHaveLength(2);
+    expect(withdrawn).toEqual(
+      expect.arrayContaining([{ push_token: "phone-token" }, { push_token: "rotated-token" }])
+    );
   });
 });
