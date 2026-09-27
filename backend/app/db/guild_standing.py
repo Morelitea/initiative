@@ -109,17 +109,6 @@ _ROUTED_GID = f"COALESCE({_GID}, {_PAM_GID}, {_SETTINGS_GID})"
 LIVE_GRANT = "g.status = 'approved' AND g.expires_at > now()"
 
 
-def _live_grant(purpose: str, extra: str = "") -> str:
-    return (
-        "FROM public.access_grants g"
-        f" WHERE g.guild_id = {_ROUTED_GID}"
-        f" AND g.user_id = {_UID}"
-        f" AND g.purpose = '{purpose}'"
-        f" AND {LIVE_GRANT}"
-        f"{extra}"
-    )
-
-
 #: The rungs that administer a community, as the ladder orders them — the
 #: one spelling the admin fact and the settings rung are read off.
 _ADMIN_RUNGS: tuple[GuildRole, ...] = tuple(
@@ -166,12 +155,40 @@ STANDING_GUCS: tuple[str, ...] = (
 
 
 #: The one statement. Runs as the routed role, after ``SET ROLE``, so the
-#: sub-selects on the shared tables are read under those tables' own policies
-#: and the routed role's grants (``app_guild_base`` holds ``SELECT`` on
+#: reads of the shared tables go through those tables' own policies and the
+#: routed role's grants (``app_guild_base`` holds ``SELECT`` on
 #: ``guild_memberships`` and ``access_grants``, and the read-only floor is
-#: derived from it), and the ones on ``initiative_members`` resolve in the
+#: derived from it), and the read of ``initiative_members`` resolves in the
 #: community's own schema.
+#:
+#: Each table is read once, into a ``MATERIALIZED`` CTE of the reader's own
+#: rows, and every key is an aggregate over those: the reader's initiative
+#: memberships with their roles, the role permissions those memberships hold,
+#: the reader's membership row, and the reader's live grants here.
 STANDING_SQL = f"""
+WITH my_initiatives AS MATERIALIZED (
+  SELECT im.initiative_id, im.role_id,
+         COALESCE(r.is_manager, false) AS is_manager,
+         COALESCE(r.override_share_restrictions, false) AS overrides
+  FROM initiative_members im
+  LEFT JOIN initiative_roles r ON r.id = im.role_id
+  WHERE im.user_id = {_UID}
+),
+my_role_permissions AS MATERIALIZED (
+  SELECT mi.initiative_id, rp.permission_key, rp.enabled
+  FROM my_initiatives mi
+  JOIN initiative_role_permissions rp ON rp.initiative_role_id = mi.role_id
+),
+my_membership AS MATERIALIZED (
+  SELECT m.role
+  FROM public.guild_memberships m
+  WHERE m.guild_id = {_GID} AND m.user_id = {_UID}
+),
+my_grants AS MATERIALIZED (
+  SELECT g.purpose, g.access_level::text AS access_level
+  FROM public.access_grants g
+  WHERE g.guild_id = {_ROUTED_GID} AND g.user_id = {_UID} AND {LIVE_GRANT}
+)
 SELECT
   set_config('app.standing_guild_id',
     COALESCE(
@@ -180,9 +197,7 @@ SELECT
       NULLIF(current_setting('app.settings_guild_id', true), ''),
       ''), true) AS standing_guild_id,
   set_config('app.guild_admin', COALESCE((
-      SELECT (m.role IN ({_ADMIN_RUNGS_SQL}))::text
-      FROM public.guild_memberships m
-      WHERE m.guild_id = {_GID} AND m.user_id = {_UID}
+      SELECT (m.role IN ({_ADMIN_RUNGS_SQL}))::text FROM my_membership m
     ), 'false'), true) AS guild_admin,
   set_config('app.guild_seat', COALESCE((
       SELECT public.guild_superadmin({_ROUTED_GID}, {_UID})::text
@@ -193,62 +208,61 @@ SELECT
              END
       FROM (
         SELECT m.role::text AS rung
-        FROM public.guild_memberships m
-        WHERE m.guild_id = {_GID} AND m.user_id = {_UID}
-          AND m.role IN ({_ADMIN_RUNGS_SQL})
+        FROM my_membership m
+        WHERE m.role IN ({_ADMIN_RUNGS_SQL})
         UNION ALL
-        SELECT g.access_level::text {_live_grant(AccessGrantPurpose.settings.value)}
+        SELECT g.access_level FROM my_grants g
+        WHERE g.purpose = '{AccessGrantPurpose.settings.value}'
       ) AS rungs
     ), ''), true) AS settings_rung,
   set_config('app.pam_read', (
-      SELECT EXISTS (SELECT 1 {_live_grant(AccessGrantPurpose.content.value)})::text
+      SELECT EXISTS (
+        SELECT 1 FROM my_grants g
+        WHERE g.purpose = '{AccessGrantPurpose.content.value}'
+      )::text
     ), true) AS pam_read,
   set_config('app.pam_write', (
       SELECT EXISTS (
-        SELECT 1 {_live_grant(AccessGrantPurpose.content.value, f" AND g.access_level = '{AccessLevel.read_write.value}'")}
+        SELECT 1 FROM my_grants g
+        WHERE g.purpose = '{AccessGrantPurpose.content.value}'
+          AND g.access_level = '{AccessLevel.read_write.value}'
       )::text
     ), true) AS pam_write,
   set_config('app.member_initiatives', COALESCE((
-      SELECT string_agg(DISTINCT im.initiative_id::text, ',')
-      FROM initiative_members im
-      WHERE im.user_id = {_UID}
+      SELECT string_agg(DISTINCT mi.initiative_id::text, ',')
+      FROM my_initiatives mi
     ), ''), true) AS member_initiatives,
   set_config('app.manager_initiatives', COALESCE((
-      SELECT string_agg(DISTINCT im.initiative_id::text, ',')
-      FROM initiative_members im
-      JOIN initiative_roles r ON r.id = im.role_id
-      WHERE im.user_id = {_UID} AND r.is_manager
+      SELECT string_agg(DISTINCT mi.initiative_id::text, ',')
+      FROM my_initiatives mi
+      WHERE mi.is_manager
     ), ''), true) AS manager_initiatives,
   set_config('app.member_role_ids', COALESCE((
-      SELECT string_agg(DISTINCT im.role_id::text, ',')
-      FROM initiative_members im
-      WHERE im.user_id = {_UID} AND im.role_id IS NOT NULL
+      SELECT string_agg(DISTINCT mi.role_id::text, ',')
+      FROM my_initiatives mi
+      WHERE mi.role_id IS NOT NULL
     ), ''), true) AS member_role_ids,
   set_config('app.role_grants', COALESCE((
-      SELECT string_agg(DISTINCT im.initiative_id || ':' || rp.permission_key, ',')
-      FROM initiative_members im
-      JOIN initiative_role_permissions rp ON rp.initiative_role_id = im.role_id
-      WHERE im.user_id = {_UID} AND rp.enabled
+      SELECT string_agg(DISTINCT rp.initiative_id || ':' || rp.permission_key, ',')
+      FROM my_role_permissions rp
+      WHERE rp.enabled
     ), ''), true) AS role_grants,
   set_config('app.role_denies', COALESCE((
-      SELECT string_agg(DISTINCT im.initiative_id || ':' || rp.permission_key, ',')
-      FROM initiative_members im
-      JOIN initiative_role_permissions rp ON rp.initiative_role_id = im.role_id
-      WHERE im.user_id = {_UID} AND NOT rp.enabled
+      SELECT string_agg(DISTINCT rp.initiative_id || ':' || rp.permission_key, ',')
+      FROM my_role_permissions rp
+      WHERE NOT rp.enabled
     ), ''), true) AS role_denies,
   set_config('app.enabled_tools', COALESCE((
       SELECT string_agg(DISTINCT i.id || ':' || t.tool, ',')
       FROM initiatives i
-      JOIN initiative_members im
-        ON im.initiative_id = i.id AND im.user_id = {_UID}
+      JOIN my_initiatives mi ON mi.initiative_id = i.id
       CROSS JOIN LATERAL (VALUES {_tool_switch_values()}) AS t(tool, enabled)
       WHERE t.enabled
     ), ''), true) AS enabled_tools,
   set_config('app.override_initiatives', COALESCE((
-      SELECT string_agg(DISTINCT im.initiative_id::text, ',')
-      FROM initiative_members im
-      JOIN initiative_roles r ON r.id = im.role_id
-      WHERE im.user_id = {_UID} AND r.override_share_restrictions
+      SELECT string_agg(DISTINCT mi.initiative_id::text, ',')
+      FROM my_initiatives mi
+      WHERE mi.overrides
     ), ''), true) AS override_initiatives,
   set_config('app.guild_auth_ok',
     (SELECT public.guild_auth_satisfied()::text), true) AS guild_auth_ok,

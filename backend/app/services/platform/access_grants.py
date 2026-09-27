@@ -647,6 +647,30 @@ async def cancel_own_pending(
     await session.flush()
 
 
+async def get_live_grants(
+    session: AsyncSession, *, user_id: int, guild_id: int
+) -> dict[AccessGrantPurpose, AccessGrant]:
+    """Return the user's currently-live grants for ``guild_id``, one per purpose.
+
+    Used when resolving guild session context so a grantee can act in a guild
+    they aren't a member of, for the grant's window only. Keyed by purpose so a
+    grant issued for one authority is never spent as another.
+    """
+    result = await session.exec(
+        select(AccessGrant)
+        .where(
+            AccessGrant.user_id == user_id,
+            AccessGrant.guild_id == guild_id,
+            AccessGrant.status == AccessGrantStatus.approved.value,
+            AccessGrant.expires_at > utcnow(),
+        )
+        # At most one open grant per (user, guild, purpose) is allowed at
+        # request time; the latest-expiring wins just in case.
+        .order_by(AccessGrant.expires_at)
+    )
+    return {AccessGrantPurpose(grant.purpose): grant for grant in result.all()}
+
+
 async def get_live_grant(
     session: AsyncSession,
     *,
@@ -654,27 +678,10 @@ async def get_live_grant(
     guild_id: int,
     purpose: AccessGrantPurpose = AccessGrantPurpose.content,
 ) -> Optional[AccessGrant]:
-    """Return the user's currently-live grant for ``guild_id``, if any.
-
-    Used when resolving guild session context so a grantee can act in a guild
-    they aren't a member of, for the grant's window only. Scoped to ``purpose``
-    so a grant issued for one authority is never spent as another — the default
-    keeps the content path seeing only content grants.
-    """
-    now = utcnow()
-    result = await session.exec(
-        select(AccessGrant).where(
-            AccessGrant.user_id == user_id,
-            AccessGrant.guild_id == guild_id,
-            AccessGrant.purpose == purpose.value,
-            AccessGrant.status == AccessGrantStatus.approved.value,
-            AccessGrant.expires_at > now,
-        )
-    )
-    # At most one open grant per (user, guild) is allowed at request time;
-    # pick the latest-expiring just in case.
-    grants = sorted(result.all(), key=lambda g: g.expires_at or now, reverse=True)
-    return grants[0] if grants else None
+    """Return the user's currently-live grant of ``purpose`` for ``guild_id``,
+    if any — content unless another is named."""
+    grants = await get_live_grants(session, user_id=user_id, guild_id=guild_id)
+    return grants.get(purpose)
 
 
 async def list_grants(
@@ -814,6 +821,7 @@ __all__ = [
     "revoke",
     "cancel_own_pending",
     "get_live_grant",
+    "get_live_grants",
     "list_grants",
     "expire_due",
     "to_read",
