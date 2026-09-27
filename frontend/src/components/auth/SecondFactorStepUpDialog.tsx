@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { useAuthChallenge } from "@/hooks/useAuthChallenge";
+import { isAnsweredVisitRead } from "@/hooks/useNotifications";
 import { useServer } from "@/hooks/useServer";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { describePasskeyPromptError } from "@/lib/passkeys";
@@ -119,9 +120,11 @@ export const SecondFactorStepUpDialog = () => {
   };
 
   /** What both answers do once the session carries the factor: every query
-   *  refused while it did not should ask again, and the dialog is done. */
+   *  refused while it did not should ask again, and the dialog is done. The
+   *  page's own read of what was unread is kept, since asking it again would
+   *  find nothing and clear it. */
   const settle = async () => {
-    await queryClient.invalidateQueries();
+    await queryClient.invalidateQueries({ predicate: (query) => !isAnsweredVisitRead(query) });
     dismiss();
   };
 

@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { AUTH_FACTOR_REQUIRED_EVENT } from "@/api/client";
+import { queryClient } from "@/lib/queryClient";
 
 import { SecondFactorStepUpDialog } from "./SecondFactorStepUpDialog";
 
@@ -78,6 +79,28 @@ describe("SecondFactorStepUpDialog", () => {
     await waitFor(() => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
+  });
+
+  it("asks the page again without clearing what its visit found unread", async () => {
+    statusIs(true);
+    const stepUpWithFactor = vi.fn().mockResolvedValue(undefined);
+    await mount({ auth: { stepUpWithFactor } });
+    // The app's own client, which the dialog invalidates.
+    const visit = ["notifications", "opened", 4, "task", 7];
+    const page = ["/api/v1/c/4/tasks/7"];
+    queryClient.setQueryData(visit, { comment_ids: [3], since: null });
+    queryClient.setQueryData(page, {});
+
+    fireChallenge();
+    await screen.findByRole("dialog");
+    await userEvent.type(screen.getByLabelText(/authentication code/i), "123456");
+    await userEvent.click(screen.getByRole("button", { name: /continue/i }));
+
+    await waitFor(() => {
+      expect(queryClient.getQueryState(page)?.isInvalidated).toBe(true);
+    });
+    expect(queryClient.getQueryState(visit)?.isInvalidated).toBe(false);
+    queryClient.clear();
   });
 
   // An authenticator app displays "123 456", and that is what gets pasted.
