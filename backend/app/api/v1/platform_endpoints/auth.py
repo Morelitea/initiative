@@ -1828,8 +1828,17 @@ async def _complete_provider_login(
             system_session, user_id=user.id, email=email
         )
         if retired:
+            # The proof, the retirement and the link land in one commit.
             await addresses.retire_credentials_predating_proof(
                 system_session, user=user
+            )
+            await addresses.ensure_address(
+                system_session,
+                user_id=user.id,
+                email=email,
+                source=addresses.SOURCE_OIDC,
+                verified=True,
+                provider_id=provider_row.id,
             )
         identity = await link_identity(
             system_session,

@@ -299,6 +299,7 @@ async def test_claiming_an_existing_account_by_verified_email_is_recorded(
     from app.models.platform.mfa_recovery_code import MfaRecoveryCode
     from app.models.platform.user import User
     from app.models.platform.user_passkey import UserPasskey
+    from app.services.auth import addresses
     from app.services.auth import totp as totp_service
     from app.testing.oidc import FakeIdp
 
@@ -357,3 +358,7 @@ async def test_claiming_an_existing_account_by_verified_email_is_recorded(
         )
     ).all()
     assert (len(kept), bool(codes)) == ((1, True) if proved else (0, False))
+    # Either way the account now holds the address as proved.
+    assert await addresses.holds_address(
+        session, user_id=existing_id, email="claimed-audit@example.com"
+    )
