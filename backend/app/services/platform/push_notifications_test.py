@@ -170,7 +170,9 @@ async def test_delivery_reads_stamps_and_prunes_on_the_system_engine(
     monkeypatch.setattr(push_config, "ensure_push_config_fresh", _enabled)
 
     async def _send(client, push_token, title, body, data=None, channel_id=None):
-        return (True, False) if push_token == "live" else (False, True)
+        return (
+            (True, False) if push_token in ("live", "unlinked-new") else (False, True)
+        )
 
     monkeypatch.setattr(push_notifications, "send_push_notification", _send)
 
@@ -191,6 +193,8 @@ async def test_delivery_reads_stamps_and_prunes_on_the_system_engine(
         (recipient, "live", signed_in),
         (recipient, "gone", signed_in),
         (recipient, "signed-out", signed_out),
+        (recipient, "unlinked-new", None),
+        (recipient, "unlinked-old", None),
         (bystander, "gone", elsewhere),
     ):
         await push_tokens.register_push_token(
@@ -201,6 +205,15 @@ async def test_delivery_reads_stamps_and_prunes_on_the_system_engine(
             session_id=sid,
         )
     recipient_id, bystander_id = recipient.id, bystander.id
+    # Registered before rows named their sign-in: sent to for a grace period
+    # after it was last registered.
+    await session.exec(
+        text(
+            "UPDATE push_tokens SET updated_at = now() - interval '8 days' "
+            "WHERE push_token = 'unlinked-old'"
+        )
+    )
+    await session.commit()
 
     await _as_guild_floor(session)
     try:
@@ -214,7 +227,7 @@ async def test_delivery_reads_stamps_and_prunes_on_the_system_engine(
         )
     finally:
         await _reset_role(session)
-    assert sent == 1
+    assert sent == 2
 
     session.expire_all()
     rows = (
@@ -223,7 +236,11 @@ async def test_delivery_reads_stamps_and_prunes_on_the_system_engine(
         )
     ).all()
     held = {(row.user_id, row.push_token): row for row in rows}
-    assert set(held) == {(recipient_id, "live"), (bystander_id, "gone")}
+    assert set(held) == {
+        (recipient_id, "live"),
+        (recipient_id, "unlinked-new"),
+        (bystander_id, "gone"),
+    }
     assert held[(recipient_id, "live")].last_used_at is not None
     assert held[(bystander_id, "gone")].last_used_at is None
 

@@ -1,9 +1,10 @@
 """a push token names its session
 
 The session that registered a device is recorded beside it, and delivery sends
-to a device while that session's chain stands. A row that names neither a
-live session nor a live device token is dropped at its next delivery; the app
-registers again each time it starts.
+to a device while that session's chain stands. A row from before this names
+neither a session nor, when a session registered it, a device token; it is
+sent to for a week after it was last registered, and the app registers again
+each time it starts.
 
 A plain uuid rather than a foreign key, as ``auth_sessions.parent_id`` is:
 session rows are purged on their own schedule. A refresh, a step-up and a
