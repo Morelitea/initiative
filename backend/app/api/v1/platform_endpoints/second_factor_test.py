@@ -745,6 +745,30 @@ async def test_a_wrong_code_does_not_upgrade_the_session(
     assert locked.json() == {"detail": "SIGN_IN_LOCKED"}
 
 
+async def test_a_right_code_starts_the_count_over(
+    client: AsyncClient, session: AsyncSession
+):
+    from app.models.platform.sign_in_lock import SignInLock
+
+    user, secret, _codes = await _enrol(client, session, "recount@example.com")
+    user_id = user.id
+    headers = await _session_headers(session, user)
+    for _ in range(4):
+        await client.post(
+            "/api/v1/auth/step-up/totp", json={"code": "000000"}, headers=headers
+        )
+    stepped = await client.post(
+        "/api/v1/auth/step-up/totp",
+        json={"code": _next_code(secret)},
+        headers=headers,
+    )
+    assert stepped.status_code == 200, stepped.text
+
+    session.expire_all()
+    row = await session.get(SignInLock, user_id)
+    assert row is None or row.failures == 0
+
+
 async def test_an_account_with_no_factor_cannot_step_up(
     client: AsyncClient, session: AsyncSession
 ):
