@@ -1086,10 +1086,10 @@ class TestVendorWebhooks:
     def test_the_limit_is_kept_per_app_and_sending_address(self):
         from starlette.requests import Request
 
-        from app.api.v1.platform_endpoints.app_hooks import _per_app
+        from app.api.v1.platform_endpoints.app_hooks import _per_app_and_sender
 
         def _key(address: str) -> str:
-            return _per_app(
+            return _per_app_and_sender(
                 Request(
                     {
                         "type": "http",

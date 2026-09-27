@@ -7,7 +7,8 @@ and routed to the communities that connected the vendor installation it names
 (:mod:`app.services.tenant.app_hooks`).
 
 The body is capped at 1 MiB at the transport (``app.core.body_limit``) and the
-address has its own rate limit, per app and sending address.
+address has its own rate limits: per app and sending address, and a higher
+one per app.
 
 Not part of the OpenAPI document: only a vendor calls it.
 """
@@ -23,13 +24,18 @@ router = APIRouter(include_in_schema=False)
 
 
 def _per_app(request: Request) -> str:
-    """Deliveries are limited per app and per address they come from."""
-    public_id = request.path_params.get("public_id", "")
-    return f"app-hooks:{public_id}:{get_real_client_ip(request)}"
+    """Deliveries to one app, from anywhere."""
+    return f"app-hooks:{request.path_params.get('public_id', '')}"
+
+
+def _per_app_and_sender(request: Request) -> str:
+    """Deliveries to one app from one address."""
+    return f"{_per_app(request)}:{get_real_client_ip(request)}"
 
 
 @router.post("/{public_id}")
-@limiter.limit("600/minute", key_func=_per_app)
+@limiter.limit("600/minute", key_func=_per_app_and_sender)
+@limiter.limit("6000/minute", key_func=_per_app)
 async def receive_app_hook(public_id: str, request: Request) -> Response:
     """One vendor delivery: 202 when every community it belongs to has it, 401
     when its signature does not verify, 502 when a community's app did not
