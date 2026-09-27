@@ -8,13 +8,11 @@ import type {
   GuildRole,
   Tool,
   UserGuildMember,
-  UserGuildRead,
   UserRead,
   UserSummary,
 } from "@/api/generated/initiativeAPI.schemas";
 import { useSearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGet } from "@/api/generated/initiatives/initiatives";
 import {
-  approveUserApiV1CGuildIdUsersUserIdApprovePost,
   deleteOwnAccountApiV1UsersMeDeleteAccountPost,
   exportUsersCsvApiV1CGuildIdUsersExportCsvGet,
   getListDecorationPacksApiV1UsersMeDecorationPacksGetQueryKey,
@@ -318,16 +316,6 @@ export const useDeleteOwnAccount = (
   useApiMutation<AccountDeletionResponse, AccountDeletionRequest>(
     {
       mutationFn: (data) => deleteOwnAccountApiV1UsersMeDeleteAccountPost(data),
-    },
-    options
-  );
-
-export const useApproveUser = (options?: MutationOpts<UserGuildRead, number>) =>
-  useGuildMutation<UserGuildRead, number>(
-    {
-      mutationFn: (guildId, userId) =>
-        approveUserApiV1CGuildIdUsersUserIdApprovePost(guildId, userId),
-      invalidate: () => invalidate(q.guildMembers()),
     },
     options
   );

@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Copy, Download, HandCoins, RefreshCcw, Trash2, UserCheck, UserMinus } from "lucide-react";
+import { Copy, Download, HandCoins, RefreshCcw, Trash2, UserMinus } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -41,12 +41,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
-import {
-  useApproveUser,
-  useExportGuildUsersCsv,
-  useUpdateGuildMembership,
-  useUsers,
-} from "@/hooks/useUsers";
+import { useExportGuildUsersCsv, useUpdateGuildMembership, useUsers } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { isAdminRole } from "@/lib/permissions";
@@ -155,8 +150,6 @@ export const SettingsUsersPage = () => {
   const inviteRows = useMemo(() => invites, [invites]);
 
   const usersQuery = useUsers({ enabled: isGuildAdmin });
-
-  const approveUser = useApproveUser();
 
   // Ownership can only be handed to a guild admin, so the picker is the guild's
   // admin roster rather than every member.
@@ -315,15 +308,6 @@ export const SettingsUsersPage = () => {
         const isSelf = guildMember.id === user?.id;
         return (
           <RowActionsMenu subject={getUserDisplayName(guildMember)}>
-            {guildMember.status === "deactivated" ? (
-              <DropdownMenuItem
-                onSelect={() => approveUser.mutate(guildMember.id)}
-                disabled={approveUser.isPending}
-              >
-                <UserCheck className="h-4 w-4" />
-                {t("users.reactivate")}
-              </DropdownMenuItem>
-            ) : null}
             <DropdownMenuItem onSelect={() => exportUserCsv(guildMember)}>
               <Download className="h-4 w-4" />
               {t("users.exportUser")}

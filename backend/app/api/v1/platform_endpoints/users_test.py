@@ -773,47 +773,6 @@ async def test_task_completion_audio_and_haptic_round_trip(client, acting_user):
         assert result["task_completion_haptic_feedback"] is value
 
 
-async def test_approve_user_answers_with_the_guild_read(client, session, acting_user):
-    """Approving a member answers with the guild's read of that account.
-
-    The guild here renders real names, which is the loudest this shape ever
-    gets: the reply still carries the handle and the standing that just
-    changed, and none of the account itself — no name, no address, no platform
-    tier, none of its settings.
-    """
-    admin = await acting_user(guild_role=GuildRole.admin)
-    assert admin.guild.show_member_names is True
-    pending = await acting_user(
-        guild=admin.guild,
-        username="pending-one",
-        full_name="Pending Person",
-        status=UserStatus.deactivated,
-    )
-
-    response = await client.post(
-        admin.g(f"/users/{pending.user.id}/approve"), headers=admin.headers
-    )
-
-    assert response.status_code == 200
-    body = response.json()
-    assert body["id"] == pending.user.id
-    assert body["username"] == "pending-one"
-    assert body["status"] == UserStatus.active.value
-
-    for absent in (
-        "full_name",
-        "email",
-        "role",
-        "email_verified",
-        "timezone",
-        "locale",
-    ):
-        assert absent not in body, absent
-
-    await session.refresh(pending.user)
-    assert pending.user.status == UserStatus.active
-
-
 def _parse_csv(body: bytes) -> tuple[list[str], list[list[str]]]:
     """Strip the UTF-8 BOM and parse the CSV body into (headers, rows)."""
     import csv

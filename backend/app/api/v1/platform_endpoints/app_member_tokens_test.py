@@ -3,9 +3,9 @@ member token that follows.
 
 An app asks on its installation token (``POST /app-platform/consent-requests``)
 for one purpose; the member is notified and answers on their consent screen
-(``/c/{guild_id}/apps/{app_id}/consents``); the app then presents a JWT-bearer
-assertion at the token endpoint and is issued a member token only while that
-answer stands. The token's reach is the install standing's member branch
+(``/c/{guild_id}/apps/{app_id}/consents/{consent_id}``); the app then presents
+a JWT-bearer assertion at the token endpoint and is issued a member token only
+while that answer stands. The token's reach is the install standing's member branch
 (``app/db/member_standing_test.py``); here the probe route reads through it.
 """
 
@@ -146,10 +146,10 @@ async def _answer(client, member, installed, consent_id: int, access: str):
 
 async def _consent_id(client, member, installed) -> int:
     listed = await client.get(
-        member.g(f"/apps/{installed.app.id}/consents"), headers=member.headers
+        member.g(f"/apps/{installed.app.id}"), headers=member.headers
     )
     assert listed.status_code == 200, listed.text
-    (row,) = listed.json()
+    (row,) = listed.json()["consents"]
     return row["id"]
 
 
@@ -309,9 +309,9 @@ async def test_the_member_answers_and_nobody_else_sees_it(
     consent_id = await _consent_id(client, member, installed)
 
     theirs = await client.get(
-        other.g(f"/apps/{installed.app.id}/consents"), headers=other.headers
+        other.g(f"/apps/{installed.app.id}"), headers=other.headers
     )
-    assert theirs.json() == []
+    assert theirs.json()["consents"] == []
     not_theirs = await _answer(client, other, installed, consent_id, "read")
     assert not_theirs.status_code == 404
     assert not_theirs.json()["detail"] == GuildAppMessages.CONSENT_NOT_FOUND
@@ -336,9 +336,9 @@ async def test_the_member_answers_and_nobody_else_sees_it(
     )
     assert withdrawn.status_code == 204
     listed = await client.get(
-        member.g(f"/apps/{installed.app.id}/consents"), headers=member.headers
+        member.g(f"/apps/{installed.app.id}"), headers=member.headers
     )
-    assert listed.json()[0]["status"] == "revoked"
+    assert listed.json()["consents"][0]["status"] == "revoked"
 
 
 async def test_an_api_key_cannot_answer(

@@ -10,6 +10,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
+from pydantic import TypeAdapter
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
@@ -41,6 +42,7 @@ from app.core.config import API_V1_STR, PROJECT_NAME, settings
 from app.core.logging_config import configure_logging
 from app.core.request_audit import RequestAuditMiddleware
 from app.core.version import __version__
+from app.core.smart_chips import SmartChipKind
 from app.db.errors import INSUFFICIENT_PRIVILEGE_SQLSTATE, dbapi_sqlstate
 from app.db.frozen import FROZEN_PARENT_CONSTRAINT, frozen_refusal
 from app.db.session import SystemSessionLocal
@@ -701,6 +703,12 @@ def custom_openapi() -> dict:
     )
 
     _inject_query_schemas(openapi_schema)
+
+    # The chips an editor may offer. No route returns the list, but the client
+    # builds its menu from this enum, so it is published for Orval to generate.
+    components.setdefault("schemas", {})["SmartChipKind"] = TypeAdapter(
+        SmartChipKind
+    ).json_schema()
 
     for path_item in openapi_schema.get("paths", {}).values():
         for operation in path_item.values():

@@ -334,17 +334,6 @@ class GuildClaimRuleCreate(SanitizedBaseModel):
     initiative_role_id: Optional[int] = None
 
 
-class GuildClaimRuleUpdate(SanitizedBaseModel):
-    """Change where a group lands. Its provider is not editable: a group value
-    means nothing without knowing who asserted it, so a rule pointed at
-    another provider is a different rule."""
-
-    claim_value: Optional[str] = Field(default=None, max_length=500)
-    guild_role: Optional[str] = None
-    initiative_id: Optional[int] = None
-    initiative_role_id: Optional[int] = None
-
-
 class GuildClaimRulesResponse(SanitizedBaseModel):
     """The rules, and whether the providers behind them report groups at all.
 

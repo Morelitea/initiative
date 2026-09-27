@@ -49,7 +49,6 @@ import type {
   UserEmailListResponse,
   UserEmailRead,
   UserGuildMember,
-  UserGuildRead,
   UserProfile,
   UserRead,
   UserSelfUpdate,
@@ -3553,111 +3552,6 @@ export function useExportUsersCsvApiV1CGuildIdUsersExportCsvGet<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
-/**
- * Let a pending member of this guild sign in.
- *
- * The account write runs on the system engine: the row is another account's,
- * and an account is not a guild's to write. ``GuildAdminContext`` plus the
- * membership join below are the authorization — the guild admin may only
- * reach someone who is already a member of the guild they administer.
- *
- * Answers with ``UserGuildRead`` — the account as the guild reads it, which
- * is the standing that just changed and the handle it belongs to. The row
- * loaded here is the whole ``User``, because the write needs it; what leaves
- * is the guild's read of it, with its initiative roles read on the request's
- * own routed session.
- * @summary Approve User
- */
-export const approveUserApiV1CGuildIdUsersUserIdApprovePost = (
-  guildId: number,
-  userId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<UserGuildRead>(
-    { url: `/api/v1/c/${guildId}/users/${userId}/approve`, method: "POST", signal },
-    options
-  );
-};
-
-export const getApproveUserApiV1CGuildIdUsersUserIdApprovePostMutationKey = () =>
-  ["approveUserApiV1CGuildIdUsersUserIdApprovePost"] as const;
-
-export const getApproveUserApiV1CGuildIdUsersUserIdApprovePostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof approveUserApiV1CGuildIdUsersUserIdApprovePost>>,
-    TError,
-    ApproveUserApiV1CGuildIdUsersUserIdApprovePostMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof approveUserApiV1CGuildIdUsersUserIdApprovePost>>,
-  TError,
-  ApproveUserApiV1CGuildIdUsersUserIdApprovePostMutationVariables,
-  TContext
-> => {
-  const mutationKey = getApproveUserApiV1CGuildIdUsersUserIdApprovePostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof approveUserApiV1CGuildIdUsersUserIdApprovePost>>,
-    ApproveUserApiV1CGuildIdUsersUserIdApprovePostMutationVariables
-  > = (props) => {
-    const { guildId, userId } = props ?? {};
-
-    return approveUserApiV1CGuildIdUsersUserIdApprovePost(guildId, userId, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type ApproveUserApiV1CGuildIdUsersUserIdApprovePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof approveUserApiV1CGuildIdUsersUserIdApprovePost>>
->;
-
-export type ApproveUserApiV1CGuildIdUsersUserIdApprovePostMutationError =
-  ErrorType<HTTPValidationError>;
-export type ApproveUserApiV1CGuildIdUsersUserIdApprovePostMutationVariables = {
-  guildId: number;
-  userId: number;
-};
-
-/**
- * @summary Approve User
- */
-export const useApproveUserApiV1CGuildIdUsersUserIdApprovePost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof approveUserApiV1CGuildIdUsersUserIdApprovePost>>,
-      TError,
-      ApproveUserApiV1CGuildIdUsersUserIdApprovePostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof approveUserApiV1CGuildIdUsersUserIdApprovePost>>,
-  TError,
-  ApproveUserApiV1CGuildIdUsersUserIdApprovePostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getApproveUserApiV1CGuildIdUsersUserIdApprovePostMutationOptions(options),
-    queryClient
-  );
-};
 /**
  * Everything in this guild that no current member or live app owns, and
  * the apps that may own all of it.

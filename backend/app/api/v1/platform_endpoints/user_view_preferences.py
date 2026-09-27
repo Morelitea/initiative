@@ -85,22 +85,3 @@ async def put_view_preference(
         session.add(existing)
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.delete("/{scope_key}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_view_preference(
-    scope_key: ScopeKeyPath,
-    session: UserSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-) -> Response:
-    """Reset the preference for ``scope_key`` to the frontend's default."""
-    stmt = select(UserViewPreference).where(
-        UserViewPreference.user_id == current_user.id,
-        UserViewPreference.scope_key == scope_key,
-    )
-    result = await session.exec(stmt)
-    existing = result.one_or_none()
-    if existing is not None:
-        await session.delete(existing)
-        await session.commit()
-    return Response(status_code=status.HTTP_204_NO_CONTENT)

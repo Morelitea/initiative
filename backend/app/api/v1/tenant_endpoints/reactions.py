@@ -54,37 +54,6 @@ async def suggested_reactions(
     return list(SUGGESTED_EMOJI)
 
 
-@router.get(
-    "/{target_type}/{target_id}",
-    response_model=ReactionSummary,
-)
-async def read_reactions(
-    target_type: ReactionTarget,
-    target_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> ReactionSummary:
-    """Every reaction on one target. Reading takes read access on the target."""
-    try:
-        ctx = await reactions_service.resolve_target(
-            session,
-            target=target_type,
-            target_id=target_id,
-            user=current_user,
-            guild_id=guild_context.guild_id,
-            access="read",
-        )
-    except reactions_service.ReactionError as exc:
-        _raise(exc)
-    return await reactions_service.summary_for(
-        session,
-        target=target_type,
-        target_id=ctx.target_id,
-        viewer_id=current_user.id,
-    )
-
-
 @router.put(
     "/{target_type}/{target_id}",
     response_model=ReactionSummary,
