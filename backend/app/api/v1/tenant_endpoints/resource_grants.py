@@ -23,6 +23,7 @@ from app.api.deps import (
     GuildContextDep,
 )
 from app.models.platform.user import User
+from app.services.content_sockets import resource_room, sockets
 from app.schemas.tenant.resource_grant import (
     ResourceGrantBulkItemResult,
     ResourceGrantBulkRequest,
@@ -67,6 +68,19 @@ async def bulk_set_resource_grants(
                 current_user,
                 guild_context,
                 item.grants,
+            )
+            # As a single replace does: whoever the new sharing leaves out is
+            # closed now, and whoever stays is told to refetch.
+            await sockets.recheck_room(
+                resource_room(
+                    guild_context.guild_id, item.resource_type.value, item.resource_id
+                )
+            )
+            sockets.signal(
+                guild_context.guild_id,
+                item.resource_type,
+                item.resource_id,
+                "permissions_changed",
             )
             results.append(
                 ResourceGrantBulkItemResult(
