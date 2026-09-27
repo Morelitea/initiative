@@ -12,12 +12,23 @@
  * from the same `estimateSize` the component supplies — which is where a
  * hidden line's zero height comes from — so what is under test is the
  * component's own decision about what to render.
+ *
+ * The toolbar is stubbed to count renders: it re-renders whenever the editor
+ * body does, so it shows whether a keystroke redrew more than the input.
  */
 
 import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "@/__tests__/helpers/render";
+
+const toolbarRenders = vi.hoisted(() => ({ count: 0 }));
+vi.mock("@/components/documents/spreadsheet/SpreadsheetToolbar", () => ({
+  SpreadsheetToolbar: () => {
+    toolbarRenders.count += 1;
+    return null;
+  },
+}));
 
 vi.mock("@tanstack/react-virtual", () => ({
   useVirtualizer: (options: { count: number; estimateSize: (index: number) => number }) => {
@@ -91,12 +102,19 @@ describe("a hidden row", () => {
 });
 
 describe("a cell being edited", () => {
-  it("takes a clicked cell into the formula typed so far", async () => {
+  it("redraws only its input as it is typed, and takes a clicked cell into the formula", async () => {
     await renderSheet({});
 
     fireEvent.doubleClick(screen.getByText("Test2"));
     const input = document.activeElement as HTMLInputElement;
+    const renders = toolbarRenders.count;
+    fireEvent.change(input, { target: { value: "T" } });
+    fireEvent.change(input, { target: { value: "Te" } });
     fireEvent.change(input, { target: { value: "=" } });
+    expect(input.value).toBe("=");
+    expect(screen.getByLabelText(/^Formula bar/)).toHaveValue("=");
+    expect(toolbarRenders.count).toBe(renders);
+
     fireEvent.mouseDown(screen.getByText("Test1"), { button: 0 });
     expect(input.value).toBe("=A1");
 
