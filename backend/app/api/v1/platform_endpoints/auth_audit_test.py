@@ -8,6 +8,7 @@ detail says which way somebody got in.
 
 from __future__ import annotations
 
+import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -284,15 +285,25 @@ async def test_an_oidc_sign_in_records_what_the_idp_asserted_about_it(
     ]
 
 
+@pytest.mark.parametrize("proved", [True, False], ids=["proved", "unproved"])
 async def test_claiming_an_existing_account_by_verified_email_is_recorded(
-    client: AsyncClient, session: AsyncSession, monkeypatch, capfd
+    client: AsyncClient, session: AsyncSession, monkeypatch, capfd, proved
 ):
     """The link is what makes every later sign-in resolve by subject, so the
-    moment an identity provider claims an existing account is worth a record."""
+    moment an identity provider claims an existing account is worth a record.
+    Where the account had not proved the address, the provider's word is its
+    first proof, and what the account held before it is retired."""
+    from app.core.security import get_password_hash
+    from app.models.platform.user import User
     from app.testing.oidc import FakeIdp
 
     await _enable_platform_oidc(session)
-    existing = await create_user(session, email="claimed-audit@example.com")
+    existing = await create_user(
+        session,
+        email="claimed-audit@example.com",
+        email_verified=proved,
+        hashed_password=get_password_hash("set-before-proof"),
+    )
     existing_id = existing.id
     idp = FakeIdp()
     _wire_fake_idp(monkeypatch, idp)
@@ -309,6 +320,13 @@ async def test_claiming_an_existing_account_by_verified_email_is_recorded(
     )
     assert response.status_code in (302, 307)
 
-    rows = emitted(capfd, AuditEventType.AUTH_IDENTITY_LINKED)
+    events = emitted(capfd)
+    rows = [r for r in events if r["event_type"] == "auth.identity_linked"]
     assert [r["actor_user_id"] for r in rows] == [existing_id]
     assert rows[0]["detail"]["matched_by"] == "verified_email"
+    retired = [r for r in events if r["event_type"] == "auth.credentials_retired"]
+    assert len(retired) == (0 if proved else 1)
+    session.expire_all()
+    row = await session.get(User, existing_id)
+    assert row is not None
+    assert (row.hashed_password is not None) is proved

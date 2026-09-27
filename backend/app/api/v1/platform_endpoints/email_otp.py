@@ -30,7 +30,6 @@ from app.api.v1.platform_endpoints.session_opening import (
     require_login_method,
     second_factor_outstanding,
 )
-from app.core.audit_events import AuditEventType
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages
 from app.core.email_i18n import SUPPORTED_EMAIL_LOCALES
@@ -45,13 +44,11 @@ from app.schemas.platform.email_otp import (
     EmailOtpVerify,
 )
 from app.schemas.platform.token import Token
-from app.services import audit as audit_service
 from app.services import captcha as captcha_service
 from app.services import email as email_service
 from app.services.auth import addresses
 from app.services.auth import challenges as challenge_service
 from app.services.auth import email_otp as email_otp_service
-from app.services.platform import user_tokens
 from app.services.content_sockets import sockets as content_sockets
 
 logger = logging.getLogger(__name__)
@@ -59,34 +56,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
-
-
-async def _retire_credentials_predating_proof(
-    session: AsyncSession, *, user: User
-) -> None:
-    """Drop every credential the account held before this address was proved.
-
-    Reached only where the code confirmed an address nobody had proved. The
-    account keeps its handle, its memberships and its content; what it gives
-    up is the password and the standing credentials that were set while the
-    address was unproven. Whoever proved it signs in, and sets a password
-    afterwards if they want one.
-    """
-    user.hashed_password = None
-    user.password_set_at = None
-    session.add(user)
-    # Staged rather than committed: the session this sign-in opens lands in
-    # the same transaction, so the account never sits with nothing.
-    await user_tokens.revoke_user_sessions(session, user=user, commit=False)
-    await audit_service.record(
-        session,
-        event_type=AuditEventType.AUTH_CREDENTIALS_RETIRED,
-        actor_user_id=user.id,
-        target_user_id=user.id,
-        target_type="user",
-        target_id=user.id,
-        detail={"reason": "address_first_proved"},
-    )
 
 
 def _requested_locale(request: Request) -> str:
@@ -294,7 +263,9 @@ async def verify_sign_in_code(
             system_session, address_id=challenge.user_email_id
         )
         if first_proof:
-            await _retire_credentials_predating_proof(system_session, user=user)
+            await addresses.retire_credentials_predating_proof(
+                system_session, user=user
+            )
             retired = True
         row = await system_session.get(UserEmail, challenge.user_email_id)
         if row is not None:

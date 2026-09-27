@@ -688,3 +688,40 @@ async def _verified_count(session: AsyncSession, user_id: int) -> int:
             )
         )
     ).one()
+
+
+async def retire_credentials_predating_proof(
+    session: AsyncSession, *, user: User
+) -> None:
+    """Drop every credential the account held before this address was proved.
+
+    Reached only where an address nobody had proved is proved for the first
+    time: by an emailed code, or by an identity provider vouching for it. The
+    account keeps its handle, its memberships and its content; what it gives
+    up is the password, its passkeys, its second factor and the standing
+    credentials that were set while the address was unproven. Whoever proved
+    it signs in, and sets up what they want afterwards.
+    """
+    from app.core.audit_events import AuditEventType
+    from app.models.platform.user_passkey import UserPasskey
+    from app.services import audit as audit_service
+    from app.services.auth import totp as totp_service
+    from app.services.platform import user_tokens
+
+    user.hashed_password = None
+    user.password_set_at = None
+    session.add(user)
+    await session.exec(delete(UserPasskey).where(UserPasskey.user_id == user.id))
+    await totp_service.disable(session, user_id=user.id)
+    # Staged rather than committed: the session this sign-in opens lands in
+    # the same transaction, so the account never sits with nothing.
+    await user_tokens.revoke_user_sessions(session, user=user, commit=False)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.AUTH_CREDENTIALS_RETIRED,
+        actor_user_id=user.id,
+        target_user_id=user.id,
+        target_type="user",
+        target_id=user.id,
+        detail={"reason": "address_first_proved"},
+    )

@@ -1821,6 +1821,15 @@ async def _complete_provider_login(
             target_id=provider_row.id,
             detail={"provider": provider_row.slug, "matched_by": "verified_email"},
         )
+        # An address the account had not proved is proved here for the first
+        # time, and the account starts from that proof, as it does when an
+        # emailed code is the first proof.
+        if not await addresses.holds_address(
+            system_session, user_id=user.id, email=email
+        ):
+            await addresses.retire_credentials_predating_proof(
+                system_session, user=user
+            )
         identity = await link_identity(
             system_session,
             user=user,
