@@ -29,7 +29,7 @@ def _migration(name: str) -> ModuleType:
     return module
 
 
-_LATEST = "20260925_0403_the_database_answers_what_a_request_may_do.py"
+_LATEST = "20260927_0407_reading_the_request_context_from_one_place.py"
 
 
 def test_the_migration_states_the_module_body():
@@ -37,9 +37,9 @@ def test_the_migration_states_the_module_body():
 
 
 def test_the_downgrade_restores_the_body_it_replaced():
+    standing = _migration("20260925_0403_the_database_answers_what_a_request_may_do.py")
+    assert _migration(_LATEST).OWNS_FUNCTION_BEFORE == standing.OWNS_FUNCTION_AFTER
     member_consents = _migration("20260924_0385_a_member_consents_per_purpose.py")
-    assert _migration(_LATEST).OWNS_FUNCTION_BEFORE == (
-        member_consents.OWNS_FUNCTION_AFTER
-    )
+    assert standing.OWNS_FUNCTION_BEFORE == member_consents.OWNS_FUNCTION_AFTER
     scopes = _migration("20260924_0381_an_install_answers_to_its_scopes.py")
     assert member_consents.OWNS_FUNCTION_BEFORE == scopes.OWNS_FUNCTION

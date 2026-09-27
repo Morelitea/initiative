@@ -49,9 +49,14 @@ at call time is still the caller's route, which is the same schema.
 
 from __future__ import annotations
 from collections.abc import Iterable
+from app.db import gucs
 from app.core.app_scopes import AppScopeResource, tool_resource
 from app.core.tools import Tool
-from app.models.platform.access_grant import AccessGrantPurpose, SettingsLevel
+from app.models.platform.access_grant import (
+    AccessGrantPurpose,
+    AccessGrantStatus,
+    SettingsLevel,
+)
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserRole
 from app.models.tenant.initiative import DEFAULT_PERMISSION_VALUES, PermissionKey
@@ -167,7 +172,7 @@ $function$
 
 #: Gate 0b: the same question for the current request, off the GUCs the
 #: session context sets. This is what the policy legs call.
-GUILD_CONNECTION_SATISFIED = """\
+GUILD_CONNECTION_SATISFIED = f"""\
 CREATE OR REPLACE FUNCTION public.guild_connection_satisfied(p_guild_id integer, p_provider_id integer DEFAULT NULL::integer)
  RETURNS boolean
  LANGUAGE sql
@@ -180,17 +185,14 @@ AS $function$
         -- the table.
         COALESCE(
             string_to_array(
-                NULLIF(
-                    NULLIF(current_setting('app.satisfied_providers', true), ''),
-                    'system'
-                ),
+                NULLIF({gucs.SATISFIED_PROVIDERS.text}, 'system'::text),
                 ','
             )::integer[],
             ARRAY[]::integer[]
         ),
         COALESCE(
-            NULLIF(current_setting('app.satisfied_claims', true), '')::jsonb,
-            '{}'::jsonb
+            {gucs.SATISFIED_CLAIMS},
+            '{{}}'::jsonb
         ),
         p_provider_id
     )
@@ -208,19 +210,13 @@ $function$
 #: ``string_to_array`` of an unset setting is NULL, and the empty array is what
 #: the legs below are written against, so an absent setting reads as a session
 #: that recorded nothing.
-SESSION_AMR = """\
+SESSION_AMR = f"""\
 CREATE OR REPLACE FUNCTION public.session_amr()
  RETURNS text[]
  LANGUAGE sql
  STABLE
 AS $function$
-    SELECT COALESCE(
-        string_to_array(
-            NULLIF(current_setting('app.session_amr', true), ''),
-            ','
-        ),
-        ARRAY[]::text[]
-    )
+    SELECT {gucs.SESSION_AMR}
 $function$
 
 """
@@ -251,25 +247,14 @@ AS $function$
           AND s.second_factor_requirement <> 'nobody'
           AND (
               s.second_factor_requirement = 'everyone'
-              OR COALESCE(current_setting('app.platform_role', true), '') <> '{UserRole.member.value}'
+              OR {gucs.PLATFORM_ROLE} IS DISTINCT FROM '{UserRole.member.value}'
           )
-          AND COALESCE(
-                current_setting('app.platform_factor', true), 'false'
-              ) <> 'true'
+          AND ({gucs.PLATFORM_FACTOR}) IS NOT TRUE
     )
 $function$
 
 """
 
-
-#: The community this request is in, however it was reached: as a member, on a
-#: content grant, or on a settings grant. The gate asks its question of that
-#: community, so the rule binds a grantee as it binds a member.
-_ROUTED_GUILD_ID = """COALESCE(
-                    NULLIF(current_setting('app.current_guild_id', true), ''),
-                    NULLIF(current_setting('app.pam_guild_id', true), ''),
-                    NULLIF(current_setting('app.settings_guild_id', true), '')
-                  )::int"""
 
 #: Gate 0: the guild's sign-in policy, satisfied by this session.
 GUILD_AUTH_SATISFIED = f"""\
@@ -281,15 +266,15 @@ AS $function$
     SELECT
         -- Pure system routing (no user context) and the explicit sentinel a
         -- user-attributed job sets are not sessions to gate.
-        NULLIF(current_setting('app.current_user_id', true), '') IS NULL
-        OR current_setting('app.satisfied_providers', true) = 'system'
+        {gucs.USER_ID.text} IS NULL
+        OR {gucs.SATISFIED_PROVIDERS.raw} = 'system'::text
         OR (
         -- What the deployment asks of the account, before what the community
         -- asks of the session. Both have to hold.
         public.platform_factor_satisfied()
         AND NOT EXISTS (
             SELECT 1 FROM public.guild_auth_policies p
-            WHERE p.guild_id = {_ROUTED_GUILD_ID}
+            WHERE p.guild_id = {gucs.ROUTED_GUILD_ID}
               AND p.policy <> 'open'
               AND (
                   -- The provider this guild names, if it names one: the
@@ -333,7 +318,7 @@ AS $function$
             -- like the leg above it.
             SELECT 1
             FROM public.guilds g
-            WHERE g.id = {_ROUTED_GUILD_ID}
+            WHERE g.id = {gucs.ROUTED_GUILD_ID}
               AND g.require_second_factor
               AND NOT ('mfa' = ANY(public.session_amr()))
         ))
@@ -370,82 +355,35 @@ SYSTEM_SESSION = (
 #: ``app.current_guild_id``, a content grantee with ``app.pam_guild_id`` and a
 #: settings grantee with ``app.settings_guild_id``. Whichever names one is the
 #: one community the session is in.
-ROUTED_COMMUNITY = (
-    "COALESCE("
-    "NULLIF(current_setting('app.current_guild_id'::text, true), ''::text),"
-    " NULLIF(current_setting('app.pam_guild_id'::text, true), ''::text),"
-    " NULLIF(current_setting('app.settings_guild_id'::text, true), ''::text))"
-)
+ROUTED_COMMUNITY = gucs.ROUTED_COMMUNITY
 
 #: The standing on this session was computed for the community it is routed
 #: into. A standing means nothing outside the community it came from —
 #: initiative 5 is a different row in every schema — so every leg that reads
 #: one says which community it belongs to first.
 STANDING_IS_THIS_GUILD = (
-    "NULLIF(current_setting('app.standing_guild_id'::text, true), ''::text)"
-    f" IS NOT DISTINCT FROM {ROUTED_COMMUNITY}"
+    f"{gucs.STANDING_GUILD_ID.text} IS NOT DISTINCT FROM {ROUTED_COMMUNITY}"
 )
 
 #: The reader administers this community: the membership row's own answer, as
 #: the standing statement read it, written where a policy can read it.
-GUILD_ADMIN = (
-    f"({STANDING_IS_THIS_GUILD}"
-    " AND current_setting('app.guild_admin'::text, true) = 'true'::text)"
-)
+GUILD_ADMIN = f"({STANDING_IS_THIS_GUILD} AND {gucs.GUILD_ADMIN})"
 
 #: This request administers the community's configuration: a live settings
 #: grant, at either rung, as the standing statement read it from the rows.
 #: Its own axis — what a grant reaches of the community's settings — beside
 #: :data:`GUILD_ADMIN`, which only a membership row answers.
-SETTINGS_ADMIN = (
-    f"({STANDING_IS_THIS_GUILD}"
-    " AND current_setting('app.settings_rung'::text, true) <> ''::text)"
-)
+SETTINGS_ADMIN = f"({STANDING_IS_THIS_GUILD} AND {gucs.SETTINGS_RUNG.raw} <> ''::text)"
 
 #: This request holds the community's seat: the membership row's superadmin,
 #: or a live superadmin settings grant, as the standing statement read it
 #: through ``guild_superadmin()``.
-GUILD_SEAT = (
-    f"({STANDING_IS_THIS_GUILD}"
-    " AND current_setting('app.guild_seat'::text, true) = 'true'::text)"
-)
+GUILD_SEAT = f"({STANDING_IS_THIS_GUILD} AND {gucs.GUILD_SEAT})"
 
-#: A live grant covers this request, at whichever level the command asks for.
-#: A live content grant, read one level at a time: the level a grant confers
-#: is the one its standing value names.
-PAM_READ = "current_setting('app.pam_read'::text, true) = 'true'::text"
-PAM_WRITE = "current_setting('app.pam_write'::text, true) = 'true'::text"
-PAM_AT_LEVEL = (
-    f"(CASE WHEN p_need_write THEN {PAM_WRITE} ELSE {PAM_READ} OR {PAM_WRITE} END)"
-)
-
-#: A live grant at either level, where the question is what the community has
-#: switched on rather than what one person may reach.
-PAM_ANY = f"{PAM_READ} OR {PAM_WRITE}"
-
-
-def standing_ids(key: str) -> str:
-    """The integer set the standing carries under ``key``.
-
-    Empty rather than NULL when nothing is recorded: ``x = ANY(NULL)`` is NULL,
-    and a leg that answers neither yes nor no turns the whole chain around it
-    into one, which reads as no in a policy and as nothing at all to anybody
-    asking the function directly.
-    """
-    return (
-        "COALESCE(string_to_array("
-        f"NULLIF(current_setting('{key}'::text, true), ''::text), ','::text"
-        ")::integer[], ARRAY[]::integer[])"
-    )
-
-
-def standing_pairs(key: str) -> str:
-    """The ``"<id>:<name>"`` set the standing carries under ``key``."""
-    return (
-        "COALESCE(string_to_array("
-        f"NULLIF(current_setting('{key}'::text, true), ''::text), ','::text"
-        "), ARRAY[]::text[])"
-    )
+#: A grant that is in force right now: approved and unexpired. Written over the
+#: ``access_grants`` alias ``g``; the standing statement and
+#: ``guild_superadmin()`` both read grants through it.
+LIVE_GRANT = f"g.status = '{AccessGrantStatus.approved.value}' AND g.expires_at > now()"
 
 
 def sql_values(values: Iterable[str]) -> str:
@@ -476,47 +414,27 @@ STANDING_FIELDS: tuple[tuple[str, str, str], ...] = (
     ("system_session", "boolean", SYSTEM_SESSION),
     ("this_guild", "boolean", STANDING_IS_THIS_GUILD),
     ("guild_admin", "boolean", GUILD_ADMIN),
-    (
-        "guild_auth_ok",
-        "boolean",
-        "current_setting('app.guild_auth_ok'::text, true) = 'true'::text",
-    ),
-    (
-        "scope_initiative_id",
-        "integer",
-        "NULLIF(current_setting('app.scope_initiative_id'::text, true), ''::text)::integer",
-    ),
-    ("pam_read", "boolean", PAM_READ),
-    ("pam_write", "boolean", PAM_WRITE),
-    ("member_initiatives", "integer[]", standing_ids("app.member_initiatives")),
-    ("manager_initiatives", "integer[]", standing_ids("app.manager_initiatives")),
-    ("override_initiatives", "integer[]", standing_ids("app.override_initiatives")),
-    ("member_role_ids", "integer[]", standing_ids("app.member_role_ids")),
-    ("role_grants", "text[]", standing_pairs("app.role_grants")),
-    ("role_denies", "text[]", standing_pairs("app.role_denies")),
-    ("enabled_tools", "text[]", standing_pairs("app.enabled_tools")),
-    (
-        "via_dashboard_id",
-        "integer",
-        "NULLIF(current_setting('app.via_dashboard_id'::text, true), ''::text)::integer",
-    ),
+    ("guild_auth_ok", "boolean", gucs.GUILD_AUTH_OK.sql),
+    ("scope_initiative_id", "integer", gucs.SCOPE_INITIATIVE_ID.sql),
+    ("pam_read", "boolean", gucs.PAM_READ.sql),
+    ("pam_write", "boolean", gucs.PAM_WRITE.sql),
+    ("member_initiatives", "integer[]", gucs.MEMBER_INITIATIVES.sql),
+    ("manager_initiatives", "integer[]", gucs.MANAGER_INITIATIVES.sql),
+    ("override_initiatives", "integer[]", gucs.OVERRIDE_INITIATIVES.sql),
+    ("member_role_ids", "integer[]", gucs.MEMBER_ROLE_IDS.sql),
+    ("role_grants", "text[]", gucs.ROLE_GRANTS.sql),
+    ("role_denies", "text[]", gucs.ROLE_DENIES.sql),
+    ("enabled_tools", "text[]", gucs.ENABLED_TOOLS.sql),
+    ("via_dashboard_id", "integer", gucs.VIA_DASHBOARD_ID.sql),
     # An installed app acting in the community: which install, and the
     # resources its scopes let it read and write. Unset on every request a
     # person makes.
-    (
-        "install_id",
-        "integer",
-        "NULLIF(current_setting('app.current_install_id'::text, true), ''::text)::integer",
-    ),
-    ("install_read", "text[]", standing_pairs("app.install_read")),
-    ("install_write", "text[]", standing_pairs("app.install_write")),
+    ("install_id", "integer", gucs.INSTALL_ID.sql),
+    ("install_read", "text[]", gucs.INSTALL_READ.sql),
+    ("install_write", "text[]", gucs.INSTALL_WRITE.sql),
     # The community's content is on hold (``read_only``) for this reader: no
     # change to any of it, whatever their rung. A grant is not held.
-    (
-        "content_hold",
-        "boolean",
-        "current_setting('app.content_hold'::text, true) = 'true'::text",
-    ),
+    ("content_hold", "boolean", gucs.CONTENT_HOLD.sql),
 )
 _STANDING_NAMES = frozenset(name for name, _type, _expr in STANDING_FIELDS)
 
@@ -652,6 +570,13 @@ def standing_arg():
 IN_BODY = Legs("p_st")
 #: Inside a policy, the standing is this statement's.
 IN_POLICY = Legs(STANDING, per_field=True)
+
+#: The settings rung and the seat, as a policy reads them: once per statement.
+#: ``public.standing`` carries neither, so a policy reads them beside it.
+POLICY_SETTINGS_ADMIN = (
+    f"({IN_POLICY.this_guild} AND {gucs.SETTINGS_RUNG.once} <> ''::text)"
+)
+POLICY_SEAT = f"({IN_POLICY.this_guild} AND {gucs.GUILD_SEAT.once})"
 
 
 # --- An installed app's scopes ----------------------------------------------
@@ -1245,8 +1170,7 @@ AS $function$
           AND g.user_id = p_user_id
           AND g.purpose = '{AccessGrantPurpose.settings.value}'
           AND g.access_level = '{SettingsLevel.superadmin.value}'
-          AND g.status = 'approved'
-          AND g.expires_at > now()
+          AND {LIVE_GRANT}
     )
 $function$
 

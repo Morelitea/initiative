@@ -11,6 +11,7 @@ from pydantic import (
 from app.core.email_masking import mask_email
 from app.models.platform.access_grant import (
     AccessGrantStatus,
+    grant_is_live,
     AccessLevel,
     SettingsLevel,
 )
@@ -155,11 +156,7 @@ class AccessGrantRead(SanitizedBaseModel):
     @property
     def is_live(self) -> bool:
         """Whether this grant currently confers access (approved, unexpired)."""
-        return (
-            self.status == AccessGrantStatus.approved
-            and self.expires_at is not None
-            and self.expires_at > datetime.now(timezone.utc)
-        )
+        return grant_is_live(self.status, self.expires_at, datetime.now(timezone.utc))
 
 
 class BreakGlassRequirements(SanitizedBaseModel):

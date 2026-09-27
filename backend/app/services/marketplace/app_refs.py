@@ -39,6 +39,7 @@ from collections.abc import Iterable
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.db import gucs
 from app.db import cohorts
 from app.db import session as db_session
 from app.models.platform.identity_ref import (
@@ -79,12 +80,10 @@ _INSTALL_REF_CACHE_LIMIT = 100_000
 #: ``(guild, install, entity, row id) -> (reference, expiry)``.
 _install_ref_cache: dict[tuple[int, int, str, int], tuple[str, float]] = {}
 
-_GID = "NULLIF(current_setting('app.current_guild_id', true), '')::int"
-_IID = "NULLIF(current_setting('app.current_install_id', true), '')::int"
 _IN_SECTOR = (
     f"r.purpose = '{_PURPOSE.value}'"
-    f" AND r.sector_guild_id = {_GID}"
-    f" AND r.sector_id = {_IID}"
+    f" AND r.sector_guild_id = {gucs.GUILD_ID}"
+    f" AND r.sector_id = {gucs.INSTALL_ID}"
 )
 
 #: Mint what the routed install is missing, and return what it holds, in one
@@ -105,9 +104,9 @@ WITH wanted AS (
 minted AS (
   INSERT INTO public.identity_refs
     (ref, entity_type, entity_id, purpose, sector_guild_id, sector_id, created_at)
-  SELECT w.ref, w.entity_type, w.entity_id, '{_PURPOSE.value}', {_GID}, {_IID}, now()
+  SELECT w.ref, w.entity_type, w.entity_id, '{_PURPOSE.value}', {gucs.GUILD_ID}, {gucs.INSTALL_ID}, now()
   FROM wanted w
-  WHERE {_GID} IS NOT NULL AND {_IID} IS NOT NULL
+  WHERE {gucs.GUILD_ID} IS NOT NULL AND {gucs.INSTALL_ID} IS NOT NULL
   ON CONFLICT (entity_type, entity_id, purpose, sector_guild_id, sector_id)
     WHERE retired_at IS NULL
     DO NOTHING

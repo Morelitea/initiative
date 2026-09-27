@@ -39,6 +39,7 @@ from pglast.stream import RawStream
 from pglast.visitors import Visitor
 
 from app.core.messages import QueryMessages
+from app.db import gucs
 from app.services.fields import dataset
 from app.services.fields.registry import dataset_names
 from app.services.fields.spec import ControlKind, FieldType
@@ -189,7 +190,7 @@ VIEWER = "me"
 #: the moment the statement runs rather than the moment it was written.
 #:
 #: Unset it reads as null, and a comparison against null selects nothing.
-_VIEWER_EXPRESSION = "NULLIF(current_setting('app.current_user_id', true), '')::int"
+_VIEWER_EXPRESSION = gucs.USER_ID.sql
 
 
 def _viewer_node() -> ast.Node:

@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, Integer, String, Text
+from sqlalchemy import Column, ColumnElement, DateTime, Integer, String, Text, and_
 from sqlmodel import Field, Index, SQLModel
 
 
@@ -51,7 +51,7 @@ class AccessGrantStatus(str, Enum):
 
     ``pending`` → (``approved`` | ``denied``); ``approved`` → (``revoked`` |
     ``expired``). A grant is *live* only while ``approved`` and before
-    ``expires_at`` — liveness is computed, not stored (see the service).
+    ``expires_at`` — liveness is computed, not stored (:func:`grant_is_live`).
     """
 
     pending = "pending"
@@ -59,6 +59,22 @@ class AccessGrantStatus(str, Enum):
     denied = "denied"
     revoked = "revoked"
     expired = "expired"
+
+
+def grant_is_live(
+    status: "str | AccessGrantStatus", expires_at: Optional[datetime], now: datetime
+) -> bool:
+    """Whether a grant confers access at ``now``: approved and unexpired.
+
+    The SQL spelling of the same rule is :meth:`AccessGrant.live` for a query
+    and ``app.db.authorization.LIVE_GRANT`` for the statements and functions
+    that read grants in the database.
+    """
+    return (
+        status == AccessGrantStatus.approved.value
+        and expires_at is not None
+        and expires_at > now
+    )
 
 
 # Mirror the CHECK constraints declared in the migration. Keep in sync with
@@ -191,9 +207,13 @@ class AccessGrant(SQLModel, table=True):
     )
 
     def is_live(self, *, now: datetime) -> bool:
-        """True iff this grant currently confers access (approved, unexpired)."""
-        return (
-            self.status == AccessGrantStatus.approved.value
-            and self.expires_at is not None
-            and self.expires_at > now
+        """Whether this grant confers access at ``now``."""
+        return grant_is_live(self.status, self.expires_at, now)
+
+    @classmethod
+    def live(cls, now: datetime) -> ColumnElement[bool]:
+        """The same rule as a query clause."""
+        return and_(
+            cls.status == AccessGrantStatus.approved.value,  # type: ignore[arg-type]
+            cls.expires_at > now,  # type: ignore[operator]
         )

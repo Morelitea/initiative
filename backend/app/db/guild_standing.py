@@ -47,7 +47,8 @@ from typing import TYPE_CHECKING, Any, Optional, Sequence
 
 from app.core.app_scopes import APP_SCOPE_PREFIX
 from app.core.tools import Tool
-from app.db.authorization import sql_values
+from app.db import gucs
+from app.db.authorization import LIVE_GRANT, sql_values
 from app.models.platform.access_grant import AccessGrantPurpose, AccessLevel
 from app.models.platform.app_service_registration import registration_live_sql
 from app.models.platform.guild import (
@@ -89,31 +90,11 @@ __all__ = [
 ]
 
 
-# --- The request context the statement reads back -----------------------------
-# NULLIF-guarded throughout: an unset value leaves nothing to cast, and a bare
-# ''::int raises and faults the whole statement (CLAUDE.md §6).
-_UID = "NULLIF(current_setting('app.current_user_id', true), '')::int"
-_GID = "NULLIF(current_setting('app.current_guild_id', true), '')::int"
-#: The community a content grant reaches, which a grantee carries instead of
-#: ``_GID``.
-_PAM_GID = "NULLIF(current_setting('app.pam_guild_id', true), '')::int"
-#: The community a settings grant reaches, which a grantee holding only one
-#: carries instead of either.
-_SETTINGS_GID = "NULLIF(current_setting('app.settings_guild_id', true), '')::int"
-#: Whichever of the three names the community this session is routed into.
-_ROUTED_GID = f"COALESCE({_GID}, {_PAM_GID}, {_SETTINGS_GID})"
-
-#: A grant that is in force right now — approved, unexpired, still standing.
-#: One definition, used by the statement below and by the ``access_grants``
-#: policies alike.
-LIVE_GRANT = "g.status = 'approved' AND g.expires_at > now()"
-
-
 def _live_grant(purpose: str, extra: str = "") -> str:
     return (
         "FROM public.access_grants g"
-        f" WHERE g.guild_id = {_ROUTED_GID}"
-        f" AND g.user_id = {_UID}"
+        f" WHERE g.guild_id = {gucs.ROUTED_GUILD_ID}"
+        f" AND g.user_id = {gucs.USER_ID}"
         f" AND g.purpose = '{purpose}'"
         f" AND {LIVE_GRANT}"
         f"{extra}"
@@ -174,18 +155,14 @@ STANDING_GUCS: tuple[str, ...] = (
 STANDING_SQL = f"""
 SELECT
   set_config('app.standing_guild_id',
-    COALESCE(
-      NULLIF(current_setting('app.current_guild_id', true), ''),
-      NULLIF(current_setting('app.pam_guild_id', true), ''),
-      NULLIF(current_setting('app.settings_guild_id', true), ''),
-      ''), true) AS standing_guild_id,
+    COALESCE({gucs.ROUTED_COMMUNITY}, ''), true) AS standing_guild_id,
   set_config('app.guild_admin', COALESCE((
       SELECT (m.role IN ({_ADMIN_RUNGS_SQL}))::text
       FROM public.guild_memberships m
-      WHERE m.guild_id = {_GID} AND m.user_id = {_UID}
+      WHERE m.guild_id = {gucs.GUILD_ID} AND m.user_id = {gucs.USER_ID}
     ), 'false'), true) AS guild_admin,
   set_config('app.guild_seat', COALESCE((
-      SELECT public.guild_superadmin({_ROUTED_GID}, {_UID})::text
+      SELECT public.guild_superadmin({gucs.ROUTED_GUILD_ID}, {gucs.USER_ID})::text
     ), 'false'), true) AS guild_seat,
   set_config('app.settings_rung', COALESCE((
       SELECT CASE
@@ -194,7 +171,7 @@ SELECT
       FROM (
         SELECT m.role::text AS rung
         FROM public.guild_memberships m
-        WHERE m.guild_id = {_GID} AND m.user_id = {_UID}
+        WHERE m.guild_id = {gucs.GUILD_ID} AND m.user_id = {gucs.USER_ID}
           AND m.role IN ({_ADMIN_RUNGS_SQL})
         UNION ALL
         SELECT g.access_level::text {_live_grant(AccessGrantPurpose.settings.value)}
@@ -211,36 +188,36 @@ SELECT
   set_config('app.member_initiatives', COALESCE((
       SELECT string_agg(DISTINCT im.initiative_id::text, ',')
       FROM initiative_members im
-      WHERE im.user_id = {_UID}
+      WHERE im.user_id = {gucs.USER_ID}
     ), ''), true) AS member_initiatives,
   set_config('app.manager_initiatives', COALESCE((
       SELECT string_agg(DISTINCT im.initiative_id::text, ',')
       FROM initiative_members im
       JOIN initiative_roles r ON r.id = im.role_id
-      WHERE im.user_id = {_UID} AND r.is_manager
+      WHERE im.user_id = {gucs.USER_ID} AND r.is_manager
     ), ''), true) AS manager_initiatives,
   set_config('app.member_role_ids', COALESCE((
       SELECT string_agg(DISTINCT im.role_id::text, ',')
       FROM initiative_members im
-      WHERE im.user_id = {_UID} AND im.role_id IS NOT NULL
+      WHERE im.user_id = {gucs.USER_ID} AND im.role_id IS NOT NULL
     ), ''), true) AS member_role_ids,
   set_config('app.role_grants', COALESCE((
       SELECT string_agg(DISTINCT im.initiative_id || ':' || rp.permission_key, ',')
       FROM initiative_members im
       JOIN initiative_role_permissions rp ON rp.initiative_role_id = im.role_id
-      WHERE im.user_id = {_UID} AND rp.enabled
+      WHERE im.user_id = {gucs.USER_ID} AND rp.enabled
     ), ''), true) AS role_grants,
   set_config('app.role_denies', COALESCE((
       SELECT string_agg(DISTINCT im.initiative_id || ':' || rp.permission_key, ',')
       FROM initiative_members im
       JOIN initiative_role_permissions rp ON rp.initiative_role_id = im.role_id
-      WHERE im.user_id = {_UID} AND NOT rp.enabled
+      WHERE im.user_id = {gucs.USER_ID} AND NOT rp.enabled
     ), ''), true) AS role_denies,
   set_config('app.enabled_tools', COALESCE((
       SELECT string_agg(DISTINCT i.id || ':' || t.tool, ',')
       FROM initiatives i
       JOIN initiative_members im
-        ON im.initiative_id = i.id AND im.user_id = {_UID}
+        ON im.initiative_id = i.id AND im.user_id = {gucs.USER_ID}
       CROSS JOIN LATERAL (VALUES {_tool_switch_values()}) AS t(tool, enabled)
       WHERE t.enabled
     ), ''), true) AS enabled_tools,
@@ -248,35 +225,22 @@ SELECT
       SELECT string_agg(DISTINCT im.initiative_id::text, ',')
       FROM initiative_members im
       JOIN initiative_roles r ON r.id = im.role_id
-      WHERE im.user_id = {_UID} AND r.override_share_restrictions
+      WHERE im.user_id = {gucs.USER_ID} AND r.override_share_restrictions
     ), ''), true) AS override_initiatives,
   set_config('app.guild_auth_ok',
     (SELECT public.guild_auth_satisfied()::text), true) AS guild_auth_ok,
   set_config('app.content_hold', COALESCE((
       SELECT (g.status = '{GuildStatus.read_only.value}')::text
       FROM public.guilds g
-      WHERE g.id = {_GID}
+      WHERE g.id = {gucs.GUILD_ID}
     ), 'false'), true) AS content_hold
 """
 
 
 # --- An installed app's standing ---------------------------------------------
-#: What the install routing names, read back the way the person statement reads
-#: the user and the community.
-_IID = "NULLIF(current_setting('app.current_install_id', true), '')::int"
-_CLIENT_ID = "NULLIF(current_setting('app.token_client_id', true), '')"
-_TOKEN_SCOPES = (
-    "COALESCE(string_to_array("
-    "NULLIF(current_setting('app.token_scopes', true), ''), ','), ARRAY[]::text[])"
-)
-_SCOPE_INITIATIVE = "NULLIF(current_setting('app.scope_initiative_id', true), '')::int"
 #: The ``apps:`` scope family names another app rather than a resource of the
 #: community's, so it adds nothing to what the install reads or writes.
 _APP_SCOPE_FAMILY = APP_SCOPE_PREFIX.rstrip(":")
-#: The purpose a member token's consent names; unset for app-wide consent, and
-#: for an installation token.
-_TOKEN_PURPOSE = "NULLIF(current_setting('app.token_purpose', true), '')"
-
 #: The community statuses whose content is in use, as the person seam reads
 #: them.
 _LIVE_STATUSES_SQL = sql_values(sorted(LIVE_STATUS_VALUES))
@@ -287,8 +251,8 @@ _LIVE_STATUSES_SQL = sql_values(sorted(LIVE_STATUS_VALUES))
 #: (``app.db.public_rls``).
 _IN_INSTALL_SECTOR = (
     f"r.purpose = '{IdentityPurpose.app.value}'"
-    f" AND r.sector_guild_id = {_GID}"
-    f" AND r.sector_id = {_IID}"
+    f" AND r.sector_guild_id = {gucs.GUILD_ID}"
+    f" AND r.sector_id = {gucs.INSTALL_ID}"
 )
 #: How long a replaced reference keeps resolving, as an interval.
 _GRACE_INTERVAL = f"interval '{int(REF_GRACE_PERIOD.total_seconds())} seconds'"
@@ -382,20 +346,20 @@ WITH consent AS (
   SELECT c.initiative_id,
          c.granted_access = '{ConsentAccess.read_write.value}' AS writes
   FROM app_member_consents c
-  WHERE {_UID} IS NOT NULL
-    AND c.install_id = {_IID}
-    AND c.user_id = {_UID}
-    AND c.purpose IS NOT DISTINCT FROM {_TOKEN_PURPOSE}
+  WHERE {gucs.USER_ID} IS NOT NULL
+    AND c.install_id = {gucs.INSTALL_ID}
+    AND c.user_id = {gucs.USER_ID}
+    AND c.purpose IS NOT DISTINCT FROM {gucs.TOKEN_PURPOSE}
     AND c.granted_access IS NOT NULL
     AND c.revoked_at IS NULL
-    AND (c.initiative_id IS NULL OR c.initiative_id = {_SCOPE_INITIATIVE})
+    AND (c.initiative_id IS NULL OR c.initiative_id = {gucs.SCOPE_INITIATIVE_ID})
 ),
 install AS (
   SELECT a.id, {ISSUABLE_SCOPES_SQL} AS granted_scopes,
          g.status = '{GuildStatus.read_only.value}' AS read_only
   FROM guild_apps a
-  JOIN public.guilds g ON g.id = {_GID}
-  WHERE a.id = {_IID}
+  JOIN public.guilds g ON g.id = {gucs.GUILD_ID}
+  WHERE a.id = {gucs.INSTALL_ID}
     AND a.enabled
     AND g.status IN ({_LIVE_STATUSES_SQL})
     AND EXISTS (
@@ -403,20 +367,20 @@ install AS (
       FROM public.app_service_registrations r
       JOIN public.publishers p ON p.id = r.publisher_id
       WHERE r.listing_uid = a.listing_uid
-        AND r.public_id = {_CLIENT_ID}
+        AND r.public_id = {gucs.TOKEN_CLIENT_ID}
         AND {registration_live_sql("r", "p")}
     )
-    AND ({_UID} IS NULL OR (
+    AND ({gucs.USER_ID} IS NULL OR (
       EXISTS (SELECT 1 FROM consent)
       AND EXISTS (
         SELECT 1
         FROM public.guild_memberships m
-        WHERE m.guild_id = {_GID} AND m.user_id = {_UID}
+        WHERE m.guild_id = {gucs.GUILD_ID} AND m.user_id = {gucs.USER_ID}
       )
       AND EXISTS (
         SELECT 1
         FROM public.users u
-        WHERE u.id = {_UID} AND u.status = '{UserStatus.active.value}'
+        WHERE u.id = {gucs.USER_ID} AND u.status = '{UserStatus.active.value}'
       )
     ))
 ),
@@ -431,14 +395,14 @@ granted_scope AS (
 token_scope AS (
   SELECT split_part(t.scope, ':', 1) AS resource,
          bool_or(split_part(t.scope, ':', 2) = 'write') AS writes
-  FROM unnest({_TOKEN_SCOPES}) AS t(scope)
+  FROM unnest({gucs.TOKEN_SCOPES}) AS t(scope)
   WHERE split_part(t.scope, ':', 1) <> '{_APP_SCOPE_FAMILY}'
   GROUP BY 1
 ),
 held AS (
   SELECT g.resource,
          g.writes AND t.writes AND NOT i.read_only
-           AND ({_UID} IS NULL OR EXISTS (SELECT 1 FROM consent c WHERE c.writes))
+           AND ({gucs.USER_ID} IS NULL OR EXISTS (SELECT 1 FROM consent c WHERE c.writes))
            AS writes
   FROM granted_scope g
   JOIN token_scope t ON t.resource = g.resource
@@ -450,14 +414,14 @@ member_role AS (
          COALESCE(r.override_share_restrictions, false) AS overrides
   FROM initiative_members im
   LEFT JOIN initiative_roles r ON r.id = im.role_id
-  WHERE {_UID} IS NOT NULL AND im.user_id = {_UID}
+  WHERE {gucs.USER_ID} IS NOT NULL AND im.user_id = {gucs.USER_ID}
 ),
 placed AS (
   SELECT DISTINCT p.initiative_id
   FROM app_placements p
   JOIN install i ON i.id = p.install_id
-  WHERE ({_SCOPE_INITIATIVE} IS NULL OR p.initiative_id = {_SCOPE_INITIATIVE})
-    AND ({_UID} IS NULL OR (
+  WHERE ({gucs.SCOPE_INITIATIVE_ID} IS NULL OR p.initiative_id = {gucs.SCOPE_INITIATIVE_ID})
+    AND ({gucs.USER_ID} IS NULL OR (
       p.initiative_id IN (SELECT mr.initiative_id FROM member_role mr)
       AND NOT EXISTS (
         SELECT 1 FROM consent c WHERE c.initiative_id <> p.initiative_id
@@ -488,7 +452,7 @@ granted AS (
   FROM placed p
   CROSS JOIN (VALUES {_tool_permission_values()}) AS k(resource, key, for_write)
   JOIN held h ON h.resource = k.resource AND (h.writes OR NOT k.for_write)
-  WHERE {_UID} IS NULL OR EXISTS (
+  WHERE {gucs.USER_ID} IS NULL OR EXISTS (
     SELECT 1 FROM permitted pm
     WHERE pm.initiative_id = p.initiative_id AND pm.key = k.key
   )
@@ -506,10 +470,10 @@ SELECT
   COALESCE((
       SELECT g.status = '{GuildStatus.read_only.value}'
       FROM public.guilds g
-      WHERE g.id = {_GID}
+      WHERE g.id = {gucs.GUILD_ID}
     ), false) AS read_only,
   set_config('app.standing_guild_id',
-    COALESCE(NULLIF(current_setting('app.current_guild_id', true), ''), ''),
+    COALESCE({gucs.GUILD_ID.text}, ''),
     true) AS standing_guild_id,
   set_config('app.guild_admin', 'false', true) AS guild_admin,
   set_config('app.guild_seat', 'false', true) AS guild_seat,
@@ -558,14 +522,14 @@ SELECT
   set_config('app.content_hold', COALESCE((
       SELECT (g.status = '{GuildStatus.read_only.value}')::text
       FROM public.guilds g
-      WHERE g.id = {_GID}
+      WHERE g.id = {gucs.GUILD_ID}
     ), 'false'), true) AS content_hold,
   (
     SELECT r.ref
     FROM public.identity_refs r
     WHERE {_IN_INSTALL_SECTOR}
       AND r.entity_type = '{IdentityEntity.guild.value}'
-      AND r.entity_id = {_GID}
+      AND r.entity_id = {gucs.GUILD_ID}
       AND r.retired_at IS NULL
       AND EXISTS (SELECT 1 FROM install)
   ) AS guild_ref,
