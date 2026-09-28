@@ -343,6 +343,42 @@ async def release_uploads(
     return await _drop_upload_rows(session, names)
 
 
+async def release_unshown(
+    guild_id: int, urls: Iterable[str | None], *, pasted_only: bool = False
+) -> Set[str]:
+    """Delete the ``uploads`` rows of the files these URLs name that nothing in
+    the community shows, once the change that let go of them has committed.
+
+    Asked across the whole community — archived and trashed rows included — on
+    a system session from its cohort routed into it, and committed there, so
+    whether a file is still shown does not depend on what the editor can see.
+    ``pasted_only`` keeps to the pictures a markdown body owns (see
+    :data:`PASTED_IMAGE_PREFIX`). Returns the stored names released; the caller
+    deletes their blobs with :func:`delete_blobs`.
+    """
+    from app.db import cohorts
+    from app.db.request_context import SystemGuild
+    from app.db.session import set_rls_context
+
+    names = upload_names(u for u in urls if u and (not pasted_only or _is_pasted(u)))
+    if not names:
+        return set()
+    try:
+        async with cohorts.system_session(guild_id) as session:
+            await set_rls_context(session, SystemGuild(guild_id))
+            unshown = {
+                n for n in names if not await _still_shown(session, n, leaving={})
+            }
+            released = await _drop_upload_rows(session, unshown)
+            await session.commit()
+    except Exception:
+        # The edit has landed; a file that could not be released stays, which
+        # costs storage and nothing else.
+        logger.exception("Could not release uploads in guild %s", guild_id)
+        return set()
+    return released
+
+
 async def release_pasted_images(
     session, urls: Iterable[str], *, leaving: Leaving
 ) -> Set[str]:
@@ -387,7 +423,7 @@ async def release_unclaimed_pasted_images(session, *, now: datetime) -> Set[str]
 
     Each pasted picture is looked at once: one that something shows is marked
     ``claimed_at`` and left to the edits and purges that take it out
-    (:func:`release_pasted_images`, :func:`purge_pasted_images`).
+    (:func:`release_unshown`, :func:`purge_pasted_images`).
 
     Runs in one routed guild with authority to delete uploads (the trash
     sweep). Returns the stored names released; the caller commits and then

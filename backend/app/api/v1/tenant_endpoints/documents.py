@@ -773,12 +773,12 @@ async def delete_document_version(
                     document.featured_image_url = promoted.file_url
                 else:
                     document.featured_image_url = None
-    await session.flush()
-
-    released = await attachments_service.release_uploads(session, [deleted_url])
     await session.commit()
 
-    # Delete the blob after the row is gone so a failed commit doesn't orphan files.
+    # Once the version is gone, and only if nothing else shows its file.
+    released = await attachments_service.release_unshown(
+        guild_context.guild_id, [deleted_url]
+    )
     attachments_service.delete_blobs(guild_context.guild_id, released)
 
 
@@ -923,12 +923,11 @@ async def update_document(
         # What the edit took out goes once nothing else shows it. An installed
         # app does not manage the community's uploads; what its edit let go of
         # stays for a person to clear.
-        if current_user is not None and removed_upload_urls:
-            await session.flush()
-            released = await attachments_service.release_uploads(
-                session, removed_upload_urls
-            )
         await session.commit()
+        if current_user is not None and removed_upload_urls:
+            released = await attachments_service.release_unshown(
+                guild_context.guild_id, removed_upload_urls
+            )
         # Invalidate any in-memory collaboration room so the next session
         # loads fresh state from the database. If a room has active
         # collaborators their in-memory state wins until they disconnect.

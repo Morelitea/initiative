@@ -2281,3 +2281,53 @@ async def test_initiative_member_search_finds_a_misspelled_name(
     )
     assert response.status_code == 200, response.text
     assert member.user.username in {u["username"] for u in response.json()["items"]}
+
+
+async def test_changing_what_an_initiative_allows_rechecks_its_members(
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
+):
+    """Switching a tool off or changing what a role may do re-checks the open
+    connections of the people it applies to once it commits."""
+    from app.api.v1.tenant_endpoints import initiatives as initiatives_routes
+    from app.models.tenant.initiative import InitiativeRoleModel
+
+    manager = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    member = await acting_user(
+        guild=manager.guild, initiative=manager.initiative, initiative_role="member"
+    )
+    initiative_id = manager.initiative.id
+    rechecked: list[set[int]] = []
+
+    async def _record(guild_id, user_ids):
+        rechecked.append(set(user_ids))
+
+    monkeypatch.setattr(initiatives_routes.content_sockets, "refresh_users", _record)
+
+    switched = await client.patch(
+        manager.g(f"/initiatives/{initiative_id}"),
+        headers=manager.headers,
+        json={"documents_enabled": False},
+    )
+    assert switched.status_code == 200, switched.text
+    assert rechecked.pop() == {manager.user.id, member.user.id}
+
+    member_role = (
+        await session.exec(
+            select(InitiativeRoleModel).where(
+                InitiativeRoleModel.initiative_id == initiative_id,
+                InitiativeRoleModel.name == "member",
+            )
+        )
+    ).one()
+    roles = await client.get(
+        manager.g(f"/initiatives/{initiative_id}/roles"), headers=manager.headers
+    )
+    (current,) = [r for r in roles.json() if r["id"] == member_role.id]
+    flipped = not current["permissions"]["create_documents"]
+    changed = await client.patch(
+        manager.g(f"/initiatives/{initiative_id}/roles/{member_role.id}"),
+        headers=manager.headers,
+        json={"permissions": {"create_documents": flipped}},
+    )
+    assert changed.status_code == 200, changed.text
+    assert rechecked.pop() == {member.user.id}

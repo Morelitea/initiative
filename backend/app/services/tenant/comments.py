@@ -980,8 +980,8 @@ async def update_comment(
 ) -> tuple[Comment, set[str]]:
     """Update a comment's content. Only the original author can edit.
 
-    Also returns the pasted pictures the edit took out that nothing else shows,
-    now released; their files are the caller's to delete once it has committed.
+    Also returns the addresses of the pictures the edit took out, for the
+    caller to release once it has committed (``release_unshown``).
     """
     comment = await _get_comment(session, comment_id=comment_id)
     if not comment:
@@ -1006,12 +1006,9 @@ async def update_comment(
     comment.updated_at = datetime.now(timezone.utc)
     session.add(comment)
     await session.flush()
-    released = await attachments_service.release_pasted_images(
-        session,
-        attachments_service.upload_urls_in_markdown(previous_content)
-        - attachments_service.upload_urls_in_markdown(content),
-        leaving={Comment: {cast(int, comment.id)}},
-    )
+    let_go = attachments_service.upload_urls_in_markdown(
+        previous_content
+    ) - attachments_service.upload_urls_in_markdown(content)
     await content_references.sync_for_comment(
         session, comment, author_id=cast(int, user.id)
     )
@@ -1020,7 +1017,7 @@ async def update_comment(
     # carry the reactions the comment still has — serializing without them
     # would blank the chips until the next refetch.
     await attach_reactions(session, comment)
-    return comment, released
+    return comment, let_go
 
 
 async def recent_activity(

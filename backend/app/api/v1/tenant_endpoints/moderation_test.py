@@ -12,7 +12,7 @@ from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.core.intake import IntakeStream
 from app.models.platform.app_setting import AppSetting
-from app.models.tenant.intake import IntakeBinding
+from app.models.tenant.intake import IntakeBinding, IntakeCase
 from app.models.tenant.comment import Comment
 from app.models.tenant.moderation import ModerationReport, ModerationReportReporter
 from app.models.tenant.task import Task
@@ -332,7 +332,8 @@ async def test_the_same_person_reporting_twice_does_not_raise_the_count(client, 
 async def test_a_community_a_reporter_is_not_in_places_nothing_there(
     client, session, scene, operations
 ):
-    """Ids are unique only within a schema, so a named community is checked."""
+    """Ids are unique only within a schema, so a named community is checked,
+    and a reporter who cannot see the thing there cannot report it."""
     outsider = await create_user(session)
     await set_rls_context(session, Unattributed())
 
@@ -346,10 +347,8 @@ async def test_a_community_a_reporter_is_not_in_places_nothing_there(
         },
         headers=get_auth_headers(outsider),
     )
-    # Accepted, and routed to the platform rather than into a community the
-    # reporter has no standing in.
-    assert response.status_code == 202
-    assert response.json()["venue"] == ReportVenue.platform.value
+    assert response.status_code == 404
+    assert response.json()["detail"] == "MODERATION_TARGET_NOT_FOUND"
 
     await set_rls_context(session, SystemGuild(scene["guild"].id))
     assert (await session.exec(select(ModerationReport))).all() == []
@@ -488,6 +487,11 @@ async def test_escalating_opens_a_platform_case(client, session, scene, operatio
     # The reporters travel with an escalation: the platform is where good
     # faith is judged.
     assert str(scene["member"].user.id) in (task.description or "")
+    # Named with its community, since content ids are numbered per community.
+    case = (await session.exec(select(IntakeCase))).one()
+    assert case.dedupe_key == (
+        f"report:{scene['guild'].id}:comment:{scene['comment'].id}"
+    )
 
 
 @pytest.mark.parametrize(

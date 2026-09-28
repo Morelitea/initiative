@@ -50,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A picture shared by several pages** stays while any of them still shows it, including pages you can't open.
 - **Signing out of the app stops its notifications**, and so does signing out other devices or resetting your password.
 - **Whiteboards and offline edits** are no longer lost.
 - **Large spreadsheets** keep up with your typing.

@@ -177,6 +177,19 @@ async def _read_initiative(
     return serialize_initiative(initiative, context=guild_context)
 
 
+async def _member_ids(
+    session: SessionDep, initiative_id: int, *, role_id: int | None = None
+) -> list[int]:
+    """The accounts in an initiative, or those holding one of its roles —
+    whose open connections a change to it re-checks once it commits."""
+    stmt = select(InitiativeMember.user_id).where(
+        InitiativeMember.initiative_id == initiative_id
+    )
+    if role_id is not None:
+        stmt = stmt.where(InitiativeMember.role_id == role_id)
+    return list((await session.exec(stmt)).all())
+
+
 async def _require_manager_access(
     session: SessionDep,
     initiative: Initiative,
@@ -908,7 +921,10 @@ async def update_initiative(
     for field, value in update_data.items():
         setattr(initiative, field, value)
     session.add(initiative)
+    switched = any(field.endswith("_enabled") for field in update_data)
+    members = await _member_ids(session, initiative_id) if switched else []
     await session.commit()
+    await content_sockets.refresh_users(guild_context.guild_id, members)
     return await _read_initiative(initiative_id, session, guild_context)
 
 
@@ -931,6 +947,7 @@ async def delete_initiative(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=InitiativeMessages.CANNOT_DELETE_DEFAULT,
         )
+    members = await _member_ids(session, initiative_id)
     retention_days = await trash(
         session,
         initiative,
@@ -946,6 +963,7 @@ async def delete_initiative(
         detail={"via": "trash", "retention_days": retention_days},
     )
     await session.commit()
+    await content_sockets.refresh_users(guild_context.guild_id, members)
 
 
 # ============================================================================
@@ -1082,6 +1100,7 @@ async def update_initiative_role(
         role.display_name = role_in.display_name
         session.add(role)
 
+    was_manager = role.is_manager
     # Update is_manager if provided (not for built-in roles)
     if role_in.is_manager is not None:
         if role.is_builtin:
@@ -1151,7 +1170,13 @@ async def update_initiative_role(
             },
         )
 
+    holders = (
+        await _member_ids(session, initiative_id, role_id=role.id)
+        if permissions_changed or role.is_manager != was_manager
+        else []
+    )
     await session.commit()
+    await content_sockets.refresh_users(guild_context.guild_id, holders)
     member_count = await initiatives_service.count_role_members(
         session, role_id=role.id
     )
@@ -1469,6 +1494,7 @@ async def add_initiative_member(
         )
 
     await session.commit()
+    await content_sockets.refresh_users(guild_context.guild_id, [payload.user_id])
     read = await _read_initiative(initiative_id, session, guild_context)
     if created:
         await notifications_service.notify(

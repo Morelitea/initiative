@@ -574,7 +574,7 @@ async def update_task(
         await session.rollback()
         raise
 
-    released_images: set[str] = set()
+    let_go: set[str] = set()
     if task.description != previous_description:
         await task_description_service.description_saved(
             session,
@@ -585,16 +585,16 @@ async def update_task(
         # An installed app does not manage the community's uploads; a picture
         # its edit took out of the description stays for a person to clear.
         if current_user is not None:
-            released_images = await attachments_service.release_pasted_images(
-                session,
-                attachments_service.upload_urls_in_markdown(previous_description)
-                - attachments_service.upload_urls_in_markdown(task.description),
-                leaving={Task: {task.id}},
-            )
+            let_go = attachments_service.upload_urls_in_markdown(
+                previous_description
+            ) - attachments_service.upload_urls_in_markdown(task.description)
 
     _touch_project(project, now)
     await session.commit()
     # A picture taken out of the description goes once the edit has landed.
+    released_images = await attachments_service.release_unshown(
+        guild_context.guild_id, let_go, pasted_only=True
+    )
     attachments_service.delete_blobs(guild_context.guild_id, released_images)
     return await _response(session, task.id, TaskMessages.MISSING_AFTER_UPDATE)
 
