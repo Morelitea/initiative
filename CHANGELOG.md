@@ -38,7 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Ticking tasks in a table is instant.**
 - **Switching communities is quicker.**
 - **The trash shows a page at a time**, newest first.
-- **Confirming an address for the first time**, by an emailed code or by your organization's sign-in, starts that account fresh: any password, passkey or second factor set on it while the address was unconfirmed is removed. Accounts with a confirmed address are unaffected.
+- **If you never confirmed your email address**, confirming it now, with an emailed code or through your organization's sign-in, clears the account's password, passkeys and second factor. Your communities and content stay; set up new sign-in methods from Security. If your address is already confirmed, nothing changes.
 - **Platform account actions reach only accounts at or below your own role.** Reactivate is for deactivated accounts; lift a suspension or restore a deletion from their own actions.
 - **Calendar export saves the dates you're viewing.**
 - **API:** the member list (`GET /c/{guild_id}/users/`) and both trash lists return pages (`page`, `page_size`; trash's `total` is now `total_count`), and calendar entries and `/me/calendar-events/export.ics` require `start_after` and `start_before`, at most 400 days apart.
