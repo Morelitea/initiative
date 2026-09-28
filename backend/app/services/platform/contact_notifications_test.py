@@ -183,6 +183,12 @@ class TestMessageRequests:
         await client.post(
             f"/api/v1/me/connections/{ada.user.id}/accept", headers=bo.headers
         )
+        # Closed, so asking again writes a grant rather than finding the one the
+        # connection opened.
+        closed = await client.delete(
+            f"/api/v1/me/message-requests/{bo.user.id}", headers=ada.headers
+        )
+        assert closed.status_code == 204, closed.text
 
         response = await client.post(
             "/api/v1/me/message-requests",
@@ -190,6 +196,7 @@ class TestMessageRequests:
             headers=ada.headers,
         )
         assert response.status_code == 202, response.text
+        assert response.json()["state"] == "accepted"
 
         assert await _lines(session, bo.user.id, "message_request_received") == []
 
