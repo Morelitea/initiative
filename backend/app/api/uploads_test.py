@@ -16,6 +16,8 @@ from app.testing.factories import (
     create_guild_auth_policy,
     create_guild_membership,
     create_initiative,
+    create_initiative_member,
+    create_upload,
     create_user,
     get_auth_headers,
     get_auth_token,
@@ -410,22 +412,19 @@ async def test_upload_suspended_guild_member_404_grant_still_served(
 
     from app.models.platform.access_grant import AccessGrant
     from app.models.platform.guild import GuildStatus
-    from app.models.tenant.upload import Upload
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild)
     initiative = await create_initiative(session, guild, user)
     _stage_upload(guild.id, "suspended_guild.txt")
-    await route_session_to_guild(session, guild.id)
-    session.add(
-        Upload(
-            filename="suspended_guild.txt",
-            created_by=user.id,
-            size_bytes=5,
-            initiative_id=initiative.id,
-            claimed_at=datetime.now(timezone.utc),
-        )
+    await create_upload(
+        session,
+        guild,
+        user,
+        filename="suspended_guild.txt",
+        initiative_id=initiative.id,
+        claimed_at=datetime.now(timezone.utc),
     )
     guild.status = GuildStatus.suspended.value
     await session.commit()
@@ -595,3 +594,42 @@ async def test_a_row_without_a_recorded_type_falls_back_to_its_name(
     assert markup.status_code == 200
     assert markup.headers["content-disposition"] == "attachment"
     assert markup.headers["content-security-policy"] == "script-src 'none'"
+
+
+async def test_an_upload_is_reached_through_the_initiative_that_shows_it(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Not yet saved anywhere, a file is its uploader's alone. Saved into an
+    initiative's content, that initiative's members read it and nobody else
+    in the guild does. Saved into content of the whole guild, every member
+    does."""
+    from datetime import datetime, timezone
+
+    uploader = await create_user(session)
+    guild = await create_guild(session, creator=uploader)
+    await create_guild_membership(session, user=uploader, guild=guild)
+    member = await create_user(session)
+    await create_guild_membership(session, user=member, guild=guild)
+    outsider = await create_user(session)
+    await create_guild_membership(session, user=outsider, guild=guild)
+    initiative = await create_initiative(session, guild, uploader)
+    await create_initiative_member(session, initiative, member)
+    now = datetime.now(timezone.utc)
+    kept = {
+        "draft.txt": {},
+        "initiative.txt": {"initiative_id": initiative.id, "claimed_at": now},
+        "guild.txt": {"claimed_at": now},
+    }
+    for name, overrides in kept.items():
+        _stage_upload(guild.id, name)
+        await create_upload(session, guild, uploader, filename=name, **overrides)
+
+    async def status(user, name: str) -> int:
+        response = await client.get(
+            f"/uploads/{guild.id}/{name}", headers=get_auth_headers(user)
+        )
+        return response.status_code
+
+    assert [await status(uploader, name) for name in kept] == [200, 200, 200]
+    assert [await status(member, name) for name in kept] == [404, 200, 200]
+    assert [await status(outsider, name) for name in kept] == [404, 404, 200]
