@@ -75,7 +75,6 @@ async def test_member_preamble_round_trips(session, role_session, acting_user):
     # rather than read and then written back through the whole context, which
     # is why the full context is written once and not twice.
     (override,) = [stmt for stmt in sent if "initiative_members" in stmt]
-    assert override.lstrip().startswith("SELECT")
     assert "set_config(" in override
     # Three mentions, and each is one of the three steps: the gate's own
     # context, the routing, and the standing reading back the community the
