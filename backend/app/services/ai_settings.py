@@ -68,6 +68,7 @@ from app.services.webhook_target_url import (
     WebhookTargetUrlPrivateError,
     assert_target_url_is_public_async,
 )
+from app.db.request_context import SystemGuild
 
 logger = logging.getLogger(__name__)
 
@@ -136,8 +137,6 @@ _cache: _PlatformConfig | None = None
 async def _load_platform_connections() -> tuple[_ConnRow, ...]:
     """Read the operator connections on the system engine (app_admin-only table)."""
     async with db_session.system_engine.connect() as conn:
-        # Pooled connection: shed any guild role a prior checkout assumed.
-        await conn.execute(text("SELECT set_config('role', 'none', false)"))
         conn_rows = (
             await conn.execute(
                 text(
@@ -251,7 +250,7 @@ async def _load_guild_key(guild_id: int, connection_id: int) -> str | None:
     engine, and a member's generation needs the key of the connection it runs
     on."""
     async with cohorts.system_session(guild_id) as system, system.begin():
-        await set_rls_context(system, guild_id=guild_id)
+        await set_rls_context(system, SystemGuild(guild_id))
         return (
             await system.exec(
                 select(GuildAIConnectionKey.api_key_encrypted).where(

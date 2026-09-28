@@ -97,6 +97,7 @@ from app.services.webhook_target_url import (
     WebhookTargetUrlError,
     WebhookTargetUrlPrivateError,
 )
+from app.db.request_context import SystemGuild, Unattributed
 
 logger = logging.getLogger(__name__)
 
@@ -768,7 +769,7 @@ async def _load_for_flow(
     """The install and connection a state names, with the session — one from
     its community's cohort — routed into that community, or ``None`` when the
     flow can no longer finish."""
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     guild = (
         await session.exec(select(Guild).where(Guild.id == state.guild_id))
     ).first()
@@ -790,7 +791,7 @@ async def _load_for_flow(
         if member is None:
             return None
     session.expunge_all()
-    await set_rls_context(session, guild_id=state.guild_id)
+    await set_rls_context(session, SystemGuild(state.guild_id))
     app = (
         await session.exec(select(GuildApp).where(GuildApp.id == state.install_id))
     ).first()
@@ -840,7 +841,7 @@ async def _person_outcome(
         return "sign_in_required"
     if state.user_id is None:
         async with cohorts.system_session(state.guild_id) as session:
-            await set_rls_context(session)
+            await set_rls_context(session, Unattributed())
             holds = (
                 await session.exec(
                     select(func.guild_superadmin(state.guild_id, state.started_by))

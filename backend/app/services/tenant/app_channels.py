@@ -53,6 +53,7 @@ from app.services.marketplace.service_apps import ENDPOINT_ID_PREFIX
 from app.services.tenant import app_config as app_config_service
 from app.services.tenant import app_connection_flows as flows
 from app.services.tenant import guild_apps as guild_apps_service
+from app.db.request_context import SystemGuild, Unattributed
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +125,7 @@ async def _route(session: AsyncSession, guild_id: int, *, read_only: bool) -> No
     policies decide from here; a frozen guild is routed to its SELECT-only role
     so no write can land in it whatever the caller asked for."""
     session.expunge_all()
-    await set_rls_context(session, guild_id=guild_id, read_only=read_only)
+    await set_rls_context(session, SystemGuild(guild_id, read_only=read_only))
 
 
 async def _install_guild_ref(session: AsyncSession, app: GuildApp) -> str:
@@ -140,7 +141,7 @@ async def _install_guild_ref(session: AsyncSession, app: GuildApp) -> str:
 
 
 async def _guild_row(session: AsyncSession, guild_id: int) -> Optional[Guild]:
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     return (await session.exec(select(Guild).where(Guild.id == guild_id))).first()
 
 

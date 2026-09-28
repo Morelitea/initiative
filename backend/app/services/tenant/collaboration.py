@@ -35,6 +35,7 @@ from app.services.tenant.collaborative_resources import (
     YJS_UPDATED_COLUMN,
     resource_for,
 )
+from app.db.request_context import SystemGuild
 
 logger = logging.getLogger(__name__)
 
@@ -416,7 +417,7 @@ class CollaborationManager:
         them depends on whose request happened to be last in the room.
         """
         async with cohorts.system_session(room.guild_id) as session:
-            await set_rls_context(session, guild_id=room.guild_id)
+            await set_rls_context(session, SystemGuild(room.guild_id))
             await self._write_room(room, session)
 
     async def leave(self, guild_id: int, resource_type: str, resource_id: int) -> None:

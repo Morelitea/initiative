@@ -63,6 +63,7 @@ from app.models.tenant.queue import QueueItem
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.task import Task, TaskAssignee
 from app.services.platform.users import visible_to_other_people
+from app.db.request_context import SystemGuild
 
 _ADMIN_RUNGS = [rung for rung in GUILD_LADDER if rung.reaches(GuildRole.admin)]
 
@@ -184,7 +185,7 @@ async def roster_session(session: AsyncSession) -> AsyncIterator[AsyncSession]:
         return
     guild_id = routed_guild_id(session)
     async with cohorts.system_session(guild_id) as probe, probe.begin():
-        await set_rls_context(probe, guild_id=guild_id)
+        await set_rls_context(probe, SystemGuild(guild_id))
         yield probe
 
 

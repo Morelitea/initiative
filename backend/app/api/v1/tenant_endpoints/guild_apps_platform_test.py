@@ -1041,6 +1041,13 @@ class TestPlacementRoutes:
         suffix = "" if initiative_id is None else f"/{initiative_id}"
         return actor.g(f"/apps/{app_id}/placements{suffix}")
 
+    @staticmethod
+    async def _placements(client: AsyncClient, actor, app_id: int):
+        """The placements as the app's own read carries them."""
+        read = await client.get(actor.g(f"/apps/{app_id}"), headers=actor.headers)
+        assert read.status_code == 200, read.text
+        return read.json()["placements"]
+
     async def test_the_seat_places_an_app_with_chosen_roles(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
@@ -1059,9 +1066,7 @@ class TestPlacementRoutes:
             "role_ids": [member_role],
         }
 
-        listed = await client.get(self._path(a, app.id), headers=a.headers)
-        assert listed.status_code == 200
-        assert listed.json() == [
+        assert await self._placements(client, a, app.id) == [
             {"initiative_id": a.initiative.id, "role_ids": [member_role]}
         ]
 
@@ -1078,8 +1083,9 @@ class TestPlacementRoutes:
             json={"role_ids": [member_role]},
         )
         assert response.status_code == 200, response.text
-        listed = (await client.get(self._path(a, app.id), headers=a.headers)).json()
-        assert listed == [{"initiative_id": a.initiative.id, "role_ids": [member_role]}]
+        assert await self._placements(client, a, app.id) == [
+            {"initiative_id": a.initiative.id, "role_ids": [member_role]}
+        ]
 
     async def test_every_member_may_read_the_placements(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
@@ -1089,9 +1095,8 @@ class TestPlacementRoutes:
         app = await _installed(session, a, placed=[a.initiative.id])
         admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
 
-        response = await client.get(self._path(admin, app.id), headers=admin.headers)
-        assert response.status_code == 200, response.text
-        assert [p["initiative_id"] for p in response.json()] == [a.initiative.id]
+        placements = await self._placements(client, admin, app.id)
+        assert [p["initiative_id"] for p in placements] == [a.initiative.id]
 
     async def test_an_admin_below_the_seat_does_not_place(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
@@ -1156,8 +1161,7 @@ class TestPlacementRoutes:
             self._path(a, app.id, a.initiative.id), headers=a.headers
         )
         assert response.status_code == 204
-        listed = (await client.get(self._path(a, app.id), headers=a.headers)).json()
-        assert listed == []
+        assert await self._placements(client, a, app.id) == []
 
     async def test_a_mandatory_app_may_be_removed_from_one_initiative(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration

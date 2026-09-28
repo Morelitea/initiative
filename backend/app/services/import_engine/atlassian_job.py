@@ -38,7 +38,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import ImportEngineMessages
 from app.core.version import get_version
-from app.db.session import SYSTEM_SATISFIED
 from app.models.platform.user import User, UserStatus
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
 from app.core.encryption import (
@@ -361,7 +360,7 @@ async def _convert_export(
     include_attachments = params.get("include_attachments") is not False
     async with open_user_session() as user_session:
         context = await establish_guild_access(
-            user_session, user, guild_id, satisfied_providers=SYSTEM_SATISFIED
+            user_session, user, guild_id, on_behalf=True
         )
         if context.content_read_only or context.is_pam or context.grant is not None:
             raise ImportEngineError(ImportEngineMessages.IMPORT_WRITE_REQUIRED)
@@ -603,7 +602,7 @@ async def _read(
     # the read, which can take far longer than a routed session may live.
     async with open_user_session() as user_session:
         context = await establish_guild_access(
-            user_session, user, guild_id, satisfied_providers=SYSTEM_SATISFIED
+            user_session, user, guild_id, on_behalf=True
         )
         if context.content_read_only or context.is_pam or context.grant is not None:
             raise ImportEngineError(ImportEngineMessages.IMPORT_WRITE_REQUIRED)

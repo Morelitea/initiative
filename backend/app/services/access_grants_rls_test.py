@@ -26,6 +26,8 @@ from app.testing import (
     create_user,
 )
 from app.testing.schema_harness import route_session_to_guild
+from app.db.guild_standing import GuildContext
+from app.db.request_context import ContentGrantee, Platform
 
 
 async def _set_app_user(session: AsyncSession) -> None:
@@ -232,13 +234,13 @@ async def test_no_pam_flag_sees_nothing(session: AsyncSession):
 
     try:
         await _set_app_user(session)
-        # Same guild id, but NO pam flag — the grant is inactive.
+        # Same guild id, but the standing found no live grant — it is inactive.
+        inactive = GuildContext(
+            guild=None, user_id=support.id, guild_id=guild.id
+        ).with_standing({"standing_guild_id": str(guild.id)})
         await set_rls_context(
             session,
-            user_id=support.id,
-            pam_guild_id=guild.id,
-            pam_read=False,
-            pam_write=False,
+            ContentGrantee(guild_id=guild.id, user_id=support.id, standing=inactive),
         )
         # An inactive grant is not routed: no guild role is assumed (set_rls_context
         # resets to the login role) and the guild schema is not on the search_path.
@@ -291,7 +293,7 @@ async def test_request_role_cannot_self_insert_an_access_grant(session: AsyncSes
     target = await create_guild(session)  # a guild the attacker is not a member of
 
     try:
-        await set_rls_context(session, user_id=attacker.id, platform_role="member")
+        await set_rls_context(session, Platform(user_id=attacker.id, tier="member"))
         with pytest.raises(Exception) as exc:
             await session.exec(
                 text(

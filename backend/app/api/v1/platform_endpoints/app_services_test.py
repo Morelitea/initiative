@@ -50,6 +50,14 @@ async def _seed(session: AsyncSession, **overrides) -> AppServiceRegistration:
     )
 
 
+async def _listed(client: AsyncClient, headers: dict[str, str], row_id: int) -> dict:
+    """One registration as the operator's list shows it."""
+    response = await client.get(BASE, headers=headers)
+    assert response.status_code == 200, response.text
+    (entry,) = [entry for entry in response.json() if entry["id"] == row_id]
+    return entry
+
+
 # --- capability gating -------------------------------------------------------
 
 
@@ -69,7 +77,6 @@ async def test_non_owner_tiers_are_refused(
     create = await client.post(BASE, headers=headers, json=NEW)
     assert create.status_code == 403
     assert create.json()["detail"] == AuthMessages.INSUFFICIENT_PRIVILEGES
-    assert (await client.get(f"{BASE}{row.id}", headers=headers)).status_code == 403
     assert (
         await client.patch(f"{BASE}{row.id}", headers=headers, json={"enabled": False})
     ).status_code == 403
@@ -196,9 +203,7 @@ async def test_the_scope_ceiling_round_trips(
 ):
     headers = await _owner_headers(session)
     row = await _seed(session)
-    assert (await client.get(f"{BASE}{row.id}", headers=headers)).json()[
-        "scope_ceiling"
-    ] == []
+    assert (await _listed(client, headers, row.id))["scope_ceiling"] == []
 
     response = await client.patch(
         f"{BASE}{row.id}",
@@ -312,7 +317,7 @@ async def test_owner_deletes_a_registration(client: AsyncClient, session: AsyncS
     row = await _seed(session)
 
     assert (await client.delete(f"{BASE}{row.id}", headers=headers)).status_code == 204
-    assert (await client.get(f"{BASE}{row.id}", headers=headers)).status_code == 404
+    assert (await client.get(BASE, headers=headers)).json() == []
 
 
 async def test_missing_registration_is_a_404(
@@ -320,7 +325,9 @@ async def test_missing_registration_is_a_404(
 ):
     headers = await _owner_headers(session)
 
-    response = await client.get(f"{BASE}999999", headers=headers)
+    response = await client.patch(
+        f"{BASE}999999", headers=headers, json={"enabled": False}
+    )
 
     assert response.status_code == 404
     assert response.json()["detail"] == AppServiceMessages.NOT_FOUND
@@ -377,7 +384,7 @@ async def test_switching_a_publisher_off_takes_its_apps_out_of_service(
 ):
     headers = await _owner_headers(session)
     row = await _seed(session)
-    assert (await client.get(f"{BASE}{row.id}", headers=headers)).json()["live"]
+    assert (await _listed(client, headers, row.id))["live"]
 
     off = await client.patch(
         f"{PUBLISHERS}{row.publisher_id}",
@@ -388,7 +395,7 @@ async def test_switching_a_publisher_off_takes_its_apps_out_of_service(
     assert off.status_code == 200, off.text
     assert off.json()["enabled"] is False
     assert off.json()["display_name"] == "Acme, paused"
-    read = (await client.get(f"{BASE}{row.id}", headers=headers)).json()
+    read = await _listed(client, headers, row.id)
     assert read["enabled"] is True
     assert read["publisher_enabled"] is False
     assert read["live"] is False
@@ -449,7 +456,7 @@ async def test_the_form_shows_the_fields_the_listing_asks_for(
     headers = await _owner_headers(session)
     row = await _seed(session)
 
-    body = (await client.get(f"{BASE}{row.id}", headers=headers)).json()
+    body = await _listed(client, headers, row.id)
 
     assert [field["key"] for field in body["vendor_fields"]] == [
         "client_id",

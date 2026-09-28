@@ -46,6 +46,7 @@ from app.models.tenant.moderation import ModerationReport, ModerationReportRepor
 from app.models.tenant.search_entry import SearchEntry
 from app.services.platform.intake import CaseRefs, open_case
 from app.services.tenant.search import search_scope_clause
+from app.db.request_context import SystemGuild
 
 logger = logging.getLogger(__name__)
 
@@ -204,7 +205,7 @@ async def _place_in_initiative(
     must not be able to read it back.
     """
     async with cohorts.system_session(guild_id) as session:
-        await set_rls_context(session, guild_id=guild_id)
+        await set_rls_context(session, SystemGuild(guild_id))
         # Two people reporting the same thing in the same instant both look for
         # an open row before either writes one. They queue here instead, so the
         # second joins the first rather than losing the unique index. Held for

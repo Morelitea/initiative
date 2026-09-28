@@ -29,6 +29,7 @@ from app.models.platform.billing import (
 from app.models.platform.guild import Guild, GuildMembership, GuildStatus
 from app.models.platform.guild_administration import GuildAdministration
 from app.schemas.platform.billing import BillingGuildTierApply, BillingGuildTierRead
+from app.db.request_context import SystemGuild
 
 logger = logging.getLogger(__name__)
 
@@ -456,5 +457,5 @@ async def guild_storage_usage(guild_id: int) -> int:
         if exists is None:
             raise BillingGuildNotFoundError(guild_id)
 
-        await set_rls_context(session, guild_id=guild_id)
+        await set_rls_context(session, SystemGuild(guild_id))
         return await get_guild_storage_usage(session)

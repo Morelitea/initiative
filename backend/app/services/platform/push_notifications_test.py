@@ -213,10 +213,12 @@ async def test_access_token_is_reused_until_it_lapses(monkeypatch):
     from app.services.platform import push_config, push_notifications
 
     built: list[dict] = []
+    made: list["_Credentials"] = []
 
     class _Credentials:
         def __init__(self, info):
             built.append(info)
+            made.append(self)
             self.valid = False
             self.token = None
             self.refreshes = 0
@@ -245,11 +247,11 @@ async def test_access_token_is_reused_until_it_lapses(monkeypatch):
 
     assert await push_notifications._get_fcm_access_token(_cfg("a")) == "token-1"
     assert await push_notifications._get_fcm_access_token(_cfg("a")) == "token-1"
-    assert push_notifications._credentials[1].refreshes == 1
+    assert made[0].refreshes == 1
 
-    push_notifications._credentials[1].valid = False
+    made[0].valid = False
     assert await push_notifications._get_fcm_access_token(_cfg("a")) == "token-1"
-    assert push_notifications._credentials[1].refreshes == 2
+    assert made[0].refreshes == 2
 
     assert await push_notifications._get_fcm_access_token(_cfg("b")) == "token-2"
     assert built == [{"account": "a"}, {"account": "b"}]

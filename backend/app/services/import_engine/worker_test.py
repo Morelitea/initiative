@@ -16,6 +16,7 @@ from app.services.guild_sweeps import Scope, each_guild
 from app.services.import_engine import worker as import_worker
 from app.services.storage import get_guild_storage
 from app.testing import create_guild, create_import_job, route_session_to_guild
+from app.db.request_context import SystemGuild
 
 
 @pytest.fixture(autouse=True)
@@ -102,5 +103,5 @@ async def test_the_apply_session_comes_from_the_communitys_cohort(session):
         maker = cohorts.request_sessionmaker(guild.id)
         async with import_worker._open_user_session(guild.id) as user_session:
             assert user_session.bind is maker.kw["bind"]
-            await set_rls_context(user_session, guild_id=guild.id)
+            await set_rls_context(user_session, SystemGuild(guild.id))
             assert (await user_session.exec(text("SELECT 1"))).scalar_one() == 1

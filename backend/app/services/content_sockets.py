@@ -160,7 +160,7 @@ class Credential:
     def captured(cls) -> "Credential":
         session = auth_context.session_credential()
         return cls(
-            satisfied_providers=auth_context.satisfied_provider_ids(),
+            satisfied_providers=auth_context.satisfied_providers(),
             session_amr=auth_context.session_amr(),
             satisfied_claims=auth_context.satisfied_claims(),
             session_id=session.session_id if session else None,

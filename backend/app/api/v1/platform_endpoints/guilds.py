@@ -37,7 +37,7 @@ from app.api.v1.platform_endpoints.password_recheck import (
 )
 from app.core import auth_context
 from app.core.intake import IntakeStream
-from app.core.auth_context import satisfied_provider_ids
+from app.core.auth_context import satisfied_providers
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
 from app.core.login_methods import LoginMethod, SecondFactorRequirement
@@ -1398,7 +1398,7 @@ async def set_guild_auth_policy(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=GuildMessages.GUILD_AUTH_POLICY_INVALID_PROVIDER,
             )
-        if provider.id not in satisfied_provider_ids():
+        if provider.id not in satisfied_providers():
             raise _auth_policy_refusal(
                 GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED, "provider"
             )

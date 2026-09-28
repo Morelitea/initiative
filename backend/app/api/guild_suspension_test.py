@@ -37,6 +37,7 @@ from app.testing import (
     get_auth_headers,
     route_as,
 )
+from app.db.request_context import Unattributed
 
 
 async def _set_status(session: AsyncSession, guild: Guild, status: GuildStatus):
@@ -348,7 +349,7 @@ async def test_read_only_establishes_content_read_only_context(
 
     # establish_guild_access left the session routed as the guild role, whose
     # column-scoped grant can't write status — reset to the setup baseline.
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await _set_status(session, a.guild, GuildStatus.read_only)
     ctx = await establish_guild_access(session, a.user, a.guild.id)
     assert ctx.content_read_only is True

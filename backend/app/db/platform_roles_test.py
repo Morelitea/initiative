@@ -16,6 +16,7 @@ from app.core.config import settings
 from app.db.schema_provisioning import platform_role_name
 from app.db.session import set_rls_context
 from app.models.platform.user import UserRole
+from app.db.request_context import Platform
 
 _TIERS = [role.value for role in UserRole]
 
@@ -75,7 +76,7 @@ async def test_each_tier_inherits_the_base_floor(session):
 async def test_public_path_assumes_platform_role(session, tier):
     """A no-guild request with a platform tier assumes platform_<tier>, not the
     bare login role."""
-    await set_rls_context(session, user_id=1, platform_role=tier)
+    await set_rls_context(session, Platform(user_id=1, tier=tier))
     current = (await session.exec(text("SELECT current_user"))).scalar_one()
     assert current == platform_role_name(tier)
     await _reset_role(session)
@@ -84,7 +85,7 @@ async def test_public_path_assumes_platform_role(session, tier):
 async def test_no_tier_stays_on_login_role(session):
     """Without a platform tier the public path stays on the login role ('none'),
     preserving today's behavior for unauthenticated / service-layer callers."""
-    await set_rls_context(session, user_id=1)
+    await set_rls_context(session, Platform(user_id=1))
     # current_user is the connection's login role (superuser in tests); the point
     # is that no platform_* role was assumed.
     current = (await session.exec(text("SELECT current_user"))).scalar_one()
@@ -96,7 +97,7 @@ async def test_commit_preserves_platform_role(session):
     """The after_begin replay re-asserts the platform role on the transaction
     after a commit, so post-commit queries stay role-scoped with no manual
     reapply."""
-    await set_rls_context(session, user_id=1, platform_role="support")
+    await set_rls_context(session, Platform(user_id=1, tier="support"))
     await session.commit()
     current = (await session.exec(text("SELECT current_user"))).scalar_one()
     assert current == platform_role_name("support")
@@ -106,7 +107,7 @@ async def test_commit_preserves_platform_role(session):
 async def test_invalid_platform_role_rejected(session):
     """An off-ladder tier is rejected before reaching the SET ROLE name sink."""
     with pytest.raises(ValueError):
-        await set_rls_context(session, user_id=1, platform_role="superuser")
+        await set_rls_context(session, Platform(user_id=1, tier="superuser"))
 
 
 # --- acting_user harness (emulate a platform role through the request path) ---

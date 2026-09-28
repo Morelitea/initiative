@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 from app.core.messages import QueryMessages
-from app.db.session import rls_context_params
+from app.db.session import routed_context
 from app.models.platform.guild import GuildRole
 from app.services.fields.spec import FieldType
 from app.services.marketplace import builtin
@@ -715,7 +715,7 @@ class TestEveryShippedDashboardReportsOnLiveWork:
         # reader's own routing and standing, taken off the session the seam
         # routed rather than restated here.
         reader = await reading_as(actor.user.id, actor.guild.id)
-        context = rls_context_params(reader)
+        context = routed_context(reader)
 
         async def answers() -> dict[str, Any]:
             out = {}

@@ -34,6 +34,7 @@ from app.models.tenant.intake import IntakeBinding, IntakeCase
 from app.models.tenant.project import Project
 from app.models.tenant.task import Task, TaskStatus
 from app.services.platform.intake import operations_guild_id
+from app.db.request_context import SystemGuild
 
 
 @dataclass(frozen=True)
@@ -63,7 +64,7 @@ async def _route(guild_id: int) -> AsyncIterator[AsyncSession]:
     """A system session from the guild's cohort, routed into its schema. The
     caller commits what it writes."""
     async with cohorts.system_session(guild_id) as session:
-        await set_rls_context(session, guild_id=guild_id)
+        await set_rls_context(session, SystemGuild(guild_id))
         yield session
 
 

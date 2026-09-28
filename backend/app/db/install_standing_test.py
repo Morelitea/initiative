@@ -21,7 +21,7 @@ from app.api.deps import InstallAccessError, VerifiedInstall, establish_install_
 from app.core.app_scopes import ALL_SCOPES
 from app.core.tools import Tool
 from app.db.guild_standing import InstallContext
-from app.db.request_context import ContextShapeError, InstallScoped, classify
+from app.db.request_context import ContextShapeError, Install
 from app.db.schema_provisioning import guild_schema_name, GuildRoleKind, guild_role_name
 from app.db.session import (
     _RLS_ESTABLISHED_INFO_KEY,
@@ -748,47 +748,29 @@ def _pending(**overrides) -> InstallContext:
     return InstallContext(**fields)
 
 
-def test_an_install_routing_is_its_own_shape():
-    shape = classify(
-        guild_id=3,
-        install_id=5,
-        context=_pending(),
-        token_client_id=CLIENT,
-        token_scopes=frozenset({"documents:read"}),
-    )
-    assert isinstance(shape, InstallScoped)
-
-
 @pytest.mark.parametrize(
-    "kwargs",
+    "overrides",
     [
-        # A person and an install together.
-        dict(guild_id=3, install_id=5, user_id=7, token_client_id=CLIENT),
-        # No context.
-        dict(guild_id=3, install_id=5, context=None, token_client_id=CLIENT),
-        # No community.
-        dict(guild_id=None, install_id=5, token_client_id=CLIENT),
         # A context for another install.
-        dict(
-            guild_id=3,
-            install_id=6,
-            token_client_id=CLIENT,
-        ),
-        # A grant beside it.
-        dict(guild_id=3, install_id=5, token_client_id=CLIENT, pam_read=True),
+        dict(install_id=6),
+        # No context.
+        dict(standing=None),
+        # No client.
+        dict(token_client_id=""),
+        # A purpose without the member who consented to it.
+        dict(token_purpose="sync"),
+        # A member the context does not name.
+        dict(member_user_id=7),
     ],
 )
-def test_an_install_routing_refuses_what_is_not_its_own(kwargs):
-    kwargs.setdefault("context", _pending())
+def test_an_install_routing_refuses_what_is_not_its_own(overrides):
     with pytest.raises(ContextShapeError):
-        classify(**kwargs)
-
-
-def test_an_install_context_never_routes_as_a_sweep():
-    """A community routing with nobody behind it is a system sweep; carrying an
-    install's context without its install id is refused rather than read as
-    one."""
-    with pytest.raises(ContextShapeError):
-        classify(guild_id=3, context=_pending())
-    with pytest.raises(ContextShapeError):
-        classify(guild_id=3, token_client_id=CLIENT)
+        Install(
+            **{
+                "guild_id": 3,
+                "install_id": 5,
+                "standing": _pending(),
+                "token_client_id": CLIENT,
+                **overrides,
+            }
+        )

@@ -78,7 +78,6 @@ from app.core import webhook_events
 from app.core.app_scopes import UnknownAppScope, app_scope_target, expand
 from app.db.session import (
     set_rls_context,
-    set_system_guild_context,
 )
 from app.models.tenant.app_event_outbox import AppEventOutbox
 from app.models.tenant.app_hook_delivery import AppHookDelivery
@@ -90,6 +89,7 @@ from app.services.guild_sweeps import Drain
 from app.services.marketplace.registration_lookup import load_registrations
 from app.services.tenant import room_sink, webhook_refs
 from app.services.tenant.webhook_dispatcher import deliver
+from app.db.request_context import SystemGuild, SystemMaintenance
 
 logger = logging.getLogger(__name__)
 
@@ -501,10 +501,10 @@ async def _drain_subscription(
     Transactions outside the reach are settled like any other non-match, so
     they are not delivered later either.
     """
-    await set_system_guild_context(session, guild_id=guild_id)
+    await set_rls_context(session, SystemMaintenance(guild_id))
     pending = await _pending_transactions(session, subscription, now=now)
 
-    await set_rls_context(session, guild_id=guild_id)
+    await set_rls_context(session, SystemGuild(guild_id))
 
     for txn_id in pending:
         if not await _claim(session, subscription, txn_id, now=now):
@@ -684,7 +684,7 @@ async def drain_guild(
     registrations = (await load_registrations()).values()
     app_ids = {r.listing_uid: r.public_id for r in registrations if r.listing_uid}
     live_listings = [r.listing_uid for r in registrations if r.listing_uid and r.live]
-    await set_rls_context(session, guild_id=guild_id)
+    await set_rls_context(session, SystemGuild(guild_id))
     # Ids, not instances: each pass ends by expunging the identity map (ids
     # repeat across guild schemas), and an instance held across that is detached.
     roster = [
@@ -724,7 +724,7 @@ async def drain_guild(
             await session.rollback()
         finally:
             session.expunge_all()
-            await set_rls_context(session, guild_id=guild_id)
+            await set_rls_context(session, SystemGuild(guild_id))
 
 
 async def expire_history(session: AsyncSession, guild_id: int) -> None:

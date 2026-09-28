@@ -18,6 +18,8 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.user import User
+from app.db import gucs
+from app.db.request_context import Platform, SystemGuild
 
 __all__ = [
     "as_role",
@@ -33,7 +35,8 @@ async def route_as(
     *,
     user_id: int,
     guild_id: int,
-    satisfied_providers: Optional[Sequence[int] | str] = None,
+    satisfied_providers: Optional[Sequence[int]] = None,
+    on_behalf: bool = False,
     settings: bool = False,
     seat: bool = False,
 ):
@@ -44,6 +47,7 @@ async def route_as(
     the community by neither membership nor a live grant — the same refusal the
     request path gives.
 
+    ``on_behalf`` routes the way a job acting for the account does.
     ``settings`` is what the community's configuration and roster routes ask
     for — the surface a settings grant may serve. ``seat`` is what its four
     seat routes ask for, and it is honoured only where the seat is reached —
@@ -56,19 +60,17 @@ async def route_as(
     # What this session's credential proved, the way the validator records it
     # on a request: the seam reads it for the community's sign-in rule, and
     # passes it on to the GUC the policies read.
-    if satisfied_providers is not None:
-        auth_context.set_satisfied_providers(
-            satisfied_providers
-            if isinstance(satisfied_providers, str)
-            else frozenset(satisfied_providers)
-        )
-    await set_rls_context(session, user_id=user_id)
+    satisfied = None if satisfied_providers is None else frozenset(satisfied_providers)
+    if satisfied is not None:
+        auth_context.set_satisfied_providers(satisfied)
+    await set_rls_context(session, Platform(user_id=user_id))
     user = (await session.exec(select(User).where(User.id == user_id))).one()
     return await establish_guild_access(
         session,
         user,
         guild_id,
-        satisfied_providers=satisfied_providers,
+        satisfied_providers=satisfied,
+        on_behalf=on_behalf,
         for_settings=settings or seat,
         for_seat=seat,
     )
@@ -108,12 +110,12 @@ async def route_as_install(
     )
 
 
-async def route_system(session: AsyncSession, *, guild_id: int, **kwargs) -> None:
+async def route_system(session: AsyncSession, *, guild_id: int) -> None:
     """Route ``session`` into one community's schema with nobody behind it —
     what a sweep, a poller or a lifecycle job does."""
     from app.db.session import set_rls_context
 
-    await set_rls_context(session, guild_id=guild_id, **kwargs)
+    await set_rls_context(session, SystemGuild(guild_id))
 
 
 @asynccontextmanager
@@ -126,7 +128,7 @@ async def platform_session(user: User) -> AsyncIterator[AsyncSession]:
 
     async with cohorts.request_sessionmaker(None)() as session:
         cohorts.mark_request_session(session)
-        await set_rls_context(session, user_id=user.id, platform_role=user.role.value)
+        await set_rls_context(session, Platform(user_id=user.id, tier=user.role.value))
         yield session
 
 
@@ -141,18 +143,15 @@ async def as_role(
     none of the routing a request does first.
     """
     await session.exec(
-        text(
-            "SELECT set_config('app.current_user_id', :uid, false), "
-            "set_config('role', :role, false)"
-        ),
-        params={"uid": str(user_id), "role": role},
+        text("SELECT set_config(:name, :uid, false), set_config('role', :role, false)"),
+        params={"name": gucs.USER_ID.name, "uid": str(user_id), "role": role},
     )
     try:
         yield
     finally:
         await session.exec(
             text(
-                "SELECT set_config('role', 'none', false), "
-                "set_config('app.current_user_id', '', false)"
-            )
+                "SELECT set_config('role', 'none', false), set_config(:name, '', false)"
+            ),
+            params={"name": gucs.USER_ID.name},
         )

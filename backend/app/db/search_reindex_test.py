@@ -20,10 +20,11 @@ from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.tenant.search_entry import SearchEntry
 from app.testing import create_project, create_tag, create_task
+from app.db.request_context import SystemGuild
 
 
 async def _entries(session, guild_id: int, entity_type: str) -> list[SearchEntry]:
-    await set_rls_context(session, guild_id=guild_id)
+    await set_rls_context(session, SystemGuild(guild_id))
     return list(
         await session.exec(
             select(SearchEntry).where(SearchEntry.entity_type == entity_type)
@@ -33,7 +34,7 @@ async def _entries(session, guild_id: int, entity_type: str) -> list[SearchEntry
 
 async def _reindex(guild_id: int) -> int:
     async with cohorts.system_session(guild_id) as session:
-        await set_rls_context(session, guild_id=guild_id)
+        await set_rls_context(session, SystemGuild(guild_id))
         return await reindex_guild_search(session, guild_id)
 
 
@@ -123,7 +124,7 @@ async def test_the_marker_records_the_generation(session, acting_user):
     await _wipe(a.guild.id)
     await _reindex(a.guild.id)
 
-    await set_rls_context(session, guild_id=a.guild.id)
+    await set_rls_context(session, SystemGuild(a.guild.id))
     marker = (
         await session.exec(
             text("SELECT obj_description(to_regclass(:t), 'pg_class')").bindparams(

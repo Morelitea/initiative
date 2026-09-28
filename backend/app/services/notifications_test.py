@@ -64,6 +64,7 @@ from app.testing import (
     set_notification_prefs,
 )
 from app.testing import route_as
+from app.db.request_context import Platform, SystemGuild, Unattributed
 
 
 async def _sweep(scan: Scan | None) -> None:
@@ -73,7 +74,7 @@ async def _sweep(scan: Scan | None) -> None:
 
 async def _dispatch(session: AsyncSession) -> None:
     """Run the reminder pass, leaving the test session unrouted."""
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await _sweep(await reminder_scan(now=datetime.now(timezone.utc)))
 
 
@@ -108,7 +109,7 @@ async def _add_attendee(session, initiative, event, user, *, rsvp=RSVPStatus.pen
 
 async def _reminders_for(session: AsyncSession, user_id: int) -> list[Notification]:
     # The bell is read on the platform context, so read it back there.
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     result = await session.exec(
         select(Notification).where(
             Notification.user_id == user_id,
@@ -317,7 +318,7 @@ async def test_a_community_notice_carries_its_guild(
     initiative = await create_initiative(session, guild, creator, name="Onboarding")
     member = await create_user(session, email="ini-member@example.com")
 
-    await set_rls_context(session, guild_id=guild.id)
+    await set_rls_context(session, SystemGuild(guild.id))
     await notify(
         session,
         NotificationType.initiative_added,
@@ -327,7 +328,7 @@ async def test_a_community_notice_carries_its_guild(
         values={"initiative": initiative.name},
         data={"initiative_id": initiative.id, "target_path": f"/i/{initiative.id}"},
     )
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
 
     notifs = (
         await session.exec(
@@ -431,7 +432,7 @@ async def test_overdue_digest_gathers_tasks_across_user_guilds(
 
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await _sweep(overdue_scan(now=datetime.now(timezone.utc)))
 
     assert captured.get("user_id") == user.id
@@ -487,7 +488,7 @@ async def test_overdue_digest_pushes_alongside_email(
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     pushes = _capture_push(monkeypatch)
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await _sweep(overdue_scan(now=datetime.now(timezone.utc)))
 
     assert emails == [user.id]
@@ -531,13 +532,13 @@ async def test_overdue_digest_pushes_when_email_opted_out(
     pushes = _capture_push(monkeypatch)
 
     now = datetime.now(timezone.utc)
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await _sweep(overdue_scan(now=now))
     assert len(pushes) == 1
 
     # Second pass the same day is a no-op (the stamp landed on the push alone).
     session.expunge_all()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await _sweep(overdue_scan(now=now + timedelta(minutes=5)))
     assert len(pushes) == 1
 
@@ -574,7 +575,7 @@ async def test_overdue_digest_skips_push_when_opted_out(
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     pushes = _capture_push(monkeypatch)
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await _sweep(overdue_scan(now=datetime.now(timezone.utc)))
 
     assert pushes == []
@@ -604,7 +605,7 @@ async def test_overdue_digest_skips_template_projects(
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     pushes = _capture_push(monkeypatch)
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await _sweep(overdue_scan(now=datetime.now(timezone.utc)))
 
     assert {"Real overdue"} <= captured["titles"]
@@ -642,7 +643,7 @@ async def test_overdue_digest_skips_archived_projects_and_tasks(
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     pushes = _capture_push(monkeypatch)
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await _sweep(overdue_scan(now=datetime.now(timezone.utc)))
 
     assert {"Live overdue"} <= captured["titles"]
@@ -657,7 +658,7 @@ async def _assignment_item_in_new_guild(
     """Queue a task-assignment digest item for ``user`` in a brand-new guild."""
     # A prior call left the session in a guild-member context; reset so the new
     # guild INSERT into public.guilds isn't RLS-denied.
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
     initiative = await create_initiative(session, guild, user, name=label)
@@ -718,7 +719,7 @@ async def test_assignment_digest_gathers_items_across_user_guilds(
 
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     # Past the quiet period, so the items have settled and the digest is due.
     await _sweep(
         digest_scan(
@@ -761,7 +762,7 @@ async def test_assignment_digest_waits_for_the_flurry_to_end(
     _capture_push(monkeypatch)
 
     # Item just landed — still accumulating, nothing goes out.
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await _sweep(digest_scan(ASSIGNMENT_DIGEST, now=datetime.now(timezone.utc)))
     assert sent == []
 
@@ -769,7 +770,7 @@ async def test_assignment_digest_waits_for_the_flurry_to_end(
     # what would have been the first item's deadline must still hold.
     await _assignment_item_in_new_guild(session, user, label="Beta")
     session.expunge_all()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await _sweep(
         digest_scan(
             ASSIGNMENT_DIGEST,
@@ -780,7 +781,7 @@ async def test_assignment_digest_waits_for_the_flurry_to_end(
 
     # Once it has been quiet, both items ship together.
     session.expunge_all()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await _sweep(
         digest_scan(
             ASSIGNMENT_DIGEST, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
@@ -808,7 +809,7 @@ async def test_assignment_digest_caps_a_steady_trickle(
 
     # An item that landed a moment ago would normally hold the digest, but the
     # window opened long enough ago that it ships regardless.
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await _sweep(
         digest_scan(
             ASSIGNMENT_DIGEST, now=datetime.now(timezone.utc) + ASSIGNMENT_MAX_WINDOW
@@ -835,7 +836,7 @@ async def test_assignment_digest_sends_both_channels_together(
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     pushes = _capture_push(monkeypatch)
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await _sweep(
         digest_scan(
             ASSIGNMENT_DIGEST, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
@@ -864,7 +865,7 @@ async def test_assignment_digest_of_one_deep_links_to_the_task(
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     pushes = _capture_push(monkeypatch)
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await _sweep(
         digest_scan(
             ASSIGNMENT_DIGEST, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
@@ -896,7 +897,7 @@ async def test_assignment_digest_pushes_when_email_opted_out(
     monkeypatch.setattr(email_outbox, "enqueue", _fail_email)
     pushes = _capture_push(monkeypatch)
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await _sweep(
         digest_scan(
             ASSIGNMENT_DIGEST, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
@@ -924,14 +925,14 @@ async def test_assignment_digest_honours_a_preference_changed_mid_pass(
     # Turn the email off after the items were queued — as a request handled
     # while the worker is mid-gather would.
     session.expunge_all()
-    await set_rls_context(session, user_id=user.id)
+    await set_rls_context(session, Platform(user_id=user.id))
     fresh = (await session.exec(select(User).where(User.id == user.id))).one()
     await set_notification_prefs(
         session, fresh, {"categories": {"assignments": {"email": False}}}
     )
 
     session.expunge_all()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await _sweep(
         digest_scan(
             ASSIGNMENT_DIGEST, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
@@ -958,12 +959,12 @@ async def test_assignment_gc_drops_items_past_retention(session: AsyncSession):
 
     # Well inside the window: nothing is touched.
     session.expunge_all()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await _sweep(digest_gc_scan(now=datetime.now(timezone.utc)))
     assert await _row_count() == 1
 
     session.expunge_all()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await _sweep(
         digest_gc_scan(now=datetime.now(timezone.utc) + ASSIGNMENT_ITEM_RETENTION)
     )
@@ -978,7 +979,9 @@ async def test_event_reminders_fire_across_a_users_guilds(session: AsyncSession)
         session, email="multi-reminder@example.com", event_reminder_minutes_before=15
     )
     for label in ("Alpha", "Beta"):
-        await set_rls_context(session)  # permissive for the guild INSERT
+        await set_rls_context(
+            session, Unattributed()
+        )  # permissive for the guild INSERT
         creator = await create_user(session, email=f"organizer-{label}@example.com")
         guild = await create_guild(session, creator=creator)
         initiative = await create_initiative(session, guild, creator, name=label)
@@ -1003,7 +1006,7 @@ async def test_event_reminders_fire_across_a_users_guilds(session: AsyncSession)
 
     # Count across guilds: notifications are shared, so read them on the
     # unrouted system engine.
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     reminders = await _reminders_for(session, attendee.id)
     assert len(reminders) == 2
 
@@ -1021,7 +1024,7 @@ async def _reaction_item_in_new_guild(
 
     # A prior call left the session in a guild-member context; reset so the new
     # guild INSERT into public.guilds isn't RLS-denied.
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
     initiative = await create_initiative(session, guild, user, name=label)
@@ -1070,7 +1073,7 @@ async def test_reaction_digest_gathers_across_guilds_and_marks_processed(
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     _capture_push(monkeypatch)
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await _sweep(
         digest_scan(
             REACTION_DIGEST, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
@@ -1109,13 +1112,13 @@ async def test_reaction_digest_waits_for_the_flurry_to_end(
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     _capture_push(monkeypatch)
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await _sweep(digest_scan(REACTION_DIGEST, now=datetime.now(timezone.utc)))
     assert sent == []
 
     await _reaction_item_in_new_guild(session, user, label="Beta", emoji="🚀")
     session.expunge_all()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await _sweep(
         digest_scan(
             REACTION_DIGEST,
@@ -1125,7 +1128,7 @@ async def test_reaction_digest_waits_for_the_flurry_to_end(
     assert sent == []
 
     session.expunge_all()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await _sweep(
         digest_scan(
             REACTION_DIGEST, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
@@ -1157,7 +1160,7 @@ async def test_reaction_digest_respects_the_opt_out(session: AsyncSession, monke
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     pushes = _capture_push(monkeypatch)
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await _sweep(
         digest_scan(
             REACTION_DIGEST, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD

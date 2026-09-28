@@ -36,6 +36,7 @@ from app.models.platform.identity_ref import (
     ref_prefix,
 )
 from app.models.platform.user import User, UserStatus
+from app.db.request_context import Unattributed
 
 __all__ = [
     "REF_GRACE_PERIOD",
@@ -565,7 +566,7 @@ async def sweep_identity_refs(
     """
     from app.db.session import set_rls_context
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     dropped = await purge_orphaned_sector_refs(session)
     dropped += await purge_orphaned_entity_refs(session)
     dropped += await purge_retired_refs(session, now=now)

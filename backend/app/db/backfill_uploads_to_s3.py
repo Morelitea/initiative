@@ -35,6 +35,7 @@ from app.db import session as db_session
 from app.db.schema_provisioning import guild_schema_name
 from app.services import storage_config
 from app.services.storage import S3Storage, StorageBackend, build_s3_client
+from app.db.request_context import SystemGuild
 
 logger = logging.getLogger(__name__)
 
@@ -197,8 +198,6 @@ async def backfill_uploads_to_s3(
     # The lock and the guild list are read on a platform connection, and each
     # guild's uploads on a system session from that guild's cohort.
     async with db_session.system_engine.connect() as conn:
-        # Pooled connection: shed any guild role a previous checkout assumed.
-        await conn.execute(text("SELECT set_config('role', 'none', false)"))
         # One backfill at a time, cluster-wide. pg_try_advisory_lock is held for
         # this connection; a second worker that can't take it backs off rather
         # than double-copying every guild.
@@ -222,7 +221,7 @@ async def backfill_uploads_to_s3(
                 if not guild_dir.is_dir():
                     continue
                 async with cohorts.system_session(gid) as session:
-                    await db_session.set_rls_context(session, guild_id=gid)
+                    await db_session.set_rls_context(session, SystemGuild(gid))
                     meta = await _guild_upload_meta(
                         await session.connection(), guild_schema_name(gid)
                     )

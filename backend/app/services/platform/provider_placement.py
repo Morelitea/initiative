@@ -58,6 +58,7 @@ from app.schemas.platform.settings import (
 )
 from app.services import audit as audit_service
 from app.services.platform import app_settings as app_settings_service
+from app.db.request_context import SystemGuild
 
 logger = logging.getLogger(__name__)
 
@@ -187,7 +188,7 @@ async def _initiatives_in(guild_id: int) -> list[PlacementInitiativeRead]:
     """One community's initiatives and their roles, read in its schema on a
     system session from its own cohort."""
     async with cohorts.system_session(guild_id) as session:
-        await set_rls_context(session, guild_id=guild_id)
+        await set_rls_context(session, SystemGuild(guild_id))
         initiatives = (
             await session.exec(select(Initiative).order_by(Initiative.name))
         ).all()
