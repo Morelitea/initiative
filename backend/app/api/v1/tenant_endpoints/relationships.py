@@ -15,10 +15,9 @@ Two rules the per-tool endpoints applied that the policy deliberately does not,
 carried over because they belong to the surface rather than to the table:
 
 * **Both ends of a link made here are in one initiative.** The table permits a
-  cross-initiative edge — that is where the graph gets its reach, and content
-  references will make them — but choosing one in a picker is not how they
-  should arrive. ``DOCUMENT_WRONG_INITIATIVE`` is the same refusal by the same
-  name.
+  cross-initiative edge; this surface refuses one, and content references
+  resolve by the same rule. ``DOCUMENT_WRONG_INITIATIVE`` is the same refusal
+  by the same name.
 * **An archived thing takes no new links, and gives none up.** Archiving is a
   statement that a project is finished with, and the policy has no opinion on
   it. Asked of whichever end has the state — only projects and tasks do.
@@ -101,33 +100,15 @@ async def _resolve(
 def _refuse_across_initiatives(
     a: reference_targets.Resolved, b: reference_targets.Resolved
 ) -> None:
-    """Both ends of a link made here belong to the same place.
-
-    Two things can have no initiative, and they are not the same thing:
-
-    * A **tag** belongs to none by its nature — it is the guild's own
-      vocabulary, which every initiative shares. It pairs with anything the
-      guild holds.
-    * An **event on a guild calendar** belongs to none because that is what a
-      guild calendar is: an event takes its initiative from its calendar, and a
-      guild calendar has none. So it is guild-level content, and initiative
-      content is not its to link. That is the rule the calendar endpoint spelled
-      out as ``GUILD_CALENDAR_NO_DOCUMENTS``, which was never about documents.
-
-    What tells them apart is whether the KIND belongs to initiatives at all:
-    ``calendar_events`` does and this row does not, where ``tags`` never does.
-    """
-    if a.initiative_id == b.initiative_id:
-        return
-    guild_vocabulary = any(
-        end.initiative_id is None and not end.scoped_kind for end in (a, b)
-    )
-    if guild_vocabulary:
-        return
-    raise HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail=RelationshipMessages.CROSS_INITIATIVE,
-    )
+    """Both ends of a link made here belong to the same place, by the rule
+    :func:`~app.db.reference_targets.in_one_place` states. It is the rule the
+    calendar endpoint spelled out as ``GUILD_CALENDAR_NO_DOCUMENTS``, which was
+    never about documents, and the one content references resolve by."""
+    if not reference_targets.in_one_place(a, b):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=RelationshipMessages.CROSS_INITIATIVE,
+        )
 
 
 def _refuse_archived(*ends: reference_targets.Resolved) -> None:

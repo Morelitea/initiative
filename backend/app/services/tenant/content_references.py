@@ -85,10 +85,15 @@ async def sync_for_entity(
     because the caller is mid-save and holds the new version, which is not yet
     what a query would return.
 
-    ``fix_content`` additionally blanks any ``[[ ]]`` whose target is gone and
-    returns the repaired body, which is the one thing a save wants done to the
-    content itself. It returns None when nothing needed repairing, so a caller
-    can write back ``fixed or original``.
+    A reference resolves only inside the place this thing belongs to — its
+    initiative, by :func:`~app.db.reference_targets.in_one_place` — so one
+    naming something elsewhere is treated as naming nothing, whichever session
+    is saving.
+
+    ``fix_content`` additionally blanks any ``[[ ]]`` whose target does not
+    resolve and returns the repaired body, which is the one thing a save wants
+    done to the content itself. It returns None when nothing needed repairing,
+    so a caller can write back ``fixed or original``.
     """
     wanted = references_in(body)
     for text in await _comment_bodies(session, entity):
@@ -97,7 +102,7 @@ async def sync_for_entity(
     # body naming its own page is ordinary rather than an error.
     wanted.discard((entity.kind, entity.id))
 
-    live = await _live_targets(session, wanted)
+    live = await _live_targets(session, entity, wanted)
     if records_edges(session):
         await _reconcile(session, entity, live, author_id=author_id)
 
@@ -207,14 +212,27 @@ async def _comment_bodies(session: AsyncSession, entity: Endpoint) -> Sequence[s
 
 
 async def _live_targets(
-    session: AsyncSession, wanted: set[tuple[SearchEntityType, int]]
+    session: AsyncSession,
+    entity: Endpoint,
+    wanted: set[tuple[SearchEntityType, int]],
 ) -> set[tuple[SearchEntityType, int]]:
-    """The subset that still exists and this session may read.
+    """The subset that still exists, this session may read, and belongs in one
+    place with ``entity``.
 
-    Asked through the saving session, so a reference resolves to exactly what
-    the person writing the content can point at.
+    Asked through the saving session, so a reference resolves to no more than
+    the person writing the content can point at. A thing this session cannot
+    place resolves nothing.
     """
-    return await _by_kind(session, wanted, reference_targets.live_ids)
+    if not wanted:
+        return set()
+    owner = await reference_targets.place_of(session, entity.kind, entity.id)
+    if owner is None:
+        return set()
+    return await _by_kind(
+        session,
+        wanted,
+        lambda s, kind, ids: reference_targets.live_ids(s, kind, ids, within=owner),
+    )
 
 
 async def _accepting_links(

@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Pictures from other sites show as links.**
 - **Ticked checklist lines stay readable** instead of being crossed out.
 - **Only people who can open something** can be assigned to it, invited to it or notified about it.
+- **Links in a page reach only its own initiative.** A link to something in another initiative is removed when the page is saved.
 - **Leaving an initiative** takes you off everything in it.
 - **Opening something marks its notifications read.**
 - **Mentions in the same document** make one notification.

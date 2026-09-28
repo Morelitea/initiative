@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Sequence
+from typing import Protocol, Sequence
 
 from sqlalchemy import Select, Table, case, func, literal, null, select, text
 from sqlalchemy.dialects.postgresql import array as pg_array
@@ -213,24 +213,104 @@ def visible_ids(
     )
 
 
+class Placed(Protocol):
+    """Anything that says where a row belongs."""
+
+    @property
+    def initiative_id(self) -> int | None: ...
+
+    @property
+    def scoped_kind(self) -> bool: ...
+
+
+@dataclass(frozen=True)
+class Place:
+    """Where a row belongs — see :attr:`Resolved.initiative_id` and
+    :attr:`Resolved.scoped_kind`, which say the same two things."""
+
+    initiative_id: int | None
+    scoped_kind: bool
+
+
+def in_one_place(a: Placed, b: Placed) -> bool:
+    """Whether two rows belong to the same place, so one may link the other.
+
+    Both in one initiative is the ordinary case. Two things can have no
+    initiative, and they are not the same thing:
+
+    * A **tag** belongs to none by its nature — it is the guild's own
+      vocabulary, which every initiative shares. It pairs with anything the
+      guild holds.
+    * An **event on a guild calendar** belongs to none because that is what a
+      guild calendar is: an event takes its initiative from its calendar, and a
+      guild calendar has none. So it is guild-level content, and initiative
+      content is not its to link.
+
+    What tells them apart is whether the KIND belongs to initiatives at all:
+    ``calendar_events`` does and this row does not, where ``tags`` never does.
+    """
+    if a.initiative_id == b.initiative_id:
+        return True
+    return any(end.initiative_id is None and not end.scoped_kind for end in (a, b))
+
+
+def _initiative_of(table_name: str):
+    """``(expression, scoped_kind)``: the initiative a row of this table
+    belongs to, from the ``INITIATIVE_PATHS`` entry that renders its RLS, and
+    whether the table has such an entry at all."""
+    path = INITIATIVE_PATHS.get(table_name)
+    if path is None:
+        return null(), False
+    return text(path.initiative_expr(table_name)), True
+
+
+async def place_of(
+    session, entity_type: SearchEntityType, entity_id: int
+) -> Place | None:
+    """Where one row belongs, trashed or not. None when this session cannot
+    reach it."""
+    table_name = _table_for(entity_type)
+    table = SQLModel.metadata.tables[table_name]
+    initiative, scoped = _initiative_of(table_name)
+    row = (
+        await session.exec(
+            select(initiative).select_from(table).where(table.c["id"] == entity_id)
+        )
+    ).first()
+    return None if row is None else Place(row[0], scoped)
+
+
 async def live_ids(
-    session, entity_type: SearchEntityType, ids: Sequence[int]
+    session,
+    entity_type: SearchEntityType,
+    ids: Sequence[int],
+    *,
+    within: Placed | None = None,
 ) -> set[int]:
-    """Which of these ids still exist and this session may read.
+    """Which of these ids still exist and this session may read — and, given
+    ``within``, belong in one place with it (:func:`in_one_place`).
 
     Asked as the session itself, which is what a caller mid-save wants: the
     question is what the person writing this content can point at, and their
     connection answers it the same way it answers every other statement.
+    ``within`` is the same answer on every session, because it is read off the
+    rows rather than off who is asking.
     """
     wanted = [int(i) for i in dict.fromkeys(ids)]
     if not wanted:
         return set()
-    table = SQLModel.metadata.tables[_table_for(entity_type)]
-    statement = select(table.c["id"]).where(table.c["id"].in_(wanted))
+    table_name = _table_for(entity_type)
+    table = SQLModel.metadata.tables[table_name]
+    initiative, scoped = _initiative_of(table_name)
+    statement = select(table.c["id"], initiative).where(table.c["id"].in_(wanted))
     live = _live(table)
     if live is not None:
         statement = statement.where(live)
-    return {row[0] for row in (await session.exec(statement)).all()}
+    return {
+        row[0]
+        for row in (await session.exec(statement)).all()
+        if within is None or in_one_place(within, Place(row[1], scoped))
+    }
 
 
 async def unfrozen_ids(
@@ -432,8 +512,7 @@ async def resolve_many(
 
     table_name = _table_for(entity_type)
     table = SQLModel.metadata.tables[table_name]
-    path = INITIATIVE_PATHS.get(table_name)
-    initiative = text(path.initiative_expr(table_name)) if path is not None else null()
+    initiative, scoped = _initiative_of(table_name)
     archived = (
         table.c["archived_at"].isnot(None)
         if "archived_at" in table.c
@@ -480,7 +559,7 @@ async def resolve_many(
             id=row[0],
             title=row[1],
             initiative_id=row[2],
-            scoped_kind=path is not None,
+            scoped_kind=scoped,
             archived=bool(row[3]),
             updated_at=row[4],
             tool=tool,

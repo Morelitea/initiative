@@ -3038,7 +3038,9 @@ async def test_a_restored_reference_points_at_the_restored_copy(
     comment, a document (a mention, a live chip, a ``[[ ]]`` link), a post and
     a wiki page. Restored into the community it came from, a reference to
     something the backup did not carry still names what it named there. The
-    restored bodies' references are edges from the start, as a save's are."""
+    restored bodies' references are edges from the start, as a save's are —
+    within the initiative they were restored into, so the one naming a
+    document of another initiative is text and no edge."""
     from sqlmodel import select
 
     from app.core.relationships import RelationshipType
@@ -3110,7 +3112,6 @@ async def test_a_restored_reference_points_at_the_restored_copy(
     assert await references(Endpoint(SearchEntityType.task, ship.id)) == {
         ("task", fix.id),
         ("document", spec.id),
-        ("document", outside.id),
         ("wiki_page", r["page"].id),
     }
     assert await references(Endpoint(SearchEntityType.wiki_page, r["page"].id)) == {

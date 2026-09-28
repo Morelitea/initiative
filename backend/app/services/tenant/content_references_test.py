@@ -18,7 +18,13 @@ from app.models.platform.guild import GuildRole
 from app.models.tenant.relationship import EntityRelationship
 from app.services.tenant import content_references
 from app.services.tenant.relationships import Endpoint
-from app.testing import create_comment, create_document, create_project, create_task
+from app.testing import (
+    create_comment,
+    create_document,
+    create_initiative,
+    create_project,
+    create_task,
+)
 
 
 def _doc(*nodes: dict[str, Any]) -> dict[str, Any]:
@@ -261,6 +267,71 @@ async def test_fixing_content_unresolves_a_link_to_itself(session, acting_user):
 
     assert fixed is not None
     assert references_in_body(fixed) == set()
+
+
+# ---------------------------------------------------------------------------
+# A reference resolves inside its own initiative
+# ---------------------------------------------------------------------------
+
+
+async def test_a_reference_into_another_initiative_resolves_as_missing(
+    session, acting_user
+):
+    """A guild admin reaches every initiative, so what keeps the link out is
+    the rule rather than the reader: the same treatment an id nothing answers
+    to gets, blanked where a save repairs the body."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await create_document(session, a.initiative, a.user)
+    same = await create_document(session, a.initiative, a.user)
+    elsewhere = await create_initiative(session, a.guild, a.user)
+    other = await create_document(session, elsewhere, a.user)
+    anchor = Endpoint(DOCUMENT, doc.id)
+
+    fixed = await content_references.sync_for_entity(
+        session,
+        anchor,
+        body=_doc(_wikilink(same.id), _wikilink(other.id)),
+        author_id=a.user.id,
+        fix_content=True,
+    )
+
+    assert await _references(session, anchor) == {("document", same.id)}
+    assert fixed is not None
+    assert references_in_body(fixed) == {(DOCUMENT, same.id)}
+
+
+async def test_a_room_save_and_a_member_s_save_reach_the_same_answer(
+    session, acting_user, reading_as, role_session
+):
+    """The room writes on a system session that sees every initiative; a
+    member's save writes on their own. One body resolves to one set of links
+    on both."""
+    from app.db.request_context import SystemGuild
+    from app.db.session import set_rls_context
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    same = await create_document(session, a.initiative, a.user)
+    elsewhere = await create_initiative(session, a.guild, a.user)
+    other = await create_document(session, elsewhere, a.user)
+    body = _doc(_wikilink(same.id), _wikilink(other.id))
+    by_member = await create_document(session, a.initiative, a.user)
+    by_room = await create_document(session, a.initiative, a.user)
+    await session.commit()
+
+    member = await reading_as(a.user.id, a.guild.id)
+    room = await role_session("app_admin")
+    await set_rls_context(room, SystemGuild(a.guild.id))
+
+    answers = []
+    for saving, doc in ((member, by_member), (room, by_room)):
+        anchor = Endpoint(DOCUMENT, doc.id)
+        fixed = await content_references.sync_for_entity(
+            saving, anchor, body=body, author_id=a.user.id, fix_content=True
+        )
+        assert fixed is not None
+        answers.append((references_in_body(fixed), await _references(saving, anchor)))
+
+    assert answers[0] == answers[1] == ({(DOCUMENT, same.id)}, {("document", same.id)})
 
 
 # ---------------------------------------------------------------------------
