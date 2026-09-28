@@ -223,3 +223,19 @@ async def _rows(session, user_id: int) -> list[LegalAcceptance]:
             )
         ).all()
     )
+
+
+@pytest.mark.parametrize("slug", ["../admin", "terms?x=1", "Terms", ""])
+async def test_a_slug_outside_the_slug_characters_is_not_asked_for(
+    hosted, monkeypatch, slug
+):
+    """Only a slug written in the documents' own characters reaches the
+    portal; any other is a document that does not exist."""
+
+    class _NoPortal:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("the portal was asked")
+
+    monkeypatch.setattr(legal_service.httpx, "AsyncClient", _NoPortal)
+    with pytest.raises(KeyError):
+        await legal_service.get_document(slug)

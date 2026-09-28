@@ -460,9 +460,10 @@ def build_calendar_events(
                 created_by=created_by,
             )
             events.append(event)
-        except Exception as exc:
+        except Exception:
             summary = str(component.get("summary", "Unknown"))
-            errors.append(f"Failed to import '{summary}': {exc}")
+            logger.exception("iCal import could not read event %r", summary)
+            errors.append(f"Failed to import '{summary}'")
             skipped += 1
 
     return events, errors, skipped

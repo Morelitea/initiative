@@ -877,7 +877,10 @@ async def export_users_csv(
     stmt = (
         select(MemberProfile, GuildMembership.role, GuildMembership.oidc_provider_id)
         .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
-        .where(GuildMembership.guild_id == guild_context.guild_id)
+        .where(
+            GuildMembership.guild_id == guild_context.guild_id,
+            users_service.visible_to_other_people(MemberProfile.status),
+        )
         .order_by(MemberProfile.created_at.asc())
     )
     if user_id:
@@ -1342,14 +1345,6 @@ async def update_users_me(
     if "avatar_url" in update_data:
         url_value = update_data["avatar_url"]
         if url_value:
-            # Read payloads carry the path this API serves the picture from, so
-            # one handed straight back would be stored as though it named an
-            # image somewhere else. Uploads come through PUT /users/me/avatar.
-            if user_avatars_service.is_avatar_url(url_value):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=UserMessages.AVATAR_URL_NOT_EXTERNAL,
-                )
             # A linked picture and an uploaded one are alternatives; taking one
             # drops the other.
             await user_avatars_service.delete_avatar(session, user_id=current_user.id)

@@ -32,7 +32,7 @@ from enum import Enum
 from typing import Any
 
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import false, or_
+from sqlalchemy import false, or_, text
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -462,10 +462,24 @@ async def _find_identity(
     ).one_or_none()
 
 
+#: The lock the first registrations take turns on, so one of them bootstraps.
+_BOOTSTRAP_LOCK_KEY = 0x696E6974626F6F74
+
+
 async def any_account_exists(session: AsyncSession) -> bool:
     """Whether the deployment holds any account yet — the first one to arrive
-    bootstraps it. One indexed probe rather than a count of every row."""
-    return (await session.exec(select(User.id).limit(1))).first() is not None
+    bootstraps it. One indexed probe rather than a count of every row.
+
+    While there is none, registrations take turns on a transaction lock and
+    each asks again once it holds it, so one of them is the first.
+    """
+    probe = select(User.id).limit(1)
+    if (await session.exec(probe)).first() is not None:
+        return True
+    await session.exec(
+        text("SELECT pg_advisory_xact_lock(:key)").bindparams(key=_BOOTSTRAP_LOCK_KEY)
+    )
+    return (await session.exec(probe)).first() is not None
 
 
 async def _registration_open(session: AsyncSession) -> bool:
