@@ -91,7 +91,14 @@ async def create_token(
     expires_minutes: int = DEFAULT_TOKEN_TTL_MINUTES,
     user_email_id: int | None = None,
     invite_id: int | None = None,
+    commit: bool = True,
 ) -> str:
+    """Issue a token of ``purpose``, replacing the outstanding one it supersedes.
+
+    ``commit=False`` stages the swap instead, for a caller that commits only
+    once the token has been delivered, so the one it replaces stays good if
+    delivery fails.
+    """
     await _delete_existing_tokens(session, user_id, purpose, user_email_id)
     token_value = secrets.token_urlsafe(48)
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=expires_minutes)
@@ -104,7 +111,8 @@ async def create_token(
         expires_at=expires_at,
     )
     session.add(token)
-    await session.commit()
+    if commit:
+        await session.commit()
     # Return the raw token exactly once; only its hash is persisted.
     return token_value
 

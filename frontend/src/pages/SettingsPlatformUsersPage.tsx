@@ -1,5 +1,13 @@
 import type { PaginationState, SortingState } from "@tanstack/react-table";
-import { CalendarClock, Download, LockOpen, Mail, Trash2, UserCheck } from "lucide-react";
+import {
+  CalendarClock,
+  Download,
+  LockOpen,
+  Mail,
+  MailCheck,
+  Trash2,
+  UserCheck,
+} from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -27,6 +35,7 @@ import {
   useOperatorClearAgeBlock,
   useOperatorLiftSignInLock,
   useOperatorReactivateUser,
+  useOperatorResendVerification,
   useOperatorRestoreUser,
   useOperatorTriggerPasswordReset,
   usePlatformUsers,
@@ -114,6 +123,16 @@ export const SettingsPlatformUsersPage = () => {
     onError: (error: unknown) => {
       toast.error(getErrorMessage(error, "settings:platformUsers.resetError"));
       setResettingUserId(null);
+    },
+  });
+
+  const resendVerification = useOperatorResendVerification({
+    onSuccess: (_data, userId) => {
+      const handle = rows.find((u) => u.id === userId)?.username ?? "account";
+      toast.success(t("platformUsers.resendVerificationSuccess", { handle }));
+    },
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, "settings:platformUsers.resendVerificationError"));
     },
   });
 
@@ -344,6 +363,15 @@ export const SettingsPlatformUsersPage = () => {
               >
                 <Mail className="h-4 w-4" />
                 {isResetting ? t("common:submitting") : t("platformUsers.resetPassword")}
+              </DropdownMenuItem>
+            )}
+            {canReactivate && platformUser.status === "active" && !platformUser.email_verified && (
+              <DropdownMenuItem
+                onSelect={() => resendVerification.mutate(platformUser.id)}
+                disabled={resendVerification.isPending}
+              >
+                <MailCheck className="h-4 w-4" />
+                {t("platformUsers.resendVerification")}
               </DropdownMenuItem>
             )}
             {abilities.canManageUsers && platformUser.sign_in_locked_until && (

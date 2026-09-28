@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Unread dots that lead to the item**, with unread comments highlighted.
 - **One-tap 👍** on comments and posts.
 - **An email when your password changes.**
+- **Resend verification email** in the platform Users menu, for an account that never confirmed its address. It sends the sign-up confirmation again, and an invite the account was waiting on still joins.
 
 ### Changed
 

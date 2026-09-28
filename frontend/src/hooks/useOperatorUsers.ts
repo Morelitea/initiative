@@ -23,6 +23,7 @@ import {
   listAllUsersApiV1OperatorUsersGet,
   reactivateUserApiV1OperatorUsersUserIdReactivatePost,
   removeUserAvatarApiV1OperatorUsersUserIdAvatarDelete,
+  resendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPost,
   restoreDeletedUserApiV1OperatorUsersUserIdRestorePost,
   setUserSuspensionApiV1OperatorUsersUserIdSuspensionPost,
   setUserUsernameApiV1OperatorUsersUserIdUsernamePatch,
@@ -107,6 +108,18 @@ export const useOperatorTriggerPasswordReset = (
   useApiMutation<VerificationSendResponse, number>(
     {
       mutationFn: (userId) => triggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPost(userId),
+    },
+    options
+  );
+
+/** Send an account's sign-up confirmation letter again (operator endpoint). */
+export const useOperatorResendVerification = (
+  options?: MutationOpts<VerificationSendResponse, number>
+) =>
+  useApiMutation<VerificationSendResponse, number>(
+    {
+      mutationFn: (userId) =>
+        resendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPost(userId),
     },
     options
   );

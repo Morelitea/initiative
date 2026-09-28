@@ -18,7 +18,8 @@ from app.core.capabilities import (
     role_rank,
 )
 from app.models.platform.user import User, UserStatus
-from app.models.platform.user_token import UserTokenPurpose
+from app.models.platform.user_email import UserEmail
+from app.models.platform.user_token import UserToken, UserTokenPurpose
 from app.schemas.platform.user import (
     OperatorUserListResponse,
     OperatorUserRead,
@@ -43,6 +44,7 @@ from app.services.platform import account_stream
 from app.services.platform import user_tokens
 from app.services.platform import csv_export
 from app.services import email as email_service
+from app.services.auth import addresses
 from app.services.auth import challenges as challenge_service
 from app.services.auth import sessions as session_service
 from app.services.auth import sign_in_locks
@@ -341,6 +343,75 @@ async def trigger_password_reset(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)
         ) from exc
+    return VerificationSendResponse(status="sent")
+
+
+@router.post(
+    "/users/{user_id}/verification-email", response_model=VerificationSendResponse
+)
+async def resend_verification_email(
+    user_id: int,
+    session: SystemSessionDep,
+    current_user: UsersManageDep,
+) -> VerificationSendResponse:
+    """Send an account's sign-up confirmation letter again (``users.manage``).
+
+    For somebody whose first letter expired or never arrived. It goes to the
+    address they signed up with and replaces the one they were sent; the
+    invite that letter was waiting on still joins when they confirm.
+    """
+    user = await _account_within_rank(session, user_id, current_user)
+    address = None
+    if not await addresses.has_proven_address(session, user_id=user.id):
+        address = (
+            await session.exec(
+                select(UserEmail).where(
+                    UserEmail.user_id == user.id,
+                    UserEmail.is_primary,
+                    UserEmail.verified_at.is_(None),
+                    UserEmail.source != addresses.SOURCE_SYNTHETIC,
+                )
+            )
+        ).one_or_none()
+    if address is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=OperatorMessages.NOTHING_TO_VERIFY,
+        )
+    invite_id = (
+        await session.exec(
+            select(UserToken.invite_id).where(
+                UserToken.user_id == user.id,
+                UserToken.purpose == UserTokenPurpose.email_verification,
+                UserToken.user_email_id == address.id,
+                UserToken.invite_id.is_not(None),
+            )
+        )
+    ).first()
+    if not await email_service.email_configured(session):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=SettingsMessages.SMTP_INCOMPLETE,
+        )
+
+    # The new letter replaces the old one only once it has been sent.
+    token = await user_tokens.create_token(
+        session,
+        user_id=user.id,
+        purpose=UserTokenPurpose.email_verification,
+        expires_minutes=60 * 24,
+        user_email_id=address.id,
+        invite_id=invite_id,
+        commit=False,
+    )
+    try:
+        await email_service.send_verification_email(session, user, token)
+    except RuntimeError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+    await session.commit()
     return VerificationSendResponse(status="sent")
 
 

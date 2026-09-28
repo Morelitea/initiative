@@ -744,6 +744,7 @@
   "GUILD_STATUS_SET_BY_BILLING": "La facturation fixe le statut de cette communauté. Vous pouvez la suspendre, ou lever une suspension vers le statut que la facturation a fixé en dernier.",
   "GUILD_RESTORE_STATUS_SET_BY_BILLING": "La facturation fixe le statut de cette communauté. Restaurez-la avec le statut que la facturation a fixé en dernier, ou suspendue.",
   "OPERATOR_USER_NOT_DELETED": "Ce compte n'a pas été supprimé, il n'y a donc rien à restaurer.",
+  "OPERATOR_NOTHING_TO_VERIFY": "Ce compte n'a aucune adresse en attente de confirmation.",
   "CONNECTION_NEEDS_NARROWING": "Indiquez quels comptes de ce fournisseur sont les vôtres avant d'activer la connexion.",
   "SUPPORT_INTAKE_NOT_CONFIGURED": "Configurez la réception du support avant de proposer les demandes d’aide : reliez le flux de support à un projet dans Paramètres de la plateforme › Réception.",
   "GUILD_APP_CONNECTION_VENDOR_NOT_CONFIGURED": "La connexion de cette app n'est pas encore configurée sur ce serveur. Prévenez la personne qui l'administre.",

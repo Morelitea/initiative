@@ -744,6 +744,7 @@
   "GUILD_STATUS_SET_BY_BILLING": "Billing sets this community's status. You can suspend it, or lift a suspension back to the status billing last set.",
   "GUILD_RESTORE_STATUS_SET_BY_BILLING": "Billing sets this community's status. Restore it at the status billing last set, or suspended.",
   "OPERATOR_USER_NOT_DELETED": "That account has not been deleted, so there is nothing to restore.",
+  "OPERATOR_NOTHING_TO_VERIFY": "That account has no address waiting to be confirmed.",
   "CONNECTION_NEEDS_NARROWING": "Say which accounts on this provider are yours before turning the connection on.",
   "SUPPORT_INTAKE_NOT_CONFIGURED": "Set up support intake before offering help requests — bind the support stream to a project under Platform settings › Intake.",
   "GUILD_APP_CONNECTION_VENDOR_NOT_CONFIGURED": "This app's connection isn't set up on this server yet. Let whoever runs it know.",
