@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime, timezone
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import delete, text
 from sqlalchemy.exc import DBAPIError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -394,7 +394,51 @@ async def _refused(session: AsyncSession, write) -> None:
 class TestWritingAMembership:
     """What the request path may write into a roster: its own row only while
     nobody on the conversation has accepted, somebody else's as an invitation,
-    and somebody else's already accepted only on a pair."""
+    and somebody else's already accepted only on a pair — and only on a
+    conversation whose roster names both of them."""
+
+    async def test_nobody_is_written_onto_a_roster_that_does_not_name_them(
+        self, session: AsyncSession
+    ) -> None:
+        alice = await create_user(session)
+        bob = await create_user(session)
+        carol = await create_user(session)
+        dave = await create_user(session)
+        for user in (carol, dave):
+            await _policy(session, user, DmPolicy.public)
+        await _open_channel(session, carol, dave)
+        conversation = await _conversation(session, alice, bob)
+
+        await _route(session, carol)
+        await _refused(
+            session, lambda: _add_member(session, conversation, dave, accepted=True)
+        )
+        await _refused(
+            session, lambda: _add_member(session, conversation, dave, accepted=False)
+        )
+
+    async def test_a_member_only_releases_the_roster(
+        self, session: AsyncSession
+    ) -> None:
+        alice = await create_user(session)
+        bob = await create_user(session)
+        carol = await create_user(session)
+        conversation = await _conversation(session, alice, bob)
+        rename = text(
+            "UPDATE public.dm_conversations SET roster_key = :key WHERE id = :c"
+        )
+
+        await _route(session, alice)
+        await _refused(
+            session,
+            lambda: session.exec(
+                rename.bindparams(
+                    key=roster_key([alice.id, bob.id, carol.id]), c=conversation.id
+                )
+            ),
+        )
+        released = await session.exec(rename.bindparams(key=None, c=conversation.id))
+        assert released.rowcount == 1
 
     async def test_nobody_joins_a_conversation_somebody_has_accepted(
         self, session: AsyncSession
@@ -420,7 +464,14 @@ class TestWritingAMembership:
         for user in (alice, carol):
             await _policy(session, user, DmPolicy.public)
         await _open_channel(session, alice, carol)
-        conversation = await _conversation(session, alice, bob, dave)
+        conversation = await _conversation(session, alice, bob, carol, dave)
+        # Carol declined, and is asked again.
+        await session.exec(
+            delete(DmConversationMember).where(
+                DmConversationMember.conversation_id == conversation.id,
+                DmConversationMember.user_id == carol.id,
+            )
+        )
 
         await _route(session, alice)
         await _refused(

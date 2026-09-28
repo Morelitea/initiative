@@ -187,16 +187,19 @@ OWN_OR_DM_OPEN = (
     f"(user_id = {gucs.USER_ID}) OR"
     f" (({gucs.USER_ID} IS NOT NULL) AND (dm_apparent_permission(user_id) = 'open'))"
 )
-#: A membership is written as the service writes one. The writer's own row, only
-#: while nobody on the conversation has accepted: the one opening or proposing
-#: it. Somebody else's row pending, as an invitation to anybody the writer may
-#: ask; or accepted, only on a pair the writer may already message.
+#: A membership is written as the service writes one, on a conversation whose
+#: roster names both the writer and the member. The writer's own row, only while
+#: nobody on the conversation has accepted: the one opening or proposing it.
+#: Somebody else's row pending, as an invitation to anybody the writer may ask;
+#: or accepted, only on a pair the writer may already message.
 DM_MEMBER_WRITE = (
+    f"({gucs.USER_ID} IS NOT NULL)"
+    f" AND dm_roster_names(conversation_id, ARRAY[{gucs.USER_ID}, user_id]) AND ("
     f"((user_id = {gucs.USER_ID}) AND NOT dm_roster_answered(conversation_id)) OR"
-    f" (({gucs.USER_ID} IS NOT NULL) AND (user_id <> {gucs.USER_ID}) AND ("
+    f" ((user_id <> {gucs.USER_ID}) AND ("
     "((accepted_at IS NULL) AND (dm_apparent_permission(user_id) <> 'denied')) OR"
     " ((accepted_at IS NOT NULL) AND dm_conversation_direct(conversation_id)"
-    " AND (dm_apparent_permission(user_id) = 'open'))))"
+    " AND (dm_apparent_permission(user_id) = 'open')))))"
 )
 #: An invitation is answered once, by the one it was sent to.
 DM_MEMBER_ANSWER = f"({own_row('user_id')}) AND (accepted_at IS NULL)"
@@ -654,13 +657,16 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                     ("platform_base",),
                     using="dm_on_roster(id)",
                 ),
+                # A member's one write to the row: releasing the roster's name.
                 Policy(
                     "dm_conversations_self_update",
                     UPDATE,
                     ("platform_base",),
                     using="dm_in_conversation(id)",
+                    check="dm_in_conversation(id) AND (roster_key IS NULL)",
                 ),
-                # ``dm_conversation_direct`` reads the kind (0411).
+                # ``dm_conversation_direct`` and ``dm_roster_names`` read the
+                # kind and the roster (0411).
                 Policy("dm_reader_read", SELECT, ("app_dm_reader",), using=OPEN),
             ),
         ),
