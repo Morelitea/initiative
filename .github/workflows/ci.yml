@@ -23,6 +23,7 @@ jobs:
       backend: ${{ steps.diff.outputs.backend }}
       backend_scope: ${{ steps.diff.outputs.backend_scope }}
       alembic: ${{ steps.diff.outputs.alembic }}
+      seam: ${{ steps.diff.outputs.seam }}
       frontend: ${{ steps.diff.outputs.frontend }}
       codegen: ${{ steps.diff.outputs.codegen }}
     steps:
@@ -160,7 +161,23 @@ jobs:
             fi
           }
 
+          # The request-context conformance suite (pytest marker ``seam``) is
+          # slow, so it runs where it pays for itself: every integration push,
+          # and a pull request that touches the seam.
+          seam() {
+            if [[ "$EVENT" != "pull_request" ]] || [[ -n "$(changed .github/workflows/ci.yml \
+                backend/app/db/ backend/app/api/deps.py backend/app/api/content_socket.py \
+                backend/app/services/content_sockets.py backend/app/testing/routing.py \
+                backend/alembic/ backend/conftest.py)" ]]; then
+              out seam true
+              echo "Seam changed — running the conformance suite"
+            else
+              out seam false
+            fi
+          }
+
           backend
+          seam
           frontend
           codegen
 
@@ -286,6 +303,12 @@ jobs:
         run: |
           cd backend
           uv run python -m pytest ${{ needs.changes.outputs.backend_scope || 'app/ alembic/' }} -n auto --tb=short
+
+      - name: Prove the request-context seam
+        if: needs.changes.outputs.seam == 'true'
+        run: |
+          cd backend
+          uv run python -m pytest -m seam app/db/seam_conformance_test.py -n 2 --tb=short
 
   frontend-lint-and-test:
     name: Frontend Lint & Tests
