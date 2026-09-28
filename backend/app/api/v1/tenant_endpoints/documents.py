@@ -403,6 +403,7 @@ async def create_document(
         body=document.content,
         author_id=guild_context.user_id,
     )
+    await attachments_service.claim_uploads(session, document)
 
     await session.commit()
     return await read_after_write(session, document.id, current_user, guild_context)
@@ -481,6 +482,7 @@ async def upload_document_file(
         data=contents,
         content_type=mime_type,
         created_by=current_user.id,
+        initiative_id=initiative.id,
     )
 
     # Create document record. A picture is its own featured image, set here so
@@ -620,6 +622,7 @@ async def upload_document_version(
         data=contents,
         content_type=mime_type,
         created_by=current_user.id,
+        initiative_id=document.initiative_id,
     )
 
     max_version = await session.scalar(
@@ -920,6 +923,7 @@ async def update_document(
                 body=document.content,
                 author_id=guild_context.user_id,
             )
+        await attachments_service.claim_uploads(session, document)
         # What the edit took out goes once nothing else shows it. An installed
         # app does not manage the community's uploads; what its edit let go of
         # stays for a person to clear.

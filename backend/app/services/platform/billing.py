@@ -29,7 +29,6 @@ from app.models.platform.billing import (
 from app.models.platform.guild import Guild, GuildMembership, GuildStatus
 from app.models.platform.guild_administration import GuildAdministration
 from app.schemas.platform.billing import BillingGuildTierApply, BillingGuildTierRead
-from app.db.request_context import SystemGuild
 
 logger = logging.getLogger(__name__)
 
@@ -438,24 +437,23 @@ async def guild_storage_usage(guild_id: int) -> int:
     """Current stored bytes for one guild, for the signed usage read.
 
     ``uploads`` lives in the per-guild ``guild_<id>`` schema, which the
-    column-scoped ``initiative_billing`` role cannot reach — so this runs on a
-    **system session from the guild's cohort** routed into the guild (the
-    trash-purge pattern), not the billing-context session. The billing session
-    still owns envelope verification + the jti burn in the endpoint; this only
-    reads the same ``SUM(uploads.size_bytes)`` that ``enforce_storage_quota``
-    enforces against. Read-only — the app never pushes usage anywhere.
+    column-scoped ``initiative_billing`` role cannot reach — so the guild is
+    looked up on a **system session from the guild's cohort**, not the
+    billing-context session, and the sum is ``get_guild_storage_usage``'s. The
+    billing session still owns envelope verification + the jti burn in the
+    endpoint; this only reads the same ``SUM(uploads.size_bytes)`` that
+    ``enforce_storage_quota`` enforces against. Read-only — the app never
+    pushes usage anywhere.
     """
     from app.db import cohorts
-    from app.db.session import set_rls_context
     from app.services.tenant.attachments import get_guild_storage_usage
 
     async with cohorts.system_session(guild_id) as session:
-        # Existence check at the public baseline before routing into the schema.
+        # Existence check at the public baseline.
         exists = (
             await session.exec(select(Guild.id).where(Guild.id == guild_id))
         ).one_or_none()
         if exists is None:
             raise BillingGuildNotFoundError(guild_id)
 
-        await set_rls_context(session, SystemGuild(guild_id))
-        return await get_guild_storage_usage(session)
+    return await get_guild_storage_usage(guild_id)

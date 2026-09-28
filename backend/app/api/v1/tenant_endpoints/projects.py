@@ -18,6 +18,7 @@ from app.core.relationships import (
 from app.models.tenant.relationship import EntityRelationship
 from app.core.search import SearchEntityType
 from app.services.permissions import Action
+from app.services.tenant import attachments as attachments_service
 from app.services.tenant import content_references, relationships
 from app.api.actor_route import ActorRoute
 from app.api.deps import (
@@ -241,7 +242,8 @@ async def _duplicate_template_tasks(
     *,
     status_mapping: dict[int, int],
     fallback_status_ids: dict[TaskStatusCategory, int],
-) -> None:
+) -> list[Task]:
+    """Copy the template's tasks into ``new_project``; returns the copies."""
     task_stmt = (
         select(Task)
         .options(
@@ -254,7 +256,7 @@ async def _duplicate_template_tasks(
     task_result = await session.exec(task_stmt)
     template_tasks = task_result.all()
     if not template_tasks:
-        return
+        return []
 
     now = datetime.now(timezone.utc)
     categories = await task_completion.status_categories(session, new_project.id)
@@ -324,6 +326,7 @@ async def _duplicate_template_tasks(
         session,
         {s.id: c.id for s, c in copies if s.id is not None and c.id is not None},
     )
+    return [task for _, task in copies]
 
 
 #: Edge types a task copy does not carry. Tags travel through
@@ -825,8 +828,9 @@ async def create_project(
         )
     await filter_presets_service.ensure_default_presets(session, project.id)
 
+    copied: list[Task] = []
     if template_project:
-        await _duplicate_template_tasks(
+        copied = await _duplicate_template_tasks(
             session,
             template_project,
             project,
@@ -841,6 +845,9 @@ async def create_project(
             target_id=project.id,
         )
 
+    # One claim for the project and its tasks, so a file they share is copied
+    # into another initiative once.
+    await attachments_service.claim_uploads(session, project, *copied)
     await session.commit()
 
     project = await _get_project_or_404(
@@ -1138,6 +1145,7 @@ async def update_project(
     project.updated_at = datetime.now(timezone.utc)
 
     session.add(project)
+    await attachments_service.claim_uploads(session, project)
     await session.commit()
     project = await _get_project_or_404(
         project.id,

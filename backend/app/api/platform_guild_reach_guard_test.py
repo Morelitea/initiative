@@ -79,9 +79,6 @@ _WRAPPERS: dict[tuple[str, str], str] = {
         "scrubs a purged account's mentions and keys in one community, on that "
         "community's cohort session"
     ),
-    (f"{_SERVICES}/billing.py", "guild_storage_usage"): (
-        "storage aggregate for the billing service"
-    ),
     (f"{_SERVICES}/guilds.py", "seed_guild_content"): (
         "provisions and seeds a new community's schema"
     ),
@@ -141,9 +138,6 @@ _ALLOWED: dict[tuple[str, str], str] = {
         "the scheduled sweep that deletes communities whose hold ran out"
     ),
     # --- Aggregates ----------------------------------------------------------
-    (f"{_ENDPOINTS}/billing.py", "guild_usage"): (
-        "storage usage for the billing service"
-    ),
     # --- Account closure and erasure -----------------------------------------
     # --- Intake: the platform owner's setting, in the operations community ---
     (f"{_SERVICES}/intake.py", "stream_is_bound"): (

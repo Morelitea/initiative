@@ -47,6 +47,7 @@ from app.schemas.tenant.counter import (
     _validate_counter_constraints,
 )
 from app.schemas.tenant.tool import serialize_tool
+from app.services.tenant import attachments as attachments_service
 from app.services.tenant import counters as counters_service
 from app.api import resource_access
 from app.core.tools import Tool
@@ -159,6 +160,7 @@ async def create_counter_group(
         payload=group_in,
         grants=group_in.grants,
     )
+    await attachments_service.claim_uploads(session, group)
     await session.commit()
 
     hydrated = await _refetch_group(session, group.id)
@@ -259,6 +261,7 @@ async def update_counter_group(
     if updated:
         group.updated_at = datetime.now(timezone.utc)
         session.add(group)
+        await attachments_service.claim_uploads(session, group)
         await session.commit()
 
     hydrated = await _refetch_group(session, group.id)

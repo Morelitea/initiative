@@ -419,6 +419,7 @@ _NO_SINGLE_PARENT = {
     "property_definitions": "initiative configuration, not a tool's content",
     "resource_grants": "sharing itself; resource_access reads this table",
     "webhook_subscriptions": "integration config, gated by the initiative",
+    "uploads": "a stored file, gated by the initiative whose content shows it",
     # Gated on full access rather than sharing: the standing that opens these
     # is the one that already reaches every resource, so there is no per-resource
     # grant left to ask about.

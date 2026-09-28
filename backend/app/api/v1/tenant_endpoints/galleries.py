@@ -279,26 +279,27 @@ async def _read_picture(
 async def _store_blob(
     session: RLSSessionDep,
     guild_context: GuildContext,
-    user: User,
+    gallery: Gallery,
     contents: bytes,
     extension: str,
     content_type: str,
 ) -> str:
-    """Store one blob in the guild and return its served URL."""
+    """Store one blob of ``gallery``'s and return its served URL."""
     return await attachments_service.store_upload(
         session,
         guild_id=guild_context.guild_id,
         filename=attachments_service.new_upload_filename(extension),
         data=contents,
         content_type=content_type,
-        created_by=user.id,
+        created_by=guild_context.user_id,
+        initiative_id=gallery.initiative_id,
     )
 
 
 async def _store_thumbnail(
     session: RLSSessionDep,
     guild_context: GuildContext,
-    user: User,
+    gallery: Gallery,
     thumbnail: galleries_service.Thumbnail | None,
 ) -> str | None:
     if thumbnail is None:
@@ -306,7 +307,7 @@ async def _store_thumbnail(
     return await _store_blob(
         session,
         guild_context,
-        user,
+        gallery,
         thumbnail.data,
         thumbnail.extension,
         thumbnail.content_type,
@@ -408,6 +409,7 @@ async def create_gallery(
             entity_id=gallery.id,
             tag_ids=gallery_in.tag_ids,
         )
+    await attachments_service.claim_uploads(session, gallery)
     await session.commit()
     hydrated = await _refetch_gallery(
         session, gallery.id, user_id=guild_context.user_id
@@ -453,6 +455,7 @@ async def update_gallery(
     if updated:
         gallery.updated_at = datetime.now(timezone.utc)
         session.add(gallery)
+        await attachments_service.claim_uploads(session, gallery)
         await session.commit()
 
     hydrated = await _refetch_gallery(
@@ -613,9 +616,9 @@ async def upload_gallery_image(
         session, guild_context, file
     )
     file_url = await _store_blob(
-        session, guild_context, current_user, contents, extension, mime
+        session, guild_context, gallery, contents, extension, mime
     )
-    thumbnail_url = await _store_thumbnail(session, guild_context, current_user, thumb)
+    thumbnail_url = await _store_thumbnail(session, guild_context, gallery, thumb)
 
     now = datetime.now(timezone.utc)
     image = GalleryImage(
@@ -711,6 +714,7 @@ async def update_gallery_image(
         )
     image.updated_at = datetime.now(timezone.utc)
     session.add(image)
+    await attachments_service.claim_uploads(session, image)
     await session.commit()
     hydrated = await _refetch_image(session, gallery.id, image.id)
     return serialize_gallery_image(hydrated, context=guild_context)
@@ -824,9 +828,9 @@ async def upload_gallery_image_version(
         session, guild_context, file
     )
     file_url = await _store_blob(
-        session, guild_context, current_user, contents, extension, mime
+        session, guild_context, gallery, contents, extension, mime
     )
-    thumbnail_url = await _store_thumbnail(session, guild_context, current_user, thumb)
+    thumbnail_url = await _store_thumbnail(session, guild_context, gallery, thumb)
 
     version = GalleryImageVersion(
         gallery_image_id=image.id,

@@ -294,7 +294,7 @@ async def _collaborate(
                     return
 
                 try:
-                    room.apply_update(payload, connection=websocket)
+                    room.apply_update(payload, connection=websocket, user_id=user.id)
                     if msg_type == MSG_UPDATE and not edit_recorded:
                         # Once per session, and only for an update: a
                         # SYNC_STEP2 is the client answering the room's
@@ -460,7 +460,7 @@ async def _hand_over(
     try:
         tab = object()
         try:
-            room.apply_update(handover.update, connection=tab)
+            room.apply_update(handover.update, connection=tab, user_id=user.id)
         except Exception:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

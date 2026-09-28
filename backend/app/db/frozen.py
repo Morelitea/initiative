@@ -123,6 +123,8 @@ SELF_STAMPED_TABLES: frozenset[str] = ARCHIVABLE_TABLES & TRASHABLE_TABLES
 #: - Notification bookkeeping, queued in the same transaction as the change that
 #:   caused it. If the change is refused the row never exists; if it is allowed
 #:   the record of it must not be.
+#: - Stored files, which follow the content that shows them: that content's own
+#:   freeze decides whether it may change.
 #:
 #: Deliberate responses are NOT here: a comment, a reaction, a poll answer and
 #: an RSVP are gestures on the content, and frozen content takes none of them.
@@ -138,6 +140,7 @@ FREEZE_EXEMPT_TABLES: frozenset[str] = frozenset(
         "reaction_digest_items",
         "task_assignment_digest_items",
         "event_reminder_dispatches",
+        "uploads",
     }
 )
 

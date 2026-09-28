@@ -28,6 +28,7 @@ from app.db.query import build_paginated_response, paginated_query
 from app.db.session import routed_guild_id
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
+from app.models.tenant.comment import Comment
 from app.models.tenant.project import Project
 from app.models.tenant.property import TaskPropertyValue
 from app.models.tenant.task import Task, TaskStatus, TaskStatusCategory
@@ -430,6 +431,7 @@ async def create_task(
             previous=None,
             author=current_user,
         )
+    await attachments_service.claim_uploads(session, task)
 
     _touch_project(project, datetime.now(timezone.utc))
     await session.commit()
@@ -588,6 +590,7 @@ async def update_task(
             let_go = attachments_service.upload_urls_in_markdown(
                 previous_description
             ) - attachments_service.upload_urls_in_markdown(task.description)
+    await attachments_service.claim_uploads(session, task)
 
     _touch_project(project, now)
     await session.commit()
@@ -656,6 +659,10 @@ async def move_task(
         project=target_project,
         carried=True,
     )
+    # The files the task and its conversation show are kept for the
+    # destination's initiative.
+    comments = await session.exec(select(Comment).where(Comment.task_id == task.id))
+    await attachments_service.claim_uploads(session, task, *comments.all())
 
     _touch_project(source_project, now)
     _touch_project(target_project, now)

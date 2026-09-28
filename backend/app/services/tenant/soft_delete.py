@@ -47,6 +47,7 @@ from app.models.tenant._mixins import SoftDeleteMixin
 from app.models.tenant.comment import Comment
 from app.models.tenant.document import Document
 from app.models.tenant.gallery import GalleryImage
+from app.models.tenant.initiative import Initiative
 from app.models.tenant.task import Task
 from app.models.tenant.wiki import WikiPage
 from app.services.tenant.lifecycle_tree import (
@@ -324,6 +325,7 @@ async def hard_purge_entities(
     from app.services.tenant.attachments import (
         purge_document_uploads,
         purge_gallery_image_uploads,
+        purge_initiative_uploads,
         purge_pasted_images,
     )
     from app.services.tenant.reactions import purge_comment_reactions
@@ -382,6 +384,10 @@ async def hard_purge_entities(
         # it are still there to find the documents carrying those links.
         for doc in loaded[Document]:
             await unresolve_wikilinks_to_document(session, deleted_document_id=doc.id)
+
+    # What is left of an initiative's files goes with it.
+    if doomed.get(Initiative):
+        released |= await purge_initiative_uploads(session, doomed[Initiative])
 
     # Edges name both ends polymorphically, so nothing carries them out with
     # the thing they connect. Tombstones go too: what one remembers is a link

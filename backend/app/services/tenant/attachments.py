@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import logging
 import re
-from datetime import datetime, timedelta
+from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, Mapping, Set, Tuple
+from typing import Any, AsyncIterator, Dict, Iterable, Mapping, Set, Tuple
 from urllib.parse import urlparse
 from uuid import uuid4
 
@@ -275,6 +277,30 @@ def _upload_columns() -> tuple[tuple[type, str], ...]:
     )
 
 
+def _like(filename: str) -> str:
+    """A LIKE pattern matching text that contains this stored name.
+
+    Its wildcards are escaped with the default escape character: a filename
+    carries ``_``. The name alone is matched — every stored name is unique — so
+    an address written with or without an origin is found either way.
+    """
+    safe = filename.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{safe}%"
+
+
+@asynccontextmanager
+async def guild_wide(guild_id: int) -> AsyncIterator[Any]:
+    """A system session from the guild's cohort, routed into it: every upload
+    it stores, whoever can read which."""
+    from app.db import cohorts
+    from app.db.request_context import SystemGuild
+    from app.db.session import set_rls_context
+
+    async with cohorts.system_session(guild_id) as session:
+        await set_rls_context(session, SystemGuild(guild_id))
+        yield session
+
+
 #: The rows a caller is taking the pictures OUT of — they no longer count as
 #: showing anything. Keyed by model.
 Leaving = Mapping[type, Iterable[int]]
@@ -287,13 +313,9 @@ async def _still_shown(session, filename: str, *, leaving: Leaving) -> bool:
 
     from app.db.soft_delete_filter import select_including_deleted
 
-    # LIKE wildcards in the name are escaped: a filename carries ``_``. The
-    # name alone is matched — every stored name is unique — so an address
-    # written with or without an origin is found either way.
-    safe = filename.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     for model, column in _upload_columns():
         stmt = select_including_deleted(model.id).where(  # type: ignore[attr-defined]
-            cast(getattr(model, column), Text).like(f"%{safe}%", escape="\\")
+            cast(getattr(model, column), Text).like(_like(filename))
         )
         ids = set(leaving.get(model, ()))
         if ids:
@@ -356,16 +378,11 @@ async def release_unshown(
     :data:`PASTED_IMAGE_PREFIX`). Returns the stored names released; the caller
     deletes their blobs with :func:`delete_blobs`.
     """
-    from app.db import cohorts
-    from app.db.request_context import SystemGuild
-    from app.db.session import set_rls_context
-
     names = upload_names(u for u in urls if u and (not pasted_only or _is_pasted(u)))
     if not names:
         return set()
     try:
-        async with cohorts.system_session(guild_id) as session:
-            await set_rls_context(session, SystemGuild(guild_id))
+        async with guild_wide(guild_id) as session:
             unshown = {
                 n for n in names if not await _still_shown(session, n, leaving={})
             }
@@ -421,36 +438,34 @@ async def release_unclaimed_pasted_images(session, *, now: datetime) -> Set[str]
     """Delete pictures pasted longer ago than the grace period that nothing
     shows — the ones a closed tab never got to discard.
 
-    Each pasted picture is looked at once: one that something shows is marked
-    ``claimed_at`` and left to the edits and purges that take it out
-    (:func:`release_unshown`, :func:`purge_pasted_images`).
+    Each pasted picture is looked at once: one that something shows is claimed
+    for it (:func:`claim_shown`) and left to the edits and purges that take it
+    out (:func:`release_unshown`, :func:`purge_pasted_images`).
 
     Runs in one routed guild with authority to delete uploads (the trash
     sweep). Returns the stored names released; the caller commits and then
     removes the blobs.
     """
-    from sqlalchemy import update as sa_update
     from sqlmodel import select
 
     from app.models.tenant.upload import Upload
 
-    rows = await session.exec(
+    stale = await session.exec(
         select(Upload.filename)
         .where(Upload.filename.startswith(PASTED_IMAGE_PREFIX))  # type: ignore[attr-defined]
         .where(Upload.claimed_at.is_(None))
         .where(Upload.created_at < now - UNCLAIMED_PASTED_IMAGE_GRACE)
     )
-    shown: Set[str] = set()
-    unshown: Set[str] = set()
-    for name in rows.all():
-        (shown if await _still_shown(session, name, leaving={}) else unshown).add(name)
-    if shown:
-        await session.exec(
-            sa_update(Upload)
-            .where(ids_in(Upload.filename, shown))
-            .values(claimed_at=now)
+    names = set(stale.all())
+    if not names:
+        return set()
+    await claim_shown(session, names)
+    unshown = await session.exec(
+        select(Upload.filename).where(
+            ids_in(Upload.filename, names), Upload.claimed_at.is_(None)
         )
-    return await _drop_upload_rows(session, unshown)
+    )
+    return await _drop_upload_rows(session, set(unshown.all()))
 
 
 async def purge_pasted_images(session, doomed: Iterable[Any]) -> Set[str]:
@@ -495,12 +510,18 @@ def extract_upload_urls(payload: Any) -> Set[str]:
 
 
 async def copy_uploads(
-    session, urls: Iterable[str | None], *, guild_id: int, created_by: int
+    session,
+    urls: Iterable[str | None],
+    *,
+    guild_id: int,
+    created_by: int | None,
+    initiative_id: int | None,
 ) -> Dict[str, str]:
-    """Copy the guild's stored files these URLs name into new files, recorded
-    like any other upload, and return each source URL's copy.
+    """Copy the guild's stored files these URLs name into new files, kept for
+    ``initiative_id`` (``None``: the whole guild), and return each source URL's
+    copy. ``created_by`` None keeps each file's own uploader on its copy.
 
-    Only files this guild stores are copied — anything else stays as it was
+    Only files this session reads are copied — anything else stays as it was
     written. The copies count against the storage quota, checked for all of
     them before a byte is written. Caller commits.
     """
@@ -534,10 +555,12 @@ async def copy_uploads(
         session.add(
             Upload(
                 filename=name,
-                created_by=created_by,
+                created_by=created_by if created_by is not None else source.created_by,
                 size_bytes=source.size_bytes,
                 content_type=source.content_type,
                 content_hash=source.content_hash,
+                initiative_id=initiative_id,
+                claimed_at=datetime.now(timezone.utc),
             )
         )
         copies[by_name[source.filename]] = f"{UPLOADS_URL_PREFIX}{guild_id}/{name}"
@@ -545,15 +568,18 @@ async def copy_uploads(
 
 
 def replace_upload_urls(payload: Any, replacements: Mapping[str, str]) -> Any:
+    """``payload`` with each upload address ``replacements`` names swapped for
+    its replacement, wherever it is written — a value of its own or inside
+    text."""
     if not replacements:
         return payload
 
+    def _swap(match: re.Match[str]) -> str:
+        return replacements.get(normalize_upload_url(match[0]) or "", match[0])
+
     def _walk(value: Any) -> Any:
         if isinstance(value, str):
-            normalized = normalize_upload_url(value)
-            if normalized and normalized in replacements:
-                return replacements[normalized]
-            return value
+            return _MARKDOWN_UPLOAD_URL.sub(_swap, value)
         if isinstance(value, dict):
             return {key: _walk(child) for key, child in value.items()}
         if isinstance(value, list):
@@ -561,6 +587,164 @@ def replace_upload_urls(payload: Any, replacements: Mapping[str, str]) -> Any:
         return value
 
     return _walk(payload)
+
+
+async def claim_uploads(
+    session, *rows: Any, uploaded_by: Set[int] | None = None
+) -> None:
+    """Keep the uploads these saved rows show for the initiative each row
+    belongs to — none for content of the whole guild.
+
+    A file not yet saved into anything takes the row's initiative and is
+    claimed. One already kept there is left as it is. One kept for another
+    initiative, or for the whole guild where the row is in an initiative (or
+    the reverse), is copied for the row's and the row rewritten to show the
+    copy — on a person's session when they can read the file, or by the
+    sweep, which keeps the file's uploader on the copy. The rows given
+    together share one copy of a file per initiative, and an initiative's
+    copies are held to the storage quota together. Only files this session
+    reads are touched; anything else is left as written.
+
+    ``uploaded_by`` keeps the claims to files those people uploaded, for a save
+    made on nobody's session (a live-editing room); such a save copies nothing.
+
+    Flushes first; the caller commits.
+    """
+    from sqlalchemy import inspect, text
+    from sqlalchemy.orm.attributes import flag_modified
+    from sqlmodel import select
+
+    from app.db.initiative_rls import INITIATIVE_PATHS
+    from app.db.session import guild_context
+    from app.models.tenant.upload import Upload
+    from app.services.tenant.collaborative_resources import YJS_STATE_COLUMN
+
+    await session.flush()
+    schema = (await session.exec(text("SELECT current_schema()"))).scalar()
+    guild_id = int(schema.removeprefix("guild_"))
+    own = f"{UPLOADS_URL_PREFIX}{guild_id}/"
+    # Each row showing one of the guild's files: its upload columns, its
+    # initiative, and the files it shows by stored name.
+    showing: list[tuple[Any, list[str], int | None, Dict[str, str]]] = []
+    for row in rows:
+        columns = [c for model, c in _upload_columns() if type(row) is model]
+        unloaded = [c for c in columns if c in inspect(row).unloaded]
+        if unloaded:
+            await session.refresh(row, unloaded)
+        shown = {
+            Path(url).name: url
+            for column in columns
+            for value in (getattr(row, column),)
+            for url in upload_urls_in_markdown(
+                value if value is None or isinstance(value, str) else json.dumps(value)
+            )
+            if url.startswith(own)
+        }
+        if not shown:
+            continue
+        table = type(row).__tablename__
+        initiative_id = (
+            await session.exec(
+                text(
+                    f"SELECT {INITIATIVE_PATHS[table].initiative_expr('r')} "  # noqa: S608
+                    f"FROM {table} r WHERE r.id = :id"
+                ),
+                params={"id": row.id},
+            )
+        ).scalar()
+        showing.append((row, columns, initiative_id, shown))
+    if not showing:
+        return
+
+    uploads = {
+        upload.filename: upload
+        for upload in await session.exec(
+            select(Upload)
+            .where(ids_in(Upload.filename, {n for *_, s in showing for n in s}))
+            .execution_options(populate_existing=True)
+        )
+    }
+    now = datetime.now(timezone.utc)
+    wanted: Dict[int | None, Set[str]] = {}
+    for _row, _columns, initiative_id, shown in showing:
+        for name, url in shown.items():
+            upload = uploads.get(name)
+            if upload is None:
+                continue
+            if upload.claimed_at is None:
+                if uploaded_by is None or upload.created_by in uploaded_by:
+                    upload.initiative_id = initiative_id
+                    upload.claimed_at = now
+            elif upload.initiative_id != initiative_id:
+                wanted.setdefault(initiative_id, set()).add(url)
+    await session.flush()
+
+    person = guild_context(session)
+    if not wanted or (person is None and uploaded_by is not None):
+        return
+    copies = {
+        initiative_id: await copy_uploads(
+            session,
+            urls,
+            guild_id=guild_id,
+            created_by=person.user_id if person is not None else None,
+            initiative_id=initiative_id,
+        )
+        for initiative_id, urls in wanted.items()
+    }
+    for row, columns, initiative_id, _shown in showing:
+        for column in columns:
+            value = replace_upload_urls(
+                getattr(row, column), copies.get(initiative_id, {})
+            )
+            if value != getattr(row, column):
+                setattr(row, column, value)
+                flag_modified(row, column)
+                if YJS_STATE_COLUMN in type(row).__table__.c:
+                    # The editor loads its stored state before the column, so
+                    # it starts again from the rewritten one.
+                    setattr(row, YJS_STATE_COLUMN, None)
+    await session.flush()
+
+
+async def claim_shown(session, filenames: Set[str]) -> None:
+    """:func:`claim_uploads` for every stored row that shows these files —
+    archived or in the trash included — oldest first."""
+    from sqlalchemy import ARRAY, Text, any_, bindparam, cast
+
+    from app.db.soft_delete_filter import select_including_deleted
+
+    if not filenames:
+        return
+    patterns = bindparam(None, [_like(n) for n in filenames], type_=ARRAY(Text()))
+    found: dict[tuple[type, int], Any] = {}
+    for model, column in _upload_columns():
+        rows = await session.exec(
+            select_including_deleted(model).where(
+                cast(getattr(model, column), Text).like(any_(patterns))
+            )
+        )
+        for row in rows.all():
+            found[(model, row.id)] = row
+    await claim_uploads(
+        session, *sorted(found.values(), key=lambda row: row.created_at)
+    )
+
+
+async def purge_initiative_uploads(session, initiative_ids: Iterable[int]) -> Set[str]:
+    """Delete the ``uploads`` rows kept for initiatives about to be hard-purged;
+    returns their stored names, whose blobs the caller deletes after its
+    commit."""
+    from sqlalchemy import delete as sa_delete
+
+    from app.models.tenant.upload import Upload
+
+    result = await session.exec(
+        sa_delete(Upload)
+        .where(ids_in(Upload.initiative_id, initiative_ids))
+        .returning(Upload.filename)
+    )
+    return set(result.scalars().all())
 
 
 def detect_mime_type(content: bytes, filename: str | None = None) -> str | None:
@@ -668,6 +852,7 @@ async def store_upload(
     data: bytes,
     content_type: str | None,
     created_by: int,
+    initiative_id: int | None = None,
 ) -> str:
     """Write ``data`` to the guild's storage as ``filename`` and record it in
     ``uploads``. Returns the served URL, ``/uploads/{guild_id}/{filename}``.
@@ -675,7 +860,9 @@ async def store_upload(
     Every upload a person or an import brings into a guild is stored here.
     The ``uploads`` row is what the serve route requires and what the storage
     quota is summed from; the caller owns naming, validation, the quota check
-    and the commit.
+    and the commit. ``initiative_id`` is the initiative a file written together
+    with what shows it is kept for; without it the file waits to be claimed
+    (:func:`claim_uploads`).
     """
     from app.models.tenant.upload import Upload
 
@@ -692,25 +879,25 @@ async def store_upload(
             size_bytes=len(data),
             content_type=content_type,
             content_hash=compute_content_hash(data),
+            initiative_id=initiative_id,
+            claimed_at=None if initiative_id is None else datetime.now(timezone.utc),
         )
     )
     return f"{UPLOADS_URL_PREFIX}{guild_id}/{filename}"
 
 
-async def get_guild_storage_usage(session) -> int:
-    """Total stored blob bytes for the active guild — ``SUM(uploads.size_bytes)``.
-
-    Runs under the guild-routed RLS session, so the sum is scoped to the active
-    guild's schema.
-    """
+async def get_guild_storage_usage(guild_id: int) -> int:
+    """Total stored blob bytes for the guild — ``SUM(uploads.size_bytes)`` over
+    every upload it stores, read on :func:`guild_wide`."""
     from sqlalchemy import func
     from sqlmodel import select
 
     from app.models.tenant.upload import Upload
 
-    return (
-        await session.exec(select(func.coalesce(func.sum(Upload.size_bytes), 0)))
-    ).one()
+    async with guild_wide(guild_id) as session:
+        return (
+            await session.exec(select(func.coalesce(func.sum(Upload.size_bytes), 0)))
+        ).one()
 
 
 # Advisory-lock namespace for per-guild storage-quota admission. A large fixed
@@ -722,8 +909,7 @@ _QUOTA_LOCK_NAMESPACE = 0x53544F52  # 1397114706
 async def storage_left(session, *, guild_id: int) -> int | None:
     """What the guild's ``max_storage_bytes`` still allows, or ``None`` when it
     has no limit. A reading for planning, not a reservation: the write that
-    follows still goes through :func:`enforce_storage_quota`. Runs under the
-    guild-routed RLS session, like the usage it reads."""
+    follows still goes through :func:`enforce_storage_quota`."""
     from sqlmodel import select
 
     from app.models.platform.guild_administration import GuildAdministration
@@ -737,7 +923,7 @@ async def storage_left(session, *, guild_id: int) -> int | None:
     ).one_or_none()
     if limit is None:
         return None
-    return max(0, limit - await get_guild_storage_usage(session))
+    return max(0, limit - await get_guild_storage_usage(guild_id))
 
 
 async def enforce_storage_quota(session, *, guild_id: int, incoming_bytes: int) -> None:
@@ -746,8 +932,7 @@ async def enforce_storage_quota(session, *, guild_id: int, incoming_bytes: int) 
     NULL / absent limit means unlimited (the default), so this is a no-op until a
     quota is set on the guild. The limit lives on the shared
     ``guild_administration`` row (read-only to every request-path role); the
-    usage (``SUM(uploads.size_bytes)``) is read from the active guild's schema, so
-    this must run under the guild-routed RLS session.
+    usage is :func:`get_guild_storage_usage`, every upload the guild stores.
 
     Must be called within the SAME transaction that then inserts the ``uploads``
     row and commits. When a limit is set, it takes a transaction-scoped advisory
@@ -778,7 +963,7 @@ async def enforce_storage_quota(session, *, guild_id: int, incoming_bytes: int) 
         text("SELECT pg_advisory_xact_lock(:ns, :gid)"),
         params={"ns": _QUOTA_LOCK_NAMESPACE, "gid": int(guild_id)},
     )
-    usage = await get_guild_storage_usage(session)
+    usage = await get_guild_storage_usage(guild_id)
     if usage + incoming_bytes > limit:
         raise StorageQuotaExceededError(
             limit=limit, usage=usage, incoming=incoming_bytes

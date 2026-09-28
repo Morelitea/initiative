@@ -413,6 +413,7 @@ def written_columns() -> dict[type[SQLModel], tuple[str, ...]]:
 #: says why not.
 NOT_SEARCHABLE: dict[str, str] = {
     "search_entries": "the index itself",
+    "uploads": "stored files, found through the content that shows them",
     "event_outbox": "change log, not content",
     "app_event_outbox": "app events awaiting delivery, not content",
     "resource_grants": "sharing rows carry no text",

@@ -279,6 +279,7 @@ async def duplicate_document(
         ],
         guild_id=actor.guild_id,
         created_by=user.id,
+        initiative_id=initiative_id,
     )
 
     def copied(url: str | None) -> str | None:

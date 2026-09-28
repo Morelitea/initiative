@@ -92,8 +92,10 @@ async def restore_archive_assets(
     *,
     guild_id: int,
     user: User,
+    initiative_id: int,
 ) -> tuple[list[str], list[str]]:
-    """Put each named file the zip carries into the community's storage.
+    """Put each named file the zip carries into the community's storage, kept
+    for the initiative the envelope is imported into.
 
     ``assets`` are the envelope's own records of its files, each with what it
     should be — ``"picture"`` or ``"file"``; each record's ``content_type`` is
@@ -129,6 +131,7 @@ async def restore_archive_assets(
         ],
         guild_id=guild_id,
         user=user,
+        initiative_id=initiative_id,
     )
     for key, content_type in restored.content_types.items():
         for record in by_key[key]:
@@ -193,7 +196,12 @@ async def _import_archive(
     warnings: list[str] = []
     if assets_of is not None:
         written, warnings = await restore_archive_assets(
-            session, archive, assets_of(envelope), guild_id=guild_id, user=user
+            session,
+            archive,
+            assets_of(envelope),
+            guild_id=guild_id,
+            user=user,
+            initiative_id=initiative_id,
         )
     try:
         outcome = await import_engine.start_envelope_import(

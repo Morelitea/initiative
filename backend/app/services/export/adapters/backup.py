@@ -296,7 +296,7 @@ async def _count_scope(
         if scope_kind == "guild":
             from app.services.tenant.attachments import get_guild_storage_usage
 
-            upload_bytes = await get_guild_storage_usage(session)
+            upload_bytes = await get_guild_storage_usage(guild_id)
         else:
             upload_bytes = await _known_upload_bytes(session, ids["document"])
         if upload_bytes > export_limits.EXPORT_MAX_BACKUP_UPLOAD_BYTES:
@@ -1181,19 +1181,25 @@ class _ScopeBuilder:
         nobody currently points at — an image removed from a page, anything
         uploaded and not yet placed — would be the one thing a "full backup"
         silently dropped. Guild scope only: the store is guild-wide, and an
-        initiative export has no claim on it.
+        initiative export has no claim on it. Listed on
+        :func:`~app.services.tenant.attachments.guild_wide`, so it is every
+        file whoever can read it.
         """
         if self.mode != "backup" or not _include_uploads(self.params):
             return
         from sqlmodel import select
 
         from app.models.tenant.upload import Upload
+        from app.services.tenant.attachments import guild_wide
 
-        rows = await self.session.exec(
-            select(Upload.filename, Upload.size_bytes, Upload.content_type).order_by(
-                Upload.id.asc()
-            )
-        )
+        async with guild_wide(self.guild_id) as session:
+            rows = (
+                await session.exec(
+                    select(
+                        Upload.filename, Upload.size_bytes, Upload.content_type
+                    ).order_by(Upload.id.asc())
+                )
+            ).all()
         for storage_key, size_bytes, content_type in rows:
             if storage_key in self._asset_index:
                 continue
@@ -1500,7 +1506,7 @@ async def estimate_backup(
             ).one()
         if scope == "guild":
             # Exact total blob usage — an upper bound on what ships.
-            uploads_bytes = await get_guild_storage_usage(session)
+            uploads_bytes = await get_guild_storage_usage(guild_id)
         else:
             uploads_bytes = await _known_upload_bytes(session, ids["document"])
         estimated_rows += uploads_bytes // _MIB
