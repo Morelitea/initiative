@@ -514,12 +514,12 @@ async def copy_uploads(
     urls: Iterable[str | None],
     *,
     guild_id: int,
-    created_by: int,
+    created_by: int | None,
     initiative_id: int | None,
 ) -> Dict[str, str]:
     """Copy the guild's stored files these URLs name into new files, kept for
     ``initiative_id`` (``None``: the whole guild), and return each source URL's
-    copy.
+    copy. ``created_by`` None keeps each file's own uploader on its copy.
 
     Only files this session reads are copied — anything else stays as it was
     written. The copies count against the storage quota, checked for all of
@@ -555,7 +555,7 @@ async def copy_uploads(
         session.add(
             Upload(
                 filename=name,
-                created_by=created_by,
+                created_by=created_by if created_by is not None else source.created_by,
                 size_bytes=source.size_bytes,
                 content_type=source.content_type,
                 content_hash=source.content_hash,
@@ -599,7 +599,8 @@ async def claim_uploads(
     claimed. One already kept there is left as it is. One kept for another
     initiative, or for the whole guild where the row is in an initiative (or
     the reverse), is copied for the row's and the row rewritten to show the
-    copy — on a person's session, when they can read the file. The rows given
+    copy — on a person's session when they can read the file, or by the
+    sweep, which keeps the file's uploader on the copy. The rows given
     together share one copy of a file per initiative, and an initiative's
     copies are held to the storage quota together. Only files this session
     reads are touched; anything else is left as written.
@@ -679,14 +680,14 @@ async def claim_uploads(
     await session.flush()
 
     person = guild_context(session)
-    if person is None or not wanted:
+    if not wanted or (person is None and uploaded_by is not None):
         return
     copies = {
         initiative_id: await copy_uploads(
             session,
             urls,
             guild_id=guild_id,
-            created_by=person.user_id,
+            created_by=person.user_id if person is not None else None,
             initiative_id=initiative_id,
         )
         for initiative_id, urls in wanted.items()

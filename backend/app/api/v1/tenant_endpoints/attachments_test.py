@@ -478,6 +478,59 @@ async def test_the_sweep_takes_pictures_nobody_saved_once_their_grace_is_over(
     assert await _stored(session, a.guild.id, saved)
 
 
+async def test_the_sweep_copies_a_picture_two_initiatives_show(
+    client: AsyncClient, session, acting_user
+):
+    """The oldest showing row's initiative keeps the file, and the other gets
+    a copy of its own that its row shows."""
+    from datetime import datetime, timedelta, timezone
+
+    from sqlmodel import select
+
+    from app.models.tenant.task import Task
+    from app.models.tenant.upload import Upload
+    from app.services.tenant.attachments import (
+        UNCLAIMED_PASTED_IMAGE_GRACE,
+        release_unclaimed_pasted_images,
+    )
+    from app.testing import create_initiative, create_project, create_task
+    from app.testing.schema_harness import route_session_to_guild
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    elsewhere = await create_initiative(session, a.guild, a.user)
+    other = await create_project(session, elsewhere, a.user)
+    url = await _paste(client, a)
+    await create_task(session, a.project, description=f"![shot]({url})")
+    later_task = await create_task(session, other, description=f"![shot]({url})")
+    await session.commit()
+
+    await route_session_to_guild(session, a.guild.id)
+    later = datetime.now(timezone.utc) + UNCLAIMED_PASTED_IMAGE_GRACE
+    assert (
+        await release_unclaimed_pasted_images(session, now=later + timedelta(minutes=1))
+        == set()
+    )
+
+    kept = {
+        u.filename: u.initiative_id
+        for u in await session.exec(
+            select(Upload).execution_options(populate_existing=True)
+        )
+    }
+    name = url.rsplit("/", 1)[1]
+    [copy] = set(kept) - {name}
+    assert kept == {name: a.initiative.id, copy: elsewhere.id}
+    description = (
+        await session.exec(
+            select(Task.description)
+            .where(Task.id == later_task.id)
+            .execution_options(populate_existing=True)
+        )
+    ).one()
+    assert description == f"![shot](/uploads/{a.guild.id}/{copy})"
+    assert await _stored(session, a.guild.id, f"/uploads/{a.guild.id}/{copy}")
+
+
 async def _edit_comment(client: AsyncClient, a, comment_id: int, text: str) -> None:
     response = await client.patch(
         a.g(f"/comments/{comment_id}"), headers=a.headers, json={"content": text}
