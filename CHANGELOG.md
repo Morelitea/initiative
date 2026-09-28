@@ -36,11 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Ticking tasks in a table is instant.**
 - **The trash shows a page at a time**, newest first.
 - **If you never verified your email address**, verifying it now, with an emailed code or through your organization's sign-in, clears the account's password, passkeys and second factor. Your communities and content stay; set up new sign-in methods from Security. If your address is already verified, nothing changes. Servers without SMTP automatically verify all emails on sign up and are not impacted.
-- **Calendar export saves the dates you're viewing.**
 - **Improved efficiency and security.**
 
 ### Removed
 
+- **Export on My Calendar.** A calendar exports from its own **Settings → Advanced**, for whoever could delete it. The API route `GET /me/calendar-events/export.ics` is gone with it.
 - **API routes the app no longer uses**: single reads of an access grant, an app registration, an app's placements, your consents to an app and a target's reactions; editing a community's group rule; clearing one view preference; the smart-chip kinds list; each tool's `DELETE …/view` (use `/recents`); `POST /auth/verification/send`; and a community's `POST /users/{id}/approve`. The lists and detail reads carry the same data.
 
 ### Fixed

@@ -1,9 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Download } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
 import {
   type FilterCondition,
   type FilterGroup,
@@ -30,7 +28,6 @@ import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterP
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { CalendarGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { useAuth } from "@/hooks/useAuth";
@@ -39,7 +36,6 @@ import { useMyCalendars } from "@/hooks/useCalendars";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useViewPreference } from "@/hooks/useViewPreference";
-import { toast } from "@/lib/chesterToast";
 import { guildPath, useGuildPath } from "@/lib/guildUrl";
 import { getProjectColor } from "@/lib/projectColor";
 import { PRIORITY_ORDER } from "@/lib/sorting";
@@ -293,43 +289,12 @@ export const MyCalendarPage = () => {
     (entriesQuery.isLoading && !entriesQuery.data) ||
     (calendarsQuery.isLoading && !calendarsQuery.data);
 
-  // Exports the dates on screen — the same window the entries are read over.
-  const handleExport = useCallback(async () => {
-    try {
-      const params: Record<string, string | number[]> = {
-        start_after: visibleRange.start.toISOString(),
-        start_before: visibleRange.end.toISOString(),
-      };
-      if (guildFilters.length > 0) {
-        params.guild_ids = guildFilters;
-      }
-      const response = await apiClient.get("/me/calendar-events/export.ics", {
-        params,
-        responseType: "blob",
-      });
-      const url = URL.createObjectURL(response.data as Blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "events.ics";
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch {
-      toast.error(t("calendars:export.exportError"));
-    }
-  }, [visibleRange, guildFilters, t]);
-
   return (
     <PullToRefresh onRefresh={handleRefresh}>
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="font-semibold text-3xl tracking-tight">{t("tasks:myCalendar.title")}</h1>
-            <p className="text-muted-foreground">{t("tasks:myCalendar.subtitle")}</p>
-          </div>
-          <Button variant="outline" size="sm" onClick={handleExport}>
-            <Download className="h-4 w-4" />
-            {t("calendars:export.exportIcs")}
-          </Button>
+        <div>
+          <h1 className="font-semibold text-3xl tracking-tight">{t("tasks:myCalendar.title")}</h1>
+          <p className="text-muted-foreground">{t("tasks:myCalendar.subtitle")}</p>
         </div>
 
         <ToolListToolbar

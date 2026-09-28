@@ -216,20 +216,6 @@ def ical_from_export_dicts(events: List[dict]) -> bytes:
     return cal.to_ical()
 
 
-def events_to_ical(
-    events: "List[tuple[CalendarEvent, Sequence[Related]]]",
-) -> bytes:
-    """Serialize events and their attachments to iCal bytes.
-
-    Takes pairs rather than a list plus a lookup: an event's attachments travel
-    WITH it, so nothing has to key them. Ids are unique only inside one guild's
-    schema, and this is fed by a walk across several.
-    """
-    return ical_from_export_dicts(
-        [event_export_dict(event, documents) for event, documents in events]
-    )
-
-
 async def documents_for_events(
     session: "AsyncSession", events: List[CalendarEvent]
 ) -> "dict[int, list[Related]]":

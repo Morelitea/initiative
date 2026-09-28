@@ -63,10 +63,6 @@
   "tags": "Tags",
   "properties": "Properties",
   "today": "Today",
-  "export": {
-    "exportIcs": "Export dates shown (.ics)",
-    "exportError": "Failed to export events"
-  },
   "import": {
     "title": "Import Calendar Events",
     "importIcs": "Import .ics",
