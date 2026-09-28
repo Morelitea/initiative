@@ -36,6 +36,7 @@ from typing import Awaitable, Callable, get_args
 
 import pytest
 from fastapi.routing import APIWebSocketRoute
+from httpx import AsyncClient
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
@@ -69,6 +70,7 @@ from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.main import app
 from app.services.content_sockets import sockets
 from app.testing import (
+    Actor,
     create_access_grant,
     create_counter_group,
     create_document,
@@ -359,12 +361,12 @@ async def test_the_catalog_reads_only_declared_variables(session, acting_user):
 # ---------------------------------------------------------------------------
 
 
-def _unpooled(bind) -> AsyncEngine:
+def _unpooled(bind: AsyncEngine) -> AsyncEngine:
     return create_async_engine(bind.url, poolclass=NullPool)
 
 
 @pytest.fixture
-def socket_client(client, monkeypatch) -> TestClient:
+def socket_client(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     """Starlette's ``TestClient``, which drives the app's sockets.
 
     It serves the app on an event loop of its own. The pools the socket
@@ -402,7 +404,9 @@ def _registered(user_id: int, guild_id: int | None) -> bool:
     )
 
 
-def _opens(client: TestClient, path: str, token: str, *, user_id: int, guild_id):
+def _opens(
+    client: TestClient, path: str, token: str, *, user_id: int, guild_id: int | None
+) -> bool:
     """Whether the socket at ``path`` admits ``token``: the first thing it sends
     back is a close, or a frame from a socket in the register."""
     with client.websocket_connect(path) as ws:
@@ -413,8 +417,10 @@ def _opens(client: TestClient, path: str, token: str, *, user_id: int, guild_id)
 
 
 async def test_every_socket_admits_through_the_seam(
-    session, acting_user, socket_client
-):
+    session: AsyncSession,
+    acting_user: Callable[..., Awaitable[Actor]],
+    socket_client: TestClient,
+) -> None:
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     guild, initiative, owner = admin.guild, admin.initiative, admin.user
     visitor = await create_user(session, role=UserRole.support)
