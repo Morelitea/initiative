@@ -600,6 +600,11 @@ class IntakeMessages:
 class OperatorMessages:
     CANNOT_RESET_INACTIVE = "OPERATOR_CANNOT_RESET_INACTIVE"
     USER_ALREADY_ACTIVE = "OPERATOR_USER_ALREADY_ACTIVE"
+    #: Reactivate is for a deactivated account; a suspension is lifted and a
+    #: deletion restored through their own actions.
+    USER_NOT_DEACTIVATED = "OPERATOR_USER_NOT_DEACTIVATED"
+    #: Account actions reach only accounts at or below the caller's own rung.
+    CANNOT_MANAGE_HIGHER_ROLE = "OPERATOR_CANNOT_MANAGE_HIGHER_ROLE"
     #: Restore was asked for an account that has not been deleted.
     USER_NOT_DELETED = "OPERATOR_USER_NOT_DELETED"
     CANNOT_SUSPEND_SELF = "OPERATOR_CANNOT_SUSPEND_SELF"

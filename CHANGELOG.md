@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Ticking tasks in a table is instant.**
 - **Switching communities is quicker.**
 - **The trash shows a page at a time**, newest first.
+- **Platform account actions reach only accounts at or below your own role.** Reactivate is for deactivated accounts; lift a suspension or restore a deletion from their own actions.
 - **Calendar export saves the dates you're viewing.**
 - **API:** the member list (`GET /c/{guild_id}/users/`) and both trash lists return pages (`page`, `page_size`; trash's `total` is now `total_count`), and calendar entries and `/me/calendar-events/export.ics` require `start_after` and `start_before`, at most 400 days apart.
 - **Improved efficiency and security.**
