@@ -107,6 +107,8 @@ jobs:
       - name: Build and push by digest
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        env:
+          OTA_SIGNING_KEY: ${{ secrets.OTA_SIGNING_KEY }}
         with:
           context: .
           file: ./Dockerfile
@@ -117,7 +119,9 @@ jobs:
           build-args: |
             APT_REFRESH=${{ github.run_id }}-${{ github.run_attempt }}
             ${{ inputs.build-args }}
-          secrets: ${{ inputs.signing-environment != '' && format('ota_signing_key={0}', secrets.OTA_SIGNING_KEY) || '' }}
+          # From the environment: the key is a multi-line PEM, which the
+          # line-per-entry `secrets` input splits apart.
+          secret-envs: ${{ inputs.signing-environment != '' && 'ota_signing_key=OTA_SIGNING_KEY' || '' }}
           outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=docker-build-${{ env.PLATFORM_PAIR }}
           cache-to: type=gha,scope=docker-build-${{ env.PLATFORM_PAIR }},mode=max
