@@ -440,7 +440,8 @@ async def test_an_account_with_both_still_supplies_its_password(
 async def test_an_account_with_no_password_is_not_asked_for_one(
     client: AsyncClient, session: AsyncSession
 ):
-    """Provisioned through an identity provider: there is no hash to re-check."""
+    """Provisioned through an identity provider: there is no hash to re-check,
+    so a sign-in just made answers instead."""
     user = await create_user(
         session,
         email="sso-only@example.com",
@@ -449,7 +450,9 @@ async def test_an_account_with_no_password_is_not_asked_for_one(
         email_verified=True,
     )
     response = await client.post(
-        "/api/v1/auth/totp/enroll", json={}, headers=get_auth_headers(user)
+        "/api/v1/auth/totp/enroll",
+        json={},
+        headers=await _session_headers(session, user),
     )
     assert response.status_code == 200, response.text
     assert response.json()["secret"]
@@ -469,7 +472,9 @@ async def test_a_hash_no_scheme_verifies_is_not_a_password(
         email_verified=True,
     )
     response = await client.post(
-        "/api/v1/auth/totp/enroll", json={}, headers=get_auth_headers(user)
+        "/api/v1/auth/totp/enroll",
+        json={},
+        headers=await _session_headers(session, user),
     )
     assert response.status_code == 200, response.text
 
@@ -720,14 +725,48 @@ async def test_a_recovery_code_can_step_up_a_session(
 async def test_a_wrong_code_does_not_upgrade_the_session(
     client: AsyncClient, session: AsyncSession
 ):
-    user, _secret, _codes = await _enrol(client, session, "badstepup@example.com")
-    response = await client.post(
+    """Wrong codes count against the account as they do at sign-in, so enough
+    of them turn the right one away too."""
+    user, secret, _codes = await _enrol(client, session, "badstepup@example.com")
+    headers = await _session_headers(session, user)
+    for _ in range(5):
+        response = await client.post(
+            "/api/v1/auth/step-up/totp", json={"code": "000000"}, headers=headers
+        )
+        assert response.status_code == 400
+        assert response.json()["detail"] == "TOTP_INVALID"
+
+    locked = await client.post(
         "/api/v1/auth/step-up/totp",
-        json={"code": "000000"},
-        headers=await _session_headers(session, user),
+        json={"code": _next_code(secret)},
+        headers=headers,
     )
-    assert response.status_code == 400
-    assert response.json()["detail"] == "TOTP_INVALID"
+    assert locked.status_code == 429
+    assert locked.json() == {"detail": "SIGN_IN_LOCKED"}
+
+
+async def test_a_right_code_starts_the_count_over(
+    client: AsyncClient, session: AsyncSession
+):
+    from app.models.platform.sign_in_lock import SignInLock
+
+    user, secret, _codes = await _enrol(client, session, "recount@example.com")
+    user_id = user.id
+    headers = await _session_headers(session, user)
+    for _ in range(4):
+        await client.post(
+            "/api/v1/auth/step-up/totp", json={"code": "000000"}, headers=headers
+        )
+    stepped = await client.post(
+        "/api/v1/auth/step-up/totp",
+        json={"code": _next_code(secret)},
+        headers=headers,
+    )
+    assert stepped.status_code == 200, stepped.text
+
+    session.expire_all()
+    row = await session.get(SignInLock, user_id)
+    assert row is None or row.failures == 0
 
 
 async def test_an_account_with_no_factor_cannot_step_up(

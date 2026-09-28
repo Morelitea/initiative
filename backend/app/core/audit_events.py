@@ -213,6 +213,7 @@ class AuditEventType(str, Enum):
     # movements of data — out of the deployment, or gone for good.
     USER_CREATED = "user.created"
     USER_DEACTIVATED = "user.deactivated"
+    USER_REACTIVATED = "user.reactivated"
     #: Personal details removed, contributions kept under a placeholder.
     USER_ANONYMIZED = "user.anonymized"
     #: The account and everything it left, removed outright.
@@ -555,6 +556,9 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
         tier=2, category=AuditCategory.LIFECYCLE, is_write=True
     ),
     AuditEventType.USER_DEACTIVATED: AuditEventMeta(
+        tier=2, category=AuditCategory.LIFECYCLE, is_write=True
+    ),
+    AuditEventType.USER_REACTIVATED: AuditEventMeta(
         tier=2, category=AuditCategory.LIFECYCLE, is_write=True
     ),
     AuditEventType.USER_ANONYMIZED: AuditEventMeta(

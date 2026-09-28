@@ -23,6 +23,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.capabilities import (
     ROLE_MAX_GRANT_MINUTES,
     Capability,
+    capabilities_for,
     roles_with_capability,
 )
 from app.core.login_methods import LoginMethod
@@ -533,8 +534,16 @@ async def approve(
 
     # Cap by the GRANTEE's role (an approver shortening/extending can't exceed
     # the recipient's tier).
+    # The grantee is asked about as they stand now, not as they stood when the
+    # request was made.
     grantee = await session.get(User, grant.user_id)
-    grantee_role = grantee.role if grantee else UserRole.support
+    if (
+        grantee is None
+        or grantee.status != UserStatus.active
+        or Capability.ACCESS_REQUEST not in capabilities_for(grantee.role)
+    ):
+        raise AccessGrantError("GRANTEE_INELIGIBLE")
+    grantee_role = grantee.role
     duration = _capped_duration(
         duration_minutes or grant.requested_duration_minutes, grantee_role
     )

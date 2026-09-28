@@ -16,6 +16,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.notification_categories import NotificationCategory
 from app.models.platform.email_outbox import EmailOutboxItem
 from app.models.platform.notification import NotificationType
+from app.services.auth import sessions as session_service
 from app.services import email as email_service
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import (
@@ -175,12 +176,15 @@ def fcm(monkeypatch):
 
 async def _with_a_phone(session: AsyncSession, email: str):
     user = await create_user(session, email=email)
+    signed_in = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[]
+    )
     await push_tokens.register_push_token(
         session=session,
         user_id=user.id,
         push_token=f"token-{user.id}",
         platform="android",
-        device_token_id=None,
+        session_id=signed_in.session.id,
     )
     return user
 

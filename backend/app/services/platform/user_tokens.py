@@ -136,14 +136,29 @@ async def consume_token(
     token: str,
     purpose: UserTokenPurpose,
 ) -> Optional[UserToken]:
-    record = await get_valid_token(session, token=token, purpose=purpose)
-    if not record:
+    """Spend a live token and return it, or ``None``.
+
+    One conditional update claims it, so a token is spent once however many
+    requests present it at the same moment.
+    """
+    now = datetime.now(timezone.utc)
+    claimed = (
+        await session.exec(
+            sql_update(UserToken)
+            .where(
+                col(UserToken.token) == _hash_token(token),
+                col(UserToken.purpose) == purpose,
+                col(UserToken.consumed_at).is_(None),
+                col(UserToken.expires_at) > now,
+            )
+            .values(consumed_at=now)
+            .returning(col(UserToken.id))
+        )
+    ).first()
+    if claimed is None:
         return None
-    record.consumed_at = datetime.now(timezone.utc)
-    session.add(record)
     await session.commit()
-    await session.refresh(record)
-    return record
+    return await session.get(UserToken, claimed[0], populate_existing=True)
 
 
 async def purge_expired_tokens(session: AsyncSession) -> None:

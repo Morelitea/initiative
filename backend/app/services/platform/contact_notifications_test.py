@@ -18,7 +18,7 @@ from sqlalchemy import text
 
 from app.models.platform.user_dm_settings import DmPolicy
 from app.models.platform.user_ignore import UserIgnore
-from app.testing import push_switched_on, set_notification_prefs
+from app.testing import push_switched_on, set_notification_prefs, signed_in_headers
 
 
 @pytest.fixture(autouse=True)
@@ -204,7 +204,7 @@ class TestPush:
         await client.post(
             "/api/v1/push/register",
             json={"push_token": "fcm-bo", "platform": "android"},
-            headers=bo.headers,
+            headers=await signed_in_headers(session, bo.user),
         )
 
         with patch(
@@ -229,11 +229,12 @@ class TestPush:
         ada = await acting_user()
         bo = await acting_user()
         await _reachable(session, ada.user, bo.user)
+        headers = await signed_in_headers(session, bo.user)
         for name in ("fcm-phone", "fcm-tablet"):
             await client.post(
                 "/api/v1/push/register",
                 json={"push_token": name, "platform": "android"},
-                headers=bo.headers,
+                headers=headers,
             )
 
         with patch(
@@ -258,7 +259,7 @@ class TestPush:
         await client.post(
             "/api/v1/push/register",
             json={"push_token": "fcm-bo", "platform": "android"},
-            headers=bo.headers,
+            headers=await signed_in_headers(session, bo.user),
         )
         await set_notification_prefs(
             session, bo.user, {"categories": {"direct_messages": {"push": False}}}

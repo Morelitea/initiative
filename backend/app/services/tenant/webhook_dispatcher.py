@@ -17,6 +17,7 @@ Verification (the receiver's job, in initiative-auto):
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import json
@@ -26,7 +27,7 @@ from typing import Any
 
 import httpx
 
-from app.services.safe_http import request_public_target
+from app.services.safe_http import ResponseTooLargeError, request_public_target
 from app.services.webhook_target_url import (
     WebhookTargetUrlError,
     WebhookTargetUrlPrivateError,
@@ -36,6 +37,10 @@ logger = logging.getLogger(__name__)
 
 
 _TIMEOUT = httpx.Timeout(connect=3.0, read=5.0, write=5.0, pool=5.0)
+#: The most one delivery may take, end to end, and the most of a receiver's
+#: answer it reads: only the status is used.
+_DEADLINE_SECONDS = 15.0
+_MAX_RESPONSE_BYTES = 1024 * 1024
 
 
 def _sign(secret: str, timestamp: str, body: bytes) -> str:
@@ -81,13 +86,21 @@ async def deliver(
     }
 
     try:
-        response = await request_public_target(
-            "POST",
-            target_url,
-            headers=headers,
-            content=body,
-            timeout=_TIMEOUT,
+        answer = await asyncio.wait_for(
+            request_public_target(
+                "POST",
+                target_url,
+                headers=headers,
+                content=body,
+                timeout=_TIMEOUT,
+                max_bytes=_MAX_RESPONSE_BYTES,
+            ),
+            timeout=_DEADLINE_SECONDS,
         )
+        status_code: int | None = answer.status_code
+    except ResponseTooLargeError as exc:
+        # Only the status is read, and it arrived before the body did.
+        status_code = exc.status_code
     except (WebhookTargetUrlError, WebhookTargetUrlPrivateError) as exc:
         logger.warning(
             "webhook delivery skipped — target failed validation: target=%s err=%s",
@@ -108,12 +121,12 @@ async def deliver(
     # request is pinned to a validated address and not followed, so treating 3xx
     # as success would drop the batch from retry without a receiver ever having
     # seen it.
-    if not 200 <= response.status_code < 300:
+    if status_code is None or not 200 <= status_code < 300:
         logger.warning(
             "webhook delivery not accepted: target=%s event=%s status=%s",
             target_url,
             envelope.get("event_id"),
-            response.status_code,
+            status_code,
         )
         return False
 

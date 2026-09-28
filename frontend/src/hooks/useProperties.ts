@@ -155,14 +155,21 @@ export const useAppendPropertyOption = () => {
         color: vars.color ?? null,
       };
       const nextOptions: PropertyOption[] = [...currentOptions, newOption];
-      await updatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatch(
+      const saved = await updatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatch(
         guildId,
         vars.definition.id,
         {
           options: nextOptions,
         }
       );
-      return { option: newOption, created: true as const };
+      // The server keeps options it already holds as they are, so the one
+      // asked for is only there if it came back under this label.
+      const stored = findOptionByLabel(saved.definition, label);
+      if (!stored) {
+        void invalidate(q.allProperties());
+        throw new Error("Option was not added");
+      }
+      return { option: stored, created: true as const };
     },
     onSuccess: (result) => {
       void invalidate(q.allProperties(), q.allDocuments(), q.allTasks(), q.allCalendarEvents());

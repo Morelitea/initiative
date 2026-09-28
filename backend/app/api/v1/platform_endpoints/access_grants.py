@@ -75,6 +75,7 @@ _ERROR_STATUS: dict[str, int] = {
     "CANNOT_APPROVE_OWN": status.HTTP_400_BAD_REQUEST,
     "CANNOT_CANCEL_OTHERS": status.HTTP_403_FORBIDDEN,
     "ALREADY_LIVE": status.HTTP_409_CONFLICT,
+    "GRANTEE_INELIGIBLE": status.HTTP_409_CONFLICT,
 }
 _ERROR_DETAIL: dict[str, str] = {
     "GUILD_NOT_FOUND": AccessGrantMessages.GUILD_NOT_FOUND,
@@ -86,6 +87,7 @@ _ERROR_DETAIL: dict[str, str] = {
     "CANNOT_APPROVE_OWN": AccessGrantMessages.CANNOT_APPROVE_OWN,
     "CANNOT_CANCEL_OTHERS": AccessGrantMessages.CANNOT_CANCEL_OTHERS,
     "ALREADY_LIVE": AccessGrantMessages.ALREADY_LIVE,
+    "GRANTEE_INELIGIBLE": AccessGrantMessages.GRANTEE_INELIGIBLE,
 }
 
 

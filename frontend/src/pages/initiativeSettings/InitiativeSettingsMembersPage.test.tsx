@@ -171,13 +171,14 @@ describe("InitiativeSettingsMembersPage", () => {
 
     await userEvent.click(await screen.findByRole("combobox", { name: "Select user" }));
     await userEvent.type(screen.getByPlaceholderText("Search"), "ada");
+    // The community is asked for what was typed, once the picker's debounce
+    // has let it through.
+    await waitFor(() => expect(searches).toContain("ada"));
     await userEvent.click(await screen.findByRole("option", { name: "Ada Admin" }));
     await userEvent.click(screen.getByRole("button", { name: "Add member" }));
 
-    // The community is asked for what was typed, and its admin lands on the
-    // moderator role whatever the role select held.
+    // Its admin lands on the moderator role whatever the role select held.
     await waitFor(() => expect(added).toEqual([{ user_id: 55, role_id: 21 }]));
-    expect(searches).toContain("ada");
   });
 
   /**

@@ -47,6 +47,7 @@ import {
   saveOfflineSession,
 } from "@/lib/offlineSession";
 import { stepUpWithPasskey as presentPasskeyForStepUp } from "@/lib/passkeys";
+import { forgetPushOnThisDevice } from "@/lib/pushRegistration";
 import { queryClient } from "@/lib/queryClient";
 import { CREDENTIAL_KEYS, getItem, removeItem, setItem } from "@/lib/storage";
 import { clearUploadToken } from "@/lib/uploadToken";
@@ -715,6 +716,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // a key store that is about to be erased. It needs the token, so it goes
       // ahead of the sign-out itself.
       await forgetMessagesOnThisDevice();
+    } catch {
+      // Never a reason to stay signed in.
+    }
+    try {
+      // The same for this device's notifications: withdrawn while the
+      // credential still works.
+      await forgetPushOnThisDevice();
     } catch {
       // Never a reason to stay signed in.
     }

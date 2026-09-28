@@ -246,7 +246,8 @@ async def _recipient_locale(user_id: int) -> str:
 
 
 async def _recipient_tokens(user_id: int) -> list[PushToken]:
-    """One recipient's registered devices, read on the system engine.
+    """One recipient's devices whose sign-in still stands, read on the system
+    engine.
 
     The rows are the recipient's rather than the sending session's to read,
     the same way their account and notification settings are.
@@ -254,9 +255,9 @@ async def _recipient_tokens(user_id: int) -> list[PushToken]:
     from app.db.session import SystemSessionLocal
 
     async with SystemSessionLocal() as system_session:
-        return await push_tokens.get_push_tokens_for_user(
-            system_session, user_id=user_id
-        )
+        tokens = await push_tokens.live_for_user(system_session, user_id=user_id)
+        await system_session.commit()
+        return tokens
 
 
 async def _record_delivery(

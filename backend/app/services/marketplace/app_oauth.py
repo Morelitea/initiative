@@ -389,11 +389,14 @@ def _requested_scopes(value: str | None) -> frozenset[str] | None:
         raise OAuthError("invalid_scope", f"{exc.scope!r} is not a scope") from exc
 
 
-def _issuable(row: Any) -> frozenset[str]:
-    """What an install's grant issues now: :data:`ISSUABLE_SCOPES_SQL`, less
-    any scope the vocabulary no longer defines, which the token could never be
-    used with."""
-    return frozenset(scope for scope in row.issuable if is_known_scope(scope))
+def _issuable(row: Any, client: RegistrationSnapshot) -> frozenset[str]:
+    """What an install's grant issues now: :data:`ISSUABLE_SCOPES_SQL`, within
+    the registration's ``scope_ceiling`` as it stands, less any scope the
+    vocabulary no longer defines, which the token could never be used with."""
+    ceiling = set(client.scope_ceiling)
+    return frozenset(
+        scope for scope in row.issuable if scope in ceiling and is_known_scope(scope)
+    )
 
 
 _INSTALL_SQL_TEXT = (
@@ -441,7 +444,7 @@ async def _installation_token(
     ):
         raise OAuthError("invalid_grant", "unknown installation")
 
-    granted = _issuable(row)
+    granted = _issuable(row, client)
     requested = _requested_scopes(scope)
     if requested is not None and not _covered(requested, granted):
         raise OAuthError("invalid_scope", "a requested scope has not been granted")
@@ -567,7 +570,7 @@ async def _member_token(
     if belongs is None or row.granted_access is None:
         raise _consent_required("the member has not consented to this")
 
-    granted = _issuable(row)
+    granted = _issuable(row, client)
     requested = _requested_scopes(scope)
     if requested is not None and not _covered(requested, granted):
         raise OAuthError("invalid_scope", "a requested scope has not been granted")

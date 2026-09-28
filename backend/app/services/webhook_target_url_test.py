@@ -45,9 +45,11 @@ def test_rejects_loopback(url: str):
         "https://172.16.0.1/hook",
         "https://192.168.1.1/hook",
         "https://[fc00::1]/hook",
+        "https://100.64.0.1/hook",
+        "https://100.100.100.200/hook",
     ],
 )
-def test_rejects_rfc1918_and_ula(url: str):
+def test_rejects_rfc1918_ula_and_shared(url: str):
     with pytest.raises(WebhookTargetUrlPrivateError):
         assert_target_url_is_public(url)
 

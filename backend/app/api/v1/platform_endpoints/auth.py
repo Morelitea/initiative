@@ -1821,6 +1821,25 @@ async def _complete_provider_login(
             target_id=provider_row.id,
             detail={"provider": provider_row.slug, "matched_by": "verified_email"},
         )
+        # An address the account had not proved is proved here for the first
+        # time, and the account starts from that proof, as it does when an
+        # emailed code is the first proof.
+        retired = not await addresses.holds_address(
+            system_session, user_id=user.id, email=email
+        )
+        if retired:
+            # The proof, the retirement and the link land in one commit.
+            await addresses.retire_credentials_predating_proof(
+                system_session, user=user
+            )
+            await addresses.ensure_address(
+                system_session,
+                user_id=user.id,
+                email=email,
+                source=addresses.SOURCE_OIDC,
+                verified=True,
+                provider_id=provider_row.id,
+            )
         identity = await link_identity(
             system_session,
             user=user,
@@ -1828,6 +1847,9 @@ async def _complete_provider_login(
             subject=completion.subject,
             email_verified=email_verified,
         )
+        if retired:
+            # Connections opened on the credentials retired above close now.
+            await content_sockets.revoke_user_everywhere(user.id)
 
     # The address this provider asserts for the account. A provisioned account
     # already holds it; a linked one existed first, so this is where a work

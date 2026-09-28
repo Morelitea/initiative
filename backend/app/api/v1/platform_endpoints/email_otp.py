@@ -16,7 +16,15 @@ import logging
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Request,
+    Response,
+    status,
+)
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,11 +38,11 @@ from app.api.v1.platform_endpoints.session_opening import (
     require_login_method,
     second_factor_outstanding,
 )
-from app.core.audit_events import AuditEventType
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages
 from app.core.email_i18n import SUPPORTED_EMAIL_LOCALES
 from app.core.rate_limit import get_real_client_ip, limiter
+from app.db import session as db_session
 from app.db.session import get_session
 from app.models.platform.user import SIGN_IN_STATUSES, User
 from app.models.platform.user_email import UserEmail
@@ -45,13 +53,11 @@ from app.schemas.platform.email_otp import (
     EmailOtpVerify,
 )
 from app.schemas.platform.token import Token
-from app.services import audit as audit_service
 from app.services import captcha as captcha_service
 from app.services import email as email_service
 from app.services.auth import addresses
 from app.services.auth import challenges as challenge_service
 from app.services.auth import email_otp as email_otp_service
-from app.services.platform import user_tokens
 from app.services.content_sockets import sockets as content_sockets
 
 logger = logging.getLogger(__name__)
@@ -59,34 +65,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
-
-
-async def _retire_credentials_predating_proof(
-    session: AsyncSession, *, user: User
-) -> None:
-    """Drop every credential the account held before this address was proved.
-
-    Reached only where the code confirmed an address nobody had proved. The
-    account keeps its handle, its memberships and its content; what it gives
-    up is the password and the standing credentials that were set while the
-    address was unproven. Whoever proved it signs in, and sets a password
-    afterwards if they want one.
-    """
-    user.hashed_password = None
-    user.password_set_at = None
-    session.add(user)
-    # Staged rather than committed: the session this sign-in opens lands in
-    # the same transaction, so the account never sits with nothing.
-    await user_tokens.revoke_user_sessions(session, user=user, commit=False)
-    await audit_service.record(
-        session,
-        event_type=AuditEventType.AUTH_CREDENTIALS_RETIRED,
-        actor_user_id=user.id,
-        target_user_id=user.id,
-        target_type="user",
-        target_id=user.id,
-        detail={"reason": "address_first_proved"},
-    )
 
 
 def _requested_locale(request: Request) -> str:
@@ -132,11 +110,41 @@ async def _registration_open(
     return True
 
 
+async def _post_code_letter(
+    *, user_id: int | None, email: str, code: str, minutes: int, locale: str
+) -> None:
+    """Post a sign-in or sign-up code once the response has gone.
+
+    After the response, on a session of its own, so the answer takes the same
+    time whichever address it names. A letter that cannot be posted is logged;
+    the person asks again.
+    """
+    try:
+        async with db_session.SystemSessionLocal() as letter_session:
+            if user_id is None:
+                await email_service.send_sign_up_code_email(
+                    letter_session,
+                    email=email,
+                    code=code,
+                    minutes=minutes,
+                    locale=locale,
+                )
+                return
+            user = await letter_session.get(User, user_id)
+            if user is not None:
+                await email_service.send_sign_in_code_email(
+                    letter_session, user, email=email, code=code, minutes=minutes
+                )
+    except Exception:
+        logger.exception("Could not post a sign-in code")
+
+
 @router.post("/email-otp/send", response_model=EmailOtpSent)
 @limiter.limit("5/15minutes")
 async def send_sign_in_code(
     request: Request,
     payload: EmailOtpSend,
+    background: BackgroundTasks,
     session: SessionDep,
     system_session: SystemSessionDep,
 ) -> EmailOtpSent:
@@ -179,30 +187,16 @@ async def send_sign_in_code(
         native=payload.native,
         email=address if signing_up else None,
     )
-    minutes = int(email_otp_service.CODE_TTL.total_seconds() // 60)
-    try:
-        if recipient is not None:
-            await email_service.send_sign_in_code_email(
-                system_session,
-                recipient,
-                email=address,
-                code=issued.code,
-                minutes=minutes,
-            )
-        elif signing_up:
-            await email_service.send_sign_up_code_email(
-                system_session,
-                email=address,
-                code=issued.code,
-                minutes=minutes,
-                locale=_requested_locale(request),
-            )
-    except email_service.EmailNotConfiguredError:  # pragma: no cover
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AuthMessages.EMAIL_OTP_CANNOT_SEND,
-        ) from None
     await system_session.commit()
+    if recipient is not None or signing_up:
+        background.add_task(
+            _post_code_letter,
+            user_id=recipient.id if recipient is not None else None,
+            email=address,
+            code=issued.code,
+            minutes=int(email_otp_service.CODE_TTL.total_seconds() // 60),
+            locale=_requested_locale(request),
+        )
     return EmailOtpSent(challenge=issued.handle)
 
 
@@ -294,7 +288,9 @@ async def verify_sign_in_code(
             system_session, address_id=challenge.user_email_id
         )
         if first_proof:
-            await _retire_credentials_predating_proof(system_session, user=user)
+            await addresses.retire_credentials_predating_proof(
+                system_session, user=user
+            )
             retired = True
         row = await system_session.get(UserEmail, challenge.user_email_id)
         if row is not None:

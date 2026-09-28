@@ -40,6 +40,7 @@ from app.api.v1.platform_endpoints.session_cookies import (
     set_session_cookie,
 )
 from app.core.audit_events import AuditEventType
+from app.core.auth_context import session_credential
 from app.core.config import settings
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages, SettingsMessages
@@ -67,6 +68,7 @@ from app.services.auth import sign_in_locks
 from app.services.auth import subject as subject_service
 from app.services.auth import totp as totp_service
 from app.services.platform import auth_posture
+from app.services.platform import push_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -520,6 +522,9 @@ async def issue_session(
     )
     if replaces is not None:
         await session_service.revoke_chain(system_session, session_id=replaces)
+        await push_tokens.follow_session(
+            system_session, from_id=replaces, to_id=issued.session.id
+        )
     # The name the token will carry, in the same transaction as the session.
     subject = await subject_service.subject_for_user(system_session, user_id=user_id)
     access_token, access_max_age = mint_for(
@@ -612,6 +617,13 @@ async def replace_session(
             satisfied_providers=satisfied_providers,
             provider_auth=provider_auth,
         )
+        credential = session_credential()
+        if credential is not None:
+            await push_tokens.follow_session(
+                system_session,
+                from_id=credential.session_id,
+                to_id=issued.session.id,
+            )
     issued.set_cookies(response)
     return issued.to_token(include_refresh=False)
 

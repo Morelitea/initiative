@@ -600,6 +600,11 @@ class IntakeMessages:
 class OperatorMessages:
     CANNOT_RESET_INACTIVE = "OPERATOR_CANNOT_RESET_INACTIVE"
     USER_ALREADY_ACTIVE = "OPERATOR_USER_ALREADY_ACTIVE"
+    #: Reactivate is for a deactivated account; a suspension is lifted and a
+    #: deletion restored through their own actions.
+    USER_NOT_DEACTIVATED = "OPERATOR_USER_NOT_DEACTIVATED"
+    #: Account actions reach only accounts at or below the caller's own rung.
+    CANNOT_MANAGE_HIGHER_ROLE = "OPERATOR_CANNOT_MANAGE_HIGHER_ROLE"
     #: Restore was asked for an account that has not been deleted.
     USER_NOT_DELETED = "OPERATOR_USER_NOT_DELETED"
     CANNOT_SUSPEND_SELF = "OPERATOR_CANNOT_SUSPEND_SELF"
@@ -626,6 +631,9 @@ class AccessGrantMessages:
     NOT_ACTIVE = "ACCESS_GRANT_NOT_ACTIVE"
     CANNOT_APPROVE_OWN = "ACCESS_GRANT_CANNOT_APPROVE_OWN"
     CANNOT_CANCEL_OTHERS = "ACCESS_GRANT_CANNOT_CANCEL_OTHERS"
+    #: Approving asks whether the requester may still request access: an
+    #: active account whose role holds ``access.request``.
+    GRANTEE_INELIGIBLE = "ACCESS_GRANT_GRANTEE_INELIGIBLE"
     #: A settings rung reads; changing what it reaches takes a read_write
     #: content grant beside it.
     WRITE_GRANT_REQUIRED = "ACCESS_GRANT_WRITE_REQUIRED"
@@ -689,7 +697,6 @@ class UserMessages:
     AVATAR_TOO_LARGE_DIMENSIONS = "USER_AVATAR_TOO_LARGE_DIMENSIONS"
     # A read payload's ``avatar_url`` is a path this API serves; writing one
     # back would store it as though it were an external picture URL.
-    AVATAR_URL_NOT_EXTERNAL = "USER_AVATAR_URL_NOT_EXTERNAL"
     #: A decoration this account's library does not answer for — one it does
     #: not have, or one it has for a different slot.
     DECORATION_NOT_OWNED = "USER_DECORATION_NOT_OWNED"

@@ -38,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Ticking tasks in a table is instant.**
 - **Switching communities is quicker.**
 - **The trash shows a page at a time**, newest first.
+- **The first sign-in that proves your email address**, by an emailed code or by your organization's sign-in, removes any password, passkey or second factor set up before it. Set them up again from Security.
+- **Platform account actions reach only accounts at or below your own role.** Reactivate is for deactivated accounts; lift a suspension or restore a deletion from their own actions.
 - **Calendar export saves the dates you're viewing.**
 - **API:** the member list (`GET /c/{guild_id}/users/`) and both trash lists return pages (`page`, `page_size`; trash's `total` is now `total_count`), and calendar entries and `/me/calendar-events/export.ics` require `start_after` and `start_before`, at most 400 days apart.
 - **Improved efficiency and security.**
@@ -49,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **A picture shared by several pages** stays while any of them still shows it, including pages you can't open.
+- **Signing out of the app stops its notifications**, and so does signing out other devices or resetting your password.
 - **Whiteboards and offline edits** are no longer lost.
 - **Large spreadsheets** keep up with your typing.
 - **Duplicated file documents** include the file.
