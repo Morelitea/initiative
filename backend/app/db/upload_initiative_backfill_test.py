@@ -50,7 +50,7 @@ async def test_the_backfill_places_copies_and_leaves_alone(
     """Shown in one initiative: kept there. Shown in several: the oldest
     showing row's initiative keeps it and each other initiative gets one copy
     that all its rows show. Shown only by the guild's own calendar: kept for
-    the guild. Shown by nothing: left unclaimed, and not deleted."""
+    the guild. Shown by nothing: left as it was, and not deleted."""
     monkeypatch.setattr(settings, "UPLOADS_DIR", str(tmp_path / "uploads"))
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
@@ -99,7 +99,7 @@ async def test_the_backfill_places_copies_and_leaves_alone(
         "shared.png": (first.id, True),
         copy: (second.id, True),
         "guild.png": (None, True),
-        "nothing.png": (None, False),
+        "nothing.png": (None, True),
     }
     descriptions = await session.exec(
         select(Task.description)

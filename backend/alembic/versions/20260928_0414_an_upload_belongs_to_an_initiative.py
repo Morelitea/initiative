@@ -12,7 +12,9 @@ trashed rows included:
 * shown in several: the initiative of the oldest showing row keeps it; every
   other initiative gets one copy of the file, and each of its rows that shows
   the file is rewritten to show the copy;
-* shown by nothing: left unclaimed, which only its uploader reaches.
+* shown by nothing: left as it is. One never saved stays unclaimed, which only
+  its uploader reaches; a pasted picture the sweep already claimed stays
+  claimed, so the sweep does not take it up again.
 
 Nothing is deleted. A copy that cannot be written stops the migration, which
 leaves the database as it was; a copy is named from the file and the
@@ -240,21 +242,12 @@ def _place(bind, schema: str) -> None:
                 )
             copied += 1
 
-    # A file nothing shows has not been saved into anything.
-    unshown = bind.execute(
-        sa.text(
-            "UPDATE uploads SET claimed_at = NULL WHERE initiative_id IS NULL"
-            " AND claimed_at IS NOT NULL"
-            " AND NOT EXISTS (SELECT 1 FROM _shown s WHERE s.filename = uploads.filename)"
-        )
-    ).rowcount
     logger.info(
-        "uploads in %s: %s placed, %s copies (%s of files not stored), %s unclaimed",
+        "uploads in %s: %s placed, %s copies (%s of files not stored)",
         schema,
         claimed,
         copied,
         missing,
-        unshown,
     )
 
 
