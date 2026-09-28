@@ -657,12 +657,14 @@ async def read_wiki_page_links(
 
     The second half is the backlinks. They are read from the same table the
     ``[[ ]]`` extractor writes to, so a page that somebody linked to from a
-    task knows about it without the task having to say so twice.
+    task knows about it without the task having to say so twice. Something in
+    another initiative is left out, as the relationships list leaves it out.
     """
-    _wiki, page = await _load_page(
+    wiki, page = await _load_page(
         session, wiki_id, page_id, current_user, guild_context
     )
     outgoing, incoming = await wikis_service.page_links(session, page)
+    here = reference_targets.Place(wiki.initiative_id, scoped_kind=True)
 
     async def _links(rows, *, other: str) -> list[WikiPageLink]:
         # Resolve titles one kind at a time rather than one row at a time, and
@@ -686,7 +688,7 @@ async def read_wiki_page_links(
             entity_type = getattr(row, f"{other}_type")
             entity_id = getattr(row, f"{other}_id")
             target = found.get((entity_type, entity_id))
-            if target is None:
+            if target is None or not reference_targets.in_one_place(here, target):
                 continue
             tool = getattr(target, "tool", None)
             links.append(

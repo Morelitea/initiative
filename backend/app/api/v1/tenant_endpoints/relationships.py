@@ -233,12 +233,15 @@ async def _titles_for(
     session: RLSSessionDep,
     rows: list[EntityRelationship],
     anchor: Endpoint,
+    here: reference_targets.Resolved,
     user_id: int,
 ) -> dict[tuple[str, int], reference_targets.Resolved]:
     """Resolve every far end named by a page of edges — one query per kind.
 
     A far end that resolves to nothing is one in the trash, and
-    :func:`_render` leaves the edge out.
+    :func:`_render` leaves the edge out. So is one now in another initiative
+    than ``here``, the anchor's own row: an edge recorded before that was
+    refused, or left behind when a project moved.
     """
     wanted: dict[str, list[int]] = {}
     for row in rows:
@@ -253,7 +256,8 @@ async def _titles_for(
             session, SearchEntityType(kind), ids, user_id=user_id
         )
         for entity_id, row in resolved.items():
-            found[(kind, entity_id)] = row
+            if reference_targets.in_one_place(here, row):
+                found[(kind, entity_id)] = row
     return found
 
 
@@ -275,7 +279,7 @@ async def list_relationships(
     ref = _parse_ref(entity)
     if other_type is not None:
         other_type = _endpoint_kind(other_type)
-    await _resolve(session, ref, current_user.id)
+    here = await _resolve(session, ref, current_user.id)
     anchor = Endpoint(ref.type, ref.id)
 
     rows = await relationships_service.list_for_entity(
@@ -286,7 +290,7 @@ async def list_relationships(
         direction=direction,
     )
     rows.sort(key=lambda r: (r.created_at, r.id or 0))
-    titles = await _titles_for(session, rows, anchor, current_user.id)
+    titles = await _titles_for(session, rows, anchor, here, current_user.id)
     return [
         rendered
         for rendered in (_render(row, anchor=anchor, titles=titles) for row in rows)
@@ -332,7 +336,7 @@ async def create_relationship(
     await session.commit()
 
     anchor = Endpoint(body.source.type, body.source.id)
-    titles = await _titles_for(session, [row], anchor, current_user.id)
+    titles = await _titles_for(session, [row], anchor, source, current_user.id)
     made = _render(row, anchor=anchor, titles=titles)
     if made is None:
         # Both ends resolved a moment ago, so this is the far end having gone
@@ -414,7 +418,7 @@ async def replace_relationship_slice(
         session, anchor, relationship_type=relationship_type, other_kind=other_type
     )
     rows.sort(key=lambda r: (r.created_at, r.id or 0))
-    titles = await _titles_for(session, rows, anchor, current_user.id)
+    titles = await _titles_for(session, rows, anchor, anchor_row, current_user.id)
     return [
         rendered
         for rendered in (_render(row, anchor=anchor, titles=titles) for row in rows)

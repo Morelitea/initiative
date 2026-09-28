@@ -141,6 +141,38 @@ async def test_a_picker_does_not_reach_across_initiatives(
     assert response.json()["detail"] == RelationshipMessages.CROSS_INITIATIVE
 
 
+async def test_an_edge_already_across_initiatives_is_not_listed(
+    client: AsyncClient, acting_user, session
+):
+    """One recorded before such edges were refused, or left behind when a
+    project moved, is not offered from either end."""
+    from app.core.relationships import Provenance, RelationshipType
+    from app.core.search import SearchEntityType
+    from app.services.tenant.relationships import Endpoint, create_many
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await create_document(session, a.initiative, a.user)
+    elsewhere = await create_initiative(session, a.guild, a.user)
+    far = await create_document(session, elsewhere, a.user)
+
+    await route_session_to_guild(session, a.guild.id)
+    await create_many(
+        session,
+        source=Endpoint(SearchEntityType.document, doc.id),
+        relationship_type=RelationshipType.references,
+        targets=[Endpoint(SearchEntityType.document, far.id)],
+        provenance=Provenance.content,
+    )
+    await session.commit()
+
+    for entity in (doc.id, far.id):
+        response = await client.get(
+            _url(a), headers=a.headers, params={"entity": f"document:{entity}"}
+        )
+        assert response.status_code == 200, response.text
+        assert response.json() == []
+
+
 async def test_an_end_the_caller_cannot_open_is_absent(
     client: AsyncClient, acting_user, session
 ):

@@ -11,8 +11,10 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
+from app.testing.schema_harness import route_session_to_guild
 from app.testing import (
     create_document,
+    create_initiative,
     create_wiki,
     create_wiki_page,
     strip_non_owner_grants,
@@ -992,13 +994,29 @@ async def test_a_page_reports_what_links_to_it(
     assert incoming[0]["tool_id"] == wiki.id
 
 
-async def test_links_are_empty_for_a_page_nothing_names(
+async def test_links_are_empty_for_a_page_nothing_here_names(
     client: AsyncClient, acting_user, session
 ):
+    """A link from another initiative is not one of this page's."""
+    from app.core.relationships import Provenance, RelationshipType
+    from app.core.search import SearchEntityType
+    from app.services.tenant.relationships import Endpoint, create_many
+
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
     page = await create_wiki_page(session, wiki, a.user, title="Alone")
+    elsewhere = await create_initiative(session, a.guild, a.user)
+    far = await create_document(session, elsewhere, a.user)
+    await route_session_to_guild(session, a.guild.id)
+    await create_many(
+        session,
+        source=Endpoint(SearchEntityType.document, far.id),
+        relationship_type=RelationshipType.references,
+        targets=[Endpoint(SearchEntityType.wiki_page, page.id)],
+        provenance=Provenance.content,
+    )
+    await session.commit()
 
     response = await client.get(
         a.g(f"/wikis/{wiki.id}/pages/{page.id}/links"), headers=a.headers
