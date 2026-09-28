@@ -17,22 +17,38 @@ that produced them:
 A shape added to ``RequestContext`` fails
 :func:`test_every_shape_has_a_scenario` until it has a scenario here, which is
 where a new kind of access states what it reaches. The catalog check holds
-every policy and function to the variables the registry declares.
+every policy, view and function to the variables the registry declares.
+
+Every socket the app serves is opened for real as well, through Starlette's
+``TestClient``: one a reader may use admits them into the register, and one
+they may not closes. A socket route added to the app fails
+:func:`test_every_socket_admits_through_the_seam` until it has a case here.
 
 Slow, so deselected by default: ``pytest -m seam``.
 """
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from typing import Awaitable, Callable, get_args
 
 import pytest
+from fastapi.routing import APIWebSocketRoute
+from httpx import AsyncClient
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
+from sqlmodel.ext.asyncio.session import AsyncSession
+from starlette.testclient import TestClient
 
-from app.db import gucs
+from app.api import content_socket
+from app.api.content_socket import MSG_AUTH
+from app.api.v1.platform_endpoints import notifications as notifications_endpoint
+from app.db import cohorts, gucs
+from app.db import session as db_session
 from app.db.bootstrap import login_roles
 from app.db.request_context import (
     Billing,
@@ -51,9 +67,18 @@ from app.db.session import routed_context, set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserRole
 from app.models.tenant.resource_grant import ResourceAccessLevel
+from app.main import app
+from app.services.content_sockets import sockets
 from app.testing import (
+    Actor,
     create_access_grant,
+    create_counter_group,
+    create_document,
     create_project,
+    create_queue,
+    create_wiki,
+    create_wiki_page,
+    get_auth_token,
     create_resource_grant,
     create_user,
     route_as,
@@ -329,3 +354,126 @@ async def test_the_catalog_reads_only_declared_variables(session, acting_user):
     declared = {g.name for g in (*gucs.REQUEST_GUCS, *gucs.FLAGS)}
     assert read, "found no reads — the catalog query is looking in the wrong place"
     assert read <= declared, sorted(read - declared)
+
+
+# ---------------------------------------------------------------------------
+# Sockets
+# ---------------------------------------------------------------------------
+
+
+def _unpooled(bind: AsyncEngine) -> AsyncEngine:
+    return create_async_engine(bind.url, poolclass=NullPool)
+
+
+@pytest.fixture
+def socket_client(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    """Starlette's ``TestClient``, which drives the app's sockets.
+
+    It serves the app on an event loop of its own. The pools the socket
+    endpoints draw from are swapped, for the test, for ones that open a
+    connection per checkout, so a connection opened on one loop is never handed
+    to the other. A quiet socket beats at once, so an admitted one says so
+    without the test waiting out the interval.
+    """
+    for module in (content_socket, notifications_endpoint):
+        monkeypatch.setattr(module, "HEARTBEAT_SECONDS", 0.05)
+    for name in ("_request_makers", "_system_makers"):
+        makers = getattr(cohorts, name)
+        monkeypatch.setattr(
+            cohorts,
+            name,
+            cohorts._cohort_makers([_unpooled(m.kw["bind"]) for m in makers]),
+        )
+    monkeypatch.setattr(
+        db_session,
+        "AsyncSessionLocal",
+        async_sessionmaker(
+            bind=_unpooled(db_session.engine),
+            autoflush=False,
+            expire_on_commit=False,
+            class_=AsyncSession,
+        ),
+    )
+    return TestClient(app)
+
+
+def _registered(user_id: int, guild_id: int | None) -> bool:
+    return any(
+        sub.user_id == user_id and sub.guild_id == guild_id
+        for sub in list(sockets._subs.values())
+    )
+
+
+def _opens(
+    client: TestClient, path: str, token: str, *, user_id: int, guild_id: int | None
+) -> bool:
+    """Whether the socket at ``path`` admits ``token``: the first thing it sends
+    back is a close, or a frame from a socket in the register."""
+    with client.websocket_connect(path) as ws:
+        ws.send_bytes(bytes([MSG_AUTH]) + json.dumps({"token": token}).encode())
+        if ws.receive()["type"] == "websocket.close":
+            return False
+        return _registered(user_id, guild_id)
+
+
+async def test_every_socket_admits_through_the_seam(
+    session: AsyncSession,
+    acting_user: Callable[..., Awaitable[Actor]],
+    socket_client: TestClient,
+) -> None:
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    guild, initiative, owner = admin.guild, admin.initiative, admin.user
+    visitor = await create_user(session, role=UserRole.support)
+    await create_access_grant(
+        session, user=visitor, guild=guild, purpose="settings", access_level="admin"
+    )
+    group = await create_counter_group(session, initiative, owner)
+    queue = await create_queue(session, initiative, owner)
+    document = await create_document(session, initiative, owner)
+    wiki = await create_wiki(session, initiative, owner)
+    page = await create_wiki_page(session, wiki, owner)
+
+    base = f"/api/v1/c/{guild.id}"
+    #: Every socket, with the reader it admits (the community's administrator)
+    #: and the credential it refuses: a settings grant, which reaches the
+    #: community's configuration and none of its content — or, for the
+    #: account's own stream, a token that is none.
+    channels = {
+        "/api/v1/c/{guild_id}/queues/{queue_id}/ws": f"{base}/queues/{queue.id}/ws",
+        "/api/v1/c/{guild_id}/counter-groups/{group_id}/ws": (
+            f"{base}/counter-groups/{group.id}/ws"
+        ),
+        "/api/v1/c/{guild_id}/events/updates": f"{base}/events/updates",
+        "/api/v1/c/{guild_id}/collaboration/documents/{document_id}/collaborate": (
+            f"{base}/collaboration/documents/{document.id}/collaborate"
+        ),
+        (
+            "/api/v1/c/{guild_id}/collaboration/wikis/{wiki_id}/pages/{page_id}"
+            "/collaborate"
+        ): f"{base}/collaboration/wikis/{wiki.id}/pages/{page.id}/collaborate",
+    }
+    served = {r.path for r in app.routes if isinstance(r, APIWebSocketRoute)}
+    stream = "/api/v1/notifications/stream"
+    assert served == {*channels, stream}
+
+    for route, path in channels.items():
+        assert _opens(
+            socket_client,
+            path,
+            get_auth_token(owner),
+            user_id=owner.id,
+            guild_id=guild.id,
+        ), route
+        assert not _opens(
+            socket_client,
+            path,
+            get_auth_token(visitor),
+            user_id=visitor.id,
+            guild_id=guild.id,
+        ), route
+    assert _opens(
+        socket_client, stream, get_auth_token(owner), user_id=owner.id, guild_id=None
+    )
+    assert not _opens(
+        socket_client, stream, "not-a-token", user_id=owner.id, guild_id=None
+    )
