@@ -50,7 +50,7 @@ async def test_the_fifth_locks_for_fifteen_minutes(session: AsyncSession, clock)
     failure = await _fail(session, user.id)
 
     assert failure == sign_in_locks.Failure(
-        Outcome.locked, notify=True, lock_for=timedelta(minutes=15)
+        Outcome.locked, lock_for=timedelta(minutes=15)
     )
     assert await sign_in_locks.is_locked(session, user.id)
 
@@ -134,21 +134,6 @@ async def test_locks_start_over_a_day_after_the_first(session: AsyncSession, clo
         clock.advance(timedelta(hours=13))
     assert lengths == [timedelta(minutes=15), timedelta(hours=1), timedelta(minutes=15)]
     assert not await sign_in_locks.is_locked(session, user.id)
-
-
-async def test_the_holder_is_emailed_at_most_hourly(session: AsyncSession, clock):
-    user = await create_user(session)
-    first = await _fail(session, user.id, times=5)
-    clock.advance(timedelta(minutes=16))
-    second = await _fail(session, user.id, times=5)
-    clock.advance(timedelta(hours=1, minutes=1))
-    third = await _fail(session, user.id, times=5)
-
-    assert first.notify
-    assert second.lock_for == timedelta(hours=1)
-    assert not second.notify
-    assert third.lock_for == timedelta(hours=4)
-    assert third.notify
 
 
 async def test_closed_names_only_locked_accounts(session: AsyncSession, clock):

@@ -32,9 +32,6 @@ FAILURE_WINDOW = timedelta(minutes=15)
 #: How long the first, second and each later lock within ``LOCK_WINDOW`` lasts.
 LOCK_FOR = (timedelta(minutes=15), timedelta(hours=1), timedelta(hours=4))
 LOCK_WINDOW = timedelta(hours=24)
-#: The holder is emailed about a lock at most this often. Locks of an hour or
-#: more are placed at least this far apart, so every one of them is emailed.
-NOTIFY_AT_MOST_EVERY = timedelta(hours=1)
 
 
 class Outcome(enum.Enum):
@@ -44,10 +41,9 @@ class Outcome(enum.Enum):
 
 @dataclass(frozen=True)
 class Failure:
-    """What one wrong answer did, and whether to tell the holder."""
+    """What one wrong answer did."""
 
     outcome: Outcome
-    notify: bool
     #: How long the lock this answer placed lasts; None when it placed none.
     lock_for: timedelta | None = None
 
@@ -88,7 +84,7 @@ async def record_failure(session: AsyncSession, user_id: int) -> Failure:
     row = await _row_for_update(session, user_id)
     if _is_closed(row, now):
         # Refused before anything was checked; nothing more to count.
-        return Failure(Outcome.counted, notify=False)
+        return Failure(Outcome.counted)
 
     if row.first_failure_at is None or now - row.first_failure_at > FAILURE_WINDOW:
         row.failures = 0
@@ -97,7 +93,7 @@ async def record_failure(session: AsyncSession, user_id: int) -> Failure:
 
     if row.failures < LOCK_AFTER_FAILURES:
         session.add(row)
-        return Failure(Outcome.counted, notify=False)
+        return Failure(Outcome.counted)
 
     row.failures = 0
     row.first_failure_at = None
@@ -108,9 +104,6 @@ async def record_failure(session: AsyncSession, user_id: int) -> Failure:
 
     lock_for = LOCK_FOR[min(row.locks, len(LOCK_FOR)) - 1]
     row.locked_until = now + lock_for
-    notify = row.notified_at is None or now - row.notified_at >= NOTIFY_AT_MOST_EVERY
-    if notify:
-        row.notified_at = now
     session.add(row)
 
     await audit_service.record(
@@ -122,7 +115,7 @@ async def record_failure(session: AsyncSession, user_id: int) -> Failure:
         target_id=user_id,
         detail={"locks": row.locks, "minutes": int(lock_for.total_seconds()) // 60},
     )
-    return Failure(Outcome.locked, notify=notify, lock_for=lock_for)
+    return Failure(Outcome.locked, lock_for=lock_for)
 
 
 async def record_success(session: AsyncSession, user_id: int) -> None:

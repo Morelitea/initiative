@@ -52,7 +52,7 @@ class SignInLock(SQLModel, table=True):
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
 
-    #: When the holder was last emailed about a lock.
+    #: No longer written or read: every lock is emailed.
     notified_at: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
