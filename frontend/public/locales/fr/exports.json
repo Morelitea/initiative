@@ -119,6 +119,7 @@
     },
     "source": {
       "tasks": "Tâches",
+      "events": "Événements",
       "project": "Projet",
       "document": "Document",
       "queue": "File",

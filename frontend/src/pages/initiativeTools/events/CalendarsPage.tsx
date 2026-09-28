@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 
 import type {
   CalendarSummary,
+  ExportEventsApiV1CGuildIdExportsEventsGetParams,
   FilterCondition,
   FilterGroup,
   ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams,
@@ -26,6 +27,7 @@ import {
 } from "@/components/calendar";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
+import { ExportButton, type ExportFormatOption } from "@/components/exports/ExportButton";
 import { useToolImportAction } from "@/components/imports/ToolImportAction";
 import {
   CalendarPanelDropdown,
@@ -75,6 +77,7 @@ import { eventRoute, taskRoute, toolSettingsRoute } from "@/lib/tools";
 
 const STORAGE_KEY = "initiative-calendars-prefs";
 const VISIBILITY_KEY = "initiative-calendar-visibility";
+const ICS_FORMATS: ExportFormatOption[] = [{ format: "ics", labelKey: "export.formatIcs" }];
 
 const STATUS_CATEGORIES: TaskStatusCategory[] = ["backlog", "todo", "in_progress", "done"];
 
@@ -311,6 +314,38 @@ export const CalendarsView = ({
   ]);
 
   const entriesQuery = useCalendarEntries(entriesParams);
+
+  // Export every date of the calendars on screen, through the same scope and
+  // filters as the grid. Hidden calendars are left out by naming the shown ones.
+  const exportParams = useMemo((): ExportEventsApiV1CGuildIdExportsEventsGetParams | null => {
+    const shown = calendars.filter(
+      (calendar) => !visibility.isCalendarHidden(guildId, calendar.id)
+    );
+    if (shown.length === 0) return null;
+    return {
+      ...(solo
+        ? { calendar_ids: [soloCalendar.id] }
+        : guildScope
+          ? { scope: "guild" as const }
+          : initiativeId
+            ? { initiative_id: initiativeId }
+            : {}),
+      ...(!solo && shown.length < calendars.length
+        ? { calendar_ids: shown.map((calendar) => calendar.id) }
+        : {}),
+      ...(!guildOnly && propertyFiltersParam ? { property_filters: propertyFiltersParam } : {}),
+    };
+  }, [
+    calendars,
+    visibility,
+    guildId,
+    solo,
+    soloCalendar?.id,
+    guildScope,
+    guildOnly,
+    initiativeId,
+    propertyFiltersParam,
+  ]);
 
   // Same param shape the sidebar and dashboard use, so this shares their cache.
   const projectsQuery = useProjects(undefined, { staleTime: 30_000, enabled: !guildOnly });
@@ -549,6 +584,17 @@ export const CalendarsView = ({
           guildOnly
             ? undefined
             : { open: filtersOpen, onOpenChange: setFiltersOpen, activeCount: activeFilterCount }
+        }
+        trailing={
+          exportParams ? (
+            <ExportButton
+              endpoint="/exports/events"
+              params={exportParams}
+              formats={ICS_FORMATS}
+              filenameStem="events"
+              resumePending
+            />
+          ) : null
         }
         actions={
           guildScope && canCreateCalendars ? (

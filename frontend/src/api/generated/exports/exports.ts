@@ -24,6 +24,7 @@ import type {
   ExportCounterGroupApiV1CGuildIdExportsCounterGroupGetParams,
   ExportDashboardApiV1CGuildIdExportsDashboardGetParams,
   ExportDocumentApiV1CGuildIdExportsDocumentGetParams,
+  ExportEventsApiV1CGuildIdExportsEventsGetParams,
   ExportGalleryApiV1CGuildIdExportsGalleryGetParams,
   ExportGuildApiV1CGuildIdExportsCommunityGetParams,
   ExportInitiativeApiV1CGuildIdExportsInitiativeGetParams,
@@ -220,6 +221,181 @@ export function useExportTasksApiV1CGuildIdExportsTasksGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getExportTasksApiV1CGuildIdExportsTasksGetQueryOptions(
+    guildId,
+    params,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Export calendar events (the same visibility and filters as ``GET
+ * /calendar-events/``) as one iCalendar file, every date included. Small
+ * results return the file directly; large results return ``202`` with a
+ * queued job to poll and download.
+ * @summary Export Events
+ */
+export const exportEventsApiV1CGuildIdExportsEventsGet = (
+  guildId: number,
+  params?: ExportEventsApiV1CGuildIdExportsEventsGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<unknown>(
+    { url: `/api/v1/c/${guildId}/exports/events`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getExportEventsApiV1CGuildIdExportsEventsGetQueryKey = (
+  guildId: number,
+  params?: ExportEventsApiV1CGuildIdExportsEventsGetParams
+) => {
+  return [`/api/v1/c/${guildId}/exports/events`, ...(params ? [params] : [])] as const;
+};
+
+export const getExportEventsApiV1CGuildIdExportsEventsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ExportEventsApiV1CGuildIdExportsEventsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getExportEventsApiV1CGuildIdExportsEventsGetQueryKey(guildId, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>
+  > = ({ signal }) =>
+    exportEventsApiV1CGuildIdExportsEventsGet(guildId, params, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ExportEventsApiV1CGuildIdExportsEventsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>
+>;
+export type ExportEventsApiV1CGuildIdExportsEventsGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useExportEventsApiV1CGuildIdExportsEventsGet<
+  TData = Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: undefined | ExportEventsApiV1CGuildIdExportsEventsGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>,
+          TError,
+          Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useExportEventsApiV1CGuildIdExportsEventsGet<
+  TData = Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ExportEventsApiV1CGuildIdExportsEventsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>,
+          TError,
+          Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useExportEventsApiV1CGuildIdExportsEventsGet<
+  TData = Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ExportEventsApiV1CGuildIdExportsEventsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Export Events
+ */
+
+export function useExportEventsApiV1CGuildIdExportsEventsGet<
+  TData = Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ExportEventsApiV1CGuildIdExportsEventsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportEventsApiV1CGuildIdExportsEventsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getExportEventsApiV1CGuildIdExportsEventsGetQueryOptions(
     guildId,
     params,
     options

@@ -463,9 +463,9 @@ def test_export_adapters_cover_exactly_the_bulk_export_tools():
     derived = {tool_export_source(tool) for tool in BULK_EXPORT_TOOLS}
     extra = set(ADAPTERS) - derived
     assert derived <= set(ADAPTERS), f"missing adapters for {derived - set(ADAPTERS)}"
-    # "tasks" is a project sub-resource (the filterable task list), not a
+    # "tasks" and "events" are the filterable task and event lists, not a
     # Tool; "initiative"/"guild" are the aggregate backup/report scopes.
-    allowed = {"tasks", "initiative", "guild"}
+    allowed = {"tasks", "events", "initiative", "guild"}
     assert extra == allowed, f"unregistered export sources: {extra - allowed}"
     # Tools without the flag must not silently grow an adapter either.
     unflagged = {
