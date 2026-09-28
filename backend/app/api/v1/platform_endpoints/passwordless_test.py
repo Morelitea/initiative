@@ -744,6 +744,12 @@ async def _regenerate_codes(
     )
 
 
+async def _enrol_a_factor(
+    client: AsyncClient, session: AsyncSession, user: User, headers: dict[str, str]
+) -> Response:
+    return await client.post("/api/v1/auth/totp/enroll", headers=headers, json={})
+
+
 async def _set_a_password(
     client: AsyncClient, session: AsyncSession, user: User, headers: dict[str, str]
 ) -> Response:
@@ -755,6 +761,7 @@ async def _set_a_password(
 
 _GATED = [
     ("delete-account", _delete_account, 200),
+    ("enrol-a-factor", _enrol_a_factor, 200),
     ("delete-guild", _delete_guild, 204),
     ("register-a-passkey", _begin_registration, 200),
     ("remove-a-passkey", _remove_passkey, 204),
@@ -818,6 +825,27 @@ async def test_a_standing_credential_is_not_somebody_signing_in(
     )
     assert response.status_code == 403
     assert response.json()["detail"] == "SESSION_REQUIRED"
+
+
+async def test_a_session_resumed_from_a_device_token_is_not_a_sign_in(
+    client: AsyncClient, session: AsyncSession
+):
+    """Trading a kept device token for a session opens a new chain that records
+    no sign-in, so it does not speak for the account."""
+    user = await _account(session, "pl-resumed@example.com", password=None)
+    device_token = await user_tokens.create_device_token(
+        session, user_id=user.id, device_name="Phone"
+    )
+    await session.commit()
+    exchanged = await client.post(
+        "/api/v1/auth/device-token/exchange", json={"device_token": device_token}
+    )
+    assert exchanged.status_code == 200, exchanged.text
+    headers = {"Authorization": f"Bearer {exchanged.json()['access_token']}"}
+
+    response = await _regenerate_codes(client, session, user, headers)
+    assert response.status_code == 403, response.text
+    assert response.json()["detail"] == "RECENT_PROOF_REQUIRED"
 
 
 async def test_an_account_holding_a_password_answers_with_it_instead(
