@@ -19,20 +19,26 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       short: ${{ steps.sha.outputs.short }}
+      ota-dev-key: ${{ steps.sha.outputs.ota-dev-key }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Get short SHA
         id: sha
-        run: echo "short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        run: |
+          echo "short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "ota-dev-key=$(tr -d '[:space:]' < .github/ota-dev-key.pub)" >> $GITHUB_OUTPUT
 
   docker:
     needs: sha
     uses: ./.github/workflows/docker-image.yml
     with:
       name: dev
+      # Signed with the dev key, which only the dev app trusts.
+      signing-environment: ota-dev
       build-args: |
         VITE_VERSION_SUFFIX=-dev-${{ needs.sha.outputs.short }}
+        VITE_OTA_DEV_KEY=${{ needs.sha.outputs.ota-dev-key }}
       # dev-<sha> first: it is the tag the merge job inspects.
       tags: |
         type=raw,value=dev-${{ needs.sha.outputs.short }}

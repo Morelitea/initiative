@@ -25,17 +25,17 @@ on:
         description: docker/metadata-action tag rules for the merged manifest. The highest-priority tag is the one inspected.
         required: true
         type: string
-      signed:
-        description: Sign the app update with OTA_SIGNING_KEY from the ota-release environment, and fail without it.
+      signing-environment:
+        description: The environment whose OTA_SIGNING_KEY signs the app update (ota-release, ota-dev); the build fails without it. Empty builds an unsigned image.
         required: false
-        type: boolean
-        default: false
+        type: string
+        default: ""
     secrets:
       DOCKERHUB_USERNAME:
         required: false
       DOCKERHUB_TOKEN:
         required: false
-      # Read from the ota-release environment when `signed`; callers pass nothing.
+      # Read from `signing-environment`; callers pass nothing.
       OTA_SIGNING_KEY:
         required: false
 
@@ -54,7 +54,7 @@ jobs:
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     # Holds OTA_SIGNING_KEY, the key the app's updates are signed with.
-    environment: ${{ inputs.signed && 'ota-release' || '' }}
+    environment: ${{ inputs.signing-environment }}
     steps:
       - name: Prepare platform pair
         run: |
@@ -91,12 +91,13 @@ jobs:
           images: ${{ env.IMAGE_NAME }}
 
       - name: Require the app update signing key
-        if: inputs.signed
+        if: inputs.signing-environment != ''
         env:
           OTA_SIGNING_KEY: ${{ secrets.OTA_SIGNING_KEY }}
+          SIGNING_ENVIRONMENT: ${{ inputs.signing-environment }}
         run: |
           if [ -z "$OTA_SIGNING_KEY" ]; then
-            echo "::error::OTA_SIGNING_KEY is not set in the ota-release environment; a release image must carry a signed app update."
+            echo "::error::OTA_SIGNING_KEY is not set in the $SIGNING_ENVIRONMENT environment; this image must carry a signed app update."
             exit 1
           fi
 
@@ -113,7 +114,7 @@ jobs:
           build-args: |
             APT_REFRESH=${{ github.run_id }}-${{ github.run_attempt }}
             ${{ inputs.build-args }}
-          secrets: ${{ inputs.signed && format('ota_signing_key={0}', secrets.OTA_SIGNING_KEY) || '' }}
+          secrets: ${{ inputs.signing-environment != '' && format('ota_signing_key={0}', secrets.OTA_SIGNING_KEY) || '' }}
           outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=docker-build-${{ env.PLATFORM_PAIR }}
           cache-to: type=gha,scope=docker-build-${{ env.PLATFORM_PAIR }},mode=max

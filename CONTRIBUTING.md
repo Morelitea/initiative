@@ -109,6 +109,17 @@ cd backend && ./scripts/test-changed.sh --staged
 cd frontend && ./scripts/test-changed.sh --staged
 ```
 
+## Testing the Android App Against `dev`
+
+The published app only installs updates signed with the release key, so it stays put on a server running the `dev` image. Use the dev app instead:
+
+1. Download the latest `initiative-dev-apk` artifact from the [Dev App](https://github.com/Morelitea/initiative/actions/workflows/dev-app.yml) workflow and install it. It installs beside the published app as **Initiative Dev**.
+2. Point it at a server running the `dev` (or `dev-<sha>`) image. Every push to `dev` then reaches it over the air.
+
+Install a newer dev APK when `dev` changes native code (a Capacitor plugin, anything under `frontend/android`), since an update can only swap web assets. The two apps share the `initiative://` sign-in link, so Android asks which one to open it with.
+
+The dev app and dev images trust the dev key (`.github/ota-dev-key.pub`); its private half is `OTA_SIGNING_KEY` in the `ota-dev` environment, beside the dev Android keystore. Both are released only to the `dev` branch. The published app never trusts the dev key.
+
 ## Code Style
 
 - **Python**: 4-space indent, full type hints, `snake_case` functions, `PascalCase` models/schemas. Lint with `ruff check app`.

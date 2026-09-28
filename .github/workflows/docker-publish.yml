@@ -222,7 +222,7 @@ jobs:
     with:
       name: release
       labels: true
-      signed: true
+      signing-environment: ota-release
       build-args: |
         VERSION=${{ needs.decide.outputs.version }}
         VITE_API_URL=/api/v1
