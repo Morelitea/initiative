@@ -237,7 +237,7 @@ jobs:
           # before the line fails. --no-renames reports a rename as the old
           # path deleted, so the frozen name is what gets checked.
           FROZEN=$(tr -d '[:space:]' < RELEASED_MIGRATION)
-          EDITED=$(git diff --name-only --no-renames --diff-filter=MDT "origin/${{ github.base_ref }}...HEAD" -- backend/alembic/versions \
+          EDITED=$(git diff --name-only --no-renames --diff-filter=MDT "origin/$GITHUB_BASE_REF...HEAD" -- backend/alembic/versions \
             | grep -oE '[0-9]{8}_[0-9]{4}' | awk -v frozen="$FROZEN" '$0 <= frozen' || true)
           if [[ -n "$EDITED" ]]; then
             echo "::error::Edited, renamed or removed a released migration (freeze line $FROZEN): $(echo $EDITED | tr '\n' ' ')"
@@ -302,9 +302,12 @@ jobs:
           echo "PgBouncer up on :6432 (transaction mode)"
 
       - name: Run tests (through the pooler)
+        env:
+          BACKEND_SCOPE: ${{ needs.changes.outputs.backend_scope || 'app/ alembic/' }}
         run: |
           cd backend
-          uv run python -m pytest ${{ needs.changes.outputs.backend_scope || 'app/ alembic/' }} -n auto --tb=short
+          # Unquoted: the scope is a space-separated list of test paths.
+          uv run python -m pytest $BACKEND_SCOPE -n auto --tb=short
 
       - name: Prove the request-context seam
         if: needs.changes.outputs.seam == 'true'
