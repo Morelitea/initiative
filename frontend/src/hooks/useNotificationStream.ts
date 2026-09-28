@@ -176,11 +176,8 @@ export const useNotificationStream = () => {
         // Several channels over one socket. A frame carries nothing but which
         // one it is; what it means is a refetch, and the refetch is where
         // anything is actually decided.
-        if (frame.resource === "heartbeat") {
-          // Nothing to do beyond what has already been done: the frame's whole
-          // content is that it arrived.
-          return;
-        }
+        // The server's heartbeat names no channel, so it falls through: its
+        // whole content is that it arrived.
         if (frame.resource === "resync") {
           // The server's own bus was down for a while, so frames went past
           // with nobody listening for them. It cannot say which, so this says

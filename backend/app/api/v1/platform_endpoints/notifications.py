@@ -1,5 +1,3 @@
-import asyncio
-import contextlib
 import logging
 from time import monotonic
 
@@ -9,7 +7,6 @@ from fastapi import (
     HTTPException,
     Query,
     WebSocket,
-    WebSocketDisconnect,
     status,
 )
 
@@ -31,10 +28,10 @@ from app.schemas.platform.notification import (
     UnreadPlacesResponse,
 )
 from app.core.messages import NotificationMessages
-from app.services.platform import notification_subjects, presence, user_stream
+from app.services.platform import notification_subjects, presence
 from app.services.platform import user_notifications as notifications_service
 from app.services.platform.ws_auth import authenticate_ws_token
-from app.api.content_socket import read_auth_frame
+from app.api.content_socket import hold_open, read_auth_frame
 from app.services.content_sockets import (
     Credential,
     Subscriber,
@@ -51,11 +48,6 @@ logger = logging.getLogger(__name__)
 # that the person is at their keyboard, which is the whole of what idle needs
 # to know. The client throttles it hard, so this is a frame a minute at most.
 MSG_ACTIVE = 6
-
-#: How long the socket may say nothing before it says so. Silence is otherwise
-#: indistinguishable from a channel that has stopped carrying, and the client
-#: has nothing else to go on: it only speaks when its person does.
-HEARTBEAT_SECONDS = 30.0
 
 
 @router.get("/", response_model=NotificationListResponse)
@@ -274,44 +266,16 @@ async def websocket_notifications(websocket: WebSocket):
             authorize=account_authorizer,
             credential=Credential.captured(),
             rooms=frozenset({account_room(user_id)}),
+            presence=True,
         )
 
-    sockets.join(watched)
-    await user_stream.stream.connect(
-        user_id,
-        websocket,
-        chosen_presence=chosen_presence,
-        presence_known_at=presence_known_at,
+    sockets.join(
+        watched, chosen_presence=chosen_presence, presence_known_at=presence_known_at
     )
-    heartbeat = user_stream.build_frame(user_stream.RESOURCE_HEARTBEAT, "alive")
-    try:
-        while True:
-            # Awaiting keeps the socket open and surfaces the disconnect; the
-            # one frame the client does send is its person's activity.
-            #
-            # The wait is bounded so the quiet case says something. A client
-            # cannot tell a channel with no news from one that has stopped
-            # carrying — a half-open connection reports itself open and
-            # delivers nothing — so a beat goes out whenever nothing else has,
-            # and the client reads silence past it as the socket being gone.
-            try:
-                frame = await asyncio.wait_for(websocket.receive(), HEARTBEAT_SECONDS)
-            except asyncio.TimeoutError:
-                await websocket.send_json(heartbeat)
-                continue
-            if frame.get("type") == "websocket.disconnect":
-                break
-            data = frame.get("bytes")
-            if data and data[0] == MSG_ACTIVE:
-                presence.online.active(user_id)
-    except WebSocketDisconnect:
-        pass
-    except Exception:
-        with contextlib.suppress(Exception):
-            await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
-    finally:
-        # Unconditional, including cancellation (a BaseException, so past both
-        # excepts above) — a registry entry left behind would keep sending to a
-        # dead socket until the first write failed.
-        sockets.leave(websocket)
-        await user_stream.stream.disconnect(websocket)
+
+    def on_bytes(data: bytes) -> None:
+        # The one frame the client sends is its person's activity.
+        if data[0] == MSG_ACTIVE:
+            presence.online.active(user_id)
+
+    await hold_open(watched, on_bytes=on_bytes)

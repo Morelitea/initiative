@@ -1123,6 +1123,25 @@ async def acting_user(session):
 
 
 @pytest.fixture
+async def account_socket():
+    """Open a notification-stream socket for an account
+    (``app.testing.sockets.open_account_socket``); each leaves the register at
+    teardown."""
+    from app.services.content_sockets import sockets
+    from app.testing.sockets import open_account_socket
+
+    opened: list = []
+
+    def open_(user_id: int, websocket=None, **kwargs):
+        opened.append(open_account_socket(user_id, websocket, **kwargs))
+        return opened[-1]
+
+    yield open_
+    for websocket in opened:
+        sockets.leave(websocket)
+
+
+@pytest.fixture
 def rate_limit_of_one_per_minute(client, monkeypatch):
     """Turn the global default rate limit on, at a rate a second request breaks.
 
