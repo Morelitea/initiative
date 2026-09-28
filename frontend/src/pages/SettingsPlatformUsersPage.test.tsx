@@ -31,6 +31,7 @@ vi.mock("@/hooks/useOperatorUsers", () => ({
     return { data: buildPage(state.roster), isLoading: false, isError: false };
   },
   useOperatorTriggerPasswordReset: () => ({ mutate: vi.fn(), isPending: false }),
+  useOperatorResendVerification: () => ({ mutate: vi.fn(), isPending: false }),
   useOperatorSetUsername: () => ({ mutate: vi.fn(), isPending: false }),
   useOperatorClearAgeBlock: () => ({ mutate: vi.fn(), isPending: false }),
   useOperatorLiftSignInLock: () => ({ mutate: vi.fn(), isPending: false }),
