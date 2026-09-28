@@ -9,41 +9,19 @@ is pinned in ``user_stream_test``. What is left here is the inbox's half:
 * the notification service pokes the right person at the right moment.
 """
 
-import asyncio
-
-import pytest
 from sqlmodel import select
 
 from app.models.platform.notification import Notification, NotificationType
 from app.services.platform import user_notifications
-from app.services.platform import user_stream
 from app.services.platform.notification_stream import queue_signal
-from app.services.platform.user_stream import UserStream
+from app.testing.sockets import settle
 from app.testing import create_user
 
 
-class FakeWebSocket:
-    """Minimal stand-in that records the JSON frames it was sent."""
-
-    def __init__(self) -> None:
-        self.sent: list[dict] = []
-
-    async def send_json(self, message: dict) -> None:
-        self.sent.append(message)
-
-
-class BrokenWebSocket(FakeWebSocket):
-    """A socket whose peer has gone away."""
-
-    async def send_json(self, message: dict) -> None:
-        raise ConnectionResetError("peer gone")
-
-
-async def test_frame_carries_no_notification_content(session, captured_stream) -> None:
+async def test_frame_carries_no_notification_content(session, account_socket) -> None:
     """An id envelope, and the inbox needs no ids — so nothing but the shape."""
     user = await create_user(session)
-    tab = FakeWebSocket()
-    await captured_stream.connect(user.id, tab)
+    tab = account_socket(user.id)
 
     await user_notifications.create_notification(
         session,
@@ -52,7 +30,7 @@ async def test_frame_carries_no_notification_content(session, captured_stream) -
         data={"task_id": 1},
     )
     await session.commit()
-    await _drain_tasks()
+    await settle()
 
     frame = tab.sent[0]
     assert frame["resource"] == "notification"
@@ -66,32 +44,12 @@ async def test_frame_carries_no_notification_content(session, captured_stream) -
 # ---------------------------------------------------------------------------
 
 
-async def _drain_tasks() -> None:
-    """Let the fire-and-forget send tasks the commit hook spawned run."""
-    for _ in range(3):
-        await asyncio.sleep(0)
-
-
-@pytest.fixture
-def captured_stream(monkeypatch):
-    """Route the shared registry at a fresh instance for one test.
-
-    Patched on ``user_stream``, which is where the sockets actually live —
-    ``notification_stream.stream`` is a re-export, and rebinding the alias
-    would leave the real registry in place.
-    """
-    stream = UserStream()
-    monkeypatch.setattr(user_stream, "stream", stream)
-    return stream
-
-
-async def test_no_frame_before_the_commit(session, captured_stream) -> None:
+async def test_no_frame_before_the_commit(session, account_socket) -> None:
     """A flushed-but-uncommitted notification must not poke anyone: the client
     would refetch an inbox that does not yet contain it, and nothing polls
     behind the signal any more."""
     user = await create_user(session)
-    tab = FakeWebSocket()
-    await captured_stream.connect(user.id, tab)
+    tab = account_socket(user.id)
 
     await user_notifications.create_notification(
         session,
@@ -99,15 +57,14 @@ async def test_no_frame_before_the_commit(session, captured_stream) -> None:
         notification_type=NotificationType.task_assignment,
         data={"task_id": 1},
     )
-    await _drain_tasks()
+    await settle()
 
     assert tab.sent == []
 
 
-async def test_frame_goes_out_on_commit(session, captured_stream) -> None:
+async def test_frame_goes_out_on_commit(session, account_socket) -> None:
     user = await create_user(session)
-    tab = FakeWebSocket()
-    await captured_stream.connect(user.id, tab)
+    tab = account_socket(user.id)
 
     await user_notifications.create_notification(
         session,
@@ -116,15 +73,14 @@ async def test_frame_goes_out_on_commit(session, captured_stream) -> None:
         data={"task_id": 1},
     )
     await session.commit()
-    await _drain_tasks()
+    await settle()
 
     assert [frame["action"] for frame in tab.sent] == ["created"]
 
 
-async def test_rollback_pokes_nobody(session, captured_stream) -> None:
+async def test_rollback_pokes_nobody(session, account_socket) -> None:
     user = await create_user(session)
-    tab = FakeWebSocket()
-    await captured_stream.connect(user.id, tab)
+    tab = account_socket(user.id)
 
     await user_notifications.create_notification(
         session,
@@ -133,19 +89,18 @@ async def test_rollback_pokes_nobody(session, captured_stream) -> None:
         data={"task_id": 1},
     )
     await session.rollback()
-    await _drain_tasks()
+    await settle()
 
     assert tab.sent == []
 
 
 async def test_several_notifications_in_one_transaction_send_one_frame(
-    session, captured_stream
+    session, account_socket
 ) -> None:
     """The frame says "refetch", so a batch of notifications for one recipient
     is one refetch, not one per row."""
     user = await create_user(session)
-    tab = FakeWebSocket()
-    await captured_stream.connect(user.id, tab)
+    tab = account_socket(user.id)
 
     for task_id in (1, 2, 3):
         await user_notifications.create_notification(
@@ -155,17 +110,16 @@ async def test_several_notifications_in_one_transaction_send_one_frame(
             data={"task_id": task_id},
         )
     await session.commit()
-    await _drain_tasks()
+    await settle()
 
     assert len(tab.sent) == 1
 
 
-async def test_a_batch_pokes_each_recipient_once(session, captured_stream) -> None:
+async def test_a_batch_pokes_each_recipient_once(session, account_socket) -> None:
     alice = await create_user(session)
     bob = await create_user(session)
-    alice_tab, bob_tab = FakeWebSocket(), FakeWebSocket()
-    await captured_stream.connect(alice.id, alice_tab)
-    await captured_stream.connect(bob.id, bob_tab)
+    alice_tab = account_socket(alice.id)
+    bob_tab = account_socket(bob.id)
 
     for user_id in (alice.id, bob.id, alice.id):
         await user_notifications.create_notification(
@@ -175,15 +129,13 @@ async def test_a_batch_pokes_each_recipient_once(session, captured_stream) -> No
             data={"task_id": 1},
         )
     await session.commit()
-    await _drain_tasks()
+    await settle()
 
     assert len(alice_tab.sent) == 1
     assert len(bob_tab.sent) == 1
 
 
-async def test_marking_read_pokes_the_users_other_tabs(
-    session, captured_stream
-) -> None:
+async def test_marking_read_pokes_the_users_other_tabs(session, account_socket) -> None:
     """The badge on a second device is otherwise stale until something else
     happens."""
     user = await create_user(session)
@@ -194,19 +146,18 @@ async def test_marking_read_pokes_the_users_other_tabs(
         data={"task_id": 1},
     )
     await session.commit()
-    await _drain_tasks()  # let the "created" frame go out before we listen
+    await settle()  # let the "created" frame go out before we listen
 
-    tab = FakeWebSocket()
-    await captured_stream.connect(user.id, tab)
+    tab = account_socket(user.id)
     await user_notifications.mark_notification_read(
         session, user_id=user.id, notification_id=notification.id
     )
-    await _drain_tasks()
+    await settle()
 
     assert [frame["action"] for frame in tab.sent] == ["read"]
 
 
-async def test_mark_all_read_pokes_once(session, captured_stream) -> None:
+async def test_mark_all_read_pokes_once(session, account_socket) -> None:
     user = await create_user(session)
     for task_id in (1, 2):
         await user_notifications.create_notification(
@@ -216,12 +167,11 @@ async def test_mark_all_read_pokes_once(session, captured_stream) -> None:
             data={"task_id": task_id},
         )
     await session.commit()
-    await _drain_tasks()  # let the "created" frame go out before we listen
+    await settle()  # let the "created" frame go out before we listen
 
-    tab = FakeWebSocket()
-    await captured_stream.connect(user.id, tab)
+    tab = account_socket(user.id)
     await user_notifications.mark_all_notifications_read(session, user_id=user.id)
-    await _drain_tasks()
+    await settle()
 
     assert [frame["action"] for frame in tab.sent] == ["read"]
     unread = (
@@ -235,7 +185,7 @@ async def test_mark_all_read_pokes_once(session, captured_stream) -> None:
     assert unread == []
 
 
-async def test_rolling_a_line_up_pokes_the_recipient(session, captured_stream) -> None:
+async def test_rolling_a_line_up_pokes_the_recipient(session, account_socket) -> None:
     """A rolled-up reaction rewrites the existing line rather than adding one,
     so the rewrite is the only trace the second event leaves — and with no poll
     behind the signal, an unsignalled rewrite is an invisible one."""
@@ -247,21 +197,20 @@ async def test_rolling_a_line_up_pokes_the_recipient(session, captured_stream) -
         data={"target_id": 7, "count": 1},
     )
     await session.commit()
-    await _drain_tasks()
+    await settle()
 
-    tab = FakeWebSocket()
-    await captured_stream.connect(user.id, tab)
+    tab = account_socket(user.id)
     await user_notifications.refresh_notification(
         session, notification, data={"target_id": 7, "count": 2}
     )
     await session.commit()
-    await _drain_tasks()
+    await settle()
 
     assert [frame["action"] for frame in tab.sent] == ["updated"]
 
 
 async def test_a_withdrawal_pokes_without_claiming_to_be_news(
-    session, captured_stream
+    session, account_socket
 ) -> None:
     user = await create_user(session)
     notification = await user_notifications.create_notification(
@@ -271,20 +220,19 @@ async def test_a_withdrawal_pokes_without_claiming_to_be_news(
         data={"target_id": 7, "count": 2},
     )
     await session.commit()
-    await _drain_tasks()
+    await settle()
 
-    tab = FakeWebSocket()
-    await captured_stream.connect(user.id, tab)
+    tab = account_socket(user.id)
     await user_notifications.refresh_notification(
         session, notification, data={"target_id": 7, "count": 1}, bump=False
     )
     await session.commit()
-    await _drain_tasks()
+    await settle()
 
     assert [frame["action"] for frame in tab.sent] == ["withdrawn"]
 
 
-async def test_deleting_a_line_pokes_the_recipient(session, captured_stream) -> None:
+async def test_deleting_a_line_pokes_the_recipient(session, account_socket) -> None:
     """The last reaction being taken back removes the line outright; a bell
     still showing it is what this prevents."""
     user = await create_user(session)
@@ -295,13 +243,12 @@ async def test_deleting_a_line_pokes_the_recipient(session, captured_stream) -> 
         data={"target_id": 7, "count": 1},
     )
     await session.commit()
-    await _drain_tasks()
+    await settle()
 
-    tab = FakeWebSocket()
-    await captured_stream.connect(user.id, tab)
+    tab = account_socket(user.id)
     await user_notifications.delete_notification(session, notification)
     await session.commit()
-    await _drain_tasks()
+    await settle()
 
     assert [frame["action"] for frame in tab.sent] == ["withdrawn"]
 

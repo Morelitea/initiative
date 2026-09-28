@@ -10,69 +10,54 @@ import pytest
 
 from app.core.config import settings
 from app.services.platform import notify_bus, user_stream
-from app.services.platform.user_stream import UserStream
-
-
-class FakeWebSocket:
-    def __init__(self) -> None:
-        self.sent: list[dict] = []
-
-    async def send_json(self, message: dict) -> None:
-        self.sent.append(message)
-
-
-@pytest.fixture
-def captured_stream(monkeypatch):
-    stream = UserStream()
-    monkeypatch.setattr(user_stream, "stream", stream)
-    return stream
+from app.testing.sockets import settle
 
 
 def _wire_frame(origin: str, user_id: int, action: str = "membership") -> str:
     return json.dumps(
         {
             "origin": origin,
-            "user_id": user_id,
+            "user_ids": [user_id],
             "frame": user_stream.build_frame("account", action),
         }
     )
 
 
 async def test_a_frame_from_another_worker_reaches_our_sockets(
-    captured_stream,
+    account_socket,
 ) -> None:
-    tab = FakeWebSocket()
-    await captured_stream.connect(7, tab)
+    tab = account_socket(7)
 
     await user_stream.deliver_remote(_wire_frame("some-other-worker", 7))
+    await settle()
 
     assert len(tab.sent) == 1
     assert tab.sent[0]["resource"] == "account"
 
 
-async def test_our_own_echo_is_not_delivered_twice(captured_stream) -> None:
+async def test_our_own_echo_is_not_delivered_twice(account_socket) -> None:
     """We deliver locally before publishing, so the echo is already spent."""
-    tab = FakeWebSocket()
-    await captured_stream.connect(7, tab)
+    tab = account_socket(7)
 
     await user_stream.deliver_remote(_wire_frame(user_stream.ORIGIN, 7))
+    await settle()
 
     assert tab.sent == []
 
 
-async def test_an_unreadable_frame_is_dropped_not_raised(captured_stream) -> None:
+async def test_an_unreadable_frame_is_dropped_not_raised(account_socket) -> None:
     """Anything on the channel that is not ours must not take the reader down."""
-    tab = FakeWebSocket()
-    await captured_stream.connect(7, tab)
+    tab = account_socket(7)
 
     await user_stream.deliver_remote("not json at all")
     await user_stream.deliver_remote(json.dumps({"origin": "x"}))
+    await settle()
 
     assert tab.sent == []
 
 
 async def test_local_delivery_survives_a_bus_that_is_down(
-    captured_stream, monkeypatch
+    account_socket, monkeypatch
 ) -> None:
     """The whole fail-soft claim, in one test.
 
@@ -84,16 +69,16 @@ async def test_local_delivery_survives_a_bus_that_is_down(
         raise RuntimeError("bus not connected")
 
     monkeypatch.setattr(notify_bus, "notify", _unavailable)
-    tab = FakeWebSocket()
-    await captured_stream.connect(7, tab)
+    tab = account_socket(7)
 
-    await user_stream.publish(7, user_stream.build_frame("account", "membership"))
+    await user_stream.publish([7], user_stream.build_frame("account", "membership"))
+    await settle()
 
     assert len(tab.sent) == 1
 
 
 async def test_a_published_frame_is_offered_to_the_other_workers(
-    captured_stream, monkeypatch
+    account_socket, monkeypatch
 ) -> None:
     sent: list[str] = []
 
@@ -102,11 +87,11 @@ async def test_a_published_frame_is_offered_to_the_other_workers(
 
     monkeypatch.setattr(notify_bus, "notify", _capture)
 
-    await user_stream.publish(7, user_stream.build_frame("account", "membership"))
+    await user_stream.publish([7], user_stream.build_frame("account", "membership"))
 
     assert len(sent) == 1
     envelope = json.loads(sent[0])
-    assert envelope["user_id"] == 7
+    assert envelope["user_ids"] == [7]
     assert envelope["origin"] == user_stream.ORIGIN
     # Content-free on the wire as well as at the socket.
     assert envelope["frame"]["ids"] == {}
@@ -192,7 +177,7 @@ async def test_a_refused_frame_is_sent_when_the_bus_returns(monkeypatch) -> None
         raise RuntimeError("bus not connected")
 
     monkeypatch.setattr(notify_bus, "notify", _unavailable)
-    await user_stream.publish(7, user_stream.build_frame("notification", "created"))
+    await user_stream.publish([7], user_stream.build_frame("notification", "created"))
     assert len(user_stream._pending_remote) == 1
 
     async def _capture(_channel: str, payload: str) -> None:
@@ -202,7 +187,7 @@ async def test_a_refused_frame_is_sent_when_the_bus_returns(monkeypatch) -> None
     await user_stream.on_bus_connected()
 
     assert len(sent) == 1
-    assert json.loads(sent[0])["user_id"] == 7
+    assert json.loads(sent[0])["user_ids"] == [7]
     assert user_stream._pending_remote == {}
 
 
@@ -215,21 +200,23 @@ async def test_repeat_frames_for_one_reader_collapse(monkeypatch) -> None:
 
     monkeypatch.setattr(notify_bus, "notify", _unavailable)
     for _ in range(5):
-        await user_stream.publish(7, user_stream.build_frame("notification", "created"))
+        await user_stream.publish(
+            [7], user_stream.build_frame("notification", "created")
+        )
 
     assert len(user_stream._pending_remote) == 1
     user_stream._pending_remote.clear()
 
 
-async def test_this_process_own_sockets_are_told_to_re_read(monkeypatch) -> None:
+async def test_this_process_own_sockets_are_told_to_re_read(
+    account_socket, monkeypatch
+) -> None:
     """It heard nothing while it was away and cannot know what, so it says so."""
     user_stream._pending_remote.clear()
-    stream = user_stream.UserStream()
-    monkeypatch.setattr(user_stream, "stream", stream)
-    tab = FakeWebSocket()
-    await stream.connect(7, tab)
+    tab = account_socket(7)
 
     await user_stream.on_bus_connected()
+    await settle()
 
     assert [frame["resource"] for frame in tab.sent] == [user_stream.RESOURCE_RESYNC]
     assert tab.sent[0]["ids"] == {}
@@ -248,7 +235,7 @@ async def test_more_refused_than_can_be_held_tells_everybody(monkeypatch) -> Non
     monkeypatch.setattr(notify_bus, "notify", _unavailable)
     for reader in range(5):
         await user_stream.publish(
-            reader, user_stream.build_frame("notification", "created")
+            [reader], user_stream.build_frame("notification", "created")
         )
 
     sent: list[dict] = []
@@ -259,30 +246,29 @@ async def test_more_refused_than_can_be_held_tells_everybody(monkeypatch) -> Non
     monkeypatch.setattr(notify_bus, "notify", _capture)
     await user_stream.on_bus_connected()
 
-    addressed_to_everyone = [message for message in sent if message["user_id"] is None]
+    addressed_to_everyone = [message for message in sent if message["user_ids"] is None]
     assert len(addressed_to_everyone) == 1
     assert addressed_to_everyone[0]["frame"]["resource"] == user_stream.RESOURCE_RESYNC
     user_stream._pending_remote.clear()
 
 
-async def test_a_frame_for_everybody_reaches_every_socket_here(monkeypatch) -> None:
-    stream = user_stream.UserStream()
-    monkeypatch.setattr(user_stream, "stream", stream)
-    first, second = FakeWebSocket(), FakeWebSocket()
-    await stream.connect(7, first)
-    await stream.connect(8, second)
+async def test_a_frame_for_everybody_reaches_every_socket_here(
+    account_socket,
+) -> None:
+    first, second = account_socket(7), account_socket(8)
 
     await user_stream.deliver_remote(
         json.dumps(
             {
                 "origin": "another-worker",
-                "user_id": None,
+                "user_ids": None,
                 "frame": user_stream.build_frame(
                     user_stream.RESOURCE_RESYNC, "changed"
                 ),
             }
         )
     )
+    await settle()
 
     assert len(first.sent) == 1
     assert len(second.sent) == 1
@@ -313,5 +299,5 @@ async def test_the_mark_stands_until_the_broad_frame_goes(monkeypatch) -> None:
     monkeypatch.setattr(notify_bus, "notify", _capture)
     await user_stream.on_bus_connected()
 
-    assert [message["user_id"] for message in sent] == [None]
+    assert [message["user_ids"] for message in sent] == [None]
     assert user_stream._dropped_remote is False

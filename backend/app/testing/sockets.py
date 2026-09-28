@@ -1,8 +1,9 @@
 """Stand-ins for a socket held open on the register.
 
-A test that watches what the events bus sends seats a fake socket in the
-process's register (``app.services.content_sockets.sockets``) exactly as the
-handshake would, and reads the frames its writer delivered.
+A test that watches what the events bus or an account's own socket is sent
+seats a fake socket in the process's register
+(``app.services.content_sockets.sockets``) exactly as the handshake would, and
+reads the frames its writer delivered.
 """
 
 from __future__ import annotations
@@ -11,10 +12,13 @@ import asyncio
 from types import SimpleNamespace
 from typing import Iterable, Optional
 
+from app.models.platform.user import Presence
 from app.services.content_sockets import (
     Credential,
     Subscriber,
     Wire,
+    account_authorizer,
+    account_room,
     guild_room,
     initiative_room,
     sockets,
@@ -76,3 +80,28 @@ def watch_events_bus(
     )
     sockets.join(sub)
     return sub
+
+
+def open_account_socket(
+    user_id: int,
+    websocket: Optional[FakeWebSocket] = None,
+    *,
+    chosen_presence: Presence = Presence.online,
+) -> FakeWebSocket:
+    """Seat a notification-stream socket for ``user_id`` in its account room,
+    counting the account online, as the stream's handshake does."""
+    websocket = websocket or FakeWebSocket()
+    sockets.join(
+        Subscriber(
+            websocket=websocket,  # type: ignore[arg-type]
+            user=SimpleNamespace(id=user_id),  # type: ignore[arg-type]
+            guild_id=None,
+            wire=Wire.json,
+            authorize=account_authorizer,
+            credential=Credential(),
+            rooms=frozenset({account_room(user_id)}),
+            presence=True,
+        ),
+        chosen_presence=chosen_presence,
+    )
+    return websocket

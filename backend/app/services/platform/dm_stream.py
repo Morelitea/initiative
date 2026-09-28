@@ -19,4 +19,4 @@ RESOURCE = "dm"
 
 async def signal_dm(user_id: int, action: str = "changed") -> None:
     """Tell one account's open tabs there is something to collect."""
-    await user_stream.publish(user_id, user_stream.build_frame(RESOURCE, action))
+    await user_stream.publish([user_id], user_stream.build_frame(RESOURCE, action))

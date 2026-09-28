@@ -24,9 +24,12 @@ from app.schemas.platform.user import STATUS_TEXT_MAX_LENGTH
 from app.services.marketplace import catalog as marketplace_catalog
 from app.services.marketplace.builtin import load_builtin_manifests
 from app.services.platform import profile_decorations as profile_decorations_service
-from app.services.platform import user_stream
 from app.services.content_sockets import sockets as content_sockets
-from app.testing.sockets import FakeWebSocket, watch_events_bus
+from app.testing.sockets import (
+    FakeWebSocket,
+    open_account_socket,
+    watch_events_bus,
+)
 from app.testing.factories import (
     create_federated_identity,
     create_guild,
@@ -1210,9 +1213,12 @@ async def _open_guild_events(session: AsyncSession, subject: User):
 
 async def _open_notification_stream(session: AsyncSession, subject: User):
     """A tab anywhere in the app: the bell has no guild in its address."""
-    socket = object()
-    await user_stream.stream.connect(subject.id, socket)
-    return lambda: user_stream.stream.disconnect(socket)
+    socket = open_account_socket(subject.id)
+
+    async def close() -> None:
+        content_sockets.leave(socket)  # type: ignore[arg-type]
+
+    return close
 
 
 @pytest.mark.parametrize(
@@ -1255,14 +1261,13 @@ async def test_profile_stays_online_while_any_socket_is_open(
     guild = await create_guild(session)
     await create_guild_membership(session, user=subject, guild=guild)
 
-    bell, events = object(), FakeWebSocket()
-    await user_stream.stream.connect(subject.id, bell)
+    bell, events = open_account_socket(subject.id), FakeWebSocket()
     watch_events_bus(guild.id, [], events, user_id=subject.id)
     try:
         content_sockets.leave(events)  # type: ignore[arg-type]
         response = await client.get(_profile_url(subject), headers=caller.headers)
     finally:
-        await user_stream.stream.disconnect(bell)
+        content_sockets.leave(bell)  # type: ignore[arg-type]
 
     assert response.json()["presence"] == "online"
 
@@ -1276,14 +1281,11 @@ async def test_profile_shows_what_someone_picked(
     caller = await acting_user()
     subject = await create_user(session)
 
-    socket = object()
-    await user_stream.stream.connect(
-        subject.id, socket, chosen_presence=Presence(chosen)
-    )
+    socket = open_account_socket(subject.id, chosen_presence=Presence(chosen))
     try:
         response = await client.get(_profile_url(subject), headers=caller.headers)
     finally:
-        await user_stream.stream.disconnect(socket)
+        content_sockets.leave(socket)  # type: ignore[arg-type]
 
     assert response.json()["presence"] == chosen
 
@@ -1294,8 +1296,7 @@ async def test_presence_change_reaches_readers_without_a_reconnect(client, actin
     subject = await acting_user()
     profile_url = _profile_url(subject.user)
 
-    socket = object()
-    await user_stream.stream.connect(subject.user.id, socket)
+    socket = open_account_socket(subject.user.id)
     try:
         assert (await client.get(profile_url, headers=caller.headers)).json()[
             "presence"
@@ -1313,7 +1314,7 @@ async def test_presence_change_reaches_readers_without_a_reconnect(client, actin
             "presence"
         ] == "offline"
     finally:
-        await user_stream.stream.disconnect(socket)
+        content_sockets.leave(socket)  # type: ignore[arg-type]
 
 
 async def test_presence_outlives_the_socket_that_set_it(client, session, acting_user):
@@ -1329,14 +1330,11 @@ async def test_presence_outlives_the_socket_that_set_it(client, session, acting_
     assert saved.status_code == 200
 
     await session.refresh(subject.user)
-    socket = object()
-    await user_stream.stream.connect(
-        subject.user.id, socket, chosen_presence=subject.user.presence
-    )
+    socket = open_account_socket(subject.user.id, chosen_presence=subject.user.presence)
     try:
         response = await client.get(_profile_url(subject.user), headers=caller.headers)
     finally:
-        await user_stream.stream.disconnect(socket)
+        content_sockets.leave(socket)  # type: ignore[arg-type]
 
     assert response.json()["presence"] == "busy"
 

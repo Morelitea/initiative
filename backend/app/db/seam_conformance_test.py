@@ -46,7 +46,6 @@ from starlette.testclient import TestClient
 
 from app.api import content_socket
 from app.api.content_socket import MSG_AUTH
-from app.api.v1.platform_endpoints import notifications as notifications_endpoint
 from app.db import cohorts, gucs
 from app.db import session as db_session
 from app.db.bootstrap import login_roles
@@ -375,8 +374,7 @@ def socket_client(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> TestC
     to the other. A quiet socket beats at once, so an admitted one says so
     without the test waiting out the interval.
     """
-    for module in (content_socket, notifications_endpoint):
-        monkeypatch.setattr(module, "HEARTBEAT_SECONDS", 0.05)
+    monkeypatch.setattr(content_socket, "HEARTBEAT_SECONDS", 0.05)
     for name in ("_request_makers", "_system_makers"):
         makers = getattr(cohorts, name)
         monkeypatch.setattr(

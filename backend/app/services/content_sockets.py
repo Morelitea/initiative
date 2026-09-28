@@ -5,8 +5,8 @@ A guild page opens up to three kinds of socket: the events bus
 (``/c/{guild}/{tool}/{id}/ws``) and a collaboration room for one document body.
 Every page also holds the account's own socket (``/notifications/stream``),
 which belongs to no guild: it is registered with ``guild_id=None`` in its
-account's room, so it is re-checked here like the rest while its frames go out
-through ``app.services.platform.user_stream``. They differ in what they carry.
+account's room, and ``app.services.platform.user_stream`` sends to that room.
+They differ in what they carry.
 What they share is everything else, and that lives here once:
 
 * **Rooms.** A socket sits in a set of rooms, each ``(guild_id, kind, id)``. The
@@ -28,9 +28,10 @@ What they share is everything else, and that lives here once:
   (``revoke_user_everywhere``) closes the sockets that sign-in opened, with
   ``WS_CREDENTIAL_ENDED``, and leaves the account's others open.
 * **One writer per socket.** Every frame to a registered socket goes through
-  its own bounded outbox, drained by its own task. Fan-out puts a frame in
-  each outbox and returns, so one slow reader never holds up a room; a reader
-  that falls ``OUTBOX_LIMIT`` frames behind is closed and reconnects.
+  its own bounded outbox, drained by its own task — the account socket's
+  inbox and account frames included. Fan-out puts a frame in each outbox and
+  returns, so one slow reader never holds up a room; a reader that falls
+  ``OUTBOX_LIMIT`` frames behind is closed and reconnects.
 
 A re-check groups sockets by the account, guild and sign-in that opened them,
 and runs one guild entry per group on one session — a person with a board, a
@@ -195,9 +196,9 @@ class Subscriber:
     authorize: Authorizer
     credential: Credential
     rooms: frozenset[RoomKey] = frozenset()
-    #: Whether this socket counts its user as present in the guild. The events
-    #: bus does; a tool or document socket is a page inside a guild already
-    #: counted.
+    #: Whether this socket counts its user as online, and as present in its
+    #: guild. The events bus and the account socket do; a tool or document
+    #: socket is a page inside a guild already counted.
     presence: bool = False
     #: Whatever the channel attached at join: collaboration keeps the display
     #: name and write level here, so nothing else keys state by socket.
@@ -252,7 +253,8 @@ class ContentSockets:
     def __init__(self) -> None:
         self._subs: dict[WebSocket, Subscriber] = {}
         self._rooms: dict[RoomKey, set[Subscriber]] = {}
-        self._by_user: dict[tuple[int, int], set[Subscriber]] = {}
+        # user_id -> guild_id (``None`` for the account socket) -> sockets.
+        self._by_user: dict[int, dict[Optional[int], set[Subscriber]]] = {}
         # guild_id -> user_id -> how many of that user's presence sockets are
         # open here. Two tabs are one person.
         self._present: dict[int, dict[int, int]] = {}
@@ -272,12 +274,15 @@ class ContentSockets:
         sub.register = self
         sub.session_id = sub.credential.session_id
         self._subs[sub.websocket] = sub
-        self._by_user.setdefault((sub.guild_id, sub.user_id), set()).add(sub)
+        self._by_user.setdefault(sub.user_id, {}).setdefault(sub.guild_id, set()).add(
+            sub
+        )
         for key in sub.rooms:
             self._rooms.setdefault(key, set()).add(sub)
         if sub.presence:
-            present = self._present.setdefault(sub.guild_id, {})
-            present[sub.user_id] = present.get(sub.user_id, 0) + 1
+            if sub.guild_id is not None:
+                present = self._present.setdefault(sub.guild_id, {})
+                present[sub.user_id] = present.get(sub.user_id, 0) + 1
             presence.online.arrived(
                 sub.user_id, chosen_presence, known_at=presence_known_at
             )
@@ -291,14 +296,19 @@ class ContentSockets:
         if sub is None:
             return
         self._place(sub, frozenset())
-        owners = self._by_user.get((sub.guild_id, sub.user_id))
+        guilds = self._by_user.get(sub.user_id, {})
+        owners = guilds.get(sub.guild_id)
         if owners is not None:
             owners.discard(sub)
             if not owners:
-                del self._by_user[(sub.guild_id, sub.user_id)]
+                del guilds[sub.guild_id]
+                if not guilds:
+                    del self._by_user[sub.user_id]
         if sub.presence:
             presence.online.left(sub.user_id)
-            present = self._present.get(sub.guild_id)
+            present = (
+                self._present.get(sub.guild_id) if sub.guild_id is not None else None
+            )
             if present is not None:
                 remaining = present.get(sub.user_id, 0) - 1
                 if remaining > 0:
@@ -419,12 +429,16 @@ class ContentSockets:
     def present_counts(self, guild_ids: Iterable[int]) -> dict[int, int]:
         return {guild_id: self.present_count(guild_id) for guild_id in guild_ids}
 
+    def account_ids(self) -> list[int]:
+        """The accounts this process holds an account socket for."""
+        return [user_id for user_id, guilds in self._by_user.items() if None in guilds]
+
     # ── re-checks ──────────────────────────────────────────────────────────
 
     async def revoke_user(self, guild_id: int, user_id: int) -> None:
         """Re-check one account's sockets in one guild now. Call after a guild
         or initiative membership change, a role change or a grant revoke."""
-        await self._recheck(list(self._by_user.get((guild_id, user_id), ())))
+        await self._recheck(list(self._by_user.get(user_id, {}).get(guild_id, ())))
 
     async def refresh_users(self, guild_id: int, user_ids: Iterable[int]) -> None:
         """The same for several accounts: their rooms are recomputed, so an
@@ -433,7 +447,7 @@ class ContentSockets:
             [
                 sub
                 for user_id in set(user_ids)
-                for sub in self._by_user.get((guild_id, user_id), ())
+                for sub in self._by_user.get(user_id, {}).get(guild_id, ())
             ]
         )
 
@@ -442,7 +456,7 @@ class ContentSockets:
         account or to one of its sign-ins; each socket answers for its own
         credential, so those opened on one that still stands stay open."""
         await self._recheck(
-            [sub for sub in self._subs.values() if sub.user_id == user_id]
+            [sub for subs in self._by_user.get(user_id, {}).values() for sub in subs]
         )
 
     async def recheck_room(self, room: RoomKey) -> None:
