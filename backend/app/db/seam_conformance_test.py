@@ -304,12 +304,12 @@ async def test_the_route_holds(session, acting_user, role_session, scenario):
 
 
 #: A request variable read by name, in whatever spelling the catalog holds.
-_READ = re.compile(r"current_setting\('(app\.[a-z_]+)'")
+_READ = re.compile(r"current_setting\('(app\.[a-z0-9_]+)'")
 
 
 async def test_the_catalog_reads_only_declared_variables(session, acting_user):
-    """Every policy and function, in ``public``, the template and a provisioned
-    community, reads only the variables the registry declares."""
+    """Every policy, view and function, in ``public``, the template and a
+    provisioned community, reads only the variables the registry declares."""
     guild = (await acting_user(guild_role=GuildRole.member)).guild
     schemas = ["public", "guild_template", guild_schema_name(guild.id)]
     sources = (
@@ -317,6 +317,7 @@ async def test_the_catalog_reads_only_declared_variables(session, acting_user):
             text(
                 "SELECT coalesce(qual, '') || ' ' || coalesce(with_check, '') "
                 "FROM pg_policies WHERE schemaname = ANY(:s) "
+                "UNION ALL SELECT definition FROM pg_views WHERE schemaname = ANY(:s) "
                 "UNION ALL SELECT p.prosrc FROM pg_proc p "
                 "JOIN pg_namespace n ON n.oid = p.pronamespace "
                 "WHERE n.nspname = ANY(:s)"
