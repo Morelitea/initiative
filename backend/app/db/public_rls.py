@@ -187,9 +187,37 @@ OWN_OR_DM_OPEN = (
     f"(user_id = {gucs.USER_ID}) OR"
     f" (({gucs.USER_ID} IS NOT NULL) AND (dm_apparent_permission(user_id) = 'open'))"
 )
-OWN_OR_DM_NOT_DENIED = (
-    f"(user_id = {gucs.USER_ID}) OR"
-    f" (({gucs.USER_ID} IS NOT NULL) AND (dm_apparent_permission(user_id) <> 'denied'))"
+#: A membership is written as the service writes one, on a conversation whose
+#: roster names both the writer and the member. The writer's own row, only while
+#: nobody on the conversation has accepted: the one opening or proposing it.
+#: Somebody else's row pending, as an invitation to anybody the writer may ask;
+#: or accepted, only on a pair the writer may already message.
+DM_MEMBER_WRITE = (
+    f"({gucs.USER_ID} IS NOT NULL)"
+    f" AND dm_roster_names(conversation_id, ARRAY[{gucs.USER_ID}, user_id]) AND ("
+    f"((user_id = {gucs.USER_ID}) AND NOT dm_roster_answered(conversation_id)) OR"
+    f" ((user_id <> {gucs.USER_ID}) AND ("
+    "((accepted_at IS NULL) AND (dm_apparent_permission(user_id) <> 'denied')) OR"
+    " ((accepted_at IS NOT NULL) AND dm_conversation_direct(conversation_id)"
+    " AND (dm_apparent_permission(user_id) = 'open')))))"
+)
+#: An invitation is answered once, by the one it was sent to.
+DM_MEMBER_ANSWER = f"({own_row('user_id')}) AND (accepted_at IS NULL)"
+#: A message grant is accepted without an answer only between connected accounts.
+CONNECTED_MESSAGE = (
+    "(kind = 'message') AND dm_pair_connected(user_id_low, user_id_high)"
+)
+#: A grant is written as a request from the writer, or as the message grant a
+#: connection opens.
+CONTACT_GRANT_WRITE = (
+    f"({EITHER_END}) AND ("
+    f"((state = 'pending') AND (requested_by = {gucs.USER_ID})) OR"
+    f" ((state = 'accepted') AND {CONNECTED_MESSAGE}))"
+)
+#: Nobody accepts their own request, beyond the message grant a connection opens.
+CONTACT_GRANT_ANSWER = (
+    f"({EITHER_END}) AND ((state <> 'accepted') OR"
+    f" (requested_by <> {gucs.USER_ID}) OR ({CONNECTED_MESSAGE}))"
 )
 LIVE_WINDOW = (
     "(published_at IS NOT NULL) AND (published_at <= now())"
@@ -546,7 +574,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                     "contact_grants_self_insert",
                     INSERT,
                     ("platform_base",),
-                    check=EITHER_END,
+                    check=CONTACT_GRANT_WRITE,
                 ),
                 Policy(
                     "contact_grants_self_select",
@@ -559,13 +587,16 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                     UPDATE,
                     ("platform_base",),
                     using=EITHER_END,
+                    check=CONTACT_GRANT_ANSWER,
                 ),
                 Policy("dm_reader_read", SELECT, ("app_dm_reader",), using=OPEN),
             ),
         ),
         grants=Grants(
             app_admin=frozenset({SELECT, DELETE}),
-            platform_base=DML,
+            # UPDATE is column-scoped to state and responded_at (migration
+            # 0411), so it lives in the column ACL, not here.
+            platform_base=frozenset({SELECT, INSERT, DELETE}),
         ),
     ),
     "dm_conversation_members": SharedTable(
@@ -581,7 +612,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                     "dm_conversation_members_self_insert",
                     INSERT,
                     ("platform_base",),
-                    check=OWN_OR_DM_NOT_DENIED,
+                    check=DM_MEMBER_WRITE,
                 ),
                 Policy(
                     "dm_conversation_members_self_select",
@@ -593,7 +624,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                     "dm_conversation_members_self_update",
                     UPDATE,
                     ("platform_base",),
-                    using=own_row("user_id"),
+                    using=DM_MEMBER_ANSWER,
+                    check=own_row("user_id"),
                 ),
                 Policy("dm_reader_read", SELECT, ("app_dm_reader",), using=OPEN),
             ),
@@ -625,12 +657,17 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                     ("platform_base",),
                     using="dm_on_roster(id)",
                 ),
+                # A member's one write to the row: releasing the roster's name.
                 Policy(
                     "dm_conversations_self_update",
                     UPDATE,
                     ("platform_base",),
                     using="dm_in_conversation(id)",
+                    check="dm_in_conversation(id) AND (roster_key IS NULL)",
                 ),
+                # ``dm_conversation_direct`` and ``dm_roster_names`` read the
+                # kind and the roster (0411).
+                Policy("dm_reader_read", SELECT, ("app_dm_reader",), using=OPEN),
             ),
         ),
         grants=Grants(
