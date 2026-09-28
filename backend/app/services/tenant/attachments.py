@@ -611,6 +611,7 @@ async def claim_uploads(
     Flushes first; the caller commits.
     """
     from sqlalchemy import inspect, text
+    from sqlalchemy import select as sa_select
     from sqlalchemy.orm.attributes import flag_modified
     from sqlmodel import select
 
@@ -642,14 +643,14 @@ async def claim_uploads(
         }
         if not shown:
             continue
-        table = type(row).__tablename__
+        relation = type(row).__table__
         initiative_id = (
             await session.exec(
-                text(
-                    f"SELECT {INITIATIVE_PATHS[table].initiative_expr('r')} "  # noqa: S608
-                    f"FROM {table} r WHERE r.id = :id"
-                ),
-                params={"id": row.id},
+                sa_select(
+                    text(INITIATIVE_PATHS[relation.name].initiative_expr(relation.name))
+                )
+                .select_from(relation)
+                .where(relation.c["id"] == row.id)
             )
         ).scalar()
         showing.append((row, columns, initiative_id, shown))
