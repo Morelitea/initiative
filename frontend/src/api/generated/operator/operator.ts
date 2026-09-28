@@ -554,6 +554,112 @@ export const useTriggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPost = 
   );
 };
 /**
+ * Send an account's sign-up confirmation letter again (``users.manage``).
+ *
+ * For somebody whose first letter expired or never arrived. It goes to the
+ * address they signed up with and replaces the one they were sent; the
+ * invite that letter was waiting on still joins when they confirm.
+ * @summary Resend Verification Email
+ */
+export const resendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPost = (
+  userId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<VerificationSendResponse>(
+    { url: `/api/v1/operator/users/${userId}/verification-email`, method: "POST", signal },
+    options
+  );
+};
+
+export const getResendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPostMutationKey =
+  () => ["resendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPost"] as const;
+
+export const getResendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPostMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof resendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPost>
+      >,
+      TError,
+      ResendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof resendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPost>
+    >,
+    TError,
+    ResendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPostMutationVariables,
+    TContext
+  > => {
+    const mutationKey =
+      getResendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPostMutationKey();
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof resendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPost>
+      >,
+      ResendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPostMutationVariables
+    > = (props) => {
+      const { userId } = props ?? {};
+
+      return resendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPost(
+        userId,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type ResendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof resendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPost>>
+  >;
+
+export type ResendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPostMutationError =
+  ErrorType<HTTPValidationError>;
+export type ResendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPostMutationVariables =
+  { userId: number };
+
+/**
+ * @summary Resend Verification Email
+ */
+export const useResendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof resendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPost>
+      >,
+      TError,
+      ResendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof resendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPost>>,
+  TError,
+  ResendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getResendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
  * Reactivate a deactivated user account (``users.manage``).
  *
  * A suspension is lifted through ``suspension`` and a pending deletion
