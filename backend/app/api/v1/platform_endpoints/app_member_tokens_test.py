@@ -439,6 +439,44 @@ async def test_a_member_token_waits_for_the_answer(
     assert read.json() == {"member": member.user.id, "documents": ["Theirs"]}
 
 
+async def test_a_member_token_is_issued_within_the_ceiling(
+    client: AsyncClient, session: AsyncSession, acting_user, role_session
+):
+    """Narrowing the registration's ceiling narrows the member's next token as
+    it does the installation's."""
+    from app.models.platform.app_service_registration import AppServiceRegistration
+    from app.services.marketplace import registration_lookup
+    from app.testing.app_clients import CLIENT
+
+    installed = await install_app(
+        session,
+        acting_user,
+        role_session,
+        granted=["documents:write", "comments:read"],
+    )
+    member = await _member(acting_user, installed)
+    member_ref = await _ref(installed, member.user.id)
+    await _ask(client, installed, member=member_ref, purpose="node-1")
+    consent_id = await _consent_id(client, member, installed)
+    await _answer(client, member, installed, consent_id, "read_write")
+
+    registration = (
+        await session.exec(
+            select(AppServiceRegistration).where(
+                AppServiceRegistration.public_id == CLIENT
+            )
+        )
+    ).one()
+    registration.scope_ceiling = ["comments:read"]
+    session.add(registration)
+    await session.commit()
+    registration_lookup.invalidate_registrations()
+
+    issued = await _grant_token(client, installed, member_ref)
+    assert issued.status_code == 200, issued.text
+    assert issued.json()["scope"] == "comments:read"
+
+
 async def test_a_consent_bound_to_an_initiative_issues_only_narrowed_tokens(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):

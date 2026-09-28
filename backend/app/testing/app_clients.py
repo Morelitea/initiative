@@ -169,6 +169,7 @@ async def install_app(
             listing_uid=listing_uid,
             enabled=enabled,
             jwks=client_jwks(),
+            scope_ceiling=list(ALL_SCOPES if requested is None else requested),
         )
 
     await route_session_to_guild(session, seat.guild.id)
