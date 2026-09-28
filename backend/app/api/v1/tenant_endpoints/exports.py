@@ -20,7 +20,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from math import ceil
-from typing import Annotated, Any, Literal, Optional, Union, cast
+from typing import Annotated, Any, List, Literal, Optional, Union, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -184,6 +184,39 @@ async def export_tasks(
             "tz": tz,
             "include_archived": include_archived,
             "layout": layout,
+        },
+    )
+    return _export_response(result, guild_context)
+
+
+@router.get("/events", response_model=None)
+async def export_events(
+    session: RLSSessionDep,
+    current_user: CurrentUserDep,
+    guild_context: GuildContextDep,
+    format: Literal["ics"] = Query(default="ics"),
+    initiative_id: Optional[int] = Query(default=None),
+    scope: Optional[Literal["guild"]] = Query(default=None),
+    calendar_ids: Optional[List[int]] = Query(default=None),
+    property_filters: Optional[str] = Query(
+        default=None, description="Same JSON property filters as the event list"
+    ),
+) -> Union[Response, JSONResponse]:
+    """Export calendar events (the same visibility and filters as ``GET
+    /calendar-events/``) as one iCalendar file, every date included. Small
+    results return the file directly; large results return ``202`` with a
+    queued job to poll and download."""
+    result = await _start_export(
+        session,
+        current_user,
+        guild_context,
+        source="events",
+        format=format,
+        params={
+            "initiative_id": initiative_id,
+            "scope": scope,
+            "calendar_ids": calendar_ids,
+            "property_filters": property_filters,
         },
     )
     return _export_response(result, guild_context)

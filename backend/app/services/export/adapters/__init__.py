@@ -7,6 +7,7 @@ from app.services.export.adapters.backup import (
     InitiativeExportAdapter,
 )
 from app.services.export.adapters.calendar import CalendarAdapter
+from app.services.export.adapters.calendar_events import CalendarEventsAdapter
 from app.services.export.adapters.counter_group import CounterGroupAdapter
 from app.services.export.adapters.dashboard import DashboardAdapter
 from app.services.export.adapters.document import DocumentAdapter
@@ -21,6 +22,7 @@ ADAPTERS = {
     adapter.source: adapter
     for adapter in (
         TasksTableAdapter(),
+        CalendarEventsAdapter(),
         ProjectAdapter(),
         DocumentAdapter(),
         QueueAdapter(),

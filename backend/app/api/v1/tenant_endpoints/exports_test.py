@@ -1969,7 +1969,9 @@ async def test_calendar_export_applies_calendar_sharing(
     """Calendar sharing holds for exports: export-all carries the calendars the
     exporter may export — the ones they own — and leaves out one they can only
     read as well as one not shared with them at all. Asking for either by id
-    is refused, while a guild admin still reaches them by explicit selection."""
+    is refused, while a guild admin still reaches them by explicit selection.
+    The events export takes read access instead, so it carries the readable
+    calendar too, and still nothing unshared."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     await _events_enabled(session, a.initiative)
     b = await acting_user(
@@ -2025,6 +2027,20 @@ async def test_calendar_export_applies_calendar_sharing(
     )
     admin_env = json.loads(_assert_export(admin_resp, "json"))
     assert {e["title"] for e in admin_env["events"]} == {"Hidden"}
+
+    # The events export is a formatted read: what b can see, and nothing more.
+    body = _assert_export(
+        await _export(client, a, "events", headers=b.headers, format="ics"),
+        "ics",
+        disposition=('filename="events.ics"',),
+        present=("SUMMARY:Their session", "SUMMARY:Read only"),
+        absent=("SUMMARY:Hidden",),
+    )
+    assert body.count("BEGIN:VEVENT") == 2
+    named = await _export(
+        client, a, "events", headers=b.headers, calendar_ids=[secret_cal.id]
+    )
+    assert _assert_export(named, "ics").count("BEGIN:VEVENT") == 0
 
 
 async def test_calendar_export_initiative_filter(

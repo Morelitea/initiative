@@ -10545,6 +10545,17 @@ export const ExportTasksApiV1CGuildIdExportsTasksGetLayout = {
   detailed: "detailed",
 } as const;
 
+export type ExportEventsApiV1CGuildIdExportsEventsGetParams = {
+  format?: "ics";
+  initiative_id?: number | null;
+  scope?: "guild" | null;
+  calendar_ids?: number[] | null;
+  /**
+   * Same JSON property filters as the event list
+   */
+  property_filters?: string | null;
+};
+
 export type ExportProjectApiV1CGuildIdExportsProjectGetParams = {
   project_id?: number | null;
   /**

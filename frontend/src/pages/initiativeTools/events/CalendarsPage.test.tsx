@@ -2,7 +2,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { endOfMonth, startOfMonth } from "date-fns";
 import { HttpResponse } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { buildGuild, buildProject, buildTask, writerCan } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
@@ -13,6 +13,8 @@ import { CALENDAR_VIEW_MODE_KEY } from "@/components/calendar";
 import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
 
 import { CalendarsView } from "./CalendarsPage";
+
+vi.mock("@/lib/csv", () => ({ downloadBlob: vi.fn() }));
 
 const INITIATIVE_ID = 1;
 const PROJECT_ID = 1;
@@ -352,6 +354,35 @@ describe("CalendarsView on the calendar app's own surface", () => {
 
     expect(await screen.findByRole("button", { name: /1 calendar hidden/i })).toBeInTheDocument();
     expect(screen.queryByText("Midsummer")).toBeNull();
+  });
+
+  it("exports every date of the calendars on screen, leaving out a hidden one", async () => {
+    stubGuildScope([guildCalendar(42, "Holidays"), guildCalendar(43, "Game nights")]);
+    const exports: URLSearchParams[] = [];
+    server.use(
+      guildHttp.get("/exports/events", ({ request }) => {
+        exports.push(new URL(request.url).searchParams);
+        return new HttpResponse("BEGIN:VCALENDAR", {
+          headers: { "Content-Type": "text/calendar" },
+        });
+      })
+    );
+
+    const user = userEvent.setup();
+    renderGuildScope();
+
+    await user.click(await screen.findByRole("button", { name: /^export$/i }));
+    await waitFor(() => expect(exports).toHaveLength(1));
+    expect(exports[0].get("scope")).toBe("guild");
+    expect(exports[0].getAll("calendar_ids")).toEqual([]);
+    expect(exports[0].get("start_after")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: /calendars/i }));
+    await user.click(await screen.findByRole("checkbox", { name: "Holidays" }));
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: /^export$/i }));
+    await waitFor(() => expect(exports).toHaveLength(2));
+    expect(exports[1].getAll("calendar_ids")).toEqual(["43"]);
   });
 
   it("puts the picker and the way to add a calendar on the page, not behind the filter button", async () => {
