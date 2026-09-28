@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Any, List, Optional, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import ColumnElement, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -371,76 +371,8 @@ async def list_my_calendar_events(
 
 
 # ---------------------------------------------------------------------------
-# iCal export / import
+# iCal import
 # ---------------------------------------------------------------------------
-
-
-@me_router.get("/calendar-events/export.ics")
-async def export_my_calendar_events_ics(
-    session: UserSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    window: CalendarWindowDep,
-    guild_ids: Optional[List[int]] = Query(default=None),
-) -> Response:
-    """Export cross-guild calendar events starting within a date window as an
-    .ics file.
-
-    Schema-per-guild: aggregate per guild schema via ``gather_across_guilds``
-    — events live only in the per-guild schemas, so no one query spans them.
-    """
-
-    def _fetch(guild_session, guild_id):  # type: ignore[no-untyped-def]
-        context = require_guild_context(guild_session)
-        conditions = [
-            calendars_service.tool_enabled_clause(),
-            CalendarEvent.start_at >= window.start_after,
-            CalendarEvent.start_at <= window.start_before,
-            _cross_guild_event_dac_clause(context, current_user.id),
-        ]
-        stmt = (
-            select(CalendarEvent)
-            .join(Calendar, Calendar.id == CalendarEvent.calendar_id)
-            .where(*conditions)
-            .options(
-                selectinload(CalendarEvent.attendees).selectinload(
-                    CalendarEventAttendee.user
-                ),
-                # event_export_dict reads tags and custom properties too —
-                # async lazy loads would raise, so load them here. Attached
-                # documents are not on the row any more and are gathered per
-                # guild below, where the session is routed to read them.
-                selectinload(CalendarEvent.property_values).selectinload(
-                    CalendarEventPropertyValue.property_definition
-                ),
-                selectinload(CalendarEvent.property_values).selectinload(
-                    CalendarEventPropertyValue.value_user
-                ),
-            )
-        )
-
-        async def _run() -> list[tuple[int, CalendarEvent, list[Related]]]:
-            found = await _exec_events(guild_session, stmt)
-            await tags_service.annotate_tags(guild_session, found)
-            # Read while this session is still routed to THIS guild — edges live
-            # in its schema — and paired with their event on the way out, so
-            # nothing downstream has to key them. Ids repeat across schemas.
-            documents = await ical_service.documents_for_events(guild_session, found)
-            return [(guild_id, event, documents.get(event.id, [])) for event in found]
-
-        return _run()
-
-    target_guilds = await member_guild_ids(
-        session, current_user.id, restrict_to=guild_ids
-    )
-    rows = await gather_across_guilds(session, current_user.id, target_guilds, _fetch)
-    rows.sort(key=lambda row: (row[1].start_at, row[0], row[1].id))
-
-    ics_bytes = ical_service.events_to_ical([(event, docs) for _, event, docs in rows])
-    return Response(
-        content=ics_bytes,
-        media_type="text/calendar",
-        headers={"Content-Disposition": "attachment; filename=events.ics"},
-    )
 
 
 @router.post("/import/parse", response_model=ICalParseResult)

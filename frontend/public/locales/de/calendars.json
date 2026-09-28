@@ -63,10 +63,6 @@
   "tags": "Tags",
   "properties": "Eigenschaften",
   "today": "Heute",
-  "export": {
-    "exportIcs": "Angezeigten Zeitraum exportieren (.ics)",
-    "exportError": "Termine konnten nicht exportiert werden"
-  },
   "import": {
     "title": "Kalendertermine importieren",
     "importIcs": ".ics importieren",

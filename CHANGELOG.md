@@ -37,7 +37,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Ticking tasks in a table is instant.**
 - **The trash shows a page at a time**, newest first.
 - **If you never verified your email address**, verifying it now, with an emailed code or through your organization's sign-in, clears the account's password, passkeys and second factor. Your communities and content stay; set up new sign-in methods from Security. If your address is already verified, nothing changes. Servers without SMTP automatically verify all emails on sign up and are not impacted.
-- **Calendar export saves the dates you're viewing.**
 - **Improved efficiency and security.**
 
 ### Removed

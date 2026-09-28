@@ -11504,12 +11504,6 @@ export type ListMyCalendarEventsApiV1MeCalendarEventsGetParams = {
   page_size?: number;
 };
 
-export type ExportMyCalendarEventsIcsApiV1MeCalendarEventsExportIcsGetParams = {
-  guild_ids?: number[] | null;
-  start_after: string;
-  start_before: string;
-};
-
 export type ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams = {
   guild_ids?: number[] | null;
   /**

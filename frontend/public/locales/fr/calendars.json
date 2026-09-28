@@ -63,10 +63,6 @@
   "tags": "Étiquettes",
   "properties": "Propriétés",
   "today": "Aujourd'hui",
-  "export": {
-    "exportIcs": "Exporter la période affichée (.ics)",
-    "exportError": "Échec de l'exportation des événements"
-  },
   "import": {
     "title": "Importer des événements",
     "importIcs": "Importer .ics",
