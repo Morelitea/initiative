@@ -43,6 +43,6 @@ jobs:
       tags: |
         type=raw,value=dev-${{ needs.sha.outputs.short }}
         type=raw,value=dev
-    secrets:
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    # inherit, not a list: the called job's environment secrets
+    # (OTA_SIGNING_KEY) read as empty without it.
+    secrets: inherit
