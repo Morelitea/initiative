@@ -49,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Signing out of the app stops its notifications**, and so does signing out other devices or resetting your password.
 - **Whiteboards and offline edits** are no longer lost.
 - **Large spreadsheets** keep up with your typing.
 - **Duplicated file documents** include the file.

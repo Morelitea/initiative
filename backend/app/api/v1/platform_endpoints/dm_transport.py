@@ -309,11 +309,18 @@ async def check_roster(
     proposal enforces the same rule again — this is the question, not the gate.
     """
     members = sorted(set(body.user_ids) | {current_user.id})
-    pair = await service.unreachable_pair(session, member_ids=members)
+    too_large = len(members) > MAX_GROUP_MEMBERS
+    pair = (
+        None
+        if too_large
+        else await service.unreachable_pair(
+            session, actor_id=current_user.id, member_ids=members
+        )
+    )
     return DmRosterCheckResponse(
         unreachable_pair=list(pair) if pair else [],
         max_members=MAX_GROUP_MEMBERS,
-        too_large=len(members) > MAX_GROUP_MEMBERS,
+        too_large=too_large,
     )
 
 

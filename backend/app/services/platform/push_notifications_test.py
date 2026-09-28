@@ -144,8 +144,9 @@ async def test_delivery_reads_stamps_and_prunes_on_the_system_engine(
 ):
     """The caller's session holds nothing on ``push_tokens`` here, as a
     community-routed one does not: the recipient's rows are read, the delivered
-    one stamped and the dead one dropped all the same. The same value
-    registered by another account is left alone."""
+    one stamped and the dead one dropped all the same. A device whose session
+    has ended is not sent to and is dropped too. The same value registered by
+    another account is left alone."""
     from app.models.platform.push_token import PushToken
     from app.services.platform import push_notifications, push_tokens
     from app.testing import create_user
@@ -169,17 +170,50 @@ async def test_delivery_reads_stamps_and_prunes_on_the_system_engine(
     monkeypatch.setattr(push_config, "ensure_push_config_fresh", _enabled)
 
     async def _send(client, push_token, title, body, data=None, channel_id=None):
-        return (True, False) if push_token == "live" else (False, True)
+        return (
+            (True, False) if push_token in ("live", "unlinked-new") else (False, True)
+        )
 
     monkeypatch.setattr(push_notifications, "send_push_notification", _send)
 
+    from app.services.auth import sessions as session_service
+
     recipient = await create_user(session)
     bystander = await create_user(session)
-    for user, value in ((recipient, "live"), (recipient, "gone"), (bystander, "gone")):
+    signed_in, signed_out, elsewhere = [
+        (
+            await session_service.create_session(
+                session, user_id=user.id, amr=["pwd"], satisfied_providers=[]
+            )
+        ).session.id
+        for user in (recipient, recipient, bystander)
+    ]
+    await session_service.revoke_session(session, session_id=signed_out)
+    for user, value, sid in (
+        (recipient, "live", signed_in),
+        (recipient, "gone", signed_in),
+        (recipient, "signed-out", signed_out),
+        (recipient, "unlinked-new", None),
+        (recipient, "unlinked-old", None),
+        (bystander, "gone", elsewhere),
+    ):
         await push_tokens.register_push_token(
-            session, user_id=user.id, push_token=value, platform="android"
+            session,
+            user_id=user.id,
+            push_token=value,
+            platform="android",
+            session_id=sid,
         )
     recipient_id, bystander_id = recipient.id, bystander.id
+    # Registered before rows named their sign-in: sent to for a grace period
+    # after it was last registered.
+    await session.exec(
+        text(
+            "UPDATE push_tokens SET updated_at = now() - interval '8 days' "
+            "WHERE push_token = 'unlinked-old'"
+        )
+    )
+    await session.commit()
 
     await _as_guild_floor(session)
     try:
@@ -193,7 +227,7 @@ async def test_delivery_reads_stamps_and_prunes_on_the_system_engine(
         )
     finally:
         await _reset_role(session)
-    assert sent == 1
+    assert sent == 2
 
     session.expire_all()
     rows = (
@@ -202,7 +236,11 @@ async def test_delivery_reads_stamps_and_prunes_on_the_system_engine(
         )
     ).all()
     held = {(row.user_id, row.push_token): row for row in rows}
-    assert set(held) == {(recipient_id, "live"), (bystander_id, "gone")}
+    assert set(held) == {
+        (recipient_id, "live"),
+        (recipient_id, "unlinked-new"),
+        (bystander_id, "gone"),
+    }
     assert held[(recipient_id, "live")].last_used_at is not None
     assert held[(bystander_id, "gone")].last_used_at is None
 
@@ -255,3 +293,32 @@ async def test_access_token_is_reused_until_it_lapses(monkeypatch):
 
     assert await push_notifications._get_fcm_access_token(_cfg("b")) == "token-2"
     assert built == [{"account": "a"}, {"account": "b"}]
+
+
+async def test_a_renewed_session_carries_its_device(session):
+    """A refresh moves the device to the row that succeeds its session."""
+    from app.services.auth import sessions as session_service
+    from app.services.platform import push_tokens
+    from app.testing import create_user
+
+    user = await create_user(session)
+    user_id = user.id
+    issued = await session_service.create_session(
+        session, user_id=user_id, amr=["pwd"], satisfied_providers=[]
+    )
+    await push_tokens.register_push_token(
+        session,
+        user_id=user_id,
+        push_token="phone",
+        platform="android",
+        session_id=issued.session.id,
+    )
+    rotated = await session_service.rotate_session(
+        session, raw_refresh_token=issued.refresh_token
+    )
+    renewed_id = rotated.issued.session.id
+    await session.commit()
+
+    (row,) = await push_tokens.get_push_tokens_for_user(session, user_id=user_id)
+    await session.refresh(row)
+    assert row.session_id == renewed_id
