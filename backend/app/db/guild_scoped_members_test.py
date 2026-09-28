@@ -36,7 +36,8 @@ def _platform_floor() -> str:
 
 
 async def _as_query_role(conn, guild_id: int):
-    """Become the role a query runs as. Everything below reads through it.
+    """Become the role a query runs as, once the request is routed. Everything
+    below reads through it.
 
     Named through the provisioner's own helper rather than spelled out: every
     test run gets its own prefixed roles, and roles are cluster-global — so a
@@ -69,12 +70,12 @@ class TestItAnswersForTheRoutedGuild:
 
         async with engine.connect() as conn:
             async with conn.begin():
-                await _as_query_role(conn, one.id)
                 await _routed(conn, one.id)
+                await _as_query_role(conn, one.id)
                 here = set((await conn.execute(text(_IDS))).scalars().all())
             async with conn.begin():
-                await _as_query_role(conn, two.id)
                 await _routed(conn, two.id)
+                await _as_query_role(conn, two.id)
                 there = set((await conn.execute(text(_IDS))).scalars().all())
 
         assert mine.id in here and theirs.id not in here
@@ -90,8 +91,8 @@ class TestItAnswersForTheRoutedGuild:
         async with engine.connect() as conn:
             for guild in (one, two):
                 async with conn.begin():
-                    await _as_query_role(conn, guild.id)
                     await _routed(conn, guild.id)
+                    await _as_query_role(conn, guild.id)
                     found = (await conn.execute(text(_IDS))).scalars().all()
                     assert person.id in found
 
@@ -101,8 +102,8 @@ class TestItAnswersForTheRoutedGuild:
         await create_guild_membership(session, user=person, guild=guild)
         async with engine.connect() as conn:
             async with conn.begin():
-                await _as_query_role(conn, guild.id)
                 await _routed(conn, None)
+                await _as_query_role(conn, guild.id)
                 assert await conn.scalar(text(_COUNT)) == 0
 
     async def test_a_grantee_is_routed_by_the_grant(self, session, engine):
@@ -118,9 +119,9 @@ class TestItAnswersForTheRoutedGuild:
 
         async with engine.connect() as conn:
             async with conn.begin():
-                await _as_query_role(conn, guild.id)
                 await _routed(conn, None)
                 await _routed(conn, guild.id, pam=True)
+                await _as_query_role(conn, guild.id)
                 assert person.id in (await conn.execute(text(_IDS))).scalars().all()
 
     async def test_it_never_widens_past_the_account_projection(self, session, engine):
@@ -132,8 +133,8 @@ class TestItAnswersForTheRoutedGuild:
 
         async with engine.connect() as conn:
             async with conn.begin():
-                await _as_query_role(conn, guild.id)
                 await _routed(conn, guild.id)
+                await _as_query_role(conn, guild.id)
                 here = await conn.scalar(text(_COUNT))
                 # The query role reads nothing else in ``public``, so the
                 # projection is read as the guild's read-only role.
