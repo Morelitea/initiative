@@ -35,9 +35,8 @@ on:
         required: false
       DOCKERHUB_TOKEN:
         required: false
-      # Read from `signing-environment`; callers pass nothing.
-      OTA_SIGNING_KEY:
-        required: false
+      # OTA_SIGNING_KEY is not declared here: a declared secret the caller
+      # does not pass reads as empty, hiding the environment's own value.
 
 env:
   IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/initiative
