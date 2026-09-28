@@ -35,8 +35,8 @@ on:
         required: false
       DOCKERHUB_TOKEN:
         required: false
-      # OTA_SIGNING_KEY is not declared here: a declared secret the caller
-      # does not pass reads as empty, hiding the environment's own value.
+      # OTA_SIGNING_KEY comes from `signing-environment`, which reaches this
+      # workflow only when the caller passes `secrets: inherit`.
 
 env:
   IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/initiative
