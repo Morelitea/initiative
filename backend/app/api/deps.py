@@ -697,19 +697,15 @@ async def _load_guild_context(
     gate = await _read_membership_gate(session, guild_id, current_user.id)
     if gate is None:
         # Resolve live grants when the caller has no membership.
-        grant = await access_grants_service.get_live_grant(
+        grants = await access_grants_service.get_live_grants(
             session, user_id=current_user.id, guild_id=guild_id
         )
+        grant = grants.get(AccessGrantPurpose.content)
         # A settings grant reaches the community's configuration and nothing
         # of its work, so a content request needs the content grant.
         if grant is None and not for_settings:
             raise GuildAccessError()
-        settings_grant = await access_grants_service.get_live_grant(
-            session,
-            user_id=current_user.id,
-            guild_id=guild_id,
-            purpose=AccessGrantPurpose.settings,
-        )
+        settings_grant = grants.get(AccessGrantPurpose.settings)
         if grant is None and settings_grant is None:
             raise GuildAccessError()
         is_read_write = (

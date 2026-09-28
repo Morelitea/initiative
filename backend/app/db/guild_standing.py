@@ -88,17 +88,6 @@ __all__ = [
 ]
 
 
-def _live_grant(purpose: str, extra: str = "") -> str:
-    return (
-        "FROM public.access_grants g"
-        f" WHERE g.guild_id = {gucs.ROUTED_GUILD_ID}"
-        f" AND g.user_id = {gucs.USER_ID}"
-        f" AND g.purpose = '{purpose}'"
-        f" AND {LIVE_GRANT}"
-        f"{extra}"
-    )
-
-
 #: The rungs that administer a community, as the ladder orders them — the
 #: one spelling the admin fact and the settings rung are read off.
 _ADMIN_RUNGS: tuple[GuildRole, ...] = tuple(
@@ -130,13 +119,41 @@ def _writes(values: dict[gucs.Guc, str]) -> str:
     )
 
 
+#: The reader's own rows the person statement reads, each table once. Every
+#: key below is an aggregate over one of these, so a new key picks a row set
+#: rather than reading its table again.
+_PERSON_ROWS = f"""
+WITH my_initiatives AS MATERIALIZED (
+  SELECT im.initiative_id, im.role_id,
+         COALESCE(r.is_manager, false) AS is_manager,
+         COALESCE(r.override_share_restrictions, false) AS overrides
+  FROM initiative_members im
+  LEFT JOIN initiative_roles r ON r.id = im.role_id
+  WHERE im.user_id = {gucs.USER_ID}
+),
+my_role_permissions AS MATERIALIZED (
+  SELECT mi.initiative_id, rp.permission_key, rp.enabled
+  FROM my_initiatives mi
+  JOIN initiative_role_permissions rp ON rp.initiative_role_id = mi.role_id
+),
+my_membership AS MATERIALIZED (
+  SELECT m.role
+  FROM public.guild_memberships m
+  WHERE m.guild_id = {gucs.GUILD_ID} AND m.user_id = {gucs.USER_ID}
+),
+my_grants AS MATERIALIZED (
+  SELECT g.purpose, g.access_level::text AS access_level
+  FROM public.access_grants g
+  WHERE g.guild_id = {gucs.ROUTED_GUILD_ID}
+    AND g.user_id = {gucs.USER_ID}
+    AND {LIVE_GRANT}
+)"""
+
 #: What the person statement writes: each standing key and its expression.
 _PERSON_STANDING: dict[gucs.Guc, str] = {
     gucs.STANDING_GUILD_ID: f"""COALESCE({gucs.ROUTED_COMMUNITY}, '')""",
     gucs.GUILD_ADMIN: f"""COALESCE((
-      SELECT (m.role IN ({_ADMIN_RUNGS_SQL}))::text
-      FROM public.guild_memberships m
-      WHERE m.guild_id = {gucs.GUILD_ID} AND m.user_id = {gucs.USER_ID}
+      SELECT (m.role IN ({_ADMIN_RUNGS_SQL}))::text FROM my_membership m
     ), 'false')""",
     gucs.GUILD_SEAT: f"""COALESCE((
       SELECT public.guild_superadmin({gucs.ROUTED_GUILD_ID}, {gucs.USER_ID})::text
@@ -147,62 +164,61 @@ _PERSON_STANDING: dict[gucs.Guc, str] = {
              END
       FROM (
         SELECT m.role::text AS rung
-        FROM public.guild_memberships m
-        WHERE m.guild_id = {gucs.GUILD_ID} AND m.user_id = {gucs.USER_ID}
-          AND m.role IN ({_ADMIN_RUNGS_SQL})
+        FROM my_membership m
+        WHERE m.role IN ({_ADMIN_RUNGS_SQL})
         UNION ALL
-        SELECT g.access_level::text {_live_grant(AccessGrantPurpose.settings.value)}
+        SELECT g.access_level FROM my_grants g
+        WHERE g.purpose = '{AccessGrantPurpose.settings.value}'
       ) AS rungs
     ), '')""",
     gucs.PAM_READ: f"""(
-      SELECT EXISTS (SELECT 1 {_live_grant(AccessGrantPurpose.content.value)})::text
+      SELECT EXISTS (
+        SELECT 1 FROM my_grants g
+        WHERE g.purpose = '{AccessGrantPurpose.content.value}'
+      )::text
     )""",
     gucs.PAM_WRITE: f"""(
       SELECT EXISTS (
-        SELECT 1 {_live_grant(AccessGrantPurpose.content.value, f" AND g.access_level = '{AccessLevel.read_write.value}'")}
+        SELECT 1 FROM my_grants g
+        WHERE g.purpose = '{AccessGrantPurpose.content.value}'
+          AND g.access_level = '{AccessLevel.read_write.value}'
       )::text
     )""",
-    gucs.MEMBER_INITIATIVES: f"""COALESCE((
-      SELECT string_agg(DISTINCT im.initiative_id::text, ',')
-      FROM initiative_members im
-      WHERE im.user_id = {gucs.USER_ID}
+    gucs.MEMBER_INITIATIVES: """COALESCE((
+      SELECT string_agg(DISTINCT mi.initiative_id::text, ',')
+      FROM my_initiatives mi
     ), '')""",
-    gucs.MANAGER_INITIATIVES: f"""COALESCE((
-      SELECT string_agg(DISTINCT im.initiative_id::text, ',')
-      FROM initiative_members im
-      JOIN initiative_roles r ON r.id = im.role_id
-      WHERE im.user_id = {gucs.USER_ID} AND r.is_manager
+    gucs.MANAGER_INITIATIVES: """COALESCE((
+      SELECT string_agg(DISTINCT mi.initiative_id::text, ',')
+      FROM my_initiatives mi
+      WHERE mi.is_manager
     ), '')""",
-    gucs.MEMBER_ROLE_IDS: f"""COALESCE((
-      SELECT string_agg(DISTINCT im.role_id::text, ',')
-      FROM initiative_members im
-      WHERE im.user_id = {gucs.USER_ID} AND im.role_id IS NOT NULL
+    gucs.MEMBER_ROLE_IDS: """COALESCE((
+      SELECT string_agg(DISTINCT mi.role_id::text, ',')
+      FROM my_initiatives mi
+      WHERE mi.role_id IS NOT NULL
     ), '')""",
-    gucs.ROLE_GRANTS: f"""COALESCE((
-      SELECT string_agg(DISTINCT im.initiative_id || ':' || rp.permission_key, ',')
-      FROM initiative_members im
-      JOIN initiative_role_permissions rp ON rp.initiative_role_id = im.role_id
-      WHERE im.user_id = {gucs.USER_ID} AND rp.enabled
+    gucs.ROLE_GRANTS: """COALESCE((
+      SELECT string_agg(DISTINCT rp.initiative_id || ':' || rp.permission_key, ',')
+      FROM my_role_permissions rp
+      WHERE rp.enabled
     ), '')""",
-    gucs.ROLE_DENIES: f"""COALESCE((
-      SELECT string_agg(DISTINCT im.initiative_id || ':' || rp.permission_key, ',')
-      FROM initiative_members im
-      JOIN initiative_role_permissions rp ON rp.initiative_role_id = im.role_id
-      WHERE im.user_id = {gucs.USER_ID} AND NOT rp.enabled
+    gucs.ROLE_DENIES: """COALESCE((
+      SELECT string_agg(DISTINCT rp.initiative_id || ':' || rp.permission_key, ',')
+      FROM my_role_permissions rp
+      WHERE NOT rp.enabled
     ), '')""",
     gucs.ENABLED_TOOLS: f"""COALESCE((
       SELECT string_agg(DISTINCT i.id || ':' || t.tool, ',')
       FROM initiatives i
-      JOIN initiative_members im
-        ON im.initiative_id = i.id AND im.user_id = {gucs.USER_ID}
+      JOIN my_initiatives mi ON mi.initiative_id = i.id
       CROSS JOIN LATERAL (VALUES {_tool_switch_values()}) AS t(tool, enabled)
       WHERE t.enabled
     ), '')""",
-    gucs.OVERRIDE_INITIATIVES: f"""COALESCE((
-      SELECT string_agg(DISTINCT im.initiative_id::text, ',')
-      FROM initiative_members im
-      JOIN initiative_roles r ON r.id = im.role_id
-      WHERE im.user_id = {gucs.USER_ID} AND r.override_share_restrictions
+    gucs.OVERRIDE_INITIATIVES: """COALESCE((
+      SELECT string_agg(DISTINCT mi.initiative_id::text, ',')
+      FROM my_initiatives mi
+      WHERE mi.overrides
     ), '')""",
     gucs.GUILD_AUTH_OK: """   (SELECT public.guild_auth_satisfied()::text)""",
     gucs.CONTENT_HOLD: f"""COALESCE((
@@ -213,12 +229,12 @@ _PERSON_STANDING: dict[gucs.Guc, str] = {
 }
 
 #: The one statement. Runs as the routed role, after ``SET ROLE``, so the
-#: sub-selects on the shared tables are read under those tables' own policies
-#: and the routed role's grants (``app_guild_base`` holds ``SELECT`` on
+#: reads of the shared tables go through those tables' own policies and the
+#: routed role's grants (``app_guild_base`` holds ``SELECT`` on
 #: ``guild_memberships`` and ``access_grants``, and the read-only floor is
-#: derived from it), and the ones on ``initiative_members`` resolve in the
+#: derived from it), and the read of ``initiative_members`` resolves in the
 #: community's own schema.
-STANDING_SQL = f"""
+STANDING_SQL = f"""{_PERSON_ROWS}
 SELECT
 {_writes(_PERSON_STANDING)}
 """
