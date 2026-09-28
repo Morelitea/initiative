@@ -19,7 +19,7 @@ from app.api.deps import (
     UserSessionDep,
     get_current_active_user,
 )
-from app.db.session import AsyncSessionLocal
+from app.db.cohorts import request_sessionmaker
 from app.models.platform.user import User
 from app.schemas.platform.notification import (
     NotificationCountResponse,
@@ -255,7 +255,7 @@ async def websocket_notifications(websocket: WebSocket):
     # loop — holding one for the socket's lifetime parks a connection
     # idle-in-transaction, whose locks block DDL like guild deletion's DROP
     # SCHEMA.
-    async with AsyncSessionLocal() as session:
+    async with request_sessionmaker(None)() as session:
         # Taken before the row is read, so it is never later than the value
         # that read comes back with.
         presence_known_at = monotonic()

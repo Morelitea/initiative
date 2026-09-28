@@ -168,7 +168,9 @@ jobs:
             if [[ "$EVENT" != "pull_request" ]] || [[ -n "$(changed .github/workflows/ci.yml \
                 backend/app/db/ backend/app/api/deps.py backend/app/api/content_socket.py \
                 backend/app/services/content_sockets.py backend/app/testing/ \
-                backend/app/models/ backend/alembic/ backend/conftest.py)" ]]; then
+                backend/app/models/ backend/alembic/ backend/conftest.py \
+                backend/app/api/v1/tenant_endpoints/{queues,counters,events,collaboration}.py \
+                backend/app/api/v1/platform_endpoints/notifications.py)" ]]; then
               out seam true
               echo "Seam changed — running the conformance suite"
             else
