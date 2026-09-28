@@ -28,20 +28,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Pictures from other sites show as links.**
 - **Ticked checklist lines stay readable** instead of being crossed out.
 - **Only people who can open something** can be assigned to it, invited to it or notified about it.
-- **Leaving an initiative** takes you off everything in it.
 - **Opening something marks its notifications read.**
 - **Mentions in the same document** make one notification.
 - **Read notifications clear after 30 days.**
 - **Community calendars belong to admins.** Members add events to the ones shared with them.
 - **Hidden calendars are remembered** in each community.
-- **Dashboards load faster.**
 - **Ticking tasks in a table is instant.**
-- **Switching communities is quicker.**
 - **The trash shows a page at a time**, newest first.
-- **If you never verified your email address**, verifying it now, with an emailed code or through your organization's sign-in, clears the account's password, passkeys and second factor. Your communities and content stay; set up new sign-in methods from Security. If your address is already verified, nothing changes.
-- **Platform account actions reach only accounts at or below your own role.** Reactivate is for deactivated accounts; lift a suspension or restore a deletion from their own actions.
+- **If you never verified your email address**, verifying it now, with an emailed code or through your organization's sign-in, clears the account's password, passkeys and second factor. Your communities and content stay; set up new sign-in methods from Security. If your address is already verified, nothing changes. Servers without SMTP automatically verify all emails on sign up and are not impacted.
 - **Calendar export saves the dates you're viewing.**
-- **API:** the member list (`GET /c/{guild_id}/users/`) and both trash lists return pages (`page`, `page_size`; trash's `total` is now `total_count`), and calendar entries and `/me/calendar-events/export.ics` require `start_after` and `start_before`, at most 400 days apart.
 - **Improved efficiency and security.**
 
 ### Removed
@@ -50,6 +45,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Platform account actions reach only accounts at or below your own role.** Reactivate is for deactivated accounts; lift a suspension or restore a deletion from their own actions.
+- **Switching communities is quicker.**
+- **API:** the member list (`GET /c/{guild_id}/users/`) and both trash lists return pages.
+- **Dashboards load faster.**
+- **Leaving an initiative** takes you off everything in it.
 - **A picture shared by several pages** stays while any of them still shows it, including pages you can't open.
 - **Signing out of the app stops its notifications**, and so does signing out other devices or resetting your password.
 - **Whiteboards and offline edits** are no longer lost.
