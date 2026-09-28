@@ -14,10 +14,13 @@ trashed rows included:
   the file is rewritten to show the copy;
 * shown by nothing: left unclaimed, which only its uploader reaches.
 
-Nothing is deleted. A copy is named from the file and the initiative, so a run
-repeated after a failure writes the same copies again. The columns the files
-are read from are stated here in full, so this revision reads the same whatever
-the modules say later. The downgrade drops the column; copies stay, and so do
+Nothing is deleted. A copy that cannot be written stops the migration, which
+leaves the database as it was; a copy is named from the file and the
+initiative, so the run that follows writes the same copies again. A file whose
+bytes are already gone gets its copies recorded all the same, so every row
+names a file its initiative reads, and the bytes stay missing as before. The
+columns the files are read from are stated here in full, so this revision reads
+the same whatever the modules say later. The downgrade drops the column; copies stay, and so do
 the rewritten references.
 
 Revision ID: 20260928_0414
@@ -189,7 +192,7 @@ def _place(bind, schema: str) -> None:
         )
 
     storage = get_guild_storage(guild_id)
-    claimed = copied = failed = 0
+    claimed = copied = missing = 0
     for filename, by_initiative in shown.items():
         keeper, *others = by_initiative
         bind.execute(
@@ -203,13 +206,11 @@ def _place(bind, schema: str) -> None:
         for initiative_id in others:
             copy = _copy_name(guild_id, filename, initiative_id)
             if not storage.copy(filename, copy):
-                logger.warning(
-                    "uploads in %s: could not copy %s; its rows keep the original",
-                    schema,
-                    filename,
-                )
-                failed += 1
-                continue
+                if storage.exists(filename):
+                    raise RuntimeError(
+                        f"uploads in {schema}: could not copy {filename}"
+                    )
+                missing += 1
             bind.execute(
                 sa.text(
                     "INSERT INTO uploads (filename, created_by, size_bytes,"
@@ -248,11 +249,11 @@ def _place(bind, schema: str) -> None:
         )
     ).rowcount
     logger.info(
-        "uploads in %s: %s placed, %s copies, %s copy failures, %s unclaimed",
+        "uploads in %s: %s placed, %s copies (%s of files not stored), %s unclaimed",
         schema,
         claimed,
         copied,
-        failed,
+        missing,
         unshown,
     )
 
