@@ -316,15 +316,16 @@ export const CalendarsView = ({
   const entriesQuery = useCalendarEntries(entriesParams);
 
   // Export every date of the calendars on screen, through the same scope and
-  // filters as the grid. Hidden calendars are left out by name: the picker only
-  // hides calendars it listed, while the list itself may be one page of many.
+  // filters as the grid. Hidden calendars are left out by their saved ids, so
+  // one past the loaded page of calendars stays out too.
   const exportParams = useMemo((): ExportEventsApiV1CGuildIdExportsEventsGetParams | null => {
-    const hidden = calendars.filter((calendar) =>
+    const allHidden = calendars.every((calendar) =>
       visibility.isCalendarHidden(guildId, calendar.id)
     );
-    if (!solo && hidden.length === calendars.length && !calendarsQuery.data?.has_next) {
+    if (!solo && allHidden && !calendarsQuery.data?.has_next) {
       return null;
     }
+    const hidden = visibility.hiddenCalendarIds(guildId);
     return {
       ...(solo
         ? { calendar_ids: [soloCalendar.id] }
@@ -333,9 +334,7 @@ export const CalendarsView = ({
           : initiativeId
             ? { initiative_id: initiativeId }
             : {}),
-      ...(!solo && hidden.length > 0
-        ? { exclude_calendar_ids: hidden.map((calendar) => calendar.id) }
-        : {}),
+      ...(!solo && hidden.length > 0 ? { exclude_calendar_ids: hidden } : {}),
       ...(!guildOnly && propertyFiltersParam ? { property_filters: propertyFiltersParam } : {}),
     };
   }, [
