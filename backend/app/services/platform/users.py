@@ -1136,7 +1136,6 @@ async def to_operator_read(users: List[User]) -> List["OperatorUserRead"]:
         payload.purge_at = _erase_at(user, retention)
         lock = locks.get(user.id)
         if lock is not None:
-            payload.sign_in_held_at = lock.held_at
             payload.sign_in_locked_until = lock.locked_until
         out.append(payload)
     return out

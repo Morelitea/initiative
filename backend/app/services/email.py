@@ -7,7 +7,7 @@ import re
 import smtplib
 import ssl
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from email.message import EmailMessage
 from functools import lru_cache
 from pathlib import Path
@@ -1028,14 +1028,24 @@ async def announce_passkey_change(
 
 
 async def announce_sign_in_locked(
-    session: AsyncSession, user: User, *, held: bool
+    session: AsyncSession, user: User, *, lock_for: timedelta
 ) -> None:
-    """Tell the account its password and codes have been turned off for now."""
-    await _queue_account_notice(
-        user,
-        section="signInLocked",
-        key="signInLocked.held" if held else "signInLocked.locked",
-    )
+    """Tell the account its password and codes are turned off, and for how long."""
+    minutes = int(lock_for.total_seconds()) // 60
+    if minutes < 60:
+        await _queue_account_notice(
+            user,
+            section="signInLocked",
+            key="signInLocked.locked",
+            minutes=str(minutes),
+        )
+    else:
+        await _queue_account_notice(
+            user,
+            section="signInLocked",
+            key="signInLocked.lockedHours",
+            count=str(minutes // 60),
+        )
 
 
 async def announce_password_removed(session: AsyncSession, user: User) -> None:

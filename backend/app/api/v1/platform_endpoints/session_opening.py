@@ -224,10 +224,10 @@ async def refuse_if_locked(system_session: AsyncSession, user_id: int) -> None:
 
 async def count_wrong_answer(system_session: AsyncSession, user_id: int) -> None:
     """Count a wrong password or code against the account, commit it, and tell
-    the holder if that placed a lock they have not heard about."""
+    the holder if that placed a lock."""
     failure = await sign_in_locks.record_failure(system_session, user_id)
     await system_session.commit()
-    if not failure.notify:
+    if failure.lock_for is None:
         return
     from app.services import email as email_service
 
@@ -236,7 +236,7 @@ async def count_wrong_answer(system_session: AsyncSession, user_id: int) -> None
         await email_service.announce_sign_in_locked(
             system_session,
             user,
-            held=failure.outcome is sign_in_locks.Outcome.held,
+            lock_for=failure.lock_for,
         )
 
 

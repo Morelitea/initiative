@@ -712,9 +712,7 @@ class OperatorUserRead(UserRead):
     purge_at: Optional[datetime] = None
 
     #: Set while wrong passwords or codes have turned the account's password
-    #: and code sign-in off. ``sign_in_held_at`` stays until a moderator lifts
-    #: it; ``sign_in_locked_until`` lifts on its own at that time.
-    sign_in_held_at: Optional[datetime] = None
+    #: and code sign-in off; it turns back on by itself at that time.
     sign_in_locked_until: Optional[datetime] = None
 
     @field_validator("email", mode="after")

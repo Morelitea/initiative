@@ -806,6 +806,7 @@
     "clearAgeBlock": "Altersfrage zurücksetzen",
     "ageBlockCleared": "Die Altersfrage kann erneut beantwortet werden.",
     "signInLocked": "Anmeldung mit Passwort aus",
+    "signInLockedUntil": "Bis {{time}}",
     "liftSignInLock": "Anmeldung mit Passwort wieder einschalten",
     "signInLockLifted": "Die Person kann sich wieder mit Passwort anmelden.",
     "sheet": {

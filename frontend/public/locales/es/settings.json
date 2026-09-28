@@ -806,6 +806,7 @@
     "clearAgeBlock": "Restablecer pregunta de edad",
     "ageBlockCleared": "Puede volver a responder la pregunta sobre la edad.",
     "signInLocked": "Inicio con contraseña desactivado",
+    "signInLockedUntil": "Hasta el {{time}}",
     "liftSignInLock": "Reactivar el inicio de sesión con contraseña",
     "signInLockLifted": "Ya puede volver a iniciar sesión con contraseña.",
     "sheet": {

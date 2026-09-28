@@ -632,14 +632,19 @@ async def test_five_wrong_passwords_lock_the_account(
     client: AsyncClient, session: AsyncSession
 ) -> None:
     """Counted by account whatever the client, so with the per-client limits
-    off (as the suite runs) the account lock is what refuses."""
-    await create_user(
+    off (as the suite runs) the account lock is what refuses. A reset from the
+    emailed link ends the lock at once."""
+    from app.models.platform.user_token import UserTokenPurpose
+    from app.services.platform import user_tokens
+
+    user = await create_user(
         session,
         email="five@example.com",
         hashed_password=get_password_hash("right-password"),
         status=UserStatus.active,
         email_verified=True,
     )
+    user_id = user.id
     for _ in range(5):
         assert (await _sign_in(client, "five@example.com", "wrong")).status_code == 400
 
@@ -656,6 +661,17 @@ async def test_five_wrong_passwords_lock_the_account(
         },
     )
     assert app_refused.status_code == 429
+
+    reset_token = await user_tokens.create_token(
+        session, user_id=user_id, purpose=UserTokenPurpose.password_reset
+    )
+    reset = await client.post(
+        "/api/v1/auth/password/reset",
+        json={"token": reset_token, "password": "brand-new-secret-123"},
+    )
+    assert reset.status_code == 200, reset.text
+    signed_in = await _sign_in(client, "five@example.com", "brand-new-secret-123")
+    assert signed_in.status_code == 200, signed_in.text
 
 
 async def test_login_refused_for_account_without_password(

@@ -33,6 +33,7 @@ import {
 } from "@/hooks/useOperatorUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { formatDateTime } from "@/lib/formatDate";
 import { Capability, hasCapability } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
 import { getUserHandle } from "@/lib/userDisplay";
@@ -265,13 +266,17 @@ export const SettingsPlatformUsersPage = () => {
           platformUser.status === "active"
             ? "text-sm text-green-600 dark:text-green-400"
             : "text-muted-foreground text-sm";
-        const signInLocked = platformUser.sign_in_held_at || platformUser.sign_in_locked_until;
         return (
           <div className="space-y-0.5">
             <span className={className}>{t(labelKey)}</span>
-            {signInLocked && (
+            {platformUser.sign_in_locked_until && (
               <div>
                 <Badge variant="outline">{t("platformUsers.signInLocked")}</Badge>
+                <p className="text-muted-foreground text-xs">
+                  {t("platformUsers.signInLockedUntil", {
+                    time: formatDateTime(platformUser.sign_in_locked_until),
+                  })}
+                </p>
               </div>
             )}
           </div>
@@ -341,16 +346,15 @@ export const SettingsPlatformUsersPage = () => {
                 {isResetting ? t("common:submitting") : t("platformUsers.resetPassword")}
               </DropdownMenuItem>
             )}
-            {abilities.canManageUsers &&
-              (platformUser.sign_in_held_at || platformUser.sign_in_locked_until) && (
-                <DropdownMenuItem
-                  onSelect={() => liftSignInLock.mutate(platformUser.id)}
-                  disabled={liftSignInLock.isPending}
-                >
-                  <LockOpen className="h-4 w-4" />
-                  {t("platformUsers.liftSignInLock")}
-                </DropdownMenuItem>
-              )}
+            {abilities.canManageUsers && platformUser.sign_in_locked_until && (
+              <DropdownMenuItem
+                onSelect={() => liftSignInLock.mutate(platformUser.id)}
+                disabled={liftSignInLock.isPending}
+              >
+                <LockOpen className="h-4 w-4" />
+                {t("platformUsers.liftSignInLock")}
+              </DropdownMenuItem>
+            )}
             {canUnblockAge && platformUser.age_below_minimum_at && (
               <DropdownMenuItem
                 onSelect={() => clearAgeBlock.mutate(platformUser.id)}
