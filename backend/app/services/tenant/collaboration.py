@@ -84,6 +84,8 @@ class CollaborationRoom:
         # rendering of the document is only current if it came from the tab
         # that last moved it.
         self._last_writer: Any = None
+        #: Everyone who has changed the document in this room.
+        self.writers: set[int] = set()
         # A room dropped from the registry. Nothing should reach one — the
         # registry only drops rooms with no connections — but a write that does
         # would go nowhere, so it says so instead of swallowing it.
@@ -227,11 +229,15 @@ class CollaborationRoom:
             for client, clock in _clocks(self.state_vector()).items()
         )
 
-    def apply_update(self, update: bytes, connection: Any = None) -> None:
-        """Apply a Yjs update from a client."""
+    def apply_update(
+        self, update: bytes, connection: Any = None, user_id: int | None = None
+    ) -> None:
+        """Apply a Yjs update from a client, sent by ``user_id``."""
         self.doc.apply_update(update)
         self._revision += 1
         self._last_writer = connection
+        if user_id is not None:
+            self.writers.add(user_id)
 
     def offer_content(self, content: dict, connection: Any = None) -> bool:
         """Record the JSON an editor says this document now reads as.
@@ -484,10 +490,13 @@ class CollaborationManager:
                 .values(**values)
             )
             if content is not None and result.rowcount:
-                # A room is written by nobody in particular, so what its content
-                # shows is claimed and nothing is copied.
+                # The files its writers uploaded are claimed. Nothing is copied:
+                # the content is the editors' rendering of the room's document,
+                # which the next save writes again as they hold it.
                 await attachments_service.claim_uploads(
-                    session, await session.get(spec.model, room.resource_id)
+                    session,
+                    await session.get(spec.model, room.resource_id),
+                    uploaded_by=room.writers,
                 )
             await session.commit()
             if result.rowcount:
