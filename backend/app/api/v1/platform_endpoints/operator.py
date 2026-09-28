@@ -388,28 +388,30 @@ async def resend_verification_email(
             )
         )
     ).first()
-    # Asked first: the new letter replaces the old one, which stays good
-    # until then.
     if not await email_service.email_configured(session):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=SettingsMessages.SMTP_INCOMPLETE,
         )
 
+    # The new letter replaces the old one only once it has been sent.
+    token = await user_tokens.create_token(
+        session,
+        user_id=user.id,
+        purpose=UserTokenPurpose.email_verification,
+        expires_minutes=60 * 24,
+        user_email_id=address.id,
+        invite_id=invite_id,
+        commit=False,
+    )
     try:
-        token = await user_tokens.create_token(
-            session,
-            user_id=user.id,
-            purpose=UserTokenPurpose.email_verification,
-            expires_minutes=60 * 24,
-            user_email_id=address.id,
-            invite_id=invite_id,
-        )
         await email_service.send_verification_email(session, user, token)
     except RuntimeError as exc:
+        await session.rollback()
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)
         ) from exc
+    await session.commit()
     return VerificationSendResponse(status="sent")
 
 

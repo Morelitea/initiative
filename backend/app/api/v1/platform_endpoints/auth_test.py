@@ -142,9 +142,11 @@ async def test_register_with_a_bound_invite_joins_on_confirming(
     """With mail on, the address is not proved at sign-up, so an invite bound
     to it waits: confirming the address joins the guild. The binding is still
     checked when the account is made. A letter an operator sends again
-    replaces the first and still carries the invite."""
+    replaces the first once it is delivered, and still carries the invite."""
     from app.models.platform.guild import GuildMembership
     from app.models.platform.user import UserRole
+    from app.models.platform.user_token import UserTokenPurpose
+    from app.services.platform import user_tokens
     from app.services import email as email_service
     from app.services.platform import guilds as guild_service
     from app.testing.factories import create_guild
@@ -203,6 +205,18 @@ async def test_register_with_a_bound_invite_joins_on_confirming(
         await create_user(session, role=UserRole.operator)
     )
     resend_path = f"/api/v1/operator/users/{user_id}/verification-email"
+
+    async def _undelivered(session_, user, token):
+        raise RuntimeError("Failed to send email")
+
+    monkeypatch.setattr(email_service, "send_verification_email", _undelivered)
+    failed = await client.post(resend_path, headers=operator_headers)
+    assert failed.status_code == 502
+    assert await user_tokens.get_valid_token(
+        session, token=letters[0], purpose=UserTokenPurpose.email_verification
+    )
+
+    monkeypatch.setattr(email_service, "send_verification_email", _capture)
     resent = await client.post(resend_path, headers=operator_headers)
     assert resent.status_code == 200, resent.text
     first, second = letters
