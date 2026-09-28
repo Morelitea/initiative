@@ -480,6 +480,7 @@ async def query_guild_calendar_events(
     initiative_id: Optional[int] = None,
     guild_scope: bool = False,
     calendar_ids: Optional[List[int]] = None,
+    exclude_calendar_ids: Optional[List[int]] = None,
     start_after: Optional[datetime] = None,
     start_before: Optional[datetime] = None,
     property_filters: Optional[str] = None,
@@ -530,6 +531,10 @@ async def query_guild_calendar_events(
 
     if calendar_ids:
         conditions.append(CalendarEvent.calendar_id.in_(tuple(set(calendar_ids))))
+    if exclude_calendar_ids:
+        conditions.append(
+            CalendarEvent.calendar_id.not_in(tuple(set(exclude_calendar_ids)))
+        )
 
     if start_after is not None:
         conditions.append(CalendarEvent.start_at >= start_after)

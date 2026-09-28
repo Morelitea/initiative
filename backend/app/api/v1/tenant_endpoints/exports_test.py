@@ -2041,6 +2041,10 @@ async def test_calendar_export_applies_calendar_sharing(
         client, a, "events", headers=b.headers, calendar_ids=[secret_cal.id]
     )
     assert _assert_export(named, "ics").count("BEGIN:VEVENT") == 0
+    left_out = await _export(
+        client, a, "events", headers=b.headers, exclude_calendar_ids=[read_cal.id]
+    )
+    assert "SUMMARY:Read only" not in _assert_export(left_out, "ics")
 
 
 async def test_calendar_export_initiative_filter(

@@ -10551,6 +10551,10 @@ export type ExportEventsApiV1CGuildIdExportsEventsGetParams = {
   scope?: "guild" | null;
   calendar_ids?: number[] | null;
   /**
+   * Calendars to leave out, such as hidden ones
+   */
+  exclude_calendar_ids?: number[] | null;
+  /**
    * Same JSON property filters as the event list
    */
   property_filters?: string | null;

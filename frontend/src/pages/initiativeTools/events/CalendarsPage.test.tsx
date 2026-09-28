@@ -382,7 +382,8 @@ describe("CalendarsView on the calendar app's own surface", () => {
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("button", { name: /^export$/i }));
     await waitFor(() => expect(exports).toHaveLength(2));
-    expect(exports[1].getAll("calendar_ids")).toEqual(["43"]);
+    expect(exports[1].get("scope")).toBe("guild");
+    expect(exports[1].getAll("exclude_calendar_ids")).toEqual(["42"]);
   });
 
   it("puts the picker and the way to add a calendar on the page, not behind the filter button", async () => {

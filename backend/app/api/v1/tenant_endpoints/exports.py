@@ -198,6 +198,9 @@ async def export_events(
     initiative_id: Optional[int] = Query(default=None),
     scope: Optional[Literal["guild"]] = Query(default=None),
     calendar_ids: Optional[List[int]] = Query(default=None),
+    exclude_calendar_ids: Optional[List[int]] = Query(
+        default=None, description="Calendars to leave out, such as hidden ones"
+    ),
     property_filters: Optional[str] = Query(
         default=None, description="Same JSON property filters as the event list"
     ),
@@ -216,6 +219,7 @@ async def export_events(
             "initiative_id": initiative_id,
             "scope": scope,
             "calendar_ids": calendar_ids,
+            "exclude_calendar_ids": exclude_calendar_ids,
             "property_filters": property_filters,
         },
     )
