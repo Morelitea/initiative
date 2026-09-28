@@ -112,7 +112,7 @@ def test_initiative_scoped_helper():
     assert is_initiative_scoped("projects") and not is_initiative_scoped(
         "guild_settings"
     )
-    assert not is_initiative_scoped("uploads")  # guild-level
+    assert not is_initiative_scoped("tags")  # guild-level
     assert not is_initiative_scoped("users")  # shared, not even guild-scoped
 
 

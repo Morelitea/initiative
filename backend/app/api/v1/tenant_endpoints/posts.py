@@ -78,6 +78,7 @@ from app.services import notifications as notifications_service
 from app.services import rls as rls_service
 from app.services.notifications import AppAuthor
 from app.core.search import SearchEntityType
+from app.services.tenant import attachments as attachments_service
 from app.services.tenant import comments as comments_service
 from app.services.tenant import content_references
 from app.services.tenant import post_polls as post_polls_service
@@ -382,6 +383,7 @@ async def create_post(
         body=post.body,
         author_id=guild_context.user_id,
     )
+    await attachments_service.claim_uploads(session, post)
 
     if post_in.tag_ids:
         await tags_service.set_entity_tags(
@@ -479,6 +481,7 @@ async def update_post(
                 body=post.body,
                 author_id=guild_context.user_id,
             )
+            await attachments_service.claim_uploads(session, post)
         if publish_now:
             author = await notifications_service.author_of(
                 session, guild_context, current_user

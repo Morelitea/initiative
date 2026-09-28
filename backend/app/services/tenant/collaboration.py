@@ -30,6 +30,7 @@ from sqlmodel import select
 from app.db import cohorts
 from app.db.session import set_rls_context
 from app.services.content_sockets import resource_room, sockets
+from app.services.tenant import attachments as attachments_service
 from app.services.tenant.collaborative_resources import (
     YJS_STATE_COLUMN,
     YJS_UPDATED_COLUMN,
@@ -482,6 +483,12 @@ class CollaborationManager:
                 .where(spec.model.id == room.resource_id)
                 .values(**values)
             )
+            if content is not None and result.rowcount:
+                # A room is written by nobody in particular, so what its content
+                # shows is claimed and nothing is copied.
+                await attachments_service.claim_uploads(
+                    session, await session.get(spec.model, room.resource_id)
+                )
             await session.commit()
             if result.rowcount:
                 room.mark_persisted(revision)

@@ -23,6 +23,7 @@ from app.core.relationships import Related, RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.document import Document
 from app.models.tenant.task import Task
+from app.services.tenant import attachments as attachments_service
 from app.services.tenant import relationships
 from app.api.actor_route import ActorRoute
 from app.api.deps import (
@@ -288,6 +289,7 @@ async def create_queue(
         payload=queue_in,
         grants=queue_in.grants,
     )
+    await attachments_service.claim_uploads(session, queue)
     await session.commit()
 
     hydrated = await _refetch_queue(session, queue.id)
@@ -319,6 +321,7 @@ async def update_queue(
     if updated:
         queue.updated_at = datetime.now(timezone.utc)
         session.add(queue)
+        await attachments_service.claim_uploads(session, queue)
         await session.commit()
 
     hydrated = await _refetch_queue(session, queue.id)
@@ -396,6 +399,7 @@ async def add_queue_item(
             current_user.id,
         )
 
+    await attachments_service.claim_uploads(session, item)
     await session.commit()
 
     hydrated_item = await queues_service.get_queue_item(
@@ -442,6 +446,7 @@ async def update_queue_item(
 
     if updated:
         session.add(item)
+        await attachments_service.claim_uploads(session, item)
         await session.commit()
 
     hydrated_item = await queues_service.get_queue_item(

@@ -18,6 +18,7 @@ from app.core.relationships import (
 from app.models.tenant.relationship import EntityRelationship
 from app.core.search import SearchEntityType
 from app.services.permissions import Action
+from app.services.tenant import attachments as attachments_service
 from app.services.tenant import content_references, relationships
 from app.api.actor_route import ActorRoute
 from app.api.deps import (
@@ -324,6 +325,7 @@ async def _duplicate_template_tasks(
         session,
         {s.id: c.id for s, c in copies if s.id is not None and c.id is not None},
     )
+    await attachments_service.claim_uploads(session, *(task for _, task in copies))
 
 
 #: Edge types a task copy does not carry. Tags travel through
@@ -841,6 +843,7 @@ async def create_project(
             target_id=project.id,
         )
 
+    await attachments_service.claim_uploads(session, project)
     await session.commit()
 
     project = await _get_project_or_404(
@@ -1138,6 +1141,7 @@ async def update_project(
     project.updated_at = datetime.now(timezone.utc)
 
     session.add(project)
+    await attachments_service.claim_uploads(session, project)
     await session.commit()
     project = await _get_project_or_404(
         project.id,

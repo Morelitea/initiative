@@ -62,6 +62,7 @@ from app.schemas.tenant.wiki import (
     serialize_wiki_page_summary,
 )
 from app.schemas.tenant.tool import serialize_tool
+from app.services.tenant import attachments as attachments_service
 from app.services.tenant import comments as comments_service
 from app.services.tenant import content_references
 from app.services.tenant import relationships as relationships_service
@@ -196,6 +197,7 @@ async def create_wiki(
             entity_id=wiki.id,
             tag_ids=wiki_in.tag_ids,
         )
+    await attachments_service.claim_uploads(session, wiki)
     await session.commit()
     hydrated = await _refetch_wiki(session, wiki.id, user_id=guild_context.user_id)
     return serialize_tool(
@@ -252,6 +254,7 @@ async def update_wiki(
         setattr(wiki, "accent_color", (data["accent_color"] or "").strip() or None)
 
     session.add(wiki)
+    await attachments_service.claim_uploads(session, wiki)
     await session.commit()
     hydrated = await _refetch_wiki(session, wiki.id, user_id=guild_context.user_id)
     return serialize_tool(
@@ -505,6 +508,7 @@ async def create_wiki_page(
         body=page.content,
         author_id=current_user.id,
     )
+    await attachments_service.claim_uploads(session, page)
     await session.commit()
     await session.refresh(page)
     return serialize_wiki_page(page, context=guild_context)
@@ -590,6 +594,7 @@ async def update_wiki_page(
             body=page.content,
             author_id=current_user.id,
         )
+    await attachments_service.claim_uploads(session, page)
     await session.commit()
     await session.refresh(page)
     await tags_service.annotate_tags(session, [page])

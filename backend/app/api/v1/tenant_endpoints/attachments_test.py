@@ -435,7 +435,7 @@ async def test_the_sweep_takes_pictures_nobody_saved_once_their_grace_is_over(
     client: AsyncClient, session, acting_user
 ):
     """A tab closed rather than left never discards what it pasted. A saved
-    one is claimed and not looked at again."""
+    one is claimed for the initiative that shows it and not looked at again."""
     from datetime import datetime, timedelta, timezone
 
     from sqlmodel import select
@@ -464,12 +464,11 @@ async def test_the_sweep_takes_pictures_nobody_saved_once_their_grace_is_over(
 
     assert released == {unsaved.rsplit("/", 1)[1]}
     saved_name = saved.rsplit("/", 1)[1]
-    claimed_at = (
-        await session.exec(
-            select(Upload.claimed_at).where(Upload.filename == saved_name)
-        )
+    claimed = (
+        await session.exec(select(Upload).where(Upload.filename == saved_name))
     ).one()
-    assert claimed_at == later
+    assert claimed.claimed_at is not None
+    assert claimed.initiative_id == a.initiative.id
 
     # Once claimed, the sweep leaves it alone even when nothing shows it.
     task.description = "No picture"

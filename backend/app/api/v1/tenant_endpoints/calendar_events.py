@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.relationships import Related, RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.document import Document
+from app.services.tenant import attachments as attachments_service
 from app.services.tenant import relationships
 from sqlmodel import select
 
@@ -745,6 +746,7 @@ async def create_calendar_event(
     ]
     await _notify_invited(session, event, invite_ids, current_user, guild_context)
 
+    await attachments_service.claim_uploads(session, event)
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
     return await _serialized_event(
@@ -871,6 +873,7 @@ async def update_calendar_event(
                 data={"time_changed": time_changed},
             )
 
+        await attachments_service.claim_uploads(session, event)
         await session.commit()
 
     hydrated = await _refetch_event(session, event.id)

@@ -1187,6 +1187,24 @@ def search_entries_path() -> InitiativePath:
     )
 
 
+def uploads_path() -> InitiativePath:
+    """A stored file is reached through the initiative whose content shows it.
+
+    Until it is saved into something (``claimed_at`` NULL) only its uploader
+    reaches it. Once claimed, its ``initiative_id`` is gated like any
+    :func:`direct` row, and a NULL there is content belonging to the whole
+    guild — a guild calendar and what hangs off it — which every member reads.
+    """
+    return InitiativePath(
+        predicate=lambda t, w: (
+            f"(CASE WHEN {t}.claimed_at IS NULL"
+            f" THEN ({t}.created_by = {gucs.USER_ID.once} OR {_P.system})"
+            f" ELSE {_access(f'{t}.initiative_id', w)} END)"
+        ),
+        initiative_expr=lambda r: f"{r}.initiative_id",
+    )
+
+
 def recent_views_path() -> InitiativePath:
     """A reader's own record of visiting something, reached exactly like the
     thing itself: ``(entity_type, entity_id)`` is the pair the entity function
@@ -1247,6 +1265,8 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "search_entries": search_entries_path(),
     # Integration config, reached by whoever can reach what it watches.
     "webhook_subscriptions": webhook_subscription_path(),
+    # Stored files, reached through the initiative whose content shows them.
+    "uploads": uploads_path(),
     # Reports a community settles. Reached by whoever already sees everything
     # in the initiative, plus the guild admin — see direct_full_access.
     "moderation_reports": direct_full_access(),
@@ -1751,10 +1771,7 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     "moderation_reports": Silent("who reported whom is not an automation signal"),
     "moderation_report_reporters": Silent("the reporters behind one report"),
     "intake_cases": Silent("the key -> task map; the task is what a subscriber hears"),
-    # Guild-level, and kept out on disclosure: an upload row is reachable from
-    # more than one place, so the initiative gate is not the whole answer for it
-    # the way it is for tags. Gate it properly or leave it silent — silent.
-    "uploads": Silent("reached through several parents; not gated by one of them"),
+    "uploads": Silent("a stored file; the content showing it is what changed"),
     # -- Guild-level tables that emit ---------------------------------------
     # The structural initiative tables are deliberately exempt from
     # initiative-member RLS (a membership table gated by the membership check it

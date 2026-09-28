@@ -63,6 +63,7 @@ from app.services.import_engine.archive_assets import (
     restore_assets,
 )
 from app.services.import_engine.common import handle_key, unique_name
+from app.services.tenant.attachments import claim_shown
 from app.services.import_engine.contract import (
     EnvelopeImportResult,
     ImportEngineError,
@@ -459,6 +460,8 @@ async def apply_backup(
         # bundle becomes a mention of that page.
         await resolve_page_links(session, context.links, site_url=context.source_url)
         await _file_documents_under_pages(session, context)
+        # The files the entries show are kept for the initiative each went into.
+        await claim_shown(session, set(assets_by_key))
         await session.commit()
 
         return result

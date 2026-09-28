@@ -242,10 +242,6 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         "app_schedule_runs",  # when an install's schedules last ran and run
         # next; read through the install (LEDGER_TABLES below).
         "tags",  # tags are guild-level, shared across initiatives (purge-guarded)
-        "uploads",  # guild blob store: no FK to any initiative entity (documents
-        # reference blobs by file_url string, and a blob can be pinned by
-        # documents across initiatives), so it can't use initiative_access;
-        # blob *content* access is already gated at the document layer.
         # Structural initiative tables — guild-scoped for reading (a roster is
         # read by its co-members, and the standing statement reads it before
         # any standing exists), written by the initiative's managers: see

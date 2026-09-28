@@ -15,6 +15,7 @@ from app.testing.factories import (
     create_guild,
     create_guild_auth_policy,
     create_guild_membership,
+    create_initiative,
     create_user,
     get_auth_headers,
     get_auth_token,
@@ -414,6 +415,7 @@ async def test_upload_suspended_guild_member_404_grant_still_served(
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild)
+    initiative = await create_initiative(session, guild, user)
     _stage_upload(guild.id, "suspended_guild.txt")
     await route_session_to_guild(session, guild.id)
     session.add(
@@ -421,6 +423,8 @@ async def test_upload_suspended_guild_member_404_grant_still_served(
             filename="suspended_guild.txt",
             created_by=user.id,
             size_bytes=5,
+            initiative_id=initiative.id,
+            claimed_at=datetime.now(timezone.utc),
         )
     )
     guild.status = GuildStatus.suspended.value

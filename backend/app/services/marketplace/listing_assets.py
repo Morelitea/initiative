@@ -121,9 +121,11 @@ async def copy_assets_in(
     envelope: dict[str, Any],
     guild_id: int,
     user_id: int,
+    initiative_id: int,
 ) -> dict[str, Any]:
     """``envelope`` with each picture it names copied into this guild's
-    storage as a new upload of ``user_id``'s, and named there.
+    storage as a new upload of ``user_id``'s, kept for ``initiative_id``, and
+    named there.
 
     The copies count against the guild's storage like any upload, and the
     whole install is refused if they do not fit. A path naming nothing the
@@ -168,6 +170,7 @@ async def copy_assets_in(
             data=data,
             content_type=content_type,
             created_by=user_id,
+            initiative_id=initiative_id,
         )
         to_key[path] = key
     await session.flush()

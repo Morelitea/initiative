@@ -711,6 +711,7 @@ async def create_comment(
     await session.refresh(comment, attribute_names=["author"])
     _stamp_task_project(ctx, comment)
     await content_references.sync_for_comment(session, comment, author_id=author.id)
+    await attachments_service.claim_uploads(session, comment)
 
     await _process_comment_notifications(
         session,
@@ -1012,6 +1013,7 @@ async def update_comment(
     await content_references.sync_for_comment(
         session, comment, author_id=cast(int, user.id)
     )
+    await attachments_service.claim_uploads(session, comment)
     await session.refresh(comment, attribute_names=["author"])
     # The edit reply is what the client writes back into its cache, so it must
     # carry the reactions the comment still has — serializing without them
