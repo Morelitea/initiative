@@ -806,6 +806,7 @@
     "clearAgeBlock": "Reset age question",
     "ageBlockCleared": "They can answer the age question again.",
     "signInLocked": "Password sign-in off",
+    "signInLockedUntil": "Until {{time}}",
     "liftSignInLock": "Turn password sign-in back on",
     "signInLockLifted": "They can sign in with a password again.",
     "sheet": {

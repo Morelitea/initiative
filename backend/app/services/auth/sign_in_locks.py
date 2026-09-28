@@ -1,9 +1,10 @@
 """Wrong passwords and codes, counted per account.
 
-Five wrong answers within fifteen minutes lock the account's password and codes
-for fifteen minutes. Three locks within a day turn into a hold, which stays
-until a moderator lifts it. Passkeys and sessions already open are not
-affected by either.
+Five wrong answers within fifteen minutes lock the account's password and codes.
+The first lock within a day lasts fifteen minutes, the second an hour, and the
+third and every one after it four hours. Every lock ends on its own; a password
+reset from the emailed link, or a moderator, ends it sooner. Passkeys and
+sessions already open are not affected.
 
 Every function here stages its writes on the caller's system-engine session;
 the caller commits.
@@ -28,18 +29,17 @@ from app.core.clock import utcnow
 
 LOCK_AFTER_FAILURES = 5
 FAILURE_WINDOW = timedelta(minutes=15)
-LOCK_FOR = timedelta(minutes=15)
-HOLD_AFTER_LOCKS = 3
+#: How long the first, second and each later lock within ``LOCK_WINDOW`` lasts.
+LOCK_FOR = (timedelta(minutes=15), timedelta(hours=1), timedelta(hours=4))
 LOCK_WINDOW = timedelta(hours=24)
-#: The holder is emailed about a lock at most this often. A hold is always
-#: emailed.
+#: The holder is emailed about a lock at most this often. Locks of an hour or
+#: more are placed at least this far apart, so every one of them is emailed.
 NOTIFY_AT_MOST_EVERY = timedelta(hours=1)
 
 
 class Outcome(enum.Enum):
     counted = "counted"
     locked = "locked"
-    held = "held"
 
 
 @dataclass(frozen=True)
@@ -48,6 +48,8 @@ class Failure:
 
     outcome: Outcome
     notify: bool
+    #: How long the lock this answer placed lasts; None when it placed none.
+    lock_for: timedelta | None = None
 
 
 async def _row_for_update(session: AsyncSession, user_id: int) -> SignInLock:
@@ -72,8 +74,6 @@ async def _row_for_update(session: AsyncSession, user_id: int) -> SignInLock:
 def _is_closed(row: SignInLock | None, now: datetime) -> bool:
     if row is None:
         return False
-    if row.held_at is not None:
-        return True
     return row.locked_until is not None and row.locked_until > now
 
 
@@ -83,7 +83,7 @@ async def is_locked(session: AsyncSession, user_id: int) -> bool:
 
 
 async def record_failure(session: AsyncSession, user_id: int) -> Failure:
-    """Count one wrong answer, and place a lock or a hold if it is due."""
+    """Count one wrong answer, and place a lock if it is due."""
     now = utcnow()
     row = await _row_for_update(session, user_id)
     if _is_closed(row, now):
@@ -106,38 +106,29 @@ async def record_failure(session: AsyncSession, user_id: int) -> Failure:
         row.first_lock_at = now
     row.locks += 1
 
-    if row.locks >= HOLD_AFTER_LOCKS:
-        row.held_at = now
-        row.locked_until = None
-        outcome, notify = Outcome.held, True
-        event = AuditEventType.AUTH_SIGN_IN_HELD
-    else:
-        row.locked_until = now + LOCK_FOR
-        outcome = Outcome.locked
-        notify = row.notified_at is None or now - row.notified_at >= (
-            NOTIFY_AT_MOST_EVERY
-        )
-        event = AuditEventType.AUTH_SIGN_IN_LOCKED
+    lock_for = LOCK_FOR[min(row.locks, len(LOCK_FOR)) - 1]
+    row.locked_until = now + lock_for
+    notify = row.notified_at is None or now - row.notified_at >= NOTIFY_AT_MOST_EVERY
     if notify:
         row.notified_at = now
     session.add(row)
 
     await audit_service.record(
         session,
-        event_type=event,
+        event_type=AuditEventType.AUTH_SIGN_IN_LOCKED,
         actor_user_id=None,
         target_user_id=user_id,
         target_type="user",
         target_id=user_id,
-        detail={"locks": row.locks},
+        detail={"locks": row.locks, "minutes": int(lock_for.total_seconds()) // 60},
     )
-    return Failure(outcome, notify=notify)
+    return Failure(Outcome.locked, notify=notify, lock_for=lock_for)
 
 
 async def record_success(session: AsyncSession, user_id: int) -> None:
     """Start the count over: the account's holder has just signed in.
 
-    Locks already placed still count toward a hold, and a hold stays.
+    Locks already placed still count toward the length of the next one.
     """
     row = await session.get(SignInLock, user_id)
     if row is None or row.failures == 0:
@@ -148,8 +139,8 @@ async def record_success(session: AsyncSession, user_id: int) -> None:
 
 
 async def lift(session: AsyncSession, user_id: int) -> bool:
-    """Clear everything counted against the account. True if it was locked or
-    held."""
+    """Clear everything counted against the account, and any lock. True if it
+    was locked."""
     was_closed = _is_closed(await session.get(SignInLock, user_id), utcnow())
     await session.exec(delete(SignInLock).where(SignInLock.user_id == user_id))
     return was_closed

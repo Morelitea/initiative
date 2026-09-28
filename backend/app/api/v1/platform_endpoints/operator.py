@@ -631,9 +631,8 @@ async def lift_sign_in_lock(
 ) -> OperatorUserRead:
     """Turn an account's password and code sign-in back on.
 
-    Wrong passwords or codes turn them off: for fifteen minutes at a time, and
-    until somebody lifts it once the locks add up. This lifts either, and
-    starts the count over.
+    Wrong passwords or codes turn them off for a while, longer for each lock
+    within a day. This lifts the lock now, and starts both counts over.
 
     Gated on ``users.manage`` (moderator and above), like a suspension.
     """

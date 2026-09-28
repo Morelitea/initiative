@@ -330,7 +330,7 @@ class TestSuspension:
 
 
 class TestLiftingASignInLock:
-    async def test_a_moderator_lifts_a_hold(self, client, session):
+    async def test_a_moderator_lifts_a_lock(self, client, session):
         from app.services.auth import sign_in_locks
 
         moderator = await create_user(session, role=UserRole.moderator)
@@ -346,7 +346,6 @@ class TestLiftingASignInLock:
         )
         assert lifted.status_code == 200, lifted.text
         assert lifted.json()["sign_in_locked_until"] is None
-        assert lifted.json()["sign_in_held_at"] is None
         assert not await sign_in_locks.is_locked(session, subject.id)
 
         again = await client.delete(

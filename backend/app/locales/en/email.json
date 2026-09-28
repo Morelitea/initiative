@@ -385,12 +385,13 @@
     "locked": {
       "subject": "Password sign-in paused on your account",
       "title": "Password sign-in paused",
-      "body": "Someone entered the wrong password or code for your account 5 times, so signing in with a password or code is turned off for 15 minutes. Passkeys still work, and you stay signed in where you already are."
+      "body": "Someone entered the wrong password or code for your account 5 times, so signing in with a password or code is turned off for {{minutes}} minutes. Passkeys still work, and you stay signed in where you already are. To turn it back on now, reset your password with “Forgot password?” on the sign-in page."
     },
-    "held": {
-      "subject": "Password sign-in turned off on your account",
-      "title": "Password sign-in turned off",
-      "body": "Wrong passwords or codes kept arriving for your account, so signing in with a password or code is now turned off until a moderator turns it back on. Passkeys still work, and you stay signed in where you already are. Contact whoever runs this site to have it turned back on."
+    "lockedHours": {
+      "subject": "Password sign-in paused on your account",
+      "title": "Password sign-in paused",
+      "body_one": "Wrong passwords or codes kept arriving for your account, so signing in with a password or code is turned off for an hour. Passkeys still work, and you stay signed in where you already are. To turn it back on now, reset your password with “Forgot password?” on the sign-in page.",
+      "body_other": "Wrong passwords or codes kept arriving for your account, so signing in with a password or code is turned off for {{count}} hours. Passkeys still work, and you stay signed in where you already are. To turn it back on now, reset your password with “Forgot password?” on the sign-in page."
     }
   }
 }

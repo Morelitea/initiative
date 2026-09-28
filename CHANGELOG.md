@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Update the Android app from its APK**, since this release changes the app itself.
 - **Reconnect your app accounts** once, such as GitHub.
-- **Password sign-in pauses** after repeated wrong answers. Passkeys keep working.
+- **Password sign-in pauses** after repeated wrong answers, for longer each time, up to four hours. Passkeys keep working, and resetting your password from the email ends the pause.
 - **A phone restored from backup asks you to sign in again.**
 - **Links to other sites open in a new tab.**
 - **Comments show the newest conversation first.** Replies still read in order.

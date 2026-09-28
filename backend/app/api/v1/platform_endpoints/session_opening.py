@@ -227,7 +227,7 @@ async def count_wrong_answer(system_session: AsyncSession, user_id: int) -> None
     the holder if that placed a lock they have not heard about."""
     failure = await sign_in_locks.record_failure(system_session, user_id)
     await system_session.commit()
-    if not failure.notify:
+    if not failure.notify or failure.lock_for is None:
         return
     from app.services import email as email_service
 
@@ -236,7 +236,7 @@ async def count_wrong_answer(system_session: AsyncSession, user_id: int) -> None
         await email_service.announce_sign_in_locked(
             system_session,
             user,
-            held=failure.outcome is sign_in_locks.Outcome.held,
+            lock_for=failure.lock_for,
         )
 
 

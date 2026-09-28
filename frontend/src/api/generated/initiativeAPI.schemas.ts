@@ -6480,7 +6480,6 @@ export interface OperatorUserRead {
   has_password: boolean;
   initiative_roles: UserInitiativeRole[];
   purge_at: string | null;
-  sign_in_held_at: string | null;
   sign_in_locked_until: string | null;
   readonly can_create_guilds: boolean;
   /**

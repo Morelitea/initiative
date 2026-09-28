@@ -385,12 +385,13 @@
     "locked": {
       "subject": "Inicio de sesión con contraseña en pausa en tu cuenta",
       "title": "Inicio de sesión con contraseña en pausa",
-      "body": "Alguien introdujo una contraseña o un código incorrecto para tu cuenta 5 veces, así que el inicio de sesión con contraseña o código está desactivado durante 15 minutos. Las llaves de acceso siguen funcionando y sigues con la sesión iniciada donde ya la tenías."
+      "body": "Alguien introdujo una contraseña o un código incorrecto para tu cuenta 5 veces, así que el inicio de sesión con contraseña o código está desactivado durante {{minutes}} minutos. Las llaves de acceso siguen funcionando y sigues con la sesión iniciada donde ya la tenías. Para reactivarlo ahora, restablece tu contraseña con «¿Olvidaste tu contraseña?» en la página de inicio de sesión."
     },
-    "held": {
-      "subject": "Inicio de sesión con contraseña desactivado en tu cuenta",
-      "title": "Inicio de sesión con contraseña desactivado",
-      "body": "Siguieron llegando contraseñas o códigos incorrectos para tu cuenta, así que el inicio de sesión con contraseña o código está desactivado hasta que un moderador lo vuelva a activar. Las llaves de acceso siguen funcionando y sigues con la sesión iniciada donde ya la tenías. Ponte en contacto con quien administra este sitio para que lo reactive."
+    "lockedHours": {
+      "subject": "Inicio de sesión con contraseña en pausa en tu cuenta",
+      "title": "Inicio de sesión con contraseña en pausa",
+      "body_one": "Siguieron llegando contraseñas o códigos incorrectos para tu cuenta, así que el inicio de sesión con contraseña o código está desactivado durante una hora. Las llaves de acceso siguen funcionando y sigues con la sesión iniciada donde ya la tenías. Para reactivarlo ahora, restablece tu contraseña con «¿Olvidaste tu contraseña?» en la página de inicio de sesión.",
+      "body_other": "Siguieron llegando contraseñas o códigos incorrectos para tu cuenta, así que el inicio de sesión con contraseña o código está desactivado durante {{count}} horas. Las llaves de acceso siguen funcionando y sigues con la sesión iniciada donde ya la tenías. Para reactivarlo ahora, restablece tu contraseña con «¿Olvidaste tu contraseña?» en la página de inicio de sesión."
     }
   }
 }

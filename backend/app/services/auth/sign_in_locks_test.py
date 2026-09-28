@@ -1,4 +1,4 @@
-"""Wrong answers add up to a timed lock, and locks add up to a hold."""
+"""Wrong answers add up to a timed lock, each longer than the last within a day."""
 
 from datetime import datetime, timedelta, timezone
 
@@ -49,7 +49,9 @@ async def test_the_fifth_locks_for_fifteen_minutes(session: AsyncSession, clock)
     await _fail(session, user.id, times=4)
     failure = await _fail(session, user.id)
 
-    assert failure == sign_in_locks.Failure(Outcome.locked, notify=True)
+    assert failure == sign_in_locks.Failure(
+        Outcome.locked, notify=True, lock_for=timedelta(minutes=15)
+    )
     assert await sign_in_locks.is_locked(session, user.id)
 
     clock.advance(timedelta(minutes=15, seconds=1))
@@ -85,30 +87,52 @@ async def test_answers_while_locked_are_not_counted(session: AsyncSession, clock
     assert row.locks == 1
 
 
-async def test_three_locks_in_a_day_hold_until_lifted(session: AsyncSession, clock):
+async def test_each_lock_in_a_day_lasts_longer_up_to_four_hours(
+    session: AsyncSession, clock
+):
     user = await create_user(session)
-    for _ in range(2):
+    for length in (
+        timedelta(minutes=15),
+        timedelta(hours=1),
+        timedelta(hours=4),
+        timedelta(hours=4),
+    ):
         failure = await _fail(session, user.id, times=5)
         assert failure.outcome is Outcome.locked
-        clock.advance(timedelta(minutes=16))
-    failure = await _fail(session, user.id, times=5)
+        assert failure.lock_for == length
 
-    assert failure == sign_in_locks.Failure(Outcome.held, notify=True)
-    clock.advance(timedelta(days=30))
-    assert await sign_in_locks.is_locked(session, user.id)
+        # Every lock ends on its own, at the cap as well.
+        clock.advance(length - timedelta(seconds=1))
+        assert await sign_in_locks.is_locked(session, user.id)
+        clock.advance(timedelta(seconds=2))
+        assert not await sign_in_locks.is_locked(session, user.id)
+
+
+async def test_lifting_ends_the_lock_and_starts_the_counts_over(
+    session: AsyncSession, clock
+):
+    user = await create_user(session)
+    await _fail(session, user.id, times=5)
+    clock.advance(timedelta(minutes=16))
+    await _fail(session, user.id, times=5)
 
     assert await sign_in_locks.lift(session, user.id)
     await session.commit()
     assert not await sign_in_locks.is_locked(session, user.id)
     assert not await sign_in_locks.lift(session, user.id)
 
+    failure = await _fail(session, user.id, times=5)
+    assert failure.lock_for == timedelta(minutes=15)
 
-async def test_locks_a_day_apart_do_not_hold(session: AsyncSession, clock):
+
+async def test_locks_start_over_a_day_after_the_first(session: AsyncSession, clock):
     user = await create_user(session)
+    lengths = []
     for _ in range(3):
         failure = await _fail(session, user.id, times=5)
-        assert failure.outcome is Outcome.locked
+        lengths.append(failure.lock_for)
         clock.advance(timedelta(hours=13))
+    assert lengths == [timedelta(minutes=15), timedelta(hours=1), timedelta(minutes=15)]
     assert not await sign_in_locks.is_locked(session, user.id)
 
 
@@ -117,10 +141,14 @@ async def test_the_holder_is_emailed_at_most_hourly(session: AsyncSession, clock
     first = await _fail(session, user.id, times=5)
     clock.advance(timedelta(minutes=16))
     second = await _fail(session, user.id, times=5)
+    clock.advance(timedelta(hours=1, minutes=1))
+    third = await _fail(session, user.id, times=5)
 
     assert first.notify
-    assert second.outcome is Outcome.locked
+    assert second.lock_for == timedelta(hours=1)
     assert not second.notify
+    assert third.lock_for == timedelta(hours=4)
+    assert third.notify
 
 
 async def test_closed_names_only_locked_accounts(session: AsyncSession, clock):

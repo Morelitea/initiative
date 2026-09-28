@@ -2295,6 +2295,9 @@ async def reset_password(
         actor_user_id=user.id,
         detail={"via": "reset"},
     )
+    # The link proved the inbox, so the new password is not held back by wrong
+    # answers counted before it.
+    await sign_in_locks.lift(system_session, user.id)
     # Bump token_version and revoke device tokens / API keys / refresh sessions
     # so no stale credential (JWT or captured refresh) survives either.
     # ``token_version`` is bumped on ``user``, which is bound to the system

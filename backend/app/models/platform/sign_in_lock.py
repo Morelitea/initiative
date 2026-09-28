@@ -47,8 +47,7 @@ class SignInLock(SQLModel, table=True):
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
 
-    #: Set when the locks added up: password and codes stay refused until a
-    #: moderator lifts it.
+    #: No longer written or read: every lock ends at ``locked_until``.
     held_at: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
