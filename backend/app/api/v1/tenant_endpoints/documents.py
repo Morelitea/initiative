@@ -168,12 +168,13 @@ def _file_download_response(
         or "html" in normalized_type
     ):
         if inline:
-            # Disable scripts (stored-XSS hardening) but allow the file to be
-            # framed by the same-origin in-app document viewer. X-Frame-Options
-            # set here overrides the SecurityHeadersMiddleware global DENY (it
-            # uses setdefault); frame-ancestors 'self' is the CSP equivalent.
+            # Shown as a static page: sandboxed, with no scripts and no forms,
+            # and framed only by the in-app document viewer on this origin.
+            # X-Frame-Options set here overrides the SecurityHeadersMiddleware
+            # global DENY (it uses setdefault); frame-ancestors 'self' is the
+            # CSP equivalent.
             headers["Content-Security-Policy"] = (
-                "script-src 'none'; frame-ancestors 'self'"
+                "sandbox; script-src 'none'; form-action 'none'; frame-ancestors 'self'"
             )
             headers["X-Frame-Options"] = "SAMEORIGIN"
         else:

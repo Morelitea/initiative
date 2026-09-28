@@ -20,7 +20,7 @@ from app.api.deps import (
     get_current_active_user,
     GuildContextDep,
 )
-from app.core.messages import PropertyMessages
+from app.core.messages import InitiativeMessages, PropertyMessages
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.document import Document
@@ -70,6 +70,8 @@ class PropertyEntitiesResult(BaseModel):
 async def _get_definition_or_404(
     session: AsyncSession,
     definition_id: int,
+    *,
+    lock: bool = False,
 ) -> PropertyDefinition:
     """Fetch a definition by id, relying on RLS for scope enforcement.
 
@@ -79,6 +81,8 @@ async def _get_definition_or_404(
     what decides which guild's row an id resolves to.
     """
     stmt = select(PropertyDefinition).where(PropertyDefinition.id == definition_id)
+    if lock:
+        stmt = stmt.with_for_update()
     result = await session.exec(stmt)
     defn = result.one_or_none()
     if defn is None:
@@ -151,6 +155,29 @@ async def _ensure_initiative_member(
         status_code=status.HTTP_403_FORBIDDEN,
         detail=PropertyMessages.NOT_INITIATIVE_MEMBER,
     )
+
+
+def _manages(guild_context: GuildContext, initiative_id: int) -> bool:
+    """Reshaping or removing a definition is how the initiative is set up, so it
+    takes a manager of the initiative or an admin of the community."""
+    return guild_context.is_admin or initiative_id in guild_context.manager_initiatives
+
+
+def _manager_required() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=InitiativeMessages.MANAGER_REQUIRED,
+    )
+
+
+def _added_options(defn: PropertyDefinition, options: list) -> list[dict]:
+    """The options among ``options`` that ``defn`` does not have yet — what a
+    member adds picking a value nobody has offered. One it already has stays
+    as it is."""
+    existing = {opt.get("value") for opt in defn.options or []}
+    return [
+        opt for opt in _serialize_options(options) or [] if opt["value"] not in existing
+    ]
 
 
 def _serialize_options(options: Optional[list]) -> Optional[list[dict]]:
@@ -246,6 +273,7 @@ async def update_property_definition(
     definition_id: int,
     payload: PropertyDefinitionUpdate,
     session: RLSSessionDep,
+    guild_context: GuildContextDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> PropertyDefinitionUpdateResponse:
     """Update a property definition.
@@ -255,9 +283,31 @@ async def update_property_definition(
     select / multi_select definition returns ``orphaned_value_count`` so
     the SPA can warn about dangling values.
     """
-    defn = await _get_definition_or_404(session, definition_id)
+    defn = await _get_definition_or_404(session, definition_id, lock=True)
 
     data = payload.model_dump(exclude_unset=True)
+    if not _manages(guild_context, defn.initiative_id):
+        # A member adds options and nothing else: the ones sent that are new
+        # join the list as it stands, so two members adding at once both land,
+        # and the options already there are left as they are.
+        if set(data) != {"options"} or defn.type not in {
+            PropertyType.select,
+            PropertyType.multi_select,
+        }:
+            raise _manager_required()
+        added = _added_options(defn, payload.options or [])
+        await _ensure_initiative_member(
+            session, guild_context, defn.initiative_id, current_user
+        )
+        defn.options = [*(defn.options or []), *added]
+        defn.updated_at = datetime.now(timezone.utc)
+        session.add(defn)
+        await session.commit()
+        await session.refresh(defn)
+        return PropertyDefinitionUpdateResponse(
+            definition=PropertyDefinitionRead.model_validate(defn),
+            orphaned_value_count=0,
+        )
 
     if "name" in data and data["name"] is not None:
         await ensure_name_free(
@@ -309,10 +359,13 @@ async def update_property_definition(
 async def delete_property_definition(
     definition_id: int,
     session: RLSSessionDep,
+    guild_context: GuildContextDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> None:
     """Delete a property definition. Cascades to remove all attached values."""
     defn = await _get_definition_or_404(session, definition_id)
+    if not _manages(guild_context, defn.initiative_id):
+        raise _manager_required()
     await session.delete(defn)
     await session.commit()
 

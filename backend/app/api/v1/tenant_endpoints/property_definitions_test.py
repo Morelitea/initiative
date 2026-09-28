@@ -444,6 +444,60 @@ async def test_patch_removing_option_reports_orphaned_values(
 # ---------------------------------------------------------------------------
 
 
+async def test_a_member_adds_options_and_a_manager_reshapes(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Offering a new value is part of filling a field in; renaming it,
+    changing or dropping its options or removing it is setting the initiative
+    up."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
+    )
+    stage = {"value": "todo", "label": "To do"}
+    defn = await create_property_definition(
+        session, admin.initiative, type=PropertyType.select, options=[stage]
+    )
+    route = member.g(f"/property-definitions/{defn.id}")
+    added = [stage, {"value": "done", "label": "Done"}]
+
+    response = await client.patch(
+        route, headers=member.headers, json={"options": added}
+    )
+    assert response.status_code == 200, response.text
+
+    # Sent from a list that was already out of date, the other addition stays.
+    later = {"value": "later", "label": "Later"}
+    response = await client.patch(
+        route, headers=member.headers, json={"options": [later, stage]}
+    )
+    assert response.status_code == 200, response.text
+    options = response.json()["definition"]["options"]
+    assert [opt["value"] for opt in options] == ["todo", "done", "later"]
+
+    # An option already there is left as it is.
+    relabelled = {**stage, "label": "Backlog"}
+    response = await client.patch(
+        route, headers=member.headers, json={"options": [relabelled]}
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["definition"]["options"][0]["label"] == "To do"
+
+    response = await client.patch(route, headers=member.headers, json={"name": "New"})
+    assert response.status_code == 403
+    assert response.json()["detail"] == "INITIATIVE_MANAGER_REQUIRED"
+    response = await client.delete(route, headers=member.headers)
+    assert response.status_code == 403
+
+    response = await client.patch(
+        route, headers=admin.headers, json={"options": [added[1]]}
+    )
+    assert response.status_code == 200, response.text
+
+
 async def test_delete_definition_cascades_to_values(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
