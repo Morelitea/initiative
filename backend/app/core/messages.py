@@ -607,6 +607,9 @@ class OperatorMessages:
     CANNOT_MANAGE_HIGHER_ROLE = "OPERATOR_CANNOT_MANAGE_HIGHER_ROLE"
     #: Restore was asked for an account that has not been deleted.
     USER_NOT_DELETED = "OPERATOR_USER_NOT_DELETED"
+    #: A confirmation letter was asked for an account with no address left to
+    #: confirm.
+    NOTHING_TO_VERIFY = "OPERATOR_NOTHING_TO_VERIFY"
     CANNOT_SUSPEND_SELF = "OPERATOR_CANNOT_SUSPEND_SELF"
     CANNOT_SUSPEND_INACTIVE = "OPERATOR_CANNOT_SUSPEND_INACTIVE"
     CANNOT_SUSPEND_HIGHER_ROLE = "OPERATOR_CANNOT_SUSPEND_HIGHER_ROLE"

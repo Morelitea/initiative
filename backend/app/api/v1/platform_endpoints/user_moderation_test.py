@@ -394,6 +394,9 @@ class TestNothingElse:
             ("/api/v1/operator/users/{user_id}/restore", "POST"),
             # Sends the holder a link; it never sets a password.
             ("/api/v1/operator/users/{user_id}/reset-password", "POST"),
+            # Sends the sign-up confirmation letter again; it never marks an
+            # address confirmed.
+            ("/api/v1/operator/users/{user_id}/verification-email", "POST"),
             # Clears a second factor the holder can no longer present — the
             # lost-phone path. Like the reset above it is a removal, never a
             # read: nothing here hands back the seed or the recovery codes.
@@ -413,6 +416,7 @@ class TestNothingElse:
             ("POST", "/restore", None),
             ("DELETE", "/second-factor", None),
             ("POST", "/reset-password", None),
+            ("POST", "/verification-email", None),
             ("DELETE", "/age-block", None),
             ("GET", "/deletion-eligibility", None),
             ("DELETE", "", {"action": "hard_delete"}),

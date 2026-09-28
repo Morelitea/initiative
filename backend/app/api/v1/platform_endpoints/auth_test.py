@@ -141,8 +141,10 @@ async def test_register_with_a_bound_invite_joins_on_confirming(
 ):
     """With mail on, the address is not proved at sign-up, so an invite bound
     to it waits: confirming the address joins the guild. The binding is still
-    checked when the account is made."""
+    checked when the account is made. A letter an operator sends again
+    replaces the first and still carries the invite."""
     from app.models.platform.guild import GuildMembership
+    from app.models.platform.user import UserRole
     from app.services import email as email_service
     from app.services.platform import guilds as guild_service
     from app.testing.factories import create_guild
@@ -197,14 +199,29 @@ async def test_register_with_a_bound_invite_joins_on_confirming(
     # Neither the invited guild nor one of its own until the address is proved.
     assert await _memberships() == []
 
+    operator_headers = get_auth_headers(
+        await create_user(session, role=UserRole.operator)
+    )
+    resend_path = f"/api/v1/operator/users/{user_id}/verification-email"
+    resent = await client.post(resend_path, headers=operator_headers)
+    assert resent.status_code == 200, resent.text
+    first, second = letters
+    replaced = await client.post(
+        "/api/v1/auth/verification/confirm", json={"token": first}
+    )
+    assert replaced.json()["detail"] == "INVALID_OR_EXPIRED_TOKEN"
+
     confirmed = await client.post(
-        "/api/v1/auth/verification/confirm", json={"token": letters[-1]}
+        "/api/v1/auth/verification/confirm", json={"token": second}
     )
     assert confirmed.status_code == 200, confirmed.text
     assert await _memberships() == [guild_id]
     assert await addresses.holds_address(
         session, user_id=user_id, email="bound-invitee@example.com"
     )
+    again = await client.post(resend_path, headers=operator_headers)
+    assert again.status_code == 409
+    assert again.json()["detail"] == "OPERATOR_NOTHING_TO_VERIFY"
 
 
 async def test_register_duplicate_email(client: AsyncClient, session: AsyncSession):
