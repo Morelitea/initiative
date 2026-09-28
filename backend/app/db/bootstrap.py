@@ -910,6 +910,87 @@ async def ensure_database_bootstrap(
     return result
 
 
+#: The function every routing and standing statement writes through. The
+#: logins and every shared floor a routed role inherits hold it; ``PUBLIC``
+#: does not, so a role that inherits no floor — the query surface's
+#: ``guild_<id>_q``, which runs statements a reader wrote — cannot call it.
+SET_CONFIG_FUNCTION = "pg_catalog.set_config(text, text, boolean)"
+
+_SET_CONFIG_OPEN = text(
+    "SELECT has_function_privilege('public', CAST(:function AS text), 'EXECUTE')"
+).bindparams(function=SET_CONFIG_FUNCTION)
+
+_ROLES_PRESENT = text("SELECT count(*) FROM pg_roles WHERE rolname = ANY(:names)")
+
+
+def set_config_holders() -> tuple[str, ...]:
+    """Who holds ``set_config``: the three logins, the shared floors, and the
+    billing role, which inherits none."""
+    return (
+        *(role.name for role in login_roles()),
+        *sorted(role_name(role) for role in SHARED_ROLES),
+        role_name("initiative_billing"),
+    )
+
+
+def set_config_sql() -> tuple[str, str]:
+    """The grant to its holders, then the revoke from ``PUBLIC``."""
+    holders = ", ".join(
+        '"' + name.replace('"', '""') + '"' for name in set_config_holders()
+    )
+    return (
+        f"GRANT EXECUTE ON FUNCTION {SET_CONFIG_FUNCTION} TO {holders}",
+        f"REVOKE EXECUTE ON FUNCTION {SET_CONFIG_FUNCTION} FROM PUBLIC",
+    )
+
+
+async def set_config_narrowed(conn) -> bool:
+    """Whether ``PUBLIC`` no longer holds ``set_config`` on this database."""
+    return not await conn.scalar(_SET_CONFIG_OPEN)
+
+
+async def ensure_set_config_narrowed(bootstrap_url: str | None = None) -> bool:
+    """Take ``set_config`` from ``PUBLIC`` once every holder exists.
+
+    Called after migrations, which create the shared floors. Only the
+    function's owner can change who may call it, so it is applied from the
+    owner connection when that connection is a superuser, and otherwise said,
+    with the SQL, for the operator to run. Returns whether it is in place.
+    """
+    url = bootstrap_url or settings.DATABASE_URL_BOOTSTRAP
+    holders = set_config_holders()
+    if url:
+        engine = create_async_engine(url, poolclass=NullPool, echo=False)
+        try:
+            async with _bootstrap_lock(url), engine.begin() as conn:
+                if await conn.scalar(_IS_SUPERUSER) and await conn.scalar(
+                    _ROLES_PRESENT, {"names": list(holders)}
+                ) == len(holders):
+                    for statement in set_config_sql():
+                        await conn.execute(text(statement))
+                narrowed = await set_config_narrowed(conn)
+        finally:
+            await engine.dispose()
+    else:
+        from app.db import session as db_session
+
+        async with db_session.provisioning_engine.connect() as conn:
+            narrowed = await set_config_narrowed(conn)
+    if not narrowed:
+        logger.warning(
+            "\n%s\n"
+            "Any database role may still call set_config on this database.\n"
+            "The app takes it from the query surface's role once %s is a\n"
+            "superuser connection. To apply it by hand instead, as a superuser:\n"
+            "\n  %s;\n  %s;\n%s",
+            "=" * 70,
+            owner_setting(),
+            *set_config_sql(),
+            "=" * 70,
+        )
+    return narrowed
+
+
 async def _main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     result = await ensure_database_bootstrap()

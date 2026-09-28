@@ -41,6 +41,7 @@ from app.db.session import (
     clear_rls_context,
     get_system_session,
     get_session,
+    prepare_query_engine,
     served_guild_id,
 )
 from app.testing.schema_harness import clear_search_path_pin
@@ -346,6 +347,13 @@ async def _apply_public_rls() -> None:
         await engine.dispose()
 
 
+async def _narrow_set_config() -> None:
+    """Take ``set_config`` from ``PUBLIC``, as boot does after migrating."""
+    from app.db.bootstrap import ensure_set_config_narrowed
+
+    assert await ensure_set_config_narrowed(bootstrap_url=TEST_DATABASE_URL)
+
+
 async def _retire_public_authorization_copies() -> None:
     """Drop the ``public`` copies of the guild functions, as boot does after
     the back-fill. The migrations create them; a provisioned schema binds its
@@ -423,6 +431,7 @@ def _run_test_migrations() -> None:
         # never connects as.
         asyncio.run(_bootstrap_under_lock())
     asyncio.run(_apply_public_rls())
+    asyncio.run(_narrow_set_config())
     asyncio.run(_retire_public_authorization_copies())
     asyncio.run(_grant_test_temporary())
     asyncio.run(_set_db_statement_timeout())
@@ -691,11 +700,13 @@ def _worker_engines() -> _WorkerEngines:
     engines = _WorkerEngines(
         superuser=_make("superuser"),
         system=_make("app_admin"),
-        query=_make("app_user"),
+        query=prepare_query_engine(_make("app_user")),
         app=_make("app_user"),
         cohort_request=tuple(_make("app_user") for _ in range(_TEST_COHORTS)),
         cohort_system=tuple(_make("app_admin") for _ in range(_TEST_COHORTS)),
-        cohort_query=tuple(_make("app_user") for _ in range(_TEST_COHORTS)),
+        cohort_query=tuple(
+            prepare_query_engine(_make("app_user")) for _ in range(_TEST_COHORTS)
+        ),
     )
     # Two cohorts, each with a request, a system and a query pool on this
     # worker's database, so every test that reaches a community through a

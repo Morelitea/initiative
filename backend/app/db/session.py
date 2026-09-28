@@ -104,6 +104,26 @@ query_engine = create_async_engine(
     pool_recycle=settings.DB_POOL_RECYCLE_SECONDS,
 )
 
+
+def prepare_query_engine(target: AsyncEngine) -> AsyncEngine:
+    """Ready a pool for reader-written SQL.
+
+    Its statements run as the query role, which may not call ``set_config``
+    (``app.db.bootstrap.ensure_set_config_narrowed``). asyncpg turns JIT off
+    around its own type lookups with ``set_config`` whenever it believes the
+    server has JIT; each connection here is told it has none, so a lookup made
+    while the query role is current reads the catalog and nothing more. The
+    executor turns JIT off for each transaction itself.
+    """
+
+    def no_jit(dbapi_connection, _record) -> None:
+        raw = dbapi_connection.driver_connection
+        raw._server_caps = raw._server_caps._replace(jit=False)
+
+    event.listen(target.sync_engine, "connect", no_jit)
+    return target
+
+
 #: A statement that takes longer than this is logged with the request it served,
 #: and counted. Half a second is also a common ``log_min_duration_statement``,
 #: so this log and the database's own agree on what "slow" is.
@@ -163,6 +183,7 @@ instrument_engine(system_engine, "system")
 instrument_engine(provisioning_engine, "provisioning", flag_slow=False)
 # What a reader writes is theirs, so its text stays out of the log.
 instrument_engine(query_engine, "query", log_text=False)
+prepare_query_engine(query_engine)
 if settings.DB_COHORTS > 1:
     cohorts.tag_engine(engine, cohorts.PLATFORM)
     cohorts.tag_engine(system_engine, cohorts.PLATFORM_SYSTEM)
