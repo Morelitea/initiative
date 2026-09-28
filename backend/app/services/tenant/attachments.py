@@ -589,7 +589,9 @@ def replace_upload_urls(payload: Any, replacements: Mapping[str, str]) -> Any:
     return _walk(payload)
 
 
-async def claim_uploads(session, *rows: Any) -> None:
+async def claim_uploads(
+    session, *rows: Any, uploaded_by: Set[int] | None = None
+) -> None:
     """Keep the uploads these saved rows show for the initiative each row
     belongs to — none for content of the whole guild.
 
@@ -597,13 +599,17 @@ async def claim_uploads(session, *rows: Any) -> None:
     claimed. One already kept there is left as it is. One kept for another
     initiative, or for the whole guild where the row is in an initiative (or
     the reverse), is copied for the row's and the row rewritten to show the
-    copy — on a person's session, when they can read the file. Only files this
-    session reads are touched; anything else is left as written.
+    copy — on a person's session, when they can read the file. The rows given
+    together share one copy of a file per initiative, and an initiative's
+    copies are held to the storage quota together. Only files this session
+    reads are touched; anything else is left as written.
+
+    ``uploaded_by`` keeps the claims to files those people uploaded, for a save
+    made on nobody's session (a live-editing room); such a save copies nothing.
 
     Flushes first; the caller commits.
     """
     from sqlalchemy import inspect, text
-    from sqlalchemy import update as sa_update
     from sqlalchemy.orm.attributes import flag_modified
     from sqlmodel import select
 
@@ -615,8 +621,10 @@ async def claim_uploads(session, *rows: Any) -> None:
     await session.flush()
     schema = (await session.exec(text("SELECT current_schema()"))).scalar()
     guild_id = int(schema.removeprefix("guild_"))
-    person = guild_context(session)
     own = f"{UPLOADS_URL_PREFIX}{guild_id}/"
+    # Each row showing one of the guild's files: its upload columns, its
+    # initiative, and the files it shows by stored name.
+    showing: list[tuple[Any, list[str], int | None, Dict[str, str]]] = []
     for row in rows:
         columns = [c for model, c in _upload_columns() if type(row) is model]
         unloaded = [c for c in columns if c in inspect(row).unloaded]
@@ -643,34 +651,51 @@ async def claim_uploads(session, *rows: Any) -> None:
                 params={"id": row.id},
             )
         ).scalar()
-        uploads = (
-            await session.exec(select(Upload).where(ids_in(Upload.filename, shown)))
-        ).all()
-        unclaimed = {u.filename for u in uploads if u.claimed_at is None}
-        if unclaimed:
-            await session.exec(
-                sa_update(Upload)
-                .where(ids_in(Upload.filename, unclaimed))
-                .values(
-                    initiative_id=initiative_id, claimed_at=datetime.now(timezone.utc)
-                )
-            )
-        elsewhere = [
-            shown[u.filename]
-            for u in uploads
-            if u.claimed_at is not None and u.initiative_id != initiative_id
-        ]
-        if person is None or not elsewhere:
-            continue
-        copies = await copy_uploads(
+        showing.append((row, columns, initiative_id, shown))
+    if not showing:
+        return
+
+    uploads = {
+        upload.filename: upload
+        for upload in await session.exec(
+            select(Upload)
+            .where(ids_in(Upload.filename, {n for *_, s in showing for n in s}))
+            .execution_options(populate_existing=True)
+        )
+    }
+    now = datetime.now(timezone.utc)
+    wanted: Dict[int | None, Set[str]] = {}
+    for _row, _columns, initiative_id, shown in showing:
+        for name, url in shown.items():
+            upload = uploads.get(name)
+            if upload is None:
+                continue
+            if upload.claimed_at is None:
+                if uploaded_by is None or upload.created_by in uploaded_by:
+                    upload.initiative_id = initiative_id
+                    upload.claimed_at = now
+            elif upload.initiative_id != initiative_id:
+                wanted.setdefault(initiative_id, set()).add(url)
+    await session.flush()
+
+    person = guild_context(session)
+    if person is None or not wanted:
+        return
+    copies = {
+        initiative_id: await copy_uploads(
             session,
-            elsewhere,
+            urls,
             guild_id=guild_id,
             created_by=person.user_id,
             initiative_id=initiative_id,
         )
+        for initiative_id, urls in wanted.items()
+    }
+    for row, columns, initiative_id, _shown in showing:
         for column in columns:
-            value = replace_upload_urls(getattr(row, column), copies)
+            value = replace_upload_urls(
+                getattr(row, column), copies.get(initiative_id, {})
+            )
             if value != getattr(row, column):
                 setattr(row, column, value)
                 flag_modified(row, column)
