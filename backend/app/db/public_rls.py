@@ -208,12 +208,16 @@ CONNECTED_MESSAGE = (
     "(kind = 'message') AND dm_pair_connected(user_id_low, user_id_high)"
 )
 #: A grant is written as a request from the writer, or as the message grant a
-#: connection opens.
+#: connection opens, naming the writer or whoever asked for the connection.
 CONTACT_GRANT_WRITE = (
     f"({EITHER_END}) AND ("
     f"((state = 'pending') AND (requested_by = {gucs.USER_ID})) OR"
-    f" ((state = 'accepted') AND {CONNECTED_MESSAGE}))"
+    f" ((state = 'accepted') AND {CONNECTED_MESSAGE} AND ("
+    f"(requested_by = {gucs.USER_ID}) OR"
+    " (requested_by = dm_connection_requester(user_id_low, user_id_high)))))"
 )
+#: Only a request is answered.
+CONTACT_GRANT_PENDING = f"({EITHER_END}) AND (state = 'pending')"
 #: Nobody accepts their own request, beyond the message grant a connection opens.
 CONTACT_GRANT_ANSWER = (
     f"({EITHER_END}) AND ((state <> 'accepted') OR"
@@ -586,7 +590,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                     "contact_grants_self_update",
                     UPDATE,
                     ("platform_base",),
-                    using=EITHER_END,
+                    using=CONTACT_GRANT_PENDING,
                     check=CONTACT_GRANT_ANSWER,
                 ),
                 Policy("dm_reader_read", SELECT, ("app_dm_reader",), using=OPEN),

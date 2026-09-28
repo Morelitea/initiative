@@ -365,6 +365,40 @@ async def test_only_a_connection_opens_a_message_grant_unasked(session):
     await _write_accepted(session, a, c, ContactGrantKind.message, a)
 
 
+async def test_a_message_grant_a_connection_opens_names_who_asked(session):
+    """Written already accepted, it names its writer or whoever asked for the
+    connection, and nobody else."""
+    a = await create_user(session)
+    b = await create_user(session)
+    c = await create_user(session)
+    await _grant(session, a, b, ContactGrantKind.connection)
+    await _grant(session, c, a, ContactGrantKind.connection)
+
+    await _route(session, a)
+    await _refused(
+        session,
+        lambda: _write_accepted(session, a, b, ContactGrantKind.message, b),
+    )
+    await _write_accepted(session, a, b, ContactGrantKind.message, a)
+    await _write_accepted(session, a, c, ContactGrantKind.message, c)
+
+
+async def test_an_accepted_grant_is_not_answered_again(session):
+    a = await create_user(session)
+    b = await create_user(session)
+    await _grant(session, a, b, ContactGrantKind.connection)
+    low, high = canonical_pair(a.id, b.id)
+
+    await _route(session, b)
+    reverted = await session.exec(
+        text(
+            "UPDATE public.contact_grants SET state = 'pending' "
+            "WHERE user_id_low = :lo AND user_id_high = :hi"
+        ).bindparams(lo=low, hi=high)
+    )
+    assert reverted.rowcount == 0
+
+
 async def test_accepting_a_connection_opens_the_accepters_own_message_request(
     session,
 ):
