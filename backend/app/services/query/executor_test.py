@@ -119,10 +119,12 @@ async def test_a_read_the_database_stopped_on_its_own_can_be_asked_again(
         # The role holds no write on any table.
         (f"INSERT INTO guild_{_GID}.tasks (title) VALUES ('x')", "permission"),
         # A write the role may make is refused by the transaction, which is
-        # read-only before the reader's first statement ...
+        # read-only before the reader's first statement.
         ("SELECT lo_create(0)", "read-only"),
-        # ... and stays that way once a query has run.
-        ("SELECT set_config('transaction_read_only', 'off', true)", "read-write"),
+        # The role cannot change its session's settings: not the transaction's
+        # mode, and not what the policies read.
+        ("SELECT set_config('transaction_read_only', 'off', true)", "permission"),
+        ("SELECT set_config('app.guild_admin', 'true', true)", "permission"),
     ],
 )
 async def test_the_transaction_refuses_a_write(guild, sql, answer):

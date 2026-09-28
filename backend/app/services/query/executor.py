@@ -216,12 +216,13 @@ async def _claim_a_slot(connection: Any, guild_id: int) -> bool:
 #: The statement limits, as one bound statement. ``set_config`` is the function
 #: form of ``SET LOCAL`` and takes its value as a parameter, where ``SET`` takes
 #: only a literal — so the settings arrive bound rather than written into SQL.
-#: The last is a constant: one query is one backend's worth of the server's
-#: attention.
+#: The last two are constants: one query is one backend's worth of the server's
+#: attention, and it is not compiled.
 _TRANSACTION_LIMITS = text(
     "SELECT set_config('statement_timeout', :statement_timeout, true),"
     " set_config('work_mem', :work_mem, true),"
-    " set_config('max_parallel_workers_per_gather', '0', true)"
+    " set_config('max_parallel_workers_per_gather', '0', true),"
+    " set_config('jit', 'off', true)"
 )
 
 

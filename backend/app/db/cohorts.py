@@ -150,7 +150,7 @@ def _build_makers(
 ) -> list[async_sessionmaker[AsyncSession]]:
     """A sessionmaker per cohort on ``url``. ``pool`` sizes each cohort's pool,
     ``DB_POOL_SIZE`` and ``DB_MAX_OVERFLOW`` unless it says otherwise."""
-    from app.db.session import instrument_engine
+    from app.db.session import instrument_engine, prepare_query_engine
 
     pool.setdefault("pool_size", settings.DB_POOL_SIZE)
     pool.setdefault("max_overflow", settings.DB_MAX_OVERFLOW)
@@ -166,6 +166,8 @@ def _build_makers(
         instrument_engine(
             engine, f"{label}/{cohort}" if divided else label, log_text=log_text
         )
+        if label == "query":
+            prepare_query_engine(engine)
         if divided:
             tag_engine(engine, cohort)
         makers.append(_sessionmaker(engine))
