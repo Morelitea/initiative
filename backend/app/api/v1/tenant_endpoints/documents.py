@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Annotated, List, Optional, Sequence
@@ -1416,8 +1417,9 @@ async def import_spreadsheet_file(
         )
 
     try:
-        sheets = spreadsheet_import.parse_spreadsheet_file(
-            file.filename or "", contents
+        # Parsing a workbook is CPU work, so it runs off the event loop.
+        sheets = await asyncio.to_thread(
+            spreadsheet_import.parse_spreadsheet_file, file.filename or "", contents
         )
     except documents_service.DocumentContentError as exc:
         raise HTTPException(

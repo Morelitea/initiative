@@ -5,9 +5,9 @@ delivery targets and the custom AI provider base URL). These helpers
 constrain such URLs to public destinations and resolve them so the
 caller connects to exactly the address that was validated.
 
-Policy: only ``https`` is accepted, and the host must resolve to public
-unicast addresses (private, loopback, link-local, multicast, reserved
-and unspecified are rejected). When a name resolves to several
+Policy: only ``https`` is accepted, and the host must resolve to globally
+routable unicast addresses (private, shared, loopback, link-local,
+multicast, reserved and unspecified are rejected). When a name resolves to several
 addresses, all of them must pass. A local-dev setting
 (``WEBHOOK_ALLOW_PRIVATE_TARGETS``) relaxes both for round-tripping with
 a locally run initiative-auto; address pinning still applies.
@@ -69,17 +69,11 @@ def _unwrap_mapped(ip: _IPAddress) -> _IPAddress:
 
 
 def _is_public_address(ip: _IPAddress) -> bool:
-    """True only for public unicast addresses. Everything else (private,
+    """True only for globally routable unicast addresses, as the IANA
+    special-purpose registries define them. Everything else (private, shared,
     loopback, link-local, multicast, reserved, unspecified) is refused."""
     ip = _unwrap_mapped(ip)
-    return not (
-        ip.is_private
-        or ip.is_loopback
-        or ip.is_link_local
-        or ip.is_multicast
-        or ip.is_reserved
-        or ip.is_unspecified
-    )
+    return ip.is_global and not ip.is_multicast
 
 
 def _allow_private_targets() -> bool:
