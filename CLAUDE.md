@@ -393,6 +393,10 @@ cd backend && ./scripts/test-changed.sh
 # Run tests for staged files only
 cd backend && ./scripts/test-changed.sh --staged
 
+# The request-context seam's conformance suite (deselected by default; CI runs
+# it on integration pushes and on pull requests that touch the seam)
+cd backend && pytest -m seam app/db/seam_conformance_test.py
+
 # Run all frontend tests
 cd frontend && pnpm test:run
 
