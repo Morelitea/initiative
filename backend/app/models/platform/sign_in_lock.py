@@ -46,13 +46,3 @@ class SignInLock(SQLModel, table=True):
     first_lock_at: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
-
-    #: No longer written or read: every lock ends at ``locked_until``.
-    held_at: Optional[datetime] = Field(
-        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
-    )
-
-    #: No longer written or read: every lock is emailed.
-    notified_at: Optional[datetime] = Field(
-        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
-    )
