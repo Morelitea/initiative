@@ -7,7 +7,7 @@ iCalendar file. Anyone who can see a calendar's events can export them, the
 way anyone who can see a project's tasks can export those.
 
 ``params`` is the calendar page's own selector: ``{"initiative_id", "scope",
-"calendar_ids", "property_filters"}``. It is what an ExportJob row persists,
+"calendar_ids", "exclude_calendar_ids", "property_filters"}``. It is what an ExportJob row persists,
 and what the worker replays here at render time.
 """
 
@@ -77,6 +77,7 @@ async def _query(
         initiative_id=params.get("initiative_id"),
         guild_scope=params.get("scope") == "guild",
         calendar_ids=params.get("calendar_ids"),
+        exclude_calendar_ids=params.get("exclude_calendar_ids"),
         property_filters=params.get("property_filters"),
         page=page,
         page_size=1,
