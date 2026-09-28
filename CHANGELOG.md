@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Pictures from other sites show as links.**
 - **Ticked checklist lines stay readable** instead of being crossed out.
 - **Only people who can open something** can be assigned to it, invited to it or notified about it.
+- **Files belong to their initiative.** A picture or file in a page opens for anyone in that page's initiative. Pasting one from another initiative saves a copy, and moving a task to another initiative takes copies of its pictures.
 - **Opening something marks its notifications read.**
 - **Mentions in the same document** make one notification.
 - **Read notifications clear after 30 days.**
