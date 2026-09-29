@@ -141,4 +141,13 @@ export const ratchet = {
     call<Encrypted>("encrypt", sessionPickle, plaintext),
   decrypt: (sessionPickle: string, messageType: number, ciphertext: string) =>
     call<Decrypted>("decrypt", sessionPickle, messageType, ciphertext),
+  verificationOpen: (txn: string) => call<string>("verificationOpen", txn),
+  verificationEstablish: (txn: string, theirKey: string) =>
+    call<void>("verificationEstablish", txn, theirKey),
+  verificationEmoji: (txn: string, info: string) => call<number[]>("verificationEmoji", txn, info),
+  verificationMac: (txn: string, input: string, info: string) =>
+    call<string>("verificationMac", txn, input, info),
+  verificationCheckMac: (txn: string, input: string, info: string, mac: string) =>
+    call<boolean>("verificationCheckMac", txn, input, info, mac),
+  verificationClose: (txn: string) => call<void>("verificationClose", txn),
 };

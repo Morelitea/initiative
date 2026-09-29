@@ -19,7 +19,6 @@ import { ConversationList } from "@/components/messages/ConversationList";
 import { HistoryAskNotice } from "@/components/messages/HistoryAskNotice";
 import { MessageContent } from "@/components/messages/MessageContent";
 import { NewDevicePrompt } from "@/components/messages/NewDevicePrompt";
-import { PeerKeyChangeNotice } from "@/components/messages/PeerKeyChangeNotice";
 import { StartWithPerson } from "@/components/messages/StartWithPerson";
 import { ReactionPicker } from "@/components/reactions/ReactionPicker";
 import { StatusMessage } from "@/components/StatusMessage";
@@ -30,7 +29,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { ratchetSupported } from "@/crypto/client";
-import { RecipientDevicesUnverifiedError, RecipientHasNoDeviceError } from "@/crypto/messaging";
+import { RecipientHasNoDeviceError } from "@/crypto/messaging";
 import type { ReceiptState, StoredMessage } from "@/crypto/store";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -46,6 +45,7 @@ import {
   useDmDevice,
   useMarkThreadRead,
   useMessageActions,
+  usePeerDeviceChanges,
   useSendMessage,
   useStartConversation,
   useThread,
@@ -294,8 +294,7 @@ export function MyMessagesPage() {
           waiting on a person who has to see it to give one. */}
       <NewDevicePrompt />
 
-      {/* The other side of the same comparison, on the device that asked. */}
-      <PeerKeyChangeNotice nameOf={nameOf} />
+      {/* The other side of the same verification, on the device that asked. */}
       <HistoryAskNotice />
 
       {/* Who there is to talk to lives in the sidebar, which drills into this
@@ -621,6 +620,30 @@ function Thread({
   }, [draft]);
 
   const messages = thread.data ?? [];
+  const noted = usePeerDeviceChanges().data;
+  /**
+   * When somebody on this conversation changed their devices, as this device
+   * noticed it, oldest first. Said once where it happened and left at that:
+   * there is nothing to do about it.
+   */
+  const deviceChanges = useMemo(
+    () =>
+      memberIds
+        .flatMap((userId) => (noted?.[userId] ?? []).map((at) => ({ userId, at: Date.parse(at) })))
+        .sort((a, b) => a.at - b.at),
+    [memberIds, noted]
+  );
+  const changesBetween = (after: number, until: number) =>
+    deviceChanges
+      .filter((change) => change.at > after && change.at <= until)
+      .map((change) => (
+        <p
+          key={`devices-${change.userId}-${change.at}`}
+          className="py-1 text-center text-muted-foreground text-xs"
+        >
+          {t("peerDevicesChanged", { name: getUserHandle(people.get(change.userId)) })}
+        </p>
+      ));
   // An open thread is a read thread — including whatever arrives while it is
   // open, which is why the count is what re-runs it.
   useMarkThreadRead(conversationId, messages.length, memberIds);
@@ -732,47 +755,52 @@ function Thread({
         {messages.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t("noHistoryHere")}</p>
         ) : (
-          messages.map((message, index) => {
-            // One picture per run rather than per message: a picture beside
-            // every line of somebody talking is the same fact six times, and
-            // the run is what the eye reads as one person speaking.
-            const startsRun = index === 0 || !continuesRun(messages[index - 1], message);
-            // The time goes under the last of a run, for the same reason: it
-            // is when they finished saying it.
-            const endsRun =
-              index === messages.length - 1 || !continuesRun(message, messages[index + 1]);
-            const answered = message.replyTo
-              ? (messages.find((entry) => entry.id === message.replyTo) ?? null)
-              : null;
-            const reactions = Object.entries(message.reactions ?? {});
-            // A new day, or the first thing this device holds.
-            const opensDay = index === 0 || dayOf(messages[index - 1].at) !== dayOf(message.at);
-            return (
-              <Fragment key={message.id}>
-                {opensDay ? (
-                  <div className="flex items-center gap-3 py-2">
-                    <span className="h-px flex-1 bg-border" />
-                    <span className="shrink-0 font-medium text-muted-foreground text-xs">
-                      {dayLabel(message.at, t)}
-                    </span>
-                    <span className="h-px flex-1 bg-border" />
-                  </div>
-                ) : null}
-                <div
-                  ref={(node) => {
-                    if (node) rows.current.set(message.id, node);
-                    else rows.current.delete(message.id);
-                  }}
-                  className={cn(
-                    // Aligned to the top of the bubble: a picture beside the last
-                    // line of a long message reads as belonging to whatever comes
-                    // after it rather than to what it is under.
-                    "group/message flex items-start gap-2",
-                    message.mine && "flex-row-reverse",
-                    startsRun && index > 0 && "pt-2"
+          <>
+            {messages.map((message, index) => {
+              // One picture per run rather than per message: a picture beside
+              // every line of somebody talking is the same fact six times, and
+              // the run is what the eye reads as one person speaking.
+              const startsRun = index === 0 || !continuesRun(messages[index - 1], message);
+              // The time goes under the last of a run, for the same reason: it
+              // is when they finished saying it.
+              const endsRun =
+                index === messages.length - 1 || !continuesRun(message, messages[index + 1]);
+              const answered = message.replyTo
+                ? (messages.find((entry) => entry.id === message.replyTo) ?? null)
+                : null;
+              const reactions = Object.entries(message.reactions ?? {});
+              // A new day, or the first thing this device holds.
+              const opensDay = index === 0 || dayOf(messages[index - 1].at) !== dayOf(message.at);
+              return (
+                <Fragment key={message.id}>
+                  {changesBetween(
+                    index === 0 ? Number.NEGATIVE_INFINITY : Date.parse(messages[index - 1].at),
+                    Date.parse(message.at)
                   )}
-                >
-                  {/* The picture, with the time hung under it.
+                  {opensDay ? (
+                    <div className="flex items-center gap-3 py-2">
+                      <span className="h-px flex-1 bg-border" />
+                      <span className="shrink-0 font-medium text-muted-foreground text-xs">
+                        {dayLabel(message.at, t)}
+                      </span>
+                      <span className="h-px flex-1 bg-border" />
+                    </div>
+                  ) : null}
+                  <div
+                    ref={(node) => {
+                      if (node) rows.current.set(message.id, node);
+                      else rows.current.delete(message.id);
+                    }}
+                    className={cn(
+                      // Aligned to the top of the bubble: a picture beside the last
+                      // line of a long message reads as belonging to whatever comes
+                      // after it rather than to what it is under.
+                      "group/message flex items-start gap-2",
+                      message.mine && "flex-row-reverse",
+                      startsRun && index > 0 && "pt-2"
+                    )}
+                  >
+                    {/* The picture, with the time hung under it.
                       The time is positioned rather than stacked: in the flow it
                       makes every row as tall as a picture plus a line of text,
                       including the rows that show neither -- which opens a gap
@@ -785,61 +813,61 @@ function Thread({
                       alone it overflows both ways -- off the side of the thread
                       on one and across the message on the other -- and how far
                       depends on a clock format this cannot know. */}
-                  <div className="relative flex w-12 shrink-0 justify-center">
-                    <Speaking who={speakerOf(message)} hidden={!startsRun} />
-                    {startsRun ? (
-                      <span
-                        className="absolute inset-x-0 top-full mt-1.5 truncate text-center text-[10px] text-muted-foreground tabular-nums"
-                        title={formatDateTime(message.at)}
-                      >
-                        {clockTime(message.at)}
-                      </span>
-                    ) : null}
-                  </div>
-                  <div
-                    className={cn(
-                      // What the floating actions below are positioned against:
-                      // this box is the message, quote and reactions included.
-                      "relative flex min-w-0 max-w-[75%] flex-col gap-0.5",
-                      message.mine && "items-end"
-                    )}
-                  >
-                    {/* What this answers, quoted above it. A device that never
-                      held the message being answered still shows the answer --
-                      it just has nothing to quote and nowhere to go back to. */}
-                    {message.replyTo ? (
-                      answered ? (
-                        <button
-                          type="button"
-                          onClick={() => goToMessage(answered.id)}
-                          className="flex w-full min-w-0 flex-col gap-0.5 rounded-md border-primary/60 border-s-2 bg-muted/40 px-2 py-1 text-start hover:bg-muted"
+                    <div className="relative flex w-12 shrink-0 justify-center">
+                      <Speaking who={speakerOf(message)} hidden={!startsRun} />
+                      {startsRun ? (
+                        <span
+                          className="absolute inset-x-0 top-full mt-1.5 truncate text-center text-[10px] text-muted-foreground tabular-nums"
+                          title={formatDateTime(message.at)}
                         >
-                          <span className="flex min-w-0 items-center gap-1">
-                            <Speaking who={speakerOf(answered)} hidden={false} small />
-                            <span className="min-w-0 truncate font-medium text-primary text-xs">
-                              {getUserHandle(speakerOf(answered))}
-                            </span>
-                          </span>
-                          {/* Two lines of it at most: a quote is there to say
-                            which message, not to say it again. */}
-                          <span className="wrap-anywhere line-clamp-2 min-w-0 text-muted-foreground text-xs">
-                            {answered.removedAt ? t("removed") : answered.body}
-                          </span>
-                        </button>
-                      ) : (
-                        <span className="flex max-w-full items-center gap-1 px-1 text-muted-foreground text-xs">
-                          <Reply className="size-3 shrink-0" aria-hidden />
-                          <span className="min-w-0 truncate">{t("reply.missing")}</span>
+                          {clockTime(message.at)}
                         </span>
-                      )
-                    ) : null}
+                      ) : null}
+                    </div>
                     <div
                       className={cn(
-                        "flex w-full items-start gap-1",
-                        message.mine && "flex-row-reverse"
+                        // What the floating actions below are positioned against:
+                        // this box is the message, quote and reactions included.
+                        "relative flex min-w-0 max-w-[75%] flex-col gap-0.5",
+                        message.mine && "items-end"
                       )}
                     >
-                      {/* The bubble summons the actions for anything that
+                      {/* What this answers, quoted above it. A device that never
+                      held the message being answered still shows the answer --
+                      it just has nothing to quote and nowhere to go back to. */}
+                      {message.replyTo ? (
+                        answered ? (
+                          <button
+                            type="button"
+                            onClick={() => goToMessage(answered.id)}
+                            className="flex w-full min-w-0 flex-col gap-0.5 rounded-md border-primary/60 border-s-2 bg-muted/40 px-2 py-1 text-start hover:bg-muted"
+                          >
+                            <span className="flex min-w-0 items-center gap-1">
+                              <Speaking who={speakerOf(answered)} hidden={false} small />
+                              <span className="min-w-0 truncate font-medium text-primary text-xs">
+                                {getUserHandle(speakerOf(answered))}
+                              </span>
+                            </span>
+                            {/* Two lines of it at most: a quote is there to say
+                            which message, not to say it again. */}
+                            <span className="wrap-anywhere line-clamp-2 min-w-0 text-muted-foreground text-xs">
+                              {answered.removedAt ? t("removed") : answered.body}
+                            </span>
+                          </button>
+                        ) : (
+                          <span className="flex max-w-full items-center gap-1 px-1 text-muted-foreground text-xs">
+                            <Reply className="size-3 shrink-0" aria-hidden />
+                            <span className="min-w-0 truncate">{t("reply.missing")}</span>
+                          </span>
+                        )
+                      ) : null}
+                      <div
+                        className={cn(
+                          "flex w-full items-start gap-1",
+                          message.mine && "flex-row-reverse"
+                        )}
+                      >
+                        {/* The bubble summons the actions for anything that
                           cannot hover. Not gated on a breakpoint: a wide
                           touch screen has no hover either, and a viewport
                           width is a poor guess at what a device can do -- so
@@ -856,220 +884,222 @@ function Thread({
                           one opens the bar through `focus-within`. So the two
                           rules below are about a path that exists by another
                           route, not one that is missing. */}
-                      {/* biome-ignore lint/a11y/noStaticElementInteractions: the actions are keyboard-reachable through focus-within */}
-                      {/* biome-ignore lint/a11y/useKeyWithClickEvents: the actions are keyboard-reachable through focus-within */}
-                      <div
-                        className={cn(
-                          "rounded-lg px-3 py-2 text-sm",
-                          // `wrap-anywhere` rather than `break-words`: only this
-                          // one counts towards how narrow the bubble may be, so a
-                          // single unbroken run of characters wraps instead of
-                          // sizing the bubble to itself and running off the side.
-                          "wrap-anywhere w-fit max-w-full",
-                          message.mine ? "bg-primary text-primary-foreground" : "bg-muted",
-                          // Where a quote just landed, for as long as it takes to
-                          // see it.
-                          landedOn === message.id && "ring-2 ring-primary ring-offset-1"
-                        )}
-                        onClick={
-                          message.removedAt
-                            ? undefined
-                            : (event) => {
-                                // A link inside is doing something else, and a
-                                // tap that ends a selection is not a tap.
-                                if ((event.target as HTMLElement).closest("a")) return;
-                                if (window.getSelection()?.isCollapsed === false) return;
-                                setTapped((open) => (open === message.id ? null : message.id));
-                              }
-                        }
-                      >
-                        {message.removedAt ? (
-                          <span className="italic opacity-70">{t("removed")}</span>
-                        ) : (
-                          <MessageContent body={message.body} />
-                        )}
+                        {/* biome-ignore lint/a11y/noStaticElementInteractions: the actions are keyboard-reachable through focus-within */}
+                        {/* biome-ignore lint/a11y/useKeyWithClickEvents: the actions are keyboard-reachable through focus-within */}
+                        <div
+                          className={cn(
+                            "rounded-lg px-3 py-2 text-sm",
+                            // `wrap-anywhere` rather than `break-words`: only this
+                            // one counts towards how narrow the bubble may be, so a
+                            // single unbroken run of characters wraps instead of
+                            // sizing the bubble to itself and running off the side.
+                            "wrap-anywhere w-fit max-w-full",
+                            message.mine ? "bg-primary text-primary-foreground" : "bg-muted",
+                            // Where a quote just landed, for as long as it takes to
+                            // see it.
+                            landedOn === message.id && "ring-2 ring-primary ring-offset-1"
+                          )}
+                          onClick={
+                            message.removedAt
+                              ? undefined
+                              : (event) => {
+                                  // A link inside is doing something else, and a
+                                  // tap that ends a selection is not a tap.
+                                  if ((event.target as HTMLElement).closest("a")) return;
+                                  if (window.getSelection()?.isCollapsed === false) return;
+                                  setTapped((open) => (open === message.id ? null : message.id));
+                                }
+                          }
+                        >
+                          {message.removedAt ? (
+                            <span className="italic opacity-70">{t("removed")}</span>
+                          ) : (
+                            <MessageContent body={message.body} />
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    {/* Over the message rather than beside it: a toolbar in the
+                      {/* Over the message rather than beside it: a toolbar in the
                       flow moves the words to make room for itself every time a
                       cursor passes, and a thread that shifts under the pointer
                       is harder to read than one with something floating on it.
                       It sits on the inner corner -- the side the picture is
                       not -- and overlaps the top edge, so it is plainly about
                       the message under it. */}
-                    {message.removedAt ? null : (
-                      <div
-                        className={cn(
-                          // The gap between the bar and the message is padding on
-                          // this box rather than a margin outside it, so the two
-                          // of them are one unbroken thing to hover. A margin
-                          // leaves a few dead pixels on the way up: the pointer
-                          // crosses them, this message stops being hovered, the
-                          // bar goes, and the message above lights up instead --
-                          // which walks the bar up the thread and never lets you
-                          // reach it.
-                          "absolute bottom-full z-10 pb-1",
-                          // Anchored to the message's own edge and growing
-                          // inward, into the room the other quarter of the row
-                          // always leaves -- anchored the other way it runs off
-                          // the side of anything short.
-                          message.mine ? "end-0" : "start-0",
-                          // Out of sight, never out of the document: `hidden`
-                          // takes the buttons out of the focus order too, and
-                          // then a keyboard has no way to any of this. Faded
-                          // and inert instead, and brought back by a hover, by
-                          // focusing one of them, or by tapping the message.
-                          tapped === message.id
-                            ? "block"
-                            : cn(
-                                "pointer-events-none block opacity-0",
-                                "group-hover/message:pointer-events-auto group-hover/message:opacity-100",
-                                "group-focus-within/message:pointer-events-auto group-focus-within/message:opacity-100"
-                              ),
-                          "transition-opacity"
-                        )}
-                      >
-                        <div className="flex items-center gap-0.5 rounded-md border bg-popover p-0.5 shadow-md">
-                          <TooltipProvider delayDuration={200}>
-                            <ReactionPicker
-                              className="size-7"
-                              mine={
-                                new Set(
-                                  reactions
-                                    .filter(([, sides]) => sides.mine)
-                                    .map(([emoji]) => emoji)
-                                )
-                              }
-                              disabled={actions.react.isPending}
-                              onSelect={(emoji) => toggleReaction(message, emoji)}
-                            />
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="size-7"
-                                  onClick={() => startReply(message.id)}
-                                >
-                                  <Reply className="size-3.5" aria-hidden />
-                                  <span className="sr-only">{t("reply.action")}</span>
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent side="top">{t("reply.action")}</TooltipContent>
-                            </Tooltip>
-                            {/* Only your own: an edit or a removal is somebody acting
+                      {message.removedAt ? null : (
+                        <div
+                          className={cn(
+                            // The gap between the bar and the message is padding on
+                            // this box rather than a margin outside it, so the two
+                            // of them are one unbroken thing to hover. A margin
+                            // leaves a few dead pixels on the way up: the pointer
+                            // crosses them, this message stops being hovered, the
+                            // bar goes, and the message above lights up instead --
+                            // which walks the bar up the thread and never lets you
+                            // reach it.
+                            "absolute bottom-full z-10 pb-1",
+                            // Anchored to the message's own edge and growing
+                            // inward, into the room the other quarter of the row
+                            // always leaves -- anchored the other way it runs off
+                            // the side of anything short.
+                            message.mine ? "end-0" : "start-0",
+                            // Out of sight, never out of the document: `hidden`
+                            // takes the buttons out of the focus order too, and
+                            // then a keyboard has no way to any of this. Faded
+                            // and inert instead, and brought back by a hover, by
+                            // focusing one of them, or by tapping the message.
+                            tapped === message.id
+                              ? "block"
+                              : cn(
+                                  "pointer-events-none block opacity-0",
+                                  "group-hover/message:pointer-events-auto group-hover/message:opacity-100",
+                                  "group-focus-within/message:pointer-events-auto group-focus-within/message:opacity-100"
+                                ),
+                            "transition-opacity"
+                          )}
+                        >
+                          <div className="flex items-center gap-0.5 rounded-md border bg-popover p-0.5 shadow-md">
+                            <TooltipProvider delayDuration={200}>
+                              <ReactionPicker
+                                className="size-7"
+                                mine={
+                                  new Set(
+                                    reactions
+                                      .filter(([, sides]) => sides.mine)
+                                      .map(([emoji]) => emoji)
+                                  )
+                                }
+                                disabled={actions.react.isPending}
+                                onSelect={(emoji) => toggleReaction(message, emoji)}
+                              />
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-7"
+                                    onClick={() => startReply(message.id)}
+                                  >
+                                    <Reply className="size-3.5" aria-hidden />
+                                    <span className="sr-only">{t("reply.action")}</span>
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">{t("reply.action")}</TooltipContent>
+                              </Tooltip>
+                              {/* Only your own: an edit or a removal is somebody acting
                           on what they themselves said, and the log refuses
                           anything else even if this offered it. */}
-                            {message.mine ? (
-                              <>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="size-7"
-                                      onClick={() => startEdit(message)}
-                                    >
-                                      <Pencil className="size-3.5" aria-hidden />
-                                      <span className="sr-only">{t("edit.action")}</span>
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top">{t("edit.action")}</TooltipContent>
-                                </Tooltip>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="size-7 text-destructive"
-                                      onClick={() => setRemoving(message.id)}
-                                    >
-                                      <Trash2 className="size-3.5" aria-hidden />
-                                      <span className="sr-only">{t("remove.action")}</span>
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top">{t("remove.action")}</TooltipContent>
-                                </Tooltip>
-                              </>
-                            ) : null}
-                          </TooltipProvider>
+                              {message.mine ? (
+                                <>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="size-7"
+                                        onClick={() => startEdit(message)}
+                                      >
+                                        <Pencil className="size-3.5" aria-hidden />
+                                        <span className="sr-only">{t("edit.action")}</span>
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">{t("edit.action")}</TooltipContent>
+                                  </Tooltip>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="size-7 text-destructive"
+                                        onClick={() => setRemoving(message.id)}
+                                      >
+                                        <Trash2 className="size-3.5" aria-hidden />
+                                        <span className="sr-only">{t("remove.action")}</span>
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">{t("remove.action")}</TooltipContent>
+                                  </Tooltip>
+                                </>
+                              ) : null}
+                            </TooltipProvider>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                    {reactions.length > 0 ? (
-                      <div
-                        className={cn("flex flex-wrap gap-1 px-1", message.mine && "justify-end")}
-                      >
-                        {reactions.map(([emoji, sides]) => {
-                          const count = Number(sides.mine) + Number(sides.theirs);
-                          return (
-                            <button
-                              key={emoji}
-                              type="button"
-                              aria-pressed={sides.mine}
-                              aria-label={t("reactions.chip", { emoji, count })}
-                              disabled={actions.react.isPending}
-                              onClick={() => toggleReaction(message, emoji)}
-                              className={cn(
-                                "flex h-6 items-center gap-1 rounded-full border px-1.5 text-xs transition-colors",
-                                sides.mine
-                                  ? "border-primary/40 bg-primary/10"
-                                  : "border-border bg-muted/40 text-muted-foreground hover:bg-muted"
-                              )}
-                            >
-                              <span className="text-sm leading-none">{emoji}</span>
-                              {/* Both of you, or one of you: only the first is
+                      )}
+                      {reactions.length > 0 ? (
+                        <div
+                          className={cn("flex flex-wrap gap-1 px-1", message.mine && "justify-end")}
+                        >
+                          {reactions.map(([emoji, sides]) => {
+                            const count = Number(sides.mine) + Number(sides.theirs);
+                            return (
+                              <button
+                                key={emoji}
+                                type="button"
+                                aria-pressed={sides.mine}
+                                aria-label={t("reactions.chip", { emoji, count })}
+                                disabled={actions.react.isPending}
+                                onClick={() => toggleReaction(message, emoji)}
+                                className={cn(
+                                  "flex h-6 items-center gap-1 rounded-full border px-1.5 text-xs transition-colors",
+                                  sides.mine
+                                    ? "border-primary/40 bg-primary/10"
+                                    : "border-border bg-muted/40 text-muted-foreground hover:bg-muted"
+                                )}
+                              >
+                                <span className="text-sm leading-none">{emoji}</span>
+                                {/* Both of you, or one of you: only the first is
                                 worth a number, and the label says it either
                                 way. */}
-                              {count > 1 ? <span className="tabular-nums">{count}</span> : null}
-                            </button>
-                          );
-                        })}
-                        {/* A second way in, where the reader's eye already is:
+                                {count > 1 ? <span className="tabular-nums">{count}</span> : null}
+                              </button>
+                            );
+                          })}
+                          {/* A second way in, where the reader's eye already is:
                             adding to a row of reactions is a different gesture
                             from acting on the message, and sending them up to
                             the bar for it makes it the same one. */}
-                        <ReactionPicker
-                          className={cn(
-                            "size-6",
-                            tapped === message.id
-                              ? ""
-                              : cn(
-                                  // Inert as well as faded, the way the bar is:
-                                  // an invisible button that still takes a tap
-                                  // is a tap on the space beside the reactions
-                                  // opening an emoji picker out of nowhere.
-                                  "pointer-events-none opacity-0 transition-opacity",
-                                  "group-hover/message:pointer-events-auto group-hover/message:opacity-100",
-                                  "group-focus-within/message:pointer-events-auto group-focus-within/message:opacity-100"
-                                )
-                          )}
-                          mine={
-                            new Set(
-                              reactions.filter(([, sides]) => sides.mine).map(([emoji]) => emoji)
-                            )
-                          }
-                          disabled={actions.react.isPending}
-                          onSelect={(emoji) => toggleReaction(message, emoji)}
-                        />
-                      </div>
-                    ) : null}
-                    {/* The clock is under the picture now, so what is left here
+                          <ReactionPicker
+                            className={cn(
+                              "size-6",
+                              tapped === message.id
+                                ? ""
+                                : cn(
+                                    // Inert as well as faded, the way the bar is:
+                                    // an invisible button that still takes a tap
+                                    // is a tap on the space beside the reactions
+                                    // opening an emoji picker out of nowhere.
+                                    "pointer-events-none opacity-0 transition-opacity",
+                                    "group-hover/message:pointer-events-auto group-hover/message:opacity-100",
+                                    "group-focus-within/message:pointer-events-auto group-focus-within/message:opacity-100"
+                                  )
+                            )}
+                            mine={
+                              new Set(
+                                reactions.filter(([, sides]) => sides.mine).map(([emoji]) => emoji)
+                              )
+                            }
+                            disabled={actions.react.isPending}
+                            onSelect={(emoji) => toggleReaction(message, emoji)}
+                          />
+                        </div>
+                      ) : null}
+                      {/* The clock is under the picture now, so what is left here
                       is only what this one message has to say for itself. */}
-                    {message.editedAt || (endsRun && message.mine) ? (
-                      <span className="flex items-center gap-1 px-1 text-muted-foreground text-xs">
-                        {message.editedAt ? <span>{t("edited")}</span> : null}
-                        {endsRun && message.mine ? <Receipt state={message.receipt} /> : null}
-                      </span>
-                    ) : null}
+                      {message.editedAt || (endsRun && message.mine) ? (
+                        <span className="flex items-center gap-1 px-1 text-muted-foreground text-xs">
+                          {message.editedAt ? <span>{t("edited")}</span> : null}
+                          {endsRun && message.mine ? <Receipt state={message.receipt} /> : null}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-              </Fragment>
-            );
-          })
+                </Fragment>
+              );
+            })}
+            {changesBetween(Date.parse(messages[messages.length - 1].at), Number.POSITIVE_INFINITY)}
+          </>
         )}
       </div>
       {/* What the composer is about, when it is about something. Above the
@@ -1144,11 +1174,9 @@ function Thread({
       {send.isError ? (
         <div className="px-3 pb-3">
           <p className="text-destructive text-sm">
-            {send.error instanceof RecipientDevicesUnverifiedError
-              ? t("recipientDevicesUnverified", { name })
-              : send.error instanceof RecipientHasNoDeviceError
-                ? t("recipientHasNoDevice", { name })
-                : t("sendFailed")}
+            {send.error instanceof RecipientHasNoDeviceError
+              ? t("recipientHasNoDevice", { name })
+              : t("sendFailed")}
           </p>
         </div>
       ) : null}

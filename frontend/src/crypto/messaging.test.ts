@@ -31,6 +31,8 @@ const api = vi.hoisted(() => ({
   topUpKeys: vi.fn(),
   signDevice: vi.fn(),
   readMe: vi.fn(),
+  sendVerification: vi.fn(),
+  collectVerification: vi.fn(),
 }));
 
 vi.mock("@/api/generated/direct-messages/direct-messages", () => ({
@@ -49,6 +51,8 @@ vi.mock("@/api/generated/direct-messages/direct-messages", () => ({
   topUpKeysApiV1MeDmOneTimeKeysPost: (body: unknown) => api.topUpKeys(body),
   signDeviceApiV1MeDmDevicesDeviceIdSignaturePut: (id: string, body: unknown) =>
     api.signDevice(id, body),
+  sendVerificationApiV1MeDmVerificationPost: (body: unknown) => api.sendVerification(body),
+  collectVerificationApiV1MeDmVerificationGet: (params: unknown) => api.collectVerification(params),
 }));
 
 vi.mock("@/api/generated/users/users", () => ({
@@ -61,6 +65,9 @@ vi.mock("@/api/generated/users/users", () => ({
  * The real one refuses an identity key that did not write the message, and a
  * pre-key message names its session and sender; this reproduces those rules
  * and nothing else. A device's signature is `signed:<its account>`.
+ *
+ * Verification is the real one: its whole point is the arithmetic, so a
+ * stand-in would prove nothing.
  */
 const stopRatchet = vi.hoisted(() => vi.fn());
 const openOutbound = vi.hoisted(() =>
@@ -123,30 +130,43 @@ vi.mock("./client", () => ({
       }
       return { session_pickle: `${sessionPickle}!`, plaintext: message.body };
     },
+    verificationOpen: async (txn: string) => (await import("./engine")).verificationOpen(txn),
+    verificationEstablish: async (txn: string, key: string) =>
+      (await import("./engine")).verificationEstablish(txn, key),
+    verificationEmoji: async (txn: string, info: string) =>
+      (await import("./engine")).verificationEmoji(txn, info),
+    verificationMac: async (txn: string, input: string, info: string) =>
+      (await import("./engine")).verificationMac(txn, input, info),
+    verificationCheckMac: async (txn: string, input: string, info: string, mac: string) =>
+      (await import("./engine")).verificationCheckMac(txn, input, info, mac),
+    verificationClose: async (txn: string) => (await import("./engine")).verificationClose(txn),
   },
 }));
 
+import * as engine from "./engine";
 import {
-  acknowledgeSafetyNumber,
   answerNewDevice,
   collect,
+  collectVerification,
+  confirmMatch,
   ensureDevice,
-  ensureDeviceContext,
   forgetMessagesOnThisDevice,
   HISTORY_ASK_NOTICE_MS,
   historyAskWaiting,
   markRead,
   ownDeviceWaiting,
-  pairSafetyNumber,
-  RecipientDevicesUnverifiedError,
+  peerDeviceChanges,
   RecipientHasNoDeviceError,
   sendEdit,
   sendReaction,
   sendRemove,
   sendText,
+  startVerification,
   unreadIn,
+  verificationView,
   wantThreadHistory,
 } from "./messaging";
+import { emojiAt } from "./safetyCode";
 import {
   accountPickle,
   approvedDevices,
@@ -156,7 +176,6 @@ import {
   historyAsk,
   messageLog,
   peerKeyChanges,
-  sessionForDevice,
   sessionPickle,
   threadCatchUp,
 } from "./store";
@@ -1167,6 +1186,90 @@ describe("history between this account's own devices", () => {
     expect(await ownDeviceWaiting()).toBeNull();
   });
 
+  it("releases a new device only once four matching pictures are confirmed on both", async () => {
+    const waiting = await phoneSignsIn();
+    const sent: { to_device_id: string; body: string }[] = [];
+    api.sendVerification.mockImplementation(async (body) => {
+      sent.push(body);
+    });
+    const last = () => JSON.parse(sent.at(-1)!.body);
+    const fromPhone = (message: Record<string, unknown>) =>
+      api.collectVerification.mockResolvedValueOnce({
+        items: [{ id: 1, sender_device_id: OUR_PHONE.id, body: JSON.stringify(message) }],
+      });
+    const sha256 = async (text: string) =>
+      btoa(
+        String.fromCharCode(
+          ...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)))
+        )
+      );
+
+    // The phone's key does not match what it committed to: nothing is shown,
+    // the phone is told, and it stays held.
+    await startVerification(waiting, { sendHistory: false });
+    const bad = last();
+    await engine.verificationOpen("phone-bad");
+    fromPhone({ v: 1, txn: bad.txn, type: "accept", commitment: "not-it" });
+    await collectVerification();
+    fromPhone({ v: 1, txn: bad.txn, type: "key", key: await engine.verificationOpen("other") });
+    await collectVerification();
+    expect(verificationView()).toMatchObject({ phase: "failed", reason: "mismatch" });
+    expect(last()).toMatchObject({ type: "cancel", txn: bad.txn });
+    expect(await ownDeviceWaiting()).toMatchObject({ deviceId: OUR_PHONE.id });
+
+    await startVerification(waiting, { sendHistory: false });
+    const start = sent.at(-1)!;
+    const { txn } = JSON.parse(start.body);
+    expect(txn).not.toBe(bad.txn);
+    expect(start.to_device_id).toBe(OUR_PHONE.id);
+    const phoneKey = await engine.verificationOpen("phone");
+    fromPhone({ v: 1, txn, type: "accept", commitment: await sha256(phoneKey + start.body) });
+    await collectVerification();
+    const ourKey = last().key as string;
+    engine.verificationEstablish("phone", ourKey);
+    fromPhone({ v: 1, txn, type: "key", key: phoneKey });
+    await collectVerification();
+
+    const shown = verificationView();
+    if (shown.phase !== "compare") throw new Error(`expected pictures, got ${shown.phase}`);
+    const phoneSees = engine.verificationEmoji(
+      "phone",
+      [
+        "INITIATIVE_DEVICE_VERIFICATION_V1_EMOJI",
+        1,
+        OURS.id,
+        ourKey,
+        OUR_PHONE.id,
+        phoneKey,
+        txn,
+      ].join("|")
+    );
+    expect(shown.emoji).toHaveLength(4);
+    expect(phoneSees).toHaveLength(4);
+    expect(shown.emoji.map((entry) => entry.name)).toEqual(
+      phoneSees.map((index) => emojiAt(index).name)
+    );
+
+    // Its word alone releases nothing: the person here has not said yet.
+    const macInfo = (a: string, b: string) =>
+      ["INITIATIVE_DEVICE_VERIFICATION_V1_MAC", 1, a, b, txn].join("|");
+    fromPhone({
+      v: 1,
+      txn,
+      type: "mac",
+      mac: engine.verificationMac("phone", "fp|phone", macInfo(OUR_PHONE.id, OURS.id)),
+    });
+    await collectVerification();
+    expect(await ownDeviceWaiting()).toMatchObject({ deviceId: OUR_PHONE.id });
+
+    await confirmMatch();
+    expect(
+      engine.verificationCheckMac("phone", "fp|mine", macInfo(OURS.id, OUR_PHONE.id), last().mac)
+    ).toBe(true);
+    expect(verificationView()).toMatchObject({ phase: "verified" });
+    expect(await ownDeviceWaiting()).toBeNull();
+  });
+
   it("asks about a device already trusted before it sends that device history", async () => {
     await messageLog.append("conv-1", { id: "m1", body: "one", at: "2026-09-01", mine: true });
     api.listDevices.mockResolvedValue({ devices: [ownDevice(OURS), ownDevice(OUR_PHONE)] });
@@ -1660,106 +1763,34 @@ describe("catching up on a group joined late", () => {
 });
 
 describe("sending", () => {
-  it("holds a first directory baseline when an existing session shows the peer is not new", async () => {
-    await sessionForDevice.set(THEIRS.device_id, "existing-session");
-
-    const error = await sendText("conv-1", [7], "private after upgrade").catch((caught) => caught);
-
-    expect(error).toBeInstanceOf(RecipientDevicesUnverifiedError);
-    expect(api.sendMessages).not.toHaveBeenCalled();
-  });
-
-  it("says the devices are unverified, not that the recipient has none", async () => {
-    // A partner who reinstalls gets a NEW device id -- register_device inserts a
-    // row per call, it does not upsert -- so withholding it is correct. What the
-    // person sending is told about it is not.
-    //
-    // Every device withheld leaves nothing to address, and the send then failed
-    // with the same error raised for somebody who has never enabled encrypted
-    // messaging at all. That is rendered as "<name> has not set up encrypted
-    // messages yet", which is false, and it points at the wrong person: the
-    // action that unblocks it belongs to the reader, on the notice beside it.
+  it("sends to another person's changed devices, and notes the change for the thread", async () => {
     await sendText("conv-1", [7], "establishes the directory baseline");
     api.sendMessages.mockClear();
-    api.readDirectory.mockResolvedValue({
-      user_id: 7,
-      devices: [{ device_id: "replacement", identity_key: "new-key", fingerprint_key: "new-fp" }],
-    });
-
-    const error = await sendText("conv-1", [7], "private after replacement").catch((e) => e);
-
-    expect(api.sendMessages).not.toHaveBeenCalled();
-    expect(error).toBeInstanceOf(RecipientDevicesUnverifiedError);
-    // Distinguishable from the no-device case, because the two need different
-    // sentences and different next actions.
-    expect(error).not.toBeInstanceOf(RecipientHasNoDeviceError);
-  });
-
-  it("still reports a genuine absence of devices as one", async () => {
-    // The control. Narrowing the message above must not swallow the case it was
-    // narrowed away from.
-    api.readDirectory.mockResolvedValue({ user_id: 7, devices: [] });
-
-    await expect(sendText("conv-1", [7], "hello")).rejects.toBeInstanceOf(
-      RecipientHasNoDeviceError
-    );
-  });
-
-  it("does not send private text to a newly introduced peer device", async () => {
-    // Keys a safety number can be worked out from, which the pair view needs.
-    api.listDevices.mockResolvedValue({ devices: [ownDevice(OURS)] });
     const REPLACEMENT = {
       device_id: "replacement",
-      identity_key: "bmV3a2V5",
-      fingerprint_key: "bmV3ZnA=",
+      identity_key: "new-key",
+      fingerprint_key: "fp",
     };
-    await sendText("conv-1", [7], "establishes the directory baseline");
-    api.sendMessages.mockClear();
     api.readDirectory.mockResolvedValue({ user_id: 7, devices: [REPLACEMENT] });
     api.claimSessionKeys.mockResolvedValue({
       user_id: 7,
       devices: [{ ...REPLACEMENT, one_time_key: ONE_TIME_KEY }],
     });
 
-    // RecipientDevicesUnverifiedError, not RecipientHasNoDeviceError: the
-    // withholding is this client's own doing. The earlier expectation here read
-    // as "they have not set up encrypted messages", which is false about
-    // somebody who just reinstalled and points the reader at the wrong action.
-    await expect(sendText("conv-1", [7], "private after replacement")).rejects.toBeInstanceOf(
-      RecipientDevicesUnverifiedError
+    await sendText("conv-1", [7], "after they reinstalled");
+
+    const [, body] = api.sendMessages.mock.calls.at(-1)!;
+    expect(body.messages.map((m) => m.recipient_device_id)).toContain("replacement");
+    expect(await peerKeyChanges.all()).toEqual([]);
+    expect(Object.keys(await peerDeviceChanges.all())).toEqual(["7"]);
+  });
+
+  it("still reports a genuine absence of devices as one", async () => {
+    api.readDirectory.mockResolvedValue({ user_id: 7, devices: [] });
+
+    await expect(sendText("conv-1", [7], "hello")).rejects.toBeInstanceOf(
+      RecipientHasNoDeviceError
     );
-
-    expect(api.sendMessages).not.toHaveBeenCalled();
-    expect(await peerKeyChanges.all()).toEqual([
-      expect.objectContaining({
-        deviceId: "replacement",
-        now: { fingerprint: "bmV3ZnA=", identityKey: "bmV3a2V5" },
-      }),
-    ]);
-
-    await expect(sendText("conv-1", [7], "still private")).rejects.toBeInstanceOf(
-      RecipientDevicesUnverifiedError
-    );
-    expect(api.sendMessages).not.toHaveBeenCalled();
-
-    // Compared with them and found to match: their devices are released, and
-    // the number is remembered as verified until their devices change again.
-    const number = await pairSafetyNumber(await ensureDeviceContext(), 7);
-    expect(number.halves.map((half) => half.userId)).toEqual([1, 7]);
-    expect(number.verified).toBe(false);
-    await acknowledgeSafetyNumber(7, number);
-    await sendText("conv-1", [7], "verified out of band");
-    expect(api.sendMessages).toHaveBeenCalledTimes(1);
-    expect((await pairSafetyNumber(await ensureDeviceContext(), 7)).verified).toBe(true);
-
-    api.readDirectory.mockResolvedValue({
-      user_id: 7,
-      devices: [
-        REPLACEMENT,
-        { ...REPLACEMENT, device_id: "another", identity_key: "YW5vdGhlcg==" },
-      ],
-    });
-    expect((await pairSafetyNumber(await ensureDeviceContext(), 7)).verified).toBe(false);
   });
 
   it("takes a device only on a signature that holds, and its one-time key only signed", async () => {

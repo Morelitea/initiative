@@ -5,6 +5,10 @@
  * pickles it needs and returns new ones. Those pickles are ciphertext, which is
  * why the main thread may hold them.
  *
+ * The one exception is a verification between two of this account's devices,
+ * which lives here for as long as the comparison does and is freed when it
+ * ends; see `verificationOpen`.
+ *
  * **The pickle key is fetched here, not passed in.** It is the one secret that
  * opens a pickle, and this module runs inside the worker — so the key is read
  * from the store on this side and never crosses a `postMessage`.
@@ -29,6 +33,7 @@ import init, {
   session_decrypt,
   session_encrypt,
   sign_device,
+  Verification,
   verify_device,
 } from "./wasm/initiative_ratchet.js";
 
@@ -167,4 +172,49 @@ export async function decrypt(
 ): Promise<Decrypted> {
   await loadRatchet();
   return session_decrypt(sessionPickle, await key(), messageType, ciphertext) as Decrypted;
+}
+
+/** The comparisons in progress on this device, by attempt id. */
+const verifications = new Map<string, Verification>();
+
+function verification(txn: string): Verification {
+  const open = verifications.get(txn);
+  if (!open) throw new Error("no such verification");
+  return open;
+}
+
+/** Start one side of a comparison: a fresh key pair, whose public half is returned. */
+export async function verificationOpen(txn: string): Promise<string> {
+  await loadRatchet();
+  verificationClose(txn);
+  const opened = new Verification();
+  verifications.set(txn, opened);
+  return opened.public_key;
+}
+
+export function verificationEstablish(txn: string, theirKey: string): void {
+  verification(txn).establish(theirKey);
+}
+
+/** The pictures to show, as indices into the emoji list. */
+export function verificationEmoji(txn: string, info: string): number[] {
+  return Array.from(verification(txn).emoji(info));
+}
+
+export function verificationMac(txn: string, input: string, info: string): string {
+  return verification(txn).mac(input, info);
+}
+
+export function verificationCheckMac(
+  txn: string,
+  input: string,
+  info: string,
+  mac: string
+): boolean {
+  return verification(txn).verify_mac(input, info, mac);
+}
+
+export function verificationClose(txn: string): void {
+  verifications.get(txn)?.free();
+  verifications.delete(txn);
 }

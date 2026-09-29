@@ -20,6 +20,12 @@ import {
   generateKeys,
   inspectPreKey,
   signDevice,
+  verificationCheckMac,
+  verificationClose,
+  verificationEmoji,
+  verificationEstablish,
+  verificationMac,
+  verificationOpen,
   verifyDevice,
 } from "./engine";
 
@@ -34,6 +40,12 @@ const methods = {
   createInboundSession,
   encrypt,
   decrypt,
+  verificationOpen,
+  verificationEstablish,
+  verificationEmoji,
+  verificationMac,
+  verificationCheckMac,
+  verificationClose,
 } as const;
 
 export type RatchetMethod = keyof typeof methods;

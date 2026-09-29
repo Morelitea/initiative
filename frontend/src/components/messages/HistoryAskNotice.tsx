@@ -1,19 +1,17 @@
 import { KeyRound, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { DeviceCode } from "@/components/messages/DeviceCode";
 import { Button } from "@/components/ui/button";
-import { useDismissHistoryAsk, useHistoryAsk, useThisDevice } from "@/hooks/useMyMessages";
+import { useDismissHistoryAsk, useHistoryAsk } from "@/hooks/useMyMessages";
 
 /**
- * This device, waiting to be confirmed by another of the account's and sent
+ * This device, waiting to be verified by another of the account's and sent
  * the messages it arrived without.
  *
- * The other half of the comparison. This device shows the code the deciding
- * screen is showing, so whoever is holding both is checking two things against
- * each other rather than being told a number and trusting it. It says nothing
- * about how long that will take, because nothing here knows: the other device
- * has to be opened by a person before it can answer.
+ * The comparison is started on the other device; when it is, the verification
+ * dialog opens here too. This says nothing about how long that will take,
+ * because nothing here knows: the other device has to be opened by a person
+ * before it can answer.
  *
  * It can be put away by hand as well as by the day running out. Dismissing it
  * settles nothing: the ask is still outstanding, and history approved on the
@@ -23,7 +21,6 @@ import { useDismissHistoryAsk, useHistoryAsk, useThisDevice } from "@/hooks/useM
 export const HistoryAskNotice = () => {
   const { t } = useTranslation("messages");
   const ask = useHistoryAsk();
-  const device = useThisDevice();
   const dismiss = useDismissHistoryAsk();
 
   if (!ask.data) return null;
@@ -37,7 +34,6 @@ export const HistoryAskNotice = () => {
             <h2 className="font-medium text-sm">{t("historyAsk.title")}</h2>
             <p className="max-w-prose text-muted-foreground text-sm">{t("historyAsk.body")}</p>
           </div>
-          {device.data ? <DeviceCode {...device.data} /> : null}
           <p className="max-w-prose text-muted-foreground text-xs">{t("historyAsk.dismissNote")}</p>
         </div>
         <Button

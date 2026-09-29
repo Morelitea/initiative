@@ -8,8 +8,6 @@ import { readDirectoryApiV1UsersUserIdDmDevicesGet as readDirectory } from "@/ap
 import type { DmSessionKey } from "@/api/generated/initiativeAPI.schemas";
 
 import { ratchet } from "./client";
-import type { Context } from "./device";
-import { accountSafetyNumber } from "./safetyCode";
 import {
   deviceId,
   deviceOwner,
@@ -18,7 +16,6 @@ import {
   peerKeyChanges,
   sessionForDevice,
   signingSince,
-  verifiedPairs,
 } from "./store";
 
 /**
@@ -55,9 +52,8 @@ export type DirectoryEntry = Pick<
 > & { label?: string | null; created_at?: string };
 
 /**
- * One account's devices that may be addressed, and the ones held until the
- * person has checked them -- so a send left with nothing to address can say
- * which of the two reasons it was.
+ * One account's devices that may be addressed, and, for this account's own,
+ * the ones held until the person has verified them.
  */
 export interface PeerDirectory {
   devices: TrustedDevice[];
@@ -95,8 +91,10 @@ async function trust(
  * A device whose signature does not verify is left out, as is one that signs
  * nothing once the grace is over; neither is a change for anybody to confirm.
  * What remains is compared against the keys this browser has seen for that
- * account before: a changed or newly introduced device is held until the
- * person checks it, so nothing is encrypted to a key they have not seen.
+ * account before. A changed or newly introduced device of this account's own
+ * is held until the person verifies it from here, so nothing is encrypted to it
+ * until then. Another person's is noted, for the conversation to mention, and
+ * addressed as listed.
  *
  * Keys are what is compared, not signatures, so a device from before signing
  * that signs itself later is the same device it was.
@@ -127,7 +125,8 @@ export async function ingestDirectory(
         // This account's own sessions say nothing about its baseline.
         previouslyAddressed: !own && (await sessionForDevice.get(device.id)) !== undefined,
       }))
-    )
+    ),
+    { hold: own }
   );
   // This browser's own device is recorded in the baseline like the rest, and
   // is the one device nobody needs to confirm.
@@ -140,6 +139,7 @@ export async function ingestDirectory(
   // replaced, so its pointer is dropped and the next send opens a fresh one
   // against the key the directory now returns.
   await Promise.all(changes.map((change) => sessionForDevice.forget(change.deviceId)));
+  if (!own) return { devices: listed, held: [] };
 
   // Held on every read until acknowledged, not only the one that noticed it.
   const held = new Set(
@@ -162,57 +162,9 @@ export async function readPeerDirectory(userId: number): Promise<PeerDirectory> 
 const newestFirst = (changes: PeerKeyChange[]) =>
   [...changes].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
 
-/** Other people's devices that changed under a conversation this browser was already in. */
-export async function peerKeyChangesWaiting(): Promise<PeerKeyChange[]> {
-  const owner = await deviceOwner.get();
-  return newestFirst((await peerKeyChanges.all()).filter((change) => change.userId !== owner));
-}
-
-/** A device of this account's that appeared after this browser's baseline, to be confirmed. */
+/** A device of this account's that appeared after this browser's baseline, to be verified. */
 export async function ownDeviceWaiting(): Promise<PeerKeyChange | null> {
   const owner = await deviceOwner.get();
   const own = (await peerKeyChanges.all()).filter((change) => change.userId === owner);
   return newestFirst(own)[0] ?? null;
-}
-
-/** Both halves of a safety number, and what acknowledging it settles. */
-export interface SafetyNumber {
-  /** One half per account, lower user id first, thirty digits each. */
-  halves: { userId: number; digits: string }[];
-  /** Their half, which is what acknowledging records. */
-  theirs: string;
-  /** Their held devices, which acknowledging releases. */
-  clears: string[];
-  /** Whether their half matches the one last acknowledged. */
-  verified: boolean;
-}
-
-/**
- * The safety number between this account and another, from the keys this
- * browser encrypts with: this account's confirmed devices, and every device of
- * theirs that verified, held ones included, since those are what is being
- * checked.
- */
-export async function pairSafetyNumber(ctx: Context, userId: number): Promise<SafetyNumber> {
-  const directory = await ctx.directory(userId);
-  const [mine, theirs] = await Promise.all([
-    accountSafetyNumber(ctx.self, ctx.own.devices),
-    accountSafetyNumber(userId, [...directory.devices, ...directory.held]),
-  ]);
-  return {
-    halves: [
-      { userId: ctx.self, digits: mine },
-      { userId, digits: theirs },
-    ].sort((a, b) => a.userId - b.userId),
-    theirs,
-    clears: (await peerKeyChanges.all())
-      .filter((change) => change.userId === userId)
-      .map((change) => change.deviceId),
-    verified: (await verifiedPairs.get(userId)) === theirs,
-  };
-}
-
-/** The person compared the number with them: release their devices and remember it. */
-export async function acknowledgeSafetyNumber(userId: number, number: SafetyNumber): Promise<void> {
-  await peerKeyChanges.acknowledge(number.clears, { userId, number: number.theirs });
 }

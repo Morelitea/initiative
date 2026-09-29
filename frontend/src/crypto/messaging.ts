@@ -16,7 +16,6 @@ export {
   ensureDeviceContext,
   forgetMessagesOnThisDevice,
   registeredDevice,
-  thisDevice,
 } from "./device";
 export {
   answerNewDevice,
@@ -26,19 +25,29 @@ export {
 } from "./historySync";
 export { markRead, unreadIn } from "./readState";
 export {
-  RecipientDevicesUnverifiedError,
   RecipientHasNoDeviceError,
   sendEdit,
   sendReaction,
   sendRemove,
   sendText,
 } from "./send";
-export { historyAsk, messageLog, type PeerKeyChange, type StoredMessage } from "./store";
-export { wantThreadHistory } from "./threadHistory";
 export {
-  acknowledgeSafetyNumber,
-  ownDeviceWaiting,
-  pairSafetyNumber,
-  peerKeyChangesWaiting,
-  type SafetyNumber,
-} from "./trust";
+  historyAsk,
+  messageLog,
+  type PeerKeyChange,
+  peerDeviceChanges,
+  type StoredMessage,
+} from "./store";
+export { wantThreadHistory } from "./threadHistory";
+export { ownDeviceWaiting } from "./trust";
+export {
+  cancelVerification,
+  collectVerification,
+  confirmMatch,
+  dismissVerification,
+  rejectMatch,
+  startVerification,
+  subscribeVerification,
+  type VerificationView,
+  verificationView,
+} from "./verification";
