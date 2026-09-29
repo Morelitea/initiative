@@ -25,6 +25,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.services.auth import totp as totp_service
 
+from app.core import auth_context
 from app.core.login_methods import SecondFactorRequirement
 from app.models.platform.guild import Guild, GuildRole
 from app.models.platform.user import UserRole
@@ -323,31 +324,37 @@ async def test_a_colleagues_factor_asks_nothing_of_an_account_without_one(
 
 
 @pytest.mark.parametrize(
-    "level,asked",
+    "level,signed_in_with,asked",
     [
-        (SecondFactorRequirement.nobody, False),
-        (SecondFactorRequirement.platform_roles, True),
-        (SecondFactorRequirement.everyone, True),
+        (SecondFactorRequirement.nobody, frozenset(), False),
+        (SecondFactorRequirement.platform_roles, frozenset(), True),
+        (SecondFactorRequirement.everyone, frozenset(), True),
+        (SecondFactorRequirement.everyone, frozenset({"mfa"}), False),
     ],
 )
 async def test_the_deployments_requirement_asks_an_account_without_one(
-    session: AsyncSession, acting_user, level, asked
+    session: AsyncSession, acting_user, level, signed_in_with, asked
 ):
     """Where the deployment requires a factor of the caller's rung, breaking
     glass asks for one even of an account that holds none, and the refusal
-    sends it to enrol. Asked of the rule directly: the deployment's own gate
-    turns such an account away sooner unless its identity provider carried
-    the factor at sign-in."""
+    sends it to enrol — unless its identity provider carried the factor at
+    sign-in, which answers the deployment's requirement everywhere else too.
+    Asked of the rule directly: the deployment's own gate turns an account
+    with neither away sooner."""
     a = await acting_user("operator")
     row = await app_settings_service.get_app_settings(session)
     row.second_factor_requirement = level
     session.add(row)
     await session.commit()
 
-    assert (
-        await access_grants_service.demands_second_factor(session, actor=a.user)
-        is asked
-    )
+    auth_context.set_session_amr(signed_in_with)
+    try:
+        demanded = await access_grants_service.demands_second_factor(
+            session, actor=a.user
+        )
+    finally:
+        auth_context.set_session_amr(None)
+    assert demanded is asked
 
 
 @pytest.mark.parametrize(
