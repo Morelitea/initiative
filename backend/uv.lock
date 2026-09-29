@@ -1274,7 +1274,7 @@ requires-dist = [
     { name = "tuf", specifier = ">=7.0.1" },
     { name = "typst", specifier = ">=0.15.0" },
     { name = "tzdata", specifier = ">=2026.2" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.41.0,<0.54" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.41.0,<0.55" },
     { name = "webauthn", specifier = ">=2.5.0,<4" },
 ]
 

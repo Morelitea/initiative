@@ -1474,9 +1474,9 @@ async def verify_engine_identities() -> None:
         logger.warning(
             "\n%s\n"
             "PRIVILEGE DRIFT: the request login %r holds TEMPORARY on database\n"
-            "%r. The app creates no temporary objects, so this grant is unused;\n"
-            "the bootstrap revokes it from PUBLIC. Deployments created before\n"
-            "that still carry it. To align, run as the database\n"
+            "%r. The request path creates no temporary objects, so this grant\n"
+            "is unused; the bootstrap revokes it from PUBLIC. Deployments\n"
+            "created before that still carry it. To align, run as the database\n"
             "owner:\n"
             "  REVOKE TEMPORARY ON DATABASE %s FROM PUBLIC;\n"
             "or set DATABASE_URL_BOOTSTRAP and restart, which does this and\n"
