@@ -1289,16 +1289,18 @@ async def test_oidc_login_rejects_non_https_authorization_endpoint(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
     """A discovery doc whose authorization_endpoint isn't https must not be
-    used as a redirect target — discovery refuses it and the endpoint surfaces
-    a clean 500 (CodeQL py/url-redirection)."""
+    used as a redirect target — discovery refuses it and the browser lands on
+    the callback page with the reason (CodeQL py/url-redirection)."""
     await _enable_platform_oidc(session)
     idp = FakeIdp()
     idp.discovery_doc["authorization_endpoint"] = "http://evil.example.com/auth"
     _wire_fake_idp(monkeypatch, idp)
 
     response = await client.get("/api/v1/auth/oidc/login", follow_redirects=False)
-    assert response.status_code == 500
-    assert response.json()["detail"] == "OIDC_METADATA_INCOMPLETE"
+    assert response.status_code in (302, 307)
+    assert response.headers["location"].endswith(
+        "/oidc/callback?error=discovery_failed"
+    )
 
 
 async def test_oidc_login_rejects_incomplete_discovery(
@@ -1310,8 +1312,10 @@ async def test_oidc_login_rejects_incomplete_discovery(
     _wire_fake_idp(monkeypatch, idp)
 
     response = await client.get("/api/v1/auth/oidc/login", follow_redirects=False)
-    assert response.status_code == 500
-    assert response.json()["detail"] == "OIDC_METADATA_INCOMPLETE"
+    assert response.status_code in (302, 307)
+    assert response.headers["location"].endswith(
+        "/oidc/callback?error=discovery_failed"
+    )
 
 
 async def test_oidc_callback_provisions_new_user_and_sets_cookie(
@@ -1896,6 +1900,29 @@ async def test_oidc_callback_rejects_forged_state(
         )
         assert response.status_code in (302, 307)
         assert "invalid_state" in response.headers["location"]
+        assert "session_token" not in response.cookies
+
+
+async def test_oidc_callback_names_a_provider_refusal(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """An OAuth error the provider sends back in place of a code is named on
+    the callback page: a denial as a denial, anything else as a refusal."""
+    await _enable_platform_oidc(session)
+    _wire_fake_idp(monkeypatch, FakeIdp())
+
+    state, _nonce = await _begin_login(client)
+    for error, shown in (
+        ("access_denied", "provider_denied"),
+        ("invalid_scope", "provider_refused"),
+    ):
+        response = await client.get(
+            "/api/v1/auth/oidc/callback",
+            params={"error": error, "state": state},
+            follow_redirects=False,
+        )
+        assert response.status_code in (302, 307)
+        assert response.headers["location"].endswith(f"?error={shown}")
         assert "session_token" not in response.cookies
 
 

@@ -185,6 +185,25 @@ async def test_token_endpoint_error_rejected():
     # The OAuth error body survives into the (server-side) detail for debugging.
     assert "invalid_grant" in str(err.value)
 
+    # The client's own credentials, and the person's access to the client,
+    # are named apart from any other refusal.
+    for response, code in (
+        (
+            httpx.Response(401, json={"error": "invalid_client"}),
+            "token_client_rejected",
+        ),
+        (
+            httpx.Response(400, json={"error": "invalid_client"}),
+            "token_client_rejected",
+        ),
+        (httpx.Response(401, text="Unauthorized"), "token_client_rejected"),
+        (httpx.Response(400, json={"error": "access_denied"}), "provider_denied"),
+    ):
+        idp.token_response = response
+        with pytest.raises(OidcFlowError) as err:
+            await provider.complete(code="c", state=begun.state)
+        assert err.value.code == code
+
 
 def test_empty_client_id_rejected_at_construction():
     """Config problems surface where the provider is built, not mid-login."""

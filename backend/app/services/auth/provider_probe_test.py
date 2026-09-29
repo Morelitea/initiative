@@ -101,7 +101,7 @@ async def test_a_document_for_another_issuer_says_mismatch():
     assert result.error_code == AuthProviderMessages.DISCOVERY_ISSUER_MISMATCH
 
 
-async def test_a_document_missing_an_endpoint_says_invalid():
+async def test_a_missing_or_plain_http_endpoint_is_named():
     idp = FakeIdp()
     del idp.discovery_doc["token_endpoint"]
 
@@ -109,6 +109,11 @@ async def test_a_document_missing_an_endpoint_says_invalid():
 
     assert result.ok is False
     assert result.error_code == AuthProviderMessages.DISCOVERY_INVALID
+
+    idp.discovery_doc["token_endpoint"] = "http://idp.internal/api/oidc/token"
+    result = await provider_probe.probe_issuer(ISSUER, discovery=_discovery(idp))
+
+    assert result.error_code == AuthProviderMessages.DISCOVERY_NOT_HTTPS
 
 
 async def test_an_upstream_error_body_is_not_reported_back():

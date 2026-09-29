@@ -34,6 +34,14 @@ describe("OidcCallbackPage", () => {
     });
   });
 
+  it("says what a sign-in step's code means", async () => {
+    renderWithError("token_client_rejected");
+
+    await waitFor(() => {
+      expect(screen.getByText(/client ID or secret/i)).toBeInTheDocument();
+    });
+  });
+
   it("falls back to the code itself when there is no sentence for it", async () => {
     renderWithError("SOMETHING_NOBODY_WROTE_A_MESSAGE_FOR");
 

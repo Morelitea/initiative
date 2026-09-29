@@ -90,11 +90,12 @@ def fresh_discovery(*, client_factory: ClientFactory | None = None) -> OidcDisco
 
 
 def _error_code_for(exc: DiscoveryError) -> str:
-    """Which of the three the caller is told.
+    """Which of the four the caller is told.
 
-    Discovery raises one error for every way this can go wrong, and the three
+    Discovery raises one error for every way this can go wrong, and the four
     outcomes worth telling apart are: nothing answered, something answered for
-    a different issuer, and something answered that is not a discovery
+    a different issuer, something answered that lists an endpoint by a
+    plain-http address, and something answered that is not a discovery
     document. The wording is discovery's own, so it is matched rather than
     re-derived.
     """
@@ -103,6 +104,8 @@ def _error_code_for(exc: DiscoveryError) -> str:
         return AuthProviderMessages.DISCOVERY_UNREACHABLE
     if "does not match" in detail:
         return AuthProviderMessages.DISCOVERY_ISSUER_MISMATCH
+    if "is not https" in detail:
+        return AuthProviderMessages.DISCOVERY_NOT_HTTPS
     return AuthProviderMessages.DISCOVERY_INVALID
 
 

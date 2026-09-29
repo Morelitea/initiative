@@ -345,7 +345,6 @@ class TaskStatusMessages:
 
 class OidcMessages:
     OIDC_NOT_ENABLED = "OIDC_NOT_ENABLED"
-    OIDC_METADATA_INCOMPLETE = "OIDC_METADATA_INCOMPLETE"
     REGISTRATION_DISABLED = "OIDC_REGISTRATION_DISABLED"
     EMAIL_UNVERIFIED = "OIDC_EMAIL_UNVERIFIED"
     ACCOUNT_INACTIVE = "OIDC_ACCOUNT_INACTIVE"
@@ -379,6 +378,8 @@ class AuthProviderMessages:
     DISCOVERY_ISSUER_MISMATCH = "AUTH_PROVIDER_DISCOVERY_ISSUER_MISMATCH"
     #: Something answered and is not an OpenID Connect discovery document.
     DISCOVERY_INVALID = "AUTH_PROVIDER_DISCOVERY_INVALID"
+    #: A discovery document that lists an endpoint by a plain-http address.
+    DISCOVERY_NOT_HTTPS = "AUTH_PROVIDER_DISCOVERY_NOT_HTTPS"
     #: The stored row has no issuer to check.
     DISCOVERY_NO_ISSUER = "AUTH_PROVIDER_DISCOVERY_NO_ISSUER"
     #: A community's connection, by an id that is not one of its own.

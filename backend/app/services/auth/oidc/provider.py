@@ -29,6 +29,7 @@ from app.services.auth.oidc._http import (
     DEFAULT_HTTP_TIMEOUT_SECONDS,
     ClientFactory,
     OidcHttpError,
+    OidcHttpStatusError,
     fetch_json,
     post_form_json,
 )
@@ -279,6 +280,8 @@ class OidcProvider:
                 client_factory=self._client_factory,
                 timeout_seconds=self._timeout,
             )
+        except OidcHttpStatusError as exc:
+            raise OidcFlowError(_token_error_code(exc), str(exc)) from exc
         except OidcHttpError as exc:
             raise OidcFlowError("token_request_failed", str(exc)) from exc
         if not isinstance(token_data, dict):
@@ -301,3 +304,15 @@ class OidcProvider:
                 f"provider advertises no asymmetric id_token algs: {advertised}",
             )
         return allowed
+
+
+def _token_error_code(exc: OidcHttpStatusError) -> str:
+    """Name the token endpoint's refusal by the OAuth error it gave (RFC 6749
+    §5.2): the client's own credentials, the person's access to this client,
+    or anything else."""
+    error = exc.body.get("error") if isinstance(exc.body, dict) else None
+    if error == "invalid_client" or exc.status == 401:
+        return "token_client_rejected"
+    if error == "access_denied":
+        return "provider_denied"
+    return "token_request_failed"

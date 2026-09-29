@@ -1594,10 +1594,7 @@ async def _begin_provider_login(
         )
     except OidcFlowError as exc:
         logger.error("OIDC login could not start: %s (%s)", exc.code, exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=OidcMessages.OIDC_METADATA_INCOMPLETE,
-        ) from exc
+        return _error_redirect(mobile, exc.code)
     # Discovery validated the authorization endpoint as an absolute https URL
     # (see app.services.auth.oidc.discovery), so a malformed or tampered
     # discovery document cannot send the user to a non-TLS location.
@@ -1714,6 +1711,22 @@ async def _complete_provider_login(
         except FlowStateError:
             is_mobile = None
 
+    # The provider answered the authorization request with an OAuth error
+    # (RFC 6749 §4.1.2.1) rather than a code.
+    provider_error = request.query_params.get("error")
+    if provider_error:
+        logger.warning(
+            "OIDC provider %s refused the sign-in: %s (%s)",
+            provider_row.slug,
+            provider_error[:64],
+            request.query_params.get("error_description", "")[:256],
+        )
+        return _error_redirect(
+            is_mobile,
+            "provider_denied"
+            if provider_error == "access_denied"
+            else "provider_refused",
+        )
     if not state or not hmac.compare_digest(
         request.cookies.get(OIDC_FLOW_COOKIE, ""), _state_digest(state)
     ):

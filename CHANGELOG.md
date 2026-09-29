@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A single sign-on that fails now says why** on the sign-in page, in words: the provider turning you away, the server's client ID or secret not being accepted, a sign-in that expired or began in another browser. A provider whose settings can't be read sends you back to the sign-in page with that reason, where it used to show a bare error.
+- **Testing a sign-in provider names an endpoint listed at a plain http address**, where it used to say the provider didn't answer with OpenID Connect details.
+
 ## [0.73.1] - 2026-09-29
 
 ### Added

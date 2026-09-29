@@ -139,7 +139,15 @@ async def _request_json(
         raise OidcHttpError(f"fetch failed for {url}: {exc}") from exc
     if error_status is not None:
         snippet = body[:_ERROR_SNIPPET_MAX_BYTES].decode("utf-8", errors="replace")
-        raise OidcHttpError(f"{url} returned {error_status}: {snippet}")
+        try:
+            parsed = json.loads(snippet)
+        except ValueError:
+            parsed = None
+        raise OidcHttpStatusError(
+            f"{url} returned {error_status}: {snippet}",
+            status=error_status,
+            body=parsed,
+        )
     if over_cap:
         raise OidcHttpError(
             f"response from {url} exceeds the {max_response_bytes}-byte cap"
