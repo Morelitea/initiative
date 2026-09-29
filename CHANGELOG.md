@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Trash shows 25 items a page**, with page controls past that.
+
 ## [0.73.0] - 2026-09-28
 
 ### Added
