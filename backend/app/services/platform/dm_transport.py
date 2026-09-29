@@ -1228,6 +1228,15 @@ async def send_verification(
         raise DmTransportError(Messages.VERIFY_SAME_DEVICE)
     await _own_device(session, user_id=user_id, device_id=device_id)
     await _own_device(session, user_id=user_id, device_id=to_device_id)
+    # Held to the end of the transaction, so two sends from one account count
+    # and insert one after the other.
+    await session.exec(
+        select(
+            func.pg_advisory_xact_lock(
+                func.hashtextextended(f"dm-verification:{user_id}", 0)
+            )
+        )
+    )
     await _clear_expired_verifications(
         session,
         user_id=user_id,

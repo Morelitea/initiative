@@ -150,4 +150,8 @@ export const ratchet = {
   verificationCheckMac: (txn: string, input: string, info: string, mac: string) =>
     call<boolean>("verificationCheckMac", txn, input, info, mac),
   verificationClose: (txn: string) => call<void>("verificationClose", txn),
+  signVerification: (pickle: string, message: string) =>
+    call<string>("signVerification", pickle, message),
+  verifyVerification: (fingerprintKey: string, message: string, signature: string) =>
+    call<boolean>("verifyVerification", fingerprintKey, message, signature),
 };

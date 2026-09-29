@@ -753,7 +753,10 @@ function Thread({
         className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 pt-10 pb-3"
       >
         {messages.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{t("noHistoryHere")}</p>
+          <>
+            <p className="text-muted-foreground text-sm">{t("noHistoryHere")}</p>
+            {changesBetween(Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY)}
+          </>
         ) : (
           <>
             {messages.map((message, index) => {

@@ -140,6 +140,10 @@ vi.mock("./client", () => ({
     verificationCheckMac: async (txn: string, input: string, info: string, mac: string) =>
       (await import("./engine")).verificationCheckMac(txn, input, info, mac),
     verificationClose: async (txn: string) => (await import("./engine")).verificationClose(txn),
+    // A relayed message is signed by the device that sent it: `signed:<text>`.
+    signVerification: async (_pickle: string, message: string) => `signed:${message}`,
+    verifyVerification: async (_fingerprint: string, message: string, signature: string) =>
+      signature === `signed:${message}`,
   },
 }));
 
@@ -1192,11 +1196,23 @@ describe("history between this account's own devices", () => {
     api.sendVerification.mockImplementation(async (body) => {
       sent.push(body);
     });
-    const last = () => JSON.parse(sent.at(-1)!.body);
-    const fromPhone = (message: Record<string, unknown>) =>
+    const textOf = (body: string) => JSON.parse(body).message as string;
+    const last = () => JSON.parse(textOf(sent.at(-1)!.body));
+    const fromPhone = (message: Record<string, unknown>, signedBy = OUR_PHONE.id) => {
+      const text = JSON.stringify(message);
       api.collectVerification.mockResolvedValueOnce({
-        items: [{ id: 1, sender_device_id: OUR_PHONE.id, body: JSON.stringify(message) }],
+        items: [
+          {
+            id: 1,
+            sender_device_id: OUR_PHONE.id,
+            body: JSON.stringify({
+              message: text,
+              signature: `signed:${signedBy}|${OURS.id}|${text}`,
+            }),
+          },
+        ],
       });
+    };
     const sha256 = async (text: string) =>
       btoa(
         String.fromCharCode(
@@ -1219,11 +1235,25 @@ describe("history between this account's own devices", () => {
 
     await startVerification(waiting, { sendHistory: false });
     const start = sent.at(-1)!;
-    const { txn } = JSON.parse(start.body);
+    const { txn } = last();
     expect(txn).not.toBe(bad.txn);
     expect(start.to_device_id).toBe(OUR_PHONE.id);
+    expect(JSON.parse(start.body).signature).toBe(
+      `signed:${OURS.id}|${OUR_PHONE.id}|${textOf(start.body)}`
+    );
     const phoneKey = await engine.verificationOpen("phone");
-    fromPhone({ v: 1, txn, type: "accept", commitment: await sha256(phoneKey + start.body) });
+    const accept = {
+      v: 1,
+      txn,
+      type: "accept",
+      commitment: await sha256(phoneKey + textOf(start.body)),
+    };
+    // Signed by some other device, it is passed over as if never sent.
+    const before = sent.length;
+    fromPhone(accept, "device-3");
+    await collectVerification();
+    expect(sent).toHaveLength(before);
+    fromPhone(accept);
     await collectVerification();
     const ourKey = last().key as string;
     engine.verificationEstablish("phone", ourKey);

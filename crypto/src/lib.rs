@@ -44,6 +44,8 @@ const DEVICE_TAG: &[u8] = b"initiative-dm-device-v1\0";
 /// What a device signs over each one-time key it publishes, and its fallback.
 const ONE_TIME_KEY_TAG: &[u8] = b"initiative-dm-otk-v1\0";
 const FALLBACK_KEY_TAG: &[u8] = b"initiative-dm-fallback-v1\0";
+/// What a device signs over each message it relays while verifying another.
+const VERIFICATION_TAG: &[u8] = b"initiative-dm-verification-v1\0";
 
 fn device_bytes(
     user_id: u64,
@@ -256,6 +258,32 @@ pub fn verify_device(
         .map_err(|_| JsError::new("bad fingerprint key"))?;
     let bytes = device_bytes(user_id(user_id_value)?, &identity, &fingerprint);
     Ok(verify(&fingerprint, &bytes, signature))
+}
+
+/// Sign one relayed verification message as this device's.
+#[wasm_bindgen]
+pub fn sign_verification(pickle: &str, key: &str, message: &str) -> Result<String, JsError> {
+    let account = load_account(pickle, key)?;
+    Ok(account
+        .sign([VERIFICATION_TAG, message.as_bytes()].concat())
+        .to_base64())
+}
+
+/// Whether a relayed verification message was signed by the device whose
+/// fingerprint key the directory lists.
+#[wasm_bindgen]
+pub fn verify_verification(
+    fingerprint_key: &str,
+    message: &str,
+    signature: &str,
+) -> Result<bool, JsError> {
+    let fingerprint = Ed25519PublicKey::from_base64(fingerprint_key)
+        .map_err(|_| JsError::new("bad fingerprint key"))?;
+    Ok(verify(
+        &fingerprint,
+        &[VERIFICATION_TAG, message.as_bytes()].concat(),
+        signature,
+    ))
 }
 
 /// Open a session with a device, spending a prekey claimed from the directory.

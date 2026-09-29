@@ -33,8 +33,10 @@ import init, {
   session_decrypt,
   session_encrypt,
   sign_device,
+  sign_verification,
   Verification,
   verify_device,
+  verify_verification,
 } from "./wasm/initiative_ratchet.js";
 
 let ready: Promise<unknown> | null = null;
@@ -172,6 +174,21 @@ export async function decrypt(
 ): Promise<Decrypted> {
   await loadRatchet();
   return session_decrypt(sessionPickle, await key(), messageType, ciphertext) as Decrypted;
+}
+
+/** Sign one relayed verification message as this device's. */
+export async function signVerification(pickle: string, message: string): Promise<string> {
+  await loadRatchet();
+  return sign_verification(pickle, await key(), message);
+}
+
+export async function verifyVerification(
+  fingerprintKey: string,
+  message: string,
+  signature: string
+): Promise<boolean> {
+  await loadRatchet();
+  return verify_verification(fingerprintKey, message, signature);
 }
 
 /** The comparisons in progress on this device, by attempt id. */

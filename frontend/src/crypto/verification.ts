@@ -9,7 +9,8 @@
  * starts from new keys. Once the person says they match, each side vouches for
  * its own long-lived keys under the same secret, and the other checks that
  * against what the directory lists for it. A device is released only when both
- * have happened.
+ * have happened. Every message is signed with the sending device's own key, and
+ * read only if it verifies against the directory's entry for that device.
  *
  * The device that holds the new one starts (`startVerification`); the other
  * answers whatever arrives in its relay inbox (`collectVerification`). One
@@ -26,7 +27,7 @@ import { ratchet } from "./client";
 import { type Context, ensureDeviceContext } from "./device";
 import { answerNewDevice } from "./historySync";
 import { emojiAt, type SafetyEmoji } from "./safetyCode";
-import { type PeerKeyChange, peerKeyChanges } from "./store";
+import { accountPickle, type PeerKeyChange, peerKeyChanges } from "./store";
 import type { TrustedDevice } from "./trust";
 
 /** How long a comparison may take, as the server keeps its messages. */
@@ -134,27 +135,61 @@ function emojiInfo(current: Attempt, theirKey: string): string {
 const macInfo = (current: Attempt, from: string, to: string) =>
   [MAC_INFO, current.ctx.self, from, to, current.txn].join("|");
 
+/** What a device signs to say a relayed message is its own, and for whom. */
+const signedText = (from: string, to: string, message: string) => `${from}|${to}|${message}`;
+
+/**
+ * Relay one message to the other device, signed with this device's own key so
+ * the other side can tell it came from here.
+ */
 async function send(current: Pick<Attempt, "ctx" | "peer">, message: Message): Promise<string> {
-  const body = JSON.stringify(message);
-  await sendRelay({ device_id: current.ctx.device, to_device_id: current.peer.id, body });
-  return body;
+  const text = JSON.stringify(message);
+  const pickle = await accountPickle.get();
+  if (!pickle) throw new Error("this device has no key store");
+  const signature = await ratchet.signVerification(
+    pickle,
+    signedText(current.ctx.device, current.peer.id, text)
+  );
+  await sendRelay({
+    device_id: current.ctx.device,
+    to_device_id: current.peer.id,
+    body: JSON.stringify({ message: text, signature }),
+  });
+  return text;
 }
 
-/** Stop the comparison in progress, leaving `next` on screen. */
-function finish(next: VerificationView): void {
-  if (attempt) {
-    clearTimeout(attempt.timer);
-    attempt.release();
-    void ratchet.verificationClose(attempt.txn).catch(() => undefined);
-    attempt = null;
+/** A relayed message, if its sender signed it for this device. */
+async function opened(ctx: Context, sender: TrustedDevice, body: string): Promise<string | null> {
+  try {
+    const { message, signature } = JSON.parse(body) as { message?: unknown; signature?: unknown };
+    if (typeof message !== "string" || typeof signature !== "string") return null;
+    const signed = await ratchet.verifyVerification(
+      sender.fingerprintKey,
+      signedText(sender.id, ctx.device, message),
+      signature
+    );
+    return signed ? message : null;
+  } catch {
+    return null;
   }
+}
+
+/** Whether `current` is still the comparison this tab is running. */
+const live = (current: Attempt) => attempt === current;
+
+/** Stop `current`, leaving `next` on screen. Nothing, if it has already ended. */
+function finish(current: Attempt, next: VerificationView): void {
+  if (!live(current)) return;
+  clearTimeout(current.timer);
+  current.release();
+  void ratchet.verificationClose(current.txn).catch(() => undefined);
+  attempt = null;
   show(next);
 }
 
-async function fail(reason: FailReason, tell = true): Promise<void> {
-  const current = attempt;
-  if (!current) return;
-  finish({ phase: "failed", device: current.peer, reason });
+async function fail(current: Attempt, reason: FailReason, tell = true): Promise<void> {
+  if (!live(current)) return;
+  finish(current, { phase: "failed", device: current.peer, reason });
   if (tell) {
     await send(current, { v: 1, txn: current.txn, type: "cancel", reason }).catch(() => undefined);
   }
@@ -165,9 +200,7 @@ function begin(fields: Omit<Attempt, "timer" | "established" | "confirmed">): At
     ...fields,
     established: false,
     confirmed: false,
-    timer: setTimeout(() => {
-      if (attempt === current) void fail("timeout");
-    }, VERIFICATION_TTL_MS),
+    timer: setTimeout(() => void fail(current, "timeout"), VERIFICATION_TTL_MS),
   };
   attempt = current;
   show({ phase: "waiting", device: current.peer });
@@ -207,7 +240,7 @@ export async function startVerification(
   try {
     current.start = await send(current, { v: 1, txn, type: "start" });
   } catch (error) {
-    finish({ phase: "idle" });
+    finish(current, { phase: "idle" });
     throw error;
   }
 }
@@ -222,15 +255,16 @@ export async function confirmMatch(): Promise<void> {
   show({ ...view, confirmed: true });
   try {
     const me = current.ctx.own.devices.find((device) => device.id === current.ctx.device);
-    if (!me) return fail("cancelled");
+    if (!me) return fail(current, "cancelled");
     const mac = await ratchet.verificationMac(
       current.txn,
       keysOf(me),
       macInfo(current, current.ctx.device, current.peer.id)
     );
+    if (!live(current)) return;
     await send(current, { v: 1, txn: current.txn, type: "mac", mac });
   } catch (error) {
-    if (attempt === current) await fail("cancelled");
+    await fail(current, "cancelled");
     throw error;
   }
   current.confirmed = true;
@@ -238,17 +272,14 @@ export async function confirmMatch(): Promise<void> {
 }
 
 /** The person says the pictures do not match. */
-export function rejectMatch(): Promise<void> {
-  return fail("mismatch");
+export async function rejectMatch(): Promise<void> {
+  if (attempt) await fail(attempt, "mismatch");
 }
 
 /** The dialog was closed before the comparison ended. */
-export function cancelVerification(): Promise<void> {
-  if (!attempt) {
-    show({ phase: "idle" });
-    return Promise.resolve();
-  }
-  return fail("cancelled").then(() => show({ phase: "idle" }));
+export async function cancelVerification(): Promise<void> {
+  if (attempt) await fail(attempt, "cancelled");
+  show({ phase: "idle" });
 }
 
 /** Put an ended comparison away. */
@@ -258,36 +289,37 @@ export function dismissVerification(): void {
 
 /** Both halves are in: this side said they match, and the other side vouched for its keys. */
 async function settle(current: Attempt): Promise<void> {
-  if (!current.confirmed || current.theirMac === undefined || attempt !== current) return;
+  if (!current.confirmed || current.theirMac === undefined || !live(current)) return;
   const vouched = await ratchet.verificationCheckMac(
     current.txn,
     keysOf(current.peer),
     macInfo(current, current.peer.id, current.ctx.device),
     current.theirMac
   );
-  if (!vouched) return fail("mismatch");
+  if (!live(current)) return;
+  if (!vouched) return fail(current, "mismatch");
   if (current.change) {
     await answerNewDevice(current.change, { mine: true, sendHistory: current.sendHistory });
   } else if (current.ctx.own.held.some((device) => device.id === current.peer.id)) {
     await peerKeyChanges.acknowledge([current.peer.id]);
   }
-  finish({ phase: "verified", device: current.peer });
+  finish(current, { phase: "verified", device: current.peer });
 }
 
-function parse(body: string): Message | null {
+function parse(text: string): Message | null {
   try {
-    const message = JSON.parse(body) as Partial<Message>;
+    const message = JSON.parse(text) as Partial<Message>;
     if (message.v !== 1 || typeof message.txn !== "string") return null;
-    const text = (field: string) => typeof (message as Record<string, unknown>)[field] === "string";
+    const field = (name: string) => typeof (message as Record<string, unknown>)[name] === "string";
     switch (message.type) {
       case "start":
         return message as Message;
       case "accept":
-        return text("commitment") ? (message as Message) : null;
+        return field("commitment") ? (message as Message) : null;
       case "key":
-        return text("key") ? (message as Message) : null;
+        return field("key") ? (message as Message) : null;
       case "mac":
-        return text("mac") ? (message as Message) : null;
+        return field("mac") ? (message as Message) : null;
       case "cancel":
         return message as Message;
       default:
@@ -302,6 +334,7 @@ async function showCode(current: Attempt, theirKey: string): Promise<void> {
   await ratchet.verificationEstablish(current.txn, theirKey);
   current.established = true;
   const indices = await ratchet.verificationEmoji(current.txn, emojiInfo(current, theirKey));
+  if (!live(current)) return;
   show({
     phase: "compare",
     device: current.peer,
@@ -311,9 +344,7 @@ async function showCode(current: Attempt, theirKey: string): Promise<void> {
 }
 
 /** Answer a `start` from another of this account's devices. */
-async function answer(ctx: Context, senderDeviceId: string, body: string, txn: string) {
-  const peer = [...ctx.own.devices, ...ctx.own.held].find((device) => device.id === senderDeviceId);
-  if (!peer) return;
+async function answer(ctx: Context, peer: TrustedDevice, start: string, txn: string) {
   if (attempt) {
     await send({ ctx, peer }, { v: 1, txn, type: "cancel", reason: "cancelled" }).catch(
       () => undefined
@@ -325,32 +356,30 @@ async function answer(ctx: Context, senderDeviceId: string, body: string, txn: s
     initiator: false,
     ctx,
     peer,
-    start: body,
+    start,
     sendHistory: false,
     release: () => undefined,
   });
   current.ourKey = await ratchet.verificationOpen(txn);
-  await send(current, {
-    v: 1,
-    txn,
-    type: "accept",
-    commitment: await commitmentTo(current.ourKey, body),
-  });
+  const commitment = await commitmentTo(current.ourKey, start);
+  if (!live(current)) return;
+  await send(current, { v: 1, txn, type: "accept", commitment });
 }
 
 async function handle(current: Attempt, message: Message): Promise<void> {
   if (message.type === "cancel") {
-    return fail(message.reason === "mismatch" ? "mismatch" : "cancelled", false);
+    return fail(current, message.reason === "mismatch" ? "mismatch" : "cancelled", false);
   }
   if (current.initiator && message.type === "accept" && current.ourKey === undefined) {
     current.commitment = message.commitment;
     current.ourKey = await ratchet.verificationOpen(current.txn);
+    if (!live(current)) return;
     await send(current, { v: 1, txn: current.txn, type: "key", key: current.ourKey });
     return;
   }
   if (current.initiator && message.type === "key" && current.commitment && !current.established) {
     if ((await commitmentTo(message.key, current.start)) !== current.commitment) {
-      return fail("mismatch");
+      return fail(current, "mismatch");
     }
     return showCode(current, message.key);
   }
@@ -363,7 +392,7 @@ async function handle(current: Attempt, message: Message): Promise<void> {
     return settle(current);
   }
   // Anything else is out of order, which a comparison does not recover from.
-  return fail("cancelled");
+  return fail(current, "cancelled");
 }
 
 let collecting: Promise<void> = Promise.resolve();
@@ -371,7 +400,8 @@ let collecting: Promise<void> = Promise.resolve();
 /**
  * Read this device's relay inbox and act on it: answer a comparison another
  * device started, or carry on the one in progress. One read at a time in a tab,
- * so messages are handled in the order they were sent.
+ * so messages are handled in the order they were sent. A message its sender
+ * did not sign for this device is passed over.
  */
 export function collectVerification(): Promise<void> {
   const next = collecting.then(collectOnce);
@@ -385,28 +415,31 @@ async function collectOnce(): Promise<void> {
     release = await takeLock();
     if (!release) return;
   }
+  let handling: Attempt | null = null;
   try {
     const ctx = attempt?.ctx ?? (await ensureDeviceContext());
     const { items } = await collectInbox({ device_id: ctx.device });
     for (const item of items) {
-      const message = parse(item.body);
-      if (!message) continue;
+      const sender = [...ctx.own.devices, ...ctx.own.held].find(
+        (device) => device.id === item.sender_device_id
+      );
+      const text = sender ? await opened(ctx, sender, item.body) : null;
+      const message = text === null ? null : parse(text);
+      if (!sender || text === null || !message) continue;
       if (message.type === "start") {
-        await answer(ctx, item.sender_device_id, item.body, message.txn);
+        await answer(ctx, sender, text, message.txn);
+        handling = attempt;
         if (attempt && release) {
           attempt.release = release;
           release = null;
         }
-      } else if (
-        attempt &&
-        message.txn === attempt.txn &&
-        item.sender_device_id === attempt.peer.id
-      ) {
+      } else if (attempt && message.txn === attempt.txn && sender.id === attempt.peer.id) {
+        handling = attempt;
         await handle(attempt, message);
       }
     }
   } catch (error) {
-    if (attempt) await fail("cancelled");
+    if (handling) await fail(handling, "cancelled");
     throw error;
   } finally {
     release?.();
