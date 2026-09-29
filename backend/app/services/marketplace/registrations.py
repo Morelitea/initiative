@@ -1,29 +1,28 @@
 """Managing the deployment's app service registrations.
 
-Three ways a registration arrives, and they meet in the same checks:
+Every app splits the same way, whatever published its listing
+(:mod:`app.models.platform.app_service_registration`):
 
-* **An operator adds one** through the ``apps.manage`` endpoints.
-* **The deployment declares them** in ``APP_SERVICES_CONFIG``, a file a chart
-  mounts, reconciled at boot. Reconciliation touches the database only, so a
-  boot never waits on an app's container. An entry's ``vendor_env`` names the
-  environment variables holding its vendor values, which are sealed into the
-  registration on each boot.
-* **The registry brings one** with a verified app listing
-  (:mod:`app.services.marketplace.registry_entries`). Its row keeps what the
-  registry says about the app; the operator edits only what is theirs on it
-  (the switch, mandatory flag, origins, and a container's location and keys).
-  An ``APP_SERVICES_CONFIG`` entry marked ``"registry": true`` gives those
-  deployment facts and leaves the row the registry's; an entry without the
-  mark takes the row over as the operator's.
+* **Its listing gives the app facts.** A listing from any source (the
+  registry, a local upload, the operator's catalog directory, the build) may
+  carry a ``registration`` block, and ``upsert_listing`` hands it to
+  :func:`read_listing_registration` and :func:`apply_listing_registration`,
+  which write the listing, scope ceiling, image and reference sectors onto
+  the registration for the service it names, creating the row when there is
+  none. Reference sectors are honoured only from the registry.
+* **The operator gives the deployment facts**: where the app runs, the keys
+  its container signs with, its vendor values, the switch, the mandatory flag
+  and the origins. Through the ``apps.manage`` endpoints, or in
+  ``APP_SERVICES_CONFIG``, a file a chart mounts, reconciled at boot. An
+  entry's ``vendor_env`` names the environment variables holding its vendor
+  values, which are sealed into the registration on each boot. An entry for an
+  app whose listing has not arrived waits for it: the listing apply that
+  creates the row applies the entry.
 
-Either way the registration states everything about itself: its
-``public_id``, the ``listing_uid`` of the listing it speaks for, where it
-lives, and its public keys (a pasted key set, a ``jwks_uri`` on its own
-origin, or both). Nothing is fetched from the app to fill any of it in. Its
-publisher is the row for its ``public_id`` prefix
-(:mod:`app.services.marketplace.publishers`). The one secret it may hold is
-its vendor values (:mod:`app.services.marketplace.vendor_values`), which the
-operator sets on any registration, a registry one included.
+Nothing is fetched from the app to fill any of it in. Its publisher is the row
+for its ``public_id`` prefix (:mod:`app.services.marketplace.publishers`). The
+one secret it may hold is its vendor values
+(:mod:`app.services.marketplace.vendor_values`).
 
 One rule the reconciler keeps, about not undoing a person: it never re-enables
 a registration an operator disabled — deactivating an app is the
@@ -39,7 +38,7 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Optional, Sequence
+from typing import Any, Iterable, Mapping, Optional, Sequence
 from urllib.parse import urlparse
 
 from fastapi import HTTPException, status as http_status
@@ -48,18 +47,24 @@ from jwt.exceptions import InvalidKeyError, PyJWKError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.app_scopes import UnknownAppScope, validate_scopes
+from app.core.app_scopes import ALL_SCOPES, app_scope_target
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
 from app.core.messages import AppServiceMessages
 from app.core.security import app_platform_signing_enabled
 from app.models.platform.app_service_registration import (
+    IMAGE_REFERENCE_MAX_LENGTH,
+    LISTING_STATED_FIELDS,
     MAX_APP_ID_LENGTH,
+    REFERENCE_SECTORS,
     AppServiceRegistration,
     RegistrationSource,
 )
-from app.models.platform.marketplace import UID_ALPHABET, UID_LENGTH
-from app.models.platform.publisher import Publisher, publisher_prefix
+from app.models.platform.publisher import (
+    FIRST_PARTY_PUBLISHER_PREFIX,
+    Publisher,
+    publisher_prefix,
+)
 from app.services import audit as audit_service
 from app.services.marketplace.app_keys import (
     PRIVATE_JWK_MEMBERS,
@@ -71,6 +76,7 @@ from app.services.marketplace.publishers import ensure_publisher
 from app.services.marketplace.registration_lookup import (
     invalidate_registrations,
     live_registration_clause,
+    service_public_id,
 )
 from app.core.clock import utcnow
 
@@ -95,30 +101,31 @@ AUDITED_FIELDS: tuple[str, ...] = (
 
 
 __all__ = [
+    "DeploymentFacts",
+    "ListingRegistration",
+    "ListingRegistrationError",
     "ReconcileResult",
     "RegistrationView",
-    "RegistryFacts",
-    "apply_registry_facts",
+    "apply_deployment_facts",
+    "apply_listing_registration",
     "check_signing_configured",
+    "configured_facts",
     "create_registration",
     "delete_registration",
     "get_registration",
-    "is_registry_container",
     "row_browser_base",
     "list_registrations",
     "normalize_base_url",
     "normalize_jwks",
     "normalize_jwks_uri",
     "normalize_embed_origin",
-    "normalize_listing_uid",
     "normalize_origin",
     "normalize_origins",
     "normalize_public_id",
-    "normalize_scope_ceiling",
     "origin_of",
+    "read_listing_registration",
     "reconcile_from_config",
     "registration_views",
-    "registry_facts",
     "update_registration",
 ]
 
@@ -137,14 +144,9 @@ def _bad_request(code: str, detail: str) -> HTTPException:
     return HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=code)
 
 
-def is_registry_container(row: AppServiceRegistration) -> bool:
-    """Whether the registry brought this row as a container the operator runs."""
-    return row.source == RegistrationSource.REGISTRY and row.image_digest is not None
-
-
 def row_browser_base(row: AppServiceRegistration) -> Optional[str]:
-    """Where a browser loads the app's surfaces, or ``None`` for a registry
-    container that has no location yet."""
+    """Where a browser loads the app's surfaces, or ``None`` for an app that
+    has no location yet."""
     return row.embed_origin or row.base_url
 
 
@@ -365,18 +367,6 @@ def normalize_jwks(value: Optional[dict]) -> Optional[dict]:
     return value
 
 
-def normalize_listing_uid(value: Optional[str]) -> str:
-    """The catalog uid of the listing a registration speaks for: required, and
-    held to the catalog's own alphabet and length."""
-    cleaned = (value or "").strip()
-    if len(cleaned) != UID_LENGTH or any(c not in UID_ALPHABET for c in cleaned):
-        raise _bad_request(
-            AppServiceMessages.INVALID_LISTING_UID,
-            f"listing_uid must be a {UID_LENGTH}-character catalog uid",
-        )
-    return cleaned
-
-
 def normalize_jwks_uri(value: Optional[str], *, base_url: str) -> Optional[str]:
     """Where the app publishes its key set: https, on ``base_url``'s own
     origin, with no query, fragment or credentials. Empty clears it."""
@@ -399,35 +389,6 @@ def normalize_jwks_uri(value: Optional[str], *, base_url: str) -> Optional[str]:
             "jwks_uri must be https on base_url's own origin",
         )
     return cleaned
-
-
-def normalize_scope_ceiling(values: Optional[Iterable[str]]) -> list[str]:
-    """Check a scope ceiling against the app scope vocabulary.
-
-    The ceiling is the most any install of this app may be granted, so every
-    entry must be a scope ``app.core.app_scopes`` defines. An unknown one is
-    refused rather than stored. Returned sorted and without repeats, so one set
-    has one stored form.
-    """
-    if values is None:
-        return []
-    if not isinstance(values, (list, tuple, set, frozenset)):
-        raise _bad_request(
-            AppServiceMessages.UNKNOWN_SCOPE, "scope_ceiling must be a list"
-        )
-    entries = list(values)
-    for value in entries:
-        if not isinstance(value, str):
-            raise _bad_request(
-                AppServiceMessages.UNKNOWN_SCOPE, f"{value!r} is not a scope"
-            )
-    try:
-        checked = validate_scopes(entries)
-    except UnknownAppScope as exc:
-        raise _bad_request(
-            AppServiceMessages.UNKNOWN_SCOPE, f"{exc.scope!r} is not a scope"
-        ) from exc
-    return sorted(checked)
 
 
 # --- reads -------------------------------------------------------------------
@@ -500,33 +461,29 @@ async def create_registration(
     session: AsyncSession,
     *,
     public_id: str,
-    listing_uid: str,
     base_url: str,
     embed_origin: Optional[str] = None,
     allowed_origins: Optional[Iterable[str]] = None,
     jwks: Optional[dict] = None,
     jwks_uri: Optional[str] = None,
-    scope_ceiling: Optional[Iterable[str]] = None,
     mandatory: bool = False,
     enabled: bool = True,
     vendor_values: Optional[dict[str, Optional[str]]] = None,
     actor_user_id: int | None = None,
 ) -> AppServiceRegistration:
-    """Wire an app service up, as stated.
+    """Set up an app service's deployment facts before its listing arrives.
 
-    Nothing is fetched from the app: the operator names it, its listing, its
-    addresses and its keys. Its publisher is the row for its prefix, added
-    unverified when there is none.
+    Nothing is fetched from the app: the operator names it, its addresses and
+    its keys. Its app facts wait for the listing that names it. Its publisher
+    is the row for its prefix, added unverified when there is none.
     """
     check_signing_configured()
     resolved_id = normalize_public_id(public_id)
-    uid = normalize_listing_uid(listing_uid)
     base_url = normalize_base_url(base_url)
     embed = normalize_embed_origin(embed_origin) if embed_origin else None
     origins = normalize_origins(allowed_origins, browser_base=embed or base_url)
     key_set = normalize_jwks(jwks)
     key_uri = normalize_jwks_uri(jwks_uri, base_url=base_url)
-    ceiling = normalize_scope_ceiling(scope_ceiling)
 
     if await _by_public_id(session, resolved_id) is not None:
         raise HTTPException(
@@ -537,14 +494,12 @@ async def create_registration(
 
     row = AppServiceRegistration(
         public_id=resolved_id,
-        listing_uid=uid,
         publisher_id=publisher.id,
         base_url=base_url,
         embed_origin=embed,
         allowed_origins=origins,
         jwks=key_set,
         jwks_uri=key_uri,
-        scope_ceiling=ceiling,
         mandatory=mandatory,
         enabled=enabled,
     )
@@ -592,42 +547,24 @@ async def update_registration(
     session: AsyncSession,
     registration_id: int,
     *,
-    listing_uid: Optional[str] = None,
     base_url: Optional[str] = None,
     embed_origin: Optional[str] = None,
     allowed_origins: Optional[Iterable[str]] = None,
     jwks: Optional[dict] = None,
     jwks_uri: Optional[str] = None,
-    scope_ceiling: Optional[Iterable[str]] = None,
     mandatory: Optional[bool] = None,
     enabled: Optional[bool] = None,
     vendor_values: Optional[dict[str, Optional[str]]] = None,
     actor_user_id: int | None = None,
 ) -> AppServiceRegistration:
-    """Edit a registration.
+    """Edit a registration's deployment facts.
 
     An empty ``embed_origin`` clears it, putting both surfaces back on
     ``base_url``; an empty ``jwks_uri`` clears it. A ``jwks_uri`` kept while
     ``base_url`` moves is checked against the new origin.
-
-    A registration the registry brought takes only the operator's fields (the
-    switch, mandatory flag, origins, a container's location and keys, and its
-    vendor values); a change to anything else answers 409.
     """
     row = await get_registration(session, registration_id)
-    if row.source == RegistrationSource.REGISTRY:
-        _check_registry_edit(
-            row,
-            listing_uid=listing_uid,
-            base_url=base_url,
-            embed_origin=embed_origin,
-            jwks=jwks,
-            jwks_uri=jwks_uri,
-            scope_ceiling=scope_ceiling,
-        )
     before = audit_service.snapshot(row, AUDITED_FIELDS)
-    if listing_uid is not None:
-        row.listing_uid = normalize_listing_uid(listing_uid)
     _write_placement(
         row,
         base_url=base_url,
@@ -636,9 +573,6 @@ async def update_registration(
         jwks=jwks,
         jwks_uri=jwks_uri,
     )
-    if scope_ceiling is not None:
-        # Replaces rather than merges; an empty list is a ceiling of nothing.
-        row.scope_ceiling = normalize_scope_ceiling(scope_ceiling)
     if mandatory is not None:
         row.mandatory = mandatory
     if enabled is not None:
@@ -725,55 +659,11 @@ def _write_placement(
         row.jwks_uri = normalize_jwks_uri(row.jwks_uri, base_url=row.base_url)
 
 
-def _check_registry_edit(
-    row: AppServiceRegistration,
-    *,
-    listing_uid: Optional[str],
-    base_url: Optional[str],
-    embed_origin: Optional[str],
-    jwks: Optional[dict],
-    jwks_uri: Optional[str],
-    scope_ceiling: Optional[Iterable[str]],
-) -> None:
-    """Refuse a change to what the registry says about an app.
-
-    A value sent unchanged is not a change, so a form that sends every field
-    back saves the operator's own edits. A container's location and keys are
-    the operator's to give: the deployment runs it and holds its private key.
-    """
-    changes: list[str] = []
-    if listing_uid is not None and listing_uid.strip() != (row.listing_uid or ""):
-        changes.append("listing_uid")
-    if scope_ceiling is not None and normalize_scope_ceiling(scope_ceiling) != sorted(
-        row.scope_ceiling or []
-    ):
-        changes.append("scope_ceiling")
-    if not is_registry_container(row):
-        if jwks is not None and normalize_jwks(jwks) != row.jwks:
-            changes.append("jwks")
-        if jwks_uri is not None and (jwks_uri.strip() or None) != row.jwks_uri:
-            changes.append("jwks_uri")
-        if base_url is not None and normalize_base_url(base_url) != row.base_url:
-            changes.append("base_url")
-        if embed_origin is not None:
-            cleaned = embed_origin.strip()
-            wanted = normalize_embed_origin(cleaned) if cleaned else None
-            if wanted != row.embed_origin:
-                changes.append("embed_origin")
-    if changes:
-        logger.debug(
-            "app service registration %s: the registry keeps %s",
-            row.public_id,
-            ", ".join(changes),
-        )
-        raise _registry_managed()
-
-
 async def delete_registration(
     session: AsyncSession, registration_id: int, *, actor_user_id: int | None = None
 ) -> None:
-    """Remove a registration. One the registry brought is switched off instead
-    (409): the next refresh would bring it back."""
+    """Remove a registration. One whose app facts come from the registry is
+    switched off instead (409): the next refresh would bring it back."""
     row = await get_registration(session, registration_id)
     if row.source == RegistrationSource.REGISTRY:
         raise _registry_managed()
@@ -790,6 +680,229 @@ async def delete_registration(
     invalidate_registrations()
 
 
+# --- app facts, from a listing ------------------------------------------------
+
+#: What a listing's ``registration`` block may not name: where a container runs
+#: and the keys it signs with are the deployment's.
+_DEPLOYMENT_KEYS = ("base_url", "embed_origin", "jwks", "jwks_uri")
+
+#: Characters a container image reference may use (``<repository>@sha256:``).
+_IMAGE_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789._/:-@")
+_IMAGE_DIGEST_MARK = "@sha256:"
+_HEX_DIGITS = frozenset("0123456789abcdef")
+
+
+class ListingRegistrationError(ValueError):
+    """A listing's ``registration`` block that is not applied. ``conflict``
+    says another listing holds the registration for the app it names."""
+
+    def __init__(self, detail: str, *, conflict: bool = False) -> None:
+        super().__init__(detail)
+        self.conflict = conflict
+
+
+@dataclass(frozen=True)
+class ListingRegistration:
+    """The app facts one listing gives the registration for its service."""
+
+    public_id: str
+    listing_uid: str
+    #: The catalog source of the listing (``registry``, ``operator``, …).
+    source: str
+    image: Optional[str]
+    scope_ceiling: list[str]
+    reference_sectors: list[str]
+    #: Whether the registry listing verified under the root this image ships.
+    root_is_builtin: bool
+
+
+def _image_reference(value: Any) -> str:
+    """A container image pinned by digest: ``<repository>@sha256:<hex>``."""
+    if (
+        not isinstance(value, str)
+        or len(value) > IMAGE_REFERENCE_MAX_LENGTH
+        or any(char not in _IMAGE_CHARS for char in value)
+        or value.count("@") != 1
+    ):
+        raise ListingRegistrationError("the container image is not a usable reference")
+    repository, mark, digest = value.partition(_IMAGE_DIGEST_MARK)
+    if (
+        not repository
+        or not mark
+        or len(digest) != 64
+        or any(char not in _HEX_DIGITS for char in digest)
+    ):
+        raise ListingRegistrationError(
+            "the container image is not pinned by sha256 digest"
+        )
+    return value
+
+
+def _vocabulary(values: Any, allowed: frozenset[str], *, what: str) -> list[str]:
+    """``values`` ∩ ``allowed``, sorted; anything else is dropped and logged,
+    so a listing written for a newer build still applies."""
+    if values is None:
+        return []
+    if not isinstance(values, list) or any(not isinstance(v, str) for v in values):
+        raise ListingRegistrationError(f"{what} must be a list of strings")
+    dropped = sorted({value for value in values if value not in allowed})
+    if dropped:
+        logger.warning(
+            "app services: %s drops what this build does not define: %s",
+            what,
+            ", ".join(dropped),
+        )
+    return sorted({value for value in values if value in allowed})
+
+
+async def read_listing_registration(
+    session: AsyncSession,
+    spec: Any,
+    *,
+    listing_uid: str,
+    listing_public_id: str,
+    definition: Any,
+    source: str,
+    root_is_builtin: bool = False,
+) -> ListingRegistration:
+    """Read a listing's ``registration`` block, before the listing is written.
+
+    The block is the same from every source: ``kind: "container"``, an
+    optional ``image`` pinned by digest, the ``scope_ceiling``, and
+    ``reference_sectors``, which only a registry listing may name. It names no
+    location and no keys. The registration it writes is the one for the
+    service the listing's definition names, under the listing's own prefix;
+    one another listing already holds is refused.
+    """
+    if not isinstance(spec, Mapping):
+        raise ListingRegistrationError("registration is not an object")
+    service_id = service_public_id(definition)
+    if service_id is None:
+        raise ListingRegistrationError("only a service app carries a registration")
+    try:
+        public_id = normalize_public_id(service_id)
+    except HTTPException as exc:
+        raise ListingRegistrationError("the service public_id is not usable") from exc
+    prefix = publisher_prefix(public_id)
+    if prefix != publisher_prefix(listing_public_id):
+        raise ListingRegistrationError("the service is published under another prefix")
+    if spec.get("kind") != "container":
+        raise ListingRegistrationError('registration.kind must be "container"')
+    stated = [key for key in _DEPLOYMENT_KEYS if key in spec]
+    if stated:
+        raise ListingRegistrationError(
+            f"a container's location and keys are the deployment's: {', '.join(stated)}"
+        )
+    registry = source == RegistrationSource.REGISTRY
+    declared_sectors = spec.get("reference_sectors")
+    if declared_sectors and not registry:
+        raise ListingRegistrationError(
+            "reference sectors are honoured only from a registry listing"
+        )
+
+    declared_image = spec.get("image")
+    image = _image_reference(declared_image) if declared_image is not None else None
+    declared_ceiling = spec.get("scope_ceiling")
+    ceiling = _vocabulary(
+        declared_ceiling,
+        frozenset(ALL_SCOPES)
+        | frozenset(
+            scope
+            for scope in (
+                declared_ceiling if isinstance(declared_ceiling, list) else []
+            )
+            if isinstance(scope, str) and app_scope_target(scope) is not None
+        ),
+        what=f"{public_id} ceiling",
+    )
+    sectors = _vocabulary(
+        declared_sectors, REFERENCE_SECTORS, what=f"{public_id} reference sectors"
+    )
+    if sectors and prefix != FIRST_PARTY_PUBLISHER_PREFIX:
+        # A sector names one of this deployment's own services, so only this
+        # project's own apps are given one.
+        logger.warning(
+            "app services: %s is not this project's app; reference sectors dropped",
+            public_id,
+        )
+        sectors = []
+
+    held = await _by_public_id(session, public_id)
+    if held is not None and held.listing_uid not in (None, listing_uid):
+        raise ListingRegistrationError(
+            f"{public_id} is registered for listing {held.listing_uid}",
+            conflict=True,
+        )
+    return ListingRegistration(
+        public_id=public_id,
+        listing_uid=listing_uid,
+        source=source,
+        image=image,
+        scope_ceiling=ceiling,
+        reference_sectors=sectors,
+        root_is_builtin=registry and root_is_builtin,
+    )
+
+
+async def apply_listing_registration(
+    session: AsyncSession, registration: ListingRegistration
+) -> AppServiceRegistration:
+    """Write a listing's app facts onto the registration for its service.
+
+    The one writer of app facts, for every source. A registration that is not
+    there yet is created, with the deployment facts ``APP_SERVICES_CONFIG``
+    gives it, and is not live until it has a location and keys. The caller
+    commits.
+    """
+    row = await _by_public_id(session, registration.public_id)
+    created = row is None
+    if row is None:
+        publisher = await ensure_publisher(
+            session, publisher_prefix(registration.public_id)
+        )
+        row = AppServiceRegistration(
+            public_id=registration.public_id, publisher_id=publisher.id
+        )
+    before = {} if created else audit_service.snapshot(row, AUDITED_FIELDS)
+    row.listing_uid = registration.listing_uid
+    row.scope_ceiling = registration.scope_ceiling
+    row.reference_sectors = registration.reference_sectors
+    row.image_digest = registration.image
+    row.root_is_builtin = registration.root_is_builtin
+    row.source = (
+        RegistrationSource.REGISTRY
+        if registration.source == RegistrationSource.REGISTRY
+        else RegistrationSource.OPERATOR
+    )
+    if created:
+        facts = configured_facts(registration.public_id)
+        if facts is not None:
+            apply_deployment_facts(row, facts)
+    await vendor_values_service.sync_required(session, row)
+    changed = audit_service.changed_fields(
+        before, audit_service.snapshot(row, AUDITED_FIELDS)
+    )
+    if not changed["changed"]:
+        return row
+    row.updated_at = utcnow()
+    session.add(row)
+    await session.flush()
+    await audit_service.record(
+        session,
+        event_type=(
+            AuditEventType.APP_SERVICE_CREATED
+            if created
+            else AuditEventType.APP_SERVICE_UPDATED
+        ),
+        actor_user_id=None,
+        target_type="app_service_registration",
+        target_id=row.id,
+        detail={"via": registration.source, **changed},
+    )
+    invalidate_registrations()
+    return row
+
+
 # --- boot reconciliation -----------------------------------------------------
 
 
@@ -797,14 +910,15 @@ async def delete_registration(
 class ReconcileResult:
     """What one pass over ``APP_SERVICES_CONFIG`` did."""
 
-    created: int = 0
     updated: int = 0
     unchanged: int = 0
+    #: Entries for apps whose listing has not arrived yet.
+    waiting: int = 0
     skipped: int = 0
 
     @property
     def total(self) -> int:
-        return self.created + self.updated + self.unchanged + self.skipped
+        return self.updated + self.unchanged + self.waiting + self.skipped
 
 
 def _load_entries(path: Path) -> list[dict[str, Any]]:
@@ -816,14 +930,9 @@ def _load_entries(path: Path) -> list[dict[str, Any]]:
     return [entry for entry in document if isinstance(entry, dict)]
 
 
-#: What an entry marked ``"registry": true`` may not state: the registry does.
-_REGISTRY_STATES = ("listing_uid", "scope_ceiling", "image", "image_digest")
-
-
 @dataclass(frozen=True)
-class RegistryFacts:
-    """How this deployment runs an app the registry brings, from an
-    ``APP_SERVICES_CONFIG`` entry marked ``"registry": true``.
+class DeploymentFacts:
+    """How this deployment runs an app, from an ``APP_SERVICES_CONFIG`` entry.
 
     ``None`` is a fact the entry leaves out, which leaves the row's value as
     it is. A container's placement is one statement: an entry that gives its
@@ -841,19 +950,18 @@ class RegistryFacts:
 
     @property
     def places(self) -> bool:
-        """Whether it gives a location and keys, which only a container takes."""
+        """Whether it gives a location and keys."""
         return self.base_url is not None
 
 
-def _registry_facts(entry: dict[str, Any]) -> RegistryFacts:
-    """Read an entry marked ``"registry": true``, refusing one that states
-    what the registry says about the app, or a location or keys that do not
-    fit together."""
-    stated = [key for key in _REGISTRY_STATES if key in entry]
+def _deployment_facts(entry: dict[str, Any]) -> DeploymentFacts:
+    """Read an entry, refusing one that names what only the app's listing
+    states, or a location and keys that do not fit together."""
+    stated = [key for key in LISTING_STATED_FIELDS if key in entry]
     if stated:
         raise _bad_request(
-            AppServiceMessages.REGISTRY_MANAGED,
-            f"the registry states {', '.join(stated)}",
+            AppServiceMessages.STATED_BY_LISTING,
+            f"the app's listing states {', '.join(stated)}",
         )
     declared_base = entry.get("base_url")
     base_url = normalize_base_url(str(declared_base)) if declared_base else None
@@ -873,7 +981,7 @@ def _registry_facts(entry: dict[str, Any]) -> RegistryFacts:
     origins = [normalize_origin(str(item)) for item in declared_origins]
     declared_embed = entry.get("embed_origin")
     declared_uri = entry.get("jwks_uri")
-    return RegistryFacts(
+    return DeploymentFacts(
         base_url=base_url,
         embed_origin=(
             normalize_embed_origin(str(declared_embed)) if declared_embed else None
@@ -890,13 +998,12 @@ def _registry_facts(entry: dict[str, Any]) -> RegistryFacts:
     )
 
 
-def registry_facts(public_id: str) -> Optional[RegistryFacts]:
-    """The facts ``APP_SERVICES_CONFIG`` gives for the registry's app
-    ``public_id``, or ``None``.
+def configured_facts(public_id: str) -> Optional[DeploymentFacts]:
+    """The facts ``APP_SERVICES_CONFIG`` gives for ``public_id``, or ``None``.
 
-    Read when the registry refresh applies the app, so facts written before
-    the registry brought it reach its row. An entry reconciliation refuses
-    gives nothing here either.
+    Read when a listing apply creates the registration, so an entry written
+    before the listing arrived reaches its row. An entry reconciliation
+    refuses gives nothing here either.
     """
     configured = settings.APP_SERVICES_CONFIG
     if not configured:
@@ -906,24 +1013,19 @@ def registry_facts(public_id: str) -> Optional[RegistryFacts]:
     except (OSError, ValueError):
         return None
     for entry in entries:
-        if entry.get("registry") is not True:
-            continue
         if str(entry.get("public_id", "")).strip().lower() != public_id:
             continue
         try:
-            return _registry_facts(entry)
+            return _deployment_facts(entry)
         except HTTPException:
             continue
     return None
 
 
-def apply_registry_facts(row: AppServiceRegistration, facts: RegistryFacts) -> bool:
-    """Write an entry's facts onto a registry row, and say whether any moved.
+def apply_deployment_facts(row: AppServiceRegistration, facts: DeploymentFacts) -> bool:
+    """Write an entry's facts onto a registration, and say whether any moved.
 
-    Never changes the row's source. A container takes its placement from them;
-    a hosted app's location and keys stay the registry's, so facts giving
-    them are passed over. Vendor values are sealed from the environment
-    variables the entry names.
+    Vendor values are sealed from the environment variables the entry names.
     """
 
     def state() -> tuple:
@@ -937,20 +1039,13 @@ def apply_registry_facts(row: AppServiceRegistration, facts: RegistryFacts) -> b
         )
 
     was = state()
-    placed = facts.places and is_registry_container(row)
-    if facts.places and not placed:
-        logger.warning(
-            "app services: %r is hosted by its publisher, whose location and "
-            "keys it keeps; the entry's are passed over",
-            row.public_id,
-        )
     _write_placement(
         row,
-        base_url=facts.base_url if placed else None,
-        embed_origin=(facts.embed_origin or "") if placed else None,
+        base_url=facts.base_url,
+        embed_origin=(facts.embed_origin or "") if facts.places else None,
         allowed_origins=facts.allowed_origins,
-        jwks=(facts.jwks or {}) if placed else None,
-        jwks_uri=(facts.jwks_uri or "") if placed else None,
+        jwks=(facts.jwks or {}) if facts.places else None,
+        jwks_uri=(facts.jwks_uri or "") if facts.places else None,
     )
     if facts.mandatory is not None:
         row.mandatory = facts.mandatory
@@ -961,19 +1056,19 @@ def apply_registry_facts(row: AppServiceRegistration, facts: RegistryFacts) -> b
 
 
 async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
-    """Bring the table in line with the mounted config file.
+    """Apply the mounted config file's deployment facts to the registrations
+    it names.
 
-    Each entry is ``{public_id, listing_uid, base_url}`` and optionally
-    ``embed_origin``, ``allowed_origins``, ``jwks``, ``jwks_uri``,
-    ``scope_ceiling``, ``mandatory`` and ``vendor_env`` (vendor key →
-    environment variable name, read and sealed on every pass). Database-only:
-    this upserts rows and stops.
+    Each entry is ``{public_id}`` with any of ``base_url``, ``embed_origin``,
+    ``allowed_origins``, ``jwks``, ``jwks_uri``, ``mandatory`` and
+    ``vendor_env`` (vendor key → environment variable name, read and sealed on
+    every pass). An entry naming what only the app's listing states is
+    refused. Database-only: this updates rows and stops. It creates none: an
+    entry for an app whose listing has not arrived waits, and the listing
+    apply that creates its registration applies it.
 
-    An entry marked ``"registry": true`` is :class:`RegistryFacts` for an app
-    the registry brings, written onto its row without changing its source.
-    It creates nothing: before the registry brings the app, the refresh that
-    does applies them. It is refused when an operator's registration holds
-    that ``public_id``, and when it gives a hosted app a location or keys.
+    ``enabled`` is not reconciled: turning a registration off is an operator
+    action, and a restart must not reverse it.
 
     An entry naming ``grants`` is read without it, and the pass logs that it
     was: the field is no longer part of a registration, and a file written for
@@ -993,101 +1088,15 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
         logger.warning("app services: %s could not be read (%s)", path, exc)
         return ReconcileResult()
 
-    created = updated = unchanged = skipped = 0
-    # The rows this pass touched, with what the updated ones looked like
-    # before. Recorded after the loop, when the inserts have their ids.
-    born: list[AppServiceRegistration] = []
+    updated = unchanged = waiting = skipped = 0
+    # The rows this pass changed, with what they looked like before.
     edited: list[tuple[AppServiceRegistration, dict]] = []
-    # A public_id already handled in this pass. The row for it is pending rather
-    # than flushed, so a second entry naming it would look absent, insert a
-    # duplicate, and fail the unique constraint at the shared commit — taking
-    # every other registration in the file down with it.
     seen: set[str] = set()
 
-    def first_mention(public_id: str) -> bool:
-        if public_id in seen:
-            logger.warning(
-                "app services: %r appears more than once in %s — later entry skipped",
-                public_id,
-                path,
-            )
-            return False
-        seen.add(public_id)
-        return True
-
     for entry in entries:
-        if entry.get("registry") is True:
-            try:
-                public_id = normalize_public_id(str(entry.get("public_id", "")))
-                facts = _registry_facts(entry)
-            except HTTPException as exc:
-                logger.warning(
-                    "app services: entry %r refused (%s)",
-                    entry.get("public_id"),
-                    exc.detail,
-                )
-                skipped += 1
-                continue
-            if not first_mention(public_id):
-                skipped += 1
-                continue
-            row = await _by_public_id(session, public_id)
-            if row is None:
-                logger.info(
-                    "app services: %r is not here yet; the registry refresh that "
-                    "brings it applies its entry",
-                    public_id,
-                )
-                unchanged += 1
-                continue
-            if row.source != RegistrationSource.REGISTRY:
-                logger.warning(
-                    "app services: this deployment's operator registered %r; its "
-                    "registry entry is refused",
-                    public_id,
-                )
-                skipped += 1
-                continue
-            if facts.places and not is_registry_container(row):
-                logger.warning(
-                    "app services: %r is hosted by its publisher, whose location "
-                    "and keys it keeps; its registry entry is refused",
-                    public_id,
-                )
-                skipped += 1
-                continue
-            before = audit_service.snapshot(row, AUDITED_FIELDS)
-            required_before = list(row.vendor_required or [])
-            moved = apply_registry_facts(row, facts)
-            await vendor_values_service.sync_required(session, row)
-            if not moved and required_before == list(row.vendor_required or []):
-                unchanged += 1
-                continue
-            row.updated_at = utcnow()
-            session.add(row)
-            edited.append((row, before))
-            updated += 1
-            continue
-
         try:
             public_id = normalize_public_id(str(entry.get("public_id", "")))
-            listing_uid = normalize_listing_uid(str(entry.get("listing_uid") or ""))
-            base_url = normalize_base_url(str(entry.get("base_url", "")))
-            declared_embed = entry.get("embed_origin")
-            embed = (
-                normalize_embed_origin(str(declared_embed)) if declared_embed else None
-            )
-            origins = normalize_origins(
-                entry.get("allowed_origins"), browser_base=embed or base_url
-            )
-            key_set = normalize_jwks(entry.get("jwks"))
-            declared_uri = entry.get("jwks_uri")
-            key_uri = normalize_jwks_uri(
-                str(declared_uri) if declared_uri else None, base_url=base_url
-            )
-            # Optional: an entry that names none gives the app a ceiling of
-            # nothing, so no install of it may be granted a scope.
-            ceiling = normalize_scope_ceiling(entry.get("scope_ceiling"))
+            facts = _deployment_facts(entry)
         except HTTPException as exc:
             logger.warning(
                 "app services: entry %r refused (%s)",
@@ -1102,102 +1111,38 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
                 "longer has; the field is ignored",
                 public_id,
             )
-
-        if not first_mention(public_id):
+        if public_id in seen:
+            logger.warning(
+                "app services: %r appears more than once in %s — later entry skipped",
+                public_id,
+                path,
+            )
             skipped += 1
             continue
+        seen.add(public_id)
 
-        mandatory = bool(entry.get("mandatory", False))
         row = await _by_public_id(session, public_id)
         if row is None:
-            publisher = await ensure_publisher(session, publisher_prefix(public_id))
-            fresh = AppServiceRegistration(
-                public_id=public_id,
-                listing_uid=listing_uid,
-                publisher_id=publisher.id,
-                base_url=base_url,
-                embed_origin=embed,
-                allowed_origins=origins,
-                jwks=key_set,
-                jwks_uri=key_uri,
-                scope_ceiling=ceiling,
-                mandatory=mandatory,
-                enabled=True,
+            logger.info(
+                "app services: %r has no listing here yet; the listing that "
+                "brings it applies its entry",
+                public_id,
             )
-            vendor_values_service.apply_vendor_env(
-                fresh, entry.get("vendor_env"), public_id=public_id
-            )
-            await vendor_values_service.sync_required(session, fresh)
-            session.add(fresh)
-            born.append(fresh)
-            created += 1
+            waiting += 1
             continue
-
-        # The file is the declarative source for what the app IS and may do.
-        # `enabled` is deliberately not reconciled: turning a registration off
-        # is an operator action, and a restart must not reverse it. A row the
-        # registry brought becomes the operator's: an entry without the
-        # registry mark is their statement of the whole app, and it wins.
-        taken_over = row.source == RegistrationSource.REGISTRY
-        vendor_moved = vendor_values_service.apply_vendor_env(
-            row, entry.get("vendor_env"), public_id=public_id
-        )
+        before = audit_service.snapshot(row, AUDITED_FIELDS)
         required_before = list(row.vendor_required or [])
+        moved = apply_deployment_facts(row, facts)
         await vendor_values_service.sync_required(session, row)
-        dirty = (
-            taken_over
-            or bool(vendor_moved)
-            or required_before != list(row.vendor_required or [])
-            or listing_uid != row.listing_uid
-            or base_url != row.base_url
-            or embed != row.embed_origin
-            or origins != list(row.allowed_origins or [])
-            or key_set != row.jwks
-            or key_uri != row.jwks_uri
-            or ceiling != list(row.scope_ceiling or [])
-            or mandatory != row.mandatory
-        )
-        if not dirty:
+        if not moved and required_before == list(row.vendor_required or []):
             unchanged += 1
             continue
-
-        before = audit_service.snapshot(row, AUDITED_FIELDS)
-        row.listing_uid = listing_uid
-        row.base_url = base_url
-        row.embed_origin = embed
-        row.allowed_origins = origins
-        row.jwks = key_set
-        row.jwks_uri = key_uri
-        row.scope_ceiling = ceiling
-        row.mandatory = mandatory
-        if taken_over:
-            row.source = RegistrationSource.OPERATOR
-            row.image_digest = None
-            row.reference_sectors = []
-            row.root_is_builtin = False
         row.updated_at = utcnow()
         session.add(row)
         edited.append((row, before))
         updated += 1
 
-    # One flush so every insert has its id, then a record apiece. The file is
-    # the author, so the rows carry no actor.
-    if born or edited:
-        await session.flush()
-    for fresh in born:
-        await audit_service.record(
-            session,
-            event_type=AuditEventType.APP_SERVICE_CREATED,
-            actor_user_id=None,
-            target_type="app_service_registration",
-            target_id=fresh.id,
-            detail={
-                "via": "config",
-                **audit_service.changed_fields(
-                    {}, audit_service.snapshot(fresh, AUDITED_FIELDS)
-                ),
-            },
-        )
+    # The file is the author, so the records carry no actor.
     for edit, was in edited:
         await audit_service.record(
             session,
@@ -1215,5 +1160,5 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
     await session.commit()
     invalidate_registrations()
     return ReconcileResult(
-        created=created, updated=updated, unchanged=unchanged, skipped=skipped
+        updated=updated, unchanged=unchanged, waiting=waiting, skipped=skipped
     )

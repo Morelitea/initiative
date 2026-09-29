@@ -468,10 +468,11 @@ async def prepare_database() -> None:
                     app_service_session
                 )
             logger.info(
-                "app services: %d created, %d updated, %d unchanged, %d skipped",
-                reconciled.created,
+                "app services: %d updated, %d unchanged, %d waiting for their "
+                "listing, %d skipped",
                 reconciled.updated,
                 reconciled.unchanged,
+                reconciled.waiting,
                 reconciled.skipped,
             )
         except Exception:

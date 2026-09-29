@@ -19,6 +19,7 @@ import pytest
 from sqlmodel import select
 
 from app.core.config import settings
+from app.models.platform.app_service_registration import AppServiceRegistration
 from app.models.platform.marketplace import MarketplaceListing
 from app.services.marketplace import operator_catalog as service
 from app.services.marketplace.catalog import upsert_listing
@@ -214,6 +215,31 @@ class TestPublishing:
         await session.commit()
 
         assert (await _listings(session))["acme.standup"].name == "Daily standup"
+
+    async def test_an_apps_registration_block_gives_its_registration_the_app_facts(
+        self, session, catalog_dir
+    ):
+        """The same block a registry listing carries: the operator's file is
+        the trust, and its ceiling is their approval."""
+        block = {"kind": "container", "scope_ceiling": ["projects:read"]}
+        _write(catalog_dir, "tracker.json", _app_manifest(registration=block))
+
+        result = await service.scan_operator_catalog(session)
+        await session.commit()
+
+        assert result.problems == ()
+        row = (
+            await session.exec(
+                select(AppServiceRegistration).where(
+                    AppServiceRegistration.public_id == "acme.tracker"
+                )
+            )
+        ).one()
+        assert (row.listing_uid, row.scope_ceiling, row.source) == (
+            APP_UID,
+            ["projects:read"],
+            "operator",
+        )
 
 
 class TestBadFiles:

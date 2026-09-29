@@ -1,22 +1,27 @@
 """Deployment-level registrations for external app services.
 
 A marketplace **listing** says what an app is and what it declares. A
-**registration** is the separate, operator-owned statement that a particular
-deployment has wired that app up: which listing it is, where it lives, the
-public keys it signs with, and the most any install of it may be granted.
-Nothing in this table can be claimed by a manifest — a publisher describes their app,
-an operator decides what this deployment does with it.
+**registration** is this deployment's record that it runs that app. Every app
+splits the same way, whatever published its listing:
 
-A registration holds no secret. Every call the app makes to Initiative is a
-JWT it signs with a key published here (``jwks``, or ``jwks_uri`` on its own
-origin), and every call Initiative makes to the app is a JWT under the app
-platform's own key.
+* **App facts** come from the app's listing, and only a listing apply writes
+  them: ``listing_uid``, ``scope_ceiling``, ``image_digest`` and
+  ``reference_sectors``. Every source reads the same ``registration`` block
+  (the registry, a local upload, the operator's catalog directory, the build).
+* **Deployment facts** come from the operator, through ``APP_SERVICES_CONFIG``
+  or the settings form: where the app runs, the public keys its container signs
+  with, its vendor values, the switch, the mandatory flag and the origins.
+
+A registration holds no secret beyond its vendor values. Every call the app
+makes to Initiative is a JWT it signs with a key published here (``jwks``, or
+``jwks_uri`` on its own origin), and every call Initiative makes to the app is
+a JWT under the app platform's own key.
 
 Some columns exist only because of that split:
 
-* ``listing_uid`` — the catalog listing this registration speaks for, stated
-  by whoever registers the app. It is what ties the registration to the
-  installs it may reach.
+* ``listing_uid`` — the catalog listing this registration's app facts come
+  from. It is what ties the registration to the installs it may reach. Null on
+  a registration the operator set up before its listing arrived.
 * ``publisher_id`` — the publisher the ``public_id`` prefix names
   (:mod:`app.models.platform.publisher`). Its switch outranks the
   registration's own.
@@ -38,17 +43,13 @@ has a key set to verify against, and its required vendor values are set.
 The install standing, the registration snapshot and every channel that reads
 a single row ask it in that form.
 
-**Where it came from** is ``source``. An operator's row (``apps.manage``
-endpoints, or ``APP_SERVICES_CONFIG`` at boot) is theirs entirely. A registry
-row (``source='registry'``) is written by the registry refresh from a verified
-listing: the listing it speaks for, its ceiling, its reference sectors, and
-either the image it runs (a container) or where it is hosted and its keys. The
-operator keeps the kill switch, the mandatory flag, the origin list and, for a
-container, its location and keys.
+**Where its app facts came from** is ``source``: ``registry`` for a listing
+the registry signed, ``operator`` for a listing this deployment published
+itself, or for a registration whose listing has not arrived yet.
 
 Lives in ``public``: a registration is platform-wide and carries no guild data.
 It is written on the system engine by ``apps.manage`` (owner) endpoints, by
-boot reconciliation from ``APP_SERVICES_CONFIG``, and by the registry refresh.
+boot reconciliation from ``APP_SERVICES_CONFIG``, and by listing applies.
 """
 
 from datetime import datetime, timezone
@@ -73,6 +74,7 @@ from app.models.platform.identity_ref import IdentityPurpose
 
 __all__ = [
     "IMAGE_REFERENCE_MAX_LENGTH",
+    "LISTING_STATED_FIELDS",
     "MAX_APP_ID_LENGTH",
     "REFERENCE_SECTORS",
     "AppServiceRegistration",
@@ -94,13 +96,24 @@ IMAGE_REFERENCE_MAX_LENGTH = 500
 #: an app may be allowed to learn. A sector outside this set is dropped.
 REFERENCE_SECTORS: frozenset[str] = frozenset({IdentityPurpose.billing.value})
 
+#: What only an app's listing states. An ``APP_SERVICES_CONFIG`` entry or a
+#: settings request naming one is refused: it gives deployment facts only.
+LISTING_STATED_FIELDS: tuple[str, ...] = (
+    "listing_uid",
+    "scope_ceiling",
+    "image",
+    "image_digest",
+    "reference_sectors",
+    "registry",
+)
+
 
 class RegistrationSource:
-    """Where a registration row came from."""
+    """Where a registration's app facts came from."""
 
-    #: The ``apps.manage`` endpoints or ``APP_SERVICES_CONFIG``.
+    #: A listing this deployment published itself, or none yet.
     OPERATOR = "operator"
-    #: The registry refresh, from a verified listing.
+    #: A listing the registry signed.
     REGISTRY = "registry"
 
 
@@ -115,9 +128,9 @@ def registration_live_sql(
     required vendor value set. ``-> 0`` reads the first key and is null for an
     empty or absent set.
 
-    A registry container registration lacks both until the operator gives
-    them: the registry names the image, and the operator says where it runs
-    and which keys it signs with.
+    A registration lacks both until the operator gives them: its listing
+    names the app, and the operator says where it runs and which keys it
+    signs with.
     """
     return (
         f"({registration}.enabled AND {publisher}.enabled"
@@ -141,9 +154,9 @@ class AppServiceRegistration(SQLModel, table=True):
     public_id: str = Field(
         sa_column=Column(String(MAX_APP_ID_LENGTH), nullable=False, unique=True)
     )
-    # The catalog uid of the listing this registration speaks for, stated by
-    # whoever registers the app. Nullable only for rows that predate the rule
-    # and never named one; such a row reaches no install.
+    # The catalog uid of the listing this registration's app facts come from,
+    # written by that listing's apply. Null until the listing arrives; such a
+    # row reaches no install.
     listing_uid: Optional[str] = Field(
         default=None, sa_column=Column(String(14), nullable=True, index=True)
     )
@@ -158,9 +171,8 @@ class AppServiceRegistration(SQLModel, table=True):
     )
     # Base of the service's wire surface: its data and lifecycle endpoints
     # hang off it, and a ``jwks_uri`` must share its origin. Every consumer of
-    # this column is Initiative's own server calling the app. NULL only on a
-    # registry container registration the operator has not placed yet, which
-    # is not live until they do.
+    # this column is Initiative's own server calling the app. NULL until the
+    # operator places it, and not live until they do.
     base_url: Optional[str] = Field(
         default=None, sa_column=Column(String(1000), nullable=True)
     )
@@ -190,8 +202,8 @@ class AppServiceRegistration(SQLModel, table=True):
     jwks_uri: Optional[str] = Field(
         default=None, sa_column=Column(String(1000), nullable=True)
     )
-    # The most an install of this app may be granted (see module docstring).
-    # Validated against ``app.core.app_scopes`` on every write.
+    # The most an install of this app may be granted (see module docstring),
+    # from its listing. Only scopes ``app.core.app_scopes`` defines are kept.
     scope_ceiling: List[str] = Field(
         default_factory=list,
         sa_column=Column(ARRAY(Text), nullable=False, server_default=text("'{}'")),
@@ -206,19 +218,19 @@ class AppServiceRegistration(SQLModel, table=True):
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
-    # Where the row came from (``RegistrationSource``).
+    # Where its app facts came from (``RegistrationSource``).
     source: str = Field(
         default=RegistrationSource.OPERATOR,
         sa_column=Column(String(16), nullable=False, server_default="operator"),
     )
-    # The container image a registry listing names, pinned by digest
-    # (``<repository>@sha256:<hex>``). NULL for every other registration.
+    # The container image its listing names, pinned by digest
+    # (``<repository>@sha256:<hex>``). NULL when the listing names none.
     image_digest: Optional[str] = Field(
         default=None,
         sa_column=Column(String(IMAGE_REFERENCE_MAX_LENGTH), nullable=True),
     )
     # Which of this deployment's other sectors the app may learn a community's
-    # reference in. Written only by the registry; empty everywhere else.
+    # reference in. Honoured only from a registry listing; empty otherwise.
     reference_sectors: List[str] = Field(
         default_factory=list,
         sa_column=Column(ARRAY(Text), nullable=False, server_default=text("'{}'")),
