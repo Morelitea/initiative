@@ -53,8 +53,8 @@ export interface ProviderPreset {
   /** Where there is something worth saying beyond the address. */
   hintKey?: PresetHintKey;
   /**
-   * Whether this product documents an ``amr`` carrying ``mfa`` when a second
-   * factor ran, which is what makes its word worth reading. Ticks the box on
+   * Whether this product documents an ``amr`` carrying ``mfa`` (or ``phr``, a
+   * phishing-resistant sign-in) when a second factor ran, which is what makes its word worth reading. Ticks the box on
    * the form; the operator changes it either way, since an IdP's configuration
    * is theirs and not something a list here can know.
    *
@@ -161,6 +161,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     key: "pocket-id",
     name: "Pocket ID",
     slug: "pocket-id",
+    assertsSecondFactor: true,
     template: "https://{host}",
     blanks: [{ name: "host", labelKey: "host", example: "id.example.com" }],
     hintKey: "pocketId",

@@ -22,6 +22,7 @@ from app.services.auth.assurance import (
     read_assurance,
     read_narrowing,
     RESERVED_AMR_PREFIXES,
+    SECOND_FACTOR_AMR,
     record_for_provider,
     session_amr,
 )
@@ -198,6 +199,33 @@ def test_a_provider_contributes_no_factor_until_the_operator_says_it_may():
     amr = session_amr("corp", ProviderAssurance(amr=["mfa", "hwk", "pwd"]))
 
     assert set(amr) == {"oidc:corp", "pwd"}
+
+
+@pytest.mark.parametrize(
+    "assurance",
+    [
+        ProviderAssurance(amr=("phr",)),
+        ProviderAssurance(amr=("phrh",)),
+        ProviderAssurance(acr="phr"),
+    ],
+)
+def test_a_phishing_resistant_sign_in_is_a_second_factor(assurance):
+    """Pocket ID names a passkey sign-in ``phr`` rather than ``mfa``. Where
+    the provider's word counts, that is a second factor; where it does not,
+    it is only the provider's vocabulary."""
+    assert SECOND_FACTOR_AMR in session_amr(
+        "pocket-id", assurance, asserts_second_factor=True
+    )
+    assert SECOND_FACTOR_AMR not in session_amr("pocket-id", assurance)
+
+
+def test_a_one_time_code_alone_is_not_a_second_factor():
+    """Pocket ID's emailed sign-in code is ``otp`` and nothing else: one factor."""
+    amr = session_amr(
+        "pocket-id", ProviderAssurance(amr=("otp",)), asserts_second_factor=True
+    )
+
+    assert amr == ["oidc:pocket-id", "otp"]
 
 
 def test_what_the_provider_named_besides_is_kept_either_way():
