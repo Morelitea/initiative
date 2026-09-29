@@ -71,7 +71,7 @@ class AppServiceRegistrationRead(SanitizedBaseModel):
     enabled: bool = True
     #: ``operator`` (added here or in ``APP_SERVICES_CONFIG``) or ``registry``.
     #: A registry registration takes only its switch, mandatory flag, origins
-    #: and, for a container, its address.
+    #: and, for a container, its address and keys.
     source: str = "operator"
     #: The container image a registry app runs, pinned by digest.
     image_digest: Optional[str] = None

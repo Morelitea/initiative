@@ -742,6 +742,56 @@ async def test_reconcile_skips_an_entry_naming_an_unknown_scope(
     assert (result.created, result.skipped) == (0, 1)
 
 
+@pytest.mark.parametrize(
+    "stated",
+    [
+        {"listing_uid": LISTING_UID},
+        {"scope_ceiling": ["projects:read"]},
+        {"image": "ghcr.io/acme/widgets@sha256:" + "0" * 64},
+    ],
+    ids=["listing_uid", "scope_ceiling", "image"],
+)
+async def test_reconcile_refuses_a_registry_entry_stating_what_the_registry_does(
+    session, tmp_path, monkeypatch, stated
+):
+    entry = {"registry": True, "public_id": "acme.widgets", **stated}
+    monkeypatch.setattr(
+        settings, "APP_SERVICES_CONFIG", _write_config(tmp_path, [entry])
+    )
+
+    result = await service.reconcile_from_config(session)
+
+    assert (result.created, result.skipped) == (0, 1)
+    assert service.registry_facts("acme.widgets") is None
+
+
+async def test_a_registry_entry_does_not_take_an_operators_registration(
+    session, tmp_path, monkeypatch
+):
+    row = await _create(session)
+    entry = {
+        "registry": True,
+        "public_id": "acme.widgets",
+        "base_url": "https://elsewhere.example.com",
+        "mandatory": True,
+    }
+    monkeypatch.setattr(
+        settings, "APP_SERVICES_CONFIG", _write_config(tmp_path, [entry])
+    )
+
+    result = await service.reconcile_from_config(session)
+
+    assert (result.updated, result.skipped) == (0, 1)
+    session.expunge_all()
+    stored = await session.get(AppServiceRegistration, row.id)
+    assert stored is not None
+    assert (stored.source, stored.base_url, stored.mandatory) == (
+        "operator",
+        BASE_URL,
+        False,
+    )
+
+
 async def test_reconcile_is_a_no_op_without_the_setting(session, monkeypatch):
     monkeypatch.setattr(settings, "APP_SERVICES_CONFIG", None)
     assert (await service.reconcile_from_config(session)).total == 0

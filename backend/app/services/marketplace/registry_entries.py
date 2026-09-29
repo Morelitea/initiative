@@ -16,12 +16,15 @@ that the files are the ones the entry names, and turns the entry into rows:
   another source already published is refused, never taken over. Pictures are
   kept in ``marketplace_media`` by digest.
 * **for an app, a registration** (``app_service_registrations``,
-  ``source='registry'``): the listing it speaks for, its keys, its scope
-  ceiling (only the scopes this build defines), its reference sectors, and
-  either the container image (the operator gives the location) or the hosted
-  address. The operator keeps the switch, mandatory flag, origins and a
-  container's location; nothing here writes those. An operator's registration
-  for the same app wins.
+  ``source='registry'``): the listing it speaks for, its scope ceiling (only
+  the scopes this build defines), its reference sectors, and either the
+  container image or the hosted address and keys. A container's location and
+  keys are the deployment's, since each deployment runs its own and holds its
+  private key: a key set the entry carries for one is ignored. The operator
+  keeps the switch, mandatory flag, origins and a container's placement, set
+  on the settings form or by an ``APP_SERVICES_CONFIG`` entry marked
+  ``"registry": true``, whose facts are applied here too. An operator's
+  registration for the same app wins.
 
 The caller runs each entry in its own savepoint, so a refusal part-way leaves
 nothing of that entry behind.
@@ -517,9 +520,7 @@ async def _apply_registration(
         raise _invalid("the service is published under another prefix")
 
     kind = spec.get("kind")
-    jwks = _normalized(
-        lambda: registrations_service.normalize_jwks(spec.get("jwks")), what="jwks"
-    )
+    jwks: Optional[dict] = None
     base_url: Optional[str] = None
     embed_origin: Optional[str] = None
     jwks_uri: Optional[str] = None
@@ -527,10 +528,16 @@ async def _apply_registration(
     if kind == "container":
         if any(spec.get(key) for key in ("base_url", "embed_origin", "jwks_uri")):
             raise _invalid("a container's location is the operator's to give")
+        # Its keys are the deployment's too; a key set the entry carries is
+        # not read.
         image = _image_reference(spec.get("image"))
     elif kind == "hosted":
         if spec.get("image"):
             raise _invalid("a hosted app names no image")
+        jwks = _normalized(
+            lambda: registrations_service.normalize_jwks(spec.get("jwks")),
+            what="jwks",
+        )
         base_url = _normalized(
             lambda: registrations_service.normalize_base_url(str(spec.get("base_url"))),
             what="base_url",
@@ -551,10 +558,10 @@ async def _apply_registration(
                 ),
                 what="jwks_uri",
             )
+        if jwks is None and jwks_uri is None:
+            raise _invalid("a hosted registration needs keys")
     else:
         raise _invalid("registration.kind must be container or hosted")
-    if jwks is None and jwks_uri is None:
-        raise _invalid("a registration needs keys")
 
     declared_ceiling = spec.get("scope_ceiling")
     ceiling = _vocabulary(
@@ -596,6 +603,7 @@ async def _apply_registration(
             Codes.REGISTRATION_CONFLICT,
             f"this deployment's operator registered {public_id}",
         )
+    facts = registrations_service.registry_facts(public_id)
 
     if row is None:
         browser = embed_origin or base_url
@@ -622,6 +630,8 @@ async def _apply_registration(
             created_at=context.now,
             updated_at=context.now,
         )
+        if facts is not None:
+            registrations_service.apply_registry_facts(row, facts)
         await vendor_values_service.sync_required(session, row)
         session.add(row)
         await session.flush()
@@ -651,22 +661,25 @@ async def _apply_registration(
     )
     row.listing_uid = uid
     row.publisher_id = publisher_id
-    row.jwks = jwks
-    row.jwks_uri = jwks_uri
     row.scope_ceiling = ceiling
     row.reference_sectors = sectors
     row.root_is_builtin = context.root_is_builtin
     if image is not None:
         if row.image_digest is None:
-            # Was hosted, now a container: the hosted address is not where the
-            # container runs, so it waits for the operator's location.
+            # Was hosted, now a container: the hosted address and the
+            # publisher's keys are not the container's, so both wait for the
+            # operator's.
             row.base_url = None
             row.embed_origin = None
+            row.jwks = None
+            row.jwks_uri = None
         row.image_digest = image
     else:
         row.image_digest = None
         row.base_url = base_url
         row.embed_origin = embed_origin
+        row.jwks = jwks
+        row.jwks_uri = jwks_uri
     new_base = registrations_service.row_browser_base(row)
     if origins_were_default:
         row.allowed_origins = (
@@ -674,6 +687,8 @@ async def _apply_registration(
             if new_base
             else []
         )
+    if facts is not None:
+        registrations_service.apply_registry_facts(row, facts)
     await vendor_values_service.sync_required(session, row)
     row.updated_at = context.now
     session.add(row)

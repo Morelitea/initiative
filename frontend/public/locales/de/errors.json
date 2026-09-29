@@ -483,7 +483,7 @@
   "APP_DATA_NEEDS_CONFIGURATION": "Diese App muss erst eingerichtet werden, bevor sie Daten anzeigen kann.",
   "APP_DATA_CONNECTION_REQUIRED": "Verbinde dein eigenes Konto mit dieser App, um hier deine Daten zu sehen.",
   "APP_SERVICE_UNAVAILABLE": "Die App antwortet gerade nicht. Versuch es gleich noch einmal.",
-  "APP_SERVICE_REGISTRY_MANAGED": "Diese App stammt aus der Registry, die ihren Eintrag, ihre Schlüssel und ihre Berechtigungsbereiche festlegt. Du kannst sie ein- oder ausschalten, ihre Befugnisse und Origins ändern und einem Container seine Adresse geben.",
+  "APP_SERVICE_REGISTRY_MANAGED": "Diese App stammt aus der Registry, die ihren Eintrag und ihre Berechtigungsbereiche festlegt, und die Schlüssel einer App, die ihr Herausgeber betreibt. Du kannst sie ein- oder ausschalten, ihre Befugnisse und Origins ändern und einem Container seine Adresse und Schlüssel geben.",
   "APP_DATA_RESPONSE_TOO_LARGE": "Die App hat mehr Daten geschickt, als ein Widget anzeigen kann.",
   "APP_DATA_BUSY": "Diese App hat zu viele laufende Anfragen. Versuch es gleich noch einmal.",
   "WEBHOOK_UNKNOWN_EVENT_TYPE": "Dieser Ereignistyp existiert nicht. Prüfe die Liste der verfügbaren Ereignisse.",

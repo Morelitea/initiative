@@ -483,7 +483,7 @@
   "APP_DATA_NEEDS_CONFIGURATION": "Cette application doit encore être configurée avant de pouvoir afficher des données.",
   "APP_DATA_CONNECTION_REQUIRED": "Connectez votre propre compte à cette application pour voir vos données ici.",
   "APP_SERVICE_UNAVAILABLE": "L'application ne répond pas pour le moment. Réessayez dans un instant.",
-  "APP_SERVICE_REGISTRY_MANAGED": "Cette application vient du registre, qui garde sa fiche, ses clés et ses portées. Vous pouvez l'activer ou la désactiver, changer ses pouvoirs et ses origines, et donner son adresse à un conteneur.",
+  "APP_SERVICE_REGISTRY_MANAGED": "Cette application vient du registre, qui garde sa fiche et ses portées, ainsi que les clés d'une application hébergée par son éditeur. Vous pouvez l'activer ou la désactiver, changer ses pouvoirs et ses origines, et donner à un conteneur son adresse et ses clés.",
   "APP_DATA_RESPONSE_TOO_LARGE": "L'application a renvoyé plus de données qu'un widget ne peut afficher.",
   "APP_DATA_BUSY": "Cette application a trop de requêtes en cours. Réessayez dans un instant.",
   "WEBHOOK_UNKNOWN_EVENT_TYPE": "Ce type d'événement n'existe pas. Consultez la liste des événements disponibles.",

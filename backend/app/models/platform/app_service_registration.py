@@ -41,10 +41,10 @@ a single row ask it in that form.
 **Where it came from** is ``source``. An operator's row (``apps.manage``
 endpoints, or ``APP_SERVICES_CONFIG`` at boot) is theirs entirely. A registry
 row (``source='registry'``) is written by the registry refresh from a verified
-listing: the listing it speaks for, its keys, its ceiling, its reference
-sectors, and either the image it runs (a container) or where it is hosted. The
+listing: the listing it speaks for, its ceiling, its reference sectors, and
+either the image it runs (a container) or where it is hosted and its keys. The
 operator keeps the kill switch, the mandatory flag, the origin list and, for a
-container, its location.
+container, its location and keys.
 
 Lives in ``public``: a registration is platform-wide and carries no guild data.
 It is written on the system engine by ``apps.manage`` (owner) endpoints, by
@@ -115,8 +115,9 @@ def registration_live_sql(
     required vendor value set. ``-> 0`` reads the first key and is null for an
     empty or absent set.
 
-    Only a registry container registration can lack a location: the registry
-    names the image, and the operator says where it runs.
+    A registry container registration lacks both until the operator gives
+    them: the registry names the image, and the operator says where it runs
+    and which keys it signs with.
     """
     return (
         f"({registration}.enabled AND {publisher}.enabled"

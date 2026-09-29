@@ -11,9 +11,10 @@ Three ways a registration arrives, and they meet in the same checks:
 * **The registry brings one** with a verified app listing
   (:mod:`app.services.marketplace.registry_entries`). Its row keeps what the
   registry says about the app; the operator edits only what is theirs on it
-  (the switch, mandatory flag, origins, and a container's location),
-  and an ``APP_SERVICES_CONFIG``
-  entry for the same app takes the row over as the operator's.
+  (the switch, mandatory flag, origins, and a container's location and keys).
+  An ``APP_SERVICES_CONFIG`` entry marked ``"registry": true`` gives those
+  deployment facts and leaves the row the registry's; an entry without the
+  mark takes the row over as the operator's.
 
 Either way the registration states everything about itself: its
 ``public_id``, the ``listing_uid`` of the listing it speaks for, where it
@@ -96,6 +97,8 @@ AUDITED_FIELDS: tuple[str, ...] = (
 __all__ = [
     "ReconcileResult",
     "RegistrationView",
+    "RegistryFacts",
+    "apply_registry_facts",
     "check_signing_configured",
     "create_registration",
     "delete_registration",
@@ -115,6 +118,7 @@ __all__ = [
     "origin_of",
     "reconcile_from_config",
     "registration_views",
+    "registry_facts",
     "update_registration",
 ]
 
@@ -607,8 +611,8 @@ async def update_registration(
     ``base_url`` moves is checked against the new origin.
 
     A registration the registry brought takes only the operator's fields (the
-    switch, mandatory flag, origins, a container's location, and its vendor
-    values); a change to anything else answers 409.
+    switch, mandatory flag, origins, a container's location and keys, and its
+    vendor values); a change to anything else answers 409.
     """
     row = await get_registration(session, registration_id)
     if row.source == RegistrationSource.REGISTRY:
@@ -622,44 +626,16 @@ async def update_registration(
             scope_ceiling=scope_ceiling,
         )
     before = audit_service.snapshot(row, AUDITED_FIELDS)
-    # Whether the origin list is still just the app's own origin. An untouched
-    # list follows the address it was derived from; one an operator typed is
-    # theirs and is left exactly as typed. A container with no location yet
-    # has no origin of its own, so its empty list counts as untouched.
-    current_base = row_browser_base(row)
-    origins_were_default = (
-        list(row.allowed_origins or []) == [origin_of(current_base)]
-        if current_base
-        else not row.allowed_origins
-    )
-
     if listing_uid is not None:
         row.listing_uid = normalize_listing_uid(listing_uid)
-    if base_url is not None:
-        row.base_url = normalize_base_url(base_url)
-    if embed_origin is not None:
-        cleaned = embed_origin.strip()
-        row.embed_origin = normalize_embed_origin(cleaned) if cleaned else None
-    new_base = row_browser_base(row)
-    if allowed_origins is not None:
-        if new_base is None:
-            # Nothing to derive a default from, and nothing to frame yet.
-            row.allowed_origins = [normalize_origin(item) for item in allowed_origins]
-        else:
-            row.allowed_origins = normalize_origins(
-                allowed_origins, browser_base=new_base
-            )
-    elif origins_were_default and new_base is not None:
-        row.allowed_origins = normalize_origins(None, browser_base=new_base)
-    if jwks is not None:
-        # Replaces rather than merges, and an empty object clears: a key set is
-        # provisioned whole, so two entries mean a rotation is in flight and
-        # one means it is over.
-        row.jwks = normalize_jwks(jwks)
-    if jwks_uri is not None and row.base_url is not None:
-        row.jwks_uri = normalize_jwks_uri(jwks_uri, base_url=row.base_url)
-    elif row.jwks_uri is not None and base_url is not None and row.base_url:
-        row.jwks_uri = normalize_jwks_uri(row.jwks_uri, base_url=row.base_url)
+    _write_placement(
+        row,
+        base_url=base_url,
+        embed_origin=embed_origin,
+        allowed_origins=allowed_origins,
+        jwks=jwks,
+        jwks_uri=jwks_uri,
+    )
     if scope_ceiling is not None:
         # Replaces rather than merges; an empty list is a ceiling of nothing.
         row.scope_ceiling = normalize_scope_ceiling(scope_ceiling)
@@ -697,6 +673,58 @@ async def update_registration(
     return row
 
 
+def _write_placement(
+    row: AppServiceRegistration,
+    *,
+    base_url: Optional[str],
+    embed_origin: Optional[str],
+    allowed_origins: Optional[Iterable[str]],
+    jwks: Optional[dict],
+    jwks_uri: Optional[str],
+) -> None:
+    """Write where an app runs, the origins that may frame it, and its keys.
+
+    ``None`` leaves a field as it is; an empty ``embed_origin``, ``jwks`` or
+    ``jwks_uri`` clears it.
+    """
+    # Whether the origin list is still just the app's own origin. An untouched
+    # list follows the address it was derived from; one an operator typed is
+    # theirs and is left exactly as typed. A container with no location yet
+    # has no origin of its own, so its empty list counts as untouched.
+    current_base = row_browser_base(row)
+    origins_were_default = (
+        list(row.allowed_origins or []) == [origin_of(current_base)]
+        if current_base
+        else not row.allowed_origins
+    )
+
+    if base_url is not None:
+        row.base_url = normalize_base_url(base_url)
+    if embed_origin is not None:
+        cleaned = embed_origin.strip()
+        row.embed_origin = normalize_embed_origin(cleaned) if cleaned else None
+    new_base = row_browser_base(row)
+    if allowed_origins is not None:
+        if new_base is None:
+            # Nothing to derive a default from, and nothing to frame yet.
+            row.allowed_origins = [normalize_origin(item) for item in allowed_origins]
+        else:
+            row.allowed_origins = normalize_origins(
+                allowed_origins, browser_base=new_base
+            )
+    elif origins_were_default and new_base is not None:
+        row.allowed_origins = normalize_origins(None, browser_base=new_base)
+    if jwks is not None:
+        # Replaces rather than merges, and an empty object clears: a key set is
+        # provisioned whole, so two entries mean a rotation is in flight and
+        # one means it is over.
+        row.jwks = normalize_jwks(jwks)
+    if jwks_uri is not None and row.base_url is not None:
+        row.jwks_uri = normalize_jwks_uri(jwks_uri, base_url=row.base_url)
+    elif row.jwks_uri is not None and base_url is not None and row.base_url:
+        row.jwks_uri = normalize_jwks_uri(row.jwks_uri, base_url=row.base_url)
+
+
 def _check_registry_edit(
     row: AppServiceRegistration,
     *,
@@ -710,22 +738,21 @@ def _check_registry_edit(
     """Refuse a change to what the registry says about an app.
 
     A value sent unchanged is not a change, so a form that sends every field
-    back saves the operator's own edits. A container's location is the
-    operator's to give.
+    back saves the operator's own edits. A container's location and keys are
+    the operator's to give: the deployment runs it and holds its private key.
     """
-    location_is_operators = is_registry_container(row)
     changes: list[str] = []
     if listing_uid is not None and listing_uid.strip() != (row.listing_uid or ""):
         changes.append("listing_uid")
-    if jwks is not None and normalize_jwks(jwks) != row.jwks:
-        changes.append("jwks")
-    if jwks_uri is not None and (jwks_uri.strip() or None) != row.jwks_uri:
-        changes.append("jwks_uri")
     if scope_ceiling is not None and normalize_scope_ceiling(scope_ceiling) != sorted(
         row.scope_ceiling or []
     ):
         changes.append("scope_ceiling")
-    if not location_is_operators:
+    if not is_registry_container(row):
+        if jwks is not None and normalize_jwks(jwks) != row.jwks:
+            changes.append("jwks")
+        if jwks_uri is not None and (jwks_uri.strip() or None) != row.jwks_uri:
+            changes.append("jwks_uri")
         if base_url is not None and normalize_base_url(base_url) != row.base_url:
             changes.append("base_url")
         if embed_origin is not None:
@@ -789,6 +816,150 @@ def _load_entries(path: Path) -> list[dict[str, Any]]:
     return [entry for entry in document if isinstance(entry, dict)]
 
 
+#: What an entry marked ``"registry": true`` may not state: the registry does.
+_REGISTRY_STATES = ("listing_uid", "scope_ceiling", "image", "image_digest")
+
+
+@dataclass(frozen=True)
+class RegistryFacts:
+    """How this deployment runs an app the registry brings, from an
+    ``APP_SERVICES_CONFIG`` entry marked ``"registry": true``.
+
+    ``None`` is a fact the entry leaves out, which leaves the row's value as
+    it is. A container's placement is one statement: an entry that gives its
+    ``base_url`` gives its browser address and keys with it, and clears the
+    ones it leaves out.
+    """
+
+    base_url: Optional[str] = None
+    embed_origin: Optional[str] = None
+    jwks: Optional[dict] = None
+    jwks_uri: Optional[str] = None
+    allowed_origins: Optional[list[str]] = None
+    mandatory: Optional[bool] = None
+    vendor_env: Any = None
+
+    @property
+    def places(self) -> bool:
+        """Whether it gives a location and keys, which only a container takes."""
+        return self.base_url is not None
+
+
+def _registry_facts(entry: dict[str, Any]) -> RegistryFacts:
+    """Read an entry marked ``"registry": true``, refusing one that states
+    what the registry says about the app, or a location or keys that do not
+    fit together."""
+    stated = [key for key in _REGISTRY_STATES if key in entry]
+    if stated:
+        raise _bad_request(
+            AppServiceMessages.REGISTRY_MANAGED,
+            f"the registry states {', '.join(stated)}",
+        )
+    declared_base = entry.get("base_url")
+    base_url = normalize_base_url(str(declared_base)) if declared_base else None
+    if base_url is None and any(
+        entry.get(key) for key in ("embed_origin", "jwks", "jwks_uri")
+    ):
+        raise _bad_request(
+            AppServiceMessages.INVALID_BASE_URL,
+            "a container's browser address and keys come with its base_url",
+        )
+    declared_origins = entry.get("allowed_origins") or []
+    if not isinstance(declared_origins, list) or len(declared_origins) > _MAX_ORIGINS:
+        raise _bad_request(
+            AppServiceMessages.INVALID_ORIGIN,
+            f"allowed_origins must be a list of at most {_MAX_ORIGINS} origins",
+        )
+    origins = [normalize_origin(str(item)) for item in declared_origins]
+    declared_embed = entry.get("embed_origin")
+    declared_uri = entry.get("jwks_uri")
+    return RegistryFacts(
+        base_url=base_url,
+        embed_origin=(
+            normalize_embed_origin(str(declared_embed)) if declared_embed else None
+        ),
+        jwks=normalize_jwks(entry.get("jwks")),
+        jwks_uri=(
+            normalize_jwks_uri(str(declared_uri), base_url=base_url or "")
+            if declared_uri
+            else None
+        ),
+        allowed_origins=origins or None,
+        mandatory=bool(entry["mandatory"]) if "mandatory" in entry else None,
+        vendor_env=entry.get("vendor_env"),
+    )
+
+
+def registry_facts(public_id: str) -> Optional[RegistryFacts]:
+    """The facts ``APP_SERVICES_CONFIG`` gives for the registry's app
+    ``public_id``, or ``None``.
+
+    Read when the registry refresh applies the app, so facts written before
+    the registry brought it reach its row. An entry reconciliation refuses
+    gives nothing here either.
+    """
+    configured = settings.APP_SERVICES_CONFIG
+    if not configured:
+        return None
+    try:
+        entries = _load_entries(Path(configured))
+    except (OSError, ValueError):
+        return None
+    for entry in entries:
+        if entry.get("registry") is not True:
+            continue
+        if str(entry.get("public_id", "")).strip().lower() != public_id:
+            continue
+        try:
+            return _registry_facts(entry)
+        except HTTPException:
+            continue
+    return None
+
+
+def apply_registry_facts(row: AppServiceRegistration, facts: RegistryFacts) -> bool:
+    """Write an entry's facts onto a registry row, and say whether any moved.
+
+    Never changes the row's source. A container takes its placement from them;
+    a hosted app's location and keys stay the registry's, so facts giving
+    them are passed over. Vendor values are sealed from the environment
+    variables the entry names.
+    """
+
+    def state() -> tuple:
+        return (
+            row.base_url,
+            row.embed_origin,
+            list(row.allowed_origins or []),
+            row.jwks,
+            row.jwks_uri,
+            row.mandatory,
+        )
+
+    was = state()
+    placed = facts.places and is_registry_container(row)
+    if facts.places and not placed:
+        logger.warning(
+            "app services: %r is hosted by its publisher, whose location and "
+            "keys it keeps; the entry's are passed over",
+            row.public_id,
+        )
+    _write_placement(
+        row,
+        base_url=facts.base_url if placed else None,
+        embed_origin=(facts.embed_origin or "") if placed else None,
+        allowed_origins=facts.allowed_origins,
+        jwks=(facts.jwks or {}) if placed else None,
+        jwks_uri=(facts.jwks_uri or "") if placed else None,
+    )
+    if facts.mandatory is not None:
+        row.mandatory = facts.mandatory
+    vendor_moved = vendor_values_service.apply_vendor_env(
+        row, facts.vendor_env, public_id=row.public_id
+    )
+    return bool(vendor_moved) or state() != was
+
+
 async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
     """Bring the table in line with the mounted config file.
 
@@ -797,6 +968,12 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
     ``scope_ceiling``, ``mandatory`` and ``vendor_env`` (vendor key →
     environment variable name, read and sealed on every pass). Database-only:
     this upserts rows and stops.
+
+    An entry marked ``"registry": true`` is :class:`RegistryFacts` for an app
+    the registry brings, written onto its row without changing its source.
+    It creates nothing: before the registry brings the app, the refresh that
+    does applies them. It is refused when an operator's registration holds
+    that ``public_id``, and when it gives a hosted app a location or keys.
 
     An entry naming ``grants`` is read without it, and the pass logs that it
     was: the field is no longer part of a registration, and a file written for
@@ -826,7 +1003,72 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
     # duplicate, and fail the unique constraint at the shared commit — taking
     # every other registration in the file down with it.
     seen: set[str] = set()
+
+    def first_mention(public_id: str) -> bool:
+        if public_id in seen:
+            logger.warning(
+                "app services: %r appears more than once in %s — later entry skipped",
+                public_id,
+                path,
+            )
+            return False
+        seen.add(public_id)
+        return True
+
     for entry in entries:
+        if entry.get("registry") is True:
+            try:
+                public_id = normalize_public_id(str(entry.get("public_id", "")))
+                facts = _registry_facts(entry)
+            except HTTPException as exc:
+                logger.warning(
+                    "app services: entry %r refused (%s)",
+                    entry.get("public_id"),
+                    exc.detail,
+                )
+                skipped += 1
+                continue
+            if not first_mention(public_id):
+                skipped += 1
+                continue
+            row = await _by_public_id(session, public_id)
+            if row is None:
+                logger.info(
+                    "app services: %r is not here yet; the registry refresh that "
+                    "brings it applies its entry",
+                    public_id,
+                )
+                unchanged += 1
+                continue
+            if row.source != RegistrationSource.REGISTRY:
+                logger.warning(
+                    "app services: this deployment's operator registered %r; its "
+                    "registry entry is refused",
+                    public_id,
+                )
+                skipped += 1
+                continue
+            if facts.places and not is_registry_container(row):
+                logger.warning(
+                    "app services: %r is hosted by its publisher, whose location "
+                    "and keys it keeps; its registry entry is refused",
+                    public_id,
+                )
+                skipped += 1
+                continue
+            before = audit_service.snapshot(row, AUDITED_FIELDS)
+            required_before = list(row.vendor_required or [])
+            moved = apply_registry_facts(row, facts)
+            await vendor_values_service.sync_required(session, row)
+            if not moved and required_before == list(row.vendor_required or []):
+                unchanged += 1
+                continue
+            row.updated_at = utcnow()
+            session.add(row)
+            edited.append((row, before))
+            updated += 1
+            continue
+
         try:
             public_id = normalize_public_id(str(entry.get("public_id", "")))
             listing_uid = normalize_listing_uid(str(entry.get("listing_uid") or ""))
@@ -861,15 +1103,9 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
                 public_id,
             )
 
-        if public_id in seen:
-            logger.warning(
-                "app services: %r appears more than once in %s — later entry skipped",
-                public_id,
-                path,
-            )
+        if not first_mention(public_id):
             skipped += 1
             continue
-        seen.add(public_id)
 
         mandatory = bool(entry.get("mandatory", False))
         row = await _by_public_id(session, public_id)
@@ -900,8 +1136,8 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
         # The file is the declarative source for what the app IS and may do.
         # `enabled` is deliberately not reconciled: turning a registration off
         # is an operator action, and a restart must not reverse it. A row the
-        # registry brought becomes the operator's: the file is their statement
-        # about this deployment, and it wins.
+        # registry brought becomes the operator's: an entry without the
+        # registry mark is their statement of the whole app, and it wins.
         taken_over = row.source == RegistrationSource.REGISTRY
         vendor_moved = vendor_values_service.apply_vendor_env(
             row, entry.get("vendor_env"), public_id=public_id

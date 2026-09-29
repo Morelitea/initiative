@@ -43,7 +43,11 @@ from app.services.marketplace import registrations as registrations_service
 from app.services.marketplace import tuf_registry
 from app.services.marketplace.catalog import upsert_listing
 from app.services.platform.app_settings import ensure_settings_row
-from app.testing import create_app_service_registration, create_publisher
+from app.testing import (
+    create_app_service_registration,
+    create_publisher,
+    sample_app_jwks,
+)
 from app.testing.tuf_repository import (
     BASE_URL,
     TufRepository,
@@ -169,7 +173,8 @@ class TestApplying:
         assert registration.publisher_id == publisher_id
         assert registration.image_digest == "ghcr.io/acme/tracker@sha256:" + "0" * 64
         assert registration.base_url is None
-        assert registration.jwks is not None
+        # A container's keys are the deployment's; the entry's set is not read.
+        assert registration.jwks is None
         assert registration.scope_ceiling == ["projects:read", "projects:write"]
         assert registration.root_is_builtin is True
 
@@ -212,7 +217,11 @@ class TestApplying:
         await registrations_service.update_registration(
             session, registration.id, base_url="https://tracker.internal.test"
         )
+        assert await _live(session, registration.id) is False
 
+        await registrations_service.update_registration(
+            session, registration.id, jwks=sample_app_jwks()
+        )
         assert await _live(session, registration.id) is True
 
     async def test_a_hosted_app_is_live_at_its_published_address(
@@ -425,12 +434,12 @@ class TestOtherSources:
             await registrations_service.delete_registration(session, registration.id)
 
         # The operator's edit form sends every field back; unchanged ones are
-        # not a change.
+        # not a change. A container's keys are the operator's to set.
         await registrations_service.update_registration(
             session,
             registration.id,
             listing_uid=APP_UID,
-            jwks=container_registration()["jwks"],
+            jwks=sample_app_jwks(),
             jwks_uri="",
             embed_origin="",
             mandatory=True,
@@ -442,6 +451,132 @@ class TestOtherSources:
         await _refresh(session, repo, force=True)
         registration = await _registration(session, "acme.tracker")
         assert registration is not None and registration.enabled is False
+        assert registration.jwks == sample_app_jwks()
+
+    async def test_a_hosted_apps_keys_stay_the_registrys(
+        self, session, repo, trusted, monkeypatch, tmp_path
+    ):
+        """Its publisher runs it, so neither the form nor a registry entry in
+        the operator's file gives it keys or a location."""
+        hosted = container_registration(
+            kind="hosted",
+            base_url="https://tracker.acme.test",
+            embed_origin="https://tracker.acme.test",
+        )
+        del hosted["image"]
+        repo.add_listing("acme", APP_UID, slug="tracker", registration=hosted)
+        repo.publish()
+        await _refresh(session, repo)
+        registration = await _registration(session, "acme.tracker")
+        assert registration is not None and registration.id is not None
+
+        with pytest.raises(HTTPException) as refused:
+            await registrations_service.update_registration(
+                session, registration.id, jwks=sample_app_jwks()
+            )
+        assert refused.value.detail == AppServiceMessages.REGISTRY_MANAGED
+
+        config = tmp_path / "apps.json"
+        config.write_text(
+            json.dumps(
+                [
+                    {
+                        "registry": True,
+                        "public_id": "acme.tracker",
+                        "base_url": "https://tracker.internal.test",
+                        "jwks": sample_app_jwks(),
+                    }
+                ]
+            )
+        )
+        monkeypatch.setattr(settings, "APP_SERVICES_CONFIG", str(config))
+        assert (await registrations_service.reconcile_from_config(session)).skipped == 1
+
+        repo.publish()
+        result, _ = await _refresh(session, repo, force=True)
+        assert result.skipped == []
+        registration = await _registration(session, "acme.tracker")
+        assert registration is not None
+        assert registration.base_url == "https://tracker.acme.test"
+        assert registration.jwks == hosted["jwks"]
+
+    async def test_a_registry_entry_places_the_container_and_leaves_it_the_registrys(
+        self, session, repo, trusted, monkeypatch, tmp_path
+    ):
+        """The entry gives what this deployment knows (where the container
+        runs, the key its pod signs with, whether every community gets it);
+        the registry keeps the rest, and later refreshes keep applying."""
+        repo.add_listing("acme", APP_UID, slug="tracker")
+        repo.publish()
+        await _refresh(session, repo)
+        config = tmp_path / "apps.json"
+        config.write_text(
+            json.dumps(
+                [
+                    {
+                        "registry": True,
+                        "public_id": "acme.tracker",
+                        "base_url": "http://tracker.internal.test:8080",
+                        "allowed_origins": ["https://initiative.example.test"],
+                        "jwks": sample_app_jwks(),
+                        "mandatory": True,
+                    }
+                ]
+            )
+        )
+        monkeypatch.setattr(settings, "APP_SERVICES_CONFIG", str(config))
+
+        reconciled = await registrations_service.reconcile_from_config(session)
+        assert (reconciled.updated, reconciled.skipped) == (1, 0)
+        registration = await _registration(session, "acme.tracker")
+        assert registration is not None and registration.id is not None
+        assert registration.source == "registry"
+        assert registration.image_digest is not None
+        assert registration.base_url == "http://tracker.internal.test:8080"
+        assert registration.allowed_origins == ["https://initiative.example.test"]
+        assert registration.mandatory is True
+        assert await _live(session, registration.id) is True
+
+        repo.publish()
+        result, _ = await _refresh(session, repo, force=True)
+        assert result.skipped == []
+        registration = await _registration(session, "acme.tracker")
+        assert registration is not None
+        assert registration.jwks == sample_app_jwks()
+        assert registration.scope_ceiling == ["projects:read", "projects:write"]
+
+    async def test_a_registry_entry_waits_for_the_registry_to_bring_its_app(
+        self, session, repo, trusted, monkeypatch, tmp_path
+    ):
+        config = tmp_path / "apps.json"
+        config.write_text(
+            json.dumps(
+                [
+                    {
+                        "registry": True,
+                        "public_id": "acme.tracker",
+                        "base_url": "http://tracker.internal.test:8080",
+                        "jwks": sample_app_jwks(),
+                    }
+                ]
+            )
+        )
+        monkeypatch.setattr(settings, "APP_SERVICES_CONFIG", str(config))
+        reconciled = await registrations_service.reconcile_from_config(session)
+        assert (reconciled.created, reconciled.unchanged) == (0, 1)
+        assert await _registration(session, "acme.tracker") is None
+
+        repo.add_listing("acme", APP_UID, slug="tracker")
+        repo.publish()
+        result, _ = await _refresh(session, repo)
+
+        assert result.skipped == []
+        registration = await _registration(session, "acme.tracker")
+        assert registration is not None and registration.id is not None
+        assert registration.source == "registry"
+        assert registration.base_url == "http://tracker.internal.test:8080"
+        assert registration.jwks == sample_app_jwks()
+        assert await _live(session, registration.id) is True
 
     async def test_an_app_services_config_entry_takes_a_registry_row_over(
         self, session, repo, trusted, monkeypatch, tmp_path
