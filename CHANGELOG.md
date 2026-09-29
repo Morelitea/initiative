@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.73.0] - 2026-09-28
+
 ### Added
 
 - **Safety numbers in messages**, so you can check who you're talking to. A new device has to be approved by your other devices.
