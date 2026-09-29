@@ -15,6 +15,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestQueryClient } from "@/__tests__/helpers/render";
 
 const mocks = vi.hoisted(() => ({
+  // One object, as the store keeps: a snapshot that changes identity on every
+  // read is a store that never settles.
+  idle: { phase: "idle" },
   ensureDevice: vi.fn(),
   registeredDevice: vi.fn(),
   collect: vi.fn(),
@@ -31,6 +34,9 @@ vi.mock("@/crypto/messaging", () => ({
   unreadIn: vi.fn(),
   sendText: vi.fn(),
   messageLog: { get: vi.fn() },
+  collectVerification: () => Promise.resolve(),
+  subscribeVerification: () => () => undefined,
+  verificationView: () => mocks.idle,
 }));
 
 vi.mock("@/api/generated/direct-messages/direct-messages", async (importOriginal) => ({
