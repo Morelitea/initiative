@@ -21,8 +21,6 @@ import { localized } from "@/lib/widgets/widgetMeta";
 /** What the operator stated, before it is shaped into a create or a patch. */
 export interface AppServiceFormValues {
   publicId: string;
-  /** The catalog uid of the listing this app speaks for. */
-  listingUid: string;
   baseUrl: string;
   /** Where a browser loads the app, or "" when that is the base URL too. */
   embedOrigin: string;
@@ -38,7 +36,6 @@ export interface AppServiceFormValues {
 
 interface FormState {
   publicId: string;
-  listingUid: string;
   baseUrl: string;
   embedOrigin: string;
   allowedOrigins: string;
@@ -50,7 +47,6 @@ interface FormState {
 
 const EMPTY_FORM: FormState = {
   publicId: "",
-  listingUid: "",
   baseUrl: "",
   embedOrigin: "",
   allowedOrigins: "",
@@ -70,7 +66,8 @@ export interface AppServiceFormDialogProps {
 }
 
 /**
- * Register or edit one app service.
+ * Give one app service its deployment facts. What the app is and may do comes
+ * from its listing, and is not edited here.
  *
  * Its keys are public keys, either pasted as a key set or fetched from the
  * address the app publishes them at. The one secret a registration holds is
@@ -97,7 +94,6 @@ export const AppServiceFormDialog = ({
     if (editing) {
       setForm({
         publicId: editing.public_id,
-        listingUid: editing.listing_uid ?? "",
         baseUrl: editing.base_url ?? "",
         embedOrigin: editing.embed_origin ?? "",
         allowedOrigins: editing.allowed_origins.join("\n"),
@@ -135,7 +131,6 @@ export const AppServiceFormDialog = ({
     onSubmit({
       jwks,
       publicId: form.publicId.trim(),
-      listingUid: form.listingUid.trim(),
       baseUrl: form.baseUrl.trim(),
       embedOrigin: form.embedOrigin.trim(),
       allowedOrigins: parseAllowedOrigins(form.allowedOrigins),
@@ -177,22 +172,6 @@ export const AppServiceFormDialog = ({
             <p className="text-muted-foreground text-xs">
               {editing ? t("appServices.publicIdHelpEdit") : t("appServices.publicIdHelp")}
             </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="app-service-listing-uid">{t("appServices.listingUidLabel")}</Label>
-            <Input
-              id="app-service-listing-uid"
-              value={form.listingUid}
-              onChange={(event) => setForm((prev) => ({ ...prev, listingUid: event.target.value }))}
-              placeholder={t("appServices.listingUidPlaceholder")}
-              maxLength={14}
-              className="font-mono"
-              required
-              autoComplete="off"
-              spellCheck={false}
-            />
-            <p className="text-muted-foreground text-xs">{t("appServices.listingUidHelp")}</p>
           </div>
 
           <div className="space-y-2">

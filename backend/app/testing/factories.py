@@ -1305,7 +1305,7 @@ async def create_app_service_registration(
     session: AsyncSession,
     *,
     public_id: str = "tests.app-service",
-    base_url: str = "https://app.example.test",
+    base_url: str | None = "https://app.example.test",
     listing_uid: str | None = None,
     allowed_origins: list[str] | None = None,
     mandatory: bool = False,

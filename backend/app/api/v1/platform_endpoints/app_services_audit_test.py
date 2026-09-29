@@ -64,7 +64,6 @@ async def test_registering_an_app_service_names_what_it_confers(
         headers=headers,
         json={
             "public_id": PUBLIC_ID,
-            "listing_uid": LISTING_UID,
             "base_url": APP_URL,
             "mandatory": True,
         },
@@ -82,7 +81,6 @@ async def test_registering_an_app_service_names_what_it_confers(
     detail = rows[0]["detail"]
     assert {
         "public_id",
-        "listing_uid",
         "publisher_id",
         "base_url",
         "mandatory",
@@ -109,7 +107,7 @@ async def test_editing_a_registration_records_what_moved(
     edited = await client.patch(
         f"{BASE}{registration_id}",
         headers=headers,
-        json={"enabled": False, "listing_uid": "ABCDEFGHJKMNPQ"},
+        json={"enabled": False, "mandatory": True},
     )
     assert edited.status_code == 200, edited.text
 
@@ -118,7 +116,7 @@ async def test_editing_a_registration_records_what_moved(
         (owner_id, registration_id)
     ]
     detail = rows[0]["detail"]
-    assert {"enabled", "listing_uid"} <= set(detail["changed"])
+    assert {"enabled", "mandatory"} <= set(detail["changed"])
     assert detail["values"]["enabled"] == {"from": True, "to": False}
 
 

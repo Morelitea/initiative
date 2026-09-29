@@ -32,9 +32,9 @@ const hasKeys = (registration: AppServiceRegistrationRead): boolean =>
 /**
  * Deployment-level app service registrations (`apps.manage`).
  *
- * A registration is the only place an app's listing, addresses, keys, and
- * operator-conferred powers are recorded, so this page is where an operator
- * reviews what each app may do and where the kill switch lives.
+ * The operator edits an app's deployment facts here: its addresses, keys and
+ * reach, and the kill switch. What the app is and may do comes from its
+ * listing and is shown read-only.
  */
 export const SettingsAppServicesPage = () => {
   const { t } = useTranslation("settings");
@@ -74,7 +74,6 @@ export const SettingsAppServicesPage = () => {
         {
           registrationId: editing.id,
           data: {
-            listing_uid: values.listingUid,
             base_url: values.baseUrl,
             // Always sent, so emptying the field clears it and puts both
             // surfaces back on the base URL.
@@ -105,7 +104,6 @@ export const SettingsAppServicesPage = () => {
     createService.mutate(
       {
         public_id: values.publicId,
-        listing_uid: values.listingUid,
         base_url: values.baseUrl,
         embed_origin: values.embedOrigin || null,
         allowed_origins: origins,
@@ -288,6 +286,13 @@ export const SettingsAppServicesPage = () => {
                         t("appServices.noListing")
                       )}
                     </p>
+                    {registration.scope_ceiling.length > 0 && (
+                      <p className="break-words">
+                        {t("appServices.scopeCeilingSummary", {
+                          scopes: registration.scope_ceiling.join(", "),
+                        })}
+                      </p>
+                    )}
                     {registration.allowed_origins.length > 0 && (
                       <p className="truncate">
                         {t("appServices.allowedOriginsSummary", {
