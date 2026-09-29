@@ -11,6 +11,7 @@ from __future__ import annotations
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.schema_provisioning import provision_guild
+from app.db.request_context import SystemGuild, Unattributed
 from app.db.session import set_rls_context
 from app.models.platform.guild import Guild, GuildCategory
 from app.models.platform.user import User
@@ -311,7 +312,9 @@ DIRECTORY: list[dict] = [
 async def seed(
     session: AsyncSession, ids: dict[str, list], users: dict[str, User], listed: Guild
 ) -> None:
-    await set_rls_context(session)  # shared/public tables — no community routing
+    await set_rls_context(
+        session, Unattributed()
+    )  # shared/public tables — no community routing
     await guilds.enable_directory(session)
     await guilds.list_in_directory(
         session, listed, categories=[GuildCategory.ttrpg, GuildCategory.social]
@@ -341,7 +344,7 @@ async def _community(
     guilds.expunge_guild_scoped(session)
     await provision_guild(guild.id)
     await guilds.add_members(session, guild, [users[n] for n in spec["members"]])
-    await set_rls_context(session, guild_id=guild.id)
+    await set_rls_context(session, SystemGuild(guild.id))
     c = Community(key=spec["name"], session=session, ids=ids, users=users, guild=guild)
     first, second = spec["initiatives"]
     await initiatives.create_initiative(
@@ -359,4 +362,4 @@ async def _community(
     )
     await session.commit()
     guilds.expunge_guild_scoped(session)
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())

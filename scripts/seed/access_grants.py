@@ -11,6 +11,7 @@ from datetime import timedelta
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.request_context import Unattributed
 from app.db.session import set_rls_context
 from app.models.platform.access_grant import (
     AccessGrant,
@@ -90,7 +91,7 @@ async def seed(
     users: dict[str, User],
     guild_ids: dict[str, int],
 ) -> None:
-    await set_rls_context(session)  # a platform-scoped shared table
+    await set_rls_context(session, Unattributed())  # a platform-scoped shared table
     for d in ACCESS_GRANTS:
         grantee = users[d["user"]]
         grant = AccessGrant(
