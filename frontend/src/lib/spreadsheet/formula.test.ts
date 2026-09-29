@@ -21,6 +21,12 @@ describe("arithmetic & precedence", () => {
     expect(evalA1("=-5+2").value).toBe(-3);
   });
 
+  it("reads a decimal written without its leading zero", () => {
+    expect(evalA1("=.5*2").value).toBe(1);
+    expect(evalA1("=SUM(-.25,1.5)").value).toBe(1.25);
+    expect(evalA1('=".5"&.5').value).toBe(".50.5");
+  });
+
   it("treats percent as divide-by-100", () => {
     expect(evalA1("=50%").value).toBe(0.5);
   });
