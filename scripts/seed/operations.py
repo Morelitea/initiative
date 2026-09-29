@@ -19,6 +19,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.intake import IntakeStream
 from app.db.schema_provisioning import provision_guild
+from app.db.request_context import SystemGuild, Unattributed
 from app.db.session import set_rls_context
 from app.models.platform.guild import Guild
 from app.models.platform.user import User
@@ -56,7 +57,7 @@ async def seed(
         admins=[users[_OPERATOR]],
     )
     await session.commit()
-    await set_rls_context(session, guild_id=guild.id)
+    await set_rls_context(session, SystemGuild(guild.id))
     c = Community(key="operations", session=session, ids=ids, users=users, guild=guild)
     initiative = await initiatives.create_initiative(
         c,
@@ -71,7 +72,7 @@ async def seed(
     )
     await session.commit()
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await intake_setup.set_operations_guild(session, guild.id)
     await session.commit()
     for stream in IntakeStream:
@@ -80,5 +81,5 @@ async def seed(
         )
     # provision_from_blueprint routes into the operations guild to write the
     # binding; hand the session back at the public baseline.
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     return guild
