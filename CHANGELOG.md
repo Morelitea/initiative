@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Upgrading to 0.73 no longer stops at startup** on a server set up with a single database URL.
 - **Breaking glass only asks for a code if you have two-factor set up**, or the server requires it for your role. A second factor from single sign-on counts, and another operator setting it up no longer asks it of you.
 
 ## [0.73.0] - 2026-09-28

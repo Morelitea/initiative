@@ -98,7 +98,7 @@ def test_printed_sql_covers_both_halves():
     body = bootstrap_sql()
     # Roles, database and schema ownership.
     assert "CREATE" in body and "ALTER" in body
-    assert "GRANT CREATE, CONNECT ON DATABASE" in body
+    assert "GRANT CREATE, CONNECT, TEMPORARY ON DATABASE" in body
     assert "ALTER SCHEMA public OWNER TO" in body
     assert "WITH ADMIN OPTION" in body
     # The search operator.

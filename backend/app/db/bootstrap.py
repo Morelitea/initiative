@@ -168,15 +168,20 @@ END
 $$;
 """
 
-_GRANT_DATABASE = """
+#: Every database privilege the provisioning role holds, whoever owns the
+#: database: migrations run as that role, so they run with the same rights
+#: whether the deployment gave one owner URL or named its logins.
+PROVISIONER_DATABASE_PRIVILEGES = ("CREATE", "CONNECT", "TEMPORARY")
+
+_GRANT_DATABASE = f"""
 DO $$ BEGIN
-    EXECUTE format('GRANT CREATE, CONNECT ON DATABASE %I TO %I',
+    EXECUTE format('GRANT {", ".join(PROVISIONER_DATABASE_PRIVILEGES)} ON DATABASE %I TO %I',
                    current_database(), current_setting('app._bootstrap_role'));
 END $$;
 """
 
-# The app creates no temporary objects, so it does not use the TEMPORARY grant
-# PUBLIC carries by default on a new database.
+# The request path creates no temporary objects, so it does not use the
+# TEMPORARY grant PUBLIC carries by default on a new database.
 _REVOKE_TEMPORARY = """
 DO $$ BEGIN
     EXECUTE format('REVOKE TEMPORARY ON DATABASE %I FROM PUBLIC',
@@ -849,6 +854,19 @@ async def _verify_only() -> BootstrapResult:
         for role in (provisioner, app_login, system):
             if role.name not in present:
                 missing.append(f"role {role.name}")
+        if provisioner.name in present:
+            for privilege in PROVISIONER_DATABASE_PRIVILEGES:
+                held = await conn.scalar(
+                    text(
+                        "SELECT has_database_privilege("
+                        "CAST(:role AS text), current_database(), CAST(:p AS text))"
+                    ),
+                    {"role": provisioner.name, "p": privilege},
+                )
+                if not held:
+                    missing.append(
+                        f"{privilege} on the database for {provisioner.name}"
+                    )
         search_ready = await search_operator_present(conn)
     if missing:
         raise RuntimeError(_repair_instructions(missing))
