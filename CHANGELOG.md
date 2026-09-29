@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.73.2] - 2026-09-29
+
 ### Fixed
 
 - **A trusted sign-in provider's passkey sign-in counts as a second factor**, for providers such as Pocket ID that report a phishing-resistant sign-in rather than naming a second factor. New Pocket ID connections trust it by default.
