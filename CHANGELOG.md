@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.73.1] - 2026-09-29
+
 ### Added
 
 - **Ignore someone by handle** from Settings › Privacy › Ignored accounts, the same way you connect. API: `POST /me/ignored`.
