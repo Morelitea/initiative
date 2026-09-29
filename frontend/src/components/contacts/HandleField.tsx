@@ -27,21 +27,24 @@ export const HandleField = ({
   onSubmit,
 }: HandleFieldProps) => {
   const [handle, setHandle] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  // An error belongs to the handle it was about, and shows only while the
+  // field still holds it.
+  const [failure, setFailure] = useState<{ handle: string; message: string } | null>(null);
+  const error = failure?.handle === handle ? failure.message : null;
   const messageId = useId();
 
   const submit = () => {
     if (pending) return;
     const parsed = parseHandle(handle);
     if (!parsed) {
-      setError(hint);
+      setFailure({ handle, message: hint });
       return;
     }
-    setError(null);
+    setFailure(null);
     onSubmit(parsed).then(
       // A handle typed while the request was out stays.
       () => setHandle((current) => (current === handle ? "" : current)),
-      (err: unknown) => setError(getErrorMessage(err, errorFallback))
+      (err: unknown) => setFailure({ handle, message: getErrorMessage(err, errorFallback) })
     );
   };
 
@@ -50,10 +53,7 @@ export const HandleField = ({
       <div className="flex gap-2">
         <Input
           value={handle}
-          onChange={(event) => {
-            setHandle(event.target.value);
-            setError(null);
-          }}
+          onChange={(event) => setHandle(event.target.value)}
           placeholder={placeholder}
           aria-label={label}
           aria-describedby={messageId}
