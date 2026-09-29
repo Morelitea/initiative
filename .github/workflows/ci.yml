@@ -186,7 +186,8 @@ jobs:
             if [[ "$EVENT" != "pull_request" || "$BASE_REF" == "main" ]]; then
               out upgrade walk
               echo "Integration push or release — walking every release"
-            elif [[ -n "$(changed .github/workflows/ci.yml backend/alembic/ \
+            elif [[ -n "$(changed .github/workflows/ci.yml .github/actions/setup-backend/ \
+                backend/alembic/ \
                 backend/app/db/ backend/app/models/ backend/app/core/ \
                 backend/app/testing/ backend/scripts/upgrade_seed.py \
                 backend/scripts/upgrade_from_release.py backend/pyproject.toml \

@@ -147,13 +147,21 @@ async def _row_counts(server: str) -> dict[str, int]:
         await conn.close()
 
 
-def _emptied(before: dict[str, int], after: dict[str, int]) -> list[str]:
-    """Tables that held rows and still exist, but hold none now.
+def _lost(before: dict[str, int], after: dict[str, int]) -> list[str]:
+    """Communities that are gone, and tables that held rows and still exist
+    but hold none now.
 
     A table a revision drops or renames is not in ``after`` and is not listed:
-    that is a decision the revision states. Emptying one it keeps is not.
+    that is a decision the revision states. Emptying one it keeps is not, and
+    no revision drops a community.
     """
-    return sorted(
+    schemas_after = {table.split(".", 1)[0] for table in after}
+    gone = {
+        table.split(".", 1)[0]
+        for table in before
+        if _COMMUNITY.match(table) and table.split(".", 1)[0] not in schemas_after
+    }
+    return [f"{schema} (the whole community)" for schema in sorted(gone)] + sorted(
         f"{table} ({count} rows before)"
         for table, count in before.items()
         if count and after.get(table) == 0
@@ -171,7 +179,9 @@ def _emptied(before: dict[str, int], after: dict[str, int]) -> list[str]:
 _SNAPSHOT = {
     "relation": (
         "SELECT c.relname, c.relkind::text, c.relrowsecurity, "
-        "c.relforcerowsecurity, coalesce(c.relacl, acldefault(CASE WHEN c.relkind = 'S' THEN 's' ELSE 'r' END::\"char\", c.relowner))::text[] "
+        "c.relforcerowsecurity, coalesce(c.relacl, acldefault("
+        "CASE WHEN c.relkind = 'S' THEN 's' ELSE 'r' END::\"char\", c.relowner"
+        "))::text[] "
         "FROM pg_class c WHERE c.relnamespace = $1::regnamespace "
         "AND c.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')"
     ),
@@ -203,7 +213,8 @@ _SNAPSHOT = {
     ),
     "function": (
         "SELECT p.oid::regprocedure::text, pg_get_functiondef(p.oid), "
-        "pg_get_userbyid(p.proowner), coalesce(p.proacl, acldefault('f'::\"char\", p.proowner))::text[] "
+        "pg_get_userbyid(p.proowner), "
+        "coalesce(p.proacl, acldefault('f'::\"char\", p.proowner))::text[] "
         "FROM pg_proc p WHERE p.pronamespace = $1::regnamespace "
         "AND p.prokind IN ('f', 'p')"
     ),
@@ -216,12 +227,22 @@ _SNAPSHOT = {
         "SELECT c.relname, pg_get_viewdef(c.oid) FROM pg_class c "
         "WHERE c.relnamespace = $1::regnamespace AND c.relkind IN ('v', 'm')"
     ),
+    "default privilege": (
+        "SELECT pg_get_userbyid(d.defaclrole) || ' ' || d.defaclobjtype::text, "
+        "d.defaclacl::text[] FROM pg_default_acl d "
+        "WHERE d.defaclnamespace = $1::regnamespace "
+        "OR (d.defaclnamespace = 0 AND $1::text = 'public')"
+    ),
     "schema": (
-        "SELECT nspname, coalesce(nspacl, acldefault('n'::\"char\", nspowner))::text[] FROM pg_namespace WHERE nspname = $1::text"
+        "SELECT nspname, coalesce(nspacl, acldefault('n'::\"char\", nspowner))"
+        "::text[] FROM pg_namespace WHERE nspname = $1::text"
     ),
 }
 
 _COMMUNITY = re.compile(r"\bguild_\d+")
+
+#: A string literal or an array literal inside parentheses of its own.
+_WRAPPED_ATOM = re.compile(r"\(\s*('(?:[^']|'')*'|ARRAY\[[^\]]*\])\s*\)")
 
 
 def _normalize(kind: str, value: object) -> object:
@@ -229,9 +250,9 @@ def _normalize(kind: str, value: object) -> object:
 
     A privilege list is a set, and each community's roles collapse to one name
     in it. A function body is compared by digest, to keep a report readable. A
-    constraint the provisioning render round-tripped comes back with its array
-    casts re-spelled, so casts and grouping are not compared (the same
-    normalization ``schema_provisioning_test`` applies to a provisioned schema).
+    constraint the provisioning render round-tripped comes back with its string
+    array casts re-spelled and its literals and arrays parenthesized; those are
+    not compared, and the parentheses that group an expression are.
     """
     if isinstance(value, list) and kind != "enum":
         return sorted({_COMMUNITY.sub("guild_#", item) for item in value})
@@ -241,12 +262,12 @@ def _normalize(kind: str, value: object) -> object:
     if kind == "function" and value.startswith("CREATE"):
         return hashlib.md5(value.encode()).hexdigest()
     if kind == "constraint":
-        value = re.sub(
-            r"::(?:text|character varying|varchar|bpchar|integer|bigint)(?:\[\])?",
-            "",
-            value,
-        )
-        return re.sub(r"[\s()\[\]]", "", value)
+        value = re.sub(r"::(?:character varying|text)(?:\[\])?", "", value)
+        while True:
+            unwrapped = _WRAPPED_ATOM.sub(r"\1", value)
+            if unwrapped == value:
+                return value
+            value = unwrapped
     return value
 
 
@@ -362,9 +383,9 @@ def _boot_keeping_rows(
 ) -> None:
     before = asyncio.run(_row_counts(server))
     _boot(backend, python, env)
-    emptied = _emptied(before, asyncio.run(_row_counts(server)))
-    if emptied:
-        _fail(f"Booting {label} emptied tables that held rows", emptied)
+    lost = _lost(before, asyncio.run(_row_counts(server)))
+    if lost:
+        _fail(f"Booting {label} lost rows it held", lost)
 
 
 def main() -> None:
@@ -429,7 +450,9 @@ def main() -> None:
     _boot(BACKEND, sys.executable, fresh_env)
     _seed(BACKEND, sys.executable, fresh_env)
     fresh = asyncio.run(_schemas(args.fresh_server))
-    _boot(BACKEND, sys.executable, fresh_env)
+    _boot_keeping_rows(
+        "a fresh install again", args.fresh_server, BACKEND, sys.executable, fresh_env
+    )
 
     problems = [
         *_restart_changes(fresh, asyncio.run(_schemas(args.fresh_server))),
