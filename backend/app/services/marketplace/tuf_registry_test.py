@@ -8,7 +8,8 @@ Grouped by what they defend:
 
 * what a verified repository becomes: publishers, listings, registrations;
 * whose rows a refresh may not touch: other sources' listings, an operator's
-  publisher or registration, the operator's fields on a registry row;
+  publisher, another listing's registration, the deployment facts on a
+  registry row;
 * what a refusal leaves behind: an expired or tampered repository keeps the
   last verified catalog, and a tampered file costs its own listing only;
 * withdrawal, the switch, the root, and the offline bundle.
@@ -43,7 +44,11 @@ from app.services.marketplace import registrations as registrations_service
 from app.services.marketplace import tuf_registry
 from app.services.marketplace.catalog import upsert_listing
 from app.services.platform.app_settings import ensure_settings_row
-from app.testing import create_app_service_registration, create_publisher
+from app.testing import (
+    create_app_service_registration,
+    create_publisher,
+    sample_app_jwks,
+)
 from app.testing.tuf_repository import (
     BASE_URL,
     TufRepository,
@@ -168,8 +173,7 @@ class TestApplying:
         assert registration.listing_uid == APP_UID
         assert registration.publisher_id == publisher_id
         assert registration.image_digest == "ghcr.io/acme/tracker@sha256:" + "0" * 64
-        assert registration.base_url is None
-        assert registration.jwks is not None
+        assert (registration.base_url, registration.jwks) == (None, None)
         assert registration.scope_ceiling == ["projects:read", "projects:write"]
         assert registration.root_is_builtin is True
 
@@ -212,29 +216,24 @@ class TestApplying:
         await registrations_service.update_registration(
             session, registration.id, base_url="https://tracker.internal.test"
         )
+        assert await _live(session, registration.id) is False
 
+        await registrations_service.update_registration(
+            session, registration.id, jwks=sample_app_jwks()
+        )
         assert await _live(session, registration.id) is True
 
-    async def test_a_hosted_app_is_live_at_its_published_address(
-        self, session, repo, trusted
-    ):
-        hosted = container_registration(
-            kind="hosted",
-            base_url="https://tracker.acme.test",
-            embed_origin="https://tracker.acme.test",
-        )
+    async def test_a_hosted_app_is_refused(self, session, repo, trusted):
+        hosted = container_registration(kind="hosted", base_url=BASE_URL)
         del hosted["image"]
         repo.add_listing("acme", APP_UID, slug="tracker", registration=hosted)
         repo.publish()
 
         result, _ = await _refresh(session, repo)
 
-        assert result.ok, result
-        registration = await _registration(session, "acme.tracker")
-        assert registration is not None and registration.id is not None
-        assert registration.base_url == "https://tracker.acme.test"
-        assert registration.image_digest is None
-        assert await _live(session, registration.id) is True
+        assert [item.code for item in result.skipped] == [Codes.LISTING_REJECTED]
+        assert await _listing(session, APP_UID) is None
+        assert await _registration(session, "acme.tracker") is None
 
     async def test_the_ceiling_keeps_only_scopes_this_build_defines(
         self, session, repo, trusted
@@ -392,21 +391,50 @@ class TestOtherSources:
         assert publisher.display_name == "Morelitea"
         assert publisher.enabled is False
 
-    async def test_an_operators_registration_wins(self, session, repo, trusted):
+    async def test_a_registration_another_listing_holds_is_not_taken(
+        self, session, repo, trusted
+    ):
         await create_publisher(session, prefix="acme", source="registry")
         await create_app_service_registration(
-            session, public_id="acme.tracker", listing_uid=APP_UID
+            session, public_id="acme.tracker", listing_uid=OTHER_UID
         )
         repo.add_listing("acme", APP_UID, slug="tracker")
         repo.publish()
 
         result, _ = await _refresh(session, repo)
 
-        assert [item.code for item in result.skipped] == [Codes.REGISTRATION_CONFLICT]
+        assert [item.code for item in result.skipped] == [Codes.SOURCE_CONFLICT]
         registration = await _registration(session, "acme.tracker")
-        assert registration is not None and registration.source == "operator"
+        assert registration is not None
+        assert (registration.source, registration.listing_uid) == (
+            "operator",
+            OTHER_UID,
+        )
 
-    async def test_the_operator_edits_only_their_fields_on_a_registry_row(
+    async def test_the_registry_fills_in_a_registration_set_up_before_it(
+        self, session, repo, trusted
+    ):
+        await create_publisher(session, prefix="acme", source="registry")
+        set_up = await create_app_service_registration(
+            session, public_id="acme.tracker", mandatory=True
+        )
+        repo.add_listing("acme", APP_UID, slug="tracker")
+        repo.publish()
+
+        result, _ = await _refresh(session, repo)
+
+        assert result.skipped == []
+        registration = await _registration(session, "acme.tracker")
+        assert registration is not None and registration.id == set_up.id
+        assert (registration.source, registration.listing_uid) == ("registry", APP_UID)
+        assert registration.scope_ceiling == ["projects:read", "projects:write"]
+        assert (registration.base_url, registration.mandatory) == (
+            set_up.base_url,
+            True,
+        )
+        assert await _live(session, registration.id) is True
+
+    async def test_the_operators_deployment_facts_survive_a_refresh(
         self, session, repo, trusted
     ):
         repo.add_listing("acme", APP_UID, slug="tracker")
@@ -416,39 +444,32 @@ class TestOtherSources:
         assert registration is not None and registration.id is not None
 
         with pytest.raises(HTTPException) as refused:
-            await registrations_service.update_registration(
-                session, registration.id, scope_ceiling=["projects:write"]
-            )
+            await registrations_service.delete_registration(session, registration.id)
         assert refused.value.status_code == 409
         assert refused.value.detail == AppServiceMessages.REGISTRY_MANAGED
-        with pytest.raises(HTTPException):
-            await registrations_service.delete_registration(session, registration.id)
 
-        # The operator's edit form sends every field back; unchanged ones are
-        # not a change.
         await registrations_service.update_registration(
             session,
             registration.id,
-            listing_uid=APP_UID,
-            jwks=container_registration()["jwks"],
-            jwks_uri="",
-            embed_origin="",
+            base_url="https://tracker.internal.test",
+            jwks=sample_app_jwks(),
             mandatory=True,
-        )
-        await registrations_service.update_registration(
-            session, registration.id, enabled=False
+            enabled=False,
         )
         repo.publish()
         await _refresh(session, repo, force=True)
         registration = await _registration(session, "acme.tracker")
-        assert registration is not None and registration.enabled is False
+        assert registration is not None
+        assert (registration.enabled, registration.mandatory) == (False, True)
+        assert registration.base_url == "https://tracker.internal.test"
+        assert registration.jwks == sample_app_jwks()
 
-    async def test_an_app_services_config_entry_takes_a_registry_row_over(
+    async def test_an_entry_places_the_container_and_the_registry_keeps_the_rest(
         self, session, repo, trusted, monkeypatch, tmp_path
     ):
-        """The operator's file is their statement about this deployment, so a
-        registry row it names becomes theirs, and the next refresh leaves it
-        alone."""
+        """The entry gives what this deployment knows (where the container
+        runs, the key its pod signs with, whether every community gets it);
+        the registry keeps the rest, and later refreshes keep applying."""
         repo.add_listing("acme", APP_UID, slug="tracker")
         repo.publish()
         await _refresh(session, repo)
@@ -458,24 +479,66 @@ class TestOtherSources:
                 [
                     {
                         "public_id": "acme.tracker",
-                        "listing_uid": APP_UID,
-                        "base_url": "https://tracker.internal.test",
-                        "jwks": container_registration()["jwks"],
+                        "base_url": "http://tracker.internal.test:8080",
+                        "allowed_origins": ["https://initiative.example.test"],
+                        "jwks": sample_app_jwks(),
+                        "mandatory": True,
                     }
                 ]
             )
         )
         monkeypatch.setattr(settings, "APP_SERVICES_CONFIG", str(config))
 
-        await registrations_service.reconcile_from_config(session)
+        reconciled = await registrations_service.reconcile_from_config(session)
+        assert (reconciled.updated, reconciled.skipped) == (1, 0)
         registration = await _registration(session, "acme.tracker")
-        assert registration is not None
-        assert registration.source == "operator"
-        assert registration.image_digest is None
+        assert registration is not None and registration.id is not None
+        assert registration.source == "registry"
+        assert registration.image_digest is not None
+        assert registration.base_url == "http://tracker.internal.test:8080"
+        assert registration.allowed_origins == ["https://initiative.example.test"]
+        assert registration.mandatory is True
+        assert await _live(session, registration.id) is True
 
         repo.publish()
         result, _ = await _refresh(session, repo, force=True)
-        assert [item.code for item in result.skipped] == [Codes.REGISTRATION_CONFLICT]
+        assert result.skipped == []
+        registration = await _registration(session, "acme.tracker")
+        assert registration is not None
+        assert registration.jwks == sample_app_jwks()
+        assert registration.scope_ceiling == ["projects:read", "projects:write"]
+
+    async def test_an_entry_waits_for_the_registry_to_bring_its_app(
+        self, session, repo, trusted, monkeypatch, tmp_path
+    ):
+        config = tmp_path / "apps.json"
+        config.write_text(
+            json.dumps(
+                [
+                    {
+                        "public_id": "acme.tracker",
+                        "base_url": "http://tracker.internal.test:8080",
+                        "jwks": sample_app_jwks(),
+                    }
+                ]
+            )
+        )
+        monkeypatch.setattr(settings, "APP_SERVICES_CONFIG", str(config))
+        reconciled = await registrations_service.reconcile_from_config(session)
+        assert (reconciled.updated, reconciled.waiting) == (0, 1)
+        assert await _registration(session, "acme.tracker") is None
+
+        repo.add_listing("acme", APP_UID, slug="tracker")
+        repo.publish()
+        result, _ = await _refresh(session, repo)
+
+        assert result.skipped == []
+        registration = await _registration(session, "acme.tracker")
+        assert registration is not None and registration.id is not None
+        assert registration.source == "registry"
+        assert registration.base_url == "http://tracker.internal.test:8080"
+        assert registration.jwks == sample_app_jwks()
+        assert await _live(session, registration.id) is True
 
 
 # ---------------------------------------------------------------------------

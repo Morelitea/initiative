@@ -3,14 +3,17 @@
 A registration's listing, addresses and the public half of its keys are shown
 as they are. Its vendor values are the one thing it holds that is secret: a
 secret one is written and never read back, and the screen is told only that it
-is set.
+is set. A request writes deployment facts only; what the app is and may do
+comes from its listing.
 """
 
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, model_validator
 
+from app.core.messages import AppServiceMessages
+from app.models.platform.app_service_registration import LISTING_STATED_FIELDS
 from app.schemas.base import RawTextStr, SanitizedBaseModel
 
 __all__ = [
@@ -44,15 +47,15 @@ class AppServiceRegistrationRead(SanitizedBaseModel):
 
     id: int
     public_id: str
-    #: The catalog listing this registration speaks for.
+    #: The catalog listing its app facts come from. Null until it arrives.
     listing_uid: Optional[str] = None
     #: The publisher the public_id's prefix names.
     publisher_id: int
     publisher_prefix: str
     publisher_name: str
     publisher_enabled: bool
-    #: Where this deployment's server calls the app. Null for an app from the
-    #: registry that runs as a container until the operator gives its address.
+    #: Where this deployment's server calls the app. Null until the operator
+    #: gives its address.
     base_url: Optional[str] = None
     #: Where a browser loads its surfaces. Null when that is ``base_url`` too.
     embed_origin: Optional[str] = None
@@ -63,17 +66,16 @@ class AppServiceRegistrationRead(SanitizedBaseModel):
     jwks: Optional[Dict[str, Any]] = None
     #: Where the app publishes its key set, on its own origin.
     jwks_uri: Optional[str] = None
-    #: The most an install of this app may be granted, from the app scope
-    #: vocabulary. Empty means no scope may be granted.
+    #: The most an install of this app may be granted, from its listing.
+    #: Empty means no scope may be granted.
     scope_ceiling: List[str] = []
     #: Installed into every guild and not removable by guild admins.
     mandatory: bool = False
     enabled: bool = True
-    #: ``operator`` (added here or in ``APP_SERVICES_CONFIG``) or ``registry``.
-    #: A registry registration takes only its switch, mandatory flag, origins
-    #: and, for a container, its address.
+    #: ``registry`` when its app facts come from a listing the registry signed,
+    #: ``operator`` otherwise.
     source: str = "operator"
-    #: The container image a registry app runs, pinned by digest.
+    #: The container image its listing names, pinned by digest.
     image_digest: Optional[str] = None
     #: The values the listing's manifest asks the operator for, in order.
     vendor_fields: List[AppVendorFieldRead] = []
@@ -94,36 +96,43 @@ class AppServiceRegistrationRead(SanitizedBaseModel):
     updated_at: datetime
 
 
-class AppServiceRegistrationCreate(SanitizedBaseModel):
-    """Wire an app service up.
+class _DeploymentFacts(SanitizedBaseModel):
+    """A request naming what only the app's listing states is refused."""
 
-    ``public_id`` and ``listing_uid`` name the app and the listing it speaks
-    for. ``embed_origin`` is optional, and unset is the ordinary case: an app
-    reachable at one address needs only ``base_url``. Give one when the
-    address a browser must use is not the address this deployment calls.
+    @model_validator(mode="before")
+    @classmethod
+    def _no_listing_facts(cls, data: Any) -> Any:
+        if isinstance(data, dict) and any(key in data for key in LISTING_STATED_FIELDS):
+            raise ValueError(AppServiceMessages.STATED_BY_LISTING)
+        return data
+
+
+class AppServiceRegistrationCreate(_DeploymentFacts):
+    """Set up an app service's deployment facts before its listing arrives.
+
+    ``public_id`` names the app. ``embed_origin`` is optional, and unset is the
+    ordinary case: an app reachable at one address needs only ``base_url``.
+    Give one when the address a browser must use is not the address this
+    deployment calls.
 
     Keys are a pasted ``jwks``, a ``jwks_uri`` on ``base_url``'s own origin
     over https, or both. A registration with neither is not live.
     """
 
     public_id: str = Field(max_length=120)
-    listing_uid: str = Field(max_length=14)
     base_url: str = Field(max_length=1000)
     embed_origin: Optional[str] = Field(default=None, max_length=1000)
     allowed_origins: Optional[List[str]] = None
     #: JWKS holding the public half of the app's signing keys.
     jwks: Optional[Dict[str, Any]] = None
     jwks_uri: Optional[str] = Field(default=None, max_length=1000)
-    #: The most an install of this app may be granted. Every entry must be a
-    #: scope in the app scope vocabulary. Left out, the ceiling is empty.
-    scope_ceiling: Optional[List[str]] = None
     mandatory: bool = False
     enabled: bool = True
     #: Values for the vendor fields the listing's manifest declares, by key.
     vendor_values: Optional[Dict[str, Optional[RawTextStr]]] = None
 
 
-class AppServiceRegistrationUpdate(SanitizedBaseModel):
+class AppServiceRegistrationUpdate(_DeploymentFacts):
     """Partial edit.
 
     An empty ``embed_origin`` clears it, putting both surfaces back on
@@ -133,18 +142,15 @@ class AppServiceRegistrationUpdate(SanitizedBaseModel):
     by not sending it.
     """
 
-    listing_uid: Optional[str] = Field(default=None, max_length=14)
     base_url: Optional[str] = Field(default=None, max_length=1000)
     embed_origin: Optional[str] = Field(default=None, max_length=1000)
     allowed_origins: Optional[List[str]] = None
     #: Replace the key set. An empty object clears it.
     jwks: Optional[Dict[str, Any]] = None
     jwks_uri: Optional[str] = Field(default=None, max_length=1000)
-    #: Replace the scope ceiling. An empty list clears it.
-    scope_ceiling: Optional[List[str]] = None
     mandatory: Optional[bool] = None
     enabled: Optional[bool] = None
-    #: Set or clear vendor values, by key. Allowed on a registry registration.
+    #: Set or clear vendor values, by key.
     vendor_values: Optional[Dict[str, Optional[RawTextStr]]] = None
 
 

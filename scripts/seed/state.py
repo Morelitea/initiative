@@ -9,6 +9,7 @@ from pathlib import Path
 from sqlmodel import select
 
 import app.db.session as db_session
+from app.db.request_context import Unattributed
 from app.db.session import SystemSessionLocal, set_rls_context
 from app.models.platform.user import User
 from app.services.platform.app_settings import get_app_settings
@@ -122,7 +123,7 @@ async def clean() -> None:
     # or the next un-seeded dev database starts with a directory nobody asked
     # for. app_settings is not truncated above, so this is its own write.
     async with SystemSessionLocal() as session:
-        await set_rls_context(session)
+        await set_rls_context(session, Unattributed())
         app_settings = await get_app_settings(session)
         app_settings.community_directory_enabled = False
         session.add(app_settings)

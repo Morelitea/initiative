@@ -24,6 +24,7 @@ jobs:
       backend_scope: ${{ steps.diff.outputs.backend_scope }}
       alembic: ${{ steps.diff.outputs.alembic }}
       seam: ${{ steps.diff.outputs.seam }}
+      upgrade: ${{ steps.diff.outputs.upgrade }}
       frontend: ${{ steps.diff.outputs.frontend }}
       codegen: ${{ steps.diff.outputs.codegen }}
     steps:
@@ -178,8 +179,29 @@ jobs:
             fi
           }
 
+          # Upgrading a database a release wrote. A pull request into dev
+          # upgrades from the newest release; a release pull request and every
+          # integration push walk each release since WALK_FROM in turn.
+          upgrade() {
+            if [[ "$EVENT" != "pull_request" || "$BASE_REF" == "main" ]]; then
+              out upgrade walk
+              echo "Integration push or release — walking every release"
+            elif [[ -n "$(changed .github/workflows/ci.yml .github/actions/setup-backend/ \
+                backend/alembic/ \
+                backend/app/db/ backend/app/models/ backend/app/core/ \
+                backend/app/testing/ backend/scripts/upgrade_seed.py \
+                backend/scripts/upgrade_from_release.py backend/pyproject.toml \
+                backend/uv.lock scripts/seed/ scripts/seed_dev_data.py)" ]]; then
+              out upgrade hop
+              echo "Schema or boot changed — upgrading from the newest release"
+            else
+              out upgrade false
+            fi
+          }
+
           backend
           seam
+          upgrade
           frontend
           codegen
 
@@ -314,6 +336,77 @@ jobs:
         run: |
           cd backend
           uv run python -m pytest -m seam app/db/seam_conformance_test.py -n 2 --tb=short
+
+  upgrade-from-release:
+    name: Upgrade From Release
+    needs: changes
+    # A failed change detection leaves the outputs empty, which runs the job.
+    if: ${{ !cancelled() && needs.changes.outputs.upgrade != 'false' }}
+    runs-on: ubuntu-latest
+    # Two servers, because roles are cluster-wide: the release's database and
+    # a fresh install of this tree, compared once both are built.
+    services:
+      upgraded:
+        image: postgres:17
+        env:
+          POSTGRES_USER: initiative
+          POSTGRES_PASSWORD: initiative
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U initiative"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      fresh:
+        image: postgres:17
+        env:
+          POSTGRES_USER: initiative
+          POSTGRES_PASSWORD: initiative
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U initiative"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # Fixed test-only key (64 hex chars). Not a secret: CI databases are ephemeral.
+      SECRET_KEY: 3b9c63094f48ae5b21e23a9d6d34a8e6f1f1f24cb0a44c84a25e36c9d4a7f1d2
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Every release tag, which the check checks out and boots.
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-backend
+
+      - name: Upgrade a release's database to this tree
+        env:
+          MODE: ${{ needs.changes.outputs.upgrade }}
+        run: |
+          cd backend
+          uv run python scripts/upgrade_from_release.py \
+            $([[ "$MODE" == "walk" ]] && echo --walk) \
+            --server postgresql://initiative:initiative@localhost:5432 \
+            --fresh-server postgresql://initiative:initiative@localhost:5433
+
+      - name: The dev seed fills a fresh install
+        # The fresh install the step above built, with a first owner for the
+        # seed to sign its data with.
+        env:
+          DATABASE_URL: postgresql+asyncpg://app_provisioner:app_provisioner@localhost:5433/initiative
+          DATABASE_URL_APP: postgresql+asyncpg://app_user:app_user@localhost:5433/initiative
+          DATABASE_URL_ADMIN: postgresql+asyncpg://app_admin:app_admin@localhost:5433/initiative
+          DATABASE_URL_BOOTSTRAP: postgresql+asyncpg://initiative:initiative@localhost:5433/initiative
+          FIRST_OWNER_EMAIL: admin@example.com
+          FIRST_OWNER_PASSWORD: changeme
+        run: |
+          cd backend
+          uv run python -m app.db.init_db
+          uv run python ../scripts/seed_dev_data.py
 
   frontend-lint-and-test:
     name: Frontend Lint & Tests

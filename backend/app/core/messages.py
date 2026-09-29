@@ -1089,8 +1089,6 @@ class MarketplaceRegistryMessages:
     SOURCE_CONFLICT = "MARKETPLACE_REGISTRY_SOURCE_CONFLICT"
     #: This deployment's operator added a publisher with the same prefix.
     PUBLISHER_CONFLICT = "MARKETPLACE_REGISTRY_PUBLISHER_CONFLICT"
-    #: This deployment's operator registered an app with the same id.
-    REGISTRATION_CONFLICT = "MARKETPLACE_REGISTRY_REGISTRATION_CONFLICT"
     #: The listing itself was refused by the catalog's validator.
     LISTING_REJECTED = "MARKETPLACE_REGISTRY_LISTING_REJECTED"
 
@@ -1251,8 +1249,6 @@ class AppServiceMessages:
     #: address Initiative's own server calls.
     INVALID_EMBED_ORIGIN = "APP_SERVICE_INVALID_EMBED_ORIGIN"
     INVALID_ORIGIN = "APP_SERVICE_INVALID_ORIGIN"
-    #: A scope ceiling naming something outside the app scope vocabulary.
-    UNKNOWN_SCOPE = "APP_SERVICE_UNKNOWN_SCOPE"
     #: The key set is not a JWKS this build can verify against, or an entry in
     #: it carries no ``kid`` for a JWT to name.
     INVALID_JWKS = "APP_SERVICE_INVALID_JWKS"
@@ -1260,8 +1256,9 @@ class AppServiceMessages:
     #: has no fallback, so registration fails closed until an operator
     #: supplies one.
     SIGNING_NOT_CONFIGURED = "APP_SERVICE_SIGNING_NOT_CONFIGURED"
-    #: The listing uid is missing or is not a catalog uid.
-    INVALID_LISTING_UID = "APP_SERVICE_INVALID_LISTING_UID"
+    #: A registration entry or request named something only the app's
+    #: listing states (its listing, scope ceiling, image or sectors).
+    STATED_BY_LISTING = "APP_SERVICE_STATED_BY_LISTING"
     #: The key set address is not https on the base URL's own origin.
     INVALID_JWKS_URI = "APP_SERVICE_INVALID_JWKS_URI"
     #: No publisher has that id.
@@ -1272,9 +1269,8 @@ class AppServiceMessages:
     INVALID_PUBLISHER_PREFIX = "APP_PUBLISHER_INVALID_PREFIX"
     #: A publisher's name is empty or too long.
     INVALID_PUBLISHER_NAME = "APP_PUBLISHER_INVALID_NAME"
-    #: The registration arrived from the registry, which keeps the fields
-    #: asked to change. The operator keeps its switch, mandatory flag, origins
-    #: and, for a container, its location.
+    #: The registration's app facts come from the registry, whose next refresh
+    #: would bring it back, so it is switched off rather than removed.
     REGISTRY_MANAGED = "APP_SERVICE_REGISTRY_MANAGED"
     #: A vendor value named a field the app's manifest does not declare.
     UNKNOWN_VENDOR_FIELD = "APP_SERVICE_UNKNOWN_VENDOR_FIELD"

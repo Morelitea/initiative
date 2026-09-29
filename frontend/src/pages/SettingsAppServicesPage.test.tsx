@@ -87,7 +87,12 @@ describe("SettingsAppServicesPage", () => {
   describe("whether an app is live", () => {
     it("labels each registration live or not, with its publisher and listing", () => {
       registrations = [
-        buildRegistration({ id: 1, public_id: "core.github", live: true }),
+        buildRegistration({
+          id: 1,
+          public_id: "core.github",
+          live: true,
+          scope_ceiling: ["projects:read", "projects:write"],
+        }),
         // No key set, pasted or by address, so it cannot be live.
         buildRegistration({
           id: 2,
@@ -104,6 +109,10 @@ describe("SettingsAppServicesPage", () => {
       expect(within(github).getByText("Live")).toBeInTheDocument();
       expect(within(github).getByText(/Publisher: Core Apps/)).toBeInTheDocument();
       expect(within(github).getByText("gh7k2m9p4q1x8z")).toBeInTheDocument();
+      // The ceiling is the listing's, shown and not edited.
+      expect(
+        within(github).getByText("Scopes, from its listing: projects:read, projects:write")
+      ).toBeInTheDocument();
       expect(within(github).queryByText(/Not live until it has signing keys/)).toBeNull();
 
       expect(within(slack).getByText("Not live")).toBeInTheDocument();
@@ -163,14 +172,14 @@ describe("SettingsAppServicesPage", () => {
   });
 
   describe("registering", () => {
-    it("registers a new service with its listing and its keys", async () => {
+    it("registers a new service with its keys, leaving the listing to the app", async () => {
       const user = userEvent.setup();
       renderAsOperator();
 
       await user.click(screen.getByRole("button", { name: "Add app service" }));
 
       await user.type(await screen.findByLabelText("App identifier"), "acme.shopify");
-      await user.type(screen.getByLabelText("Listing"), "sh0p1fy0000000");
+      expect(screen.queryByLabelText("Listing")).toBeNull();
       await user.type(screen.getByLabelText("Base URL"), "https://shopify.example.com");
       await user.type(
         screen.getByLabelText("Key set address"),
@@ -181,7 +190,6 @@ describe("SettingsAppServicesPage", () => {
       expect(createMutate).toHaveBeenCalledWith(
         {
           public_id: "acme.shopify",
-          listing_uid: "sh0p1fy0000000",
           base_url: "https://shopify.example.com",
           // Left blank: the app answers both surfaces at the base URL.
           embed_origin: null,
@@ -213,7 +221,6 @@ describe("SettingsAppServicesPage", () => {
       await user.click(screen.getByRole("button", { name: "Add app service" }));
 
       await user.type(await screen.findByLabelText("App identifier"), "acme.shopify");
-      await user.type(screen.getByLabelText("Listing"), "sh0p1fy0000000");
       await user.type(screen.getByLabelText("Base URL"), "http://shopify:8080");
       await user.type(screen.getByLabelText("Browser address"), "https://shop.example.com");
       await user.click(screen.getByRole("button", { name: "Save" }));
@@ -229,21 +236,19 @@ describe("SettingsAppServicesPage", () => {
   });
 
   describe("editing", () => {
-    it("sends the listing and the key set address, and keeps the pasted set", async () => {
+    it("sends the key set address and keeps the pasted set", async () => {
       const user = userEvent.setup();
       registrations = [buildRegistration({ jwks_uri: "https://gh.example.com/jwks.json" })];
       renderAsOperator();
 
       await user.click(screen.getByRole("button", { name: "Edit" }));
-      const listing = await screen.findByLabelText("Listing");
-      await user.clear(listing);
-      await user.type(listing, "gh0000000000zz");
       // Emptying the address clears it rather than leaving it stored.
-      await user.clear(screen.getByLabelText("Key set address"));
+      await user.clear(await screen.findByLabelText("Key set address"));
       await user.click(screen.getByRole("button", { name: "Save" }));
 
       const data = updateMutate.mock.calls[0][0].data;
-      expect(data).toMatchObject({ listing_uid: "gh0000000000zz", jwks_uri: "" });
+      expect(data).toMatchObject({ jwks_uri: "" });
+      expect(data).not.toHaveProperty("listing_uid");
       // The stored key set is shown in the box and sent back as it was.
       expect(data.jwks).toEqual(registrations[0].jwks);
       expect(data).not.toHaveProperty("secret");

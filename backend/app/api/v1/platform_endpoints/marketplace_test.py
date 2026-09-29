@@ -16,6 +16,7 @@ import pytest
 from app.core.config import settings
 from app.core.messages import MarketplaceMessages
 from app.models.platform.guild import GuildRole
+from app.testing.tuf_repository import service_app_definition
 
 
 RESCAN_URL = "/api/v1/marketplace/operator-catalog/rescan"
@@ -182,6 +183,17 @@ def _counter_manifest(**overrides) -> dict:
     }
 
 
+def _app_manifest(**overrides) -> dict:
+    return _counter_manifest(
+        uid="VPR0ADAPP00001",
+        public_id="ours.tracker",
+        kind="app",
+        name="Tracker",
+        definition=service_app_definition("ours.tracker"),
+        **overrides,
+    )
+
+
 class TestUploadingAListingFile:
     async def test_the_owner_publishes_a_file_as_a_local_listing(
         self, client, acting_user
@@ -233,6 +245,43 @@ class TestUploadingAListingFile:
 
         assert response.status_code == 422
         assert "builtin" in response.json()["problem"]
+
+    async def test_a_private_apps_listing_brings_its_registration(
+        self, client, acting_user
+    ):
+        """Adding a private app is uploading its listing, then giving it
+        deployment facts under App services."""
+        owner = await acting_user("owner")
+        manifest = _app_manifest(
+            registration={"kind": "container", "scope_ceiling": ["projects:read"]}
+        )
+
+        response = await client.post(
+            UPLOAD_URL, json={"manifest": manifest}, headers=owner.headers
+        )
+
+        assert response.status_code == 201, response.text
+        services = await client.get("/api/v1/app-services/", headers=owner.headers)
+        [registration] = services.json()
+        assert registration["public_id"] == "ours.tracker"
+        assert registration["listing_uid"] == manifest["uid"]
+        assert registration["scope_ceiling"] == ["projects:read"]
+        assert registration["live"] is False
+
+    async def test_reference_sectors_are_not_taken_from_an_upload(
+        self, client, acting_user
+    ):
+        owner = await acting_user("owner")
+        manifest = _app_manifest(
+            registration={"kind": "container", "reference_sectors": ["billing"]}
+        )
+
+        response = await client.post(
+            UPLOAD_URL, json={"manifest": manifest}, headers=owner.headers
+        )
+
+        assert response.status_code == 422
+        assert "reference sectors" in response.json()["problem"]
 
     @pytest.mark.parametrize("tier", ["operator", "member"])
     async def test_uploading_is_the_owners(self, client, acting_user, tier):

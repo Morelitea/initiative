@@ -89,10 +89,10 @@ export const coerceScalar = (raw: string): CellValue => {
   if (lower === "true") return true;
   if (lower === "false") return false;
   // Numeric coercion: must look entirely numeric (allow ., -, e/E for
-  // exponent notation) and round-trip cleanly. Don't coerce things
-  // like "01234" since those usually are IDs / phone numbers, not
-  // numbers — preserving the leading zero matters.
-  if (/^-?\d+(\.\d+)?([eE][-+]?\d+)?$/.test(trimmed)) {
+  // exponent notation, and a bare leading "." like ".7") and round-trip
+  // cleanly. Don't coerce things like "01234" since those usually are
+  // IDs / phone numbers, not numbers — preserving the leading zero matters.
+  if (/^-?\d*\.?\d+([eE][-+]?\d+)?$/.test(trimmed)) {
     if (trimmed.startsWith("0") && !trimmed.startsWith("0.") && trimmed !== "0") {
       // Return the trimmed form so leading/trailing whitespace from a
       // clipboard paste (" 0123") doesn't get persisted with padding

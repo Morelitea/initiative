@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import csv
 import io
+import math
 import re
 import zipfile
 from datetime import date, datetime, time
@@ -146,7 +147,7 @@ def _parse_csv(data: bytes, name: str, *, tab: bool) -> dict[str, Any]:
 # What a number looks like, matching ``coerceScalar`` in
 # ``frontend/src/lib/spreadsheet/csv.ts``. A field pasted from the clipboard
 # and the same field read from a file have to become the same value.
-_NUMERIC_RE = re.compile(r"^-?\d+(\.\d+)?([eE][-+]?\d+)?$")
+_NUMERIC_RE = re.compile(r"^-?\d*\.?\d+([eE][-+]?\d+)?$")
 
 
 def _scalar(text: str) -> Any:
@@ -173,6 +174,8 @@ def _scalar(text: str) -> Any:
         try:
             number = float(trimmed)
         except ValueError:
+            return text
+        if not math.isfinite(number):
             return text
         if number == int(number) and "." not in trimmed and "e" not in lower:
             return int(number)
