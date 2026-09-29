@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Ignore someone by handle** from Settings › Privacy › Ignored accounts, the same way you connect. API: `POST /me/ignored`.
+
 ### Changed
 
 - **Trash shows 25 items a page**, with page controls past that.

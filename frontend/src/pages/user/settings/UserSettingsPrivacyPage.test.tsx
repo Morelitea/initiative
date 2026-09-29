@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   connections: vi.fn(),
   messages: vi.fn(),
   ignored: vi.fn(),
+  ignoreByHandle: vi.fn(),
   noop: vi.fn(),
 }));
 
@@ -29,12 +30,13 @@ vi.mock("@/hooks/useDirectMessages", async (importOriginal) => ({
   useConnections: () => mocks.connections(),
   useMessageRequests: () => mocks.messages(),
   useIgnoredAccounts: () => mocks.ignored(),
-  useRequestConnection: () => ({ mutate: mocks.noop, isPending: false }),
+  useRequestConnection: () => ({ mutateAsync: mocks.noop, isPending: false }),
   useRemoveConnection: () => ({ mutate: mocks.noop, isPending: false }),
   useAcceptConnection: () => ({ mutate: mocks.noop, isPending: false }),
   useAcceptMessageRequest: () => ({ mutate: mocks.noop, isPending: false }),
   useRemoveMessageRequest: () => ({ mutate: mocks.noop, isPending: false }),
   useStopIgnoring: () => ({ mutate: mocks.noop, isPending: false }),
+  useIgnoreAccountByHandle: () => ({ mutateAsync: mocks.ignoreByHandle, isPending: false }),
 }));
 
 const dmSettings = (overrides: Record<string, unknown> = {}) => ({
@@ -130,5 +132,18 @@ describe("UserSettingsPrivacyPage", () => {
     expect(ignored).toBeInTheDocument();
     expect(screen.queryByText(/they will not know/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/notified that/i)).not.toBeInTheDocument();
+  });
+
+  it("ignores somebody by their handle", async () => {
+    mocks.ignoreByHandle.mockResolvedValue(undefined);
+    renderPage(UserSettingsPrivacyPage);
+
+    const field = await screen.findByRole("textbox", { name: /ignore by handle/i });
+    await userEvent.type(field, "bram#4410{Enter}");
+
+    expect(mocks.ignoreByHandle).toHaveBeenCalledWith({
+      data: { username: "bram", discriminator: 4410 },
+    });
+    expect(field).toHaveValue("");
   });
 });

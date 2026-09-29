@@ -1740,7 +1740,9 @@
       "title": "Comptes ignorés",
       "description": "Vous ne serez pas notifié lorsque ces comptes vous mentionnent, vous répondent ou réagissent, et rien de ce qu'ils vous envoient n'arrive — messages, demandes de message, demandes de connexion. Vous verrez toujours vos activités respectives dans les communautés partagées et pourrez utiliser tous les outils normalement.",
       "empty": "Vous n'ignorez personne.",
-      "stop": "Ne plus ignorer"
+      "stop": "Ne plus ignorer",
+      "add": "Ignorer par identifiant",
+      "ignore": "Ignorer"
     },
     "cookies": {
       "title": "Cookies",

@@ -1740,7 +1740,9 @@
       "title": "Cuentas ignoradas",
       "description": "No recibirás notificaciones cuando estas cuentas te mencionen, te respondan o reaccionen, y nada de lo que te envíen llegará: mensajes, solicitudes de mensaje, solicitudes de conexión. Seguiréis viendo la actividad del otro en las comunidades que compartís y podréis usar todas las herramientas con normalidad.",
       "empty": "No estás ignorando a nadie.",
-      "stop": "Dejar de ignorar"
+      "stop": "Dejar de ignorar",
+      "add": "Ignorar por identificador",
+      "ignore": "Ignorar"
     },
     "cookies": {
       "title": "Cookies",

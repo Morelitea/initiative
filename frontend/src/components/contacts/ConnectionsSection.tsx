@@ -1,18 +1,15 @@
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ContactGrantRead } from "@/api/generated/initiativeAPI.schemas";
 import { ContactPersonRow } from "@/components/contacts/ContactPersonRow";
+import { HandleField } from "@/components/contacts/HandleField";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
-  parseHandle,
   useConnections,
   useRemoveConnection,
   useRequestConnection,
 } from "@/hooks/useDirectMessages";
 import { toast } from "@/lib/chesterToast";
-import { getErrorMessage } from "@/lib/errorMessage";
 import { formatDate } from "@/lib/formatDate";
 
 interface ConnectionsSectionProps {
@@ -32,54 +29,27 @@ export const ConnectionsSection = ({ allowAdding = true }: ConnectionsSectionPro
   const { data } = useConnections();
   const requestConnection = useRequestConnection();
   const removeConnection = useRemoveConnection();
-  const [handle, setHandle] = useState("");
-  const [error, setError] = useState<string | null>(null);
 
   const accepted: ContactGrantRead[] = data?.accepted ?? [];
-
-  const send = () => {
-    const parsed = parseHandle(handle);
-    if (!parsed) {
-      setError(t("privacy.connections.addHint"));
-      return;
-    }
-    setError(null);
-    requestConnection.mutate(
-      { data: parsed },
-      {
-        onSuccess: () => {
-          setHandle("");
-          toast.success(t("privacy.connections.sent"));
-        },
-        onError: (err) => setError(getErrorMessage(err, "errors:CONTACT_GRANT_CANNOT_REACH")),
-      }
-    );
-  };
 
   return (
     <div className="space-y-4">
       <p className="text-muted-foreground text-sm">{t("privacy.connections.description")}</p>
 
       {allowAdding && (
-        <div className="space-y-1">
-          <div className="flex gap-2">
-            <Input
-              value={handle}
-              onChange={(event) => setHandle(event.target.value)}
-              placeholder={t("privacy.connections.addPlaceholder")}
-              aria-label={t("privacy.connections.add")}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") send();
-              }}
-            />
-            <Button onClick={send} disabled={requestConnection.isPending || !handle.trim()}>
-              {t("privacy.connections.send")}
-            </Button>
-          </div>
-          <p className={error ? "text-destructive text-xs" : "text-muted-foreground text-xs"}>
-            {error ?? t("privacy.connections.addHint")}
-          </p>
-        </div>
+        <HandleField
+          label={t("privacy.connections.add")}
+          placeholder={t("privacy.connections.addPlaceholder")}
+          hint={t("privacy.connections.addHint")}
+          submitLabel={t("privacy.connections.send")}
+          errorFallback="errors:CONTACT_GRANT_CANNOT_REACH"
+          pending={requestConnection.isPending}
+          onSubmit={(handle) =>
+            requestConnection
+              .mutateAsync({ data: handle })
+              .then(() => toast.success(t("privacy.connections.sent")))
+          }
+        />
       )}
 
       {accepted.length === 0 ? (

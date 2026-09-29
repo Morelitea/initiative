@@ -1740,7 +1740,9 @@
       "title": "Ignored accounts",
       "description": "You will not be notified when these accounts mention, reply to or react to you, and nothing they send you arrives — messages, message requests, connection requests. You will still see each other's activity in communities you share, and be able to use all tools normally.",
       "empty": "You are not ignoring anyone.",
-      "stop": "Stop ignoring"
+      "stop": "Stop ignoring",
+      "add": "Ignore by handle",
+      "ignore": "Ignore"
     },
     "cookies": {
       "title": "Cookies",

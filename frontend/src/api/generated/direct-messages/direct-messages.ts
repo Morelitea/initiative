@@ -48,6 +48,7 @@ import type {
   DmSessionKeysRequest,
   DmSessionKeysResponse,
   HTTPValidationError,
+  IgnoreAccountCreate,
   IgnoredAccountsResponse,
   ListIgnoredAccountsApiV1MeIgnoredGetParams,
   MessageRequestCreate,
@@ -998,6 +999,104 @@ export function useListIgnoredAccountsApiV1MeIgnoredGet<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+/**
+ * Start ignoring an account by its exact handle, as a connection is asked
+ * for. The same answer as the id route for a handle nobody holds.
+ * @summary Ignore Account By Handle
+ */
+export const ignoreAccountByHandleApiV1MeIgnoredPost = (
+  ignoreAccountCreate: BodyType<IgnoreAccountCreate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    {
+      url: `/api/v1/me/ignored`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: ignoreAccountCreate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getIgnoreAccountByHandleApiV1MeIgnoredPostMutationKey = () =>
+  ["ignoreAccountByHandleApiV1MeIgnoredPost"] as const;
+
+export const getIgnoreAccountByHandleApiV1MeIgnoredPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ignoreAccountByHandleApiV1MeIgnoredPost>>,
+    TError,
+    IgnoreAccountByHandleApiV1MeIgnoredPostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof ignoreAccountByHandleApiV1MeIgnoredPost>>,
+  TError,
+  IgnoreAccountByHandleApiV1MeIgnoredPostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getIgnoreAccountByHandleApiV1MeIgnoredPostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof ignoreAccountByHandleApiV1MeIgnoredPost>>,
+    IgnoreAccountByHandleApiV1MeIgnoredPostMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return ignoreAccountByHandleApiV1MeIgnoredPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type IgnoreAccountByHandleApiV1MeIgnoredPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof ignoreAccountByHandleApiV1MeIgnoredPost>>
+>;
+export type IgnoreAccountByHandleApiV1MeIgnoredPostMutationBody = BodyType<IgnoreAccountCreate>;
+export type IgnoreAccountByHandleApiV1MeIgnoredPostMutationError = ErrorType<HTTPValidationError>;
+export type IgnoreAccountByHandleApiV1MeIgnoredPostMutationVariables = {
+  data: BodyType<IgnoreAccountCreate>;
+};
+
+/**
+ * @summary Ignore Account By Handle
+ */
+export const useIgnoreAccountByHandleApiV1MeIgnoredPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof ignoreAccountByHandleApiV1MeIgnoredPost>>,
+      TError,
+      IgnoreAccountByHandleApiV1MeIgnoredPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof ignoreAccountByHandleApiV1MeIgnoredPost>>,
+  TError,
+  IgnoreAccountByHandleApiV1MeIgnoredPostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getIgnoreAccountByHandleApiV1MeIgnoredPostMutationOptions(options),
+    queryClient
+  );
+};
 /**
  * Start ignoring an account. Idempotent, and nothing is deleted.
  * @summary Ignore Account
