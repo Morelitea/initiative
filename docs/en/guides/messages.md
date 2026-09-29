@@ -106,11 +106,13 @@ A message is delivered to your devices and then **deleted from the server**. The
 
 If the person you're writing to has never opened Messages, there's no device to deliver to yet, and Initiative tells you so rather than pretending the message went.
 
-## Knowing it's really them
+## Adding a device
 
-Each device has its own keys, and Initiative keeps track of the ones it has seen. When someone's devices change, because they got a new phone, say, or signed in on a friend's laptop and forgot, you get a notice before anything else goes to the new device. Tap **Compare safety number**: you each see the same 60 digits, and if they match when you read them out to each other, press **They match**. That's the whole ceremony.
+Sign in somewhere new and your other devices ask **New device signed in**. If it's yours, tap **Verify** and keep both open side by side. Each shows the same four pictures, and you tap **They match** on both. That's the whole ceremony. Tick the box first if the new device should get your message history.
 
-When *you* sign in somewhere new, your other devices ask **New device signed in. Is this yours?**, with a row of emoji. That device shows the same emoji; if they match, say yes, and tick whether it should get your message history. If you've never heard of it, **No, remove it** takes it off your account. Your own device's emoji are under **User settings → Security**.
+The pictures are different every time, so there's nothing to write down or remember. If they don't match, tap **They don't match**: nothing changes, and you can try again. If you've never heard of the device, **Not mine, remove it** takes it off your account.
+
+When somebody you talk to adds or replaces a device, the conversation says so in one quiet line, where it happened. There's nothing to do about it. It's there so it isn't a surprise.
 
 ## Notifications
 

@@ -22,6 +22,7 @@ import type {
 
 import type {
   CollectQueueApiV1MeDmQueueGetParams,
+  CollectVerificationApiV1MeDmVerificationGetParams,
   ConnectionRequestCreate,
   ContactGrantRead,
   ContactGrantsResponse,
@@ -47,6 +48,8 @@ import type {
   DmSendResponse,
   DmSessionKeysRequest,
   DmSessionKeysResponse,
+  DmVerificationInbox,
+  DmVerificationSend,
   HTTPValidationError,
   IgnoreAccountCreate,
   IgnoredAccountsResponse,
@@ -3811,3 +3814,256 @@ export const useAcknowledgeQueueApiV1MeDmQueueAckPost = <
 > => {
   return useMutation(getAcknowledgeQueueApiV1MeDmQueueAckPostMutationOptions(options), queryClient);
 };
+/**
+ * Relay one message of a verification to another of this account's
+ * devices. The body is the client's own and is not read here.
+ * @summary Send Verification
+ */
+export const sendVerificationApiV1MeDmVerificationPost = (
+  dmVerificationSend: BodyType<DmVerificationSend>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    {
+      url: `/api/v1/me/dm/verification`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: dmVerificationSend,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSendVerificationApiV1MeDmVerificationPostMutationKey = () =>
+  ["sendVerificationApiV1MeDmVerificationPost"] as const;
+
+export const getSendVerificationApiV1MeDmVerificationPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendVerificationApiV1MeDmVerificationPost>>,
+    TError,
+    SendVerificationApiV1MeDmVerificationPostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendVerificationApiV1MeDmVerificationPost>>,
+  TError,
+  SendVerificationApiV1MeDmVerificationPostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getSendVerificationApiV1MeDmVerificationPostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendVerificationApiV1MeDmVerificationPost>>,
+    SendVerificationApiV1MeDmVerificationPostMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return sendVerificationApiV1MeDmVerificationPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendVerificationApiV1MeDmVerificationPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendVerificationApiV1MeDmVerificationPost>>
+>;
+export type SendVerificationApiV1MeDmVerificationPostMutationBody = BodyType<DmVerificationSend>;
+export type SendVerificationApiV1MeDmVerificationPostMutationError = ErrorType<HTTPValidationError>;
+export type SendVerificationApiV1MeDmVerificationPostMutationVariables = {
+  data: BodyType<DmVerificationSend>;
+};
+
+/**
+ * @summary Send Verification
+ */
+export const useSendVerificationApiV1MeDmVerificationPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof sendVerificationApiV1MeDmVerificationPost>>,
+      TError,
+      SendVerificationApiV1MeDmVerificationPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof sendVerificationApiV1MeDmVerificationPost>>,
+  TError,
+  SendVerificationApiV1MeDmVerificationPostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getSendVerificationApiV1MeDmVerificationPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Verification messages waiting for one device, oldest first. Collecting
+ * deletes them.
+ * @summary Collect Verification
+ */
+export const collectVerificationApiV1MeDmVerificationGet = (
+  params: CollectVerificationApiV1MeDmVerificationGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DmVerificationInbox>(
+    { url: `/api/v1/me/dm/verification`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getCollectVerificationApiV1MeDmVerificationGetQueryKey = (
+  params?: CollectVerificationApiV1MeDmVerificationGetParams
+) => {
+  return [`/api/v1/me/dm/verification`, ...(params ? [params] : [])] as const;
+};
+
+export const getCollectVerificationApiV1MeDmVerificationGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof collectVerificationApiV1MeDmVerificationGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: CollectVerificationApiV1MeDmVerificationGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof collectVerificationApiV1MeDmVerificationGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getCollectVerificationApiV1MeDmVerificationGetQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof collectVerificationApiV1MeDmVerificationGet>>
+  > = ({ signal }) => collectVerificationApiV1MeDmVerificationGet(params, requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof collectVerificationApiV1MeDmVerificationGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type CollectVerificationApiV1MeDmVerificationGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof collectVerificationApiV1MeDmVerificationGet>>
+>;
+export type CollectVerificationApiV1MeDmVerificationGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useCollectVerificationApiV1MeDmVerificationGet<
+  TData = Awaited<ReturnType<typeof collectVerificationApiV1MeDmVerificationGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: CollectVerificationApiV1MeDmVerificationGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof collectVerificationApiV1MeDmVerificationGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof collectVerificationApiV1MeDmVerificationGet>>,
+          TError,
+          Awaited<ReturnType<typeof collectVerificationApiV1MeDmVerificationGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useCollectVerificationApiV1MeDmVerificationGet<
+  TData = Awaited<ReturnType<typeof collectVerificationApiV1MeDmVerificationGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: CollectVerificationApiV1MeDmVerificationGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof collectVerificationApiV1MeDmVerificationGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof collectVerificationApiV1MeDmVerificationGet>>,
+          TError,
+          Awaited<ReturnType<typeof collectVerificationApiV1MeDmVerificationGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useCollectVerificationApiV1MeDmVerificationGet<
+  TData = Awaited<ReturnType<typeof collectVerificationApiV1MeDmVerificationGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: CollectVerificationApiV1MeDmVerificationGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof collectVerificationApiV1MeDmVerificationGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Collect Verification
+ */
+
+export function useCollectVerificationApiV1MeDmVerificationGet<
+  TData = Awaited<ReturnType<typeof collectVerificationApiV1MeDmVerificationGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: CollectVerificationApiV1MeDmVerificationGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof collectVerificationApiV1MeDmVerificationGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getCollectVerificationApiV1MeDmVerificationGetQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}

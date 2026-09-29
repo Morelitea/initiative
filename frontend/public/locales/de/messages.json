@@ -62,7 +62,7 @@
   "send": "Senden",
   "sendFailed": "Diese Nachricht konnte nicht gesendet werden.",
   "recipientHasNoDevice": "{{name}} hat verschlüsselte Nachrichten noch nicht eingerichtet, deshalb konnte dies nicht zugestellt werden.",
-  "recipientDevicesUnverified": "{{name}} verwendet ein Gerät, das du noch nicht geprüft hast, daher wurde die Nachricht nicht gesendet. Vergleicht die Bilder oben miteinander und wähle dann „Ich habe das geprüft“.",
+  "peerDevicesChanged": "Die Geräte von {{name}} haben sich geändert",
   "deviceFailed": "Verschlüsselte Nachrichten konnten auf diesem Gerät nicht eingerichtet werden.",
   "loading": "Wird geladen …",
   "unsupportedBrowser": "Verschlüsselte Nachrichten brauchen eine sichere Verbindung und einen Browser, der sie ausführen kann. Prüfe, ob die Adresse mit https beginnt (oder localhost ist), oder nutze die App.",
@@ -101,33 +101,33 @@
   },
   "newDevice": {
     "title": "Neues Gerät angemeldet",
-    "body": "{{device}} hat sich bei deinem Konto angemeldet. Ist das deins? Es sollte diese Bilder in derselben Reihenfolge anzeigen.",
+    "body": "{{device}} hat sich bei deinem Konto angemeldet. Wenn es deins ist, bestätige es: Beide Bildschirme zeigen dieselben vier Bilder zum Vergleichen.",
     "unknownDevice": "Ein Gerät",
     "sendHistory": "Meinen Nachrichtenverlauf senden",
-    "confirm": "Ja, das ist meins",
-    "remove": "Nein, entfernen",
+    "verify": "Bestätigen",
+    "remove": "Nicht meins, entfernen",
     "error": "Deine Antwort konnte nicht gespeichert werden. Versuche es erneut."
   },
-  "deviceCode": {
-    "label": "Gerätecode"
-  },
   "historyAsk": {
-    "title": "Bestätige dieses Gerät auf einem deiner anderen",
-    "body": "Öffne Nachrichten auf einem Gerät, das du bereits nutzt, und bestätige dieses dort. Es zeigt dir diese Bilder. Dein Nachrichtenverlauf kommt an, sobald du das getan hast.",
+    "title": "Bestätige dieses Gerät von einem deiner anderen aus",
+    "body": "Öffne Nachrichten auf einem Gerät, das du bereits nutzt, und wähle dort „Bestätigen“. Lass dieses hier geöffnet: Beide zeigen dieselben vier Bilder zum Vergleichen. Dein Nachrichtenverlauf kommt an, sobald du das getan hast.",
     "dismiss": "Ausblenden",
-    "dismissNote": "Das Ausblenden verbirgt nur diesen Hinweis. Deine Nachrichten kommen trotzdem an, sobald du dieses Gerät auf deinem anderen bestätigst."
+    "dismissNote": "Das Ausblenden verbirgt nur diesen Hinweis. Deine Nachrichten kommen trotzdem an, sobald du dieses Gerät von deinem anderen aus bestätigst."
   },
-  "peerKeyChange": {
-    "title": "Die Geräte von {{name}} haben sich geändert",
-    "body": "Meist bedeutet das, dass die Person ein Gerät hinzugefügt, ersetzt oder neu eingerichtet hat. Es kann auch bedeuten, dass jemand anderes in ihrem Namen ein Gerät hinzugefügt hat. Vergleiche eure Sicherheitsnummer auf einem anderen Weg als hier, bevor du etwas Vertrauliches sendest.",
-    "compare": "Sicherheitsnummer vergleichen"
-  },
-  "safetyNumber": {
-    "title": "Sicherheitsnummer mit {{name}}",
-    "description": "Lies diese Zahlen mit {{name}} persönlich oder in einem Anruf ab. Wenn beide Bildschirme dieselben Zahlen zeigen, erreichen eure Nachrichten nur die Geräte, die ihr beide erwartet.",
-    "you": "Du",
-    "matches": "Sie stimmen überein",
-    "verified": "Du hast diese Nummer mit {{name}} verglichen."
+  "verification": {
+    "title": "Mit {{device}} vergleichen",
+    "waiting": "Warte auf dein anderes Gerät. Lass Nachrichten dort geöffnet.",
+    "compare": "Prüfe, ob beide Bildschirme diese Bilder in derselben Reihenfolge zeigen.",
+    "label": "Bilder zum Vergleichen",
+    "match": "Sie stimmen überein",
+    "noMatch": "Sie stimmen nicht überein",
+    "waitingForOther": "Warte auf die Bestätigung deines anderen Geräts.",
+    "verified": "Bestätigt. Dieses Gerät kann jetzt deine Nachrichten lesen und senden.",
+    "mismatch": "Nicht bestätigt, und nichts wurde geändert. Wenn du dieses Gerät nicht kennst, entferne es.",
+    "cancelled": "Die Bestätigung wurde auf dem anderen Gerät abgebrochen. Nichts wurde geändert.",
+    "timeout": "Die Bestätigung hat zu lange gedauert und wurde abgebrochen. Nichts wurde geändert. Versuche es erneut.",
+    "elsewhere": "In einem anderen Tab läuft bereits eine Bestätigung.",
+    "error": "Das Gerät konnte nicht bestätigt werden. Versuche es erneut."
   },
   "safetyEmoji": {
     "dog": "Hund",

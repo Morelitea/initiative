@@ -2,6 +2,35 @@
 /* eslint-disable */
 
 /**
+ * One comparison between two of an account's devices.
+ *
+ * Each side makes a fresh key pair, swaps public halves with the other, and
+ * both derive the same few pictures from the shared secret. Nothing here is
+ * derived from the device's long-lived keys, so every comparison shows
+ * different pictures. The long-lived keys are then vouched for with MACs under
+ * the same shared secret, once the person says the pictures match.
+ */
+export class Verification {
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * The pictures to show, as indices into the 64-emoji list.
+     */
+    emoji(info: string): Uint8Array;
+    /**
+     * Derive the shared secret from the other side's public key. Once only.
+     */
+    establish(their_key: string): void;
+    mac(input: string, info: string): string;
+    constructor();
+    verify_mac(input: string, info: string, mac: string): boolean;
+    /**
+     * This side's public key for this comparison.
+     */
+    readonly public_key: string;
+}
+
+/**
  * Generate this device's long-lived identity.
  *
  * The private halves exist only inside the returned pickle, which is already
@@ -55,15 +84,27 @@ export function session_encrypt(pickle: string, key: string, plaintext: string):
 export function sign_device(pickle: string, key: string, user_id_value: number): string;
 
 /**
+ * Sign one relayed verification message as this device's.
+ */
+export function sign_verification(pickle: string, key: string, message: string): string;
+
+/**
  * Whether a directory entry's keys were signed, by its own fingerprint key,
  * as belonging to `user_id`.
  */
 export function verify_device(user_id_value: number, identity_key: string, fingerprint_key: string, signature: string): boolean;
 
+/**
+ * Whether a relayed verification message was signed by the device whose
+ * fingerprint key the directory lists.
+ */
+export function verify_verification(fingerprint_key: string, message: string, signature: string): boolean;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly __wbg_verification_free: (a: number, b: number) => void;
     readonly create_account: (a: number, b: number) => [number, number, number];
     readonly create_inbound_session: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number];
     readonly create_outbound_session: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number) => [number, number, number];
@@ -72,7 +113,15 @@ export interface InitOutput {
     readonly session_decrypt: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
     readonly session_encrypt: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
     readonly sign_device: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+    readonly sign_verification: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
+    readonly verification_emoji: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly verification_establish: (a: number, b: number, c: number) => [number, number];
+    readonly verification_mac: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+    readonly verification_new: () => number;
+    readonly verification_public_key: (a: number) => [number, number];
+    readonly verification_verify_mac: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
     readonly verify_device: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
+    readonly verify_verification: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_exn_store: (a: number) => void;

@@ -1,6 +1,125 @@
 /* @ts-self-types="./initiative_ratchet.d.ts" */
 
 /**
+ * One comparison between two of an account's devices.
+ *
+ * Each side makes a fresh key pair, swaps public halves with the other, and
+ * both derive the same few pictures from the shared secret. Nothing here is
+ * derived from the device's long-lived keys, so every comparison shows
+ * different pictures. The long-lived keys are then vouched for with MACs under
+ * the same shared secret, once the person says the pictures match.
+ */
+export class Verification {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        VerificationFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_verification_free(ptr, 0);
+    }
+    /**
+     * The pictures to show, as indices into the 64-emoji list.
+     * @param {string} info
+     * @returns {Uint8Array}
+     */
+    emoji(info) {
+        const ptr0 = passStringToWasm0(info, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.verification_emoji(this.__wbg_ptr, ptr0, len0);
+        if (ret[3]) {
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        var v2 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v2;
+    }
+    /**
+     * Derive the shared secret from the other side's public key. Once only.
+     * @param {string} their_key
+     */
+    establish(their_key) {
+        const ptr0 = passStringToWasm0(their_key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.verification_establish(this.__wbg_ptr, ptr0, len0);
+        if (ret[1]) {
+            throw takeFromExternrefTable0(ret[0]);
+        }
+    }
+    /**
+     * @param {string} input
+     * @param {string} info
+     * @returns {string}
+     */
+    mac(input, info) {
+        let deferred4_0;
+        let deferred4_1;
+        try {
+            const ptr0 = passStringToWasm0(input, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ptr1 = passStringToWasm0(info, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len1 = WASM_VECTOR_LEN;
+            const ret = wasm.verification_mac(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+            var ptr3 = ret[0];
+            var len3 = ret[1];
+            if (ret[3]) {
+                ptr3 = 0; len3 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred4_0 = ptr3;
+            deferred4_1 = len3;
+            return getStringFromWasm0(ptr3, len3);
+        } finally {
+            wasm.__wbindgen_free(deferred4_0, deferred4_1, 1);
+        }
+    }
+    constructor() {
+        const ret = wasm.verification_new();
+        this.__wbg_ptr = ret;
+        VerificationFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * This side's public key for this comparison.
+     * @returns {string}
+     */
+    get public_key() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.verification_public_key(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @param {string} input
+     * @param {string} info
+     * @param {string} mac
+     * @returns {boolean}
+     */
+    verify_mac(input, info, mac) {
+        const ptr0 = passStringToWasm0(input, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(info, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(mac, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ret = wasm.verification_verify_mac(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return ret[0] !== 0;
+    }
+}
+if (Symbol.dispose) Verification.prototype[Symbol.dispose] = Verification.prototype.free;
+
+/**
  * Generate this device's long-lived identity.
  *
  * The private halves exist only inside the returned pickle, which is already
@@ -192,6 +311,38 @@ export function sign_device(pickle, key, user_id_value) {
 }
 
 /**
+ * Sign one relayed verification message as this device's.
+ * @param {string} pickle
+ * @param {string} key
+ * @param {string} message
+ * @returns {string}
+ */
+export function sign_verification(pickle, key, message) {
+    let deferred5_0;
+    let deferred5_1;
+    try {
+        const ptr0 = passStringToWasm0(pickle, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(message, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ret = wasm.sign_verification(ptr0, len0, ptr1, len1, ptr2, len2);
+        var ptr4 = ret[0];
+        var len4 = ret[1];
+        if (ret[3]) {
+            ptr4 = 0; len4 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred5_0 = ptr4;
+        deferred5_1 = len4;
+        return getStringFromWasm0(ptr4, len4);
+    } finally {
+        wasm.__wbindgen_free(deferred5_0, deferred5_1, 1);
+    }
+}
+
+/**
  * Whether a directory entry's keys were signed, by its own fingerprint key,
  * as belonging to `user_id`.
  * @param {number} user_id_value
@@ -208,6 +359,28 @@ export function verify_device(user_id_value, identity_key, fingerprint_key, sign
     const ptr2 = passStringToWasm0(signature, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len2 = WASM_VECTOR_LEN;
     const ret = wasm.verify_device(user_id_value, ptr0, len0, ptr1, len1, ptr2, len2);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return ret[0] !== 0;
+}
+
+/**
+ * Whether a relayed verification message was signed by the device whose
+ * fingerprint key the directory lists.
+ * @param {string} fingerprint_key
+ * @param {string} message
+ * @param {string} signature
+ * @returns {boolean}
+ */
+export function verify_verification(fingerprint_key, message, signature) {
+    const ptr0 = passStringToWasm0(fingerprint_key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(message, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passStringToWasm0(signature, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ret = wasm.verify_verification(ptr0, len0, ptr1, len1, ptr2, len2);
     if (ret[2]) {
         throw takeFromExternrefTable0(ret[1]);
     }
@@ -356,6 +529,10 @@ function __wbg_get_imports() {
         "./initiative_ratchet_bg.js": import0,
     };
 }
+
+const VerificationFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_verification_free(ptr, 1));
 
 function addToExternrefTable0(obj) {
     const idx = wasm.__externref_table_alloc();

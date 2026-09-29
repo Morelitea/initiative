@@ -89,6 +89,7 @@ from app.models.platform.dm_conversation import (
     DmConversationMember,
 )
 from app.models.platform.dm_queue import DmQueueItem
+from app.models.platform.dm_verification import DmVerificationItem
 from app.models.platform.access_grant import AccessGrant
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.auth_provider_secret import AuthProviderSecret
@@ -226,6 +227,7 @@ __all__ = [
     "DmConversation",
     "DmConversationMember",
     "DmQueueItem",
+    "DmVerificationItem",
     "UserToken",
     "PushToken",
     "BillingEventLog",

@@ -107,6 +107,9 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "dm_conversations",
         "dm_conversation_members",
         "dm_queue",
+        # The verification relay between one account's own devices: public
+        # keys and MACs, deleted when collected or ten minutes after writing.
+        "dm_verification_messages",
         # What a moderator did, and to whom. Cross-guild platform security
         # that has to outlive any guild — and every reference in it is a plain
         # integer, so it outlives the accounts it names too.

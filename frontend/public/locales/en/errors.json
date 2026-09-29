@@ -545,6 +545,8 @@
   "DM_ROSTER_TOO_LARGE": "That is more people than one group can hold.",
   "DM_ROSTER_TOO_SMALL": "A group needs at least three people. For two, start an ordinary conversation.",
   "DM_NO_INVITATION": "There is no invitation here to answer.",
+  "DM_VERIFY_SAME_DEVICE": "A device cannot verify itself. Choose another of your devices.",
+  "DM_TOO_MANY_VERIFICATIONS": "Too many verification attempts at once. Wait a few minutes and try again.",
   "CONTACT_GRANT_NO_REQUEST": "There is no request from that account to accept.",
   "CONTACT_GRANT_CANNOT_GRANT_SELF": "You cannot connect with your own account.",
   "POST_NOT_FOUND": "Post not found",

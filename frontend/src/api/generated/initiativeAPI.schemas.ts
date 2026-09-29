@@ -3412,6 +3412,31 @@ export interface DmSessionKeysResponse {
   devices: DmSessionKey[];
 }
 
+export interface DmVerificationMessage {
+  id: number;
+  sender_device_id: string;
+  body: string;
+  created_at: string;
+}
+
+export interface DmVerificationInbox {
+  items: DmVerificationMessage[];
+}
+
+/**
+ * One message of a verification, from one of the caller's devices to
+ * another of them. ``body`` is the client's own JSON, relayed as-is.
+ */
+export interface DmVerificationSend {
+  device_id: string;
+  to_device_id: string;
+  /**
+   * @minLength 1
+   * @maxLength 4096
+   */
+  body: string;
+}
+
 export interface DocumentCopyRequest {
   target_initiative_id: number;
   name?: string | null;
@@ -11603,5 +11628,9 @@ export type ListIgnoredAccountsApiV1MeIgnoredGetParams = {
 };
 
 export type CollectQueueApiV1MeDmQueueGetParams = {
+  device_id: string;
+};
+
+export type CollectVerificationApiV1MeDmVerificationGetParams = {
   device_id: string;
 };

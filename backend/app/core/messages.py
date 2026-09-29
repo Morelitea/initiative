@@ -1530,6 +1530,10 @@ class DirectMessageTransportMessages:
     #: A device's or key's signature is missing where one is required, or does
     #: not verify against the device's own fingerprint key.
     INVALID_SIGNATURE = "DM_INVALID_SIGNATURE"
+    #: A verification addressed from a device to itself.
+    VERIFY_SAME_DEVICE = "DM_VERIFY_SAME_DEVICE"
+    #: The account already has as many verification messages waiting as it may.
+    TOO_MANY_VERIFICATIONS = "DM_TOO_MANY_VERIFICATIONS"
 
 
 class ContactGrantMessages:

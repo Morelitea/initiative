@@ -761,12 +761,15 @@ export interface DeviceKeys {
  *
  * The first directory read says nothing: that is trust-on-first-use, and a
  * warning there would fire on every new conversation. Once this browser has a
- * baseline for the partner, both a replaced key and a newly introduced device
- * are changes worth interrupting for. Registering a replacement receives a new
- * server UUID, so matching on device id alone would treat either as a first
- * sighting.
+ * baseline, both a replaced key and a newly introduced device are changes.
+ * Registering a replacement receives a new server UUID, so matching on device
+ * id alone would treat either as a first sighting.
  *
- * Per partner, keyed by their device id.
+ * A change to one of this account's own devices is held until the person
+ * verifies it from a device they already trust. Another person's is only noted,
+ * for a line in the conversation: nobody compares codes with anybody else.
+ *
+ * Per account, keyed by device id.
  */
 export interface PeerKeyChange {
   userId: number;
@@ -784,7 +787,7 @@ export interface PeerKeyChange {
 
 const PEER_KEYS_PREFIX = "peer-keys:";
 const PEER_CHANGES = "peer-key-changes";
-const VERIFIED_PAIRS = "verified-pairs";
+const PEER_DEVICE_CHANGES = "peer-device-changes";
 
 interface RememberedPeerKey {
   fingerprint: string;
@@ -802,7 +805,8 @@ export const peerDeviceKeys = {
     (await read<Record<string, StoredPeerKey>>(PEER_KEYS_PREFIX + userId)) ?? {},
   /**
    * Record what the directory returned, report the keys that changed, and hold
-   * them pending a check -- all in one transaction.
+   * them pending a check -- all in one transaction. Without `hold`, another
+   * person's account, the change is noted instead of held.
    *
    * Remembering, comparing and holding are one step on purpose. Any split lets
    * them interleave, and both splits are reachable through an ordinary `await`
@@ -826,14 +830,15 @@ export const peerDeviceKeys = {
       identityKey: string;
       label?: string | null;
       previouslyAddressed?: boolean;
-    }[]
+    }[],
+    { hold }: { hold: boolean }
   ): Promise<PeerKeyChange[]> => {
     const changes: PeerKeyChange[] = [];
     const at = new Date().toISOString();
-    await updatePair<Record<string, StoredPeerKey>, PeerKeyChange[]>(
+    await updatePair<Record<string, StoredPeerKey>, PeerKeyChange[] | Record<number, string[]>>(
       PEER_KEYS_PREFIX + userId,
-      PEER_CHANGES,
-      (existing, heldNow) => {
+      hold ? PEER_CHANGES : PEER_DEVICE_CHANGES,
+      (existing, second) => {
         const known = existing ?? {};
         const hasBaseline = Object.keys(known).length > 0;
         const next = { ...known };
@@ -861,7 +866,12 @@ export const peerDeviceKeys = {
         // disappears and comes back with a different key is still a change
         // rather than a first sighting.
         if (changes.length === 0) return { a: next };
+        if (!hold) {
+          const noted = (second ?? {}) as Record<number, string[]>;
+          return { a: next, b: { ...noted, [userId]: [...(noted[userId] ?? []), at] } };
+        }
         // One entry per device, the latest finding standing for it.
+        const heldNow = second as PeerKeyChange[] | undefined;
         const byDevice = new Map((heldNow ?? []).map((change) => [change.deviceId, change]));
         for (const change of changes) byDevice.set(change.deviceId, change);
         return { a: next, b: [...byDevice.values()] };
@@ -898,34 +908,18 @@ export const peerKeyChanges = {
       )
     );
   },
-  /**
-   * The person has dealt with these devices: the keys are already remembered,
-   * and this clears their holds. A compared safety number is recorded with it,
-   * in the same transaction, so the two never disagree about what was checked.
-   */
-  acknowledge: async (
-    deviceIds: string[],
-    pair?: { userId: number; number: string }
-  ): Promise<void> => {
-    await updatePair<PeerKeyChange[], Record<number, string>>(
-      PEER_CHANGES,
-      VERIFIED_PAIRS,
-      (held, verified) => ({
-        a: (held ?? []).filter((change) => !deviceIds.includes(change.deviceId)),
-        b: pair ? { ...verified, [pair.userId]: pair.number } : undefined,
-      })
+  /** The person has dealt with these devices: the keys are already remembered, and this clears their holds. */
+  acknowledge: async (deviceIds: string[]): Promise<void> => {
+    await update<PeerKeyChange[]>(PEER_CHANGES, (held) =>
+      (held ?? []).filter((change) => !deviceIds.includes(change.deviceId))
     );
   },
 };
 
-/**
- * The safety number last compared with each person, by their user id. A pair
- * reads as verified while their number still matches it; any change to their
- * devices changes the number.
- */
-export const verifiedPairs = {
-  get: async (userId: number): Promise<string | undefined> =>
-    (await read<Record<number, string>>(VERIFIED_PAIRS))?.[userId],
+/** When each other person's devices changed, by their user id, for the conversation to say so. */
+export const peerDeviceChanges = {
+  all: async (): Promise<Record<number, string[]>> =>
+    (await read<Record<number, string[]>>(PEER_DEVICE_CHANGES)) ?? {},
 };
 
 /**

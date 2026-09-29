@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Trash shows 25 items a page**, with page controls past that.
+- **A new device is verified with four pictures**, different every time, shown side by side on the new device and one you already use. The device code in Security settings and safety numbers are gone; when somebody you message changes their devices, the conversation says so in one line.
 
 ### Fixed
 
