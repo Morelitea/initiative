@@ -162,6 +162,14 @@ def carries_passkey(amr: Iterable[str]) -> bool:
 POLICY_AMR_MARKERS: frozenset[str] = frozenset({SECOND_FACTOR_AMR, *PASSKEY_AMR_VALUES})
 
 
+#: What a provider names for a phishing-resistant sign-in (OpenID EAP ACR
+#: Values, ``phrh`` for one held in hardware). Some IdPs send these rather than
+#: ``mfa`` — Pocket ID's passkey sign-in is ``["phr"]`` — and they mean what a
+#: passkey here means: a key the person unlocked. A provider whose word counts
+#: has therefore run a second factor when it names one, in ``amr`` or ``acr``.
+PHISHING_RESISTANT_VALUES: frozenset[str] = frozenset({"phr", "phrh"})
+
+
 def policy_markers(amr: Iterable[str] | None) -> frozenset[str]:
     """The part of ``amr`` a community's sign-in rule is written against.
 
@@ -191,16 +199,18 @@ def session_amr(
     The markers a rule can ask about (:data:`POLICY_AMR_MARKERS`) are this
     application's own account of what it verified, so a provider only
     contributes them where the operator has said that provider's word counts
-    (``auth_providers.asserts_second_factor``). Everything else the IdP names
-    is kept either way: it is the provider's vocabulary, and nothing reads it.
+    (``auth_providers.asserts_second_factor``), and a phishing-resistant sign-in
+    (:data:`PHISHING_RESISTANT_VALUES`) is one of them. Everything else the IdP
+    names is kept either way: it is the provider's vocabulary, and nothing
+    reads it.
     """
     markers = {f"{PROVIDER_AMR_PREFIX}{provider_slug}"}
-    named = (
-        assurance.amr
-        if asserts_second_factor
-        else (value for value in assurance.amr if value not in POLICY_AMR_MARKERS)
-    )
-    return sorted({*markers, *named})
+    if not asserts_second_factor:
+        named = (value for value in assurance.amr if value not in POLICY_AMR_MARKERS)
+        return sorted({*markers, *named})
+    if PHISHING_RESISTANT_VALUES.intersection((*assurance.amr, assurance.acr)):
+        markers.add(SECOND_FACTOR_AMR)
+    return sorted({*markers, *assurance.amr})
 
 
 def record_for_provider(
