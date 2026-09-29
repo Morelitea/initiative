@@ -11,9 +11,10 @@ grant. These tests state what that grant is and what it permits:
 * the pair it issues — a ``read_write`` content grant and a ``superadmin``
   settings grant — permits editing existing content and reading the
   community's configuration, and is short-lived, non-stacking and capped;
-* the second factor the platform asks for once any ``data.bypass`` holder has
-  one, and the three things that answer it: an authenticator code, a recovery
-  code, and an assertion from one of the account's own passkeys.
+* the second factor it asks of an account that holds one, or that the
+  deployment's requirement covers, and the three things that answer it: an
+  authenticator code, a recovery code, and an assertion from one of the
+  account's own passkeys.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -24,9 +25,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.services.auth import totp as totp_service
 
+from app.core.login_methods import SecondFactorRequirement
 from app.models.platform.guild import Guild, GuildRole
 from app.models.platform.user import UserRole
 from app.services.platform import access_grants as access_grants_service
+from app.services.platform import app_settings as app_settings_service
 from app.testing import (
     Actor,
     assertion_for,
@@ -251,9 +254,9 @@ async def test_break_glass_denies_a_pending_request_before_issuing_the_pair(
 # ---------------------------------------------------------------------------
 # The second factor (D9)
 #
-# Breaking glass carries the account's own factor as soon as any data.bypass
-# holder has one. Nobody configures it: the condition is read at the moment of
-# the request, and it is only ever on because somebody can satisfy it.
+# Breaking glass carries the account's own factor when the account holds one,
+# or when the deployment requires one of its rung. What other accounts hold
+# asks nothing of it.
 # ---------------------------------------------------------------------------
 
 
@@ -297,41 +300,54 @@ async def _enrol_factor(
     return secret, confirmed.json()["codes"]
 
 
-@pytest.mark.parametrize(
-    "colleague_tier,expected,detail",
-    [
-        pytest.param(None, 201, None, id="nobody-enrolled"),
-        pytest.param("support", 201, None, id="a-support-account-enrolled"),
-        pytest.param(
-            "operator",
-            403,
-            "ACCESS_GRANT_SECOND_FACTOR_ENROLMENT_REQUIRED",
-            id="another-data-bypass-holder-enrolled",
-        ),
-    ],
-)
-async def test_whose_enrolment_turns_the_second_factor_on(
+@pytest.mark.parametrize("colleague_factor", ["authenticator", "passkey"])
+async def test_a_colleagues_factor_asks_nothing_of_an_account_without_one(
     client: AsyncClient,
     session: AsyncSession,
     acting_user,
     outsider,
-    colleague_tier,
-    expected,
-    detail,
+    colleague_factor,
 ):
-    """The rule reads ``data.bypass`` holders. A deployment where nobody has
-    enrolled is untouched by it, and a support account enrolling says nothing
-    about who can break glass — but a colleague who *can* break glass turns it
-    on for every holder, and the refusal names the way back."""
+    """The ask is the caller's own: another ``data.bypass`` holder setting one
+    up does not ask anything of an account that has not."""
     a, guild = await outsider()
-    if colleague_tier is not None:
-        await _enrol_factor(client, session, await acting_user(colleague_tier))
+    colleague = await acting_user("operator")
+    if colleague_factor == "authenticator":
+        await _enrol_factor(client, session, colleague)
+    else:
+        await create_passkey(session, colleague.user)
 
     resp = await _break_glass(client, a, guild, reason="incident")
 
-    assert resp.status_code == expected, resp.text
-    if detail is not None:
-        assert resp.json()["detail"] == detail
+    assert resp.status_code == 201, resp.text
+
+
+@pytest.mark.parametrize(
+    "level,asked",
+    [
+        (SecondFactorRequirement.nobody, False),
+        (SecondFactorRequirement.platform_roles, True),
+        (SecondFactorRequirement.everyone, True),
+    ],
+)
+async def test_the_deployments_requirement_asks_an_account_without_one(
+    session: AsyncSession, acting_user, level, asked
+):
+    """Where the deployment requires a factor of the caller's rung, breaking
+    glass asks for one even of an account that holds none, and the refusal
+    sends it to enrol. Asked of the rule directly: the deployment's own gate
+    turns such an account away sooner unless its identity provider carried
+    the factor at sign-in."""
+    a = await acting_user("operator")
+    row = await app_settings_service.get_app_settings(session)
+    row.second_factor_requirement = level
+    session.add(row)
+    await session.commit()
+
+    assert (
+        await access_grants_service.demands_second_factor(session, actor=a.user)
+        is asked
+    )
 
 
 @pytest.mark.parametrize(
@@ -355,8 +371,8 @@ async def test_what_an_enrolled_holder_presents_to_break_glass(
     expected,
     detail,
 ):
-    """One enrolled ``data.bypass`` holder turns the ask on for the platform,
-    and the account's own factor is what answers it."""
+    """An account that holds a factor is asked for it, and its own factor is
+    what answers."""
     a, guild = await outsider()
     secret, codes = await _enrol_factor(client, session, a)
     body = {
@@ -378,21 +394,17 @@ async def test_what_an_enrolled_holder_presents_to_break_glass(
 async def test_withdrawing_the_authenticator_stops_it_being_asked_for(
     client: AsyncClient, session: AsyncSession, acting_user, outsider
 ):
-    """The rule may only ask while the Security page can answer it.
-
-    A deployment that stops offering the authenticator app refuses new
-    enrolments, so it stops asking a holder who has none for a code.
-    """
+    """Only a method the deployment still offers is asked for."""
     from app.core.login_methods import LoginMethod
     from app.services.platform import auth_posture
 
     a, guild = await outsider()
     owner = await acting_user("owner")
-    await _enrol_factor(client, session, await acting_user("operator"))
+    await _enrol_factor(client, session, a)
 
-    # While it is offered, the unenrolled holder is refused.
-    refused = await _break_glass(client, a, guild, reason="incident")
-    assert refused.status_code == 403
+    # While it is offered, the holder is asked for its code.
+    asked = await _break_glass(client, a, guild, reason="incident")
+    assert asked.status_code == 401, asked.text
 
     await auth_posture.set_login_methods(
         session,
@@ -463,14 +475,12 @@ async def _present_a_key(
 
 
 async def test_a_holder_with_only_a_key_is_not_sent_to_enrol_an_authenticator(
-    client: AsyncClient, session: AsyncSession, acting_user, outsider, monkeypatch
+    client: AsyncClient, session: AsyncSession, outsider, monkeypatch
 ):
     """A passkey is a factor the account holds, so holding one is what the ask
     is answered from — an authenticator app is not a second thing to acquire."""
     stub_assertion(monkeypatch)
     a, guild = await outsider()
-    # Somebody else's enrolment is what turns the ask on for the platform.
-    await _enrol_factor(client, session, await acting_user("operator"))
     await create_passkey(session, a.user)
 
     # Nothing presented is still refused, but for the right reason: it asks
@@ -486,32 +496,13 @@ async def test_a_holder_with_only_a_key_is_not_sent_to_enrol_an_authenticator(
     assert answered.json()["status"] == "approved"
 
 
-async def test_a_key_holder_turns_the_ask_on_for_everybody(
-    client: AsyncClient, session: AsyncSession, outsider, acting_user
-):
-    """The rule is alive while some holder has a factor of either kind. A
-    passkey is one, so a platform where the only holder has a key still asks —
-    and the holder who has nothing is sent to their Security page."""
-    a, guild = await outsider()
-    nothing_asked = await _break_glass(client, a, guild, reason="incident")
-    assert nothing_asked.status_code == 201, nothing_asked.text
-
-    await create_passkey(session, (await acting_user("operator")).user)
-
-    b, other_guild = await outsider()
-    now_asked = await _break_glass(client, b, other_guild, reason="incident")
-    assert now_asked.status_code == 403, now_asked.text
-    assert now_asked.json()["detail"] == "ACCESS_GRANT_SECOND_FACTOR_ENROLMENT_REQUIRED"
-
-
 async def test_an_assertion_answers_one_request(
-    client: AsyncClient, session: AsyncSession, acting_user, outsider, monkeypatch
+    client: AsyncClient, session: AsyncSession, outsider, monkeypatch
 ):
     """The challenge is spent by the request that carries it, so the same
     assertion does not break glass a second time."""
     stub_assertion(monkeypatch)
     a, guild = await outsider()
-    await _enrol_factor(client, session, await acting_user("operator"))
     await create_passkey(session, a.user)
 
     presented = await _present_a_key(client, a)
@@ -530,7 +521,6 @@ async def test_somebody_elses_key_does_not_answer(
     """A credential that verifies is not the same as this account's."""
     stub_assertion(monkeypatch)
     a, guild = await outsider()
-    await _enrol_factor(client, session, await acting_user("operator"))
     await create_passkey(session, a.user)
     colleague = await acting_user("operator")
     await create_passkey(session, colleague.user, credential_id="their-key")
@@ -548,13 +538,12 @@ async def test_somebody_elses_key_does_not_answer(
 
 
 async def test_a_step_up_challenge_does_not_break_glass(
-    client: AsyncClient, session: AsyncSession, acting_user, outsider, monkeypatch
+    client: AsyncClient, session: AsyncSession, outsider, monkeypatch
 ):
     """The purposes are kept apart: what a session step-up issued answers for
     the session, and breaking glass asks for a proof of its own."""
     stub_assertion(monkeypatch)
     a, guild = await outsider()
-    await _enrol_factor(client, session, await acting_user("operator"))
     await create_passkey(session, a.user)
 
     begun = await client.post("/api/v1/auth/step-up/passkey/begin", headers=a.headers)
