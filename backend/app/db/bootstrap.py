@@ -281,6 +281,11 @@ SEARCH_OPCLASS = "tsvector_search_ops"
 BOOTSTRAP_OWNED_FUNCTIONS = (SEARCH_MATCH_FUNCTION,)
 
 
+def _kept_owners() -> str:
+    """The app's shared roles, as the handover's setting names them."""
+    return ",".join(sorted(role_name(role) for role in SHARED_ROLES))
+
+
 # Hand the app's objects to the provisioning role, for a database that has been
 # running under another login. Postgres renders each statement so identifiers
 # are quoted at the source; the caller executes what comes back and logs it.
@@ -288,10 +293,14 @@ BOOTSTRAP_OWNED_FUNCTIONS = (SEARCH_MATCH_FUNCTION,)
 # Scope is what the app can show is its own: the shared tables named in its own
 # registry, the guild schemas and everything in them, the enums those tables
 # use, and the functions in ``public`` the outgoing login created. Extension
-# members and the bootstrap's own functions are never taken.
+# members, the bootstrap's own functions, and whatever the app's own shared
+# roles own are never taken: a migration gave those to that role, and no login
+# ever held them.
 _TRANSFER_STATEMENTS = f"""
 WITH app_tables AS (
     SELECT unnest(string_to_array(current_setting('app._bootstrap_tables'), ',')) AS name
+), kept AS (
+    SELECT unnest(string_to_array(current_setting('app._bootstrap_kept_owners'), ',')) AS role
 ), target AS (
     -- The login every statement below moves an object to. Each branch excludes
     -- what it already owns, so a re-run on a moved database returns no rows.
@@ -303,6 +312,7 @@ SELECT format('table %I.%I', n.nspname, c.relname) AS label,
   JOIN pg_namespace n ON n.oid = c.relnamespace, target
  WHERE c.relkind IN ('r', 'v', 'm', 'p')
    AND pg_get_userbyid(c.relowner) <> target.role
+   AND pg_get_userbyid(c.relowner) NOT IN (SELECT role FROM kept)
    AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = c.oid AND d.deptype = 'e')
    AND (n.nspname ~ '{GUILD_OR_TEMPLATE_SCHEMA_REGEX}'
         OR (n.nspname = 'public' AND c.relname IN (SELECT name FROM app_tables)))
@@ -313,6 +323,7 @@ SELECT format('sequence %I.%I', n.nspname, c.relname),
   JOIN pg_namespace n ON n.oid = c.relnamespace, target
  WHERE c.relkind = 'S'
    AND pg_get_userbyid(c.relowner) <> target.role
+   AND pg_get_userbyid(c.relowner) NOT IN (SELECT role FROM kept)
    AND n.nspname ~ '{GUILD_OR_TEMPLATE_SCHEMA_REGEX}'
    AND NOT EXISTS (
        SELECT 1 FROM pg_depend d
@@ -324,6 +335,7 @@ SELECT format('type public.%I', t.typname),
  WHERE t.typnamespace = 'public'::regnamespace
    AND t.typtype = 'e'
    AND pg_get_userbyid(t.typowner) <> target.role
+   AND pg_get_userbyid(t.typowner) NOT IN (SELECT role FROM kept)
    AND EXISTS (
        SELECT 1 FROM pg_attribute a
          JOIN pg_class c2 ON c2.oid = a.attrelid
@@ -338,6 +350,7 @@ SELECT format('function %s', p.oid::regprocedure),
   FROM pg_proc p, target
  WHERE p.pronamespace = 'public'::regnamespace
    AND pg_get_userbyid(p.proowner) <> target.role
+   AND pg_get_userbyid(p.proowner) NOT IN (SELECT role FROM kept)
    AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')
    -- Every function the outgoing login left in ``public``, less the ones the
    -- bootstrap keeps. What calls a function is not something the catalog can
@@ -352,6 +365,7 @@ SELECT format('schema %I', n.nspname),
   FROM pg_namespace n, target
  WHERE n.nspname ~ '{GUILD_OR_TEMPLATE_SCHEMA_REGEX}'
    AND pg_get_userbyid(n.nspowner) <> target.role
+   AND pg_get_userbyid(n.nspowner) NOT IN (SELECT role FROM kept)
 """
 
 
@@ -606,6 +620,7 @@ async def _transfer_ownership(conn) -> None:
     await _set_local(
         conn, "app._bootstrap_functions", ",".join(sorted(BOOTSTRAP_OWNED_FUNCTIONS))
     )
+    await _set_local(conn, "app._bootstrap_kept_owners", _kept_owners())
     rows = (await conn.execute(text(_TRANSFER_STATEMENTS))).all()
     if not rows:
         return
@@ -808,6 +823,7 @@ def bootstrap_sql() -> str:
         setting(
             "app._bootstrap_functions", ",".join(sorted(BOOTSTRAP_OWNED_FUNCTIONS))
         ),
+        setting("app._bootstrap_kept_owners", _kept_owners()),
         _executing(_TRANSFER_STATEMENTS),
         _DEFAULT_PRIVILEGES.strip(),
         "",
