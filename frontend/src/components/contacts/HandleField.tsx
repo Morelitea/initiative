@@ -50,7 +50,10 @@ export const HandleField = ({
       <div className="flex gap-2">
         <Input
           value={handle}
-          onChange={(event) => setHandle(event.target.value)}
+          onChange={(event) => {
+            setHandle(event.target.value);
+            setError(null);
+          }}
           placeholder={placeholder}
           aria-label={label}
           aria-describedby={messageId}
