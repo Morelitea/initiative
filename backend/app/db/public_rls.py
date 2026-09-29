@@ -183,6 +183,13 @@ OWN_DEVICE_QUEUE = (
     "recipient_device_id IN"
     f" (SELECT dm_devices.id FROM dm_devices WHERE dm_devices.user_id = {gucs.USER_ID})"
 )
+#: A verification message the account writes between two of its own devices.
+OWN_DEVICE_PAIR = (
+    f"({own_row('user_id')}) AND (sender_device_id IN"
+    f" (SELECT dm_devices.id FROM dm_devices WHERE dm_devices.user_id = {gucs.USER_ID}))"
+    " AND (recipient_device_id IN"
+    f" (SELECT dm_devices.id FROM dm_devices WHERE dm_devices.user_id = {gucs.USER_ID}))"
+)
 OWN_OR_DM_OPEN = (
     f"(user_id = {gucs.USER_ID}) OR"
     f" (({gucs.USER_ID} IS NOT NULL) AND (dm_apparent_permission(user_id) = 'open'))"
@@ -781,6 +788,35 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
         grants=Grants(
             # The transport: cleared and swept as dm_devices is, never written.
             app_admin=frozenset({SELECT, DELETE}),
+            platform_base=frozenset({SELECT, INSERT, DELETE}),
+        ),
+    ),
+    "dm_verification_messages": SharedTable(
+        rls=TableRls(
+            policies=(
+                Policy(
+                    "dm_verification_messages_self_delete",
+                    DELETE,
+                    ("platform_base",),
+                    using=own_row("user_id"),
+                ),
+                Policy(
+                    "dm_verification_messages_self_insert",
+                    INSERT,
+                    ("platform_base",),
+                    check=OWN_DEVICE_PAIR,
+                ),
+                Policy(
+                    "dm_verification_messages_self_select",
+                    SELECT,
+                    ("platform_base",),
+                    using=own_row("user_id"),
+                ),
+            ),
+        ),
+        grants=Grants(
+            # The verification relay between one account's own devices: its own
+            # session writes, reads and deletes it, and nothing else touches it.
             platform_base=frozenset({SELECT, INSERT, DELETE}),
         ),
     ),

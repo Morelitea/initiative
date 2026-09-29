@@ -166,6 +166,13 @@ class ConnectionRequestCreate(SanitizedBaseModel):
     discriminator: int
 
 
+class IgnoreAccountCreate(SanitizedBaseModel):
+    """Ignoring by handle, the same address a connection request takes."""
+
+    username: str
+    discriminator: int
+
+
 class MessageRequestCreate(SanitizedBaseModel):
     """A message request is addressed by id: everyone you may ask is somebody
     you can already see."""

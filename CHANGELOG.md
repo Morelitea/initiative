@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.73.1] - 2026-09-29
+
+### Added
+
+- **Ignore someone by handle** from Settings › Privacy › Ignored accounts, the same way you connect. API: `POST /me/ignored`.
+
+### Changed
+
+- **Trash shows 25 items a page**, with page controls past that.
+- **A new device is verified with four pictures**, different every time, shown side by side on the new device and one you already use. The device code in Security settings and safety numbers are gone; when somebody you message changes their devices, the conversation says so in one line.
+
+### Fixed
+
+- **Upgrading to 0.73 no longer stops at startup** on a server set up with a single database URL.
+- **Breaking glass only asks for a code if you have two-factor set up**, or the server requires it for your role. A second factor from single sign-on counts, and another operator setting it up no longer asks it of you.
+
 ## [0.73.0] - 2026-09-28
 
 ### Added

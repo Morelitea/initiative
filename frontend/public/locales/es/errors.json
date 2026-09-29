@@ -545,6 +545,8 @@
   "DM_ROSTER_TOO_LARGE": "Son más personas de las que puede tener un grupo.",
   "DM_ROSTER_TOO_SMALL": "Un grupo necesita al menos tres personas. Para dos, empieza una conversación normal.",
   "DM_NO_INVITATION": "Aquí no hay ninguna invitación que responder.",
+  "DM_VERIFY_SAME_DEVICE": "Un dispositivo no puede verificarse a sí mismo. Elige otro de tus dispositivos.",
+  "DM_TOO_MANY_VERIFICATIONS": "Demasiados intentos de verificación a la vez. Espera unos minutos e inténtalo de nuevo.",
   "CONTACT_GRANT_NO_REQUEST": "No hay ninguna solicitud de esa cuenta que aceptar.",
   "CONTACT_GRANT_CANNOT_GRANT_SELF": "No puedes conectarte con tu propia cuenta.",
   "POST_NOT_FOUND": "Publicación no encontrada",

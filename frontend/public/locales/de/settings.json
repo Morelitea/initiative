@@ -1740,7 +1740,9 @@
       "title": "Ignorierte Konten",
       "description": "Du wirst nicht benachrichtigt, wenn diese Konten dich erwähnen, dir antworten oder reagieren, und nichts, was sie dir senden, kommt an — Nachrichten, Nachrichtenanfragen, Verbindungsanfragen. Ihr seht weiterhin die Aktivitäten des anderen in gemeinsamen Communities und könnt alle Werkzeuge normal nutzen.",
       "empty": "Du ignorierst niemanden.",
-      "stop": "Nicht mehr ignorieren"
+      "stop": "Nicht mehr ignorieren",
+      "add": "Über Handle ignorieren",
+      "ignore": "Ignorieren"
     },
     "cookies": {
       "title": "Cookies",
@@ -1835,10 +1837,6 @@
     "addFromBrowser": "Ein Passkey wird in einem Browser hinzugefügt, der auf dieser Seite angemeldet ist. „Passkey hinzufügen“ öffnet einen für dich.",
     "notOffered": "Diese Seite bietet keine Passkeys an. Die vorhandenen bleiben erhalten.",
     "error": "Das hat nicht geklappt. Versuche es erneut."
-  },
-  "messagesDevice": {
-    "title": "Code dieses Geräts für Nachrichten",
-    "description": "Wenn du ein neues Gerät bestätigst oder dich mit jemandem vergleichst, dem du schreibst, ist das der Code, den dieses Gerät zeigt."
   },
   "providerDefaults": {
     "title": "Was eine Community erbt",

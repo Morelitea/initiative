@@ -26,6 +26,7 @@ from app.schemas.platform.dm import (
     DirectMessagePermissionsResponse,
     DirectMessageSettingsRead,
     DirectMessageSettingsUpdate,
+    IgnoreAccountCreate,
     IgnoredAccountsResponse,
     MessageRequestCreate,
 )
@@ -150,13 +151,7 @@ async def list_ignored_accounts(
     )
 
 
-@me_router.put("/ignored/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def ignore_account(
-    user_id: TargetUserId,
-    session: UserSessionDep,
-    current_user: CurrentUser,
-) -> Response:
-    """Start ignoring an account. Idempotent, and nothing is deleted."""
+async def _ignore(session, current_user, user_id: int) -> Response:
     if user_id == current_user.id:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -167,6 +162,36 @@ async def ignore_account(
         session, user_id=current_user.id, ignored_user_id=user_id
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@me_router.put("/ignored/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def ignore_account(
+    user_id: TargetUserId,
+    session: UserSessionDep,
+    current_user: CurrentUser,
+) -> Response:
+    """Start ignoring an account. Idempotent, and nothing is deleted."""
+    return await _ignore(session, current_user, user_id)
+
+
+@me_router.post("/ignored", status_code=status.HTTP_204_NO_CONTENT)
+async def ignore_account_by_handle(
+    payload: IgnoreAccountCreate,
+    session: UserSessionDep,
+    current_user: CurrentUser,
+) -> Response:
+    """Start ignoring an account by its exact handle, as a connection is asked
+    for. The same answer as the id route for a handle nobody holds."""
+    try:
+        user_id = await contact_grants_service.resolve_handle(
+            session, username=payload.username, discriminator=payload.discriminator
+        )
+    except contact_grants_service.ContactGrantError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=DirectMessageMessages.USER_NOT_FOUND,
+        ) from exc
+    return await _ignore(session, current_user, user_id)
 
 
 @me_router.delete("/ignored/{user_id}", status_code=status.HTTP_204_NO_CONTENT)

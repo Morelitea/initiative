@@ -1551,3 +1551,54 @@ async def test_a_message_reaches_the_senders_other_device(client, session, actin
         f"/api/v1/me/dm/queue?device_id={a_phone}", headers=a.headers
     )
     assert len(waiting.json()["items"]) == 1
+
+
+async def test_a_verification_message_is_collected_once_by_its_device(
+    client, session, acting_user
+):
+    a = await acting_user()
+    b = await acting_user()
+    a_laptop = await _register(client, a, seed=97)
+    a_phone = await _register(client, a, seed=98)
+    b_device = await _register(client, b, seed=99)
+
+    def send(to_device: str, body: str):
+        return client.post(
+            "/api/v1/me/dm/verification",
+            json={"device_id": a_laptop, "to_device_id": to_device, "body": body},
+            headers=a.headers,
+        )
+
+    def collect():
+        return client.get(
+            f"/api/v1/me/dm/verification?device_id={a_phone}", headers=a.headers
+        )
+
+    sent = await send(a_phone, '{"type":"start"}')
+    assert sent.status_code == 204, sent.text
+    first = await collect()
+    assert first.status_code == 200, first.text
+    [item] = first.json()["items"]
+    assert item["sender_device_id"] == a_laptop
+    assert item["body"] == '{"type":"start"}'
+    assert (await collect()).json()["items"] == []
+
+    # Another account's device is not one of yours.
+    refused = await send(b_device, '{"type":"start"}')
+    assert refused.status_code == 404
+    assert refused.json()["detail"] == "DM_DEVICE_NOT_FOUND"
+
+    # Past its ten minutes, a message is not delivered, and is cleared.
+    await send(a_phone, '{"type":"stale"}')
+    await session.exec(
+        text(
+            "UPDATE public.dm_verification_messages "
+            "SET created_at = now() - interval '11 minutes'"
+        )
+    )
+    await session.commit()
+    assert (await collect()).json()["items"] == []
+    remaining = (
+        await session.exec(text("SELECT count(*) FROM public.dm_verification_messages"))
+    ).scalar_one()
+    assert remaining == 0

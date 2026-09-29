@@ -545,6 +545,8 @@
   "DM_ROSTER_TOO_LARGE": "Das sind mehr Personen, als eine Gruppe fassen kann.",
   "DM_ROSTER_TOO_SMALL": "Eine Gruppe braucht mindestens drei Personen. Für zwei beginne ein normales Gespräch.",
   "DM_NO_INVITATION": "Hier gibt es keine Einladung zu beantworten.",
+  "DM_VERIFY_SAME_DEVICE": "Ein Gerät kann sich nicht selbst verifizieren. Wähle ein anderes deiner Geräte.",
+  "DM_TOO_MANY_VERIFICATIONS": "Zu viele Verifizierungsversuche auf einmal. Warte ein paar Minuten und versuche es erneut.",
   "CONTACT_GRANT_NO_REQUEST": "Von diesem Konto liegt keine Anfrage vor.",
   "CONTACT_GRANT_CANNOT_GRANT_SELF": "Du kannst dich nicht mit deinem eigenen Konto verbinden.",
   "POST_NOT_FOUND": "Beitrag nicht gefunden",

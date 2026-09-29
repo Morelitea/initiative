@@ -1740,7 +1740,9 @@
       "title": "Comptes ignorés",
       "description": "Vous ne serez pas notifié lorsque ces comptes vous mentionnent, vous répondent ou réagissent, et rien de ce qu'ils vous envoient n'arrive — messages, demandes de message, demandes de connexion. Vous verrez toujours vos activités respectives dans les communautés partagées et pourrez utiliser tous les outils normalement.",
       "empty": "Vous n'ignorez personne.",
-      "stop": "Ne plus ignorer"
+      "stop": "Ne plus ignorer",
+      "add": "Ignorer par identifiant",
+      "ignore": "Ignorer"
     },
     "cookies": {
       "title": "Cookies",
@@ -1835,10 +1837,6 @@
     "addFromBrowser": "Une clé d'accès s'ajoute depuis un navigateur connecté à ce site. « Ajouter une clé d'accès » en ouvre un pour vous.",
     "notOffered": "Ce site ne propose pas de clés d'accès. Celles que vous avez sont conservées.",
     "error": "Cela n'a pas fonctionné. Réessayez."
-  },
-  "messagesDevice": {
-    "title": "Code de cet appareil pour les messages",
-    "description": "Quand tu confirmes un nouvel appareil ou que tu compares avec quelqu'un à qui tu écris, c'est le code qu'affiche cet appareil."
   },
   "providerDefaults": {
     "title": "Ce dont hérite une communauté",

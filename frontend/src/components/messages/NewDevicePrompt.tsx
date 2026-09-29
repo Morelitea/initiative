@@ -2,26 +2,30 @@ import { KeyRound } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { DeviceCode } from "@/components/messages/DeviceCode";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { useAnswerNewDevice, useOwnDeviceWaiting } from "@/hooks/useMyMessages";
+import {
+  useAnswerNewDevice,
+  useOwnDeviceWaiting,
+  useVerificationActions,
+} from "@/hooks/useMyMessages";
 
 /**
  * A device that signed in to this account after this browser did.
  *
- * It is held until somebody here says it is theirs: nothing this browser sends
- * reaches it, and nothing it sends is read, until then. Its code is shown as
- * well as its name: the name is whatever its browser reported, and the
- * pictures are what the new device is showing at the same moment, so the two
- * can be compared. Sending it this account's history is offered in the same
- * answer, ticked already when the device has asked for it.
+ * It is held until it is verified from here: nothing this browser sends
+ * reaches it, and nothing it sends is read, until then. The name is whatever
+ * its browser reported, so what settles it is the comparison **Verify** starts,
+ * with the pictures both screens show. Sending it this account's history is
+ * offered in the same answer, ticked already when the device has asked for it,
+ * and applied once the comparison succeeds.
  */
 export const NewDevicePrompt = () => {
   const { t } = useTranslation("messages");
   const waiting = useOwnDeviceWaiting();
   const answer = useAnswerNewDevice();
+  const { start } = useVerificationActions();
   const change = waiting.data;
   // Keyed on the device, so a second prompt starts from its own default.
   const [choice, setChoice] = useState<{ deviceId: string; sendHistory: boolean } | null>(null);
@@ -41,11 +45,6 @@ export const NewDevicePrompt = () => {
               {t("newDevice.body", { device: change.label ?? t("newDevice.unknownDevice") })}
             </p>
           </div>
-          <DeviceCode
-            userId={change.userId}
-            fingerprintKey={change.now.fingerprint}
-            identityKey={change.now.identityKey}
-          />
           <div className="flex items-center gap-2">
             <Checkbox
               id="new-device-history"
@@ -64,16 +63,16 @@ export const NewDevicePrompt = () => {
         <Button
           type="button"
           size="sm"
-          disabled={answer.isPending}
-          onClick={() => answer.mutate({ change, mine: true, sendHistory })}
+          disabled={start.isPending || answer.isPending}
+          onClick={() => start.mutate({ change, sendHistory })}
         >
-          {t("newDevice.confirm")}
+          {t("newDevice.verify")}
         </Button>
         <Button
           type="button"
           size="sm"
           variant="outline"
-          disabled={answer.isPending}
+          disabled={start.isPending || answer.isPending}
           onClick={() => answer.mutate({ change, mine: false, sendHistory: false })}
         >
           {t("newDevice.remove")}

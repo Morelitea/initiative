@@ -64,7 +64,7 @@ If you're the person who has to answer for this choice to a board, a client, or 
 
 - Messages use the **Double Ratchet**, the same algorithm behind the mainstream encrypted messengers, through a well-established and independently audited open-source implementation. We did not invent a cipher, and you should be suspicious of anyone who has.
 - **No key is ever shared between more than two devices**, including in a group. A group message is encrypted separately for each device it is going to, on that pair's own ratchet — there is no group key, and nothing to leak when somebody leaves.
-- **Every device signs its own keys**, and each app checks those signatures before it writes to a device. A new device on your account waits until you confirm it, and a person's devices changing shows up as a notice with a **safety number** you can compare with them in person.
+- **Every device signs its own keys**, and each app checks those signatures before it writes to a device. A new device on your account waits until you verify it from a device you already use: both show four pictures, drawn fresh for each attempt from keys made for that attempt alone, and you confirm on both that they match. When a person you talk to changes their devices, the conversation notes it.
 - There are **no recovery keys and no exceptional access**. Nothing is held in reserve, so nothing can be lost or demanded.
 - The code is **open source**, like the rest of Initiative. You can read it rather than take our word for it.
 
