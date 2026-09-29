@@ -128,6 +128,40 @@ async def test_ignoring_is_idempotent_and_reversible(client, session, acting_use
     ] == 0
 
 
+async def test_ignoring_by_handle(client, session, acting_user):
+    a = await acting_user()
+    target = await create_user(session)
+    await session.commit()
+
+    response = await client.post(
+        "/api/v1/me/ignored",
+        json={
+            "username": target.username.upper(),
+            "discriminator": target.discriminator,
+        },
+        headers=a.headers,
+    )
+    assert response.status_code == 204
+    listing = await client.get("/api/v1/me/ignored", headers=a.headers)
+    assert [row["user_id"] for row in listing.json()["items"]] == [target.id]
+
+    missing = await client.post(
+        "/api/v1/me/ignored",
+        json={"username": "nobody-holds-this", "discriminator": 1},
+        headers=a.headers,
+    )
+    assert missing.status_code == 404
+    assert missing.json()["detail"] == "DM_USER_NOT_FOUND"
+
+    own = await client.post(
+        "/api/v1/me/ignored",
+        json={"username": a.user.username, "discriminator": a.user.discriminator},
+        headers=a.headers,
+    )
+    assert own.status_code == 422
+    assert own.json()["detail"] == "DM_CANNOT_IGNORE_SELF"
+
+
 async def test_you_cannot_ignore_yourself(client, acting_user):
     a = await acting_user()
     response = await client.put(f"/api/v1/me/ignored/{a.user.id}", headers=a.headers)

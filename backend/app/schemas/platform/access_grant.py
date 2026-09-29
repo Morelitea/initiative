@@ -64,9 +64,10 @@ class AccessGrantCreate(SanitizedBaseModel):
 class SecondFactorAnswer(SanitizedBaseModel):
     """The account's own second factor, presented with a self-issued grant.
 
-    Asked for once any ``data.bypass`` holder has one. Any of the three
-    answers is accepted: a code from the authenticator, one of the recovery
-    codes, or an assertion from one of the account's passkeys — begun at
+    Asked for when the account holds one, or the deployment requires one of
+    its rung. Any of the three answers is accepted: a code from the
+    authenticator, one of the recovery codes, or an assertion from one of the
+    account's passkeys — begun at
     ``POST /access-grants/break-glass/passkey`` so the challenge it answers
     belongs to this request.
     """

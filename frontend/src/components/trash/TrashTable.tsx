@@ -31,8 +31,8 @@ import { getErrorMessage } from "@/lib/errorMessage";
  */
 type TrashVariant = "user" | "guild";
 
-/** Rows per page — the server's own default. */
-const TRASH_PAGE_SIZE = 50;
+/** Rows per page. */
+const TRASH_PAGE_SIZE = 25;
 
 interface TrashTableProps {
   variant: TrashVariant;

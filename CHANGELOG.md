@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Trash shows 25 items a page**, with page controls past that.
+
+### Fixed
+
+- **Breaking glass only asks for a code if you have two-factor set up**, or the server requires it for your role. Another operator setting it up no longer asks it of you.
+
 ## [0.73.0] - 2026-09-28
 
 ### Added

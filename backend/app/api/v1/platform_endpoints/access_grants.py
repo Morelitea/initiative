@@ -184,7 +184,7 @@ async def check_second_factor(
     who needs to reach a community; the passkey, because a holder who signs in
     with one has no reason to keep an authenticator app as well.
     """
-    if not await service.demands_second_factor(session):
+    if not await service.demands_second_factor(session, actor=actor):
         return
 
     # Read once: a refused assertion may put the transaction back, and the row
@@ -242,7 +242,7 @@ async def break_glass_requirements(
     The form reads this to know whether to offer a code field, whether the
     caller has a factor to answer with, and the longest window it may ask for.
     """
-    required = await service.demands_second_factor(session)
+    required = await service.demands_second_factor(session, actor=current_user)
     return BreakGlassRequirements(
         second_factor_required=required,
         max_duration_minutes=service.break_glass_max_minutes(current_user.role),

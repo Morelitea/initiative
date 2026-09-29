@@ -318,22 +318,17 @@ async def request_grants(
     return created
 
 
-async def demands_second_factor(session: AsyncSession) -> bool:
-    """Whether breaking glass has to carry the account's own second factor.
+async def demands_second_factor(session: AsyncSession, *, actor: User) -> bool:
+    """Whether breaking glass has to carry this account's own second factor.
 
-    Derived rather than configured, from two things that must both hold: the
-    deployment offers the authenticator app, and some active ``data.bypass``
-    holder has confirmed one.
+    Asked of this account alone, and for one of two reasons: it holds a factor
+    of its own, or the deployment's second-factor requirement covers its rung.
+    An account with neither breaks glass on its reason alone; one the
+    requirement covers that holds nothing is sent to its Security page first.
 
-    The pair is what keeps the rule answerable. A holder who has neither is
-    refused until they set one up, and the way back is their own Security page
-    — so the rule may only ask while that page can actually give them one. A
-    deployment that has withdrawn a method refuses new enrolments of it, which
-    is why both have to be gone before it stops asking, rather than it asking
-    for something it will not let anybody obtain.
-
-    Either method answers, so either keeps the rule alive: an authenticator
-    code or an assertion from one of the account's passkeys.
+    Only a method the deployment still offers counts. One it has withdrawn
+    refuses new enrolments, so asking for it would ask for something the
+    Security page cannot give.
     """
     offered = [
         method
@@ -343,34 +338,23 @@ async def demands_second_factor(session: AsyncSession) -> bool:
     if not offered:
         return False
 
-    # Only a factor held in a method still offered keeps the rule alive: one
-    # the deployment has withdrawn is not a way back for the holder who has
-    # nothing.
+    if auth_posture.rule_covers(
+        await auth_posture.second_factor_requirement(session), actor.role
+    ):
+        return True
+
     held = []
     if LoginMethod.totp in offered:
         held.append(
             select(UserTotp.user_id)
-            .where(UserTotp.user_id == User.id, UserTotp.confirmed_at.is_not(None))
+            .where(UserTotp.user_id == actor.id, UserTotp.confirmed_at.is_not(None))
             .exists()
         )
     if LoginMethod.passkey in offered:
         held.append(
-            select(UserPasskey.user_id).where(UserPasskey.user_id == User.id).exists()
+            select(UserPasskey.user_id).where(UserPasskey.user_id == actor.id).exists()
         )
-
-    roles = list(roles_with_capability(Capability.DATA_BYPASS))
-    found = (
-        await session.exec(
-            select(User.id)
-            .where(
-                User.role.in_(roles),
-                User.status == UserStatus.active,
-                or_(*held),
-            )
-            .limit(1)
-        )
-    ).first()
-    return found is not None
+    return bool(await session.scalar(select(or_(*held))))
 
 
 async def break_glass(
