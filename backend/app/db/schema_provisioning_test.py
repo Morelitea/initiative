@@ -25,6 +25,7 @@ from app.db.schema_provisioning import (
     guild_role_name,
     guild_schema_name,
     provision_guild_schema,
+    SYSTEM_LOGIN_ROLE,
 )
 from app.db.tenancy import GUILD_SCOPED_TABLES
 
@@ -500,7 +501,10 @@ async def test_reprovision_backfills_missing_tables_with_grants(engine):
 
     Stands in for "a new guild-scoped table was added to the manifest": the
     table is absent from an existing schema, and a re-provision must create it
-    *and* extend the role's access to it.
+    *and* extend the role's access to it. The system login's grants are brought
+    to the registry too: one an earlier release gave and the registry no longer
+    names — table-wide ``UPDATE`` on ``comments``, which is column-scoped now —
+    is gone afterwards, and the column grant is not.
     """
     gid = _GID_BACKFILL
     schema = guild_schema_name(gid)
@@ -510,6 +514,9 @@ async def test_reprovision_backfills_missing_tables_with_grants(engine):
             await provision_guild_schema(conn, gid)
             # Simulate a table that didn't exist when the schema was first made.
             await conn.exec_driver_sql(f'DROP TABLE "{schema}".task_assignees CASCADE')
+            await conn.exec_driver_sql(
+                f'GRANT UPDATE ON "{schema}".comments TO "{SYSTEM_LOGIN_ROLE}"'
+            )
 
         async with engine.connect() as conn:
             gone = await conn.scalar(
@@ -534,8 +541,18 @@ async def test_reprovision_backfills_missing_tables_with_grants(engine):
             readable = await conn.scalar(text("SELECT count(*) FROM task_assignees"))
             await conn.exec_driver_sql("RESET ROLE")
             await conn.exec_driver_sql("SET search_path TO public")
+            table_wide, on_content = (
+                await conn.execute(
+                    text(
+                        "SELECT has_table_privilege(:r, :t, 'UPDATE'), "
+                        "has_column_privilege(:r, :t, 'content', 'UPDATE')"
+                    ).bindparams(r=SYSTEM_LOGIN_ROLE, t=f"{schema}.comments")
+                )
+            ).one()
         assert recreated is not None, "task_assignees should be back-filled"
         assert readable == 0, "role should be able to read the back-filled table"
+        assert not table_wide, "a grant the registry no longer names survived"
+        assert on_content, "the registry's column grant was not restored"
     finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, gid)

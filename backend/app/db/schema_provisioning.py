@@ -600,6 +600,11 @@ def _grant_statements(schema: str, guild_id: int) -> list[str]:
     stmts = [
         # Account-erasure maintenance: direct, table-bounded access lets the
         # app_admin login retain BYPASSRLS while it removes embedded names.
+        # Its grants are cleared first, like the app role's, so a re-provision
+        # leaves it holding what the registry says now rather than what an
+        # earlier release granted too.
+        f'REVOKE ALL ON ALL TABLES IN SCHEMA "{schema}" FROM "{SYSTEM_LOGIN_ROLE}"',
+        f'REVOKE ALL ON ALL SEQUENCES IN SCHEMA "{schema}" FROM "{SYSTEM_LOGIN_ROLE}"',
         f'GRANT USAGE ON SCHEMA "{schema}" TO "{SYSTEM_LOGIN_ROLE}"',
         *(
             f"GRANT {', '.join(privileges)} ON TABLE "
