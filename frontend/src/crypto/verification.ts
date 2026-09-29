@@ -360,10 +360,15 @@ async function answer(ctx: Context, peer: TrustedDevice, start: string, txn: str
     sendHistory: false,
     release: () => undefined,
   });
-  current.ourKey = await ratchet.verificationOpen(txn);
-  const commitment = await commitmentTo(current.ourKey, start);
-  if (!live(current)) return;
-  await send(current, { v: 1, txn, type: "accept", commitment });
+  try {
+    current.ourKey = await ratchet.verificationOpen(txn);
+    const commitment = await commitmentTo(current.ourKey, start);
+    if (!live(current)) return;
+    await send(current, { v: 1, txn, type: "accept", commitment });
+  } catch (error) {
+    await fail(current, "cancelled");
+    throw error;
+  }
 }
 
 async function handle(current: Attempt, message: Message): Promise<void> {

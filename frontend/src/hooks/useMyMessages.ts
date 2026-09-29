@@ -281,16 +281,20 @@ export function useVerification() {
  */
 function useCollectVerification(enabled: boolean) {
   const dmEnabled = useDirectMessagesEnabled();
-  const refresh = useRefreshAfterVerification();
+  const queryClient = useQueryClient();
   const { phase } = useVerification();
   const running = phase === "waiting" || phase === "compare";
+  // A comparison that ends verified released a device from this browser's own
+  // store, which only these queries read: the prompt about it, and the
+  // collection that was leaving its messages waiting.
+  useEffect(() => {
+    if (phase !== "verified") return;
+    void queryClient.invalidateQueries({ queryKey: messageKeys.ownDevice });
+    void queryClient.invalidateQueries({ queryKey: messageKeys.inbox });
+  }, [phase, queryClient]);
   return useQuery({
     queryKey: messageKeys.verification,
-    queryFn: () =>
-      collectVerification().then(() => {
-        refresh();
-        return null;
-      }),
+    queryFn: () => collectVerification().then(() => null),
     enabled: enabled && dmEnabled,
     refetchInterval: running ? 2_000 : false,
     retry: false,
@@ -299,22 +303,8 @@ function useCollectVerification(enabled: boolean) {
   });
 }
 
-/**
- * A comparison that ends released a device from this browser's own store,
- * which only these queries read: the prompt about it, and the collection that
- * was leaving its messages waiting.
- */
-function useRefreshAfterVerification() {
-  const queryClient = useQueryClient();
-  return () => {
-    void queryClient.invalidateQueries({ queryKey: messageKeys.ownDevice });
-    void queryClient.invalidateQueries({ queryKey: messageKeys.inbox });
-  };
-}
-
 /** What the prompt and the dialog can do about a comparison. */
 export function useVerificationActions() {
-  const refresh = useRefreshAfterVerification();
   const onError = (error: unknown) =>
     toast.error(getErrorMessage(error, "messages:verification.error"));
   return {
@@ -323,7 +313,7 @@ export function useVerificationActions() {
         startVerification(change, { sendHistory }),
       onError,
     }),
-    confirm: useMutation({ mutationFn: confirmMatch, onSuccess: refresh, onError }),
+    confirm: useMutation({ mutationFn: confirmMatch, onError }),
     reject: useMutation({ mutationFn: rejectMatch, onError }),
     cancel: useMutation({ mutationFn: cancelVerification }),
     dismiss: dismissVerification,
