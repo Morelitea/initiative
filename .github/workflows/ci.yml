@@ -190,7 +190,7 @@ jobs:
                 backend/app/db/ backend/app/models/ backend/app/core/ \
                 backend/app/testing/ backend/scripts/upgrade_seed.py \
                 backend/scripts/upgrade_from_release.py backend/pyproject.toml \
-                backend/uv.lock)" ]]; then
+                backend/uv.lock scripts/seed/ scripts/seed_dev_data.py)" ]]; then
               out upgrade hop
               echo "Schema or boot changed — upgrading from the newest release"
             else
@@ -391,6 +391,21 @@ jobs:
             $([[ "$MODE" == "walk" ]] && echo --walk) \
             --server postgresql://initiative:initiative@localhost:5432 \
             --fresh-server postgresql://initiative:initiative@localhost:5433
+
+      - name: The dev seed fills a fresh install
+        # The fresh install the step above built, with a first owner for the
+        # seed to sign its data with.
+        env:
+          DATABASE_URL: postgresql+asyncpg://app_provisioner:app_provisioner@localhost:5433/initiative
+          DATABASE_URL_APP: postgresql+asyncpg://app_user:app_user@localhost:5433/initiative
+          DATABASE_URL_ADMIN: postgresql+asyncpg://app_admin:app_admin@localhost:5433/initiative
+          DATABASE_URL_BOOTSTRAP: postgresql+asyncpg://initiative:initiative@localhost:5433/initiative
+          FIRST_OWNER_EMAIL: admin@example.com
+          FIRST_OWNER_PASSWORD: changeme
+        run: |
+          cd backend
+          uv run python -m app.db.init_db
+          uv run python ../scripts/seed_dev_data.py
 
   frontend-lint-and-test:
     name: Frontend Lint & Tests
