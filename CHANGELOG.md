@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **A trusted sign-in provider's passkey sign-in counts as a second factor**, for providers such as Pocket ID that report a phishing-resistant sign-in rather than naming a second factor. New Pocket ID connections trust it by default.
+- **Spreadsheets accept a decimal without its leading zero.** Typing `.7` into a cell now stores the number 0.7 rather than text, and a formula such as `=.7*2` works instead of showing an error.
 
 ## [0.73.1] - 2026-09-29
 

@@ -392,6 +392,30 @@ const parserForDepth = (depth: number): FormulaParser => {
   return created;
 };
 
+/**
+ * Give a bare decimal literal its leading zero (``.7`` → ``0.7``), which
+ * Excel and Sheets accept but the library's lexer rejects. A ``.`` counts
+ * as one when a digit follows and no name or number precedes it; string
+ * literals and quoted sheet names are passed through untouched.
+ */
+const padBareDecimals = (body: string): string => {
+  let out = "";
+  let quote: string | null = null;
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    // A doubled (escaped) quote closes and reopens, which leaves it quoted.
+    if (quote) {
+      if (ch === quote) quote = null;
+    } else if (ch === '"' || ch === "'") {
+      quote = ch;
+    } else if (ch === "." && /\d/.test(body[i + 1] ?? "") && !/[\w.]/.test(body[i - 1] ?? "")) {
+      out += "0";
+    }
+    out += ch;
+  }
+  return out;
+};
+
 const asWorkbook = (
   source: ReadonlyMap<string, CellValue> | EvaluatorWorkbook
 ): EvaluatorWorkbook =>
@@ -483,7 +507,7 @@ export const createEvaluator = (
       // Positions are 1-based, and ``sheet`` is what an unqualified
       // reference inside this formula resolves against — the sheet the
       // formula itself lives on, not the one the user is looking at.
-      const parsed = parser.parse(raw.slice(1), {
+      const parsed = parser.parse(padBareDecimals(raw.slice(1)), {
         row: row + 1,
         col: col + 1,
         sheet: sheet.name,

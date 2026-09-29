@@ -52,6 +52,8 @@ describe("coerceScalar", () => {
     expect(coerceScalar("42")).toBe(42);
     expect(coerceScalar("-3.5")).toBe(-3.5);
     expect(coerceScalar("1e3")).toBe(1000);
+    expect(coerceScalar(".7")).toBe(0.7);
+    expect(coerceScalar("-.25")).toBe(-0.25);
   });
 
   it("preserves leading zeros (likely IDs / phone numbers)", () => {
