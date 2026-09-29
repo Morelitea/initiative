@@ -323,8 +323,10 @@ async def demands_second_factor(session: AsyncSession, *, actor: User) -> bool:
 
     Asked of this account alone, and for one of two reasons: it holds a factor
     of its own, or the deployment's second-factor requirement covers its rung.
-    An account with neither breaks glass on its reason alone; one the
-    requirement covers that holds nothing is sent to its Security page first.
+    An account with neither breaks glass on its reason alone. One the
+    requirement covers that holds nothing is answered by its identity
+    provider's factor, when the sign-in carried one, and is otherwise sent to
+    its Security page first.
 
     Only a method the deployment still offers counts. One it has withdrawn
     refuses new enrolments, so asking for it would ask for something the
@@ -338,11 +340,6 @@ async def demands_second_factor(session: AsyncSession, *, actor: User) -> bool:
     if not offered:
         return False
 
-    if auth_posture.rule_covers(
-        await auth_posture.second_factor_requirement(session), actor.role
-    ):
-        return True
-
     held = []
     if LoginMethod.totp in offered:
         held.append(
@@ -354,7 +351,18 @@ async def demands_second_factor(session: AsyncSession, *, actor: User) -> bool:
         held.append(
             select(UserPasskey.user_id).where(UserPasskey.user_id == actor.id).exists()
         )
-    return bool(await session.scalar(select(or_(*held))))
+    if await session.scalar(select(or_(*held))):
+        return True
+
+    from app.core import auth_context
+    from app.services.auth.assurance import SECOND_FACTOR_AMR
+
+    return (
+        auth_posture.rule_covers(
+            await auth_posture.second_factor_requirement(session), actor.role
+        )
+        and SECOND_FACTOR_AMR not in auth_context.session_amr()
+    )
 
 
 async def break_glass(
