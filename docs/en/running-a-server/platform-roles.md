@@ -88,7 +88,7 @@ Ask for one, the other, or both. Each is approved and recorded on its own.
 !!! info "Breaking glass asks for your authenticator code"
     If you've set up [two-factor authentication](../account/two-factor-authentication.md), breaking glass asks for a code, at the moment you do it. A [passkey](../account/passkeys.md) answers too, and so does one of your recovery codes, which matters, because the phone is the thing most likely to be missing in the hour you need this.
 
-    It's about your account, not anybody else's. A colleague setting one up asks nothing of you. The one exception: if you've [required two-factor authentication for platform roles](configuration.md#requiring-two-factor-authentication), everybody who can break glass is asked, and anybody without one is sent to **Security** in their own settings first. It takes about a minute.
+    It's about your account, not anybody else's. A colleague setting one up asks nothing of you. The one exception: if you've [required two-factor authentication for platform roles](configuration.md#requiring-two-factor-authentication), everybody who can break glass is asked. Somebody whose single sign-on did the second factor on the way in is covered by that; anybody else without one is sent to **Security** in their own settings first. It takes about a minute.
 
 !!! info "Why it's built this way"
     Privileged access has to be deliberately taken, is scoped to one community, expires on its own, and leaves a record naming who took it and why. That's a stronger position than a permanent bypass nobody has to justify. More in [How your data is kept separate](../security/how-your-data-is-kept-separate.md).
