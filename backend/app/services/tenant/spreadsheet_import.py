@@ -146,7 +146,7 @@ def _parse_csv(data: bytes, name: str, *, tab: bool) -> dict[str, Any]:
 # What a number looks like, matching ``coerceScalar`` in
 # ``frontend/src/lib/spreadsheet/csv.ts``. A field pasted from the clipboard
 # and the same field read from a file have to become the same value.
-_NUMERIC_RE = re.compile(r"^-?\d+(\.\d+)?([eE][-+]?\d+)?$")
+_NUMERIC_RE = re.compile(r"^-?\d*\.?\d+([eE][-+]?\d+)?$")
 
 
 def _scalar(text: str) -> Any:
