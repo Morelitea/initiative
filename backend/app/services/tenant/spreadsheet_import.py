@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import csv
 import io
+import math
 import re
 import zipfile
 from datetime import date, datetime, time
@@ -173,6 +174,8 @@ def _scalar(text: str) -> Any:
         try:
             number = float(trimmed)
         except ValueError:
+            return text
+        if not math.isfinite(number):
             return text
         if number == int(number) and "." not in trimmed and "e" not in lower:
             return int(number)

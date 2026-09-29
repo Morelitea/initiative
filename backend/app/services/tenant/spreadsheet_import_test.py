@@ -239,7 +239,7 @@ def test_true_and_false_arrive_as_booleans() -> None:
 def test_a_field_reads_the_same_from_a_file_as_from_the_clipboard() -> None:
     """The rule lives twice — here and in ``coerceScalar`` on the client — so
     this is the check that the two still say the same thing."""
-    sheets = parse_spreadsheet_file("x.csv", b" 42 ,1e3,-7,=A1,.7,-.25\n")
+    sheets = parse_spreadsheet_file("x.csv", b" 42 ,1e3,-7,=A1,.7,-.25,1e309\n")
 
     assert sheets[0]["cells"] == {
         "0:0": 42,
@@ -248,6 +248,7 @@ def test_a_field_reads_the_same_from_a_file_as_from_the_clipboard() -> None:
         "0:3": "=A1",
         "0:4": 0.7,
         "0:5": -0.25,
+        "0:6": "1e309",
     }
 
 
