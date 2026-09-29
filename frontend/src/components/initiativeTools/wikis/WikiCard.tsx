@@ -3,7 +3,7 @@ import { BookText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Tool, type WikiSummary } from "@/api/generated/initiativeAPI.schemas";
-import { TagBadge } from "@/components/tags/TagBadge";
+import { TagBadgeList } from "@/components/tags/TagBadge";
 import { Badge } from "@/components/ui/badge";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -57,16 +57,12 @@ export const WikiCard = ({ wiki, className }: WikiCardProps) => {
           <p className="text-muted-foreground text-xs">
             {t("card.updated", { date: relativeUpdatedAt })}
           </p>
-          {wiki.tags.length > 0 ? (
-            <div className="flex flex-wrap gap-1 pt-1">
-              {wiki.tags.slice(0, 3).map((tag) => (
-                <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} nested />
-              ))}
-              {wiki.tags.length > 3 && (
-                <span className="text-muted-foreground text-xs">+{wiki.tags.length - 3}</span>
-              )}
-            </div>
-          ) : null}
+          <TagBadgeList
+            tags={wiki.tags}
+            tagHref={(tag) => gp(`/tags/${tag.id}`)}
+            nested
+            className="pt-1"
+          />
         </div>
       </div>
     </Link>

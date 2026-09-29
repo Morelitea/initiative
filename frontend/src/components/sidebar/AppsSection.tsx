@@ -84,10 +84,10 @@ export function AppsSection({ isGuildAdmin, open, onOpenChange }: AppsSectionPro
 
   // An app with somewhere to go leads; one with nothing to open waits under
   // "show more" so a guild that installs many widget providers still has a
-  // readable sidebar. A surface declared for the guild's admins is not
-  // somewhere a member can go, so for them it does not count as one.
+  // readable sidebar. A surface the server says this reader cannot open is not
+  // somewhere they can go, so for them it does not count as one.
   const actionable = apps.filter(
-    (app) => guildAppPath(app, { isGuildAdmin }) !== null || appHasConnections(app.definition)
+    (app) => guildAppPath(app) !== null || appHasConnections(app.definition)
   );
   const inert = apps.filter((app) => !actionable.includes(app));
 
@@ -184,7 +184,7 @@ function AppEntry({ app, isGuildAdmin }: { app: GuildAppRead; isGuildAdmin: bool
   const { t } = useTranslation(["apps"]);
   const gp = useGuildPath();
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const path = guildAppPath(app, { isGuildAdmin });
+  const path = guildAppPath(app);
   // The listing's own artwork, small. Every listing has one — a listing that
   // ships none is published with the app's own mark — so there is nothing to
   // fall back to.

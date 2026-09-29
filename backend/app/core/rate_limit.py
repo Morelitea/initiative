@@ -1,9 +1,13 @@
 """Shared rate limiter configuration for the application."""
 
+import hashlib
+import hmac
 import ipaddress
 import logging
 import time
 
+import anyio
+from limits import RateLimitItem, parse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from starlette.requests import Request
@@ -100,9 +104,14 @@ def get_user_or_ip_key(request: Request) -> str:
     """The counter key for a route only a signed-in account reaches.
 
     The account when the request carries one, so everybody behind a shared
-    address gets their own allowance; the client address otherwise, which is
-    what the rest of the limits use.
+    address gets their own allowance; an installed app's install, by the
+    client and the install, when the request is one of those; and the client
+    address when it is neither, which is what the rest of the limits use.
     """
+    install = getattr(request.state, "app_install", None)
+    if install is not None:
+        client_id, guild_id, install_id = install
+        return f"install:{client_id}:{guild_id}:{install_id}"
     user_id = getattr(request.state, "user_id", None)
     if user_id is not None:
         return f"user:{user_id}"
@@ -138,3 +147,89 @@ limiter = Limiter(
 # exactly as the test suite does. Defaults True, so shared/prod deployments are
 # unaffected unless the operator explicitly opts out via env.
 limiter.enabled = settings.RATE_LIMIT_ENABLED
+
+
+#: Refused password sign-ins one address may collect, from any number of
+#: clients, before a password is not checked for it for the rest of the window.
+#: The same numbers as the account lock in ``app.services.auth.sign_in_locks``,
+#: counted here by the address typed in, so an address nobody holds runs out
+#: the same way.
+SIGN_IN_FAILURES_PER_ADDRESS = parse("5/15minutes")
+
+
+def _sign_in_address_key(address: str) -> str:
+    """The counter's name for an address — keyed, so the counter store holds no
+    address it could be read back from."""
+    return hmac.new(
+        settings.SECRET_KEY.encode(), address.encode(), hashlib.sha256
+    ).hexdigest()[:32]
+
+
+async def sign_in_allowance_left(address: str) -> bool:
+    """Whether this address has refusals left in the current window.
+
+    Asked before the password is checked, and of the address as submitted,
+    whether or not an account holds it — so the answer is the same either way.
+    """
+    if not limiter.enabled:
+        return True
+    return await anyio.to_thread.run_sync(
+        limiter.limiter.test,
+        SIGN_IN_FAILURES_PER_ADDRESS,
+        "sign-in-address",
+        _sign_in_address_key(address),
+    )
+
+
+async def count_sign_in_failure(address: str) -> None:
+    """Count one refused password against this address."""
+    if not limiter.enabled:
+        return
+    await anyio.to_thread.run_sync(
+        limiter.limiter.hit,
+        SIGN_IN_FAILURES_PER_ADDRESS,
+        "sign-in-address",
+        _sign_in_address_key(address),
+    )
+
+
+async def clear_sign_in_failures(address: str) -> None:
+    """Start the address's count over — its holder has just signed in."""
+    if not limiter.enabled:
+        return
+    await anyio.to_thread.run_sync(
+        limiter.limiter.clear,
+        SIGN_IN_FAILURES_PER_ADDRESS,
+        "sign-in-address",
+        _sign_in_address_key(address),
+    )
+
+
+#: Requests to act as a member one install may send, answered or repeated, in
+#: one window. Counted by the install.
+CONSENT_REQUESTS_PER_INSTALL = parse("30/minute")
+#: New requests one install may make of one member in one window. A repeat of
+#: one already made notifies nobody and does not count.
+NEW_CONSENT_REQUESTS_PER_MEMBER = parse("5/hour")
+
+
+#: Calls one install may make to other apps through Initiative in one window,
+#: to every app together.
+APP_HUB_CALLS_PER_INSTALL = parse("120/minute")
+#: Calls one install may make to one other app in one window.
+APP_HUB_CALLS_PER_TARGET = parse("60/minute")
+
+
+async def take_allowance(item: RateLimitItem, namespace: str, key: str) -> bool:
+    """Count one against ``key`` under ``item``; whether it was within the
+    allowance. Always ``True`` with the limiter switched off."""
+    if not limiter.enabled:
+        return True
+    return await anyio.to_thread.run_sync(limiter.limiter.hit, item, namespace, key)
+
+
+async def allowance_left(item: RateLimitItem, namespace: str, key: str) -> bool:
+    """Whether ``key`` has anything left under ``item``, counting nothing."""
+    if not limiter.enabled:
+        return True
+    return await anyio.to_thread.run_sync(limiter.limiter.test, item, namespace, key)

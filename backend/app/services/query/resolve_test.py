@@ -41,8 +41,6 @@ SUPPORTED_CALLS = (
     "now()",
 )
 
-pytestmark = pytest.mark.unit
-
 
 def refusal(sql: str) -> str:
     with pytest.raises(QueryError) as caught:
@@ -569,7 +567,7 @@ class TestTheReaderIsANameAStatementMayUse:
             "SELECT title FROM tasks WHERE created_by = me AND priority = 'high'"
         )
         assert resolved.parameters == ("high",)
-        assert "current_setting('app.current_user_id'" in resolved.sql
+        assert "'app.current_user_id'" in resolved.sql
 
     def test_it_reads_beside_a_relation_it_was_reached_through(self):
         resolved = resolve("SELECT count(*) AS n FROM tasks WHERE assignee.id = me")

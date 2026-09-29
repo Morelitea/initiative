@@ -43,12 +43,17 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.api.actor_route import ActorRoute
 from app.api.deps import (
-    GuildContext,
+    ActorContext,
+    ActorSessionDep,
+    ActorUserDep,
     RLSSessionDep,
+    app_scope,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
+from app.core.app_scopes import AppScopeAccess, scope_name, tool_resource
 from app.api.v1.tenant_endpoints import calendars as calendars_endpoints
 from app.api.v1.tenant_endpoints import counters as counters_endpoints
 from app.api.v1.tenant_endpoints import dashboards as dashboards_endpoints
@@ -60,7 +65,7 @@ from app.api.v1.tenant_endpoints import queues as queues_endpoints
 from app.api.v1.tenant_endpoints import wikis as wikis_endpoints
 from app.core.messages import DocumentMessages, QueryMessages
 from app.core.tools import Tool
-from app.db.query import page_has_next
+from app.db.query import build_paginated_response
 from app.models.platform.user import User
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.counter import CounterGroup
@@ -71,22 +76,24 @@ from app.models.tenant.initiative import Initiative
 from app.models.tenant.post import Post
 from app.models.tenant.project import Project
 from app.models.tenant.project_order import ProjectOrder
+from app.models.tenant.property import PropertyType
+from app.schemas.query import FilterOp
 from app.models.tenant.queue import Queue
 from app.models.tenant.wiki import Wiki
 from app.schemas.tenant.calendar import (
     CalendarListResponse,
     CalendarRead,
-    serialize_calendar_summary,
+    CalendarSummary,
 )
 from app.schemas.tenant.counter import (
     CounterGroupListResponse,
     CounterGroupRead,
-    serialize_counter_group_summary,
+    CounterGroupSummary,
 )
 from app.schemas.tenant.dashboard import (
     DashboardListResponse,
     DashboardRead,
-    serialize_dashboard_summary,
+    DashboardSummary,
 )
 from app.schemas.tenant.document import (
     DocumentListResponse,
@@ -95,29 +102,28 @@ from app.schemas.tenant.document import (
 from app.schemas.tenant.gallery import (
     GalleryListResponse,
     GalleryRead,
-    serialize_gallery_summary,
+    GallerySummary,
 )
 from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
-from app.schemas.tenant.post import PostListResponse, PostRead, serialize_post
+from app.schemas.tenant.post import PostListResponse, PostRead
 from app.schemas.tenant.project import ProjectListResponse, ProjectRead
 from app.schemas.tenant.queue import (
     QueueListResponse,
     QueueRead,
-    serialize_queue_summary,
+    QueueSummary,
 )
 from app.schemas.tenant.wiki import (
     WikiListResponse,
     WikiRead,
-    serialize_wiki_summary,
+    WikiSummary,
 )
+from app.schemas.tenant.tool import ToolSummaryBase, serialize_tool
 from app.services.tenant import archive as archive_service
 from app.services.tenant import calendars as calendars_service
-from app.services.tenant import comments as comments_service
 from app.services.tenant import counters as counters_service
 from app.services.tenant import dashboards as dashboards_service
 from app.services.tenant import documents as documents_service
 from app.services.tenant import galleries as galleries_service
-from app.services.tenant import post_polls as post_polls_service
 from app.services.tenant import posts as posts_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import queues as queues_service
@@ -125,9 +131,8 @@ from app.services.tenant import tags as tags_service
 from app.services.tenant import tool_listing
 from app.services.tenant import wikis as wikis_service
 
-router = APIRouter()
+router = APIRouter(route_class=ActorRoute)
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 
 
@@ -146,13 +151,19 @@ class ListRequest:
     """
 
     session: AsyncSession
-    user: User
-    guild_context: GuildContext
+    #: The person asking; ``None`` when an installed app is.
+    user: Optional[User]
+    guild_context: ActorContext
     values: dict[str, Any]
 
     @property
     def guild_id(self) -> int:
         return self.guild_context.guild_id
+
+    @property
+    def user_id(self) -> Optional[int]:
+        """The person asking, by id; ``None`` for an installed app."""
+        return self.guild_context.user_id
 
 
 # ---------------------------------------------------------------------------
@@ -187,23 +198,21 @@ def _initiative_id(description: Optional[str] = None) -> ListParam:
     )
 
 
-def _search(description: Optional[str] = _ROW_SEARCH_DESCRIPTION) -> ListParam:
+def search_param(description: Optional[str] = _ROW_SEARCH_DESCRIPTION) -> ListParam:
     return ListParam(
         "search", Optional[str], Query(default=None, description=description)
     )
 
 
-def _sort_by(description: Optional[str] = _TOOL_SORT_DESCRIPTION) -> ListParam:
+def sort_by_param(description: Optional[str] = _TOOL_SORT_DESCRIPTION) -> ListParam:
     return ListParam(
         "sort_by", Optional[str], Query(default=None, description=description)
     )
 
 
-def _sort_dir() -> ListParam:
+def sort_dir_param(description: Optional[str] = _SORT_DIR_DESCRIPTION) -> ListParam:
     return ListParam(
-        "sort_dir",
-        Optional[str],
-        Query(default=None, description=_SORT_DIR_DESCRIPTION),
+        "sort_dir", Optional[str], Query(default=None, description=description)
     )
 
 
@@ -232,11 +241,11 @@ def _archived(described: bool = True) -> ListParam:
     )
 
 
-def _page() -> ListParam:
+def page_param() -> ListParam:
     return ListParam("page", int, Query(default=1, ge=1))
 
 
-def _page_size(
+def page_size_param(
     default: int, *, ge: int, le: int, description: Optional[str] = None
 ) -> ListParam:
     """A tool's page defaults, declared where they can be compared.
@@ -307,6 +316,8 @@ class ToolListSpec:
     counts_doc: Optional[str] = None
     #: The OpenAPI tag, where it is not the tool's own plural.
     tag: Optional[str] = None
+    #: Whether an installed app may list this tool, under its read scope.
+    serves_apps: bool = True
 
     def __post_init__(self) -> None:
         # The switch column is spelled out in the table for readability; this
@@ -333,7 +344,7 @@ async def _default_conditions(spec: ToolListSpec, req: ListRequest) -> list:
             spec.tool,
             spec.model,
             spec.enabled_column,
-            req.user.id,
+            req.user_id,
             context=req.guild_context,
             initiative_id=values.get("initiative_id"),
             search=values.get("search"),
@@ -344,13 +355,13 @@ async def _default_conditions(spec: ToolListSpec, req: ListRequest) -> list:
     ]
 
 
-def _summaries(serializer: Callable[..., Any]) -> Callable[..., Awaitable[list]]:
+def _summaries(schema: type[ToolSummaryBase]) -> Callable[..., Awaitable[list]]:
     """The ordinary page: tag the rows, then turn each into its summary."""
 
     async def serialize(spec: ToolListSpec, req: ListRequest, rows: list) -> list:
         await tags_service.annotate_tags(req.session, rows)
         return [
-            serializer(row, context=req.guild_context, user_id=req.user.id)
+            serialize_tool(schema, row, context=req.guild_context, user_id=req.user_id)
             for row in rows
         ]
 
@@ -377,7 +388,7 @@ async def _project_conditions(spec: ToolListSpec, req: ListRequest) -> list:
     # in progress, so it is left out unless it is asked for by name.
     values = req.values
     return projects_endpoints.visible_project_conditions(
-        req.user.id,
+        req.user_id,
         context=req.guild_context,
         archived=values.get("archived"),
         template=values.get("template"),
@@ -388,19 +399,31 @@ async def _project_conditions(spec: ToolListSpec, req: ListRequest) -> list:
 
 
 def _project_refine(req: ListRequest) -> Callable[[Any], Any]:
-    """Join each reader's own manual positions, which the default order reads."""
+    """Join each reader's own manual positions, which the default order reads.
+
+    An installed app keeps no positions of its own, so its list is left as it
+    is and ordered by id (:func:`_project_order`)."""
+    if req.user_id is None:
+        return lambda statement: statement
     return lambda statement: statement.outerjoin(
         ProjectOrder,
         and_(
             ProjectOrder.project_id == Project.id,
-            ProjectOrder.user_id == req.user.id,
+            ProjectOrder.user_id == req.user_id,
         ),
     )
 
 
+def _project_order(req: ListRequest) -> list:
+    """The reader's own manual order, then id; by id alone for an app."""
+    if req.user_id is None:
+        return [Project.id.asc()]
+    return [ProjectOrder.sort_order.asc().nulls_last(), Project.id.asc()]
+
+
 async def _serialize_projects(spec: ToolListSpec, req: ListRequest, rows: list) -> list:
     return await projects_endpoints.serialize_project_page(
-        req.session, req.user, rows, slim=bool(req.values.get("slim"))
+        req.session, req.user_id, rows, slim=bool(req.values.get("slim"))
     )
 
 
@@ -417,7 +440,6 @@ async def _document_conditions(spec: ToolListSpec, req: ListRequest) -> list:
         await documents_endpoints.get_initiative_or_404(
             req.session,
             initiative_id=values["initiative_id"],
-            guild_id=req.guild_id,
         )
     ids = values.get("ids")
     if ids is not None and len(ids) > documents_endpoints.MAX_DOCUMENT_IDS:
@@ -427,7 +449,7 @@ async def _document_conditions(spec: ToolListSpec, req: ListRequest) -> list:
         )
     conditions = documents_endpoints.visible_document_conditions(
         req.guild_context,
-        req.user.id,
+        req.user_id,
         initiative_id=values.get("initiative_id"),
         ids=ids,
         search=values.get("search"),
@@ -440,17 +462,25 @@ async def _document_conditions(spec: ToolListSpec, req: ListRequest) -> list:
         archive_service.archive_filter_clause(Document, values.get("archived"))
     )
     conditions.extend(
-        await _property_filter_clauses(req.session, values.get("property_filters"))
+        await _property_filter_clauses(
+            req.session,
+            values.get("property_filters"),
+            names_people=req.user is not None,
+        )
     )
     return conditions
 
 
-async def _property_filter_clauses(session: AsyncSession, raw: Optional[str]) -> list:
+async def _property_filter_clauses(
+    session: AsyncSession, raw: Optional[str], *, names_people: bool
+) -> list:
     """WHERE clauses for the typed property filters a document list may carry.
 
     Loads the definitions the caller can see, then hands the compilation to the
     shared helper so documents, tasks and events agree about what each operator
-    means.
+    means. A filter on a person-valued property takes row ids, which an
+    installed app does not hold, so it is left to people (``names_people``),
+    as the task list does.
     """
     try:
         parsed = properties_service.parse_property_filters(raw)
@@ -464,6 +494,16 @@ async def _property_filter_clauses(session: AsyncSession, raw: Optional[str]) ->
     definitions = await properties_service.load_definitions_by_ids(
         session, [condition.property_id for condition in parsed]
     )
+    if not names_people and any(
+        condition.op is not FilterOp.is_null
+        and (definition := definitions.get(condition.property_id)) is not None
+        and definition.type is PropertyType.user_reference
+        for condition in parsed
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=QueryMessages.INVALID_CONDITIONS,
+        )
     return properties_service.build_property_filter_clauses(
         "document", parsed, definitions
     )
@@ -473,7 +513,7 @@ async def _serialize_documents(
     spec: ToolListSpec, req: ListRequest, rows: list
 ) -> list:
     return await documents_endpoints.serialize_document_page(
-        req.session, req.user, rows
+        req.session, req.user_id, rows
     )
 
 
@@ -500,7 +540,7 @@ async def _calendar_conditions(spec: ToolListSpec, req: ListRequest) -> list:
 async def _post_conditions(spec: ToolListSpec, req: ListRequest) -> list:
     values = req.values
     conditions = posts_endpoints.board_conditions(
-        req.user.id,
+        req.user_id,
         context=req.guild_context,
         initiative_id=values.get("initiative_id"),
         search=values.get("search"),
@@ -524,13 +564,10 @@ async def _serialize_posts(spec: ToolListSpec, req: ListRequest, rows: list) -> 
     # of times rather than forty.
     session = req.session
     await tags_service.annotate_tags(session, rows)
-    await comments_service.annotate_comment_counts(session, rows, column="post_id")
-    await posts_service.attach_reactions(session, *rows)
-    await posts_service.annotate_read_state(session, rows, user_id=req.user.id)
-    await posts_service.annotate_read_counts(session, rows)
-    await post_polls_service.annotate_poll_state(session, rows, user_id=req.user.id)
+    # An installed app's page carries no reactions, read state or ballots.
+    await posts_endpoints.annotate_post_rows(session, rows, user_id=req.user_id)
     return [
-        serialize_post(post, context=req.guild_context, user_id=req.user.id)
+        serialize_tool(PostRead, post, context=req.guild_context, user_id=req.user_id)
         for post in rows
     ]
 
@@ -545,7 +582,9 @@ async def _serialize_galleries(
 ) -> list:
     await galleries_endpoints.annotate_gallery_rows(req.session, rows)
     return [
-        serialize_gallery_summary(row, context=req.guild_context, user_id=req.user.id)
+        serialize_tool(
+            GallerySummary, row, context=req.guild_context, user_id=req.user_id
+        )
         for row in rows
     ]
 
@@ -553,7 +592,7 @@ async def _serialize_galleries(
 async def _serialize_wikis(spec: ToolListSpec, req: ListRequest, rows: list) -> list:
     await wikis_endpoints.annotate_wiki_rows(req.session, rows)
     return [
-        serialize_wiki_summary(row, context=req.guild_context, user_id=req.user.id)
+        serialize_tool(WikiSummary, row, context=req.guild_context, user_id=req.user_id)
         for row in rows
     ]
 
@@ -584,9 +623,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         ),
         # No sort asked for keeps the per-user manual order the projects page
         # drags into place; a sort replaces it for this request only.
-        default_order=_order(
-            ProjectOrder.sort_order.asc().nulls_last(), Project.id.asc()
-        ),
+        default_order=_project_order,
         serialize=_serialize_projects,
         conditions=_project_conditions,
         refine=_project_refine,
@@ -595,7 +632,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         params=(
             _archived(described=False),
             ListParam("template", Optional[bool], Query(default=None)),
-            _search(),
+            search_param(),
             _initiative_id(
                 "Only projects in this initiative. Omit for every initiative "
                 "the caller can see."
@@ -607,20 +644,20 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
                     default=False,
                     description=(
                         "Return a lightweight projection (id, name, icon, "
-                        "initiative_id, my_permission_level) without documents, "
+                        "initiative_id, can) without documents, "
                         "grants, tags, or the nested initiative. For project "
                         "pickers and other list-only callers."
                     ),
                 ),
             ),
-            _sort_by(
+            sort_by_param(
                 "Order by one of: name, initiative, updated_at. Omit to keep "
                 "the reader's own manual order."
             ),
-            _sort_dir(),
+            sort_dir_param(),
             _tag_ids(Tool.project),
-            _page(),
-            _page_size(0, ge=0, le=100),
+            page_param(),
+            page_size_param(0, ge=0, le=100),
         ),
         counts_doc=(
             "Visible-project counts grouped by initiative.\n"
@@ -667,7 +704,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
                     ),
                 ),
             ),
-            _search(description=None),
+            search_param(description=None),
             _tag_ids(Tool.document, description="Filter by tag IDs"),
             ListParam(
                 "untagged",
@@ -700,10 +737,10 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
                     ),
                 ),
             ),
-            _page(),
-            _page_size(20, ge=0, le=100),
-            _sort_by("Order by one of: name, initiative, updated_at, created_at."),
-            _sort_dir(),
+            page_param(),
+            page_size_param(20, ge=0, le=100),
+            sort_by_param("Order by one of: name, initiative, updated_at, created_at."),
+            sort_dir_param(),
             _archived(),
         ),
         list_doc=(
@@ -741,16 +778,16 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         response_model=QueueListResponse,
         loader_options=_loads(queues_service.list_loader_options),
         default_order=_order(Queue.updated_at.desc(), Queue.id.desc()),
-        serialize=_summaries(serialize_queue_summary),
+        serialize=_summaries(QueueSummary),
         params=(
             _initiative_id(),
-            _search(),
-            _sort_by(),
-            _sort_dir(),
+            search_param(),
+            sort_by_param(),
+            sort_dir_param(),
             _tag_ids(Tool.queue),
             _archived(),
-            _page(),
-            _page_size(20, ge=1, le=100),
+            page_param(),
+            page_size_param(20, ge=1, le=100),
         ),
         list_doc=(
             "List queues visible to the current user.\n"
@@ -780,19 +817,19 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         response_model=CounterGroupListResponse,
         loader_options=_loads(counters_service.list_loader_options),
         default_order=_order(CounterGroup.updated_at.desc(), CounterGroup.id.desc()),
-        serialize=_summaries(serialize_counter_group_summary),
+        serialize=_summaries(CounterGroupSummary),
         # The counters router carries the wider "counters" tag, which the
         # individual counters underneath these groups share.
         tag="counters",
         params=(
             _initiative_id(),
-            _search(),
-            _sort_by(),
-            _sort_dir(),
+            search_param(),
+            sort_by_param(),
+            sort_dir_param(),
             _tag_ids(Tool.counter_group),
             _archived(),
-            _page(),
-            _page_size(20, ge=1, le=100),
+            page_param(),
+            page_size_param(20, ge=1, le=100),
         ),
         counts_doc=(
             "Visible counter-group counts grouped by initiative.\n"
@@ -816,7 +853,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         response_model=CalendarListResponse,
         loader_options=_loads(calendars_service.calendar_loader_options),
         default_order=_order(Calendar.name.asc(), Calendar.id.asc()),
-        serialize=_summaries(serialize_calendar_summary),
+        serialize=_summaries(CalendarSummary),
         conditions=_calendar_conditions,
         # A calendar may belong to the guild rather than to an initiative: the
         # app holds it, and no initiative's switch has anything to say about it.
@@ -824,13 +861,13 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         params=(
             _initiative_id(),
             ListParam("scope", Optional[Literal["guild"]], Query(default=None)),
-            _search(),
-            _sort_by(),
-            _sort_dir(),
+            search_param(),
+            sort_by_param(),
+            sort_dir_param(),
             _tag_ids(Tool.calendar),
             _archived(),
-            _page(),
-            _page_size(100, ge=1, le=200),
+            page_param(),
+            page_size_param(100, ge=1, le=200),
         ),
         list_doc=(
             "List calendars visible to the current user (guild admins see "
@@ -857,6 +894,8 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
     ),
     Tool.dashboard: ToolListSpec(
         tool=Tool.dashboard,
+        # Not among what an installed app reads today.
+        serves_apps=False,
         read_model=DashboardRead,
         read_row=dashboards_endpoints.read_after_write,
         grants_doc=(
@@ -872,16 +911,16 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         response_model=DashboardListResponse,
         loader_options=_loads(dashboards_service.dashboard_loader_options),
         default_order=_order(Dashboard.name.asc(), Dashboard.id.asc()),
-        serialize=_summaries(serialize_dashboard_summary),
+        serialize=_summaries(DashboardSummary),
         params=(
             _initiative_id(),
-            _search(),
-            _sort_by(),
-            _sort_dir(),
+            search_param(),
+            sort_by_param(),
+            sort_dir_param(),
             _tag_ids(Tool.dashboard),
             _archived(),
-            _page(),
-            _page_size(100, ge=1, le=200),
+            page_param(),
+            page_size_param(100, ge=1, le=200),
         ),
         list_doc="List dashboards visible to the current user (guild admins see all).",
         counts_doc=(
@@ -910,23 +949,18 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         default_order=_post_order,
         serialize=_serialize_posts,
         conditions=_post_conditions,
-        # A scheduled notice is on the board only for the people who could edit
-        # it, and that holds for the badge beside it too.
-        counts_conditions=lambda user, guild_context: [
-            posts_service.visibility_clause(user.id, context=guild_context)
-        ],
         params=(
             _initiative_id(),
-            _search(
+            search_param(
                 "Full-text match over the notice — its headline and its body. "
                 "Reads the same index the search page does, so the board's "
                 "filter and a search agree about what matches."
             ),
-            _sort_by(
+            sort_by_param(
                 "Order by one of: name, initiative, updated_at. Omit for the "
                 "board order — live pins first, then newest first."
             ),
-            _sort_dir(),
+            sort_dir_param(),
             _tag_ids(Tool.post),
             _archived(),
             ListParam(
@@ -953,8 +987,8 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
                     ),
                 ),
             ),
-            _page(),
-            _page_size(
+            page_param(),
+            page_size_param(
                 posts_endpoints.BOARD_PAGE_SIZE,
                 ge=1,
                 le=posts_endpoints.MAX_BOARD_PAGE_SIZE,
@@ -998,18 +1032,18 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         serialize=_serialize_galleries,
         params=(
             _initiative_id(),
-            _search(
+            search_param(
                 "Full-text match over the gallery's name and description, "
                 "through the same index the search page reads."
             ),
-            _sort_by(
+            sort_by_param(
                 "Order by one of: name, initiative, updated_at. Omit for newest first."
             ),
-            _sort_dir(),
+            sort_dir_param(),
             _tag_ids(Tool.gallery),
             _archived(),
-            _page(),
-            _page_size(100, ge=0, le=500),
+            page_param(),
+            page_size_param(100, ge=0, le=500),
         ),
         list_doc="List galleries visible to the current user (guild admins see all).",
         counts_doc=(
@@ -1028,18 +1062,18 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         serialize=_serialize_wikis,
         params=(
             _initiative_id(),
-            _search(
+            search_param(
                 "Full-text match over the wiki's name and description, through "
                 "the same index the search page reads."
             ),
-            _sort_by(
+            sort_by_param(
                 "Order by one of: name, initiative, updated_at. Omit for newest first."
             ),
-            _sort_dir(),
+            sort_dir_param(),
             _tag_ids(Tool.wiki),
             _archived(),
-            _page(),
-            _page_size(100, ge=0, le=500),
+            page_param(),
+            page_size_param(100, ge=0, le=500),
         ),
         list_doc="List wikis visible to the current user (guild admins see all).",
         counts_doc=(
@@ -1054,11 +1088,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
 # ---------------------------------------------------------------------------
 
 
-def _segment(tool: Tool) -> str:
-    """The URL segment a tool is addressed by — its plural in kebab case."""
-    return tool.plural.replace("_", "-")
-
-
 def _tags(spec: ToolListSpec) -> list[str | Enum]:
     return [spec.tag or spec.tool.plural]
 
@@ -1070,7 +1099,22 @@ _CONTEXT_PARAMS: tuple[tuple[str, Any], ...] = (
 )
 
 
-def _signature(params: tuple[ListParam, ...]) -> inspect.Signature:
+def _actor_params(tool: Tool) -> tuple[tuple[str, Any], ...]:
+    """The same three, for a list an installed app may call under the tool's
+    read scope: a person arrives exactly as above, and an install through its
+    token."""
+    scope = scope_name(tool_resource(tool), AppScopeAccess.read)
+    return (
+        ("session", ActorSessionDep),
+        ("current_user", ActorUserDep),
+        ("guild_context", Annotated[ActorContext, Depends(app_scope(scope))]),
+    )
+
+
+def _signature(
+    params: tuple[ListParam, ...],
+    context_params: tuple[tuple[str, Any], ...] = _CONTEXT_PARAMS,
+) -> inspect.Signature:
     """The signature FastAPI reads off a tool's list handler.
 
     Keyword-only throughout, so the registry's declared order is what the
@@ -1080,7 +1124,7 @@ def _signature(params: tuple[ListParam, ...]) -> inspect.Signature:
     """
     declared = [
         inspect.Parameter(name, inspect.Parameter.KEYWORD_ONLY, annotation=annotation)
-        for name, annotation in _CONTEXT_PARAMS
+        for name, annotation in context_params
     ]
     declared += [
         inspect.Parameter(
@@ -1119,17 +1163,15 @@ def _mount_list(spec: ToolListSpec) -> None:
         page_size = values["page_size"]
         extras = spec.response_extras(request) if spec.response_extras else {}
         return spec.response_model(
-            items=items,
-            total_count=total_count,
-            page=page,
-            page_size=page_size,
-            has_next=page_has_next(page, page_size, total_count),
-            **extras,
+            **build_paginated_response(items, total_count, page, page_size, **extras)
         )
 
-    list_rows.__signature__ = _signature(spec.params)
+    list_rows.__signature__ = _signature(
+        spec.params,
+        _actor_params(spec.tool) if spec.serves_apps else _CONTEXT_PARAMS,
+    )
     router.add_api_route(
-        f"/{_segment(spec.tool)}/",
+        f"/{spec.tool.route_segment}/",
         list_rows,
         methods=["GET"],
         response_model=spec.response_model,
@@ -1166,7 +1208,7 @@ def _mount_counts(spec: ToolListSpec) -> None:
     router.add_api_route(
         # Declared before the tools' own ``/{id}`` routes, so the literal path
         # wins the match: this router is included first (see api.py).
-        f"/{_segment(spec.tool)}/counts/by-initiative",
+        f"/{spec.tool.route_segment}/counts/by-initiative",
         counts_by_initiative,
         methods=["GET"],
         response_model=InitiativeGroupedCountsResponse,

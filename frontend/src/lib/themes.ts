@@ -8,7 +8,8 @@
  * To add a new theme:
  * 1. Add an entry to the THEMES object with a unique id
  * 2. Define all color values for both light and dark modes
- * 3. The theme will automatically appear in the settings dropdown
+ * 3. Describe it under `interface.themeDescriptions.<id>` in every locale's settings.json
+ * 4. The theme will automatically appear in the settings dropdown
  */
 
 export interface ThemeColors {
@@ -46,7 +47,6 @@ export interface ThemeColors {
 export interface ThemeDefinition {
   id: string;
   name: string;
-  description?: string;
   light: ThemeColors;
   dark: ThemeColors;
 }
@@ -59,7 +59,6 @@ export const THEMES: Record<string, ThemeDefinition> = {
   kobold: {
     id: "kobold",
     name: "Kobold",
-    description: "The classic Initiative theme with deep indigo tones.",
     light: {
       background: "1 0 0",
       foreground: "0.129 0.042 264.695",
@@ -126,7 +125,6 @@ export const THEMES: Record<string, ThemeDefinition> = {
   displacer: {
     id: "displacer",
     name: "Displacer",
-    description: "Catppuccin-inspired soothing pastel theme (Latte/Macchiato).",
     light: {
       // Latte flavor
       background: "0.959 0.009 255", // Base #eff1f5
@@ -195,7 +193,6 @@ export const THEMES: Record<string, ThemeDefinition> = {
   strahd: {
     id: "strahd",
     name: "Strahd",
-    description: "Dark gothic theme with purple accents (Dracula/Alucard).",
     light: {
       // Alucard variant
       background: "0.99 0.02 95", // #fffbeb
@@ -264,7 +261,6 @@ export const THEMES: Record<string, ThemeDefinition> = {
   unicorn: {
     id: "unicorn",
     name: "Unicorn",
-    description: "Full-spectrum neon rainbow — loud and proud.",
     light: {
       background: "1 0 0", // pure white
       foreground: "0.15 0.04 290", // near-black
@@ -331,7 +327,6 @@ export const THEMES: Record<string, ThemeDefinition> = {
   darkKnight: {
     id: "darkKnight",
     name: "Dark Knight",
-    description: "AMOLED black theme with dark red and yellow accents.",
     light: {
       background: "0.78 0 0", // medium grey
       foreground: "0.12 0 0", // near-black
@@ -398,7 +393,6 @@ export const THEMES: Record<string, ThemeDefinition> = {
   orc: {
     id: "orc",
     name: "ORC",
-    description: "Earthy green theme with vivid orc-skin green accents. ORC ORC ORC!",
     light: {
       background: "0.93 0.02 115", // light earthy field
       foreground: "0.18 0.05 135", // dark forest green text
@@ -465,7 +459,6 @@ export const THEMES: Record<string, ThemeDefinition> = {
   aboleth: {
     id: "aboleth",
     name: "Aboleth",
-    description: "Monokai-inspired dark lair with vivid bioluminescent accent colors.",
     light: {
       background: "0.97 0.01 95", // warm parchment
       foreground: "0.20 0.02 95", // dark olive text

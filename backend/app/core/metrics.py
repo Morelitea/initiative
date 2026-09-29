@@ -83,6 +83,31 @@ db_slow_statements = Counter(
     "Statements over the slow threshold; each is also a warning in the log.",
     ("engine",),
 )
+db_cross_cohort_routes = Counter(
+    "initiative_db_cross_cohort_routes",
+    "Times a pooled connection was routed into a community outside its "
+    "cohort, by the cohort (or platform pool) the connection belongs to.",
+    ("cohort",),
+)
+app_hook_deliveries = Counter(
+    "initiative_app_hook_deliveries",
+    "Vendor webhook deliveries received for apps, by outcome: refused (the "
+    "signature did not verify), unroutable (no community connected it), "
+    "delivered, or failed (a community's app did not accept it).",
+    ("outcome",),
+)
+db_connection_communities = Histogram(
+    "initiative_db_connection_communities",
+    "Communities a pooled connection served before it closed, by cohort.",
+    ("cohort",),
+    buckets=(1, 2, 5, 10, 25, 50, 100, 250, 500, 1000),
+)
+sweep_pass_duration = Histogram(
+    "initiative_sweep_pass_duration_seconds",
+    "Time a background pass over the communities took, by pass.",
+    ("pass",),
+    buckets=(0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0),
+)
 users = Gauge(
     "initiative_users",
     "Accounts on this deployment, by status.",

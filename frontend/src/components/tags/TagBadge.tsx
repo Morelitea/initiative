@@ -124,3 +124,35 @@ export function TagBadge({
     </span>
   );
 }
+
+interface TagBadgeListProps {
+  tags: TagSummary[];
+  /** How many badges show before the rest collapse into "+N". */
+  limit?: number;
+  /** Where each badge links; omitted, the badges are plain. */
+  tagHref?: (tag: TagSummary) => string;
+  nested?: boolean;
+  className?: string;
+}
+
+/** The first few of a row's tags as badges, and a count of the rest. */
+export function TagBadgeList({ tags, limit = 3, tagHref, nested, className }: TagBadgeListProps) {
+  const { t } = useTranslation("tags");
+  if (tags.length === 0) return null;
+  const hidden = tags.slice(limit);
+  return (
+    <div className={cn("flex flex-wrap gap-1", className)}>
+      {tags.slice(0, limit).map((tag) => (
+        <TagBadge key={tag.id} tag={tag} size="sm" to={tagHref?.(tag)} nested={nested} />
+      ))}
+      {hidden.length > 0 && (
+        <span
+          className="text-muted-foreground text-xs"
+          title={hidden.map((tag) => tag.name).join(", ")}
+        >
+          {t("badge.more", { count: hidden.length })}
+        </span>
+      )}
+    </div>
+  );
+}

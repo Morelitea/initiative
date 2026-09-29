@@ -5,8 +5,12 @@ egress; ``allow_private`` is server-computed from the resolved connection (true
 only for an operator Ollama connection) and never from request input.
 """
 
+import json
+
+import httpx
 import pytest
 
+from app.core.messages import AIMessages
 from app.schemas.ai_settings import AIProvider, ConnectionScope, ResolvedAISettings
 from app.services import ai_generation
 
@@ -43,7 +47,6 @@ class _Resp:
         return {"message": {"content": "generated text"}}
 
 
-@pytest.mark.unit
 async def test_custom_private_base_url_rejected(monkeypatch):
     """A custom connection is always public (allow_private=False), so the pinned
     egress refuses a private target — no member/guild path reaches a private
@@ -56,10 +59,9 @@ async def test_custom_private_base_url_rejected(monkeypatch):
 
     with pytest.raises(ai_generation.AIGenerationError) as exc:
         await ai_generation.generate_description(None, _User(), 1, _Task())
-    assert str(exc.value) == "AI_INVALID_BASE_URL"
+    assert str(exc.value) == AIMessages.INVALID_BASE_URL
 
 
-@pytest.mark.unit
 async def test_ollama_private_permitted_and_pinned(monkeypatch):
     """An operator Ollama connection (allow_private=True) reaches a private host,
     and the request goes through the pinned egress with allow_private threaded
@@ -87,7 +89,6 @@ async def test_ollama_private_permitted_and_pinned(monkeypatch):
     assert captured["url"].endswith("/api/chat")
 
 
-@pytest.mark.unit
 async def test_ollama_generation_does_not_allow_private_for_guild_scope(monkeypatch):
     """A guild-scoped Ollama connection (allow_private=False) cannot reach a
     private host — the pinned egress refuses it."""
@@ -101,67 +102,90 @@ async def test_ollama_generation_does_not_allow_private_for_guild_scope(monkeypa
 
     with pytest.raises(ai_generation.AIGenerationError) as exc:
         await ai_generation.generate_description(None, _User(), 1, _Task())
-    assert str(exc.value) == "AI_INVALID_BASE_URL"
+    assert str(exc.value) == AIMessages.INVALID_BASE_URL
 
 
-# --- the editor state as markdown ---------------------------------------------
+_CHOICES = {"choices": [{"message": {"content": " generated text "}}]}
 
 
-def _lexical_text(text):
-    return {"type": "text", "text": text, "format": 0}
+@pytest.mark.parametrize(
+    ("provider", "base_url", "url", "auth", "fields", "reply", "rejected"),
+    [
+        (
+            AIProvider.openai,
+            None,
+            "https://api.openai.com/v1/chat/completions",
+            {"authorization": "Bearer test-key"},
+            {"temperature": 0.7, "max_tokens": 500},
+            _CHOICES,
+            AIMessages.INVALID_API_KEY,
+        ),
+        (
+            AIProvider.anthropic,
+            None,
+            "https://api.anthropic.com/v1/messages",
+            {"x-api-key": "test-key", "anthropic-version": "2023-06-01"},
+            {"max_tokens": 500},
+            {"content": [{"text": " generated text "}]},
+            AIMessages.INVALID_API_KEY,
+        ),
+        (
+            AIProvider.ollama,
+            "https://93.184.216.34:11434/",
+            "https://93.184.216.34:11434/api/chat",
+            {},
+            {"stream": False},
+            {"message": {"content": " generated text "}},
+            AIMessages.PROVIDER_ERROR,
+        ),
+        (
+            AIProvider.custom,
+            "https://93.184.216.34/v1",
+            "https://93.184.216.34/v1/chat/completions",
+            {"authorization": "Bearer test-key"},
+            {"temperature": 0.7, "max_tokens": 500},
+            _CHOICES,
+            AIMessages.INVALID_API_KEY,
+        ),
+    ],
+)
+async def test_every_provider_through_one_request_path(
+    monkeypatch, provider, base_url, url, auth, fields, reply, rejected
+):
+    """Each provider's request carries its own endpoint, credentials and body
+    shape, its reply is read from where that provider puts the text, and a
+    rejected request reads as a bad key where one was sent, else as the
+    provider's error."""
+    sent: list[httpx.Request] = []
+    status = 200
 
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(status, json=reply if status == 200 else {})
 
-def test_a_callout_is_shown_as_its_kind_and_its_blocks():
-    content = {
-        "root": {
-            "type": "root",
-            "children": [
-                {
-                    "type": "callout",
-                    "variant": "warning",
-                    "children": [
-                        {"type": "paragraph", "children": [_lexical_text("Careful")]},
-                        {"type": "paragraph", "children": [_lexical_text("Really")]},
-                    ],
-                }
-            ],
-        }
-    }
-    assert (
-        ai_generation.lexical_to_markdown(content)
-        == "> [!warning]\n> Careful\n>\n> Really"
-    )
+    real_client = httpx.AsyncClient
 
+    class _Client(real_client):
+        def __init__(self, **kwargs):
+            super().__init__(**{**kwargs, "transport": httpx.MockTransport(handler)})
 
-def test_columns_are_shown_one_after_another():
-    content = {
-        "root": {
-            "type": "root",
-            "children": [
-                {
-                    "type": "layout-container",
-                    "children": [
-                        {
-                            "type": "layout-item",
-                            "children": [
-                                {
-                                    "type": "paragraph",
-                                    "children": [_lexical_text("left")],
-                                }
-                            ],
-                        },
-                        {
-                            "type": "layout-item",
-                            "children": [
-                                {
-                                    "type": "paragraph",
-                                    "children": [_lexical_text("right")],
-                                }
-                            ],
-                        },
-                    ],
-                }
-            ],
-        }
-    }
-    assert ai_generation.lexical_to_markdown(content) == "left\n\nright"
+    async def fake_resolve(*args, **kwargs):
+        return _resolved(provider, base_url, allow_private=False)
+
+    monkeypatch.setattr(httpx, "AsyncClient", _Client)
+    monkeypatch.setattr(ai_generation, "resolve_ai_settings", fake_resolve)
+
+    out = await ai_generation.generate_description(None, _User(), 1, _Task())
+    assert out == "generated text"
+    request = sent[0]
+    sent_to = f"{request.url.scheme}://{request.headers['host']}{request.url.path}"
+    assert sent_to == url
+    assert {k: request.headers.get(k) for k in auth} == auth
+    body = json.loads(request.content)
+    assert body["model"] == "test-model"
+    assert {k: body[k] for k in fields} == fields
+
+    status = 401
+    with pytest.raises(ai_generation.AIGenerationError) as exc:
+        await ai_generation.generate_description(None, _User(), 1, _Task())
+    assert str(exc.value) == rejected

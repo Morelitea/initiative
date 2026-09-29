@@ -1,8 +1,12 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
-import { runWidgetQueryApiV1GGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet } from "@/api/generated/dashboards/dashboards";
-import type { QueryResponse } from "@/api/generated/initiativeAPI.schemas";
-import { runQueryApiV1GGuildIdQueryPost } from "@/api/generated/query/query";
+import { loadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet } from "@/api/generated/dashboards/dashboards";
+import type {
+  DashboardDataResponse,
+  DashboardWidgetData,
+  QueryResponse,
+} from "@/api/generated/initiativeAPI.schemas";
+import { runQueryApiV1CGuildIdQueryPost } from "@/api/generated/query/query";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { busyRetryDelay, inQueryLane, retryWhileBusy } from "@/lib/queryLane";
 import type { QueryOpts } from "@/types/query";
@@ -23,11 +27,11 @@ import type { QueryOpts } from "@/types/query";
 export const sqlQueryKey = (guildId: number, sql: string, initiativeId?: number) =>
   ["query", guildId, sql, initiativeId ?? null] as const;
 
-/** A placed widget's own read. Keyed by where it sits rather than by what it
- *  asks, because the statement is the server's to look up — the whole point of
- *  the endpoint behind it. */
-export const widgetQueryKey = (guildId: number, dashboardId: number, widgetId: string) =>
-  ["query", "widget", guildId, dashboardId, widgetId] as const;
+/** A canvas's query widgets, answered together. Keyed by the dashboard rather
+ *  than by what its widgets ask, because the statements are the server's to
+ *  look up — the whole point of the endpoint behind it. */
+export const dashboardDataKey = (guildId: number, dashboardId: number) =>
+  ["query", "dashboard", guildId, dashboardId] as const;
 
 /**
  * `initiativeId` narrows the answer to one initiative.
@@ -47,7 +51,7 @@ export const useSqlQuery = (
     queryKey: sqlQueryKey(guildId, sql ?? "", initiativeId),
     queryFn: () =>
       inQueryLane(guildId, () =>
-        runQueryApiV1GGuildIdQueryPost(guildId, { sql: sql ?? "", initiative_id: initiativeId })
+        runQueryApiV1CGuildIdQueryPost(guildId, { sql: sql ?? "", initiative_id: initiativeId })
       ),
     // Not retried: a statement either resolves against the registry or it does
     // not, and a refused one is refused the same way every time. A guild with
@@ -61,43 +65,76 @@ export const useSqlQuery = (
 };
 
 /**
- * The statement stored on one widget of one dashboard.
+ * The statement stored on one widget of one dashboard, as its canvas answered it.
  *
- * The request names the widget and nothing else: what runs is the statement on
- * it, looked up server-side. That is what lets a dashboard show rows a reader
- * could not otherwise reach — the question is the one somebody published, and
- * a reader has no way to ask a different one of the same grants.
+ * A canvas is read as a whole: one request answers every query widget on it,
+ * run by the server as one statement, so the tiles read the same moment and
+ * share the work. Each tile selects its own entry from that answer. The request
+ * names the dashboard and nothing else: what runs is each widget's stored
+ * statement, looked up server-side. That is what lets a dashboard show rows a
+ * reader could not otherwise reach — the question is the one somebody
+ * published, and a reader has no way to ask a different one of the same grants.
  */
 export const useWidgetQuery = (
   dashboardId: number | null,
   widgetId: string | null,
-  options?: QueryOpts<QueryResponse>
+  options?: { enabled?: boolean }
 ) => {
   const guildId = useActiveGuildId();
   const addressed = Boolean(dashboardId && widgetId);
-  return useQuery<QueryResponse>({
-    queryKey: widgetQueryKey(guildId, dashboardId ?? 0, widgetId ?? ""),
+  const canvas = useQuery<DashboardDataResponse, Error, DashboardWidgetData | null>({
+    queryKey: dashboardDataKey(guildId, dashboardId ?? 0),
     queryFn: () =>
-      inQueryLane(guildId, () =>
-        runWidgetQueryApiV1GGuildIdDashboardsDashboardIdWidgetsWidgetIdQueryGet(
-          guildId,
-          dashboardId as number,
-          widgetId as string
-        )
-      ),
+      loadDashboardDataApiV1CGuildIdDashboardsDashboardIdDataGet(guildId, dashboardId as number),
+    select: (data) => data.widgets[widgetId ?? ""] ?? null,
     // Not retried, for the same reason: a statement either resolves against the
-    // registry or it does not — except for a guild with no free slot, which is
-    // what a canvas of tiles asking at once produces on its own.
+    // registry or it does not — except for a guild with no free slot, which a
+    // canvas can still meet while somebody else's is loading.
     retry: retryWhileBusy,
     retryDelay: busyRetryDelay,
-    // Keyed by where the widget sits, and a canvas re-renders with its
-    // dashboard momentarily unknown — while its own read is in flight, or on
-    // the way back from one. Without this the key changes under the tile and
-    // it blanks to a fresh entry with nothing in it, so a dashboard that was
-    // showing figures shows none for a beat and then shows them again. The
-    // last answer stays on screen until the next one is ready.
+    // A canvas re-renders with its dashboard momentarily unknown — while its
+    // own read is in flight, or on the way back from one. Without this the key
+    // changes under the tile and it blanks to a fresh entry with nothing in it,
+    // so a dashboard that was showing figures shows none for a beat and then
+    // shows them again. The last answer stays on screen until the next one is
+    // ready.
     placeholderData: keepPreviousData,
-    ...options,
     enabled: addressed && (options?.enabled ?? true),
   });
+  const entry = canvas.data;
+  return {
+    data: entry?.result ?? undefined,
+    isLoading: canvas.isLoading,
+    // A widget the answer has nothing for has no statement stored, and one
+    // with an error was refused on its own: both read as this tile's failure,
+    // not the canvas's.
+    isError: canvas.isError || (canvas.isSuccess && (entry === null || Boolean(entry?.error))),
+    refetch: canvas.refetch,
+  };
+};
+
+/** One change the realtime channel reported, as far as a canvas cares. */
+export type CanvasChange = {
+  resource?: { type: string; id: number };
+  initiative_id?: number | null;
+};
+
+/**
+ * Whether a canvas's answer is stale after these changes: one of them is to a
+ * table a widget on it read, in the canvas's initiative or in the guild's own.
+ */
+export const canvasIsStale = (
+  data: DashboardDataResponse | undefined,
+  changes: readonly CanvasChange[]
+): boolean => {
+  if (!data) return false;
+  const read = new Set(
+    Object.values(data.widgets).flatMap((entry) => entry.result?.relations ?? [])
+  );
+  return changes.some(
+    (change) =>
+      change.resource !== undefined &&
+      read.has(change.resource.type) &&
+      (change.initiative_id == null || change.initiative_id === data.initiative_id)
+  );
 };

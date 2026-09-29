@@ -2,7 +2,7 @@ import { act, fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildUser } from "@/__tests__/factories";
+import { buildPage, buildUser } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { PlatformGuildStorageRead } from "@/api/generated/initiativeAPI.schemas";
 
@@ -114,10 +114,9 @@ let narrowings: {
 const agreeNarrowing = vi.fn();
 
 vi.mock("@/api/generated/settings/settings", () => ({
-  createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost: (
-    guildId: number,
-    answer: unknown
-  ) => (answer ? mintHandoff(guildId, answer) : mintHandoff(guildId)),
+  createPlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost:
+    (guildId: number, answer: unknown) =>
+      answer ? mintHandoff(guildId, answer) : mintHandoff(guildId),
 }));
 
 // Captured so a test can fire the save's own callbacks and check what the
@@ -128,7 +127,7 @@ let updateCallbacks: {
 } = {};
 
 vi.mock("@/hooks/useSettings", () => ({
-  usePlatformGuilds: () => ({ data: guildsData, isLoading: false, isError: false }),
+  usePlatformGuilds: () => ({ data: buildPage(guildsData), isLoading: false, isError: false }),
   useUpdateGuildStorage: (options: typeof updateCallbacks) => {
     updateCallbacks = options ?? {};
     return { mutate, isPending: false };
@@ -145,7 +144,7 @@ vi.mock("@/hooks/useAccessGrants", () => ({
 }));
 
 vi.mock("@/hooks/useOperatorUsers", () => ({
-  usePlatformUsers: () => ({ data: [], isLoading: false }),
+  usePlatformUsers: () => ({ data: buildPage([]), isLoading: false }),
 }));
 
 // What the deployment has set up to receive operations work. The help-request

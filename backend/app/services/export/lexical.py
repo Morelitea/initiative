@@ -10,7 +10,8 @@ emitter (python-docx, images embedded), and the ``document`` Typst template
 Degradation contract: any unknown node with ``text`` renders as text (this
 covers mentions, wikilinks, hashtags, emojis, keywords — all TextNode
 subclasses); unknown containers recurse into their children; embeds
-(YouTube/Tweet) degrade to a link; anything else is dropped silently. A new
+(YouTube/Tweet) degrade to a link; a reference embed (``![[ ]]``) to a note
+callout holding its name; anything else is dropped silently. A new
 editor node can never break an export, it just exports as its text.
 
 Images: only same-guild uploads (``/uploads/{guild_id}/…``) are collected as
@@ -25,6 +26,7 @@ import re
 import zipfile
 from typing import Any, Callable
 
+from app.services.export.stamp import markdown_stamp, stamp_docx
 from app.services.platform.csv_export import safe_filename_component
 
 # Lexical TextNode format bitmask.
@@ -177,9 +179,23 @@ class _Parser:
                 {
                     "type": "callout",
                     "variant": str(node.get("variant") or "note"),
+                    "collapsed": node.get("collapsed") is True,
                     "blocks": self.nested(children),
                 }
             )
+        elif ntype == "reference-embed":
+            # A thing shown in full. The export cannot read it live, so it keeps
+            # the panel and the name the page had for it.
+            self.flush_paragraph()
+            name = str(node.get("text") or "")
+            if name:
+                self.blocks.append(
+                    {
+                        "type": "callout",
+                        "variant": "note",
+                        "blocks": [{"type": "paragraph", "runs": [{"text": name}]}],
+                    }
+                )
         elif ntype == "layout-container":
             self.flush_paragraph()
             items = [c for c in children if c.get("type") == "layout-item"]
@@ -402,6 +418,24 @@ def _embed_url(node: dict) -> str | None:
 # Markdown
 # ---------------------------------------------------------------------------
 
+#: No guild's uploads are this one's, so every picture keeps its own address
+#: rather than being rewritten as a file inside an export archive.
+_NO_ARCHIVE = -1
+
+
+def editor_markdown(content: Any, *, reading: bool = False) -> str:
+    """An editor state as Markdown text alone: no title, no stamp, no archive.
+
+    ``reading`` lays columns out one after another and leaves drawings out,
+    for a reader that wants the words in order rather than the page.
+    """
+    blocks, _assets = blocks_from_editor_state(content, guild_id=_NO_ARCHIVE)
+    if reading:
+        blocks = _in_line(blocks, callouts=False)
+    if not blocks:
+        return ""
+    return _markdown_text({"blocks": blocks}).strip()
+
 
 def render_markdown(data: dict, read_blob: ReadBlob) -> tuple[bytes, str, str | None]:
     """Emit Markdown. With referenced assets: a zip of ``{stem}.md`` +
@@ -429,7 +463,7 @@ def render_markdown(data: dict, read_blob: ReadBlob) -> tuple[bytes, str, str | 
 
 
 def _markdown_text(data: dict) -> str:
-    lines: list[str] = []
+    lines = markdown_stamp(data)
     title = str(data.get("title") or "").strip()
     if title:
         lines.append(f"# {title}")
@@ -451,8 +485,10 @@ def _md_block(block: dict, indent: str = "") -> list[str]:
     if btype == "quote":
         return [f"> {_md_runs(block.get('runs') or [])}"]
     if btype == "callout":
-        # Obsidian's callout, which GitHub reads as an alert.
-        lines = [f"> [!{block.get('variant') or 'note'}]"]
+        # Obsidian's callout, which GitHub reads as an alert. A folded one
+        # carries Obsidian's fold marker; a page or a Word file shows it open.
+        fold = "-" if block.get("collapsed") else ""
+        lines = [f"> [!{block.get('variant') or 'note'}]{fold}"]
         for index, inner in enumerate(block.get("blocks") or []):
             if index:
                 lines.append(">")
@@ -613,6 +649,7 @@ def render_docx(data: dict, read_blob: ReadBlob) -> bytes:
     from docx.shared import Inches, Pt
 
     document = docx.Document()
+    stamp_docx(document, data)
     title = str(data.get("title") or "").strip()
     if title:
         document.add_heading(title, level=0)
@@ -693,7 +730,7 @@ def render_docx(data: dict, read_blob: ReadBlob) -> bytes:
             widths = [1] * len(columns)
         set_columns(document.add_section(WD_SECTION.CONTINUOUS), widths)
         for index, column in enumerate(columns):
-            for inner in _flatten_callouts(column):
+            for inner in _in_line(column):
                 add_block(inner)
             if index < len(columns) - 1:
                 document.add_paragraph().add_run().add_break(WD_BREAK.COLUMN)
@@ -787,7 +824,7 @@ def render_docx(data: dict, read_blob: ReadBlob) -> bytes:
         if top.get("type") == "columns" and top.get("columns"):
             add_columns(top)
             continue
-        for block in _flatten_callouts([top]):
+        for block in _in_line([top]):
             add_block(block)
 
     out = io.BytesIO()
@@ -795,20 +832,24 @@ def render_docx(data: dict, read_blob: ReadBlob) -> bytes:
     return out.getvalue()
 
 
-def _flatten_callouts(blocks: list[dict]) -> list[dict]:
-    """Blocks with each callout and each set of columns laid out in line —
-    a callout's kind as a bold label, then what it holds; columns one after
-    another — for a renderer with no panel or grid of its own to draw."""
+def _in_line(blocks: list[dict], *, callouts: bool = True) -> list[dict]:
+    """Blocks with each set of columns laid out one after another, drawings
+    left out and, with ``callouts``, each callout as its kind in a bold label
+    and then what it holds — for a renderer with no panel or grid of its own
+    to draw."""
     out: list[dict] = []
     for block in blocks:
         btype = block.get("type")
-        if btype == "callout":
+        if btype == "callout" and callouts:
             label = str(block.get("variant") or "note").capitalize()
             out.append({"type": "quote", "runs": [{"text": label, "bold": True}]})
-            out.extend(_flatten_callouts(block.get("blocks") or []))
+            out.extend(_in_line(block.get("blocks") or []))
+        elif btype == "callout":
+            inner = _in_line(block.get("blocks") or [], callouts=False)
+            out.append({**block, "blocks": inner})
         elif btype == "columns":
             for column in block.get("columns") or []:
-                out.extend(_flatten_callouts(column))
+                out.extend(_in_line(column, callouts=callouts))
         elif btype == "drawing":
             continue
         else:

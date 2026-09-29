@@ -30,8 +30,8 @@ vi.mock("@/hooks/useAppConfig", () => ({
   useAppConfig: () => ({ communityDirectoryEnabled: config.communityDirectory }),
 }));
 
-vi.mock("@/api/generated/guilds/guilds", () => ({
-  updateGuildApiV1GuildsGuildIdPatch: (...args: unknown[]) => patchGuild(...args),
+vi.mock("@/api/generated/communities/communities", () => ({
+  updateGuildApiV1CommunitiesGuildIdPatch: (...args: unknown[]) => patchGuild(...args),
 }));
 
 const renderPanel = (guild: GuildRead) =>

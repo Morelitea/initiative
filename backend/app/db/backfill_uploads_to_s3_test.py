@@ -155,12 +155,9 @@ def test_backfill_non_403_head_error_is_a_failure(tmp_path):
 async def test_backfill_finally_releases_lock_after_aborted_transaction(
     engine, monkeypatch, tmp_path
 ):
-    """A failure inside the guild loop leaves the connection's transaction
-    aborted; the ``finally`` must roll back FIRST so the advisory unlock still
-    runs. The original error must propagate (not the in-failed-transaction
-    error from the cleanup), the cluster-wide lock must be free for the next
-    run, and the pooled connection must return without a lingering guild
-    role."""
+    """A failure while reading a guild's uploads propagates, the cluster-wide
+    lock is free for the next run, and the pooled platform connection returns
+    without a guild role."""
     import types
 
     import pytest

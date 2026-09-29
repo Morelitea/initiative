@@ -10,7 +10,7 @@ writes; the only writes it accepts are the ones that end the state or move it
 along — unarchive, restore, purge — and the one that moves the ground under it:
 a status column retired or recategorised takes every task in it along, frozen
 or not, because a column nobody can empty is a column nobody can delete (see
-``RESTRUCTURE_GUC``).
+``app.db.gucs.RESTRUCTURING``).
 
 Freeze is a **lifecycle** state, and it is orthogonal to who may do what: a
 frozen row is read-only for everybody, so the way to edit one is to bring it
@@ -41,18 +41,19 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from sqlalchemy import inspect as sa_inspect, text
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.exc import DBAPIError
 from sqlmodel import SQLModel
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 import app.db.base  # noqa: F401 — registers every model's table on the metadata
 from app.core.reactions import ReactionTarget
 from app.core.relationships import ENDPOINT_KINDS
 from app.core.tools import Tool
+from app.db import gucs
 from app.db.initiative_rls import (
     COMMENT_PARENTS,
     INITIATIVE_PATHS,
+    NAMED_PEOPLE,
     governing_path,
 )
 from app.db.errors import (
@@ -72,46 +73,6 @@ FROZEN_CONSTRAINT = "frozen_row_guard"
 #: The refusal that names the thing ABOVE the row: it is archived or in the
 #: trash, so this one cannot come out from under it on its own.
 FROZEN_PARENT_CONSTRAINT = "frozen_parent_guard"
-
-#: Transaction-local flag marking a transaction as a purge.
-#:
-#: Purge is the one lifecycle step that writes frozen content rather than only
-#: removing it: a document being purged leaves wikilinks behind in the documents
-#: that pointed at it, and those are unresolved before the row goes — including
-#: in documents that are themselves in the trash, which would otherwise be
-#: restored holding a link to nothing.
-#:
-#: Set with ``SET LOCAL`` by ``hard_purge_entity``, so it lasts one transaction
-#: and never reaches a pooled connection.
-PURGE_GUC = "app.purging"
-
-#: Transaction-local flag marking a transaction as a restructure of the board a
-#: frozen row sits on.
-#:
-#: Retiring or recategorising a status column moves every task in it: the ones
-#: still live, and the ones archived or in the trash, which have to land
-#: somewhere too. The frozen task is not being edited — where it hangs is
-#: changing, and it keeps its stamp — so the row guards let the write through
-#: while this is set. The ancestry guards do not read it: nothing about a column
-#: can put a task under a different project or initiative.
-#:
-#: Set with ``set_config(…, true)`` by :func:`mark_restructuring`, so it lasts
-#: one transaction and never reaches a pooled connection.
-RESTRUCTURE_GUC = "app.restructuring"
-
-_PURGING = f"current_setting('{PURGE_GUC}'::text, true) = 'true'::text"
-_RESTRUCTURING = f"current_setting('{RESTRUCTURE_GUC}'::text, true) = 'true'::text"
-
-
-async def mark_restructuring(session: AsyncSession) -> None:
-    """Flag the current transaction as a board restructure (see ``RESTRUCTURE_GUC``).
-
-    Call it inside the transaction that moves the tasks, after every check that
-    should still be able to refuse; it is gone at commit.
-    """
-    await session.exec(
-        text("SELECT set_config(:name, 'true', true)").bindparams(name=RESTRUCTURE_GUC)
-    )
 
 
 #: What a frozen row may still change: the columns that describe the freeze
@@ -162,6 +123,8 @@ SELF_STAMPED_TABLES: frozenset[str] = ARCHIVABLE_TABLES & TRASHABLE_TABLES
 #: - Notification bookkeeping, queued in the same transaction as the change that
 #:   caused it. If the change is refused the row never exists; if it is allowed
 #:   the record of it must not be.
+#: - Stored files, which follow the content that shows them: that content's own
+#:   freeze decides whether it may change.
 #:
 #: Deliberate responses are NOT here: a comment, a reaction, a poll answer and
 #: an RSVP are gestures on the content, and frozen content takes none of them.
@@ -172,10 +135,12 @@ FREEZE_EXEMPT_TABLES: frozenset[str] = frozenset(
         "project_orders",
         "project_favorites",
         "event_outbox",
+        "app_event_outbox",
         "search_entries",
         "reaction_digest_items",
         "task_assignment_digest_items",
         "event_reminder_dispatches",
+        "uploads",
     }
 )
 
@@ -387,7 +352,9 @@ def render_resource_frozen_fn() -> str:
         body = " OR ".join(f"({c})" for c in checks) if checks else "false"
         lines.append(f"        RETURN {body};")
         arms.append("\n".join(lines))
-    return _RESOURCE_FROZEN_TEMPLATE.format(arms="\n".join(arms), purging=_PURGING)
+    return _RESOURCE_FROZEN_TEMPLATE.format(
+        arms="\n".join(arms), purging=gucs.PURGING.sql
+    )
 
 
 _RESOURCE_FROZEN_FOR_GRANT_TEMPLATE = """
@@ -513,6 +480,16 @@ def frozen_write_triggers(table: str) -> list[str]:
             )
         return out
 
+    # Leaving an initiative takes the person off what they held or were named
+    # on there, whatever state it is in (``fn_initiative_departure``): a
+    # departure is not a change to the resource.
+    departs = {n.table: n.clear for n in NAMED_PEOPLE} | {"resource_grants": False}
+
+    def on_departure(command: str, when: str) -> str:
+        if table in departs and (command == "DELETE") != departs[table]:
+            return f"pg_trigger_depth() = 0 AND ({when})"
+        return when
+
     prior = freeze_leg(table, "UPDATE", alias="OLD")
     proposed = freeze_leg(table, "UPDATE", alias="NEW")
     if prior is not None and proposed is not None:
@@ -523,7 +500,7 @@ def frozen_write_triggers(table: str) -> list[str]:
         out.append(
             f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_ancestor_update "
             f"BEFORE UPDATE ON {table} FOR EACH ROW "
-            f"WHEN ({prior} OR {proposed}) "
+            f"WHEN ({on_departure('UPDATE', f'{prior} OR {proposed}')}) "
             f"EXECUTE FUNCTION public.{guard}()"
         )
         if inherits_the_archive:
@@ -535,10 +512,12 @@ def frozen_write_triggers(table: str) -> list[str]:
             out.append(
                 f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_trashed_ancestor_update "
                 f"BEFORE UPDATE ON {table} FOR EACH ROW "
-                f"WHEN ({was} OR {will_be}) "
+                f"WHEN ({on_departure('UPDATE', f'{was} OR {will_be}')}) "
                 f"EXECUTE FUNCTION public.fn_frozen_parent_guard()"
             )
     doomed = freeze_leg(table, "DELETE", alias="OLD")
+    if doomed is not None:
+        doomed = on_departure("DELETE", doomed)
     if doomed is not None:
         out.append(
             f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_ancestor_delete "
@@ -577,7 +556,7 @@ DECLARE
     was jsonb := to_jsonb(OLD);
     now_ jsonb := to_jsonb(NEW);
 BEGIN
-    IF {_PURGING} THEN
+    IF {gucs.PURGING} THEN
         RETURN NEW;
     END IF;
     IF (was ? 'archived_at' OR was ? 'deleted_at')
@@ -587,7 +566,7 @@ BEGIN
             USING ERRCODE = '{FROZEN_SQLSTATE}',
                   CONSTRAINT = '{FROZEN_PARENT_CONSTRAINT}';
     END IF;
-    IF {_RESTRUCTURING} THEN
+    IF {gucs.RESTRUCTURING} THEN
         RETURN NEW;
     END IF;
     IF (now_ - lifecycle) IS DISTINCT FROM (was - lifecycle) THEN
@@ -607,7 +586,7 @@ def render_frozen_guard_fn() -> str:
     live row never reaches it. Once here, the row IS frozen: the only change it
     may carry is one to the columns that describe the freeze — unless the
     transaction is a purge or a board restructure, which write frozen rows on
-    purpose (``PURGE_GUC``, ``RESTRUCTURE_GUC``).
+    purpose (``app.db.gucs.PURGING``, ``RESTRUCTURING``).
     """
     cols = ", ".join(f"'{c}'" for c in LIFECYCLE_COLUMNS)
     return f"""
@@ -616,7 +595,7 @@ CREATE OR REPLACE FUNCTION public.fn_frozen_row_guard() RETURNS trigger
 DECLARE
     lifecycle text[] := ARRAY[{cols}];
 BEGIN
-    IF {_PURGING} OR {_RESTRUCTURING} THEN
+    IF {gucs.PURGING} OR {gucs.RESTRUCTURING} THEN
         RETURN NEW;
     END IF;
     IF (to_jsonb(NEW) - lifecycle) IS DISTINCT FROM (to_jsonb(OLD) - lifecycle) THEN

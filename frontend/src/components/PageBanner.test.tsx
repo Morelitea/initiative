@@ -55,12 +55,15 @@ describe("PageBanner", () => {
   it("prefers the picture when a guild has set both", () => {
     const { container } = render(
       <PageBanner
-        banner={banner({ image_url: "/api/v1/guilds/1/image/abc", color: "#2a9d8f" })}
+        banner={banner({ image_url: "/api/v1/communities/1/image/abc", color: "#2a9d8f" })}
         title="Ravenloft"
       />
     );
 
-    expect(container.querySelector("img")).toHaveAttribute("src", "/api/v1/guilds/1/image/abc");
+    expect(container.querySelector("img")).toHaveAttribute(
+      "src",
+      "/api/v1/communities/1/image/abc"
+    );
     // The colour is the alternative, not a backdrop, so it is not painted too.
     expect(ground(container)).not.toHaveStyle({ backgroundColor: "rgb(42, 157, 143)" });
   });
@@ -76,7 +79,7 @@ describe("PageBanner", () => {
   it("uses the text colour it is given, including over artwork", () => {
     render(
       <PageBanner
-        banner={banner({ image_url: "/api/v1/guilds/1/image/abc", text_color: "#000000" })}
+        banner={banner({ image_url: "/api/v1/communities/1/image/abc", text_color: "#000000" })}
         title="Ravenloft"
       />
     );

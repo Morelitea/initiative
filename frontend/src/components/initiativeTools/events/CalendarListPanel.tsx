@@ -3,11 +3,13 @@ import { CalendarDays, ChevronDown, Plus, Settings2 } from "lucide-react";
 import type { ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { CalendarSummary } from "@/api/generated/initiativeAPI.schemas";
+import { type CalendarSummary, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useUnreadTree } from "@/hooks/useUnreadTree";
 
 /** A derived, read-only "calendar" for one project's tasks — rendered from the
  * calendar-entries tasks payload, never stored server-side. */
@@ -90,9 +92,7 @@ export const CalendarListPanel = ({
   onCreate,
 }: CalendarListPanelProps) => {
   const { t } = useTranslation("calendars");
-
-  const canManage = (calendar: CalendarSummary) =>
-    calendar.my_permission_level === "write" || calendar.my_permission_level === "owner";
+  const unread = useUnreadTree();
 
   return (
     <div className="space-y-4">
@@ -105,9 +105,7 @@ export const CalendarListPanel = ({
         ) : (
           <ul className="space-y-0.5">
             {calendars.map((calendar) => {
-              const settingsPath = canManage(calendar)
-                ? (settingsPathFor?.(calendar) ?? null)
-                : null;
+              const settingsPath = calendar.can.edit ? (settingsPathFor?.(calendar) ?? null) : null;
               return (
                 <li
                   key={`${calendar.guild_id}-${calendar.id}`}
@@ -120,7 +118,7 @@ export const CalendarListPanel = ({
                   />
                   <span
                     className="h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: calendar.color ?? "#6366f1" }}
+                    style={{ backgroundColor: calendar.color }}
                   />
                   <Label
                     htmlFor={`calendar-toggle-${calendar.guild_id}-${calendar.id}`}
@@ -128,6 +126,9 @@ export const CalendarListPanel = ({
                   >
                     {calendarLabel?.(calendar) ?? calendar.name}
                   </Label>
+                  {unread.hasResource(calendar.guild_id, Tool.calendar, calendar.id) ? (
+                    <UnreadDot />
+                  ) : null}
                   {settingsPath && (
                     <Link
                       to={settingsPath}

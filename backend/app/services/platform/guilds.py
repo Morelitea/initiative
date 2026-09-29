@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import logging
 import secrets
 
-from sqlalchemy import func, or_, text
+from sqlalchemy import exists, func, or_, text
+from sqlalchemy.orm import aliased
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -15,6 +17,9 @@ from app.core.guild_auth_options import GuildAuthOption
 from app.core.intake import IntakeStream
 from app.core.encryption import encrypt_field, SALT_EMAIL
 from app.core.messages import GuildMessages
+from app.db import cohorts
+from app.db.guild_migrations import GUILD_SCHEMA_REGEX
+from app.db.query import apply_pagination
 from app.models.platform.guild import (
     BANNER_TEXT_COLORS,
     GUILD_ADMIN_ROLES,
@@ -41,6 +46,7 @@ from app.services.platform import billing_ping
 
 from app.services.platform import account_stream
 from app.services.platform import contact_grants as contact_grants_service
+from app.db.request_context import Platform, SystemGuild, Unattributed
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +149,8 @@ async def get_primary_guild(session: AsyncSession) -> Guild:
     user_count = (await session.exec(select(func.count()).select_from(User))).one()
     schema_count = (
         await session.exec(
-            text("SELECT count(*) FROM pg_namespace WHERE nspname ~ '^guild_[0-9]+$'")
+            text("SELECT count(*) FROM pg_namespace WHERE nspname ~ :pat"),
+            params={"pat": GUILD_SCHEMA_REGEX},
         )
     ).one()[0]
     if user_count or schema_count:
@@ -289,10 +296,6 @@ async def ensure_membership(
         target_id=guild_id,
         detail=detail,
     )
-    # Written out here, where the caller's own context still applies. The
-    # enrolment below borrows the session for the guild's schema, and a record
-    # left pending would be carried into that excursion instead.
-    await session.flush()
     # Belonging somewhere new can change what this account is asked for — a
     # listed community asks its members their age — and the person may have
     # had nothing to do with arriving here. Their open tabs re-read the
@@ -301,67 +304,59 @@ async def ensure_membership(
     # Nudge billing that this guild's membership changed. No-op unless a
     # hosted deployment configured the outbound billing settings.
     billing_ping.notify_membership_changed(guild_id)
-    await enroll_new_member_in_auto_join_initiatives(
+    enroll_new_member_in_auto_join_initiatives(
         session, guild_id=guild_id, user_id=user_id, role=role
     )
     return membership
 
 
-async def enroll_new_member_in_auto_join_initiatives(
+def enroll_new_member_in_auto_join_initiatives(
     session: AsyncSession,
     *,
     guild_id: int,
     user_id: int,
     role: GuildRole,
 ) -> None:
-    """Put a brand-new guild member into the guild's auto-join initiatives.
+    """Put a brand-new guild member into the guild's auto-join initiatives once
+    ``session`` commits.
 
     Called on a genuine membership insert only, which is what makes this the
     onboarding hook rather than a sweep: someone who was already in the guild
     is returned earlier and is never re-enrolled.
 
-    A guild admin is skipped. Their membership row is written before the guild's
-    schema exists at all — guild creation is the case — and their standing
-    already reaches every initiative, so nothing here is theirs to be handed.
-    They pick which initiatives they navigate by joining them.
+    A guild admin is skipped. Their standing already reaches every initiative,
+    so nothing here is theirs to be handed. They pick which initiatives they
+    navigate by joining them.
 
-    The initiatives live in the guild's schema and the join paths that reach here
-    run on the system engine with ``search_path = public``, so the work is done
-    through a routed excursion that hands the session back as it found it. The
-    whole excursion sits inside a savepoint: landing somewhere useful is a
-    convenience, and it must never be the reason someone's guild join fails.
+    The enrolment runs on a system session from the guild's cohort, after the
+    membership commits. Landing somewhere useful is a convenience, and it is
+    never the reason someone's guild join fails.
     """
     if role in GUILD_ADMIN_ROLES:
         return
-    from app.db.session import guild_schema_context
+    from app.db.session import set_rls_context
     from app.services.tenant import initiatives as initiatives_service
 
-    try:
-        async with session.begin_nested():
-            async with guild_schema_context(session, guild_id=guild_id):
-                # A second savepoint so a failure unwinds before the excursion
-                # restores the caller's context, rather than during it.
-                async with session.begin_nested():
-                    await initiatives_service.enroll_in_auto_join_initiatives(
-                        session, guild_id=guild_id, user_id=user_id
-                    )
-    except Exception:
-        logger.exception(
-            "auto-join: user %s joined guild %s but was enrolled in none of its "
-            "auto-join initiatives",
-            user_id,
-            guild_id,
-        )
+    async def enroll_in_auto_join_initiatives() -> None:
+        async with cohorts.system_session(guild_id) as guild_session:
+            await set_rls_context(guild_session, SystemGuild(guild_id))
+            await initiatives_service.enroll_in_auto_join_initiatives(
+                guild_session, guild_id=guild_id, user_id=user_id
+            )
+            await guild_session.commit()
+
+    cohorts.after_commit(session, enroll_in_auto_join_initiatives)
 
 
-async def align_admin_initiative_roles(
+def align_admin_initiative_roles(
     session: AsyncSession,
     *,
     guild_id: int,
     user_id: int,
     role: GuildRole,
 ) -> None:
-    """Bring a freshly promoted guild admin's initiative rows up to their standing.
+    """Bring a freshly promoted guild admin's initiative rows up to their
+    standing once ``session`` commits.
 
     A guild admin's membership row carries a manager role, which every write
     path settles for itself. A promotion changes the guild role and nothing
@@ -372,34 +367,23 @@ async def align_admin_initiative_roles(
     in place, which is an ordinary initiative role for an ordinary member to
     hold, and taking it away would be a second decision nobody asked for.
 
-    The initiatives live in the guild's schema and this runs on the system
-    engine with ``search_path = public``, so the work is done through a routed
-    excursion that hands the session back as it found it. The whole excursion
-    sits inside a savepoint: the role change is the thing being asked for, and
-    reconciling rows underneath it must never be what makes it fail. Flush-only;
-    the caller owns the transaction.
+    The reconciliation runs on a system session from the guild's cohort, after
+    the role change commits, so it is never what makes the role change fail.
     """
     if role not in GUILD_ADMIN_ROLES:
         return
-    from app.db.session import guild_schema_context
+    from app.db.session import set_rls_context
     from app.services.tenant import initiatives as initiatives_service
 
-    try:
-        async with session.begin_nested():
-            async with guild_schema_context(session, guild_id=guild_id):
-                # A second savepoint so a failure unwinds before the excursion
-                # restores the caller's context, rather than during it.
-                async with session.begin_nested():
-                    await initiatives_service.align_guild_admin_membership_roles(
-                        session, guild_id=guild_id, user_id=user_id
-                    )
-    except Exception:
-        logger.exception(
-            "admin promotion: user %s became an admin of guild %s but their "
-            "existing initiative roles were not reconciled",
-            user_id,
-            guild_id,
-        )
+    async def align_guild_admin_membership_roles() -> None:
+        async with cohorts.system_session(guild_id) as guild_session:
+            await set_rls_context(guild_session, SystemGuild(guild_id))
+            await initiatives_service.align_guild_admin_membership_roles(
+                guild_session, guild_id=guild_id, user_id=user_id
+            )
+            await guild_session.commit()
+
+    cohorts.after_commit(session, align_guild_admin_membership_roles)
 
 
 # Advisory-lock namespace for per-guild membership-cap admission. A fixed ASCII
@@ -552,7 +536,7 @@ async def list_memberships(
     from app.db.session import SystemSessionLocal, set_rls_context
     from app.services.cross_guild import gather_across_guilds
 
-    await set_rls_context(session, user_id=user_id)
+    await set_rls_context(session, Platform(user_id=user_id))
     pairs = (
         await session.exec(
             select(Guild, GuildMembership)
@@ -614,7 +598,7 @@ async def list_memberships(
         async def _retention(
             routed: AsyncSession, guild_id: int
         ) -> list[tuple[int, int | None]]:
-            return [(guild_id, await get_guild_retention_days(routed, guild_id))]
+            return [(guild_id, await get_guild_retention_days(routed))]
 
         retention = dict(
             await gather_across_guilds(
@@ -625,8 +609,6 @@ async def list_memberships(
                 for_settings=True,
             )
         )
-        # Back to the user-only context the caller (UserSessionDep) handed us.
-        await set_rls_context(session, user_id=user_id)
 
     return [
         (
@@ -722,9 +704,9 @@ async def create_guild(
     actor_user_id: int | None = None,
 ) -> Guild:
     """Create a guild's *shared* rows only — the guild row (public) and its
-    admin membership (public). The guild-scoped seed rows (settings + default
-    initiative) live in the guild's schema, which doesn't exist yet, so the
-    caller commits this, then calls :func:`seed_guild_content`.
+    admin membership (public). The guild-scoped seed rows live in the guild's
+    schema, which doesn't exist yet; :func:`provision_new_guild` commits this
+    and then calls :func:`seed_guild_content`.
 
     ``creator`` is who performed the creation and is recorded as such;
     ``owner`` is who gets the membership, defaulting to the creator. The row
@@ -794,9 +776,11 @@ async def seed_guild_content(
     one" to exactly the admin who may — asks that question once, instead of
     answering it wrongly and making them undo it.
 
-    The shared guild row must already exist; this provisions the schema + role and
-    seeds into it (the caller commits around the call). On failure the caller
-    should ``deprovision_guild`` and remove the shared rows.
+    The shared guild row must already exist, committed; this provisions the
+    schema + role and seeds into it on a system session from the guild's cohort,
+    which it commits. ``session`` is the caller's, and is left as it was.
+    Called from :func:`provision_new_guild`, which undoes the guild if this
+    fails.
 
     Mandatory apps (§7.7) land here because that is what "every guild has it"
     means. They are also the one part allowed to fail quietly: the install is a
@@ -810,22 +794,87 @@ async def seed_guild_content(
     await provision_guild(guild_id)
     # Seeding is the system engine's, routed into the new schema: the guild
     # has no members yet and nobody is asking for anything.
-    await set_rls_context(session, guild_id=guild_id)
-    await create_guild_settings(session, guild_id)
-    try:
-        # Inside a savepoint, so a failure here rolls back the app install and
-        # nothing else: the guild being created must survive whatever an app's
-        # listing or registration is doing.
-        async with session.begin_nested():
-            await mandatory_apps_service.install_mandatory_apps(
-                session, guild_id=guild_id, created_by=owner.id
+    async with cohorts.system_session(guild_id) as guild_session:
+        await set_rls_context(guild_session, SystemGuild(guild_id))
+        await create_guild_settings(guild_session, guild_id)
+        try:
+            # Inside a savepoint, so a failure here rolls back the app install
+            # and nothing else: the guild being created must survive whatever
+            # an app's listing or registration is doing.
+            async with guild_session.begin_nested():
+                await mandatory_apps_service.install_mandatory_apps(
+                    guild_session, guild_id=guild_id, created_by=owner.id
+                )
+        except Exception:
+            logger.exception(
+                "mandatory apps: guild %s was created without them; the boot "
+                "sweep installs what is missing",
+                guild_id,
             )
-    except Exception:
-        logger.exception(
-            "mandatory apps: guild %s was created without them; the boot sweep "
-            "installs what is missing",
-            guild_id,
+        await guild_session.commit()
+
+
+class GuildProvisionError(Exception):
+    """A new guild's schema could not be provisioned or seeded; its shared
+    rows have been removed again."""
+
+
+async def provision_new_guild(
+    session: AsyncSession,
+    *,
+    name: str,
+    creator: User,
+    owner: User | None = None,
+    description: str | None = None,
+    actor_user_id: int | None = None,
+) -> Guild:
+    """Create a guild end to end: :func:`create_guild`, commit, then
+    :func:`seed_guild_content`.
+
+    The shared rows are committed first so the seed runs as a separate step
+    that can be undone. If it fails, the schema is dropped, the guild row is
+    deleted through :func:`delete_guild` (recorded as ``provision_failed``),
+    its app references are forgotten, and :class:`GuildProvisionError` is
+    raised. Anything else the caller committed alongside it (a registering
+    account) is the caller's to remove.
+    """
+    from app.db.schema_provisioning import deprovision_guild
+    from app.db.session import clear_rls_context
+    from app.services.marketplace import app_refs
+
+    first = owner or creator
+    guild = await create_guild(
+        session,
+        name=name,
+        description=description,
+        creator=creator,
+        owner=first,
+        actor_user_id=actor_user_id,
+    )
+    await session.commit()
+    # Read before the seed: the rollback below expires the ORM objects.
+    guild_id = guild.id
+    actor = actor_user_id if actor_user_id is not None else first.id
+    try:
+        await seed_guild_content(session, guild_id=guild_id, owner=first)
+    except Exception as exc:
+        logger.exception("Guild %s setup failed; rolling back", guild_id)
+        # The seed may have left this session aborted or routed into the
+        # schema being dropped; the cleanup runs unrouted, on public.
+        await session.rollback()
+        clear_rls_context(session)
+        with suppress(Exception):
+            await deprovision_guild(guild_id)
+        await delete_guild(
+            session,
+            await get_guild(session, guild_id=guild_id),
+            actor_user_id=actor,
+            via="provision_failed",
         )
+        await session.commit()
+        await app_refs.forget_guild(guild_id=guild_id)
+        raise GuildProvisionError(guild_id) from exc
+    return guild
 
 
 #: The characters a hex colour is made of, checked one at a time. An explicit
@@ -1076,9 +1125,9 @@ async def set_guild_status(
     return guild
 
 
-async def get_guild_retention_days(session: AsyncSession, guild_id: int) -> int | None:
-    """Return the per-guild trash retention period in days, or None for
-    "never auto-purge".
+async def get_guild_retention_days(session: AsyncSession) -> int | None:
+    """Return the trash retention period in days of the guild the session is
+    routed to, or None for "never auto-purge".
 
     Selecting the full row (not the column) is intentional: NULL in
     ``retention_days`` is the user's explicit "never" choice, and we must
@@ -1224,8 +1273,7 @@ async def delete_guild(
 
     ``actor_user_id`` names who for the record, ``via`` which surface they did
     it from, and ``target_user_id`` the account the deletion was on behalf of
-    where there is one. Without an actor the deletion is unrecorded — the
-    compensating delete of a guild whose setup failed is that case.
+    where there is one. Without an actor the deletion is unrecorded.
 
     Under schema-per-guild the guild's content lives in its schema and is removed
     separately by ``deprovision_guild`` (``DROP SCHEMA … CASCADE``). Here we only
@@ -1242,7 +1290,7 @@ async def delete_guild(
     attempt sync loads in the async context (MissingGreenlet).
 
     **Callers must follow a successful commit with**
-    ``app_refs.drop_guild_app_refs(guild_id=...)`` — what this guild's installed
+    ``app_refs.forget_guild(guild_id=...)`` — what this guild's installed
     apps called its members lives in a platform-wide table that neither the
     guild row's cascade nor the schema drop reaches. After the commit rather
     than here: those references are on a different connection and cannot join
@@ -1344,7 +1392,7 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
     from app.services.platform import intake as intake_service
     from app.services.platform import user_notifications
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     guild = (
         await session.exec(select(Guild).where(Guild.id == guild_id))
     ).one_or_none()
@@ -1564,12 +1612,7 @@ def invite_is_active(invite: GuildInvite) -> bool:
     return True
 
 
-async def redeem_invite_for_user(
-    session: AsyncSession,
-    *,
-    code: str,
-    user: User,
-) -> Guild:
+async def _live_invite(session: AsyncSession, *, code: str) -> GuildInvite:
     invite = await get_invite_by_code(session, code=code)
     if not invite:
         raise GuildInviteError(GuildMessages.INVITE_NOT_FOUND)
@@ -1581,6 +1624,35 @@ async def redeem_invite_for_user(
     target_guild = await get_guild(session, guild_id=invite.guild_id)
     if target_guild.status != GuildStatus.active.value:
         raise GuildInviteError(GuildMessages.INVITE_EXPIRED_OR_USED)
+    return invite
+
+
+async def invite_awaiting_address(
+    session: AsyncSession, *, code: str, email: str
+) -> GuildInvite | None:
+    """The invite a sign-up at ``email`` joins once it proves the address.
+
+    For a sign-up that has not proved its address yet. An invite bound to that
+    address waits for the proof rather than being redeemed now; one bound to
+    another address is refused, as redeeming it would be. ``None`` for an
+    invite that binds no address, which is redeemed with the account.
+    """
+    invite = await _live_invite(session, code=code)
+    bound_email = invite.invitee_email
+    if not bound_email:
+        return None
+    if addresses.normalize(bound_email) != addresses.normalize(email):
+        raise GuildInviteError(GuildMessages.INVITE_EMAIL_MISMATCH)
+    return invite
+
+
+async def redeem_invite_for_user(
+    session: AsyncSession,
+    *,
+    code: str,
+    user: User,
+) -> Guild:
+    invite = await _live_invite(session, code=code)
 
     # Email binding. An invite with no bound address
     # (``invitee_email_encrypted`` is NULL) is a shareable link that any
@@ -1850,8 +1922,8 @@ async def list_community_guilds(
     user_id: int,
     query: str | None = None,
     category: str | None = None,
-    offset: int = 0,
-    limit: int = 24,
+    page: int = 1,
+    page_size: int = 24,
 ) -> tuple[list[tuple[Guild, int, bool]], int]:
     """The community directory: (guild, member_count, already_member) + total.
 
@@ -1917,7 +1989,7 @@ async def list_community_guilds(
     statement = statement.order_by(
         member_count.desc(), Guild.name.asc(), Guild.id.asc()
     )
-    rows = (await session.exec(statement.offset(offset).limit(limit))).all()
+    rows = (await session.exec(apply_pagination(statement, page, page_size))).all()
     return [(guild, int(count), bool(joined)) for guild, count, joined in rows], int(
         total
     )
@@ -2015,6 +2087,34 @@ async def lock_guild_seats(session: AsyncSession, guild_id: int) -> None:
     )
 
 
+def _sole_seats(user_id: int):
+    """The live communities where this account holds the only seat.
+
+    A seat held by an account on its way out is not one. That account keeps
+    its membership for its whole window, so counting the row would let two
+    seat holders each leave in turn — each one counting the other — and leave
+    the community with nobody who can run it.
+    """
+    mine = aliased(GuildMembership)
+    other_seat = aliased(GuildMembership)
+    return (
+        select(Guild.id, Guild.name)
+        .join(mine, mine.guild_id == Guild.id)
+        .where(
+            mine.user_id == user_id,
+            mine.role == GuildRole.superadmin,
+            Guild.status != GuildStatus.deleted.value,
+            ~exists().where(
+                other_seat.guild_id == Guild.id,
+                other_seat.user_id != user_id,
+                other_seat.role == GuildRole.superadmin,
+                User.id == other_seat.user_id,
+                User.status != UserStatus.deleted,
+            ),
+        )
+    )
+
+
 async def must_keep_superadmin(
     session: AsyncSession,
     *,
@@ -2045,35 +2145,8 @@ async def must_keep_superadmin(
     agree with each other, and the lock is what makes the answer still true
     when the caller acts on it.
     """
-    membership = await get_membership(session, guild_id=guild_id, user_id=user_id)
-    if membership is None or membership.role != GuildRole.superadmin:
-        return False
-
-    guild = (
-        await session.exec(select(Guild.status).where(Guild.id == guild_id))
-    ).one_or_none()
-    if guild == GuildStatus.deleted.value:
-        return False
-
-    others = (
-        await session.exec(
-            select(func.count())
-            .select_from(GuildMembership)
-            .join(User, User.id == GuildMembership.user_id)
-            .where(
-                GuildMembership.guild_id == guild_id,
-                GuildMembership.user_id != user_id,
-                GuildMembership.role == GuildRole.superadmin,
-                # A seat held by an account on its way out is not one. That
-                # account keeps its membership for its whole window, so
-                # counting the row would let two seat holders each leave in
-                # turn — each one counting the other — and leave the community
-                # with nobody who can run it.
-                User.status != UserStatus.deleted,
-            )
-        )
-    ).one()
-    return others == 0
+    stmt = _sole_seats(user_id).where(Guild.id == guild_id)
+    return (await session.exec(stmt)).first() is not None
 
 
 async def would_strand_guild(
@@ -2096,20 +2169,34 @@ async def would_strand_guild(
 
     Call :func:`lock_guild_seats` first, as for the rule it builds on.
     """
-    if not await must_keep_superadmin(session, guild_id=guild_id, user_id=user_id):
-        return False
+    return bool(await stranded_seats(session, user_id=user_id, guild_id=guild_id))
 
-    others = (
-        await session.exec(
-            select(func.count())
-            .select_from(GuildMembership)
-            .where(
-                GuildMembership.guild_id == guild_id,
-                GuildMembership.user_id != user_id,
+
+async def stranded_seats(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    guild_id: int | None = None,
+) -> list[tuple[int, str]]:
+    """``(id, name)`` of every community this account going would strand, in
+    id order — :func:`would_strand_guild` for all of its seats in one query.
+
+    ``guild_id`` narrows it to one community.
+    """
+    others = aliased(GuildMembership)
+    stmt = (
+        _sole_seats(user_id)
+        .where(
+            exists().where(
+                others.guild_id == Guild.id,
+                others.user_id != user_id,
             )
         )
-    ).one()
-    return others > 0
+        .order_by(Guild.id)
+    )
+    if guild_id is not None:
+        stmt = stmt.where(Guild.id == guild_id)
+    return [(row[0], row[1]) for row in (await session.exec(stmt)).all()]
 
 
 async def remove_user_from_guild(
@@ -2129,7 +2216,7 @@ async def remove_user_from_guild(
     it and delivered by the caller after the commit.
     """
     from app.services.tenant import app_connections as app_connections_service
-    from app.services.tenant import app_delegations as app_delegations_service
+    from app.services.tenant import app_member_consents as consents_service
     from app.services.tenant import initiatives as initiatives_service
 
     # Read before the delete below takes the row: the record says which standing
@@ -2155,7 +2242,7 @@ async def remove_user_from_guild(
     )
     # Leaving ends what this guild's apps may do as this person, the same way it
     # ends what they reach at a vendor.
-    await app_delegations_service.delete_member_delegations(session, user_id=user_id)
+    await consents_service.delete_member_consents(session, user_id=user_id)
 
     # Remove guild membership
     stmt = delete(GuildMembership).where(

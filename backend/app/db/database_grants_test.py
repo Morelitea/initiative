@@ -12,11 +12,9 @@ free to differ.
 
 from __future__ import annotations
 
-import pytest
 
 from app.db.bootstrap import bootstrap_sql
 
-pytestmark = pytest.mark.unit
 
 _REVOKE = "REVOKE TEMPORARY ON DATABASE"
 

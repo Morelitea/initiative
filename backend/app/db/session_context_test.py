@@ -19,21 +19,20 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.db.schema_provisioning import guild_role_name
 from app.db.session import (
     _RLS_ESTABLISHED_INFO_KEY,
-    _RLS_PARAMS_INFO_KEY,
+    _RLS_CONTEXT_INFO_KEY,
     RLS_CONTEXT_MAX_AGE_SECONDS,
     StaleAuthorizationContext,
-    guild_schema_context,
     set_rls_context,
 )
 from app.testing import create_guild, create_guild_membership, create_user, route_as
 from app.testing.schema_harness import route_session_to_guild
+from app.db.request_context import SystemGuild
 
 
 async def _scalar(session: AsyncSession, sql: str):
     return (await session.exec(text(sql))).scalar()
 
 
-@pytest.mark.database
 async def test_commit_then_query_replays_context(session, role_session):
     """The core rule-2 regression: routed session → commit → tenant query
     succeeds with NO manual reapply (the after_begin hook replays context on
@@ -53,7 +52,6 @@ async def test_commit_then_query_replays_context(session, role_session):
     )
 
 
-@pytest.mark.database
 async def test_context_dies_with_transaction(session, role_session):
     """No session-level state: with the stored params removed (no replay),
     the connection is back to the login role, public search_path, empty GUCs."""
@@ -65,7 +63,7 @@ async def test_context_dies_with_transaction(session, role_session):
     assert (await _scalar(s, "SELECT current_user")) == guild_role_name(guild.id)
     await s.commit()
 
-    del s.info[_RLS_PARAMS_INFO_KEY]  # disable replay: probe the bare connection
+    del s.info[_RLS_CONTEXT_INFO_KEY]  # disable replay: probe the bare connection
     assert (await _scalar(s, "SELECT current_user")) != guild_role_name(guild.id)
     assert (
         await _scalar(s, "SELECT current_setting('app.current_user_id', true)")
@@ -76,7 +74,6 @@ async def test_context_dies_with_transaction(session, role_session):
     assert "guild_" not in (await _scalar(s, "SELECT current_setting('search_path')"))
 
 
-@pytest.mark.database
 async def test_stale_user_snapshot_fails_closed(session, role_session):
     """A user-derived snapshot past the freshness floor refuses to begin a
     transaction — the DB-layer floor under the realtime spine."""
@@ -92,7 +89,6 @@ async def test_stale_user_snapshot_fails_closed(session, role_session):
         await s.exec(text("SELECT 1"))
 
 
-@pytest.mark.database
 async def test_system_context_exempt_from_ttl(session, role_session):
     """A system context (no user_id — worker loops, seeding) is not a user
     authorization snapshot; the floor must not break a long maintenance pass."""
@@ -100,14 +96,13 @@ async def test_system_context_exempt_from_ttl(session, role_session):
     guild = await create_guild(session, creator=user)
 
     s = await role_session("app_admin")
-    await set_rls_context(s, guild_id=guild.id)
+    await set_rls_context(s, SystemGuild(guild.id))
     await s.commit()
     s.info[_RLS_ESTABLISHED_INFO_KEY] -= RLS_CONTEXT_MAX_AGE_SECONDS + 1
 
     assert await _scalar(s, "SELECT count(*) FROM projects") is not None
 
 
-@pytest.mark.database
 async def test_mid_transaction_reroute(session, role_session):
     """cross_guild-style loops re-route guild A → guild B inside one
     transaction; the direct application must win over the replayed context."""
@@ -127,7 +122,6 @@ async def test_mid_transaction_reroute(session, role_session):
     assert (await _scalar(s, "SELECT current_user")) == guild_role_name(guild_b.id)
 
 
-@pytest.mark.database
 async def test_nested_transaction_inherits_context(session, role_session):
     """SET LOCAL scopes to the top-level transaction; a savepoint must inherit
     the routed context (the hook skips nested begins)."""
@@ -143,7 +137,6 @@ async def test_nested_transaction_inherits_context(session, role_session):
         )
 
 
-@pytest.mark.database
 async def test_harness_pin_survives_commit(session):
     """route_session_to_guild pins are transaction-local but replayed: a
     factory-routed test session still resolves the guild schema after commit."""
@@ -154,61 +147,6 @@ async def test_harness_pin_survives_commit(session):
     await session.commit()
     sp = (await session.exec(text("SELECT current_setting('search_path')"))).scalar()
     assert f"guild_{guild.id}" in sp
-
-
-@pytest.mark.database
-async def test_guild_schema_context_returns_an_unrouted_session_as_it_found_it(
-    session, role_session
-):
-    """The excursion a platform handler makes into one guild's schema leaves no
-    trace: the stored params go, and the connection is back on its login role
-    with the public search_path."""
-    user = await create_user(session)
-    guild = await create_guild(session, creator=user)
-
-    s = await role_session("app_admin")
-    assert _RLS_PARAMS_INFO_KEY not in s.info
-
-    async with guild_schema_context(s, guild_id=guild.id):
-        assert (await _scalar(s, "SELECT current_user")) == guild_role_name(guild.id)
-        assert f"guild_{guild.id}" in await _scalar(
-            s, "SELECT current_setting('search_path')"
-        )
-
-    assert _RLS_PARAMS_INFO_KEY not in s.info
-    assert _RLS_ESTABLISHED_INFO_KEY not in s.info
-    assert (await _scalar(s, "SELECT current_user")) == "app_admin"
-    assert "guild_" not in await _scalar(s, "SELECT current_setting('search_path')")
-    # And the next transaction replays nothing, so the session is genuinely back
-    # to the login role rather than wearing a context this helper invented.
-    await s.commit()
-    assert (await _scalar(s, "SELECT current_user")) == "app_admin"
-
-
-@pytest.mark.database
-async def test_guild_schema_context_restores_a_callers_own_context(
-    session, role_session
-):
-    """A caller that was already routed gets its own routing back — including
-    the freshness stamp, which the excursion must not renew."""
-    user = await create_user(session)
-    guild_a = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild_a)
-    guild_b = await create_guild(session, creator=user)
-
-    s = await role_session("app_user")
-    await route_as(s, user_id=user.id, guild_id=guild_a.id)
-    stamp = s.info[_RLS_ESTABLISHED_INFO_KEY]
-
-    async with guild_schema_context(s, guild_id=guild_b.id):
-        assert (await _scalar(s, "SELECT current_user")) == guild_role_name(guild_b.id)
-
-    assert (await _scalar(s, "SELECT current_user")) == guild_role_name(guild_a.id)
-    assert f"guild_{guild_a.id}" in await _scalar(
-        s, "SELECT current_setting('search_path')"
-    )
-    assert s.info[_RLS_ESTABLISHED_INFO_KEY] == stamp
-    assert s.info[_RLS_PARAMS_INFO_KEY]["user_id"] == user.id
 
 
 # ---------------------------------------------------------------------------
@@ -228,19 +166,41 @@ def test_every_context_branch_binds_every_parameter():
     """
     import re
 
-    from app.db.session import _CONTEXT_SQL, _render_context_bind_params
+    from app.db.guild_standing import GuildContext, InstallContext
+    from app.db.request_context import (
+        Billing,
+        ContentGrantee,
+        Install,
+        Member,
+        Platform,
+        Unattributed,
+    )
+    from app.db.session import _CONTEXT_SQL, _bind_params
 
     required = set(re.findall(r":(\w+)", _CONTEXT_SQL))
 
+    standing = GuildContext(guild=None, user_id=7, guild_id=3)
     branches = {
-        "billing": {"billing_guild_id": 1},
-        "unrouted": {},
-        "platform": {"user_id": 7},
-        "guild": {"user_id": 7, "guild_id": 3, "guild_role": "admin"},
-        "pam": {"user_id": 7, "pam_guild_id": 3, "pam_read": True},
+        "billing": Billing(1),
+        "unrouted": Unattributed(),
+        "platform": Platform(user_id=7),
+        "guild": Member(guild_id=3, user_id=7, standing=standing),
+        "pam": ContentGrantee(guild_id=3, user_id=7),
+        "install": Install(
+            guild_id=3,
+            install_id=5,
+            standing=InstallContext(
+                guild_id=3,
+                install_id=5,
+                client_id="tests.app-service",
+                token_scopes=frozenset({"documents:read"}),
+            ),
+            token_client_id="tests.app-service",
+            token_scopes=frozenset({"documents:read"}),
+        ),
     }
-    for name, params in branches.items():
-        rendered = set(_render_context_bind_params(params))
+    for name, shape in branches.items():
+        rendered = set(_bind_params(shape))
         assert rendered == required, (
             f"the {name} branch does not bind exactly the statement's "
             f"parameters — missing {sorted(required - rendered)}, "

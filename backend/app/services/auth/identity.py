@@ -32,7 +32,7 @@ from enum import Enum
 from typing import Any
 
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import false, or_
+from sqlalchemy import false, or_, text
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -434,46 +434,6 @@ async def ways_in(session: AsyncSession, *, user_id: int) -> frozenset[LoginMeth
     )
 
 
-async def password_only_user_count(
-    session: AsyncSession, *, permitted: frozenset[LoginMethod]
-) -> int:
-    """How many accounts can begin a session only with a password.
-
-    What withdrawing the password would leave stranded on a deployment
-    offering ``permitted`` today. Nobody, where the password is not among them.
-    """
-    return await stranded_between(
-        session, current=permitted, requested=permitted - {LoginMethod.password}
-    )
-
-
-async def federated_only_user_count(
-    session: AsyncSession, *, permitted: frozenset[LoginMethod]
-) -> int:
-    """How many accounts can begin a session only through an identity provider.
-
-    Every provider counts. Withdrawing the method closes all of them at once,
-    so an account whose only way in is any one of them is one this has to
-    report.
-    """
-    return await stranded_between(
-        session, current=permitted, requested=permitted - {LoginMethod.sso}
-    )
-
-
-async def passkey_only_user_count(
-    session: AsyncSession, *, permitted: frozenset[LoginMethod]
-) -> int:
-    """How many accounts can begin a session only with a passkey.
-
-    Nobody, on a deployment that does not offer them — the method is not a way
-    in there, so withdrawing it takes nothing away.
-    """
-    return await stranded_between(
-        session, current=permitted, requested=permitted - {LoginMethod.passkey}
-    )
-
-
 async def delete_user_identities(session: AsyncSession, *, user_id: int) -> None:
     """Remove every identity link (and, via cascade, its stored refresh token)
     for a user — the anonymize/delete-account cleanup. Stages only."""
@@ -502,13 +462,32 @@ async def _find_identity(
     ).one_or_none()
 
 
+#: The lock the first registrations take turns on, so one of them bootstraps.
+_BOOTSTRAP_LOCK_KEY = 0x696E6974626F6F74
+
+
+async def any_account_exists(session: AsyncSession) -> bool:
+    """Whether the deployment holds any account yet — the first one to arrive
+    bootstraps it. One indexed probe rather than a count of every row.
+
+    While there is none, registrations take turns on a transaction lock and
+    each asks again once it holds it, so one of them is the first.
+    """
+    probe = select(User.id).limit(1)
+    if (await session.exec(probe)).first() is not None:
+        return True
+    await session.exec(
+        text("SELECT pg_advisory_xact_lock(:key)").bindparams(key=_BOOTSTRAP_LOCK_KEY)
+    )
+    return (await session.exec(probe)).first() is not None
+
+
 async def _registration_open(session: AsyncSession) -> bool:
     """Mirrors the existing OIDC flow's gate: a closed instance still admits
     the very first user (fresh-install bootstrap)."""
     if settings.ENABLE_PUBLIC_REGISTRATION and not settings.DISABLE_GUILD_CREATION:
         return True
-    user_count = (await session.exec(select(func.count(User.id)))).one()
-    return user_count == 0
+    return not await any_account_exists(session)
 
 
 def _address_lock_key(normalized: str) -> int:

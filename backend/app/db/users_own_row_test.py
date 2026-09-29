@@ -23,8 +23,8 @@ from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserRole
 from app.testing import create_guild, create_guild_membership, create_user, route_as
+from app.db.request_context import Platform, Unattributed
 
-pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 # The columns an account holder alone writes.
 # The address columns left ``users`` with H3; what stays here is the one
@@ -75,7 +75,7 @@ async def _assumed_role(session: AsyncSession) -> str:
 
 class TestGuildSession:
     """A guild-scoped session — ``SET ROLE guild_<id>``, the request path for
-    everything under ``/g/{guild_id}``.
+    everything under ``/c/{guild_id}``.
 
     It does not reach ``public.users`` at all. People are read through
     ``public.guild_member_profiles``, the projection that carries who somebody
@@ -173,7 +173,7 @@ class TestPlatformSession:
     ):
         moderator, subject = moderator_and_subject
         s = await role_session("app_user")
-        await set_rls_context(s, user_id=moderator.id, platform_role="moderator")
+        await set_rls_context(s, Platform(user_id=moderator.id, tier="moderator"))
 
         assert await _count_visible(s, subject.id) == 1
 
@@ -183,7 +183,7 @@ class TestPlatformSession:
     ):
         moderator, subject = moderator_and_subject
         s = await role_session("app_user")
-        await set_rls_context(s, user_id=moderator.id, platform_role="moderator")
+        await set_rls_context(s, Platform(user_id=moderator.id, tier="moderator"))
 
         assert await _update_returning(s, subject.id, column, "rewritten") == []
 
@@ -192,7 +192,7 @@ class TestPlatformSession:
     ):
         _moderator, subject = moderator_and_subject
         s = await role_session("app_user")
-        await set_rls_context(s, user_id=subject.id, platform_role="member")
+        await set_rls_context(s, Platform(user_id=subject.id, tier="member"))
 
         assert await _update_returning(
             s, subject.id, "hashed_password", "self-chosen"
@@ -219,12 +219,12 @@ class TestReestablishedContext:
     ):
         member, other = two_accounts
         s = await role_session("app_user")
-        await set_rls_context(s, user_id=member.id, platform_role="member")
+        await set_rls_context(s, Platform(user_id=member.id, tier="member"))
         assert await _assumed_role(s) == platform_role_name("member")
         assert await _count_visible(s, other.id) == 0
 
         # The shape of every "back to the platform path" call in the services.
-        await set_rls_context(s, user_id=member.id)
+        await set_rls_context(s, Platform(user_id=member.id))
 
         assert await _assumed_role(s) == platform_role_name("member")
         assert await _count_visible(s, other.id) == 0
@@ -243,7 +243,7 @@ class TestReestablishedContext:
         await route_as(s, user_id=member.id, guild_id=guild.id)
         assert await _assumed_role(s) == guild_role_name(guild.id)
 
-        await set_rls_context(s, user_id=member.id)
+        await set_rls_context(s, Platform(user_id=member.id))
 
         assert await _assumed_role(s) == platform_role_name("member")
         assert await _count_visible(s, other.id) == 0
@@ -261,8 +261,8 @@ class TestReestablishedContext:
         """
         member, other = two_accounts
         s = await role_session("app_user")
-        await set_rls_context(s, user_id=member.id, platform_role="member")
-        await set_rls_context(s, user_id=member.id)
+        await set_rls_context(s, Platform(user_id=member.id, tier="member"))
+        await set_rls_context(s, Platform(user_id=member.id))
         await s.commit()
 
         assert await _assumed_role(s) == platform_role_name("member")
@@ -278,10 +278,10 @@ class TestReestablishedContext:
         """
         member, _other = two_accounts
         s = await role_session("app_user")
-        await set_rls_context(s, user_id=member.id, platform_role="member")
-        await set_rls_context(s)
+        await set_rls_context(s, Platform(user_id=member.id, tier="member"))
+        await set_rls_context(s, Unattributed())
         assert await _assumed_role(s) == "app_user"
 
-        await set_rls_context(s, user_id=member.id)
+        await set_rls_context(s, Platform(user_id=member.id))
 
         assert await _assumed_role(s) == "app_user"

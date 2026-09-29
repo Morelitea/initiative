@@ -102,9 +102,7 @@ export const WikiSidebarContent = ({
   );
   // Writing is the wiki's own gate, so the add affordances appear exactly
   // where the server would accept one.
-  const canWrite =
-    wikiQuery.data?.my_permission_level === "write" ||
-    wikiQuery.data?.my_permission_level === "owner";
+  const canWrite = Boolean(wikiQuery.data?.can.edit);
 
   const addPage = () =>
     createPage.mutate(

@@ -40,11 +40,7 @@ import { useTasks } from "@/hooks/useTasks";
 import { useUserSearch } from "@/hooks/useUsers";
 import { commandFilter } from "@/lib/fuzzyMatch";
 import { guildPath, useGuildPath } from "@/lib/guildUrl";
-import {
-  administersGuild,
-  canAccessOperatorDashboard,
-  canManagePlatformConfig,
-} from "@/lib/permissions";
+import { canAccessOperatorDashboard, canManagePlatformConfig } from "@/lib/permissions";
 import { renderRecentIcon } from "@/lib/recentIcon";
 import { recentRoute } from "@/lib/recentRoute";
 import {
@@ -244,7 +240,7 @@ export function CommandCenter() {
     scopeQuery.isSuccess &&
     !scopeQuery.isPlaceholderData;
 
-  const isGuildAdmin = administersGuild(activeGuild);
+  const isGuildAdmin = Boolean(activeGuild?.can.administer);
   const dmEnabled = useDirectMessagesEnabled();
   const showPlatformSettings = canManagePlatformConfig(user);
   const showOperatorDashboard = canAccessOperatorDashboard(user);

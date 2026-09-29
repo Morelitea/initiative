@@ -1,148 +1,46 @@
-"""Shared WebSocket authentication helper.
+"""Reading the credential a realtime socket's first frame carries.
 
-The four realtime WebSocket endpoints (events, counters, queues,
-collaboration) all authenticate the first message identically: try the
-bearer string as a session JWT, fall back to a device token, and require
-the resolved user to be ``active``.
-
-Previously each endpoint inlined this logic and only checked
-``status == active`` on the JWT path — they never compared the token's
-``ver`` claim to ``user.token_version``. That let a stolen-but-unexpired
-session JWT keep opening realtime sockets after logout / password reset /
-password change (all of which revoke purely by bumping ``token_version``),
-even though the HTTP path (``app.api.deps.get_current_user``) rejected the
-same token.
-
-Factoring the validate-and-load step into this single helper keeps the
-WS paths in lockstep with the HTTP path so the ``token_version`` check
-can't silently drift out of one of them again.
+The socket's side of ``app.services.auth.credentials``, which every transport
+reads a credential through: a session token or a device token, held to the
+same rules — ``ver`` included — that the HTTP path holds it to.
 """
 
-import uuid
 from typing import Optional
 
-import jwt
-from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.auth_context import (
-    SessionCredential,
-    claims_from_provider_auth,
-    set_device_token_id,
-    set_satisfied_claims,
-    set_satisfied_providers,
-    set_session_amr,
-    set_session_credential,
-)
-from app.core.security import decode_session_token
 from app.models.platform.user import User, UserStatus
-from app.schemas.platform.token import TokenPayload
-from app.services.auth.assurance import policy_markers
-from app.services.auth.subject import user_for_subject
-from app.services.platform import user_tokens
-
-
-def _is_a_jwt(token: str) -> bool:
-    """Whether ``token`` is a JWT, whatever it says and whoever signed it.
-
-    Asked of the library rather than of the string's shape, so this agrees
-    with what the decode above was trying to read.
-    """
-    try:
-        jwt.get_unverified_header(token)
-    except jwt.PyJWTError:
-        return False
-    return True
-
-
-def _session_row_id(sid: Optional[str]) -> Optional[uuid.UUID]:
-    """The ``auth_sessions`` row a session token's ``sid`` names, or ``None``
-    where it names none."""
-    if not sid:
-        return None
-    try:
-        return uuid.UUID(sid)
-    except ValueError:
-        return None
+from app.services.auth import credentials
+from app.services.auth.credentials import (
+    SOCKET_CREDENTIALS,
+    CredentialKind,
+    CredentialRefused,
+)
 
 
 async def authenticate_ws_token(token: str, session: AsyncSession) -> Optional[User]:
-    """Validate a session JWT or device token and return the active user.
+    """The active account a socket's session token or device token names.
 
-    Returns ``None`` (rather than raising) when authentication fails so
-    callers can close the socket with a policy-violation code.
+    ``None`` (rather than raising) when it names nobody, so the caller can
+    close the socket with a policy-violation code.
 
-    Session JWTs must carry a ``ver`` claim matching the user's current
-    ``token_version`` — this mirrors ``get_current_user`` so logout /
-    password reset / password change (which bump ``token_version``)
-    revoke realtime sockets too. Device tokens are revoked separately
-    (consumed / expired in the database) and are validated on the system
-    engine by ``user_tokens.authenticate_device_token``.
-
-    Like the HTTP validators, this records what the credential proved in
-    ``app.core.auth_context`` — the satisfied-provider set, and whether the
-    session recorded about how it was opened (all empty for device tokens
-    and legacy JWTs) — so the
-    ``establish_guild_access`` call that follows applies the guild auth-policy
-    gate to the socket exactly as REST would.
-
-    It also records which credential this was: the session row and
-    ``token_version`` a session JWT names, or the id of the device token. A
-    socket outlives the request that opened it, so the streams it joins keep
-    these and ask again whether that credential still stands (see
-    ``app.services.stream_authz``). A session JWT without a ``sid`` names no
-    sign-in to ask about and opens no socket.
+    What the credential proved is recorded in ``app.core.auth_context`` as it
+    is for a request, so the ``establish_guild_access`` call that follows
+    applies the guild auth-policy gate to the socket exactly as REST would, and
+    the streams it joins keep which credential it was and ask again later
+    whether it still stands (see ``app.services.content_sockets``). A session
+    token with no ``sid`` names no sign-in to ask about and opens no socket.
     """
-    set_satisfied_providers(None)
-    set_satisfied_claims(None)
-    set_session_amr(None)
-    set_session_credential(None)
-    set_device_token_id(None)
-
-    # First try JWT validation.
     try:
-        payload = decode_session_token(token)
-        token_data = TokenPayload(**payload)
-        session_id = _session_row_id(token_data.sid)
-        if token_data.sub and session_id is not None:
-            user = await user_for_subject(session, subject=token_data.sub)
-            if (
-                user
-                and user.status == UserStatus.active
-                and token_data.ver is not None
-                and token_data.ver == user.token_version
-            ):
-                set_session_credential(
-                    SessionCredential(
-                        session_id=session_id, token_version=token_data.ver
-                    )
-                )
-                set_satisfied_providers(frozenset(token_data.sat or ()))
-                set_satisfied_claims(claims_from_provider_auth(token_data.satd))
-                # Read from the session's own ``amr``, as the HTTP path
-                # reads it, through the same narrowing.
-                set_session_amr(policy_markers(token_data.amr))
-                return user
-        # A session token that resolved nobody — revoked by ``ver``, naming an
-        # unknown or inactive account — is refused here rather than offered to
-        # the device-token path below.
+        authenticated = await credentials.authenticate(
+            session, token, allow=SOCKET_CREDENTIALS
+        )
+    except CredentialRefused:
         return None
-    except jwt.PyJWTError:
-        # And so is one that did not decode. A device token is an opaque
-        # ``secrets.token_urlsafe`` value, so a bearer that parses as a JWT is
-        # somebody presenting a session credential whatever is wrong with it;
-        # only a string that is no JWT at all can be the other kind.
-        if _is_a_jwt(token):
-            return None
-
-    # Fall back to device token validation.
-    device_token = await user_tokens.authenticate_device_token(token)
-    if device_token:
-        statement = select(User).where(User.id == device_token.user_id)
-        result = await session.exec(statement)
-        user = result.one_or_none()
-        if user and user.status == UserStatus.active:
-            set_device_token_id(device_token.id)
-            return user
-
-    return None
+    if (
+        authenticated.kind is CredentialKind.session
+        and authenticated.session_id is None
+    ) or authenticated.user.status != UserStatus.active:
+        credentials.clear_recorded_credential()
+        return None
+    return authenticated.user

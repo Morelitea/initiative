@@ -25,13 +25,13 @@ const getUploadTokenMock = vi.mocked(getUploadToken);
 describe("resolveDocumentVersionDownloadUrl", () => {
   it("builds the guild-scoped version download path", () => {
     expect(resolveDocumentVersionDownloadUrl(5, 3, 7)).toBe(
-      "/api/v1/g/7/documents/5/versions/3/download"
+      "/api/v1/c/7/documents/5/versions/3/download"
     );
   });
 
   it("appends inline=1 when requested", () => {
     expect(resolveDocumentVersionDownloadUrl(5, 3, 7, true)).toBe(
-      "/api/v1/g/7/documents/5/versions/3/download?inline=1"
+      "/api/v1/c/7/documents/5/versions/3/download?inline=1"
     );
   });
 

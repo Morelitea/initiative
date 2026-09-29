@@ -20,10 +20,7 @@ from sqlalchemy.exc import DBAPIError
 
 from app.core.config import settings
 from app.db.session import set_rls_context
-from app.db.system_grants import (
-    SHARED_TABLE_APP_GUILD_BASE_GRANTS,
-    SHARED_TABLE_PLATFORM_BASE_GRANTS,
-)
+from app.db.public_rls import SHARED_TABLE_REGISTRY
 from app.models.platform.user import UserRole
 from app.testing import (
     create_auth_provider,
@@ -33,8 +30,8 @@ from app.testing import (
     create_user,
     route_as,
 )
+from app.db.request_context import Platform, Unattributed
 
-pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 GUILD_FLOORS = ("app_guild_base", "app_guild_base_ro")
 PLATFORM_FLOOR = f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
@@ -93,7 +90,7 @@ async def _two_guilds(session):
     provider = await create_auth_provider(session)
     # Back on the setup login, whatever the factories left the session routed
     # to: the pictures are written the way the system engine writes them.
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     for guild in (one, two):
         await create_guild_auth_policy(session, guild, provider, policy="open")
         data = f"icon-{guild.id}".encode()
@@ -115,11 +112,10 @@ async def _two_guilds(session):
     return person, one, two
 
 
-@pytest.mark.unit
 def test_the_registry_gives_the_guild_floor_none_of_them():
     for table in PER_PERSON:
-        assert SHARED_TABLE_APP_GUILD_BASE_GRANTS[table] is None, table
-    assert SHARED_TABLE_PLATFORM_BASE_GRANTS["marketplace_media"] is None
+        assert SHARED_TABLE_REGISTRY[table].grants.app_guild_base is None, table
+    assert SHARED_TABLE_REGISTRY["marketplace_media"].grants.platform_base is None
 
 
 @pytest.mark.parametrize("table", PER_PERSON)
@@ -164,10 +160,10 @@ async def test_the_platform_floor_reads_every_community_of_its_reader(session):
     ids = (one.id, two.id)
     tier = UserRole.member.value
 
-    await set_rls_context(session, user_id=person.id, platform_role=tier)
+    await set_rls_context(session, Platform(user_id=person.id, tier=tier))
     for table in GUILD_KEYED:
         assert await _guilds_seen(session, table, ids) == {one.id, two.id}, table
 
-    await set_rls_context(session, user_id=stranger.id, platform_role=tier)
+    await set_rls_context(session, Platform(user_id=stranger.id, tier=tier))
     for table in GUILD_KEYED:
         assert await _guilds_seen(session, table, ids) == set(), table

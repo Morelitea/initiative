@@ -1,16 +1,20 @@
 """Polymorphic per-resource access grants — the single DAC table.
 
-One row grants access to a resource at a level for exactly one of three grantee
+One row grants access to a resource at a level for exactly one of five grantee
 kinds:
 
 - a **user** (``user_id`` set),
-- an **initiative role** (``role_id`` set), or
+- an **initiative role** (``role_id`` set),
 - the **whole initiative** — a "general access" row with neither ``user_id`` nor
   ``role_id`` set and ``all_initiative_members`` true; ``level`` (read/write)
   gives the Viewer/Editor level. The backend aggregates every member of the
   row's ``initiative_id`` for it (see ``app.services.permissions``).
   ``all_initiative_members`` may only be set when there is no user/role grantee
-  (enforced by the ``resource_grants_one_grantee`` check).
+  (enforced by the ``resource_grants_one_grantee`` check),
+- a **dashboard** (``dashboard_id`` set), which a published view is read
+  through, or
+- an **installed app** (``app_install_id`` set), the install acting as its
+  community.
 
 Replaces the per-resource ``*_permissions`` / ``*_role_permissions`` tables (see
 history/resource-grants-consolidation-design.md). General access:
@@ -77,12 +81,13 @@ class ResourceGrant(CreatedByMixin, table=True):
 
     __table_args__ = (
         # Exactly one grantee kind per row: a user, an initiative role, the
-        # whole initiative (all_initiative_members), or a dashboard. This keeps
-        # the old XOR (never user AND role) and forbids the share boolean
-        # whenever another grantee is set.
+        # whole initiative (all_initiative_members), a dashboard, or an app
+        # install. This keeps the old XOR (never user AND role) and forbids the
+        # share boolean whenever another grantee is set.
         CheckConstraint(
             "(user_id IS NOT NULL)::int + (role_id IS NOT NULL)::int "
-            "+ (all_initiative_members)::int + (dashboard_id IS NOT NULL)::int = 1",
+            "+ (all_initiative_members)::int + (dashboard_id IS NOT NULL)::int "
+            "+ (app_install_id IS NOT NULL)::int = 1",
             name="resource_grants_one_grantee",
         ),
         # A dashboard reads and never writes, so a grant made to one carries no
@@ -110,6 +115,7 @@ class ResourceGrant(CreatedByMixin, table=True):
             "user_id",
             "role_id",
             "dashboard_id",
+            "app_install_id",
             name="resource_grants_unique_grantee",
             postgresql_nulls_not_distinct=True,
         ),
@@ -165,6 +171,17 @@ class ResourceGrant(CreatedByMixin, table=True):
             ForeignKey("dashboards.id", ondelete="CASCADE"),
             nullable=True,
         ),  # indexed by the partial ix_resource_grants_dashboard
+    )
+    #: The installed app this grant is made to. The row says what the install
+    #: may reach when it acts as its community; uninstalling removes its
+    #: grants with it.
+    app_install_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer,
+            ForeignKey("guild_apps.id", ondelete="CASCADE"),
+            nullable=True,
+        ),  # indexed by the partial ix_resource_grants_app_install
     )
     level: ResourceAccessLevel = Field(
         sa_column=Column(String(length=16), nullable=False)

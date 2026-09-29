@@ -1,12 +1,16 @@
-"""The per-user socket, and the bus behind it.
+"""The per-user channel, and the bus behind it.
 
-One person's open tabs, and how a frame reaches all of them wherever they are —
-including from a worker that is not the one holding the socket.
+How a frame reaches every tab one person has open, wherever they are —
+including from a worker that is not the one holding the socket. The sockets
+themselves are the account sockets in :mod:`app.services.content_sockets`,
+each in its account's room with its own outbox, so a send here is an enqueue
+and never waits on a reader.
 
-Two callers sit on this: :mod:`app.services.platform.notification_stream` (the
-inbox moved) and :mod:`app.services.platform.account_stream` (your standing
-changed). Both send the same shape and neither owns the machinery, so there is
-one place to look when a frame does not arrive.
+Four channels sit on this: :mod:`~app.services.platform.notification_stream`
+(the inbox moved), :mod:`~app.services.platform.account_stream` (your standing
+changed), :mod:`~app.services.platform.contacts_stream` and
+:mod:`~app.services.platform.dm_stream`. They send the same shape and none owns
+the machinery, so there is one place to look when a frame does not arrive.
 
 Every frame is a **content-free invalidation signal**: it says something you can
 already read has changed, never what it now says. The client refetches through
@@ -18,7 +22,9 @@ Delivery is two paths, and the split is deliberate:
 * **Local** — this worker's own sockets, always, straight from the hook that
   runs once the writing transaction commits.
 * **Cross-process** — ``pg_notify`` on a dedicated connection, picked up by
-  every other worker's listener.
+  every other worker's listener. One notice names every reader a frame is for
+  (up to ``IDS_PER_NOTICE``), so a transaction that signals a whole
+  community's members costs a few notices, not one per member.
 
 The local path is what makes this fail-soft. Where the bus cannot be reached the
 cross-process half is simply absent and everything behaves as it did before it
@@ -40,18 +46,35 @@ import json
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Set
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Dict,
+    Hashable,
+    Iterable,
+    Mapping,
+    Optional,
+    Set,
+)
 
 from sqlalchemy import event
 from sqlalchemy.orm import Session as SyncSession
 
-from app.models.platform.user import Presence
-from app.services.platform import presence
-
 logger = logging.getLogger(__name__)
 
-#: Key under which a session accumulates frames it has earned but not committed.
+#: Key under which a session accumulates what it has earned the right to send
+#: but not yet committed.
 _PENDING_KEY = "user_stream_pending"
+
+#: The frames a session has queued for readers, keyed by ``(user_id,
+#: resource)``, kept apart from ``_PENDING_KEY`` so the commit can send each
+#: kind of frame to all its readers at once.
+_FRAMES_KEY = "user_stream_frames"
+
+#: Readers named in one notice. ``pg_notify`` refuses a payload of 8000 bytes
+#: or more; this many ids and a frame stay well under it.
+IDS_PER_NOTICE = 500
 
 #: The Postgres channel every worker listens on. One channel for both callers:
 #: the frames are tiny and each names its own resource, so splitting them would
@@ -66,12 +89,6 @@ ORIGIN = uuid.uuid4().hex
 #: Sent where the gap is real but its contents are not knowable — the client
 #: answers it with the same catch-up it does on its own reconnect.
 RESOURCE_RESYNC = "resync"
-
-#: Proof the socket is still carrying. A client cannot tell a quiet channel from
-#: a dead one — a half-open connection reports itself open and delivers nothing
-#: — so the server says something on a beat, and silence past it means the
-#: socket is gone rather than that nothing has happened.
-RESOURCE_HEARTBEAT = "heartbeat"
 
 #: Frames whose cross-process half was refused, keyed so that repeats collapse:
 #: the frames carry no content, so "your inbox changed" twice is once. Bounded,
@@ -90,81 +107,6 @@ _dropped_remote = False
 _inflight: Set[asyncio.Task] = set()
 
 
-class UserStream:
-    """Which sockets belong to which user, on this process.
-
-    A user may have several (tabs, phone + laptop); every one gets the frame,
-    because each holds its own client-side cache.
-
-    This is one process's sockets, held in memory — which is what the bus below
-    exists to bridge. Presence is fed from the same connect/disconnect, since a
-    socket here is what "has Initiative open" means.
-    """
-
-    def __init__(self) -> None:
-        self._sockets: Dict[int, Set[Any]] = {}
-        self._socket_user: Dict[Any, int] = {}
-        self._lock = asyncio.Lock()
-
-    async def connect(
-        self,
-        user_id: int,
-        websocket: Any,
-        *,
-        chosen_presence: Presence = Presence.online,
-        presence_known_at: Optional[float] = None,
-    ) -> None:
-        """Register an already-accepted socket as this user's.
-
-        ``presence_known_at`` is when the caller read ``chosen_presence``, so
-        the roll can tell a value read before a change from one read after it.
-        """
-        async with self._lock:
-            self._sockets.setdefault(user_id, set()).add(websocket)
-            self._socket_user[websocket] = user_id
-        presence.online.arrived(user_id, chosen_presence, known_at=presence_known_at)
-
-    async def disconnect(self, websocket: Any) -> None:
-        """Drop a socket; the last one drops its user's entry entirely."""
-        async with self._lock:
-            user_id = self._socket_user.pop(websocket, None)
-            if user_id is None:
-                return
-            sockets = self._sockets.get(user_id)
-            if sockets is None:
-                return
-            sockets.discard(websocket)
-            if not sockets:
-                del self._sockets[user_id]
-        presence.online.left(user_id)
-
-    async def send(self, user_id: int, message: Dict[str, Any]) -> None:
-        """Fan one frame out to every socket this user has open **here**."""
-        async with self._lock:
-            sockets = list(self._sockets.get(user_id, set()))
-        for websocket in sockets:
-            try:
-                await websocket.send_json(message)
-            except Exception:
-                # A socket that cannot be written to is gone; the endpoint's
-                # own ``finally`` may not have run yet.
-                await self.disconnect(websocket)
-
-    def socket_count(self, user_id: int) -> int:
-        return len(self._sockets.get(user_id, set()))
-
-    def connected_users(self) -> Set[int]:
-        """Who this process is holding a socket for.
-
-        Lets a fan-out ask "which of these thousands of members are actually
-        here" instead of addressing every one of them.
-        """
-        return set(self._sockets)
-
-
-stream = UserStream()
-
-
 def build_frame(
     resource: str, action: str, ids: Dict[str, Any] | None = None
 ) -> Dict[str, Any]:
@@ -181,18 +123,28 @@ def build_frame(
     }
 
 
-async def publish(user_id: int, frame: Dict[str, Any]) -> None:
-    """Deliver one frame to this user, wherever their tabs are.
+async def publish(user_ids: Iterable[int], frame: Dict[str, Any]) -> None:
+    """Deliver one frame to these users, wherever their tabs are.
 
     Local sockets first and unconditionally, then the bus for everybody else's
     worker. The order matters only in that the local half must not be able to
     fail because of the remote one.
     """
-    await stream.send(user_id, frame)
-    await _publish_remote(user_id, frame)
+    user_ids = list(user_ids)
+    _deliver_local(user_ids, frame)
+    await _publish_remote(user_ids, frame)
 
 
-async def _publish_remote(user_id: int, frame: Dict[str, Any]) -> None:
+def _deliver_local(user_ids: Optional[Iterable[int]], frame: Dict[str, Any]) -> None:
+    """Queue the frame on this process's sockets for these users, or for every
+    account socket here when ``user_ids`` is ``None``."""
+    from app.services.content_sockets import account_room, sockets
+
+    for user_id in sockets.account_ids() if user_ids is None else user_ids:
+        sockets.emit_json(account_room(user_id), frame)
+
+
+async def _publish_remote(user_ids: list[int], frame: Dict[str, Any]) -> None:
     """Hand the frame to the other workers, if we can reach them.
 
     A bus we cannot reach is not an error anybody can act on — the frame was
@@ -202,17 +154,23 @@ async def _publish_remote(user_id: int, frame: Dict[str, Any]) -> None:
     """
     from app.services.platform import notify_bus
 
-    try:
-        await notify_bus.notify(
-            CHANNEL, json.dumps({"origin": ORIGIN, "user_id": user_id, "frame": frame})
-        )
-    except Exception:
-        logger.debug("user_stream: cross-process publish unavailable", exc_info=True)
-        global _dropped_remote
-        if len(_pending_remote) < MAX_PENDING_REMOTE:
-            _pending_remote[(user_id, frame.get("resource", ""))] = frame
-        else:
-            _dropped_remote = True
+    global _dropped_remote
+    for start in range(0, len(user_ids), IDS_PER_NOTICE):
+        chunk = user_ids[start : start + IDS_PER_NOTICE]
+        try:
+            await notify_bus.notify(
+                CHANNEL,
+                json.dumps({"origin": ORIGIN, "user_ids": chunk, "frame": frame}),
+            )
+        except Exception:
+            logger.debug(
+                "user_stream: cross-process publish unavailable", exc_info=True
+            )
+            for user_id in chunk:
+                if len(_pending_remote) < MAX_PENDING_REMOTE:
+                    _pending_remote[(user_id, frame.get("resource", ""))] = frame
+                else:
+                    _dropped_remote = True
 
 
 async def deliver_remote(payload: str) -> None:
@@ -224,20 +182,17 @@ async def deliver_remote(payload: str) -> None:
     try:
         message = json.loads(payload)
         origin = message["origin"]
-        raw_user_id = message["user_id"]
+        raw_user_ids = message["user_ids"]
         frame = message["frame"]
+        # ``None`` is addressed to nobody in particular, which means everybody:
+        # a frame was owed and whose it was could not be said.
+        user_ids = None if raw_user_ids is None else [int(u) for u in raw_user_ids]
     except Exception:
         logger.warning("user_stream: unreadable frame on %s", CHANNEL)
         return
     if origin == ORIGIN:
         return
-    if raw_user_id is None:
-        # Addressed to nobody in particular, which means everybody: a frame was
-        # owed and whose it was could not be said.
-        for user_id in stream.connected_users():
-            await stream.send(user_id, frame)
-        return
-    await stream.send(int(raw_user_id), frame)
+    _deliver_local(user_ids, frame)
 
 
 async def _publish_to_everyone(frame: Dict[str, Any]) -> bool:
@@ -251,7 +206,7 @@ async def _publish_to_everyone(frame: Dict[str, Any]) -> bool:
 
     try:
         await notify_bus.notify(
-            CHANNEL, json.dumps({"origin": ORIGIN, "user_id": None, "frame": frame})
+            CHANNEL, json.dumps({"origin": ORIGIN, "user_ids": None, "frame": frame})
         )
         return True
     except Exception:
@@ -273,12 +228,12 @@ async def on_bus_connected() -> None:
     """
     global _dropped_remote
 
-    pending = list(_pending_remote.items())
+    pending = dict(_pending_remote)
     _pending_remote.clear()
-    for (user_id, _resource), frame in pending:
+    for user_ids, frame in _grouped(pending):
         # Through the ordinary path, so one that is refused again is simply
         # pending again rather than lost on the way to being recovered.
-        await _publish_remote(user_id, frame)
+        await _publish_remote(user_ids, frame)
 
     resync = build_frame(RESOURCE_RESYNC, "changed")
     # Cleared only once it has gone. A bus that fails again while this is
@@ -286,8 +241,7 @@ async def on_bus_connected() -> None:
     # the same rule the refused frames above follow by re-queueing.
     if _dropped_remote and await _publish_to_everyone(resync):
         _dropped_remote = False
-    for user_id in stream.connected_users():
-        await stream.send(user_id, resync)
+    _deliver_local(None, resync)
 
 
 def queue_frame(session: Any, user_id: int | None, frame: Dict[str, Any]) -> None:
@@ -310,8 +264,36 @@ def queue_frame(session: Any, user_id: int | None, frame: Dict[str, Any]) -> Non
     """
     if user_id is None:
         return
-    pending: Dict[Any, Dict[str, Any]] = session.info.setdefault(_PENDING_KEY, {})
-    pending.setdefault((user_id, frame["resource"]), frame)
+    frames: Dict[tuple[int, str], Dict[str, Any]] = session.info.setdefault(
+        _FRAMES_KEY, {}
+    )
+    frames.setdefault((user_id, frame["resource"]), frame)
+
+
+def _grouped(
+    frames: Mapping[tuple[int, str], Dict[str, Any]],
+) -> list[tuple[list[int], Dict[str, Any]]]:
+    """Frames that say the same thing, each with every reader it is for."""
+    groups: Dict[str, tuple[list[int], Dict[str, Any]]] = {}
+    for (user_id, _resource), frame in frames.items():
+        said = json.dumps(
+            [frame.get("resource"), frame.get("action"), frame.get("ids")],
+            sort_keys=True,
+        )
+        groups.setdefault(said, ([], frame))[0].append(user_id)
+    return list(groups.values())
+
+
+def after_commit(
+    session: Any, key: Hashable, send: Callable[[], Awaitable[None]]
+) -> None:
+    """Run ``send`` once this session's transaction commits, and not at all if
+    it rolls back. One ``send`` per ``key`` per transaction: the first recorded
+    wins."""
+    pending: Dict[Hashable, Callable[[], Awaitable[None]]] = session.info.setdefault(
+        _PENDING_KEY, {}
+    )
+    pending.setdefault(key, send)
 
 
 def _spawn(coro: Any) -> None:
@@ -328,15 +310,15 @@ def _spawn(coro: Any) -> None:
 
 
 def _emit_pending(session: SyncSession) -> None:
-    pending = session.info.pop(_PENDING_KEY, None)
-    if not pending:
-        return
-    for (user_id, _resource), frame in pending.items():
-        _spawn(publish(user_id, frame))
+    for send in session.info.pop(_PENDING_KEY, {}).values():
+        _spawn(send())
+    for user_ids, frame in _grouped(session.info.pop(_FRAMES_KEY, {})):
+        _spawn(publish(user_ids, frame))
 
 
 def _discard_pending(session: SyncSession, *_args: Any) -> None:
     session.info.pop(_PENDING_KEY, None)
+    session.info.pop(_FRAMES_KEY, None)
 
 
 event.listens_for(SyncSession, "after_commit")(_emit_pending)

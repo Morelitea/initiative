@@ -7,7 +7,6 @@ and that it belongs to one account alone.
 
 from __future__ import annotations
 
-import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -17,7 +16,6 @@ CONSENT = "/api/v1/users/me/cookie-consent"
 ME = "/api/v1/users/me"
 
 
-@pytest.mark.integration
 async def test_an_account_that_has_never_answered_carries_no_answer(
     client, acting_user
 ):
@@ -31,7 +29,6 @@ async def test_an_account_that_has_never_answered_carries_no_answer(
     assert response.json()["cookie_consent"] is None
 
 
-@pytest.mark.integration
 async def test_an_answer_travels_to_the_next_browser(client, acting_user):
     """The point of the whole thing: answer once, and a browser that has never
     been asked adopts it instead of asking again."""
@@ -49,7 +46,6 @@ async def test_an_answer_travels_to_the_next_browser(client, acting_user):
     assert carried.json()["cookie_consent"]["granted"] == ["analytics"]
 
 
-@pytest.mark.integration
 async def test_allowing_nothing_is_an_answer(client, acting_user):
     actor = await acting_user()
 
@@ -60,7 +56,6 @@ async def test_allowing_nothing_is_an_answer(client, acting_user):
     assert consent["granted"] == []
 
 
-@pytest.mark.integration
 async def test_changing_your_mind_replaces_the_answer(client, acting_user):
     """A settings row, not a history: what applies now is the only question."""
     actor = await acting_user()
@@ -78,7 +73,6 @@ async def test_changing_your_mind_replaces_the_answer(client, acting_user):
     assert withdrawn.json()["granted"] == []
 
 
-@pytest.mark.integration
 async def test_the_stamp_is_the_servers(client, acting_user):
     """Two browsers comparing their answers compare one clock. A client cannot
     put its own time on the record by sending one."""
@@ -97,7 +91,6 @@ async def test_the_stamp_is_the_servers(client, acting_user):
     assert second.json()["decided_at"] >= first.json()["decided_at"]
 
 
-@pytest.mark.integration
 async def test_a_category_the_app_has_no_name_for_is_refused(client, acting_user):
     actor = await acting_user()
 
@@ -108,7 +101,6 @@ async def test_a_category_the_app_has_no_name_for_is_refused(client, acting_user
     assert response.status_code == 422
 
 
-@pytest.mark.integration
 async def test_an_answer_belongs_to_one_account(
     client, session: AsyncSession, acting_user
 ):
@@ -131,7 +123,6 @@ async def test_an_answer_belongs_to_one_account(
     assert {row.user_id for row in rows} >= {a.user.id, b.user.id}
 
 
-@pytest.mark.integration
 async def test_signing_out_is_the_only_way_in(client):
     """Nobody's answer is readable or writable without a session."""
     assert (

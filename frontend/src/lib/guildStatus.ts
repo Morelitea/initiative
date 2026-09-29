@@ -17,7 +17,3 @@ export const OPERATOR_SETTABLE_STATUSES: GuildStatus[] = [
   GuildStatus.on_hold,
   GuildStatus.suspended,
 ];
-
-/** Whether a community at this status is reachable by its members at all. */
-export const reachesContent = (status: GuildStatus): boolean =>
-  status === GuildStatus.active || status === GuildStatus.read_only;

@@ -54,7 +54,7 @@ from app.schemas.tenant.post_poll import PollWrite
 from app.services.tenant import posts as posts_service
 
 
-def poll_audience(post: Post) -> set[int]:
+async def poll_audience(session: AsyncSession, post: Post) -> set[int]:
     """Who may answer this notice's question.
 
     The people the notice was shared with — the same set the publication
@@ -62,7 +62,7 @@ def poll_audience(post: Post) -> set[int]:
     author is included: writing a notice is not reading it, but writing a
     question does not stop you answering it.
     """
-    return posts_service.audience_user_ids(post)
+    return await posts_service.audience_user_ids(session, post)
 
 
 async def annotate_poll_state(
@@ -295,5 +295,5 @@ async def list_voters(
         if ballot.voter is None:
             continue
         by_option.setdefault(ballot.option_id, []).append(ballot.voter)
-    waiting = poll_audience(post) - answered
+    waiting = await poll_audience(session, post) - answered
     return by_option, sorted(waiting)

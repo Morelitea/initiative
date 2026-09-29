@@ -2,11 +2,7 @@ import { Clock, Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { useGuilds } from "@/hooks/useGuilds";
-
-const minutesLeft = (expiresAt?: string | null): number | null => {
-  if (!expiresAt) return null;
-  return Math.max(0, Math.round((new Date(expiresAt).getTime() - Date.now()) / 60000));
-};
+import { minutesLeft } from "@/lib/formatDate";
 
 /**
  * Banner shown across guild pages when the active guild is reached via a

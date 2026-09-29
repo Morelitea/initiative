@@ -16,8 +16,9 @@ from typing import Any, Optional
 from sqlalchemy import ColumnElement, Select, null as sa_null
 from sqlmodel import SQLModel, select
 
-from app.db import session as db_session
+from app.db import cohorts
 from app.db.session import set_rls_context
+from app.db.request_context import SystemGuild
 
 
 def _model_for(table: str) -> Optional[type[SQLModel]]:
@@ -92,7 +93,7 @@ def _initiative_query(model: Any, row_id: int) -> Select[tuple[int, Optional[int
         statement = _initiative_through_parents(model, row_id)
     if live is not None:
         statement = statement.where(live.is_(None))
-    return statement
+    return statement.where(*_not_drafts(model))
 
 
 def _initiative_through_parents(model: Any, row_id: int) -> Select[Any]:
@@ -127,13 +128,30 @@ def _initiative_through_parents(model: Any, row_id: int) -> Select[Any]:
     statement = select(model.id, current.initiative_id)
     for parent, condition in joins:
         statement = statement.join(parent, condition)
-    return statement.where(model.id == row_id)
+    return statement.where(
+        model.id == row_id, *_not_drafts(*(parent for parent, _ in joins))
+    )
+
+
+def _not_drafts(*models: Any) -> list[Any]:
+    """A draft, or anything inside one, is not there to somebody the draft
+    policy hides it from (``guild_ddl.DRAFTS``)."""
+    from sqlalchemy import Boolean, literal_column, not_
+    from sqlalchemy.sql.expression import Grouping
+
+    from app.db.guild_ddl import DRAFTS
+
+    return [
+        not_(Grouping(literal_column(DRAFTS[m.__tablename__], Boolean)))
+        for m in models
+        if m.__tablename__ in DRAFTS
+    ]
 
 
 async def missing_or_denied(
     table: str,
     row_id: int,
-    user_id: int,
+    user_id: int | None,
     guild_id: int,
     *,
     not_found: str,
@@ -143,11 +161,14 @@ async def missing_or_denied(
 
     ``denied`` where the reader is in the row's initiative, ``not_found``
     otherwise. Returns the exception rather than raising it, so a caller reads
-    as ``raise await missing_or_denied(...)``.
+    as ``raise await missing_or_denied(...)``. An installed app (``user_id``
+    ``None``) is answered ``not_found``: it is in no initiative as a member.
     """
     from fastapi import HTTPException, status
 
-    if await reader_is_in_the_initiative(table, row_id, user_id, guild_id):
+    if user_id is not None and await reader_is_in_the_initiative(
+        table, row_id, user_id, guild_id
+    ):
         return HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=denied)
     return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=not_found)
 
@@ -168,12 +189,10 @@ async def reader_is_in_the_initiative(
     if model is None:
         return False
 
-    # Late-bound (module attribute at call time) so the test harness's
-    # sessionmaker patch applies to the probe too.
-    async with db_session.SystemSessionLocal() as probe, probe.begin():
+    async with cohorts.system_session(guild_id) as probe, probe.begin():
         # One transaction, explicitly: the routing is transaction-local, and the
         # probe runs on a session of its own rather than the request's.
-        await set_rls_context(probe, guild_id=guild_id)
+        await set_rls_context(probe, SystemGuild(guild_id))
         found = (await probe.exec(_initiative_query(model, row_id))).first()
         if found is None:
             return False

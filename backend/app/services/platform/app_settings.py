@@ -8,9 +8,12 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from collections.abc import Sequence
+from datetime import datetime, timezone
 from typing import Any
 
 from app.core.audit_events import AuditEventType
+from app.core.transitions import Transition
 from app.services import audit as audit_service
 from app.core.config import settings as app_config
 from app.core.encryption import (
@@ -26,6 +29,7 @@ from app.core.login_methods import (
     PRIMARY_LOGIN_METHODS,
     LoginMethod,
 )
+from app.db import cohorts
 from app.db import session as db_session
 from app.db.session import guild_context
 from app.db.session import set_rls_context
@@ -34,6 +38,7 @@ from app.models.platform.app_setting_secret import AppSettingSecret
 from app.models.platform.user_dm_settings import DmPolicy
 from app.models.tenant.guild_setting import GuildSetting
 from app.services.platform import guilds as guilds_service
+from app.db.request_context import SystemGuild
 
 GLOBAL_SETTINGS_ID = 1
 
@@ -356,7 +361,9 @@ async def seed_app_settings(session: AsyncSession) -> AppSetting:
     return settings_row
 
 
-async def record_running_version(session: AsyncSession, *, version: str) -> str | None:
+async def record_running_version(
+    session: AsyncSession, *, version: str, transitions: Sequence[str] = ()
+) -> str | None:
     """Roll the deployment's version pair forward, and say what it was before.
 
     Called once at boot. When the running version differs from what was last
@@ -366,17 +373,33 @@ async def record_running_version(session: AsyncSession, *, version: str) -> str 
     honest answer: it never upgraded from anything.
 
     Idempotent across restarts on the same version: the pair only moves when
-    the running version actually changed.
+    the running version actually changed. Each of ``transitions`` not yet
+    dated is dated now (see ``app.core.transitions``).
     """
     if not await _session_can_write_app_settings(session):
         return (await get_app_settings(session)).previous_version
     settings_row = await ensure_settings_row(session)
-    if settings_row.last_seen_version == version:
+    now = datetime.now(timezone.utc).isoformat()
+    started = {
+        name: now for name in transitions if name not in settings_row.transitions
+    }
+    if settings_row.last_seen_version == version and not started:
         return settings_row.previous_version
-    settings_row.previous_version = settings_row.last_seen_version
-    settings_row.last_seen_version = version
+    if started:
+        settings_row.transitions = {**settings_row.transitions, **started}
+    if settings_row.last_seen_version != version:
+        settings_row.previous_version = settings_row.last_seen_version
+        settings_row.last_seen_version = version
     await _write_app_settings(session, settings_row)
     return settings_row.previous_version
+
+
+async def transition_over(session: AsyncSession, transition: Transition) -> bool:
+    """Whether ``transition``'s grace period has run out on this deployment."""
+    started = (await get_app_settings(session)).transitions.get(transition.name)
+    return started is not None and (
+        datetime.fromisoformat(started) + transition.grace < datetime.now(timezone.utc)
+    )
 
 
 async def previous_running_version(session: AsyncSession) -> str | None:
@@ -421,6 +444,7 @@ COMMUNITY_FIELDS: tuple[str, ...] = (
     "on_hold_community_deletion_days",
 )
 MARKETPLACE_FIELDS: tuple[str, ...] = ("marketplace_members_publish_directly",)
+MARKETPLACE_REGISTRY_FIELDS: tuple[str, ...] = ("marketplace_registry_enabled",)
 EMAIL_FIELDS: tuple[str, ...] = (
     "smtp_host",
     "smtp_port",
@@ -586,6 +610,40 @@ async def update_marketplace_settings(
         before=before,
         row=settings_row,
         fields=MARKETPLACE_FIELDS,
+    )
+    await session.commit()
+    await session.refresh(settings_row)
+    return settings_row
+
+
+async def marketplace_registry_enabled(session: AsyncSession) -> bool:
+    """Whether this deployment follows the marketplace registry.
+
+    The one read of the switch: the background refresh and the "refresh now"
+    button both ask it before fetching anything.
+    """
+    settings_row = await get_app_settings(session)
+    return bool(settings_row.marketplace_registry_enabled)
+
+
+async def update_marketplace_registry_settings(
+    session: AsyncSession,
+    *,
+    enabled: bool,
+    actor_user_id: int,
+) -> AppSetting:
+    """Follow the marketplace registry, or stop. What already arrived stays."""
+    settings_row = await ensure_settings_row(session)
+    before = audit_service.snapshot(settings_row, MARKETPLACE_REGISTRY_FIELDS)
+    settings_row.marketplace_registry_enabled = bool(enabled)
+    session.add(settings_row)
+    await _record_settings_area(
+        session,
+        actor_user_id=actor_user_id,
+        area="marketplace_registry",
+        before=before,
+        row=settings_row,
+        fields=MARKETPLACE_REGISTRY_FIELDS,
     )
     await session.commit()
     await session.refresh(settings_row)
@@ -922,14 +980,9 @@ async def update_push_settings(
 async def ensure_defaults(session: AsyncSession) -> None:
     await seed_app_settings(session)
     primary_guild_id = await guilds_service.get_primary_guild_id(session)
-    # guild_settings is guild-scoped (lives only in the guild schema), so route
-    # into the primary guild before seeding it. On the unrouted (public) system
-    # session the table isn't visible. Reset to the public baseline in a finally
-    # so a failure can't leave the session guild-routed for a caller that
-    # reuses it.
-    await set_rls_context(session, guild_id=primary_guild_id)
-    try:
-        await _ensure_guild_setting(session, primary_guild_id)
-        await session.commit()
-    finally:
-        await set_rls_context(session)
+    # guild_settings lives only in the guild schema, so it is seeded on a
+    # system session from the primary guild's cohort, routed into it.
+    async with cohorts.system_session(primary_guild_id) as guild_session:
+        await set_rls_context(guild_session, SystemGuild(primary_guild_id))
+        await _ensure_guild_setting(guild_session, primary_guild_id)
+        await guild_session.commit()

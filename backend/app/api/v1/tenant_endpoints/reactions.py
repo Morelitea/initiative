@@ -10,10 +10,9 @@ from typing import Annotated, NoReturn
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.deps import (
-    GuildContext,
     RLSSessionDep,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
 from app.core.reactions import ReactionTarget
 from app.models.platform.user import User
@@ -25,7 +24,6 @@ from app.schemas.tenant.reaction import (
 from app.services.tenant import reactions as reactions_service
 
 router = APIRouter()
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 def _raise(exc: reactions_service.ReactionError) -> NoReturn:
@@ -54,37 +52,6 @@ async def suggested_reactions(
     every route under here carries.
     """
     return list(SUGGESTED_EMOJI)
-
-
-@router.get(
-    "/{target_type}/{target_id}",
-    response_model=ReactionSummary,
-)
-async def read_reactions(
-    target_type: ReactionTarget,
-    target_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> ReactionSummary:
-    """Every reaction on one target. Reading takes read access on the target."""
-    try:
-        ctx = await reactions_service.resolve_target(
-            session,
-            target=target_type,
-            target_id=target_id,
-            user=current_user,
-            guild_id=guild_context.guild_id,
-            access="read",
-        )
-    except reactions_service.ReactionError as exc:
-        _raise(exc)
-    return await reactions_service.summary_for(
-        session,
-        target=target_type,
-        target_id=ctx.target_id,
-        viewer_id=current_user.id,
-    )
 
 
 @router.put(

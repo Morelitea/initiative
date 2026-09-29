@@ -2,11 +2,11 @@ import { Download, FileText, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useListExportJobsApiV1GGuildIdExportsGet } from "@/api/generated/exports/exports";
+import { useListExportJobsApiV1CGuildIdExportsGet } from "@/api/generated/exports/exports";
 import {
-  getListImportJobsApiV1GGuildIdImportsJobsGetQueryKey,
-  useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete,
-  useListImportJobsApiV1GGuildIdImportsJobsGet,
+  getListImportJobsApiV1CGuildIdImportsJobsGetQueryKey,
+  useCancelImportJobApiV1CGuildIdImportsJobsJobIdDelete,
+  useListImportJobsApiV1CGuildIdImportsJobsGet,
 } from "@/api/generated/imports/imports";
 import type { ExportJobRead, ImportJobRead } from "@/api/generated/initiativeAPI.schemas";
 import { ImportReport } from "@/components/imports/ImportReport";
@@ -71,19 +71,19 @@ export function DataJobsTable() {
   const guildId = useActiveGuildId();
   const [reportJob, setReportJob] = useState<ImportJobRead | null>(null);
 
-  const exportsQuery = useListExportJobsApiV1GGuildIdExportsGet(guildId, {
+  const exportsQuery = useListExportJobsApiV1CGuildIdExportsGet(guildId, {
     query: {
       refetchInterval: (query) =>
         (query.state.data ?? []).some((job) => ACTIVE.has(job.status)) ? POLL_MS : false,
     },
   });
-  const importsQuery = useListImportJobsApiV1GGuildIdImportsJobsGet(guildId, {
+  const importsQuery = useListImportJobsApiV1CGuildIdImportsJobsGet(guildId, {
     query: {
       refetchInterval: (query) =>
         (query.state.data ?? []).some((job) => ACTIVE.has(job.status)) ? POLL_MS : false,
     },
   });
-  const cancelMutation = useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete();
+  const cancelMutation = useCancelImportJobApiV1CGuildIdImportsJobsJobIdDelete();
 
   const rows: Row[] = useMemo(() => {
     const merged: Row[] = [
@@ -118,7 +118,7 @@ export function DataJobsTable() {
       toast.error(getErrorMessage(err, "imports:job.failed"));
     } finally {
       void queryClient.invalidateQueries({
-        queryKey: getListImportJobsApiV1GGuildIdImportsJobsGetQueryKey(guildId),
+        queryKey: getListImportJobsApiV1CGuildIdImportsJobsGetQueryKey(guildId),
       });
     }
   };

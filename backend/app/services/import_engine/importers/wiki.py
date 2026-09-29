@@ -50,7 +50,7 @@ from app.services.import_engine.mentions import MENTION_HANDLE, place_mention_no
 from app.services.import_engine.references import note_or_settle
 from app.services.import_engine.people import PeopleMap, quoted_account
 from app.services.tenant import tags as tags_service
-from app.services.tenant.wikis import slugify_page_title
+from app.services.tenant.names import slugify, unique_slug
 
 logger = logging.getLogger(__name__)
 
@@ -803,21 +803,11 @@ def _assign_slugs(pages: list[WikiPageEnvelope]) -> list[str]:
     An envelope from a real export already satisfies that; a hand-made one
     may not, so a repeat is suffixed rather than allowed to fail the import.
     """
-    taken: set[str] = set()
-    assigned: list[str] = []
-    for index, page in enumerate(pages):
-        base = page.slug.strip() or slugify_page_title(page.title)
-        slug = base
-        n = 2
-        while slug in taken:
-            slug = f"{base}-{n}"
-            n += 1
-        # Nothing usable in either the slug or the title.
-        if not slug:
-            slug = f"page-{index + 1}"
-        taken.add(slug)
-        assigned.append(slug)
-    return assigned
+    assigned: dict[str, None] = {}
+    for page in pages:
+        base = page.slug.strip() or slugify(page.title, fallback="page")
+        assigned[unique_slug(base, assigned)] = None
+    return list(assigned)
 
 
 def _parent_slugs(

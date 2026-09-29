@@ -19,14 +19,12 @@ from app.testing.factories import (
 )
 
 
-@pytest.mark.unit
 async def test_database_session(session: AsyncSession):
     """Test that database session fixture works."""
     assert session is not None
     assert isinstance(session, AsyncSession)
 
 
-@pytest.mark.unit
 async def test_create_user_factory(session: AsyncSession):
     """Test that user factory creates users correctly."""
     user = await create_user(
@@ -42,14 +40,12 @@ async def test_create_user_factory(session: AsyncSession):
     assert user.hashed_password is not None
 
 
-@pytest.mark.integration
 async def test_http_client(client: AsyncClient):
     """Test that HTTP client fixture works."""
     assert client is not None
     assert isinstance(client, AsyncClient)
 
 
-@pytest.mark.integration
 async def test_version_endpoint(client: AsyncClient):
     """Test the version endpoint to verify API is working."""
     response = await client.get("/api/v1/version")
@@ -58,7 +54,6 @@ async def test_version_endpoint(client: AsyncClient):
     assert "version" in data
 
 
-@pytest.mark.integration
 async def test_authenticated_request(client: AsyncClient, session: AsyncSession):
     """Test that authenticated requests work with auth headers."""
     # Create a test user
@@ -76,7 +71,6 @@ async def test_authenticated_request(client: AsyncClient, session: AsyncSession)
     assert data["id"] == user.id
 
 
-@pytest.mark.integration
 async def test_acting_user_builds_guild_workspace(client: AsyncClient, acting_user):
     """The Actor seam provisions a guild + initiative + project and mints
     headers that work through the real-role request path."""
@@ -105,7 +99,6 @@ async def test_acting_user_builds_guild_workspace(client: AsyncClient, acting_us
     assert any(i["id"] == a.initiative.id for i in response.json())
 
 
-@pytest.mark.unit
 async def test_tenant_rows_land_in_guild_schema(session: AsyncSession, acting_user):
     """Factory-created tenant rows live in guild_<id>, not public (which no
     longer has tenant tables since the baseline squash)."""
@@ -122,7 +115,6 @@ async def test_tenant_rows_land_in_guild_schema(session: AsyncSession, acting_us
     assert count == 1
 
 
-@pytest.mark.unit
 async def test_unrouted_tenant_write_fails_closed(session: AsyncSession, acting_user):
     """A tenant write that carries no guild_id on an unrouted session must
     raise the harness's explicit error, not fall through toward public."""
@@ -142,7 +134,6 @@ async def test_unrouted_tenant_write_fails_closed(session: AsyncSession, acting_
     await session.rollback()
 
 
-@pytest.mark.unit
 async def test_the_factory_mints_the_token_the_app_issues(session: AsyncSession):
     """What the suite authenticates with is the shipped session credential, not
     the pre-session scheme beside it. Every endpoint test rides on this, so it
@@ -169,7 +160,6 @@ async def test_the_factory_mints_the_token_the_app_issues(session: AsyncSession)
     assert claims["sat"] == []
 
 
-@pytest.mark.unit
 async def test_a_factory_token_can_carry_a_satisfied_provider(session: AsyncSession):
     """A guild's sign-in policy is satisfied by what the token says, so a test
     of a policy-gated guild states it here."""

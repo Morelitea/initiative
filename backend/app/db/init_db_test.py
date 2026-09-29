@@ -9,12 +9,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 import app.db.init_db as init_db
 from app.core.config import settings
 from app.core.encryption import hash_email
+from app.db import schema_provisioning
+from app.db.session import set_rls_context
 from app.models.platform.guild import Guild
 from app.models.platform.user_email import UserEmail
 from app.models.platform.user import User
 from app.services.platform import guilds as guilds_service
-
-pytestmark = pytest.mark.database
+from app.db.request_context import SystemGuild
 
 
 async def test_init_owner_cleans_up_when_guild_seed_fails(engine, monkeypatch):
@@ -37,9 +38,12 @@ async def test_init_owner_cleans_up_when_guild_seed_fails(engine, monkeypatch):
     monkeypatch.setattr(settings, "FIRST_OWNER_PASSWORD", "securepassword123")
     monkeypatch.setattr(settings, "FIRST_OWNER_FULL_NAME", "Boot Fail")
 
-    async def _boom(seed_session, *args, **kwargs):
-        # Abort the transaction like a real failing query would, so the cleanup
-        # path must rollback before it can delete the stranded rows.
+    async def _boom(seed_session, *, guild_id, **kwargs):
+        # Provision and route into the community, then abort the transaction
+        # like a real failing query would: the cleanup must roll back and leave
+        # the community it removes before it deletes the stranded rows.
+        await schema_provisioning.provision_guild(guild_id)
+        await set_rls_context(seed_session, SystemGuild(guild_id))
         await seed_session.exec(text("SELECT * FROM does_not_exist_xyz"))
 
     monkeypatch.setattr(guilds_service, "seed_guild_content", _boom)
@@ -65,7 +69,6 @@ async def test_init_owner_cleans_up_when_guild_seed_fails(engine, monkeypatch):
         assert guilds_after == guilds_before, "the primary guild must be removed too"
 
 
-@pytest.mark.unit
 def test_stamp_this_image_lacks_is_refused_with_instructions():
     """A database stamped ahead of the image stops the boot with a message.
 
@@ -86,7 +89,6 @@ def test_stamp_this_image_lacks_is_refused_with_instructions():
     assert said.count(head) == 1
 
 
-@pytest.mark.unit
 def test_stamp_this_image_has_passes():
     """The ordinary upgrade — every stamped revision is in the chain."""
     revisions, head = init_db.migration_chain()
@@ -94,7 +96,6 @@ def test_stamp_this_image_has_passes():
     assert init_db._require_image_knows(sorted(revisions)[:5]) is None
 
 
-@pytest.mark.unit
 def test_unreadable_chain_is_left_to_alembic(monkeypatch):
     """Nothing to compare against is not evidence the database is ahead."""
     monkeypatch.setattr(init_db, "migration_chain", lambda: (frozenset(), None))

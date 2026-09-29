@@ -1,10 +1,7 @@
-from typing import Annotated
+from fastapi import APIRouter, HTTPException, status
 
-from fastapi import APIRouter, Depends, HTTPException, status
-
-from app.api.deps import UserSessionDep, get_current_active_user
-from app.core.auth_context import device_token_id
-from app.models.platform.user import User
+from app.api.deps import UserSessionDep, CurrentUser
+from app.core.auth_context import device_token_id, session_credential
 from app.schemas.platform.push import (
     PushTokenRegisterRequest,
     PushTokenUnregisterRequest,
@@ -14,8 +11,6 @@ from app.core.messages import NotificationMessages
 from app.services.platform import app_settings, push_tokens
 
 router = APIRouter()
-
-CurrentUser = Annotated[User, Depends(get_current_active_user)]
 
 
 @router.post("/register", response_model=PushTokenResponse)
@@ -34,6 +29,9 @@ async def register_push_token(
     store records, and matching the two is what lets a message wake the phone
     that can actually read it.
 
+    So is the session that made it: a device is sent to while the sign-in that
+    registered it stands, and the app registers again each time it starts.
+
     A deployment that has switched push notifications off declines (403) and
     stores nothing: there is nothing for the token to be used for, and holding
     it would be keeping an address this deployment has said it does not send to.
@@ -43,12 +41,14 @@ async def register_push_token(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=NotificationMessages.PUSH_DISABLED,
         )
+    credential = session_credential()
     await push_tokens.register_push_token(
         session=session,
         user_id=current_user.id,
         push_token=request.push_token,
         platform=request.platform,
         device_token_id=device_token_id(),
+        session_id=credential.session_id if credential else None,
     )
     return PushTokenResponse(status="registered")
 

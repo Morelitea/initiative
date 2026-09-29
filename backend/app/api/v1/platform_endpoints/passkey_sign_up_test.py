@@ -22,7 +22,6 @@ from app.models.platform.user_passkey import UserPasskey
 from app.services.platform import auth_posture
 from app.testing import create_user, registration_for, stub_registration
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 BEGIN = "/api/v1/auth/register/passkey/begin"
 FINISH = "/api/v1/auth/register/passkey/finish"

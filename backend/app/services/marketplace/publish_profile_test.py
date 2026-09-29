@@ -1,7 +1,5 @@
 """What an item leaves behind when it is shared, and how its dates travel."""
 
-import pytest
-
 from app.core.tools import Tool
 from app.services.marketplace.publish_profile import (
     DATE_ANCHOR,
@@ -10,8 +8,6 @@ from app.services.marketplace.publish_profile import (
     strip_for_listing,
 )
 from app.services.marketplace.tool_listings import normalize_tool_listing
-
-pytestmark = pytest.mark.unit
 
 
 def _editor(*children: dict) -> dict:
@@ -124,10 +120,20 @@ class TestNobodyIsCarried:
                 {"type": "image", "src": "/uploads/3/abc.png"},
             ),
         }
+        document["content"]["root"]["children"].append(
+            {
+                "type": "reference-embed",
+                "entityType": "task",
+                "entityId": 41,
+                "text": "Budget",
+            }
+        )
         stripped = strip_for_listing(Tool.document, document)
-        paragraph = stripped["content"]["root"]["children"][0]["children"]
-        assert [node["type"] for node in paragraph] == ["text", "text"]
-        assert [node["text"] for node in paragraph] == ["@Alice", "Budget"]
+        paragraph, embed = stripped["content"]["root"]["children"]
+        assert [node["type"] for node in paragraph["children"]] == ["text", "text"]
+        assert [node["text"] for node in paragraph["children"]] == ["@Alice", "Budget"]
+        assert embed["type"] == "paragraph"
+        assert [node["text"] for node in embed["children"]] == ["Budget"]
         assert stripped["mention_handles"] == []
 
     def test_a_calendar_invites_nobody(self):

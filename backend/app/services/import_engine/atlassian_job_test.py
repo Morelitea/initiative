@@ -9,8 +9,6 @@ from app.services.import_engine import atlassian_job
 from app.services.import_engine import limits as import_limits
 from app.services.import_engine.contract import ImportEngineError
 
-pytestmark = pytest.mark.unit
-
 
 async def test_a_fetch_past_its_deadline_fails_as_too_slow(monkeypatch):
     async def forever(*_args, **_kwargs):

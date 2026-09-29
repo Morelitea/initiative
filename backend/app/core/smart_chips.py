@@ -32,6 +32,8 @@ class SmartChipAspect(str, Enum):
     when = "when"
     #: How much of the work in something is finished.
     progress = "progress"
+    #: Whether a task is finished, as a box to tick.
+    checklist = "checklist"
 
 
 class SmartChipTone(str, Enum):
@@ -65,6 +67,14 @@ SMART_CHIP_KINDS: tuple[tuple[SearchEntityType, SmartChipAspect], ...] = (
     (SearchEntityType.task, SmartChipAspect.due),
     (SearchEntityType.task, SmartChipAspect.priority),
     (SearchEntityType.task, SmartChipAspect.status),
+    (SearchEntityType.task, SmartChipAspect.checklist),
+)
+
+#: Chips a reader can act on from the page — a box ticked in a document ticks
+#: the task. Each answer says whether this reader may, so the chip offers only
+#: what the request would allow.
+ACTIONABLE_CHIP_KINDS: frozenset[tuple[SearchEntityType, SmartChipAspect]] = frozenset(
+    {(SearchEntityType.task, SmartChipAspect.checklist)}
 )
 
 

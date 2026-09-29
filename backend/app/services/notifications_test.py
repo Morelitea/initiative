@@ -1,15 +1,14 @@
 """Tests for the scheduled event-reminder dispatcher.
 
-``process_event_reminders`` runs on a background poller using its own admin
-session; these tests drive it directly and assert against committed rows
-(the test harness commits real data and truncates between tests).
+The minute pass runs these sweeps on system sessions of its own; these tests
+drive each one through the same runner and assert against committed rows (the
+test harness commits real data and truncates between tests).
 """
 
 from datetime import datetime, timedelta, timezone
 
 import re
 
-import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -37,13 +36,18 @@ from app.services.notifications import (
     ASSIGNMENT_ITEM_RETENTION,
     ASSIGNMENT_MAX_WINDOW,
     ASSIGNMENT_QUIET_PERIOD,
-    _format_event_when,
-    _run_assignment_digest_pass,
-    _run_assignment_gc_pass,
-    _run_event_reminder_pass,
-    _run_overdue_pass,
-    notify_initiative_membership,
+    notify,
 )
+from app.services.notifications import (
+    ASSIGNMENT_DIGEST,
+    REACTION_DIGEST,
+    digest_gc_scan,
+    digest_scan,
+    event_when,
+    overdue_scan,
+    reminder_scan,
+)
+from app.services.guild_sweeps import Scan, each_guild
 from app.models.platform.guild import Guild, GuildRole
 from app.testing import (
     guild_of,
@@ -60,14 +64,18 @@ from app.testing import (
     set_notification_prefs,
 )
 from app.testing import route_as
+from app.db.request_context import Platform, SystemGuild, Unattributed
+
+
+async def _sweep(scan: Scan | None) -> None:
+    """One pass of ``scan`` over every community, as the minute pass runs it."""
+    await each_guild([], name="test", scans=[scan] if scan else [])
 
 
 async def _dispatch(session: AsyncSession) -> None:
-    """Drive the reminder pass with the test session. The worker's
-    SystemSessionLocal (app_admin) sees the shared users table; mirror that so the
-    user-list read isn't RLS-filtered (the gather inside is still member-scoped)."""
-    await set_rls_context(session)
-    await _run_event_reminder_pass(session, now=datetime.now(timezone.utc))
+    """Run the reminder pass, leaving the test session unrouted."""
+    await set_rls_context(session, Unattributed())
+    await _sweep(await reminder_scan(now=datetime.now(timezone.utc)))
 
 
 async def _events_initiative(session: AsyncSession, creator):
@@ -100,9 +108,8 @@ async def _add_attendee(session, initiative, event, user, *, rsvp=RSVPStatus.pen
 
 
 async def _reminders_for(session: AsyncSession, user_id: int) -> list[Notification]:
-    # The pass leaves the session routed into the last community it visited.
     # The bell is read on the platform context, so read it back there.
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     result = await session.exec(
         select(Notification).where(
             Notification.user_id == user_id,
@@ -136,7 +143,6 @@ def _unsaved_user(tz: str) -> User:
     )
 
 
-@pytest.mark.unit
 def test_format_event_when_localizes_to_recipient_timezone():
     """A timed event renders in the recipient's IANA timezone with its abbrev."""
     event = _unsaved_event(
@@ -146,13 +152,12 @@ def test_format_event_when_localizes_to_recipient_timezone():
         all_day=False,
     )
     la = _unsaved_user("America/Los_Angeles")
-    assert _format_event_when(event, la) == "Wed, Jul 1, 2026 at 2:30 PM PDT"
+    assert event_when(event, la) == "Wed, Jul 1, 2026 at 2:30 PM PDT"
 
     utc_user = _unsaved_user("UTC")
-    assert _format_event_when(event, utc_user) == "Wed, Jul 1, 2026 at 9:30 PM UTC"
+    assert event_when(event, utc_user) == "Wed, Jul 1, 2026 at 9:30 PM UTC"
 
 
-@pytest.mark.unit
 def test_format_event_when_all_day_omits_time_and_zone():
     """All-day events show just the date, regardless of recipient timezone."""
     event = _unsaved_event(
@@ -161,10 +166,9 @@ def test_format_event_when_all_day_omits_time_and_zone():
         end_at=datetime(2026, 7, 1, 23, 59, tzinfo=timezone.utc),
         all_day=True,
     )
-    assert _format_event_when(event, _unsaved_user("Asia/Tokyo")) == "Wed, Jul 1, 2026"
+    assert event_when(event, _unsaved_user("Asia/Tokyo")) == "Wed, Jul 1, 2026"
 
 
-@pytest.mark.unit
 def test_format_event_when_falls_back_on_bad_timezone():
     """An unrecognized timezone string falls back to UTC instead of raising."""
     event = _unsaved_event(
@@ -173,12 +177,11 @@ def test_format_event_when_falls_back_on_bad_timezone():
         end_at=datetime(2026, 7, 1, 22, 30, tzinfo=timezone.utc),
         all_day=False,
     )
-    assert _format_event_when(event, _unsaved_user("Not/AZone")) == (
+    assert event_when(event, _unsaved_user("Not/AZone")) == (
         "Wed, Jul 1, 2026 at 9:30 PM UTC"
     )
 
 
-@pytest.mark.integration
 async def test_event_reminder_fires_once_within_lead_window(
     session: AsyncSession,
 ):
@@ -216,7 +219,6 @@ async def test_event_reminder_fires_once_within_lead_window(
     assert len(list(dispatches.all())) == 1
 
 
-@pytest.mark.integration
 async def test_event_reminder_skipped_when_lead_time_off(session: AsyncSession):
     creator = await create_user(session, email="organizer2@example.com")
     attendee = await create_user(session, email="attendee2@example.com")
@@ -241,7 +243,6 @@ async def test_event_reminder_skipped_when_lead_time_off(session: AsyncSession):
     assert await _reminders_for(session, attendee.id) == []
 
 
-@pytest.mark.integration
 async def test_event_reminder_not_due_when_outside_lead_window(session: AsyncSession):
     creator = await create_user(session, email="organizer3@example.com")
     attendee = await create_user(
@@ -264,7 +265,6 @@ async def test_event_reminder_not_due_when_outside_lead_window(session: AsyncSes
     assert await _reminders_for(session, attendee.id) == []
 
 
-@pytest.mark.integration
 async def test_event_reminder_at_time_of_event_fires_at_start(session: AsyncSession):
     creator = await create_user(session, email="organizer5@example.com")
     attendee = await create_user(
@@ -287,7 +287,6 @@ async def test_event_reminder_at_time_of_event_fires_at_start(session: AsyncSess
     assert len(await _reminders_for(session, attendee.id)) == 1
 
 
-@pytest.mark.integration
 async def test_event_reminder_skips_declined_attendees(session: AsyncSession):
     creator = await create_user(session, email="organizer4@example.com")
     attendee = await create_user(
@@ -309,8 +308,7 @@ async def test_event_reminder_skips_declined_attendees(session: AsyncSession):
     assert await _reminders_for(session, attendee.id) == []
 
 
-@pytest.mark.integration
-async def test_notify_initiative_membership_carries_guild_context(
+async def test_a_community_notice_carries_its_guild(
     session: AsyncSession,
 ):
     """The initiative_added notification must carry its guild so the merged
@@ -320,13 +318,17 @@ async def test_notify_initiative_membership_carries_guild_context(
     initiative = await create_initiative(session, guild, creator, name="Onboarding")
     member = await create_user(session, email="ini-member@example.com")
 
-    await notify_initiative_membership(
+    await set_rls_context(session, SystemGuild(guild.id))
+    await notify(
         session,
-        member,
-        initiative_id=initiative.id,
-        initiative_name=initiative.name,
-        guild_id=guild.id,
+        NotificationType.initiative_added,
+        [member.id],
+        about=None,
+        key="initiative.added",
+        values={"initiative": initiative.name},
+        data={"initiative_id": initiative.id, "target_path": f"/i/{initiative.id}"},
     )
+    await set_rls_context(session, Unattributed())
 
     notifs = (
         await session.exec(
@@ -404,7 +406,6 @@ def _titles(body: str) -> set[str]:
     return set(re.findall(r"<strong>([^<]+)</strong>", body))
 
 
-@pytest.mark.integration
 async def test_overdue_digest_gathers_tasks_across_user_guilds(
     session: AsyncSession, monkeypatch
 ):
@@ -431,10 +432,8 @@ async def test_overdue_digest_gathers_tasks_across_user_guilds(
 
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
 
-    # Mirror the worker's starting context: its SystemSessionLocal (app_admin) sees
-    # the shared users table; the gather inside still scopes guild data per member.
-    await set_rls_context(session)
-    await _run_overdue_pass(session, now=datetime.now(timezone.utc))
+    await set_rls_context(session, Unattributed())
+    await _sweep(overdue_scan(now=datetime.now(timezone.utc)))
 
     assert captured.get("user_id") == user.id
     assert {"Alpha overdue", "Beta overdue"} <= captured["titles"]
@@ -466,7 +465,6 @@ def _capture_push(monkeypatch) -> list[dict]:
     return sent
 
 
-@pytest.mark.integration
 async def test_overdue_digest_pushes_alongside_email(
     session: AsyncSession, monkeypatch
 ):
@@ -490,8 +488,8 @@ async def test_overdue_digest_pushes_alongside_email(
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     pushes = _capture_push(monkeypatch)
 
-    await set_rls_context(session)
-    await _run_overdue_pass(session, now=datetime.now(timezone.utc))
+    await set_rls_context(session, Unattributed())
+    await _sweep(overdue_scan(now=datetime.now(timezone.utc)))
 
     assert emails == [user.id]
     assert len(pushes) == 1
@@ -505,7 +503,6 @@ async def test_overdue_digest_pushes_alongside_email(
     assert "guild_id" not in push["data"]
 
 
-@pytest.mark.integration
 async def test_overdue_digest_pushes_when_email_opted_out(
     session: AsyncSession, monkeypatch
 ):
@@ -535,14 +532,14 @@ async def test_overdue_digest_pushes_when_email_opted_out(
     pushes = _capture_push(monkeypatch)
 
     now = datetime.now(timezone.utc)
-    await set_rls_context(session)
-    await _run_overdue_pass(session, now=now)
+    await set_rls_context(session, Unattributed())
+    await _sweep(overdue_scan(now=now))
     assert len(pushes) == 1
 
     # Second pass the same day is a no-op (the stamp landed on the push alone).
     session.expunge_all()
-    await set_rls_context(session)
-    await _run_overdue_pass(session, now=now + timedelta(minutes=5))
+    await set_rls_context(session, Unattributed())
+    await _sweep(overdue_scan(now=now + timedelta(minutes=5)))
     assert len(pushes) == 1
 
     refreshed = (
@@ -551,7 +548,6 @@ async def test_overdue_digest_pushes_when_email_opted_out(
     assert refreshed.last_overdue_notification_at is not None
 
 
-@pytest.mark.integration
 async def test_overdue_digest_skips_push_when_opted_out(
     session: AsyncSession, monkeypatch
 ):
@@ -579,13 +575,12 @@ async def test_overdue_digest_skips_push_when_opted_out(
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     pushes = _capture_push(monkeypatch)
 
-    await set_rls_context(session)
-    await _run_overdue_pass(session, now=datetime.now(timezone.utc))
+    await set_rls_context(session, Unattributed())
+    await _sweep(overdue_scan(now=datetime.now(timezone.utc)))
 
     assert pushes == []
 
 
-@pytest.mark.integration
 async def test_overdue_digest_skips_template_projects(
     session: AsyncSession, monkeypatch
 ):
@@ -610,15 +605,14 @@ async def test_overdue_digest_skips_template_projects(
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     pushes = _capture_push(monkeypatch)
 
-    await set_rls_context(session)
-    await _run_overdue_pass(session, now=datetime.now(timezone.utc))
+    await set_rls_context(session, Unattributed())
+    await _sweep(overdue_scan(now=datetime.now(timezone.utc)))
 
     assert {"Real overdue"} <= captured["titles"]
     assert len(pushes) == 1
     assert "Template overdue" not in pushes[0]["body"]
 
 
-@pytest.mark.integration
 async def test_overdue_digest_skips_archived_projects_and_tasks(
     session: AsyncSession, monkeypatch
 ):
@@ -649,8 +643,8 @@ async def test_overdue_digest_skips_archived_projects_and_tasks(
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     pushes = _capture_push(monkeypatch)
 
-    await set_rls_context(session)
-    await _run_overdue_pass(session, now=datetime.now(timezone.utc))
+    await set_rls_context(session, Unattributed())
+    await _sweep(overdue_scan(now=datetime.now(timezone.utc)))
 
     assert {"Live overdue"} <= captured["titles"]
     assert len(pushes) == 1
@@ -664,7 +658,7 @@ async def _assignment_item_in_new_guild(
     """Queue a task-assignment digest item for ``user`` in a brand-new guild."""
     # A prior call left the session in a guild-member context; reset so the new
     # guild INSERT into public.guilds isn't RLS-denied.
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
     initiative = await create_initiative(session, guild, user, name=label)
@@ -704,7 +698,6 @@ async def _assignment_item_in_new_guild(
     return guild
 
 
-@pytest.mark.integration
 async def test_assignment_digest_gathers_items_across_user_guilds(
     session: AsyncSession, monkeypatch
 ):
@@ -726,10 +719,12 @@ async def test_assignment_digest_gathers_items_across_user_guilds(
 
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     # Past the quiet period, so the items have settled and the digest is due.
-    await _run_assignment_digest_pass(
-        session, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+    await _sweep(
+        digest_scan(
+            ASSIGNMENT_DIGEST, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+        )
     )
 
     assert captured.get("user_id") == user.id
@@ -748,7 +743,6 @@ async def test_assignment_digest_gathers_items_across_user_guilds(
         assert pending == [], f"guild {guild_id} items not marked processed"
 
 
-@pytest.mark.integration
 async def test_assignment_digest_waits_for_the_flurry_to_end(
     session: AsyncSession, monkeypatch
 ):
@@ -768,30 +762,34 @@ async def test_assignment_digest_waits_for_the_flurry_to_end(
     _capture_push(monkeypatch)
 
     # Item just landed — still accumulating, nothing goes out.
-    await set_rls_context(session)
-    await _run_assignment_digest_pass(session, now=datetime.now(timezone.utc))
+    await set_rls_context(session, Unattributed())
+    await _sweep(digest_scan(ASSIGNMENT_DIGEST, now=datetime.now(timezone.utc)))
     assert sent == []
 
     # A second item lands, and the quiet period restarts from it: the run at
     # what would have been the first item's deadline must still hold.
     await _assignment_item_in_new_guild(session, user, label="Beta")
     session.expunge_all()
-    await set_rls_context(session)
-    await _run_assignment_digest_pass(
-        session, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD / 2
+    await set_rls_context(session, Unattributed())
+    await _sweep(
+        digest_scan(
+            ASSIGNMENT_DIGEST,
+            now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD / 2,
+        )
     )
     assert sent == []
 
     # Once it has been quiet, both items ship together.
     session.expunge_all()
-    await set_rls_context(session)
-    await _run_assignment_digest_pass(
-        session, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+    await set_rls_context(session, Unattributed())
+    await _sweep(
+        digest_scan(
+            ASSIGNMENT_DIGEST, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+        )
     )
     assert sent == [2]
 
 
-@pytest.mark.integration
 async def test_assignment_digest_caps_a_steady_trickle(
     session: AsyncSession, monkeypatch
 ):
@@ -811,14 +809,15 @@ async def test_assignment_digest_caps_a_steady_trickle(
 
     # An item that landed a moment ago would normally hold the digest, but the
     # window opened long enough ago that it ships regardless.
-    await set_rls_context(session)
-    await _run_assignment_digest_pass(
-        session, now=datetime.now(timezone.utc) + ASSIGNMENT_MAX_WINDOW
+    await set_rls_context(session, Unattributed())
+    await _sweep(
+        digest_scan(
+            ASSIGNMENT_DIGEST, now=datetime.now(timezone.utc) + ASSIGNMENT_MAX_WINDOW
+        )
     )
     assert sent == [1]
 
 
-@pytest.mark.integration
 async def test_assignment_digest_sends_both_channels_together(
     session: AsyncSession, monkeypatch
 ):
@@ -837,9 +836,11 @@ async def test_assignment_digest_sends_both_channels_together(
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     pushes = _capture_push(monkeypatch)
 
-    await set_rls_context(session)
-    await _run_assignment_digest_pass(
-        session, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+    await set_rls_context(session, Unattributed())
+    await _sweep(
+        digest_scan(
+            ASSIGNMENT_DIGEST, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+        )
     )
 
     assert emails == [2]
@@ -850,7 +851,6 @@ async def test_assignment_digest_sends_both_channels_together(
     assert "guild_id" not in pushes[0]["data"]
 
 
-@pytest.mark.integration
 async def test_assignment_digest_of_one_deep_links_to_the_task(
     session: AsyncSession, monkeypatch
 ):
@@ -865,9 +865,11 @@ async def test_assignment_digest_of_one_deep_links_to_the_task(
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     pushes = _capture_push(monkeypatch)
 
-    await set_rls_context(session)
-    await _run_assignment_digest_pass(
-        session, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+    await set_rls_context(session, Unattributed())
+    await _sweep(
+        digest_scan(
+            ASSIGNMENT_DIGEST, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+        )
     )
 
     assert len(pushes) == 1
@@ -875,7 +877,6 @@ async def test_assignment_digest_of_one_deep_links_to_the_task(
     assert pushes[0]["data"]["target_path"].startswith("/go/task/")
 
 
-@pytest.mark.integration
 async def test_assignment_digest_pushes_when_email_opted_out(
     session: AsyncSession, monkeypatch
 ):
@@ -896,15 +897,16 @@ async def test_assignment_digest_pushes_when_email_opted_out(
     monkeypatch.setattr(email_outbox, "enqueue", _fail_email)
     pushes = _capture_push(monkeypatch)
 
-    await set_rls_context(session)
-    await _run_assignment_digest_pass(
-        session, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+    await set_rls_context(session, Unattributed())
+    await _sweep(
+        digest_scan(
+            ASSIGNMENT_DIGEST, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+        )
     )
 
     assert len(pushes) == 1
 
 
-@pytest.mark.integration
 async def test_assignment_digest_honours_a_preference_changed_mid_pass(
     session: AsyncSession, monkeypatch
 ):
@@ -923,22 +925,23 @@ async def test_assignment_digest_honours_a_preference_changed_mid_pass(
     # Turn the email off after the items were queued — as a request handled
     # while the worker is mid-gather would.
     session.expunge_all()
-    await set_rls_context(session, user_id=user.id)
+    await set_rls_context(session, Platform(user_id=user.id))
     fresh = (await session.exec(select(User).where(User.id == user.id))).one()
     await set_notification_prefs(
         session, fresh, {"categories": {"assignments": {"email": False}}}
     )
 
     session.expunge_all()
-    await set_rls_context(session)
-    await _run_assignment_digest_pass(
-        session, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+    await set_rls_context(session, Unattributed())
+    await _sweep(
+        digest_scan(
+            ASSIGNMENT_DIGEST, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+        )
     )
 
     assert len(pushes) == 1  # push is still on, and still delivers
 
 
-@pytest.mark.integration
 async def test_assignment_gc_drops_items_past_retention(session: AsyncSession):
     """Digest items accumulated forever — nothing ever deleted them. The sweep
     clears anything past the retention window, sent or not, so an orphaned
@@ -956,19 +959,18 @@ async def test_assignment_gc_drops_items_past_retention(session: AsyncSession):
 
     # Well inside the window: nothing is touched.
     session.expunge_all()
-    await set_rls_context(session)
-    await _run_assignment_gc_pass(session, now=datetime.now(timezone.utc))
+    await set_rls_context(session, Unattributed())
+    await _sweep(digest_gc_scan(now=datetime.now(timezone.utc)))
     assert await _row_count() == 1
 
     session.expunge_all()
-    await set_rls_context(session)
-    await _run_assignment_gc_pass(
-        session, now=datetime.now(timezone.utc) + ASSIGNMENT_ITEM_RETENTION
+    await set_rls_context(session, Unattributed())
+    await _sweep(
+        digest_gc_scan(now=datetime.now(timezone.utc) + ASSIGNMENT_ITEM_RETENTION)
     )
     assert await _row_count() == 0
 
 
-@pytest.mark.integration
 async def test_event_reminders_fire_across_a_users_guilds(session: AsyncSession):
     """A user attending due events in several guilds must get a reminder in each.
     Under schema-per-guild the events live in different schemas, so the old
@@ -977,7 +979,9 @@ async def test_event_reminders_fire_across_a_users_guilds(session: AsyncSession)
         session, email="multi-reminder@example.com", event_reminder_minutes_before=15
     )
     for label in ("Alpha", "Beta"):
-        await set_rls_context(session)  # permissive for the guild INSERT
+        await set_rls_context(
+            session, Unattributed()
+        )  # permissive for the guild INSERT
         creator = await create_user(session, email=f"organizer-{label}@example.com")
         guild = await create_guild(session, creator=creator)
         initiative = await create_initiative(session, guild, creator, name=label)
@@ -1002,7 +1006,7 @@ async def test_event_reminders_fire_across_a_users_guilds(session: AsyncSession)
 
     # Count across guilds: notifications are shared, so read them on the
     # unrouted system engine.
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     reminders = await _reminders_for(session, attendee.id)
     assert len(reminders) == 2
 
@@ -1020,7 +1024,7 @@ async def _reaction_item_in_new_guild(
 
     # A prior call left the session in a guild-member context; reset so the new
     # guild INSERT into public.guilds isn't RLS-denied.
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
     initiative = await create_initiative(session, guild, user, name=label)
@@ -1047,7 +1051,6 @@ async def _reaction_item_in_new_guild(
     return guild
 
 
-@pytest.mark.integration
 async def test_reaction_digest_gathers_across_guilds_and_marks_processed(
     session: AsyncSession, monkeypatch
 ):
@@ -1055,7 +1058,6 @@ async def test_reaction_digest_gathers_across_guilds_and_marks_processed(
     so it must show the same cross-guild behaviour: gather from every guild the
     user belongs to, send once, mark processed in each schema."""
     from app.models.tenant.reaction_digest import ReactionDigestItem
-    from app.services.notifications import _run_reaction_digest_pass
 
     user = await create_user(session, email="reaction-digest@example.com")
     guild_a = await _reaction_item_in_new_guild(session, user, label="Alpha")
@@ -1071,9 +1073,11 @@ async def test_reaction_digest_gathers_across_guilds_and_marks_processed(
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     _capture_push(monkeypatch)
 
-    await set_rls_context(session)
-    await _run_reaction_digest_pass(
-        session, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+    await set_rls_context(session, Unattributed())
+    await _sweep(
+        digest_scan(
+            REACTION_DIGEST, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+        )
     )
 
     assert captured.get("user_id") == user.id
@@ -1091,14 +1095,11 @@ async def test_reaction_digest_gathers_across_guilds_and_marks_processed(
         assert pending == [], f"guild {guild_id} items not marked processed"
 
 
-@pytest.mark.integration
 async def test_reaction_digest_waits_for_the_flurry_to_end(
     session: AsyncSession, monkeypatch
 ):
     """Reactions arrive in bursts more than anything else in the app, so the
     quiet period matters most here."""
-    from app.services.notifications import _run_reaction_digest_pass
-
     user = await create_user(session, email="reaction-debounce@example.com")
     await _reaction_item_in_new_guild(session, user, label="Alpha")
 
@@ -1111,32 +1112,34 @@ async def test_reaction_digest_waits_for_the_flurry_to_end(
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     _capture_push(monkeypatch)
 
-    await set_rls_context(session)
-    await _run_reaction_digest_pass(session, now=datetime.now(timezone.utc))
+    await set_rls_context(session, Unattributed())
+    await _sweep(digest_scan(REACTION_DIGEST, now=datetime.now(timezone.utc)))
     assert sent == []
 
     await _reaction_item_in_new_guild(session, user, label="Beta", emoji="🚀")
     session.expunge_all()
-    await set_rls_context(session)
-    await _run_reaction_digest_pass(
-        session, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD / 2
+    await set_rls_context(session, Unattributed())
+    await _sweep(
+        digest_scan(
+            REACTION_DIGEST,
+            now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD / 2,
+        )
     )
     assert sent == []
 
     session.expunge_all()
-    await set_rls_context(session)
-    await _run_reaction_digest_pass(
-        session, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+    await set_rls_context(session, Unattributed())
+    await _sweep(
+        digest_scan(
+            REACTION_DIGEST, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+        )
     )
     assert sent == [2]
 
 
-@pytest.mark.integration
 async def test_reaction_digest_respects_the_opt_out(session: AsyncSession, monkeypatch):
     """The reaction gate is its own: switching reactions off must not need the
     mention or assignment preferences touched, and must not silence them."""
-    from app.services.notifications import _run_reaction_digest_pass
-
     user = await create_user(
         session,
         email="reaction-optout@example.com",
@@ -1157,21 +1160,25 @@ async def test_reaction_digest_respects_the_opt_out(session: AsyncSession, monke
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
     pushes = _capture_push(monkeypatch)
 
-    await set_rls_context(session)
-    await _run_reaction_digest_pass(
-        session, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+    await set_rls_context(session, Unattributed())
+    await _sweep(
+        digest_scan(
+            REACTION_DIGEST, now=datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+        )
     )
     assert sent == []
     assert pushes == []
 
 
-@pytest.mark.unit
 class TestReactionBellRollup:
     """The payload arithmetic behind the rolled-up bell line, including what it
     makes of a line written before reactions rolled up at all."""
 
     def test_a_pre_rollup_line_counts_as_the_one_reaction_it_named(self):
-        from app.services.notifications import _rolled_up_count, _rolled_up_reactions
+        from app.services.notifications import (
+            _rolled_up_count,
+            _rolled_up_reactions,
+        )
 
         legacy = {
             "emoji": "\N{THUMBS UP SIGN}",
@@ -1189,7 +1196,10 @@ class TestReactionBellRollup:
         ]
 
     def test_an_empty_payload_stands_for_nothing(self):
-        from app.services.notifications import _rolled_up_count, _rolled_up_reactions
+        from app.services.notifications import (
+            _rolled_up_count,
+            _rolled_up_reactions,
+        )
 
         assert _rolled_up_count({}) == 0
         assert _rolled_up_reactions({}) == []
@@ -1197,10 +1207,8 @@ class TestReactionBellRollup:
     def test_the_named_reactions_are_capped_but_the_counts_are_not(self):
         """The detail rolls off; what the sentence says must not. A line that
         forgot its oldest reactions still knows how big its crowd is."""
-        from app.services.notifications import (
-            MAX_ROLLED_UP_REACTIONS,
-            _reaction_line,
-        )
+        from app.services.notifications import MAX_ROLLED_UP_REACTIONS
+        from app.services.notifications import _reaction_line
 
         entries = [
             {
@@ -1215,9 +1223,7 @@ class TestReactionBellRollup:
             entries,
             count=len(entries),
             reactor_ids=[entry["reactor_id"] for entry in entries],
-            context_title="a task",
-            target_path="/go/task/1",
-            smart_link=None,
+            place={"target_path": "/go/task/1"},
             target_type="comment",
             target_id=1,
             guild_id=3,
@@ -1231,10 +1237,8 @@ class TestReactionBellRollup:
     def test_the_roster_keeps_growing_after_the_detail_rolls_off(self):
         """A cap on the roster would be a cap on the truth — the count would
         freeze on exactly the comment where the number matters most."""
-        from app.services.notifications import (
-            MAX_ROLLED_UP_REACTIONS,
-            _reaction_line,
-        )
+        from app.services.notifications import MAX_ROLLED_UP_REACTIONS
+        from app.services.notifications import _reaction_line
 
         crowd = list(range(MAX_ROLLED_UP_REACTIONS * 10))
         line = _reaction_line(
@@ -1249,9 +1253,7 @@ class TestReactionBellRollup:
             ],
             count=len(crowd),
             reactor_ids=crowd,
-            context_title="a task",
-            target_path="/go/task/1",
-            smart_link=None,
+            place={"target_path": "/go/task/1"},
             target_type="comment",
             target_id=1,
             guild_id=3,
@@ -1306,7 +1308,6 @@ class TestReactionBellRollup:
         )
 
 
-@pytest.mark.integration
 async def test_withdrawal_keeps_a_reactor_whose_other_gesture_rolled_off(
     session: AsyncSession,
 ):
@@ -1363,3 +1364,27 @@ async def test_withdrawal_keeps_a_reactor_whose_other_gesture_rolled_off(
     # him leaving.
     assert bob in line.data["reactor_ids"]
     assert line.data["reactor_count"] == 25
+
+
+async def test_two_passes_at_once_send_one_digest(session: AsyncSession, monkeypatch):
+    """Items are taken by the statement that reads them, so two passes sweeping
+    at the same moment send one digest between them."""
+    import asyncio
+
+    user = await create_user(session, email="claimed-digest@example.com")
+    await _assignment_item_in_new_guild(session, user, label="Gamma")
+    sent: list[int] = []
+
+    async def _capture_email(sess, recipient, **kwargs):
+        sent.append(recipient.id)
+        return True
+
+    monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
+    now = datetime.now(timezone.utc) + ASSIGNMENT_QUIET_PERIOD
+
+    await asyncio.gather(
+        _sweep(digest_scan(ASSIGNMENT_DIGEST, now=now)),
+        _sweep(digest_scan(ASSIGNMENT_DIGEST, now=now)),
+    )
+
+    assert sent == [user.id]

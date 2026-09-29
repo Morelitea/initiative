@@ -84,6 +84,7 @@
     "people": {
       "prompt": "Wer sind diese Personen hier?",
       "note": "Wähle, wer jede Person hier ist. Genaue Handle-Treffer sind schon eingetragen; leer gelassen bleibt nur der Name.",
+      "access": "Wer zugewiesen, eingeladen oder in einer Eigenschaft genannt wird, wird der Initiative hinzugefügt, wenn du sie verwaltest, und erhält Zugriff auf das Importierte.",
       "comments_one": "{{count}} Kommentar",
       "comments_other": "{{count}} Kommentare",
       "unmapped": "Niemand hier",
@@ -100,7 +101,7 @@
       "initiativesCreated_other": "{{count}} Initiativen erstellt",
       "perTool": "{{created}} erstellt · {{failed}} fehlgeschlagen · {{skipped}} übersprungen",
       "assets": "{{restored}} Dateien wiederhergestellt, {{deduped}} bereits vorhanden",
-      "unmatchedHandles": "Einige Personen konnten nicht über ihr Handle zugeordnet werden: {{handles}}",
+      "unmatchedHandles": "Einige Personen wurden nicht zugeordnet. Niemand hier passt zu ihnen, oder du kannst sie dieser Initiative nicht hinzufügen: {{handles}}",
       "failedEntries": "Nicht importierte Elemente:",
       "nothing": "Es wurde nichts importiert."
     },
@@ -241,8 +242,8 @@
     "importing": "Wird importiert…",
     "success": "\"{{name}}\" importiert.",
     "queued": "Import gestartet — du erhältst eine Benachrichtigung, sobald er fertig ist.",
-    "warningUnmatched_one": "{{count}} Person konnte nicht über ihr Handle zugeordnet werden: {{handles}}",
-    "warningUnmatched_other": "{{count}} Personen konnten nicht über ihr Handle zugeordnet werden: {{handles}}",
+    "warningUnmatched_one": "{{count}} Person wurde nicht zugeordnet. Niemand hier passt zu ihr, oder du kannst sie dieser Initiative nicht hinzufügen: {{handles}}",
+    "warningUnmatched_other": "{{count}} Personen wurden nicht zugeordnet. Niemand hier passt zu ihnen, oder du kannst sie dieser Initiative nicht hinzufügen: {{handles}}",
     "error": "Import fehlgeschlagen."
   },
   "entry": {

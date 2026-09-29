@@ -1,11 +1,7 @@
-"""Unit tests for the webhook dispatcher.
+"""Unit tests for the webhook dispatcher's signature.
 
-These cover the cryptographic contract — given a known secret and
-known body, the signature is deterministic and verifies — plus the
-matching rules that decide which subscriptions get a given event, and
-the delegate condition that decides whether any of it runs at all.
-HTTP delivery is mocked; we don't need a real socket to assert that
-the right URL was called with the right headers and body.
+Given a known secret and known body, the signature is deterministic and
+verifies.
 """
 
 from __future__ import annotations
@@ -14,33 +10,9 @@ import hashlib
 import hmac
 import json
 from datetime import datetime, timezone
-from typing import NoReturn
-from unittest.mock import AsyncMock, patch
-
-import pytest
-
-from app.testing.schema_harness import route_session_to_guild
-from app.models.tenant.webhook_subscription import WebhookSubscription
-from app.services.tenant import webhook_dispatcher
-from app.services.tenant.webhook_dispatcher import _sign, dispatch_event
 
 
-# Delivery targets belong to the automation delegate, so the dispatcher only
-# runs on a deployment that has one. The setting is only tested for presence,
-# so a placeholder value is enough here.
-@pytest.fixture(autouse=True)
-def _delegate_configured(monkeypatch):
-    """Every test below assumes a delegate exists unless it says otherwise —
-    with none, dispatch is inert and there is nothing to assert about matching
-    or signing.
-
-    Patched at the lookup rather than registered, because most of this file
-    never touches the database: what the dispatcher asks is one question, and
-    these tests are about what it does with the answer.
-    """
-    monkeypatch.setattr(
-        webhook_dispatcher, "any_delegate_registered", AsyncMock(return_value=True)
-    )
+from app.services.tenant.webhook_dispatcher import _sign
 
 
 def _verify_signature(secret: str, timestamp: str, body: bytes, signature: str) -> bool:
@@ -53,7 +25,6 @@ def _verify_signature(secret: str, timestamp: str, body: bytes, signature: str) 
     return hmac.compare_digest(f"sha256={expected.hexdigest()}", signature)
 
 
-@pytest.mark.unit
 def test_sign_is_deterministic_for_same_inputs():
     """Two signatures over the same (secret, timestamp, body) must
     match — load-bearing for the receiver's verification."""
@@ -63,7 +34,6 @@ def test_sign_is_deterministic_for_same_inputs():
     assert sig1.startswith("sha256=")
 
 
-@pytest.mark.unit
 def test_sign_differs_when_body_changes():
     """Even a single-byte body change must produce a different signature.
     If this fails, an attacker could replay a captured envelope with
@@ -73,7 +43,6 @@ def test_sign_differs_when_body_changes():
     assert sig1 != sig2
 
 
-@pytest.mark.unit
 def test_sign_differs_when_timestamp_changes():
     """Timestamp is part of the signed input so a valid (body, sig) pair
     captured at T can't be re-presented at T+ seconds later — the
@@ -84,7 +53,6 @@ def test_sign_differs_when_timestamp_changes():
     assert sig1 != sig2
 
 
-@pytest.mark.unit
 def test_sign_round_trips_through_verifier():
     """Signing then verifying must succeed for the same inputs."""
     secret = "shared-with-receiver"
@@ -95,7 +63,6 @@ def test_sign_round_trips_through_verifier():
     assert _verify_signature(secret, timestamp, body, sig)
 
 
-@pytest.mark.unit
 def test_verifier_rejects_wrong_secret():
     """A receiver with the wrong secret must NOT verify successfully —
     that's the entire point of HMAC."""
@@ -106,427 +73,29 @@ def test_verifier_rejects_wrong_secret():
     assert not _verify_signature("attacker-guess", timestamp, body, sig)
 
 
-# ── Dispatch matching rules ───────────────────────────────────────────
-
-
-async def _make_subscription(
-    session,
-    *,
-    guild,
-    user,
-    target_url: str,
-    event_types: list[str],
-    initiative_id: int | None = None,
-    active: bool = True,
-    app_install_id: int | None = None,
-) -> WebhookSubscription:
-    """Helper: create a sub bound to a real guild+user so FKs hold."""
-    now = datetime.now(timezone.utc)
-    sub = WebhookSubscription(
-        initiative_id=initiative_id,
-        created_by=user.id,
-        app_install_id=app_install_id,
-        target_url=target_url,
-        hmac_secret="test-secret",
-        event_types=event_types,
-        active=active,
-        created_at=now,
-        updated_at=now,
-    )
-    await route_session_to_guild(session, guild.id)
-    session.add(sub)
-    await session.commit()
-    return sub
-
-
-@pytest.mark.integration
-async def test_dispatch_skips_when_no_subscribers(session):
-    """No subscriptions, no work — and crucially no errors."""
-    from app.testing import route_session_to_guild
-    from app.testing.factories import create_guild
-
-    guild = await create_guild(session)
-    # Production callers pass a guild-routed session (webhook_subscriptions is
-    # guild-scoped); mirror that — no tenant write here routes it implicitly.
-    await route_session_to_guild(session, guild.id)
-    with patch(
-        "app.services.tenant.webhook_dispatcher.deliver", new=AsyncMock()
-    ) as mock_deliver:
-        await dispatch_event(
-            session,
-            event_type="task.created",
-            guild_id=guild.id,
-            initiative_id=None,
-            payload={"id": 1},
-        )
-        assert mock_deliver.await_count == 0
-
-
-@pytest.mark.integration
-async def test_dispatch_matches_only_active_subscriptions(session):
-    """Inactive subscriptions must NOT receive deliveries."""
-    from app.testing.factories import create_guild, create_user
-
-    user = await create_user(session, email="dispatcher-active@example.com")
-    guild = await create_guild(session)
-    await _make_subscription(
-        session,
-        guild=guild,
-        user=user,
-        target_url="https://active.example.com/hook",
-        event_types=["task.created"],
-        active=True,
-    )
-    await _make_subscription(
-        session,
-        guild=guild,
-        user=user,
-        target_url="https://inactive.example.com/hook",
-        event_types=["task.created"],
-        active=False,
-    )
-
-    delivered_to: list[str] = []
-
-    async def fake_deliver(*, target_url: str, secret: str, envelope: dict) -> bool:
-        delivered_to.append(target_url)
-        return True
-
-    with patch("app.services.tenant.webhook_dispatcher.deliver", new=fake_deliver):
-        await dispatch_event(
-            session,
-            event_type="task.created",
-            guild_id=guild.id,
-            payload={"id": 1},
-        )
-
-    assert delivered_to == ["https://active.example.com/hook"]
-
-
-@pytest.mark.integration
-async def test_dispatch_filters_by_event_type(session):
-    """A sub for task.updated must NOT receive task.created events."""
-    from app.testing.factories import create_guild, create_user
-
-    user = await create_user(session, email="dispatcher-filter@example.com")
-    guild = await create_guild(session)
-    await _make_subscription(
-        session,
-        guild=guild,
-        user=user,
-        target_url="https://updated.example.com/hook",
-        event_types=["task.updated"],
-    )
-
-    with patch(
-        "app.services.tenant.webhook_dispatcher.deliver", new=AsyncMock()
-    ) as mock_deliver:
-        await dispatch_event(
-            session,
-            event_type="task.created",
-            guild_id=guild.id,
-            payload={"id": 1},
-        )
-        assert mock_deliver.await_count == 0
-
-
-@pytest.mark.integration
-async def test_dispatch_initiative_scope_matches_correctly(session):
-    """An initiative-scoped subscription receives events in its
-    initiative; a guild-scoped one (initiative_id NULL) gets ALL guild
-    events; cross-initiative subs see nothing for events outside their
-    scope."""
-    from app.testing.factories import create_guild, create_initiative, create_user
-
-    user = await create_user(session, email="dispatcher-scope@example.com")
-    guild = await create_guild(session, creator=user)
-    init_a = await create_initiative(session, guild, user, name="A")
-    init_b = await create_initiative(session, guild, user, name="B")
-
-    await _make_subscription(
-        session,
-        guild=guild,
-        user=user,
-        target_url="https://guild-wide.example.com",
-        event_types=["task.created"],
-        initiative_id=None,
-    )
-    await _make_subscription(
-        session,
-        guild=guild,
-        user=user,
-        target_url="https://init-a.example.com",
-        event_types=["task.created"],
-        initiative_id=init_a.id,
-    )
-    await _make_subscription(
-        session,
-        guild=guild,
-        user=user,
-        target_url="https://init-b.example.com",
-        event_types=["task.created"],
-        initiative_id=init_b.id,
-    )
-
-    delivered_to: list[str] = []
-
-    async def fake_deliver(*, target_url: str, secret: str, envelope: dict) -> bool:
-        delivered_to.append(target_url)
-        return True
-
-    with patch("app.services.tenant.webhook_dispatcher.deliver", new=fake_deliver):
-        await dispatch_event(
-            session,
-            event_type="task.created",
-            guild_id=guild.id,
-            initiative_id=init_a.id,
-            payload={"id": 1},
-        )
-
-    assert sorted(delivered_to) == [
-        "https://guild-wide.example.com",
-        "https://init-a.example.com",
-    ]
-
-
-@pytest.mark.integration
-async def test_each_subscription_gets_unique_event_id(session):
-    """A single dispatch fan-out must give each subscriber its own
-    ``event_id``. If they all shared one, a receiver dedup-ing on the
-    header (which is the documented pattern) would silently drop
-    legitimate deliveries fanned out to multiple subscribers, and any
-    future per-target retry would collide across subscriptions."""
-    from app.testing.factories import create_guild, create_user
-
-    user = await create_user(session, email="dispatcher-eventid@example.com")
-    guild = await create_guild(session, creator=user)
-    await _make_subscription(
-        session,
-        guild=guild,
-        user=user,
-        target_url="https://a.example.com",
-        event_types=["task.created"],
-    )
-    await _make_subscription(
-        session,
-        guild=guild,
-        user=user,
-        target_url="https://b.example.com",
-        event_types=["task.created"],
-    )
-
-    seen_event_ids: list[str] = []
-
-    async def fake_deliver(*, target_url: str, secret: str, envelope: dict) -> bool:
-        seen_event_ids.append(envelope["event_id"])
-        return True
-
-    with patch("app.services.tenant.webhook_dispatcher.deliver", new=fake_deliver):
-        await dispatch_event(
-            session,
-            event_type="task.created",
-            guild_id=guild.id,
-            payload={"id": 1},
-        )
-
-    assert len(seen_event_ids) == 2
-    assert len(set(seen_event_ids)) == 2, "event_id must differ per delivery"
-
-
-@pytest.mark.integration
-async def test_dispatch_does_not_cross_guilds(session):
-    """A subscription in guild B must NOT receive events in guild A —
-    tenant isolation, the most load-bearing property."""
-    from app.testing.factories import create_guild, create_user
-
-    user = await create_user(session, email="dispatcher-cross-guild@example.com")
-    guild_a = await create_guild(session, name="A")
-    guild_b = await create_guild(session, name="B")
-    await _make_subscription(
-        session,
-        guild=guild_b,
-        user=user,
-        target_url="https://other-guild.example.com",
-        event_types=["task.created"],
-    )
-
-    # The real caller is a request routed into guild A; B's rows are in
-    # another schema, and the dispatcher reads the one its session is on.
-    await route_session_to_guild(session, guild_a.id)
-    with patch(
-        "app.services.tenant.webhook_dispatcher.deliver", new=AsyncMock()
-    ) as mock_deliver:
-        await dispatch_event(
-            session,
-            event_type="task.created",
-            guild_id=guild_a.id,
-            payload={"id": 1},
-        )
-        assert mock_deliver.await_count == 0
-
-
-# ── The delegate condition ────────────────────────────────────────────
-
-
-class _ExplodingSession:
-    """A session that fails the test if it is touched at all.
-
-    Lets the inert path assert the *absence* of per-event database work,
-    not just the absence of a delivery.
-    """
-
-    def __getattr__(self, name: str) -> NoReturn:
-        raise AssertionError(f"dispatch queried the database (session.{name})")
-
-
-@pytest.mark.integration
-async def test_dispatch_delivers_when_a_delegate_is_configured(session):
-    """The baseline for the two tests below: with a delegate configured, a
-    matching subscription is delivered to."""
-    from app.testing.factories import create_guild, create_user
-
-    user = await create_user(session, email="dispatcher-configured@example.com")
-    guild = await create_guild(session, creator=user)
-    await _make_subscription(
-        session,
-        guild=guild,
-        user=user,
-        target_url="https://configured.example.com/hook",
-        event_types=["task.created"],
-    )
-
-    delivered_to: list[str] = []
-
-    async def fake_deliver(*, target_url: str, secret: str, envelope: dict) -> bool:
-        delivered_to.append(target_url)
-        return True
-
-    with patch("app.services.tenant.webhook_dispatcher.deliver", new=fake_deliver):
-        await dispatch_event(
-            session,
-            event_type="task.created",
-            guild_id=guild.id,
-            payload={"id": 1},
-        )
-
-    assert delivered_to == ["https://configured.example.com/hook"]
-
-
-@pytest.mark.integration
-async def test_dispatch_is_inert_without_a_delegate(session, monkeypatch):
-    """No delegate, no delivery — and no work of any kind.
-
-    The delegate owns delivery targets, so a deployment without one has none
-    to deliver to. An existing subscription row (left from a deployment that
-    once had a delegate) does not change that, and the dispatcher returns
-    before it would query for one.
-    """
-    from app.testing.factories import create_guild, create_user
-
-    user = await create_user(session, email="dispatcher-inert@example.com")
-    guild = await create_guild(session, creator=user)
-    await _make_subscription(
-        session,
-        guild=guild,
-        user=user,
-        target_url="https://orphaned.example.com/hook",
-        event_types=["task.created"],
-    )
-
-    monkeypatch.setattr(
-        webhook_dispatcher, "any_delegate_registered", AsyncMock(return_value=False)
-    )
-    monkeypatch.setattr(webhook_dispatcher, "_inert_logged", False)
-
-    with patch(
-        "app.services.tenant.webhook_dispatcher.deliver", new=AsyncMock()
-    ) as mock_deliver:
-        await dispatch_event(
-            session,
-            event_type="task.created",
-            guild_id=guild.id,
-            payload={"id": 1},
-        )
-        assert mock_deliver.await_count == 0
-
-        # …and the matching row above was never even looked for.
-        await dispatch_event(
-            _ExplodingSession(),
-            event_type="task.created",
-            guild_id=guild.id,
-            payload={"id": 1},
-        )
-        assert mock_deliver.await_count == 0
-
-
-@pytest.mark.unit
-async def test_inert_dispatch_explains_itself_once_per_process(monkeypatch):
-    """Every write that produces an event calls the dispatcher, so the
-    "no delegate configured" explanation is logged once per process rather
-    than once per event."""
-    monkeypatch.setattr(
-        webhook_dispatcher, "any_delegate_registered", AsyncMock(return_value=False)
-    )
-    monkeypatch.setattr(webhook_dispatcher, "_inert_logged", False)
-
-    with patch.object(webhook_dispatcher.logger, "info") as mock_info:
-        for _ in range(3):
-            await dispatch_event(
-                _ExplodingSession(),
-                event_type="task.created",
-                guild_id=1,
-                payload={"id": 1},
-            )
-
-    assert mock_info.call_count == 1
-
-
-@pytest.mark.integration
-async def test_an_install_that_is_gone_is_delivered_to_by_nobody(session):
-    """Uninstalling switches an app's subscriptions off, which is what stops
-    deliveries promptly. This is what makes it true anyway.
-
-    ``app_install_id`` carries no foreign key — the install and the
-    subscription are both guild content, but nothing enforces the link — so the
-    selector asks whether the install is still there rather than trusting that
-    every path which removes one remembered to switch its subscriptions off.
-    """
-    from app.testing.factories import create_guild, create_user
-
-    user = await create_user(session, email="dispatcher-install@example.com")
-    guild = await create_guild(session)
-    await _make_subscription(
-        session,
-        guild=guild,
-        user=user,
-        target_url="https://an-install-that-went.example.com/hook",
-        event_types=["task.created"],
-        active=True,
-        # No guild_apps row: an install that is not there any more.
-        app_install_id=987654,
-    )
-    await _make_subscription(
-        session,
-        guild=guild,
-        user=user,
-        target_url="https://a-member-of-this-guild.example.com/hook",
-        event_types=["task.created"],
-        active=True,
-        app_install_id=None,
-    )
-
-    delivered_to: list[str] = []
-
-    async def fake_deliver(*, target_url: str, secret: str, envelope: dict) -> bool:
-        delivered_to.append(target_url)
-        return True
-
-    with patch("app.services.tenant.webhook_dispatcher.deliver", new=fake_deliver):
-        await dispatch_event(
-            session,
-            event_type="task.created",
-            guild_id=guild.id,
-            payload={"id": 1},
-        )
-
-    assert delivered_to == ["https://a-member-of-this-guild.example.com/hook"]
+async def test_a_delivery_is_judged_by_its_status_within_its_deadline(monkeypatch):
+    """A receiver that never finishes answering counts as a failed delivery,
+    left for a later pass; one that accepts with a long answer is accepted."""
+    import asyncio
+
+    from app.services.safe_http import ResponseTooLargeError
+    from app.services.tenant import webhook_dispatcher
+
+    async def _stalled(*_args, **_kwargs):
+        await asyncio.sleep(60)
+
+    async def _long_answer(*_args, **_kwargs):
+        raise ResponseTooLargeError(1, status_code=200)
+
+    monkeypatch.setattr(webhook_dispatcher, "_DEADLINE_SECONDS", 0.05)
+    delivery = {
+        "target_url": "https://hooks.example.com/in",
+        "secret": "s",
+        "envelope": {"event_id": "e1"},
+    }
+
+    monkeypatch.setattr(webhook_dispatcher, "request_public_target", _stalled)
+    assert await webhook_dispatcher.deliver(**delivery) is False
+
+    monkeypatch.setattr(webhook_dispatcher, "request_public_target", _long_answer)
+    assert await webhook_dispatcher.deliver(**delivery) is True

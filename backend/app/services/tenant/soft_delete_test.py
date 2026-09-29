@@ -5,8 +5,8 @@ the needs-reassignment branch, and the upload-preservation invariants for
 file-type and native documents.
 """
 
-import pytest
 from sqlalchemy import text
+from sqlalchemy.orm import undefer
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.schema_provisioning import guild_schema_name
@@ -26,9 +26,6 @@ from app.testing.factories import (
     create_project,
     create_user,
 )
-
-
-pytestmark = pytest.mark.integration
 
 
 async def _create_task(
@@ -333,7 +330,6 @@ async def test_purge_document_uploads_escapes_like_wildcards(session: AsyncSessi
     session.add(doomed)
     session.add(decoy)
     await session.commit()
-    await session.refresh(doomed)
 
     await purge_document_uploads(session, [doomed])
     await session.commit()
@@ -355,9 +351,6 @@ async def test_trash_listing_dedupes_nested_comment_replies(
     their parent (Comment is its own dedup parent via parent_comment_id);
     otherwise a user could click Restore on the reply, leaving its
     parent_comment_id pointing at a still-trashed row.
-
-    Regression: _DEDUP_PARENTS[Comment] previously only checked Task and
-    Document parents, so replies appeared independently in trash.
     """
     from app.models.tenant.comment import Comment
     from app.models.platform.guild import GuildRole
@@ -391,21 +384,80 @@ async def test_trash_listing_dedupes_nested_comment_replies(
     session.add(reply)
     await session.commit()
 
-    # Soft-delete the parent. _stamp_descendants stamps the reply too.
+    # Soft-delete the parent; the cascade stamps the reply too.
     await soft_delete_entity(
         session, parent, deleted_by_user_id=user.id, retention_days=30
     )
     await session.commit()
 
     # Hit the listing endpoint and confirm only the parent appears. Guild context
-    # is path-based now (/g/{guild_id}); the headers just carry auth.
+    # is path-based now (/c/{guild_id}); the headers just carry auth.
     headers = get_auth_headers(user)
-    response = await client.get(f"/api/v1/g/{guild.id}/trash/", headers=headers)
+    response = await client.get(f"/api/v1/c/{guild.id}/trash/", headers=headers)
     assert response.status_code == 200, response.text
     body = response.json()
     comment_items = [item for item in body["items"] if item["entity_type"] == "comment"]
     ids = {item["entity_id"] for item in comment_items}
     assert ids == {parent.id}, f"reply leaked into trash listing: {ids}"
+
+
+async def test_trash_listings_page_newest_first(session: AsyncSession, client):
+    """Both trash listings are windows over one order, newest first, and walking
+    their pages meets every row once. ``/me/trash`` cuts its pages from the
+    merge of each guild's newest rows."""
+    from datetime import datetime
+
+    from app.models.platform.guild import GuildRole
+    from app.testing.factories import create_guild_membership, get_auth_headers
+
+    user = await create_user(session)
+    headers = get_auth_headers(user)
+    guilds, initiatives = [], []
+    for _ in range(2):
+        guild = await create_guild(session, creator=user)
+        await create_guild_membership(
+            session, user=user, guild=guild, role=GuildRole.admin
+        )
+        guilds.append(guild)
+        initiatives.append(await create_initiative(session, guild, user))
+    # Trashed in turn across the two guilds, so the merge interleaves them.
+    for _ in range(3):
+        for guild, initiative in zip(guilds, initiatives):
+            project = await create_project(session, initiative, user)
+            response = await client.delete(
+                f"/api/v1/c/{guild.id}/projects/{project.id}", headers=headers
+            )
+            assert response.status_code in (200, 204), response.text
+
+    async def walk(path: str) -> tuple[int, list[dict]]:
+        items: list[dict] = []
+        page = 1
+        while True:
+            response = await client.get(
+                path, params={"page": page, "page_size": 2}, headers=headers
+            )
+            assert response.status_code == 200, response.text
+            body = response.json()
+            items += body["items"]
+            if not body["has_next"]:
+                return body["total_count"], items
+            page += 1
+
+    def keyed(items: list[dict]) -> list[tuple[int, str, int]]:
+        return [(i["guild_id"], i["entity_type"], i["entity_id"]) for i in items]
+
+    guild_total, guild_items = await walk(f"/api/v1/c/{guilds[0].id}/trash/")
+    mine_total, mine_items = await walk("/api/v1/me/trash")
+
+    assert (guild_total, len(guild_items)) == (3, 3)
+    assert (mine_total, len(set(keyed(mine_items)))) == (6, 6)
+    for items in (guild_items, mine_items):
+        stamps = [datetime.fromisoformat(i["deleted_at"]) for i in items]
+        assert stamps == sorted(stamps, reverse=True)
+    assert keyed(guild_items) == [
+        key for key in keyed(mine_items) if key[0] == guilds[0].id
+    ]
+    assert {i["deleted_by_id"] for i in mine_items} == {user.id}
 
 
 async def test_purge_document_uploads_removes_all_version_blobs(session: AsyncSession):
@@ -468,7 +520,6 @@ async def test_purge_document_uploads_removes_all_version_blobs(session: AsyncSe
         ]
     )
     await session.commit()
-    await session.refresh(doomed)
 
     await purge_document_uploads(session, [doomed])
     await session.commit()
@@ -551,7 +602,11 @@ async def test_hard_purge_unresolves_wikilinks_in_linking_documents(
     await session.commit()
 
     refreshed = (
-        await session.exec(select(Document).where(Document.id == linking.id))
+        await session.exec(
+            select(Document)
+            .where(Document.id == linking.id)
+            .options(undefer(Document.content), undefer(Document.yjs_state))
+        )
     ).one()
     wikilink_node = refreshed.content["root"]["children"][0]["children"][0]
     assert wikilink_node["type"] == "wikilink"
@@ -615,7 +670,9 @@ async def test_hard_purge_unresolves_wikilinks_in_trashed_linking_documents(
 
     refreshed = (
         await session.exec(
-            select_including_deleted(Document).where(Document.id == linking.id)
+            select_including_deleted(Document)
+            .where(Document.id == linking.id)
+            .options(undefer(Document.content))
         )
     ).one()
     wikilink_node = refreshed.content["root"]["children"][0]["children"][0]
@@ -697,3 +754,150 @@ async def test_restore_initiative_brings_back_an_archived_documents_comments(
         )
     ).one()
     assert refreshed.deleted_at is None
+
+
+async def test_soft_delete_project_takes_its_own_thread(session: AsyncSession):
+    """A project's conversation is filed under the project, so it goes into the
+    bin with it and comes back with it."""
+    from app.models.tenant.comment import Comment
+    from app.testing.factories import create_comment
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    initiative = await create_initiative(session, guild, user)
+    project = await create_project(session, initiative, user)
+    comment = await create_comment(session, user, project=project)
+    reply = await create_comment(
+        session, user, project=project, parent_comment_id=comment.id
+    )
+
+    await soft_delete_entity(
+        session, project, deleted_by_user_id=user.id, retention_days=30
+    )
+    await session.commit()
+
+    async def stamps() -> set:
+        rows = await session.exec(
+            select_including_deleted(Comment.deleted_at).where(
+                Comment.id.in_([comment.id, reply.id])
+            )
+        )
+        return set(rows.all())
+
+    assert await stamps() == {project.deleted_at}
+
+    await restore_entity(session, project)
+    await session.commit()
+
+    assert await stamps() == {None}
+
+
+async def test_trash_listing_shows_a_trashed_wiki_alone(session: AsyncSession, client):
+    """A wiki in the bin is one entry: its pages, the pages under them and both
+    threads come back with it, so none of them is offered on its own.
+
+    Restoring it puts each page back under the address it had."""
+    from app.models.platform.guild import GuildRole
+    from app.models.tenant.wiki import WikiPage
+    from app.testing.factories import (
+        create_comment,
+        create_guild_membership,
+        create_wiki,
+        create_wiki_page,
+        get_auth_headers,
+    )
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    initiative = await create_initiative(session, guild, user)
+    wiki = await create_wiki(session, initiative, user)
+    page = await create_wiki_page(session, wiki, user, title="Step 1")
+    child = await create_wiki_page(
+        session, wiki, user, title="Step 2", parent_page_id=page.id
+    )
+    await create_comment(session, user, wiki=wiki)
+    await create_comment(session, user, wiki_page=child)
+
+    await soft_delete_entity(
+        session, wiki, deleted_by_user_id=user.id, retention_days=30
+    )
+    await session.commit()
+
+    headers = get_auth_headers(user)
+    response = await client.get(f"/api/v1/c/{guild.id}/trash/", headers=headers)
+    assert response.status_code == 200, response.text
+    listed = {(i["entity_type"], i["entity_id"]) for i in response.json()["items"]}
+    assert listed == {("wiki", wiki.id)}
+
+    response = await client.post(
+        f"/api/v1/c/{guild.id}/trash/wiki/{wiki.id}/restore", headers=headers
+    )
+    assert response.status_code == 200, response.text
+
+    pages = await session.exec(
+        select_including_deleted(WikiPage.slug, WikiPage.deleted_at).where(
+            WikiPage.wiki_id == wiki.id
+        )
+    )
+    assert sorted(pages.all()) == [("step-1", None), ("step-2", None)]
+
+
+async def test_every_tool_takes_its_thread_to_the_trash_and_back(
+    session: AsyncSession, client
+):
+    """Whatever the tool, its conversation is filed under it: trashing it bins
+    the thread, the trash lists only the tool, and restoring it brings the
+    thread back. Runs over the ``Tool`` enum, so a new tool is held to it."""
+    from app.core.tools import Tool
+    from app.models.platform.guild import GuildRole
+    from app.models.tenant.comment import Comment
+    from app.testing.factories import (
+        TOOL_FACTORIES,
+        create_comment,
+        create_guild_membership,
+        get_auth_headers,
+    )
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    initiative = await create_initiative(session, guild, user)
+
+    threads: dict[Tool, tuple[int, int | None]] = {}
+    for tool in Tool:
+        entity = await TOOL_FACTORIES[tool](session, initiative, user)
+        comment = await create_comment(session, user, **{tool.value: entity})
+        threads[tool] = (entity.id, comment.id)
+        await soft_delete_entity(
+            session, entity, deleted_by_user_id=user.id, retention_days=30
+        )
+        await session.commit()
+
+    async def live_comments() -> set[int]:
+        comment_ids = [comment_id for _, comment_id in threads.values()]
+        rows = await session.exec(
+            select_including_deleted(Comment.id).where(
+                Comment.id.in_(comment_ids), Comment.deleted_at.is_(None)
+            )
+        )
+        return set(rows.all())
+
+    assert await live_comments() == set()
+
+    headers = get_auth_headers(user)
+    response = await client.get(f"/api/v1/c/{guild.id}/trash/", headers=headers)
+    assert response.status_code == 200, response.text
+    listed = {(i["entity_type"], i["entity_id"]) for i in response.json()["items"]}
+    assert listed == {
+        (tool.value, entity_id) for tool, (entity_id, _) in threads.items()
+    }
+
+    for tool, (entity_id, _) in threads.items():
+        response = await client.post(
+            f"/api/v1/c/{guild.id}/trash/{tool.value}/{entity_id}/restore",
+            headers=headers,
+        )
+        assert response.status_code == 200, (tool, response.text)
+
+    assert await live_comments() == {comment_id for _, comment_id in threads.values()}

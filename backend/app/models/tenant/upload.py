@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, String
+from sqlalchemy import CheckConstraint, Column, DateTime, String
 from sqlmodel import Field
 
 from app.models.tenant._mixins import CreatedByMixin
@@ -11,6 +11,12 @@ from app.models.tenant._mixins import CreatedByMixin
 
 class Upload(CreatedByMixin, table=True):
     __tablename__ = "uploads"
+    __table_args__ = (
+        CheckConstraint(
+            "initiative_id IS NULL OR claimed_at IS NOT NULL",
+            name="ck_uploads_initiative_claimed",
+        ),
+    )
 
     id: Optional[int] = Field(default=None, primary_key=True)
     filename: str = Field(unique=True, index=True)
@@ -30,4 +36,15 @@ class Upload(CreatedByMixin, table=True):
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    # When the file was first saved into something. Until then only its
+    # uploader reaches it; from then on its initiative's members do, and edits
+    # and purges release it.
+    claimed_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    # The initiative whose content shows the file. NULL on a claimed file means
+    # it is shown by content that belongs to the whole guild.
+    initiative_id: Optional[int] = Field(
+        default=None, foreign_key="initiatives.id", nullable=True, index=True
     )

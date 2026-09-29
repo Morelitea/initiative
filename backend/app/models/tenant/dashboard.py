@@ -8,7 +8,7 @@ from sqlmodel import Field, Relationship
 from app.core.tools import Tool
 from app.models.tenant._mixins import (
     ArchiveMixin,
-    attach_access_level,
+    attach_actions,
     CommentsToggleMixin,
     CreatedByMixin,
     ListingProvenanceMixin,
@@ -78,7 +78,6 @@ class Dashboard(
         default_factory=dict,
         sa_column=Column(JSONB, nullable=False, server_default="{}"),
     )
-    created_by: int = Field(foreign_key="users.id", nullable=False)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -106,4 +105,4 @@ class Dashboard(
     )
 
 
-attach_access_level(Dashboard, Tool.dashboard)
+attach_actions(Dashboard, Tool.dashboard)

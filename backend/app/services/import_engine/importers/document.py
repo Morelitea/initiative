@@ -31,7 +31,7 @@ from app.services.import_engine.contract import (
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.mentions import place_mentions
 from app.services.import_engine.references import note_or_settle
-from app.services.import_engine.people import PeopleMap
+from app.services.import_engine.people import PeopleMap, bring_in_named
 from app.services.import_engine.importers._base import (
     NamesPeopleInPassing,
     grant_ownership,
@@ -39,6 +39,7 @@ from app.services.import_engine.importers._base import (
     resolve_property_values,
 )
 from app.services.tenant import tags as tags_service
+from app.services.tenant.named_people import Governing
 
 _IMPORTABLE_TYPES = {
     DocumentType.native.value,
@@ -155,6 +156,11 @@ class DocumentImporter(NamesPeopleInPassing):
             )
 
         await session.flush()
+        gone = await bring_in_named(
+            session,
+            Governing.of(Tool.document, document),
+            initiative_id=target_initiative.id,
+        )
         return EnvelopeImportResult(
             entity_id=document.id,
             entity_title=document.name,
@@ -164,6 +170,9 @@ class DocumentImporter(NamesPeopleInPassing):
                 "properties": attached.created,
             },
             matched={"tags": tags_matched, "properties": attached.matched},
+            unmatched_handles=sorted(
+                attached.unmatched | {attached.named[user_id] for user_id in gone}
+            ),
             warnings=warnings,
         )
 

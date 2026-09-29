@@ -65,7 +65,7 @@ class EventOutbox(SQLModel, table=True):
         sa_column=Column(DateTime(timezone=True), nullable=False, index=True),
     )
 
-    # Both of these are WEAK references — plain ints, no FK.
+    # The actor and initiative columns are WEAK references — plain ints, no FK.
     #
     # The trigger fires while a row is being deleted, including when that
     # deletion is the cascade from removing the initiative or user the event
@@ -77,6 +77,16 @@ class EventOutbox(SQLModel, table=True):
     #
     # actor_user_id is NULL for a system-attributed write (background jobs).
     actor_user_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, nullable=True),
+    )
+
+    # The installed app whose request wrote the change, read from the same
+    # request context as actor_user_id and weak for the same reason: removing
+    # an app leaves its history in place. Set independently of actor_user_id,
+    # so an app acting as its community names no person, and one acting for a
+    # member names both.
+    actor_install_id: Optional[int] = Field(
         default=None,
         sa_column=Column(Integer, nullable=True),
     )

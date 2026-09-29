@@ -16,9 +16,9 @@ import { toast } from "@/lib/chesterToast";
 
 export const ToolSettingsAccessPage = () => {
   const { t } = useTranslation(["common", "access"]);
-  const { entity, canManage, isOwner, setGrants } = useToolSettings();
+  const { entity, setGrants } = useToolSettings();
 
-  if (!canManage) {
+  if (!entity.can.edit) {
     return <ToolSettingsPermissionRequired />;
   }
 
@@ -35,12 +35,13 @@ export const ToolSettingsAccessPage = () => {
           initiativeId={entity.initiative_id ?? 0}
           grants={entity.grants}
           ownerId={ownerId}
+          ownerApp={entity.owner_app ?? null}
           onChange={(grants) =>
             setGrants.mutate(grants, {
               onSuccess: () => toast.success(t("common:toolSettings.permissionsUpdated")),
             })
           }
-          disabled={!isOwner || setGrants.isPending}
+          disabled={!entity.can.share || setGrants.isPending}
         />
       </CardContent>
     </Card>

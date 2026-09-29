@@ -41,6 +41,7 @@ from app.services.export.adapters._common import (
 )
 from app.services.export.contract import RenderItem
 from app.services.export.i18n import et, export_locale
+from app.services.permissions import EXPORT_ACCESS
 from app.core.user_display import display_name
 
 # (row key, ``exports`` label key, Typst width hint) — labels resolve to the
@@ -64,14 +65,32 @@ def _columns(locale: str) -> list[dict]:
 
 class QueueAdapter(ToolExportAdapter):
     tool = Tool.queue
-    formats = frozenset({"json", "pdf", "csv", "xlsx", "md"})
+    formats = ("json", "pdf", "csv", "xlsx", "md")
 
     async def fetch(
-        self, session: AsyncSession, user: User, guild_id: int, queue_id: int, /
+        self,
+        session: AsyncSession,
+        user: User,
+        guild_id: int,
+        queue_id: int,
+        /,
+        *,
+        access: str = EXPORT_ACCESS,
     ) -> Queue:
         from app.services.tenant.queues import get_queue_for_export
 
-        return await get_queue_for_export(session, user, guild_id, queue_id=queue_id)
+        return await get_queue_for_export(
+            session, user, guild_id, queue_id=queue_id, access=access
+        )
+
+    async def initiative_ids(
+        self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
+    ) -> list[int]:
+        from app.services.tenant.queues import list_queue_ids_for_export
+
+        return await list_queue_ids_for_export(
+            session, user, guild_id, initiative_ids=[initiative_id]
+        )
 
     def rows(self, queue: Queue, /) -> int:
         return len(queue.items)
@@ -135,7 +154,7 @@ def build_queue_item(
             data=_envelope(queue, items, attachments),
         )
     return RenderItem(
-        key=export_stem(queue.name, date), data=_report_payload(queue, items, user, now)
+        key=export_stem(queue.name, date), data=_report_payload(queue, items, user)
     )
 
 
@@ -187,18 +206,11 @@ def _envelope(
     }
 
 
-def _report_payload(
-    queue: Queue, items: list[QueueItem], user: User, now: datetime
-) -> dict[str, Any]:
+def _report_payload(queue: Queue, items: list[QueueItem], user: User) -> dict[str, Any]:
     loc = export_locale(user)
-    generated_at = now.strftime("%Y-%m-%d %H:%M %Z")
-    # Both attribution fields can be absent (some OAuth-provisioned accounts
-    # carry neither) — never render the literal "None".
-    author = display_name(user) or et("fallback.unknownAuthor", loc)
     parts = [et("summary.items", loc, count=len(items))]
     if queue.is_active:
         parts.append(et("round", loc, round=queue.current_round))
-    parts.append(et("generatedBy", loc, date=generated_at, author=author))
     return {
         # The queue name is user data — never translated.
         "title": queue.name,

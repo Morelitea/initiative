@@ -39,11 +39,10 @@ def test_every_tool_has_an_initiative_master_switch():
     # EVERY tool has an initiative-level `{plural}_enabled` master switch (model
     # column + read/create/update schema fields) — projects and documents
     # included, which is the whole of making them optional.
-    from app.core.tools import TOGGLEABLE_TOOLS
     from app.models.tenant.initiative import Initiative
     from app.schemas.tenant.initiative import InitiativeBase, InitiativeUpdate
 
-    switches = {t.view_permission for t in TOGGLEABLE_TOOLS}
+    switches = {t.view_permission for t in Tool}
     model_fields = set(Initiative.model_fields)
     schema_fields = set(InitiativeBase.model_fields)
     update_fields = set(InitiativeUpdate.model_fields)
@@ -69,18 +68,16 @@ def test_an_initiative_starts_with_projects_and_documents_on():
 
 def test_recent_entity_types_agree_across_surfaces():
     # The model's allowed set, the schema enum, and the RLS path registry all
-    # derive from RECENTABLE_TOOLS — assert they agree and stay within the Tool
-    # enum (this also guards someone re-declaring one of them by hand).
-    from app.core.tools import RECENTABLE_TOOLS
+    # derive from the Tool enum — assert they agree (this also guards someone
+    # re-declaring one of them by hand).
     from app.db.initiative_rls import RECENT_ENTITY_TABLES
     from app.models.tenant.recent_view import RECENT_ENTITY_TYPES
     from app.schemas.tenant.recent_view import RecentEntityType
 
-    derived = {t.value for t in RECENTABLE_TOOLS}
+    derived = {t.value for t in Tool}
     assert set(RECENT_ENTITY_TYPES) == derived
     assert set(RECENT_ENTITY_TABLES) == derived
     assert {e.value for e in RecentEntityType} == derived
-    assert derived <= {t.value for t in Tool}
 
 
 def test_every_tool_is_taggable():
@@ -226,9 +223,8 @@ def test_every_tool_read_schema_reports_the_comment_switch():
 
     schema = app.openapi()
     for tool in Tool:
-        segment = tool.plural.replace("_", "-")
         pattern = re.compile(
-            r"^/api/v1/g/\{guild_id\}/" + re.escape(segment) + r"/\{\w+\}$"
+            r"^/api/v1/c/\{guild_id\}/" + re.escape(tool.route_segment) + r"/\{\w+\}$"
         )
         detail = next(
             (
@@ -295,11 +291,11 @@ def test_the_generic_tool_tags_route_is_the_only_tool_set_tags_surface():
         for path, item in spec["paths"].items()
         if "put" in item and path.endswith("/tags")
     }
-    generic = "/api/v1/g/{guild_id}/tools/{tool}/{tool_id}/tags"
+    generic = "/api/v1/c/{guild_id}/tools/{tool}/{tool_id}/tags"
     extras = {
-        "/api/v1/g/{guild_id}/tasks/{task_id}/tags",
-        "/api/v1/g/{guild_id}/queues/{queue_id}/items/{item_id}/tags",
-        "/api/v1/g/{guild_id}/calendar-events/{event_id}/tags",
+        "/api/v1/c/{guild_id}/tasks/{task_id}/tags",
+        "/api/v1/c/{guild_id}/queues/{queue_id}/items/{item_id}/tags",
+        "/api/v1/c/{guild_id}/calendar-events/{event_id}/tags",
     }
     assert put_tag_paths == {generic} | extras
 
@@ -312,19 +308,20 @@ def test_the_generic_tool_tags_route_is_the_only_tool_set_tags_surface():
     assert set(enum_values) == {t.value for t in Tool}
 
 
-def test_every_tool_mounts_both_recent_view_routes():
-    # Opening and closing a tab is one pair of routes, mounted from the
-    # resource-access registry for every tool (tenant_endpoints/tool_views.py).
-    # The exact equality means a tool that loses a half — or a hand-written
-    # copy added back somewhere else — fails here. The operation ids are
-    # asserted too: they are the generated frontend client's function names.
+def test_every_tool_mounts_the_recent_view_route():
+    # Opening a tab is one route, mounted from the resource-access registry for
+    # every tool (tenant_endpoints/tool_views.py); closing one is
+    # tenant_endpoints/recents.py. The exact equality means a tool that loses
+    # its route — or a hand-written copy added back somewhere else — fails here.
+    # The operation ids are asserted too: they are the generated frontend
+    # client's function names.
     from app.api.resource_access import RESOURCE_ACCESS
     from app.main import app
 
     spec = app.openapi()
     mounted = {path for path in spec["paths"] if path.endswith("/view")}
     expected = {
-        f"/api/v1/g/{{guild_id}}/{tool.plural.replace('_', '-')}"
+        f"/api/v1/c/{{guild_id}}/{tool.route_segment}"
         f"/{{{RESOURCE_ACCESS[tool].path_param}}}/view"
         for tool in Tool
     }
@@ -332,13 +329,12 @@ def test_every_tool_mounts_both_recent_view_routes():
 
     for tool in Tool:
         path = (
-            f"/api/v1/g/{{guild_id}}/{tool.plural.replace('_', '-')}"
+            f"/api/v1/c/{{guild_id}}/{tool.route_segment}"
             f"/{{{RESOURCE_ACCESS[tool].path_param}}}/view"
         )
         item = spec["paths"][path]
-        assert set(item) == {"post", "delete"}, tool
+        assert set(item) == {"post"}, tool
         assert item["post"]["operationId"].startswith(f"record_{tool.value}_view")
-        assert item["delete"]["operationId"].startswith(f"clear_{tool.value}_view")
 
 
 def test_every_tool_mounts_both_list_routes():
@@ -355,10 +351,10 @@ def test_every_tool_mounts_both_list_routes():
 
     spec = app.openapi()
     for tool in Tool:
-        segment = tool.plural.replace("_", "-")
-        listing = spec["paths"][f"/api/v1/g/{{guild_id}}/{segment}/"]["get"]
+        segment = tool.route_segment
+        listing = spec["paths"][f"/api/v1/c/{{guild_id}}/{segment}/"]["get"]
         counts = spec["paths"][
-            f"/api/v1/g/{{guild_id}}/{segment}/counts/by-initiative"
+            f"/api/v1/c/{{guild_id}}/{segment}/counts/by-initiative"
         ]["get"]
         assert listing["operationId"].startswith(f"list_{tool.plural}_"), tool
         assert counts["operationId"].startswith(
@@ -380,7 +376,7 @@ def test_every_tool_mounts_the_grants_route():
     spec = app.openapi()
     mounted = {path for path in spec["paths"] if path.endswith("/grants")}
     expected = {
-        f"/api/v1/g/{{guild_id}}/{tool.plural.replace('_', '-')}"
+        f"/api/v1/c/{{guild_id}}/{tool.route_segment}"
         f"/{{{RESOURCE_ACCESS[tool].path_param}}}/grants"
         for tool in Tool
     }
@@ -388,7 +384,7 @@ def test_every_tool_mounts_the_grants_route():
 
     for tool in Tool:
         path = (
-            f"/api/v1/g/{{guild_id}}/{tool.plural.replace('_', '-')}"
+            f"/api/v1/c/{{guild_id}}/{tool.route_segment}"
             f"/{{{RESOURCE_ACCESS[tool].path_param}}}/grants"
         )
         item = spec["paths"][path]
@@ -416,7 +412,7 @@ def test_every_tool_mounts_its_cross_guild_list_route():
         for operation in item.values()
     ]
     for tool in Tool:
-        path = f"/api/v1/me/{tool.plural.replace('_', '-')}"
+        path = f"/api/v1/me/{tool.route_segment}"
         listing = spec["paths"][path]["get"]
         stem = f"list_my_{tool.plural}_"
         assert listing["operationId"].startswith(stem), tool
@@ -467,9 +463,9 @@ def test_export_adapters_cover_exactly_the_bulk_export_tools():
     derived = {tool_export_source(tool) for tool in BULK_EXPORT_TOOLS}
     extra = set(ADAPTERS) - derived
     assert derived <= set(ADAPTERS), f"missing adapters for {derived - set(ADAPTERS)}"
-    # "tasks" is a project sub-resource (the filterable task list), not a
+    # "tasks" and "events" are the filterable task and event lists, not a
     # Tool; "initiative"/"guild" are the aggregate backup/report scopes.
-    allowed = {"tasks", "initiative", "guild"}
+    allowed = {"tasks", "events", "initiative", "guild"}
     assert extra == allowed, f"unregistered export sources: {extra - allowed}"
     # Tools without the flag must not silently grow an adapter either.
     unflagged = {

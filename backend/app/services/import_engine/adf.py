@@ -32,10 +32,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
-#: How deep a document may nest before the walker stops descending. ADF is
-#: somebody else's JSON, and a pathological (or hostile) document should cost
-#: a bounded amount of work rather than a recursion error.
-MAX_DEPTH = 40
+# How deep a document may nest before the walker stops descending is the one
+# limit every converter shares; content nested past it is left out.
+from app.services.import_engine.limits import MAX_NESTING_DEPTH
 
 #: A panel's kind to the line that opens the quote it becomes.
 _PANEL_TITLES = {
@@ -148,7 +147,7 @@ class _Walker:
     # --- blocks ------------------------------------------------------------
 
     def blocks(self, nodes: Any, *, depth: int) -> list[str]:
-        if not isinstance(nodes, list) or depth > MAX_DEPTH:
+        if not isinstance(nodes, list) or depth > MAX_NESTING_DEPTH:
             return []
         out: list[str] = []
         for node in nodes:
@@ -335,7 +334,7 @@ class _Walker:
     # --- inline ------------------------------------------------------------
 
     def inline(self, nodes: Any, *, depth: int) -> str:
-        if not isinstance(nodes, list) or depth > MAX_DEPTH:
+        if not isinstance(nodes, list) or depth > MAX_NESTING_DEPTH:
             return ""
         return "".join(
             self.inline_node(n, depth=depth) for n in nodes if isinstance(n, dict)
@@ -437,7 +436,7 @@ class _Walker:
     def plain(self, nodes: Any, *, depth: int) -> str:
         """Text with no markdown applied — a code block's body, where a ``*``
         is a ``*``."""
-        if not isinstance(nodes, list) or depth > MAX_DEPTH:
+        if not isinstance(nodes, list) or depth > MAX_NESTING_DEPTH:
             return ""
         out: list[str] = []
         for node in nodes:

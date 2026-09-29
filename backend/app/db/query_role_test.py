@@ -10,13 +10,13 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError, ProgrammingError
 
 from app.db.schema_provisioning import (
+    GuildRoleKind,
+    guild_role_name,
     drop_guild_schema,
-    guild_query_role_name,
     guild_schema_name,
     provision_guild_schema,
 )
 
-pytestmark = pytest.mark.database
 
 _GID = 990_140
 _GID_OTHER = 990_141
@@ -39,14 +39,16 @@ async def provisioned(engine):
 async def _as_query_role(conn, statement: str):
     """Run one statement as the query role, routed as a request would be.
 
-    The search path matters: the initiative-RLS policies defer to
-    ``initiative_access``, whose body names ``initiative_members``
-    without a schema, so it resolves against the caller's path — the guild's
-    own membership table.
+    The search path is the guild's schema alone, as a query's is: the
+    initiative-RLS policies defer to ``initiative_access``, whose body names
+    ``initiative_members`` without a schema, so it resolves against the
+    caller's path — the guild's own membership table.
     """
     schema = guild_schema_name(_GID)
-    await conn.exec_driver_sql(f'SET ROLE "{guild_query_role_name(_GID)}"')
-    await conn.exec_driver_sql(f'SET search_path = "{schema}", public')
+    await conn.exec_driver_sql(
+        f'SET ROLE "{guild_role_name(_GID, GuildRoleKind.query)}"'
+    )
+    await conn.exec_driver_sql(f'SET search_path = "{schema}"')
     try:
         return await conn.execute(text(statement))
     finally:
@@ -139,7 +141,7 @@ async def test_the_login_role_holds_no_standing_access(engine, provisioned):
     false, and ``MEMBER`` (may SET ROLE) the half that must be true. A single
     expression combining them cannot tell the two settings apart.
     """
-    role = guild_query_role_name(_GID)
+    role = guild_role_name(_GID, GuildRoleKind.query)
     async with engine.connect() as conn:
         standing = await conn.scalar(
             text("SELECT pg_has_role(:login, :role, 'USAGE')"),
@@ -158,8 +160,8 @@ async def test_the_login_role_holds_no_standing_access(engine, provisioned):
 )
 @pytest.mark.parametrize("verb", ["INSERT", "UPDATE", "DELETE"])
 async def test_it_cannot_write_shared_tables(engine, provisioned, table, verb):
-    """The shared floor it inherits is the read-only one."""
-    role = guild_query_role_name(_GID)
+    """It inherits no shared floor to write through."""
+    role = guild_role_name(_GID, GuildRoleKind.query)
     async with engine.connect() as conn:
         granted = await conn.scalar(
             text("SELECT has_table_privilege(:r, :t, :p)"),
@@ -168,14 +170,38 @@ async def test_it_cannot_write_shared_tables(engine, provisioned, table, verb):
         assert granted is False, f"{verb} on {table}"
 
 
-async def test_it_can_read_shared_tables(engine, provisioned):
-    """Reading them is what a guild-schema query needs: the policies call
-    ``public.guild_auth_satisfied()``, which reads ``guild_auth_policies``."""
+@pytest.mark.parametrize(
+    "table",
+    [
+        "public.guild_auth_policies",
+        "public.access_grants",
+        "public.app_settings",
+        "public.guild_memberships",
+        "public.guilds",
+        "public.users",
+    ],
+)
+async def test_it_cannot_read_shared_tables(engine, provisioned, table):
+    """A query reads its own community, so no shared table is reachable."""
     async with engine.connect() as conn:
-        result = await _as_query_role(
-            conn, "SELECT count(*) FROM public.guild_auth_policies"
+        with pytest.raises(ProgrammingError, match="permission denied"):
+            await _as_query_role(conn, f"SELECT count(*) FROM {table}")
+
+
+async def test_it_can_read_its_communitys_members(engine, provisioned):
+    """The one thing in ``public`` it reads, which answers for the routed
+    community alone."""
+    async with engine.connect() as conn:
+        await conn.exec_driver_sql(
+            f"SELECT set_config('app.current_guild_id', '{_GID}', false)"
         )
-        assert result.scalar() >= 0
+        try:
+            result = await _as_query_role(
+                conn, "SELECT count(*) FROM public.current_guild_members"
+            )
+            assert result.scalar() == 0
+        finally:
+            await conn.exec_driver_sql("RESET app.current_guild_id")
 
 
 async def test_the_catalogs_are_readable_like_any_role(engine, provisioned):

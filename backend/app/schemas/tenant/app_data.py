@@ -128,10 +128,10 @@ class AppEndpointRead(SanitizedBaseModel):
     """
 
     id: str
-    #: ``member`` or ``guild_admin`` — enforced again on every fetch under the
-    #: caller's own session, so this is what the picker shows rather than what
-    #: protects the data.
-    visibility: str = "member"
+    #: Read by the community's admins alone — enforced again on every fetch
+    #: under the caller's own session, so this is what the picker shows rather
+    #: than what protects the data.
+    admin_only: bool = False
     #: What the manifest asks for, already clamped at publish time. The proxy
     #: applies the deployment's own ceiling on top.
     cache_ttl_seconds: int = 0

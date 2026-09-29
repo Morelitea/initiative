@@ -39,6 +39,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
+from app.services.export.stamp import stamp_workbook
 from app.services.platform.csv_export import neutralize_cell
 
 # Frontend sizes are CSS pixels; Excel wants points (rows) and its own
@@ -107,11 +108,12 @@ def render_csv(content: dict) -> bytes:
     return ("﻿" + buffer.getvalue()).encode("utf-8")
 
 
-def render_xlsx(content: dict, *, title: str) -> bytes:
+def render_xlsx(content: dict, *, title: str, data: dict | None = None) -> bytes:
     """The whole workbook: one worksheet per sheet, in tab order.
 
     ``title`` is the *document's* name, used only to title the worksheet of
-    a legacy snapshot that has no per-sheet names.
+    a legacy snapshot that has no per-sheet names. ``data`` is the export
+    item's payload, read for its stamp.
     """
     workbook = Workbook()
     used_titles: set[str] = set()
@@ -130,6 +132,7 @@ def render_xlsx(content: dict, *, title: str) -> bytes:
     if all(ws.sheet_state == "hidden" for ws in workbook.worksheets):
         workbook.worksheets[0].sheet_state = "visible"
 
+    stamp_workbook(workbook, data or {})
     out = io.BytesIO()
     workbook.save(out)
     return out.getvalue()

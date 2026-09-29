@@ -23,7 +23,7 @@ When you're done, run **`dev:cleanup`** from the task palette to remove all seed
 
 **What gets seeded:**
 
-A realistic, TTRPG-themed dataset that exercises the whole app. See `scripts/seed_dev_data.py` for the exact contents.
+A realistic, TTRPG-themed dataset that exercises the whole app. See `scripts/seed/` (one module per area, run in order by `scripts/seed_dev_data.py`) for the exact contents.
 
 **Seeded logins** — every account below uses the password **`changeme`**:
 
@@ -33,9 +33,9 @@ A realistic, TTRPG-themed dataset that exercises the whole app. See `scripts/see
 | `user1@example.com` … `user8@example.com` | Regular **guild members** (never guild admins) |
 | `owner@` · `operator@` · `moderator@` · `support@` · `member@example.com` | One user per **platform-role** tier, for exercising the privilege ladder |
 
-The bootstrap superuser from your `.env` (`FIRST_OWNER_EMAIL`) is also available with its configured password.
+The bootstrap owner from your `.env` (`FIRST_OWNER_EMAIL`) is also available with its configured password.
 
-The seeder saves created IDs to `.vscode/.dev_seed_ids.json` (gitignored) and uses them for clean teardown.
+The seeder records the accounts it created in `.vscode/.dev_seed_ids.json` (gitignored). Cleanup does not need it: it drops every community schema and wipes the shared rows.
 
 ### Manual Setup
 
@@ -100,7 +100,7 @@ cd backend && pytest
 # All frontend tests
 cd frontend && pnpm test:run
 
-# Only tests related to files you've changed (vs main)
+# Only tests related to files you've changed (vs dev)
 cd backend && ./scripts/test-changed.sh
 cd frontend && ./scripts/test-changed.sh
 
@@ -108,6 +108,17 @@ cd frontend && ./scripts/test-changed.sh
 cd backend && ./scripts/test-changed.sh --staged
 cd frontend && ./scripts/test-changed.sh --staged
 ```
+
+## Testing the Android App Against `dev`
+
+The published app only installs updates signed with the release key, so it stays put on a server running the `dev` image. Use the dev app instead:
+
+1. Download the latest `initiative-dev-apk` artifact from the [Dev App](https://github.com/Morelitea/initiative/actions/workflows/dev-app.yml) workflow and install it. It installs beside the published app as **Initiative Dev**.
+2. Point it at a server running the `dev` (or `dev-<sha>`) image. Every push to `dev` then reaches it over the air.
+
+Install a newer dev APK when `dev` changes native code (a Capacitor plugin, anything under `frontend/android`), since an update can only swap web assets. The two apps share the `initiative://` sign-in link, so Android asks which one to open it with.
+
+The dev app and dev images trust the dev key (`.github/ota-dev-key.pub`); its private half is `OTA_SIGNING_KEY` in the `ota-dev` environment, beside the dev Android keystore. Both are released only to the `dev` branch. The published app never trusts the dev key.
 
 ## Code Style
 

@@ -9,10 +9,10 @@ guild and the operator already own, never from the request.
 **Authorization happens before this module caches anything.** The route runs
 under the caller's own guild session, so the install row is reachable only from
 inside that guild and a guild admin's wider reach is inherited rather than
-re-implemented. What is left here is the app-shaped part of the decision: the
-endpoint's declared visibility, the two kill switches (the guild's install and
-the operator's registration), and whether the credentials the endpoint declared
-it needs are actually present.
+re-implemented. What is left here is the app-shaped part of the decision:
+whether the endpoint is for the community's admins alone, the two kill switches
+(the guild's install and the operator's registration), and whether the
+credentials the endpoint declared it needs are actually present.
 
 **The cache key contains every credential the response depended on.** That is
 the whole rule, and it is what makes a stored body safe to replay:
@@ -38,6 +38,10 @@ read here: the returns that hold several become rows, side by side, and the ones
 holding a single value stay whole beside them. Nothing interprets a value; the
 projection is by name alone, on its way to a sandboxed widget that is handed the
 result as data.
+
+**The same call serves one app calling another.** :mod:`app_hub` checks such a
+call and makes it through :func:`_call_app` and :func:`cached_call`, reading
+the answer whole rather than through the returns.
 """
 
 from __future__ import annotations
@@ -47,9 +51,10 @@ import hashlib
 import json
 import logging
 import time
-from dataclasses import dataclass
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping, Optional, TypeVar
 
 import httpx
 from sqlmodel import select
@@ -61,18 +66,18 @@ from app.core.security import (
     AppPlatformSigningNotConfiguredError,
     app_platform_signing_enabled,
 )
-from app.db import session as db_session
-from app.models.platform.app_service_registration import (
-    AppServiceRegistration,
-    is_live,
-)
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.fields.spec import FieldType
 from app.services.marketplace.app_refs import ensure_app_guild_ref
 from app.services.marketplace.context_jwt import mint_context_token
+from app.services.marketplace.registration_lookup import (
+    RegistrationSnapshot,
+    load_registrations,
+    service_public_id,
+)
 from app.services.query.rows import RowColumn
-from app.services.marketplace.service_apps import clears_visibility
+from app.services.marketplace.service_apps import is_admin_only
 from app.services.safe_http import build_validated_request
 from app.services.tenant import app_config as app_config_service
 from app.services.webhook_target_url import (
@@ -81,6 +86,8 @@ from app.services.webhook_target_url import (
 )
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 __all__ = [
     "MAX_INFLIGHT_PER_APP",
@@ -91,6 +98,8 @@ __all__ = [
     "REQUEST_TIMEOUT_SECONDS",
     "AppDataError",
     "AppDataResult",
+    "CallingApp",
+    "cached_call",
     "clear_app_data_cache",
     "fetch_app_source",
     "find_param",
@@ -98,7 +107,6 @@ __all__ = [
     "row_columns",
     "project_returns",
     "resolve_param_options",
-    "service_public_id",
     "validate_params",
 ]
 
@@ -159,18 +167,6 @@ class AppDataResult:
 
 
 # --- reading the pinned definition ------------------------------------------
-
-
-def service_public_id(definition: Mapping[str, Any] | None) -> Optional[str]:
-    """Which app service backs this install, per its pinned definition."""
-    body = definition or {}
-    if body.get("app_kind") != "service":
-        return None
-    service = body.get("service")
-    if not isinstance(service, dict):
-        return None
-    public_id = service.get("public_id")
-    return public_id if isinstance(public_id, str) and public_id else None
 
 
 def _endpoints(definition: Mapping[str, Any] | None) -> list[dict[str, Any]]:
@@ -426,7 +422,8 @@ async def _resolve_connections(
     *,
     app: GuildApp,
     endpoint: Mapping[str, Any],
-    user_id: int,
+    user_id: int | None,
+    actor: str | None = None,
 ) -> dict[str, str]:
     """Decide whether this endpoint can run, and collect the handles it runs with.
 
@@ -438,14 +435,21 @@ async def _resolve_connections(
     is answered for the caller, so a colleague who has connected sees data while
     someone who has not is told to connect rather than being served the other
     person's view.
+
+    ``actor`` is set on a call another app made: ``installation`` has no
+    member (``user_id`` is ``None``), so a per-member connection is never
+    satisfied, and ``member`` hands on only the member's own handles, not the
+    community's.
     """
     required, needs_all = _required_connection_ids(endpoint)
     if not required:
         return {}
 
     config = app.config or {}
-    secrets = app.config_secrets or {}
+    secret_fields = app.secret_fields or {}
     refs: dict[str, str] = {}
+    #: The connections whose handle is a member's own.
+    member_refs: set[str] = set()
     satisfied: list[str] = []
     #: The first reason a candidate failed, reported when nothing satisfies.
     refusal: AppDataError | None = None
@@ -459,6 +463,11 @@ async def _resolve_connections(
             continue
 
         if connection.get("scope") == "interactive":
+            if user_id is None:
+                refusal = refusal or AppDataError(
+                    AppDataMessages.CONNECTION_REQUIRED, 409
+                )
+                continue
             row = await _member_connection(
                 session, app_id=app.id, connection_id=connection_id, user_id=user_id
             )
@@ -467,7 +476,13 @@ async def _resolve_connections(
                     GuildAppMessages.CONNECTION_BLOCKED, 403
                 )
                 continue
-            if row is None or not app_config_service.is_satisfied(
+            # A flow's connection is usable only while it is connected: one
+            # whose refresh was refused reads as expired until it is made again.
+            usable = row is not None and (
+                row.status == "connected"
+                or not app_config_service.runs_vendor_flow(connection)
+            )
+            if not usable or not app_config_service.is_satisfied(
                 connection, row.config, row.config_secrets
             ):
                 refusal = refusal or AppDataError(
@@ -475,16 +490,22 @@ async def _resolve_connections(
                 )
                 continue
             refs[connection_id] = row.connection_ref
+            member_refs.add(connection_id)
             satisfied.append(connection_id)
             continue
 
         if not app_config_service.is_satisfied(
             connection,
             config.get(connection_id) or {},
-            secrets.get(connection_id) or {},
+            secret_fields.get(connection_id) or {},
         ):
             refusal = refusal or AppDataError(AppDataMessages.NEEDS_CONFIGURATION, 409)
             continue
+        # A guild-wide connection the app can ask a token for travels by its
+        # handle too.
+        guild_ref = (app.connection_refs or {}).get(connection_id)
+        if isinstance(guild_ref, str) and guild_ref:
+            refs[connection_id] = guild_ref
         satisfied.append(connection_id)
 
     if needs_all and len(satisfied) != len(required):
@@ -495,6 +516,8 @@ async def _resolve_connections(
     # picks the least-privileged one it recognizes. They are part of the cache
     # key either way, so an answer is only ever replayed to a caller holding the
     # same set.
+    if actor == "member":
+        return {key: ref for key, ref in refs.items() if key in member_refs}
     return refs
 
 
@@ -515,25 +538,18 @@ async def _member_connection(
 # --- the registration -------------------------------------------------------
 
 
-async def _load_registration(public_id: str) -> AppServiceRegistration:
+async def _load_registration(public_id: str) -> RegistrationSnapshot:
     """Where this app lives and whether the operator still allows it.
 
-    Read on the system engine: a registration is deployment configuration in
-    ``public`` with no request-path grant, so it is never reachable from the
-    guild session serving the request. Read per call rather than cached, so the
-    operator's kill switch takes effect on the next request in every worker.
+    Read from the registration snapshot every request path shares
+    (:mod:`app.services.marketplace.registration_lookup`), which an operator's
+    write drops at once and a replica that did not serve it reloads within its
+    TTL.
     """
-    async with db_session.SystemSessionLocal() as system_session:
-        row = (
-            await system_session.exec(
-                select(AppServiceRegistration).where(
-                    AppServiceRegistration.public_id == public_id
-                )
-            )
-        ).first()
+    row = (await load_registrations()).get(public_id)
     if row is None:
         raise AppDataError(AppDataMessages.SERVICE_NOT_REGISTERED, 404)
-    if not is_live(row):
+    if not row.live:
         raise AppDataError(AppDataMessages.SERVICE_DISABLED, 409)
     return row
 
@@ -543,7 +559,7 @@ async def _load_registration(public_id: str) -> AppServiceRegistration:
 
 @dataclass
 class _CacheEntry:
-    result: AppDataResult
+    result: Any
     expires_at: float
 
 
@@ -553,7 +569,7 @@ class _CacheEntry:
 _cache: dict[str, _CacheEntry] = {}
 #: One in-flight upstream call per key, so concurrent viewers of the same
 #: dashboard collapse into a single request instead of a thundering herd.
-_pending: dict[str, "asyncio.Future[AppDataResult]"] = {}
+_pending: dict[str, "asyncio.Future[Any]"] = {}
 #: Upstream calls currently open per app, for the per-worker cap.
 _inflight: dict[str, int] = {}
 
@@ -600,7 +616,7 @@ def _cache_key(
             {
                 "version": app.listing_version,
                 "config": app.config or {},
-                "secrets": app.config_secrets or {},
+                "secret_fields": app.secret_fields or {},
                 "refs": dict(sorted(refs.items())),
             },
             sort_keys=True,
@@ -611,22 +627,17 @@ def _cache_key(
     return f"{guild_id}:{app.id}:{endpoint_id}:{canonical_params}:{fingerprint}"
 
 
-def _cache_get(key: str) -> Optional[AppDataResult]:
+def _cache_get(key: str) -> Any:
     entry = _cache.get(key)
     if entry is None:
         return None
     if entry.expires_at <= time.monotonic():
         _cache.pop(key, None)
         return None
-    return AppDataResult(
-        rows=entry.result.rows,
-        values=entry.result.values,
-        fetched_at=entry.result.fetched_at,
-        cached=True,
-    )
+    return entry.result
 
 
-def _cache_put(key: str, result: AppDataResult, ttl: int) -> None:
+def _cache_put(key: str, result: Any, ttl: int) -> None:
     if ttl <= 0:
         return
     if len(_cache) >= MAX_CACHE_ENTRIES:
@@ -654,19 +665,18 @@ def _effective_ttl(endpoint: Mapping[str, Any]) -> int:
 ENDPOINTS_PATH = "/v1/endpoints"
 
 
-def _endpoints_url(registration: AppServiceRegistration) -> str:
+def _endpoints_url(registration: RegistrationSnapshot) -> str:
     """Where this app answers: the operator's base URL joined to the one path
     every app serves. A manifest names an endpoint; only a registration says
     where the app is."""
     return f"{registration.base_url.rstrip('/')}{ENDPOINTS_PATH}"
 
 
-async def _read_answer(
+async def _read_body(
     request: httpx.Request,
     *,
-    endpoint: Mapping[str, Any],
     transport: httpx.AsyncBaseTransport | None,
-) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+) -> dict[str, Any]:
     """Send one bounded request and read what it answered with.
 
     Read as a stream against a byte ceiling, parsed as JSON only, and refused
@@ -675,8 +685,8 @@ async def _read_answer(
     is not answering", which is true whether the service is down or talking a
     shape this build does not accept.
 
-    What the result is *made of* is the endpoint's own declaration; see
-    :func:`project_returns`.
+    The body is returned whole. What a widget reads of its result is the
+    endpoint's own declaration; see :func:`project_returns`.
     """
     timeout = httpx.Timeout(REQUEST_TIMEOUT_SECONDS, connect=REQUEST_TIMEOUT_SECONDS)
     try:
@@ -726,21 +736,53 @@ async def _read_answer(
         raise AppDataError(
             AppDataMessages.SERVICE_UNAVAILABLE, 502, "app answered without a result"
         )
-    return project_returns(result, endpoint)
+    return body
+
+
+async def _read_answer(
+    request: httpx.Request,
+    *,
+    endpoint: Mapping[str, Any],
+    transport: httpx.AsyncBaseTransport | None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """What a widget reads of one answer: its result, through the returns the
+    endpoint declares (:func:`project_returns`)."""
+    body = await _read_body(request, transport=transport)
+    return project_returns(body["result"], endpoint)
+
+
+@dataclass(frozen=True)
+class CallingApp:
+    """Another app on whose request Initiative calls this one, and for whom.
+
+    Carried into the context token (``act``, ``actor``, ``member``,
+    ``initiative_id``) so the app called knows who asked and on whose behalf.
+    """
+
+    #: The calling app's public id.
+    public_id: str
+    #: ``installation`` or ``member``.
+    actor: str
+    #: The member, by the called install's own reference for them.
+    member_ref: Optional[str] = None
+    #: The initiative the caller's token is narrowed to.
+    initiative_id: Optional[int] = None
 
 
 async def _call_app(
     *,
-    registration: AppServiceRegistration,
+    registration: RegistrationSnapshot,
     app: GuildApp,
     guild_id: int | None,
-    endpoint: Mapping[str, Any],
     endpoint_id: str,
-    params: Mapping[str, str],
+    params: Mapping[str, Any],
     refs: Mapping[str, str],
     transport: httpx.AsyncBaseTransport | None,
-) -> AppDataResult:
-    """One upstream call, under this worker's in-flight cap for the app."""
+    read: Callable[[httpx.Request], Awaitable[T]],
+    caller: Optional[CallingApp] = None,
+) -> T:
+    """One upstream call, under this worker's in-flight cap for the app, and
+    what ``read`` made of its answer. Sent once: nothing here retries."""
     if not app_platform_signing_enabled():
         raise AppDataError(AppServiceMessages.SIGNING_NOT_CONFIGURED, 503)
 
@@ -765,6 +807,10 @@ async def _call_app(
                 scope="endpoint",
                 endpoint_id=endpoint_id,
                 connection_refs=refs,
+                caller=caller.public_id if caller is not None else None,
+                actor=caller.actor if caller is not None else None,
+                member=caller.member_ref if caller is not None else None,
+                initiative_id=caller.initiative_id if caller is not None else None,
             )
         except AppPlatformSigningNotConfiguredError as exc:
             raise AppDataError(AppServiceMessages.SIGNING_NOT_CONFIGURED, 503) from exc
@@ -798,12 +844,7 @@ async def _call_app(
                 AppDataMessages.SERVICE_UNAVAILABLE, 502, f"target refused: {exc}"
             ) from exc
 
-        rows, values = await _read_answer(
-            request, endpoint=endpoint, transport=transport
-        )
-        return AppDataResult(
-            rows=rows, values=values, fetched_at=datetime.now(timezone.utc)
-        )
+        return await read(request)
     finally:
         remaining = _inflight.get(public_id, 1) - 1
         if remaining > 0:
@@ -830,17 +871,15 @@ async def fetch_app_source(
     The install has already been loaded under the caller's own guild session, so
     the guild boundary and a guild admin's wider reach are settled before this
     runs. What is decided here is the app's own vocabulary: the endpoint exists,
-    the caller is allowed to see it, both kill switches are open, the parameters
-    are ones the endpoint declared, and the credentials it named are present.
+    the caller may read it, both kill switches are open, the parameters are ones
+    the endpoint declared, and the credentials it named are present.
     """
     endpoint = find_read_endpoint(app.definition, endpoint_id)
     public_id = service_public_id(app.definition)
     if endpoint is None or public_id is None:
         raise AppDataError(AppDataMessages.ENDPOINT_NOT_FOUND, 404)
 
-    # Measured against the same ladder a manifest declares on, so the two
-    # cannot come to mean different things.
-    if not clears_visibility(endpoint.get("visibility"), is_guild_admin=is_guild_admin):
+    if is_admin_only(endpoint) and not is_guild_admin:
         raise AppDataError(AppDataMessages.ADMIN_ONLY, 403)
     if not app.enabled:
         raise AppDataError(AppDataMessages.APP_DISABLED, 409)
@@ -858,30 +897,58 @@ async def fetch_app_source(
         canonical_params=canonical,
         refs=refs,
     )
-    cached = _cache_get(key)
-    if cached is not None:
-        return cached
+
+    async def read(
+        request: httpx.Request,
+    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        return await _read_answer(request, endpoint=endpoint, transport=transport)
+
+    async def call() -> AppDataResult:
+        rows, values = await _call_app(
+            registration=registration,
+            app=app,
+            guild_id=routed_guild_id(session),
+            endpoint_id=endpoint_id,
+            params=params,
+            refs=refs,
+            transport=transport,
+            read=read,
+        )
+        return AppDataResult(
+            rows=rows, values=values, fetched_at=datetime.now(timezone.utc)
+        )
+
+    result, cached = await cached_call(key, _effective_ttl(endpoint), call)
+    if cached:
+        return replace(result, cached=True)
+    return result
+
+
+async def cached_call(
+    key: str, ttl: int, call: Callable[[], Awaitable[T]]
+) -> tuple[T, bool]:
+    """``call``'s answer through the response cache, and whether it came from
+    there.
+
+    A stored answer is reused until ``ttl`` runs out, and concurrent callers
+    with the same ``key`` share one upstream call. ``key`` must contain every
+    credential the answer depended on (:func:`_cache_key`).
+    """
+    hit = _cache_get(key)
+    if hit is not None:
+        return hit, True
 
     pending = _pending.get(key)
     if pending is not None:
         # Someone is already asking this exact question with these exact
         # credentials. Wait for their answer rather than making a second call.
-        return await asyncio.shield(pending)
+        return await asyncio.shield(pending), False
 
     loop = asyncio.get_running_loop()
-    future: "asyncio.Future[AppDataResult]" = loop.create_future()
+    future: "asyncio.Future[Any]" = loop.create_future()
     _pending[key] = future
     try:
-        result = await _call_app(
-            registration=registration,
-            app=app,
-            guild_id=routed_guild_id(session),
-            endpoint=endpoint,
-            endpoint_id=endpoint_id,
-            params=params,
-            refs=refs,
-            transport=transport,
-        )
+        result = await call()
     except BaseException as exc:  # noqa: BLE001 - re-raised after the handoff
         if not future.done():
             future.set_exception(exc)
@@ -892,8 +959,8 @@ async def fetch_app_source(
     else:
         if not future.done():
             future.set_result(result)
-        _cache_put(key, result, _effective_ttl(endpoint))
-        return result
+        _cache_put(key, result, ttl)
+        return result, False
     finally:
         _pending.pop(key, None)
 
@@ -918,9 +985,9 @@ async def fetch_app_source(
 # * the parameters that source is called with are the ones its ``needs`` names,
 #   mapped from answers the same form already holds, so a caller cannot shape
 #   the upstream request;
-# * the source's own ``visibility`` is enforced by ``fetch_app_source`` exactly
-#   as it is for a placed tile, on the caller's own credentials. What comes back
-#   is what this caller may see, or nothing.
+# * the source is fetched by ``fetch_app_source`` exactly as it is for a placed
+#   tile, on the caller's own credentials and with its own ``admin_only``
+#   enforced. What comes back is what this caller may see, or nothing.
 
 #: The most values one menu hands back. A picker is a control somebody reads,
 #: and an app answering with thousands is answering a different question.
@@ -1030,6 +1097,9 @@ async def resolve_param_options(
     endpoint = find_read_endpoint(app.definition, endpoint_id)
     if endpoint is None:
         raise AppDataError(AppDataMessages.ENDPOINT_NOT_FOUND, 404)
+    # A form for an endpoint the caller may not read is not theirs to fill in.
+    if is_admin_only(endpoint) and not is_guild_admin:
+        raise AppDataError(AppDataMessages.ADMIN_ONLY, 403)
 
     param = find_param(endpoint, param_key)
     if param is None:

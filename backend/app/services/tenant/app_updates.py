@@ -12,6 +12,21 @@ the worse default: a fix reaches the guild without anyone having to notice it
 exists. Turning it off is a guild's own answer to "we read each version first",
 and the manual Update button then does exactly what this sweep would have.
 
+**A version that asks for more waits.** Asking for more is a grantable scope
+neither the install's grant nor its pinned version already names, or a surface
+inside initiatives the pinned version does not have. The sweep does not apply
+such a version: it records it as ``pending_version`` and tells the community's
+seat once, and the install keeps running its pinned version with its current
+grant. The seat accepts it from the Update button, adding the scopes it
+consents to, or declines it, which stops the asking until a newer version is
+published. A version asking for nothing new applies as before.
+
+**A required app does not wait.** The deployment's registration is what
+installed it and granted what it requests within the ceiling, with no seat
+asked; its newer versions are applied the same way, adding the new scopes
+within the ceiling. A community with no seat holder would otherwise keep a
+required app on a version it can no longer serve.
+
 What survives an upgrade is the same either way. Stored configuration is pruned
 to what the new definition still declares — a value cannot outlive the field it
 was typed into — and a connection the new version dropped is *revoked* rather
@@ -22,16 +37,17 @@ bought it.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Any, Iterable, Optional
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.session import routed_guild_id
-from app.db.session import SystemSessionLocal, set_rls_context
-from app.models.platform.guild import Guild, GuildStatus
+from app.db.session import set_rls_context
+from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.notification import NotificationType
 from app.models.tenant.guild_app import GuildApp
+from app.services.marketplace import app_installs, registration_lookup
 from app.services.marketplace.definitions import GUILD_INSTALLABLE_APP_KINDS
 from app.services.marketplace.installs import (
     ListingInstallError,
@@ -40,22 +56,30 @@ from app.services.marketplace.installs import (
 from app.services.tenant import app_config as app_config_service
 from app.services.tenant import app_connections as connections_service
 from app.services.tenant import app_revocation as revocation_service
+from app.services.tenant import app_schedules
 from app.services.tenant import guild_apps as guild_apps_service
+from app.db.request_context import Unattributed
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "AUTO_UPDATE_POLL_SECONDS",
+    "AskedUpdate",
     "PendingUpdate",
+    "UPDATES_TARGET_PATH",
+    "UpdateOffer",
+    "UpgradeAsks",
     "apply_version",
+    "decline_version",
+    "notify_pending_updates",
+    "update_offer",
     "update_version",
-    "process_app_auto_updates",
+    "upgrade_asks",
+    "update_guild",
 ]
 
-#: How often the sweep runs. An hour rather than minutes: a published version
-#: reaching every guild within the hour is what "automatic" needs to mean, and
-#: the pass costs one catalog read per installed listing per guild.
-AUTO_UPDATE_POLL_SECONDS = 3600
+#: Where the seat answers a pending version, inside the community: the
+#: integrations settings, which list every app with its updates.
+UPDATES_TARGET_PATH = "/settings/integrations"
 
 
 @dataclass(frozen=True)
@@ -64,6 +88,75 @@ class PendingUpdate:
 
     version: str
     definition: dict
+
+
+@dataclass(frozen=True)
+class UpgradeAsks:
+    """What a version asks for that the install does not already have.
+
+    ``added_scopes`` are grantable scopes (requested and within the ceiling)
+    that neither the install's grant nor its pinned version names, in
+    vocabulary order. A scope the pinned version already requested and the
+    seat left out is not new: the seat has answered it. ``added_surfaces``
+    are the surfaces rendering inside initiatives that the pinned version does
+    not have, as ``{"id", "name"}``.
+    """
+
+    added_scopes: tuple[str, ...] = ()
+    added_surfaces: tuple[dict[str, Any], ...] = field(default=())
+
+    @property
+    def asks_more(self) -> bool:
+        return bool(self.added_scopes or self.added_surfaces)
+
+
+def upgrade_asks(
+    app: GuildApp, definition: dict, ceiling: Iterable[str]
+) -> UpgradeAsks:
+    """What moving ``app`` to ``definition`` would ask the seat for."""
+    held = set(app.granted_scopes or ()) | set(
+        guild_apps_service.requested_scopes(app.definition)
+    )
+    added_scopes = tuple(
+        scope
+        for scope in guild_apps_service.grantable_scopes(definition, ceiling)
+        if scope not in held
+    )
+    current = guild_apps_service.initiative_surface_ids(app.definition)
+    added_surfaces = tuple(
+        {"id": embed["id"], "name": embed.get("name") or {}}
+        for embed in guild_apps_service.declared_surfaces(definition)
+        if guild_apps_service.surface_renders_in(embed, "initiative")
+        and embed["id"] not in current
+    )
+    return UpgradeAsks(added_scopes=added_scopes, added_surfaces=added_surfaces)
+
+
+async def _ceiling(definition: dict) -> tuple[str, ...]:
+    """The registration's ceiling for the service a definition names, or none."""
+    registration = await registration_lookup.registration_for_definition(definition)
+    return tuple(registration.scope_ceiling) if registration is not None else ()
+
+
+@dataclass(frozen=True)
+class UpdateOffer:
+    """The version an install could move to, and what it would ask for."""
+
+    update: "PendingUpdate"
+    asks: UpgradeAsks
+
+    @property
+    def version(self) -> str:
+        return self.update.version
+
+
+async def update_offer(session: AsyncSession, app: GuildApp) -> Optional[UpdateOffer]:
+    """What the catalog offers this install and what taking it asks, or ``None``."""
+    pending = await _resolve_pending(session, app)
+    if pending is None:
+        return None
+    asks = upgrade_asks(app, pending.definition, await _ceiling(pending.definition))
+    return UpdateOffer(update=pending, asks=asks)
 
 
 async def update_version(session: AsyncSession, app: GuildApp) -> Optional[str]:
@@ -102,7 +195,12 @@ async def _resolve_pending(
 
 
 async def apply_version(
-    session: AsyncSession, app: GuildApp, pending: PendingUpdate
+    session: AsyncSession,
+    app: GuildApp,
+    pending: PendingUpdate,
+    *,
+    guild_id: int,
+    add_scopes: Iterable[str] = (),
 ) -> GuildApp:
     """Re-pin one install to a newer version of its listing.
 
@@ -112,28 +210,33 @@ async def apply_version(
     same way, so no member is left holding vendor access this build no longer
     has a form for.
 
+    ``add_scopes`` are the scopes the seat consented to with this version,
+    already checked by the caller against the manifest and the ceiling. They
+    join the grant; nothing is taken out of it here, because what a token
+    carries is the grant intersected with what the pinned version requests.
+
     The caller commits — an upgrade is one transaction with whatever else it is
     part of — and drains the queued revocations afterwards, so an app is told a
     credential is finished only once the write that finished it is durable.
     """
     definition = pending.definition
+    previous = app.definition
+    added = set(add_scopes)
+    if added - set(app.granted_scopes or ()):
+        app.granted_scopes = sorted(set(app.granted_scopes or ()) | added)
+    # Whatever was waiting or declined was a question about an older version
+    # than the one this install is now on.
+    app.pending_version = None
+    app.declined_version = None
 
-    config, config_secrets, dropped = app_config_service.prune_to_definition(
-        definition, app.config, app.config_secrets
+    stored_secrets = await guild_apps_service.load_secrets(session, app)
+    config, secrets, dropped = app_config_service.prune_to_definition(
+        definition, app.config, stored_secrets
     )
-    for connection_id in sorted(dropped):
-        revocation_service.queue_revocation(
-            session,
-            revocation_service.RevocationIntent(
-                guild_id=routed_guild_id(session),
-                app_id=app.id,
-                listing_uid=app.listing_uid,
-                connection_id=connection_id,
-                reason="upgraded",
-            ),
-        )
+    revocation_service.queue_install_revocations(
+        session, app, dropped, secrets=stored_secrets, reason="upgraded"
+    )
     app.config = config
-    app.config_secrets = config_secrets
     app.definition = definition
     app.listing_version = pending.version
     # The app has not seen the new configuration shape yet, so whatever it said
@@ -142,6 +245,7 @@ async def apply_version(
     app.config_state_detail = None
     guild_apps_service.touch(app)
     session.add(app)
+    await guild_apps_service.store_secrets(session, app, secrets)
 
     surviving = {
         connection.get("id")
@@ -155,14 +259,81 @@ async def apply_version(
                 connection_id=row.connection_id,
                 user_id=row.user_id,
                 reason="upgraded",
+                definition=previous,
             )
+    # The new version may route its webhooks by another value, or have
+    # dropped the connection that held it.
+    await app_installs.record(guild_id, app)
     return app
+
+
+def decline_version(app: GuildApp, version: str) -> None:
+    """Keep the pinned version, and stop asking about ``version``.
+
+    A newer version than this one is asked about afresh.
+    """
+    app.declined_version = version
+    app.pending_version = None
+    guild_apps_service.touch(app)
 
 
 # --- the sweep --------------------------------------------------------------
 
 
-async def _update_guild(session: AsyncSession, guild_id: int) -> int:
+@dataclass(frozen=True)
+class AskedUpdate:
+    """A version the sweep recorded as pending, for the seat to be told."""
+
+    app_id: int
+    app_name: str
+    version: str
+
+
+async def notify_pending_updates(
+    session: AsyncSession, guild_id: int, asked: Iterable[AskedUpdate]
+) -> None:
+    """Tell the community's seat holders that versions are waiting for them.
+
+    One line per version per holder, in the approvals category. Runs out of
+    the community's schema, on the bell's own rows in ``public``; the caller
+    commits.
+    """
+    from app.services.platform import user_notifications
+
+    waiting = list(asked)
+    if not waiting:
+        return
+    await set_rls_context(session, Unattributed())
+    holders = (
+        await session.exec(
+            select(GuildMembership.user_id).where(
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.role == GuildRole.superadmin,
+            )
+        )
+    ).all()
+    for user_id in holders:
+        for one in waiting:
+            await user_notifications.create_notification(
+                session,
+                user_id=user_id,
+                notification_type=NotificationType.app_update_pending,
+                data={
+                    "guild_id": guild_id,
+                    "app_id": one.app_id,
+                    "app_name": one.app_name,
+                    "version": one.version,
+                    "target_path": UPDATES_TARGET_PATH,
+                },
+            )
+
+
+async def _update_guild(
+    session: AsyncSession,
+    guild_id: int,
+    *,
+    asked: Optional[list[AskedUpdate]] = None,
+) -> int:
     """Apply what the catalog offers to one guild's tracking installs.
 
     Runs on a session already routed into that guild. A disabled install is
@@ -179,6 +350,12 @@ async def _update_guild(session: AsyncSession, guild_id: int) -> int:
     ``auto_update`` is read again under the lock, so a guild that opted out in
     the meantime is not updated one last time. An edit arriving while the lock
     is held waits and then applies on top, which is the order it happened in.
+
+    A version that asks for more is not applied. It is recorded as the
+    install's ``pending_version`` and appended to ``asked`` the first time it
+    is seen, so the caller can tell the seat once it has committed. A version
+    the seat declined, or one already pending, is passed over quietly.
+    Returns how many installs were moved.
     """
     candidates = (
         await session.exec(
@@ -198,11 +375,58 @@ async def _update_guild(session: AsyncSession, guild_id: int) -> int:
         # Gone, or no longer tracking, since the scan.
         if app is None or not app.auto_update:
             continue
-        pending = await _resolve_pending(session, app)
-        if pending is None:
+        offer = await update_offer(session, app)
+        if offer is None:
+            continue
+        pending = offer.update
+        mandatory = (await registration_lookup.install_state(app.definition)).mandatory
+        if offer.asks.asks_more and mandatory:
+            # The registration stands in for the seat, as at install.
+            from_version = app.listing_version
+            await apply_version(
+                session,
+                app,
+                pending,
+                guild_id=guild_id,
+                add_scopes=offer.asks.added_scopes,
+            )
+            await app_schedules.reconcile(
+                guild_id, app.id, app.definition, session=session
+            )
+            applied += 1
+            logger.info(
+                "app auto-update: guild=%s app=%s listing=%s required, %s -> %s",
+                guild_id,
+                app.id,
+                app.listing_uid,
+                from_version,
+                pending.version,
+            )
+            continue
+        if offer.asks.asks_more:
+            if pending.version not in (app.pending_version, app.declined_version):
+                app.pending_version = pending.version
+                guild_apps_service.touch(app)
+                session.add(app)
+                if asked is not None:
+                    asked.append(
+                        AskedUpdate(
+                            app_id=app.id,
+                            app_name=app.name,
+                            version=pending.version,
+                        )
+                    )
+                logger.info(
+                    "app auto-update: guild=%s app=%s listing=%s %s waits for the seat",
+                    guild_id,
+                    app.id,
+                    app.listing_uid,
+                    pending.version,
+                )
             continue
         from_version = app.listing_version
-        await apply_version(session, app, pending)
+        await apply_version(session, app, pending, guild_id=guild_id)
+        await app_schedules.reconcile(guild_id, app.id, app.definition, session=session)
         applied += 1
         logger.info(
             "app auto-update: guild=%s app=%s listing=%s %s -> %s",
@@ -215,49 +439,38 @@ async def _update_guild(session: AsyncSession, guild_id: int) -> int:
     return applied
 
 
-async def _update_all_guilds(session: AsyncSession) -> None:
-    """One pass over every guild that is taking writes.
+async def update_guild(session: AsyncSession, guild_id: int) -> None:
+    """The sweep's visit to one guild, on a session routed into it.
 
-    Guilds are enumerated on the system engine, then each is visited in its own
-    schema as a guild admin — ``SET ROLE`` drops the system engine's bypass, so
-    the admin context is what carries the write. Only ``active`` guilds are
-    swept: a guild on hold is frozen, and a background re-pin is still a change
-    to what its members see.
+    Run by the hourly pass: a published version reaching every guild within
+    the hour is what "automatic" needs to mean, and a visit costs one catalog
+    read per installed listing. Only ``active`` guilds are visited: a guild on
+    hold is frozen, and a background re-pin is still a change to what its
+    members see.
     """
-    await set_rls_context(session)
-    guild_ids = list(
-        await session.exec(
-            select(Guild.id)
-            .where(Guild.status == GuildStatus.active.value)
-            .order_by(Guild.id.asc())
-        )
-    )
-    for guild_id in guild_ids:
-        # Ids collide across schemas, so the identity map is cleared between
-        # guilds rather than carried into the next one.
-        session.expunge_all()
-        await set_rls_context(session, guild_id=guild_id)
+    asked: list[AskedUpdate] = []
+    try:
+        await _update_guild(session, guild_id, asked=asked)
+        await session.commit()
+    except Exception:
+        # The queued revocations are dropped with the writes they belonged
+        # to: nothing was taken away, so there is nothing to tell an app.
+        revocation_service.drain_revocations(session)
+        raise
+    # After the commit, always: an app is told a credential is finished only
+    # once the write that finished it is durable.
+    intents = revocation_service.drain_revocations(session)
+    if intents:
+        await revocation_service.dispatch_revocations(intents)
+    # The versions now waiting are durable, so the seat is told about them. A
+    # bell that cannot be written is logged: the version stays pending on the
+    # install and the settings page still shows it.
+    if asked:
         try:
-            await _update_guild(session, guild_id)
+            await notify_pending_updates(session, guild_id, asked)
             await session.commit()
         except Exception:
-            # One guild's bad install must not cost every later guild its pass.
-            # The queued revocations are dropped with the writes they belonged
-            # to: nothing was taken away, so there is nothing to tell an app.
-            logger.exception("app auto-update: guild %s failed", guild_id)
+            logger.exception(
+                "app auto-update: guild %s seat could not be told", guild_id
+            )
             await session.rollback()
-            revocation_service.drain_revocations(session)
-            continue
-        # After the commit, always: an app is told a credential is finished
-        # only once the write that finished it is durable.
-        intents = revocation_service.drain_revocations(session)
-        if intents:
-            await revocation_service.dispatch_revocations(intents)
-
-
-async def process_app_auto_updates() -> None:
-    """One pass of the auto-update loop. Idempotent, and quiet when nothing is
-    due — an install already on the version the catalog offers resolves to
-    nothing to do."""
-    async with SystemSessionLocal() as session:
-        await _update_all_guilds(session)

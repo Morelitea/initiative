@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { DocumentReadDocumentType } from "@/api/generated/initiativeAPI.schemas";
+import type { DocumentType } from "@/api/generated/initiativeAPI.schemas";
 import type { WhiteboardScene } from "@/components/documents/WhiteboardDocumentEditor";
 import { DOCUMENT_TYPE_FORMATS } from "@/components/exports/formats";
 import type { ToolExportOptions } from "@/components/tools/settings/ToolSettingsContext";
@@ -16,7 +16,7 @@ import { exportFilenameStem } from "@/lib/exportDownload";
  * handles the importable JSON.
  */
 export function useDocumentExportOptions(
-  documentType: DocumentReadDocumentType,
+  documentType: DocumentType,
   title: string,
   whiteboardScene?: WhiteboardScene
 ): ToolExportOptions {

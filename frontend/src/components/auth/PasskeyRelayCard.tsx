@@ -18,9 +18,11 @@ import { signInWithPasskey } from "@/lib/passkeys";
 export interface PasskeyRelayCardProps {
   /** What to call the phone the app is running on, for the sign-in record. */
   deviceName: string;
+  /** The app's challenge, which the code handed back to it is bound to. */
+  codeChallenge: string;
 }
 
-export const PasskeyRelayCard = ({ deviceName }: PasskeyRelayCardProps) => {
+export const PasskeyRelayCard = ({ deviceName, codeChallenge }: PasskeyRelayCardProps) => {
   const { t } = useTranslation(["auth", "common", "errors"]);
   const [busy, setBusy] = useState(false);
   // The ceremony is done and the app has been handed the way back.
@@ -32,7 +34,7 @@ export const PasskeyRelayCard = ({ deviceName }: PasskeyRelayCardProps) => {
     setBusy(true);
     setError(null);
     try {
-      const result = await signInWithPasskey({ mobile: true, deviceName });
+      const result = await signInWithPasskey({ mobile: true, deviceName, codeChallenge });
       if (!result.redirect_to) {
         setError(t("auth:login.passkeyFailed"));
         return;

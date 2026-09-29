@@ -29,12 +29,13 @@ export const ToolSettingsAdvancedPage = () => {
   const { t } = useTranslation("common");
   const router = useRouter();
   const gp = useGuildPath();
-  const { tool, entity, isOwner, remove, advancedExtra } = useToolSettings();
+  const { tool, entity, remove, advancedExtra } = useToolSettings();
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const canArchive = canUseArchiveCard(entity);
-  const hasAnything = Boolean(advancedExtra) || isOwner || canArchive;
+  const hasAnything =
+    Boolean(advancedExtra) || entity.can.export || entity.can.delete || canArchive;
 
   const handleDelete = () => {
     remove.mutate(entity.id, {
@@ -66,7 +67,7 @@ export const ToolSettingsAdvancedPage = () => {
 
       <ToolArchiveCard />
 
-      {isOwner && (
+      {entity.can.delete && (
         <Card className="border-destructive/40 bg-destructive/5 shadow-sm">
           <CardHeader>
             <CardTitle>{t("toolSettings.dangerZone")}</CardTitle>

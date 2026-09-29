@@ -45,7 +45,6 @@ type ProjectTasksKanbanViewProps = {
   groupedTasks: Record<number, TaskListRead[]>;
   collapsedStatusIds: Set<number>;
   canReorderTasks: boolean;
-  canOpenTask: boolean;
   taskHref: (taskId: number) => string;
   priorityVariant: Record<TaskPriority, PriorityBadgeVariant>;
   sensors: DndContextProps["sensors"];
@@ -66,7 +65,6 @@ export const ProjectTasksKanbanView = ({
   groupedTasks,
   collapsedStatusIds,
   canReorderTasks,
-  canOpenTask,
   taskHref,
   priorityVariant,
   sensors,
@@ -137,7 +135,6 @@ export const ProjectTasksKanbanView = ({
                 status={status}
                 tasks={groupedTasks[status.id] ?? []}
                 canWrite={canReorderTasks}
-                canOpenTask={canOpenTask}
                 priorityVariant={priorityVariant}
                 visibleFields={visibleFields}
                 taskHref={taskHref}

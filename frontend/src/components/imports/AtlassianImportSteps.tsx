@@ -3,11 +3,11 @@ import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete,
-  useConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPost,
-  useGetImportJobApiV1GGuildIdImportsJobsJobIdGet,
-  useStartAtlassianImportApiV1GGuildIdImportsAtlassianImportPost,
-  useStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost,
+  useCancelImportJobApiV1CGuildIdImportsJobsJobIdDelete,
+  useConnectAtlassianApiV1CGuildIdImportsAtlassianConnectPost,
+  useGetImportJobApiV1CGuildIdImportsJobsJobIdGet,
+  useStartAtlassianImportApiV1CGuildIdImportsAtlassianImportPost,
+  useStartConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPost,
 } from "@/api/generated/imports/imports";
 import type {
   AtlassianConfluenceSpace,
@@ -120,7 +120,7 @@ export interface AtlassianConnectStepProps {
 export function AtlassianConnectStep({ onConnected, onUseExport }: AtlassianConnectStepProps) {
   const { t } = useTranslation("imports");
   const guildId = useActiveGuildId();
-  const connect = useConnectAtlassianApiV1GGuildIdImportsAtlassianConnectPost();
+  const connect = useConnectAtlassianApiV1CGuildIdImportsAtlassianConnectPost();
   const [siteUrl, setSiteUrl] = useState("");
   const [email, setEmail] = useState("");
   const [apiToken, setApiToken] = useState("");
@@ -234,7 +234,7 @@ export interface AtlassianExportStepProps {
 export function AtlassianExportStep({ initiatives, onStarted }: AtlassianExportStepProps) {
   const { t } = useTranslation("imports");
   const guildId = useActiveGuildId();
-  const start = useStartConfluenceExportImportApiV1GGuildIdImportsAtlassianExportPost();
+  const start = useStartConfluenceExportImportApiV1CGuildIdImportsAtlassianExportPost();
   const [file, setFile] = useState<File | null>(null);
   const [initiativeId, setInitiativeId] = useState<string>("");
   const [includeAttachments, setIncludeAttachments] = useState(true);
@@ -425,7 +425,7 @@ export function AtlassianChooseStep({
 }: AtlassianChooseStepProps) {
   const { t } = useTranslation("imports");
   const guildId = useActiveGuildId();
-  const start = useStartAtlassianImportApiV1GGuildIdImportsAtlassianImportPost();
+  const start = useStartAtlassianImportApiV1CGuildIdImportsAtlassianImportPost();
   const projectTicks = useTicks();
   const spaceTicks = useTicks();
   const [initiativeId, setInitiativeId] = useState<string>("");
@@ -581,8 +581,8 @@ export interface AtlassianFetchingStepProps {
 export function AtlassianFetchingStep({ jobId, onStaged, onStopped }: AtlassianFetchingStepProps) {
   const { t } = useTranslation("imports");
   const guildId = useActiveGuildId();
-  const cancel = useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete();
-  const jobQuery = useGetImportJobApiV1GGuildIdImportsJobsJobIdGet(guildId, jobId, {
+  const cancel = useCancelImportJobApiV1CGuildIdImportsJobsJobIdDelete();
+  const jobQuery = useGetImportJobApiV1CGuildIdImportsJobsJobIdGet(guildId, jobId, {
     query: {
       refetchInterval: (query) =>
         FETCHING.has(query.state.data?.status ?? "queued") ? FETCH_POLL_MS : false,

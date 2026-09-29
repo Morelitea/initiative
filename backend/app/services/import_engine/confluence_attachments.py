@@ -30,6 +30,7 @@ from app.services.import_engine.jira_attachments import (
     AssetBudget,
     AssetSink,
     StoredImage,
+    document_can_hold,
     file_extension,
 )
 
@@ -161,7 +162,10 @@ async def download_page_attachments(
     """
     media = PageMedia()
     for attachment in attachments:
-        if attachment.media_type in REFUSED_TYPES:
+        if attachment.media_type in REFUSED_TYPES or (
+            not attachment.is_image
+            and not document_can_hold(attachment.filename, attachment.media_type)
+        ):
             report.refused += 1
             continue
         if not documents and not attachment.is_image:

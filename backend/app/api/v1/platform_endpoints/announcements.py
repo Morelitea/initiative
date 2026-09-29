@@ -56,6 +56,7 @@ from app.schemas.platform.announcement import (
 )
 from app.services.platform import announcements as announcements_service
 from app.services.tenant.attachments import FileTooLargeError, read_upload_bounded
+from app.db.request_context import Platform
 
 router = APIRouter()
 
@@ -145,7 +146,7 @@ async def read_announcement_image(
     the caller's own platform role, like every other request-path read.
     """
     await set_rls_context(
-        session, user_id=current_user.id, platform_role=current_user.role.value
+        session, Platform(user_id=current_user.id, tier=current_user.role.value)
     )
     image = await announcements_service.read_image(session, sha256=sha256)
     if image is None:

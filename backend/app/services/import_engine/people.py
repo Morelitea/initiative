@@ -26,10 +26,16 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from sqlalchemy import delete as sa_delete
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.session import require_guild_context
+from app.models.tenant.initiative import InitiativeMember
+from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.import_engine.common import handle_key
+from app.services.tenant import initiatives as initiatives_service
+from app.services.tenant import named_people
 
 logger = logging.getLogger(__name__)
 
@@ -128,22 +134,15 @@ def initiative_member_id(
     *,
     people: PeopleMap,
     member_handles: Mapping[str, int],
-    member_ids: frozenset[int],
 ) -> int | None:
-    """Which member of the target initiative a source handle names.
+    """Which account a source handle names as somebody working on the thing:
+    an assignee, an attendee, a person property.
 
-    Two ways to answer it, and the initiative's own roster gates both:
-
-    1. The account somebody mapped this handle to in the wizard's people step.
-    2. A member whose handle is the same string.
-
-    That gate is the whole difference between this and the rule authorship
-    follows (``_comment_author`` in ``services.tenant.project_import``). Being
-    quoted as the author of a comment is a fact about the past and can be
-    recorded about anybody the community knows; being assigned a task is a
-    statement about who is working on something here, now, and only the
-    initiative's roster can answer it. So the map says *which account* a
-    handle means — it never puts somebody into an initiative they are not in.
+    The account somebody mapped this handle to in the wizard's people step,
+    else a member of the target initiative whose handle is the same string. A
+    mapped account need not be in the initiative yet: naming them on an
+    imported tool brings them in, as :func:`bring_in_named` settles once the
+    tool is written.
 
     Returns ``None`` when neither answer lands, and the caller counts the
     handle as unmatched.
@@ -151,9 +150,78 @@ def initiative_member_id(
     if not handle:
         return None
     mapped = people.user_id(handle)
-    if mapped is not None and mapped in member_ids:
+    if mapped is not None:
         return mapped
     return member_handles.get(handle_key(handle))
+
+
+async def bring_in_named(
+    session: AsyncSession, governing: named_people.Governing, *, initiative_id: int
+) -> set[int]:
+    """Let everyone an imported tool names open it, and answer who could not.
+
+    Somebody named on what an import brings in is somebody the importer means
+    to work on it. So a person outside the initiative is added to it as a
+    member, where the importer manages the initiative, and the tool is shared
+    with everyone it names at read. Anybody who still cannot open it (the
+    importer could not add them, or their role does not show the tool) is
+    taken off it, and returned.
+    """
+    named = await named_people.named_on(session, governing)
+    if not named:
+        return set()
+    members = set(
+        (
+            await session.exec(
+                select(InitiativeMember.user_id).where(
+                    InitiativeMember.initiative_id == initiative_id,
+                    InitiativeMember.user_id.in_(named),
+                )
+            )
+        ).all()
+    )
+    context = require_guild_context(session)
+    if context.is_admin or initiative_id in context.manager_initiatives:
+        role = await initiatives_service.get_member_role(
+            session, initiative_id=initiative_id
+        )
+        joining = (
+            named
+            - members
+            - await named_people.readers(session, governing, named - members)
+        )
+        session.add_all(
+            InitiativeMember(
+                initiative_id=initiative_id,
+                user_id=user_id,
+                role_id=role.id if role is not None else None,
+            )
+            for user_id in joining
+        )
+        members |= joining
+    shared = members - await named_people.readers(session, governing, members)
+    session.add_all(
+        ResourceGrant(
+            resource_type=governing.tool.value,
+            resource_id=governing.resource_id,
+            user_id=user_id,
+            level=ResourceAccessLevel.read,
+            initiative_id=initiative_id,
+        )
+        for user_id in shared
+    )
+    await session.flush()
+    gone = await named_people.sweep(session, governing)
+    if gone & shared:
+        # Shared with, and still unable to open it: the grant does nothing.
+        await session.exec(
+            sa_delete(ResourceGrant).where(
+                ResourceGrant.resource_type == governing.tool.value,
+                ResourceGrant.resource_id == governing.resource_id,
+                ResourceGrant.user_id.in_(gone & shared),
+            )
+        )
+    return gone
 
 
 def quoted_account(

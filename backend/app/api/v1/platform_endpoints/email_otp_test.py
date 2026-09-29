@@ -1,12 +1,11 @@
 """Signing in with a one-time code sent to an address."""
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.security import decode_session_token
 from app.testing import captcha_switched_on, create_user
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 SEND_URL = "/api/v1/auth/email-otp/send"
 VERIFY_URL = "/api/v1/auth/email-otp/verify"
@@ -38,8 +37,8 @@ def _catch_codes(monkeypatch) -> list[tuple[str, str]]:
     return caught
 
 
-async def _ask(client: AsyncClient, address: str) -> str:
-    response = await client.post(SEND_URL, json={"email": address})
+async def _ask(client: AsyncClient, address: str, *, native: bool = False) -> str:
+    response = await client.post(SEND_URL, json={"email": address, "native": native})
     assert response.status_code == 200, response.text
     return response.json()["challenge"]
 
@@ -243,6 +242,7 @@ async def test_a_second_factor_is_still_asked_for(
     assert await totp_service.confirm_enrolment(
         session, user_id=holder.id, code=pyotp.TOTP(enrolment.secret).now()
     )
+    recovery = await totp_service.issue_recovery_codes(session, user_id=holder.id)
     await session.commit()
 
     handle = await _ask(client, "factored@example.com")
@@ -253,6 +253,17 @@ async def test_a_second_factor_is_still_asked_for(
     assert answered.status_code == 401
     assert answered.json()["detail"] == "TOTP_REQUIRED"
     assert answered.json()["challenge"]
+
+    # The session it opens records what both legs proved: the code, not a
+    # password nobody presented.
+    finished = await client.post(
+        "/api/v1/auth/token/totp",
+        json={"challenge": answered.json()["challenge"], "recovery_code": recovery[0]},
+    )
+    assert finished.status_code == 200, finished.text
+    claims = decode_session_token(finished.json()["access_token"])
+    assert "otp" in claims["amr"] and "mfa" in claims["amr"]
+    assert "pwd" not in claims["amr"]
 
 
 async def test_proving_an_address_for_the_first_time_retires_what_came_before(
@@ -341,9 +352,11 @@ async def test_signing_in_this_way_needs_no_password(
 REGISTER_URL = "/api/v1/auth/email-otp/register"
 
 
-async def _sign_up_to_ticket(client: AsyncClient, caught, address: str) -> str:
+async def _sign_up_to_ticket(
+    client: AsyncClient, caught, address: str, *, native: bool = False
+) -> str:
     """Ask at an unheld address, answer the code, and take the ticket."""
-    handle = await _ask(client, address)
+    handle = await _ask(client, address, native=native)
     answered = await client.post(
         VERIFY_URL, json={"challenge": handle, "code": caught[-1][1]}
     )
@@ -405,6 +418,25 @@ async def test_the_ticket_makes_the_account_and_signs_it_in(
     ).scalar_one()
     # No password: the address it proved is its way in.
     assert account.hashed_password is None
+
+
+async def test_the_app_signing_up_keeps_its_session(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The app keeps its refresh token itself, so the sign-up hands it one."""
+    await _permit(session)
+    _catch_codes(monkeypatch)
+    caught = _catch_sign_ups(monkeypatch)
+    ticket = await _sign_up_to_ticket(
+        client, caught, "app-arrival@example.com", native=True
+    )
+
+    made = await client.post(
+        REGISTER_URL, json={"registration_ticket": ticket, "username": "apparrival"}
+    )
+
+    assert made.status_code == 201, made.text
+    assert made.json()["refresh_token"]
 
 
 async def test_the_address_it_proved_needs_no_confirming(

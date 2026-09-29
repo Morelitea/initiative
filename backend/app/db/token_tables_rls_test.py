@@ -17,40 +17,15 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
 from app.core.config import settings
-from app.db.public_rls import FORCED_NO_POLICY, PUBLIC_RLS
+from app.db.public_rls import FORCED_NO_POLICY, PUBLIC_RLS, SHARED_TABLE_REGISTRY
 from app.db.schema_provisioning import platform_role_name
-from app.db.system_grants import (
-    SHARED_TABLE_APP_GUILD_BASE_GRANTS,
-    SHARED_TABLE_APP_USER_GRANTS,
-    SHARED_TABLE_PLATFORM_BASE_GRANTS,
-)
 from app.models.platform.user import UserRole
-from app.testing import create_user
+from app.testing import as_role, create_user
 
-pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 PLATFORM_FLOOR = f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
 REQUEST_FLOORS = ("app_user", "app_guild_base", "app_guild_base_ro", PLATFORM_FLOOR)
 VERBS = ("SELECT", "INSERT", "UPDATE", "DELETE")
-
-
-async def _as(session, role: str, user_id: int) -> None:
-    await session.exec(
-        text(
-            "SELECT set_config('app.current_user_id', :uid, false), "
-            "set_config('role', :role, false)"
-        ),
-        params={"uid": str(user_id), "role": role},
-    )
-
-
-async def _reset(session) -> None:
-    await session.exec(
-        text(
-            "SELECT set_config('role', 'none', false), "
-            "set_config('app.current_user_id', '', false)"
-        )
-    )
 
 
 async def _user_token(session, user_id: int) -> None:
@@ -96,14 +71,13 @@ def test_registry_records_the_token_tables():
     platform floor's own rows and nothing of the guild floor's. The floor's
     read half reads those rows too, and writes none of them."""
     assert PUBLIC_RLS["user_tokens"] == FORCED_NO_POLICY
-    for matrix in (
-        SHARED_TABLE_APP_USER_GRANTS,
-        SHARED_TABLE_APP_GUILD_BASE_GRANTS,
-        SHARED_TABLE_PLATFORM_BASE_GRANTS,
-    ):
-        assert matrix["user_tokens"] is None
-    assert SHARED_TABLE_APP_GUILD_BASE_GRANTS["push_tokens"] is None
-    assert SHARED_TABLE_APP_USER_GRANTS["push_tokens"] is None
+    user_tokens = SHARED_TABLE_REGISTRY["user_tokens"].grants
+    assert user_tokens.app_user is None
+    assert user_tokens.app_guild_base is None
+    assert user_tokens.platform_base is None
+    push_tokens = SHARED_TABLE_REGISTRY["push_tokens"].grants
+    assert push_tokens.app_guild_base is None
+    assert push_tokens.app_user is None
     rls = PUBLIC_RLS["push_tokens"]
     assert rls.enabled and rls.forced
     assert {p.command: p.roles for p in rls.policies} == {
@@ -152,11 +126,10 @@ async def test_user_tokens_are_unreadable_on_the_request_path(session, role):
     seen = (await session.exec(text("SELECT count(*) FROM user_tokens"))).scalar_one()
     assert seen >= 1
 
-    await _as(session, role, owner.id)
-    with pytest.raises(DBAPIError):
-        async with session.begin_nested():
-            await session.exec(text("SELECT token FROM user_tokens"))
-    await _reset(session)
+    async with as_role(session, role, owner.id):
+        with pytest.raises(DBAPIError):
+            async with session.begin_nested():
+                await session.exec(text("SELECT token FROM user_tokens"))
 
 
 async def test_the_guild_floors_hold_nothing_on_push_tokens(session):
@@ -172,11 +145,10 @@ async def test_the_guild_floors_hold_nothing_on_push_tokens(session):
 
     owner = await create_user(session)
     await _push_token(session, owner.id, "fcm-guild-floor")
-    await _as(session, "app_guild_base", owner.id)
-    with pytest.raises(DBAPIError):
-        async with session.begin_nested():
-            await session.exec(text("SELECT push_token FROM push_tokens"))
-    await _reset(session)
+    async with as_role(session, "app_guild_base", owner.id):
+        with pytest.raises(DBAPIError):
+            async with session.begin_nested():
+                await session.exec(text("SELECT push_token FROM push_tokens"))
 
 
 async def test_a_platform_tier_reaches_only_its_own_push_tokens(session):
@@ -188,59 +160,60 @@ async def test_a_platform_tier_reaches_only_its_own_push_tokens(session):
 
     for tier in UserRole:
         mine = f"fcm-mine-{tier.value}"
-        await _as(session, platform_role_name(tier.value), me.id)
-        async with session.begin_nested():
-            await _push_token(session, me.id, mine)
-            # The registration upsert: conflicts on its own row and returns it.
-            upserted = (
-                await session.exec(
-                    text(
-                        "INSERT INTO push_tokens "
-                        "(user_id, push_token, platform, created_at, updated_at) "
-                        "VALUES (:u, :t, 'ios', now(), now()) "
-                        "ON CONFLICT (user_id, push_token) "
-                        "DO UPDATE SET platform = EXCLUDED.platform "
-                        "RETURNING platform"
-                    ),
-                    params={"u": me.id, "t": mine},
-                )
-            ).scalar_one()
-            assert upserted == "ios"
-
-            visible = {
-                row[0]
-                for row in (
-                    await session.exec(text("SELECT user_id FROM push_tokens"))
-                ).all()
-            }
-            assert visible == {me.id}, tier
-
-            touched = (
-                await session.exec(
-                    text("DELETE FROM push_tokens WHERE push_token = 'fcm-theirs'")
-                )
-            ).rowcount
-            assert touched == 0, tier
-            touched = (
-                await session.exec(
-                    text("UPDATE push_tokens SET platform = 'x' WHERE user_id = :u"),
-                    params={"u": other.id},
-                )
-            ).rowcount
-            assert touched == 0, tier
-
-            removed = (
-                await session.exec(
-                    text("DELETE FROM push_tokens WHERE push_token = :t"),
-                    params={"t": mine},
-                )
-            ).rowcount
-            assert removed == 1, tier
-
-        with pytest.raises(DBAPIError):
+        async with as_role(session, platform_role_name(tier.value), me.id):
             async with session.begin_nested():
-                await _push_token(session, other.id, f"fcm-for-them-{tier.value}")
-        await _reset(session)
+                await _push_token(session, me.id, mine)
+                # The registration upsert: conflicts on its own row and returns it.
+                upserted = (
+                    await session.exec(
+                        text(
+                            "INSERT INTO push_tokens "
+                            "(user_id, push_token, platform, created_at, updated_at) "
+                            "VALUES (:u, :t, 'ios', now(), now()) "
+                            "ON CONFLICT (user_id, push_token) "
+                            "DO UPDATE SET platform = EXCLUDED.platform "
+                            "RETURNING platform"
+                        ),
+                        params={"u": me.id, "t": mine},
+                    )
+                ).scalar_one()
+                assert upserted == "ios"
+
+                visible = {
+                    row[0]
+                    for row in (
+                        await session.exec(text("SELECT user_id FROM push_tokens"))
+                    ).all()
+                }
+                assert visible == {me.id}, tier
+
+                touched = (
+                    await session.exec(
+                        text("DELETE FROM push_tokens WHERE push_token = 'fcm-theirs'")
+                    )
+                ).rowcount
+                assert touched == 0, tier
+                touched = (
+                    await session.exec(
+                        text(
+                            "UPDATE push_tokens SET platform = 'x' WHERE user_id = :u"
+                        ),
+                        params={"u": other.id},
+                    )
+                ).rowcount
+                assert touched == 0, tier
+
+                removed = (
+                    await session.exec(
+                        text("DELETE FROM push_tokens WHERE push_token = :t"),
+                        params={"t": mine},
+                    )
+                ).rowcount
+                assert removed == 1, tier
+
+            with pytest.raises(DBAPIError):
+                async with session.begin_nested():
+                    await _push_token(session, other.id, f"fcm-for-them-{tier.value}")
 
     theirs = (
         await session.exec(

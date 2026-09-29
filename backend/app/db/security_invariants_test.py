@@ -27,22 +27,15 @@ import pytest
 from sqlalchemy import text
 
 from app.core.config import settings
+from app.models.platform.user import UserRole
 from app.db.user_columns import (
     GUILD_MEMBER_PROFILE_COLUMNS,
     PUBLIC_PROFILE_COLUMNS,
     PUBLISHED_COLUMNS,
 )
-from app.db.public_rls import PUBLIC_RLS
-from app.db.system_grants import (
-    SHARED_TABLE_APP_GUILD_BASE_GRANTS,
-    SHARED_TABLE_APP_SUPERADMIN_GRANTS,
-    SHARED_TABLE_APP_USER_GRANTS,
-    SHARED_TABLE_PLATFORM_BASE_GRANTS,
-    SHARED_TABLE_SYSTEM_GRANTS,
-    tier_table_grants,
-)
+from app.db.public_rls import PUBLIC_RLS, role_name
+from app.db.system_grants import ROLE_GRANTS, tier_table_grants
 
-pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 # Shared tables that carry (FORCEd) row-level security: what the registry in
 # app.db.public_rls says is on. The catalog is the other side of the check.
@@ -63,11 +56,7 @@ async def _materialize_lazy_shared_tables():
 
 def _app_role_family() -> list[str]:
     """The fixed app roles plus this worker's prefixed platform ladder."""
-    from app.db.schema_provisioning import (
-        PLATFORM_TIERS,
-        billing_role_name,
-        platform_role_name,
-    )
+    from app.db.schema_provisioning import billing_role_name, platform_role_name
 
     return [
         "app_user",
@@ -75,7 +64,8 @@ def _app_role_family() -> list[str]:
         "app_guild_base",
         f"{settings.PLATFORM_ROLE_PREFIX}platform_base",
         "app_superadmin",
-        *(platform_role_name(t) for t in PLATFORM_TIERS),
+        "app_install_base",
+        *(platform_role_name(t.value) for t in UserRole),
         billing_role_name(),
     ]
 
@@ -134,53 +124,23 @@ def _assert_matrix(role: str, live: dict[str, set[str]], matrix) -> None:
         )
     assert live == {}, (
         f"shared tables with {role} grants but no decision in the "
-        f"app/db/system_grants.py registry (add an entry there, and have the "
+        f"app/db/public_rls.py registry (add it to the table's Grants, and have the "
         f"migration's GRANT/REVOKE match it): {sorted(live)}"
     )
 
 
-async def test_app_admin_grants_match_audited_matrix(engine):
-    live = await _table_grants_for(engine, "app_admin")
-    _assert_matrix("app_admin", live, SHARED_TABLE_SYSTEM_GRANTS)
+@pytest.mark.parametrize("role", sorted(ROLE_GRANTS))
+async def test_role_grants_match_the_registry(engine, role):
+    """Each role's reach into ``public`` is what the registry says.
 
-
-async def test_app_user_grants_match_audited_matrix(engine):
-    live = await _table_grants_for(engine, "app_user")
-    _assert_matrix("app_user", live, SHARED_TABLE_APP_USER_GRANTS)
-
-
-async def test_app_guild_base_grants_match_audited_matrix(engine):
-    """The guild floor's reach into ``public`` is what the registry says.
-
-    ``app_guild_base`` is what every ``guild_<id>`` role inherits, and it is
-    granted by the schema default rather than table by table — so this is the
-    check that a shared table added later has had its reach decided (an entry
-    in the registry, and a ``REVOKE`` in the migration where that entry says
-    ``None``) instead of inherited."""
-    live = await _table_grants_for(engine, "app_guild_base")
-    _assert_matrix("app_guild_base", live, SHARED_TABLE_APP_GUILD_BASE_GRANTS)
-
-
-async def test_platform_base_grants_match_audited_matrix(engine):
-    """The platform floor's reach into ``public`` is what the registry says.
-
-    ``platform_base`` is what every ``platform_<tier>`` role inherits, and like
-    the guild floor it is granted by the schema default rather than table by
-    table — so this is the check that a shared table added later has had its
-    reach decided instead of inherited."""
-    live = await _table_grants_for(
-        engine, f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
-    )
-    _assert_matrix("platform_base", live, SHARED_TABLE_PLATFORM_BASE_GRANTS)
-
-
-async def test_app_superadmin_grants_match_audited_matrix(engine):
-    """The seat floor holds what the registry says and nothing more.
-
-    ``app_superadmin`` takes no default privileges, so anything here that the
-    registry does not name arrived by a hand-written grant."""
-    live = await _table_grants_for(engine, "app_superadmin")
-    _assert_matrix("app_superadmin", live, SHARED_TABLE_APP_SUPERADMIN_GRANTS)
+    The guild and platform floors are granted by the schema default rather
+    than table by table, so for them this is the check that a shared table
+    added later has had its reach decided (a ``REVOKE`` in the migration where
+    the registry says ``None``) instead of inherited. The seat and install
+    floors take no default privileges, so anything they hold that the registry
+    does not name arrived by a hand-written grant."""
+    live = await _table_grants_for(engine, role_name(role))
+    _assert_matrix(role, live, ROLE_GRANTS[role])
 
 
 async def test_platform_tier_grants_match_the_tier_registry(engine):

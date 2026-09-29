@@ -8,6 +8,8 @@ import {
   createAccessRequestApiV1AccessGrantsPost,
   denyAccessGrantApiV1AccessGrantsGrantIdDenyPost,
   getBreakGlassRequirementsApiV1AccessGrantsBreakGlassGetQueryKey,
+  getListAccessGrantQueueApiV1AccessGrantsQueueGetQueryKey,
+  getListAccessGrantsApiV1AccessGrantsGetQueryKey,
   getReadAccessGrantLimitsApiV1AccessGrantsLimitsGetQueryKey,
   listAccessGrantQueueApiV1AccessGrantsQueueGet,
   listAccessGrantsApiV1AccessGrantsGet,
@@ -24,9 +26,6 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
-
-// Shared key prefix so any grant mutation refreshes every grant list.
-const ACCESS_GRANTS_KEY = ["access-grants"] as const;
 
 // Page size for the grant lists. The lists grow with users and usage, so they
 // load a page at a time (newest-first) with a "Load more" affordance rather
@@ -46,15 +45,22 @@ const nextOffset = (
 export const flattenGrants = (pages: AccessGrantRead[][] | undefined): AccessGrantRead[] =>
   pages?.flat() ?? [];
 
+/** Any grant mutation refreshes both lists, every filter of each. */
 function useInvalidateAccessGrants() {
   const qc = useQueryClient();
-  return () => qc.invalidateQueries({ queryKey: ACCESS_GRANTS_KEY });
+  return () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: getListAccessGrantsApiV1AccessGrantsGetQueryKey() }),
+      qc.invalidateQueries({
+        queryKey: getListAccessGrantQueueApiV1AccessGrantsQueueGetQueryKey(),
+      }),
+    ]);
 }
 
 /** The current user's own access requests, paged newest-first. */
 export const useMyAccessGrants = () =>
   useInfiniteQuery({
-    queryKey: [...ACCESS_GRANTS_KEY, "mine"],
+    queryKey: getListAccessGrantsApiV1AccessGrantsGetQueryKey(),
     queryFn: ({ pageParam }) =>
       listAccessGrantsApiV1AccessGrantsGet({
         limit: ACCESS_GRANTS_PAGE_SIZE,
@@ -71,7 +77,10 @@ export const useMyAccessGrants = () =>
  */
 export const useAccessGrantQueue = (status: string | undefined, opts?: { live?: boolean }) =>
   useInfiniteQuery({
-    queryKey: [...ACCESS_GRANTS_KEY, "queue", status ?? "all", opts?.live ? "live" : "all"],
+    queryKey: getListAccessGrantQueueApiV1AccessGrantsQueueGetQueryKey({
+      status,
+      live: opts?.live,
+    }),
     queryFn: ({ pageParam }) =>
       listAccessGrantQueueApiV1AccessGrantsQueueGet({
         status,

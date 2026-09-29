@@ -11,29 +11,61 @@ catalog, so an install describes the form it was actually configured against.
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import (
+    Annotated,
+    Any,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Sequence,
+    TYPE_CHECKING,
+    Union,
+)
 
 from pydantic import ConfigDict, Field
 
+from app.models.tenant.app_member_consent import ConsentAccess, ConsentStatus
 from app.schemas.base import SanitizedBaseModel
+from app.schemas.query import PageMeta
 from app.services.marketplace.registration_lookup import InstallState
 from app.services.tenant import app_config as app_config_service
-from app.services.tenant.guild_apps import app_artifacts
+from app.services.tenant.guild_apps import (
+    grantable_scopes,
+    requested_scopes,
+    surface_openability,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.db.guild_standing import GuildContext
 
 
 class GuildAppInstall(SanitizedBaseModel):
-    """Install a listing into this guild.
+    """Install a listing into this guild, with the seat's consent.
 
-    Names a listing and nothing else that matters: the definition comes from the
-    catalog, and the content the install creates is made server-side.
+    The definition comes from the catalog, and the content the install creates
+    is made server-side. What the request adds is the seat's answer to the
+    install dialog: what the app may reach, where it appears, and who opens it
+    there. The install, its grant and its placements are one transaction.
     """
 
     listing_uid: str = Field(max_length=14)
     #: Overrides the listing's own default for the content this creates.
     name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    #: The scopes the seat grants. Each must be one the manifest requests and
+    #: one the registration's ceiling allows, as for ``PUT …/scopes``. Left
+    #: out, nothing is granted.
+    granted_scopes: List[str] = Field(default_factory=list, max_length=64)
+    #: Where the app's initiative surfaces appear: ``"all"`` for every
+    #: initiative that exists now, or a list of this guild's initiative ids.
+    #: Left out, the app is placed nowhere.
+    placements: Union[Literal["all"], Annotated[List[int], Field(max_length=1000)]] = (
+        Field(default_factory=list)
+    )
+    #: The built-in initiative roles that may open the app in each placement,
+    #: by name (``moderator``, ``project_manager``, ``member``), resolved to
+    #: each initiative's own role of that name.
+    role_kinds: List[str] = Field(default_factory=lambda: ["moderator"], max_length=10)
 
 
 class GuildAppUpdate(SanitizedBaseModel):
@@ -43,10 +75,10 @@ class GuildAppUpdate(SanitizedBaseModel):
     #: Whether published versions are applied on their own. On until a guild
     #: admin turns it off, after which the Update button is how they land.
     auto_update: Optional[bool] = None
-    #: Which initiatives this app's initiative-scoped surfaces appear in.
-    #: ``{}`` is every one of them; ``{"initiatives": [12, 15]}`` narrows it.
-    #: Left out entirely, the current placement is untouched.
-    placement: Optional[Dict[str, Any]] = None
+    #: The initiatives this app's initiative-scoped surfaces appear in, as the
+    #: whole set: an initiative left out is no longer placed. An empty list
+    #: places the app in none. Left out entirely, placement is untouched.
+    placed_initiative_ids: Optional[List[int]] = None
 
 
 class GuildAppConfigUpdate(SanitizedBaseModel):
@@ -103,13 +135,62 @@ class GuildAppConnectionRead(SanitizedBaseModel):
     has_value: Dict[str, bool] = {}
     #: Whether everything this connection declared it needs is present.
     satisfied: bool = False
-    #: Where the app runs its vendor flow. Present on an interactive connection,
-    #: and on a guild-wide one an admin connects rather than types.
-    connect_path: Optional[str] = None
-    #: The viewer's own state on an interactive connection.
+    #: Whether the connection is established through the vendor's own flow,
+    #: which Initiative runs: always on an interactive connection, and on a
+    #: guild-wide one an admin connects rather than types.
+    runs_flow: bool = False
+    #: The viewer's own state on an interactive connection: ``pending``,
+    #: ``connected``, ``expired`` (reconnect) or ``blocked``.
     status: Optional[str] = None
     account_label: Optional[str] = None
     blocked: bool = False
+
+
+class AppPlacementRead(SanitizedBaseModel):
+    """One initiative an app is placed in, and who may open it there."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    initiative_id: int
+    #: The initiative roles allowed to open the app's surfaces here.
+    role_ids: List[int] = []
+
+
+class AppPlacementUpdate(SanitizedBaseModel):
+    """Who may open an app's surfaces in one initiative.
+
+    The whole set: a role left out is no longer allowed. Every id must be a
+    role of that initiative. An empty list places the app with no role, so
+    only guild admins open it there.
+    """
+
+    role_ids: List[int] = Field(default_factory=list, max_length=200)
+
+
+class GuildAppScopesUpdate(SanitizedBaseModel):
+    """The scopes the seat grants an install, as the whole set.
+
+    Each must be one the app's manifest requests and one this deployment
+    allows the app. An empty list withdraws every grant.
+    """
+
+    granted: List[str] = Field(default_factory=list, max_length=64)
+
+
+class AppSurfaceAccessRead(SanitizedBaseModel):
+    """Where the viewer may open one of an app's surfaces.
+
+    Computed on the server by the same decision the handoff makes, so the
+    client offers exactly the doors that open.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    surface_id: str
+    #: Whether the viewer may open it at the community level.
+    openable_guild_wide: bool = False
+    #: The initiatives the viewer may open it in.
+    openable_initiatives: List[int] = []
 
 
 class GuildAppRead(SanitizedBaseModel):
@@ -156,11 +237,19 @@ class GuildAppRead(SanitizedBaseModel):
     #: definition describes the form, and what was typed into it lives in
     #: columns nothing here reads.
     definition: Dict[str, Any] = {}
-    #: Which initiatives this app's initiative-scoped surfaces appear in, as the
-    #: guild's admins set it. ``{}`` — the default — is every one of them.
-    #: Placement rather than permission: it is the guild's own answer to where
-    #: an app belongs, so it reads the same for everyone.
-    placement: Dict[str, Any] = {}
+    #: The initiatives this app's initiative-scoped surfaces appear in, as the
+    #: seat set them, each with the roles allowed to open it there. An
+    #: initiative not listed is one the app does not appear in. Placement
+    #: rather than permission: it is the community's own answer to where an
+    #: app belongs, so it reads the same for everyone.
+    placements: List[AppPlacementRead] = []
+    #: Each embedded surface the pinned definition declares, with where the
+    #: viewer may open it.
+    surface_access: List[AppSurfaceAccessRead] = []
+    #: The scopes the community's seat granted this install: empty until the
+    #: seat grants some, and never wider than what the manifest requests or
+    #: the registration allows.
+    granted_scopes: List[str] = []
     #: The deployment provides this app to every guild, and a guild admin
     #: neither removes nor disables it. The affordances are absent rather than
     #: erroring, so the client is told which installs those are.
@@ -169,57 +258,91 @@ class GuildAppRead(SanitizedBaseModel):
     #: service app whose registration is missing or switched off — the install
     #: stays where it is and says why it is doing nothing.
     available: bool = True
-    #: Whether this app is one that acts as members, and so has something for
-    #: each of them to authorize. An app that never carries anyone's name does
-    #: not ask the question.
-    delegates: bool = False
     created_by: int
     created_at: datetime
     updated_at: datetime
 
 
-class GuildAppDelegationRead(SanitizedBaseModel):
-    """What the viewer has authorized this app to do as them.
+class GuildAppConsentRead(SanitizedBaseModel):
+    """One request from this app to act as the viewer, and their answer.
 
-    Always answerable, so the absence of a grant is a state rather than a 404:
-    ``granted`` false is "you have not authorized this", which is exactly what
-    the settings page needs to draw the question.
+    ``label`` is the app's own description of what it wants to do, shown as
+    the app's words. ``purpose`` is the app's id for it; absent for app-wide
+    consent.
     """
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    granted: bool = False
-    can_read: bool = False
-    can_write: bool = False
+    id: int
+    purpose: Optional[str] = None
+    label: str
+    #: The one initiative the purpose is bound to, when it is.
+    initiative_id: Optional[int] = None
+    requested_access: ConsentAccess
+    granted_access: Optional[ConsentAccess] = None
+    status: ConsentStatus
+    requested_at: datetime
     granted_at: Optional[datetime] = None
     revoked_at: Optional[datetime] = None
-    #: How the member was signed in when they authorized it.
-    confirmed_factor: Optional[str] = None
 
 
-class GuildAppDelegationGrant(SanitizedBaseModel):
-    """Authorize the app to act as you.
+class GuildAppConsentAnswer(SanitizedBaseModel):
+    """Allow a request, at ``access``: never more than the app asked for.
+    Declining is withdrawing a request that was never granted."""
 
-    ``can_read`` is not asked for: authorizing at all is what lets the app act,
-    so the only remaining question is whether it may change things. Withdrawing
-    is how a member says no.
-    """
-
-    can_write: bool = False
+    access: ConsentAccess
 
 
-class GuildAppMemberDelegation(SanitizedBaseModel):
-    """One member's authorization, in the admin's Members view."""
+class GuildAppMemberConsent(GuildAppConsentRead):
+    """One member's answer to one of the app's requests, in the seat's Members
+    view."""
+
+    user_id: int
+
+
+class AppSurfaceSummary(SanitizedBaseModel):
+    """One of an app's embedded surfaces, by id and by its localized name."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    user_id: int
-    can_read: bool = False
-    can_write: bool = False
-    revoked: bool = False
-    granted_at: datetime
-    revoked_at: Optional[datetime] = None
-    updated_at: datetime
+    id: str
+    name: Dict[str, str] = {}
+
+
+class GuildAppUpgradeAsks(SanitizedBaseModel):
+    """A version that asks for more than the install holds.
+
+    ``added_scopes`` are grantable scopes neither the grant nor the pinned
+    version names; ``added_surfaces`` are surfaces inside initiatives the
+    pinned version does not have. ``declined`` says the seat declined this
+    version: the install stays where it is and the sweep does not ask again.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    version: str
+    added_scopes: List[str] = []
+    added_surfaces: List[AppSurfaceSummary] = []
+    declined: bool = False
+
+
+class GuildAppUpgrade(SanitizedBaseModel):
+    """The seat's consent to a version that asks for more.
+
+    ``version`` is the version the seat was shown; if the catalog offers a
+    different one now, nothing is applied. ``add_scopes`` are the scopes the
+    seat grants with it, each requested by that version and within the
+    ceiling. Consenting to a version's new surfaces alone sends none.
+    """
+
+    version: str = Field(max_length=32)
+    add_scopes: List[str] = Field(default_factory=list, max_length=64)
+
+
+class GuildAppDecline(SanitizedBaseModel):
+    """Keep the pinned version, and stop being asked about this one."""
+
+    version: str = Field(max_length=32)
 
 
 class GuildAppDetail(GuildAppRead):
@@ -230,10 +353,9 @@ class GuildAppDetail(GuildAppRead):
     """
 
     connections: List[GuildAppConnectionRead] = []
-    #: What the *viewer* has authorized this app to do as them. Present on every
-    #: install so the settings page can draw the question without a second
-    #: request; it says nothing about anybody else.
-    delegation: Optional[GuildAppDelegationRead] = None
+    #: The viewer's own answers to this app's requests to act as them, one per
+    #: purpose, the app-wide one first. Nobody else's.
+    consents: List[GuildAppConsentRead] = []
     #: The version this install would move to if it updated now, and absent
     #: when there is none — an install already on the newest, and one whose
     #: listing is gone or has published nothing this build can run, are one
@@ -241,6 +363,19 @@ class GuildAppDetail(GuildAppRead):
     #: it costs a catalog lookup, and it is the page offering the Update button
     #: that needs the answer.
     update_version: Optional[str] = None
+    #: The scopes the pinned manifest asks for, in vocabulary order.
+    requested_scopes: List[str] = []
+    #: The requested scopes this deployment allows the seat to grant. A
+    #: requested scope missing here is one the server would refuse.
+    grantable_scopes: List[str] = []
+    #: What ``update_version`` asks for beyond what the install holds, when it
+    #: asks for anything. Absent for a version that asks nothing new, which
+    #: applies without consent.
+    pending_update: Optional[GuildAppUpgradeAsks] = None
+    #: For each ``apps:`` scope above, the requested ones and those the pending
+    #: version adds: the name the app it lets this one use goes by, keyed by
+    #: that app's public id. Its public id when the catalog has no name for it.
+    app_names: Dict[str, str] = {}
 
 
 class GuildAppListResponse(SanitizedBaseModel):
@@ -250,26 +385,18 @@ class GuildAppListResponse(SanitizedBaseModel):
 
 
 class GuildAppConnectStart(SanitizedBaseModel):
-    """Where to send the member so the app can run the vendor's flow.
+    """Where to send the person connecting: the vendor's authorization page,
+    or its install page for a connection an organization installs.
 
-    ``connection_ref`` is the handle the app will store its result against, and
-    the only name it ever learns for this person. It travels in the URL because
-    it is an identifier rather than a credential — random, per (install,
-    connection, member), and useless without the app's own authenticated
-    write-back channel.
-
-    ``connect_url`` is the address to open: the registration's base URL joined
-    to the path the manifest declared. It is absent when this deployment has no
-    live registration for the app, in which case there is nowhere to send
-    anyone; ``connect_path`` still reports what the manifest asked for.
+    Initiative runs the flow, and the vendor returns the person to Initiative's
+    own callback. Nothing is stored until it does.
     """
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     connection_id: str
-    connection_ref: str
-    connect_path: str
-    connect_url: Optional[str] = None
+    connect_url: str
+    #: The viewer's current state on this connection, before the flow runs.
     status: str
 
 
@@ -324,16 +451,34 @@ class GuildAppConnectionSummary(SanitizedBaseModel):
     member_count: int = 0
 
 
-class GuildAppMembersResponse(SanitizedBaseModel):
+class GuildAppConsentSummary(SanitizedBaseModel):
+    """Every member's answers to this app's requests, counted."""
+
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    #: Members who were asked anything.
+    member_count: int = 0
+    #: Members who allowed at least one request.
+    allowed_count: int = 0
+    #: Answers that still stand or still wait: the ones an admin can end.
+    open_count: int = 0
+
+
+class GuildAppMembersResponse(PageMeta):
+    """One page of the members who connected to this app or answered it.
+
+    ``summary`` and ``consent_summary`` count across every member; ``items``
+    and ``consents`` are the rows of the members on this page.
+    """
 
     summary: List[GuildAppConnectionSummary] = []
     items: List[GuildAppMemberConnection] = []
-    #: Who has authorized this app to act as them, and how deeply. Beside the
-    #: connections rather than in a view of its own: both answer "what does this
-    #: app have of this member's", and an admin governing one wants the other in
-    #: the same place.
-    delegations: List[GuildAppMemberDelegation] = []
+    #: The page's members' answers to this app's requests to act as them.
+    #: Beside the connections rather than in a view of its own: both answer
+    #: "what does this app have of this member's", and an admin governing one
+    #: wants the other in the same place.
+    consents: List[GuildAppMemberConsent] = []
+    consent_summary: GuildAppConsentSummary = GuildAppConsentSummary()
 
 
 # --- serialization ----------------------------------------------------------
@@ -345,16 +490,26 @@ def serialize_guild_app(
     context: "GuildContext",
     install_state: Optional[InstallState] = None,
     avatar_url: Optional[str] = None,
+    placements: Sequence[Any] = (),
+    artifacts: Sequence[Dict[str, Any]] = (),
 ) -> GuildAppRead:
     """One install as the client sees it.
 
     ``install_state`` is what this deployment's registration says about the app
     (§7.7): whether the platform provides it, and whether it can be reached at
     all. It is passed in rather than looked up here so a list of installs
-    resolves it once.
+    resolves it once. ``placements`` are the install's ``app_placements`` rows,
+    and ``artifacts`` what it owns at guild scope, loaded by the caller for the
+    same reason.
     """
     definition = app.definition or {}
     state = app_config_service.config_state(app)
+    openability = surface_openability(
+        definition,
+        placements=placements,
+        is_guild_admin=context.is_admin,
+        member_role_ids=context.member_role_ids,
+    )
     features = definition.get("features")
     service_state = install_state or InstallState()
     return GuildAppRead(
@@ -366,7 +521,7 @@ def serialize_guild_app(
         name=app.name,
         enabled=app.enabled,
         auto_update=app.auto_update,
-        artifacts=[GuildAppArtifact(**artifact) for artifact in app_artifacts(app)],
+        artifacts=[GuildAppArtifact(**artifact) for artifact in artifacts],
         needs_config=state.needs_config,
         config_state=state.state,
         config_state_detail=state.detail,
@@ -374,10 +529,23 @@ def serialize_guild_app(
         avatar_url=avatar_url,
         features=list(features) if isinstance(features, list) else [],
         definition=definition,
-        placement=app.placement or {},
+        placements=[
+            AppPlacementRead(
+                initiative_id=row.initiative_id, role_ids=list(row.role_ids or [])
+            )
+            for row in sorted(placements, key=lambda row: row.initiative_id)
+        ],
+        surface_access=[
+            AppSurfaceAccessRead(
+                surface_id=one.surface_id,
+                openable_guild_wide=one.openable_guild_wide,
+                openable_initiatives=list(one.openable_initiatives),
+            )
+            for one in openability
+        ],
+        granted_scopes=sorted(app.granted_scopes or []),
         mandatory=service_state.mandatory,
         available=service_state.available,
-        delegates=service_state.delegates,
         created_by=app.created_by,
         created_at=app.created_at,
         updated_at=app.updated_at,
@@ -402,27 +570,34 @@ def serialize_connection(
 
     if scope == "static":
         stored_config = (app.config or {}).get(connection_id) or {}
-        stored_secrets = (app.config_secrets or {}).get(connection_id) or {}
+        stored_secrets = (app.secret_fields or {}).get(connection_id) or {}
     else:
         stored_config = (member_row.config or {}) if member_row is not None else {}
         stored_secrets = (
             (member_row.config_secrets or {}) if member_row is not None else {}
         )
 
+    declared = {
+        field.get("key")
+        for field in connection.get("fields") or []
+        if isinstance(field, dict)
+    }
     return GuildAppConnectionRead(
         id=connection_id,
         scope=scope,
         label=connection.get("label") or {},
         fields=connection.get("fields") or [],
         access_hint=connection.get("access_hint"),
-        values=dict(stored_config),
+        # Declared fields only: a flow's tokens and their expiry sit beside
+        # them under reserved keys, and are nobody's to read here.
+        values={key: value for key, value in stored_config.items() if key in declared},
         has_value=app_config_service.has_value_map(
             connection, stored_config, stored_secrets
         ),
         satisfied=app_config_service.is_satisfied(
             connection, stored_config, stored_secrets
         ),
-        connect_path=connection.get("connect_path"),
+        runs_flow=app_config_service.runs_vendor_flow(connection),
         status=member_row.status if member_row is not None else None,
         account_label=member_row.account_label if member_row is not None else None,
         blocked=member_row is not None and member_row.blocked_at is not None,
@@ -436,16 +611,24 @@ def serialize_guild_app_detail(
     member_rows: Dict[str, Any],
     install_state: Optional[InstallState] = None,
     avatar_url: Optional[str] = None,
-    delegation_row: Any = None,
-    update_version: Optional[str] = None,
+    update_offer: Any = None,
+    placements: Sequence[Any] = (),
+    artifacts: Sequence[Dict[str, Any]] = (),
+    consent_rows: Sequence[Any] = (),
+    app_names: Optional[Dict[str, str]] = None,
 ) -> GuildAppDetail:
     """The install and its connections, from the viewer's own perspective.
 
-    ``update_version`` is resolved by the caller, which is the layer holding a
-    session that can read the catalog.
+    ``update_offer`` (an ``app_updates.UpdateOffer``) is resolved by the
+    caller, which is the layer holding a session that can read the catalog.
     """
     base = serialize_guild_app(
-        app, context=context, install_state=install_state, avatar_url=avatar_url
+        app,
+        context=context,
+        install_state=install_state,
+        avatar_url=avatar_url,
+        placements=placements,
+        artifacts=artifacts,
     )
     connections = [
         serialize_connection(
@@ -456,8 +639,42 @@ def serialize_guild_app_detail(
     return GuildAppDetail(
         **base.model_dump(),
         connections=connections,
-        delegation=serialize_delegation(delegation_row),
-        update_version=update_version,
+        consents=[serialize_consent(row) for row in consent_rows],
+        update_version=update_offer.version if update_offer is not None else None,
+        pending_update=serialize_upgrade_asks(app, update_offer),
+        requested_scopes=requested_scopes(app.definition),
+        grantable_scopes=grantable_scopes(
+            app.definition, (install_state or InstallState()).scope_ceiling
+        ),
+        app_names=dict(app_names or {}),
+    )
+
+
+def upgrade_asks_read(version: str, asks: Any, *, declined: bool = False):
+    """What a version asks for, as the client reads it."""
+    return GuildAppUpgradeAsks(
+        version=version,
+        added_scopes=list(asks.added_scopes),
+        added_surfaces=[
+            AppSurfaceSummary(
+                id=surface["id"],
+                name={
+                    str(key): str(value)
+                    for key, value in (surface.get("name") or {}).items()
+                },
+            )
+            for surface in asks.added_surfaces
+        ],
+        declined=declined,
+    )
+
+
+def serialize_upgrade_asks(app: Any, offer: Any) -> Optional[GuildAppUpgradeAsks]:
+    """The offered version's asks, or ``None`` when it asks nothing new."""
+    if offer is None or not offer.asks.asks_more:
+        return None
+    return upgrade_asks_read(
+        offer.version, offer.asks, declined=app.declined_version == offer.version
     )
 
 
@@ -474,48 +691,24 @@ def serialize_member_connection(row: Any) -> GuildAppMemberConnection:
     )
 
 
-def serialize_delegation(row: Any) -> GuildAppDelegationRead:
-    """The viewer's own authorization, present or not.
-
-    A member who has never been asked and one who withdrew are different
-    answers, so a withdrawn row still reports its dates — the page can say "you
-    stopped this on Tuesday" rather than showing a blank offer.
-    """
-    if row is None:
-        return GuildAppDelegationRead()
-    return GuildAppDelegationRead(
-        granted=row.revoked_at is None and row.can_read,
-        can_read=row.can_read,
-        can_write=row.can_write,
+def serialize_consent(row: Any) -> GuildAppConsentRead:
+    return GuildAppConsentRead(
+        id=row.id,
+        purpose=row.purpose,
+        label=row.label,
+        initiative_id=row.initiative_id,
+        requested_access=ConsentAccess(row.requested_access),
+        granted_access=(
+            ConsentAccess(row.granted_access) if row.granted_access else None
+        ),
+        status=row.status,
+        requested_at=row.requested_at,
         granted_at=row.granted_at,
         revoked_at=row.revoked_at,
-        confirmed_factor=row.confirmed_factor,
     )
 
 
-class GuildAppServiceRead(SanitizedBaseModel):
-    """Where one installed app's service answers.
-
-    Not part of :class:`GuildAppRead`: ``base_url`` is operator wiring rather
-    than anything an install describes, and nothing in the UI draws it.
-    """
-
-    #: The app's registered service id, echoed so a caller can check it got the
-    #: app it meant rather than matching on the install id alone.
-    public_id: str
-    base_url: str
-    #: Whether anything may flow through this app right now: the guild's own
-    #: switch and the operator's, together.
-    available: bool
-
-
-def serialize_member_delegation(row: Any) -> GuildAppMemberDelegation:
-    return GuildAppMemberDelegation(
-        user_id=row.user_id,
-        can_read=row.can_read,
-        can_write=row.can_write,
-        revoked=row.revoked_at is not None,
-        granted_at=row.granted_at,
-        revoked_at=row.revoked_at,
-        updated_at=row.updated_at,
+def serialize_member_consent(row: Any) -> GuildAppMemberConsent:
+    return GuildAppMemberConsent(
+        **serialize_consent(row).model_dump(), user_id=row.user_id
     )

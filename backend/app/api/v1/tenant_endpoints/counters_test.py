@@ -6,10 +6,12 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
+from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.testing import (
     Actor,
     create_counter_group,
     create_initiative,
+    create_resource_grant,
     grant_role_permission,
 )
 
@@ -73,7 +75,6 @@ async def _add_counter(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_create_counter_group(client: AsyncClient, acting_user):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
@@ -95,7 +96,6 @@ async def test_create_counter_group(client: AsyncClient, acting_user):
     assert data["counter_count"] == 0
 
 
-@pytest.mark.integration
 async def test_create_counter_group_non_pm_forbidden(client: AsyncClient, acting_user):
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     member = await acting_user(
@@ -113,7 +113,6 @@ async def test_create_counter_group_non_pm_forbidden(client: AsyncClient, acting
     assert response.status_code == 403
 
 
-@pytest.mark.integration
 async def test_feature_disabled_blocks_creation(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -130,7 +129,6 @@ async def test_feature_disabled_blocks_creation(
     assert response.json()["detail"] == "COUNTER_GROUPS_NOT_ENABLED"
 
 
-@pytest.mark.integration
 async def test_list_counter_groups(client: AsyncClient, acting_user):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _create_group(client, a, name="Group A")
@@ -148,7 +146,6 @@ async def test_list_counter_groups(client: AsyncClient, acting_user):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_add_counter_clamps_initial_and_count(client: AsyncClient, acting_user):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     group = await _create_group(client, a)
@@ -166,7 +163,6 @@ async def test_add_counter_clamps_initial_and_count(client: AsyncClient, acting_
     assert Decimal(counter["initial_count"]) == Decimal("50")
 
 
-@pytest.mark.integration
 async def test_progress_bar_requires_bounds(client: AsyncClient, acting_user):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     group = await _create_group(client, a)
@@ -191,7 +187,6 @@ async def test_progress_bar_requires_bounds(client: AsyncClient, acting_user):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("operation", "start", "landed"),
     [("increment", "99", "100"), ("decrement", "2", "0")],
@@ -221,7 +216,6 @@ async def test_a_step_lands_on_the_bound_rather_than_past_it(
     assert Decimal(response.json()["count"]) == Decimal(landed)
 
 
-@pytest.mark.integration
 async def test_set_count_clamps(client: AsyncClient, acting_user):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     group = await _create_group(client, a)
@@ -236,7 +230,6 @@ async def test_set_count_clamps(client: AsyncClient, acting_user):
     assert Decimal(response.json()["count"]) == Decimal("100")
 
 
-@pytest.mark.integration
 async def test_reset_returns_to_initial(client: AsyncClient, acting_user):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     group = await _create_group(client, a)
@@ -265,7 +258,6 @@ async def test_reset_returns_to_initial(client: AsyncClient, acting_user):
     assert Decimal(response.json()["count"]) == Decimal("80")
 
 
-@pytest.mark.integration
 async def test_reset_all_counters(client: AsyncClient, acting_user):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     group = await _create_group(client, a)
@@ -315,7 +307,6 @@ async def test_reset_all_counters(client: AsyncClient, acting_user):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_update_min_max_reclamps_count(client: AsyncClient, acting_user):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     group = await _create_group(client, a)
@@ -332,7 +323,6 @@ async def test_update_min_max_reclamps_count(client: AsyncClient, acting_user):
     assert Decimal(response.json()["count"]) == Decimal("50")
 
 
-@pytest.mark.integration
 async def test_update_null_non_nullable_fields_is_noop(
     client: AsyncClient, acting_user
 ):
@@ -362,7 +352,6 @@ async def test_update_null_non_nullable_fields_is_noop(
     assert Decimal(data["step"]) == Decimal("2")
 
 
-@pytest.mark.integration
 async def test_update_step_zero_rejected(client: AsyncClient, acting_user):
     """A provided step of 0 is a clean 422, not a 500."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -377,7 +366,6 @@ async def test_update_step_zero_rejected(client: AsyncClient, acting_user):
     assert response.status_code == 422
 
 
-@pytest.mark.integration
 async def test_decimal_serialization_no_exponent(client: AsyncClient, acting_user):
     """Numeric(20, 10) zeros must not round-trip as ``0E-10``."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -400,7 +388,6 @@ async def test_decimal_serialization_no_exponent(client: AsyncClient, acting_use
     assert counter["position"] == "0"
 
 
-@pytest.mark.integration
 async def test_delete_counter_soft_deletes_to_trash(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -434,7 +421,6 @@ async def test_delete_counter_soft_deletes_to_trash(
     )
 
 
-@pytest.mark.integration
 async def test_deleted_counter_group_hidden_from_list_and_read(
     client: AsyncClient, acting_user
 ):
@@ -491,7 +477,6 @@ async def test_deleted_counter_group_hidden_from_list_and_read(
     assert add_keep.status_code == 201
 
 
-@pytest.mark.integration
 async def test_delete_counter_group_soft_deletes_and_cascades(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -542,7 +527,6 @@ async def test_delete_counter_group_soft_deletes_and_cascades(
     )
 
 
-@pytest.mark.integration
 async def test_fractional_position_sort(client: AsyncClient, acting_user):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     group_resp = await _create_group(client, a)
@@ -580,7 +564,6 @@ def _ordered_names(group: dict) -> list[str]:
     return [c["name"] for c in counters]
 
 
-@pytest.mark.integration
 async def test_sort_counters(client: AsyncClient, acting_user):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     group = await _create_group(client, a)
@@ -617,7 +600,6 @@ async def test_sort_counters(client: AsyncClient, acting_user):
     assert _ordered_names(fetched) == ["Charlie", "Bravo", "alpha"]
 
 
-@pytest.mark.integration
 async def test_sort_counters_read_only_forbidden(client: AsyncClient, acting_user):
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     member = await acting_user(
@@ -652,7 +634,6 @@ async def test_sort_counters_read_only_forbidden(client: AsyncClient, acting_use
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_duplicate_counter_group(client: AsyncClient, acting_user):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     source = await _create_group(client, a, name="Original")
@@ -688,7 +669,11 @@ async def test_duplicate_counter_group(client: AsyncClient, acting_user):
     # New group with a distinct id and the default "(Copy)" name.
     assert copy["id"] != sid
     assert copy["name"] == "Original (Copy)"
-    assert copy["my_permission_level"] == "owner"
+    assert copy["can"]["delete"] is True
+    # The source's sharing comes along: it was readable by the whole initiative.
+    assert any(
+        g["all_initiative_members"] and g["level"] == "read" for g in copy["grants"]
+    )
 
     # Counters are copied with their values, bounds and order preserved.
     by_name = {
@@ -709,7 +694,6 @@ async def test_duplicate_counter_group(client: AsyncClient, acting_user):
     assert len(src["counters"]) == 2
 
 
-@pytest.mark.integration
 async def test_duplicate_counter_group_custom_name(client: AsyncClient, acting_user):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     source = await _create_group(client, a, name="Original")
@@ -723,13 +707,13 @@ async def test_duplicate_counter_group_custom_name(client: AsyncClient, acting_u
     assert response.json()["name"] == "My Clone"
 
 
-@pytest.mark.integration
-async def test_duplicate_counter_group_read_user_becomes_owner(
-    client: AsyncClient, session: AsyncSession, acting_user
+@pytest.mark.parametrize(("level", "expected"), [("read", 403), ("write", 201)])
+async def test_duplicate_counter_group_needs_write_on_source(
+    client: AsyncClient, session: AsyncSession, acting_user, level: str, expected: int
 ):
-    """A read-only user owns the copy they make: read on the source is what
-    lets them copy FROM it, and the right to create one is what lets them make
-    it — the same gate the New button answers to."""
+    """Copying a group takes write on it, and the right to create one in its
+    initiative — the same gate the New button answers to. Whoever makes the
+    copy owns it."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     member = await acting_user(
         guild_role=GuildRole.member,
@@ -738,52 +722,23 @@ async def test_duplicate_counter_group_read_user_becomes_owner(
         initiative_role="member",
     )
     await grant_role_permission(session, admin.initiative, "create_counter_groups")
-    source = await _create_group(client, admin, name="Shared")
-    sid = source["id"]
-    await _add_counter(client, admin, sid, name="A", position="0")
-
-    grant = await client.put(
-        admin.g(f"/counter-groups/{sid}/grants"),
-        headers=admin.headers,
-        json=[{"user_id": member.user.id, "level": "read"}],
+    source = await create_counter_group(session, admin.initiative, admin.user)
+    await create_resource_grant(
+        session, source, level=ResourceAccessLevel(level), user=member.user
     )
-    assert grant.status_code == 200, grant.text
 
     response = await client.post(
-        member.g(f"/counter-groups/{sid}/duplicate"),
+        member.g(f"/counter-groups/{source.id}/duplicate"),
         headers=member.headers,
         json={},
     )
-    assert response.status_code == 201, response.text
-    assert response.json()["my_permission_level"] == "owner"
+    assert response.status_code == expected, response.text
+    if expected == 403:
+        assert response.json()["detail"] == "COUNTER_GROUP_WRITE_ACCESS_REQUIRED"
+    else:
+        assert response.json()["can"]["delete"] is True
 
 
-@pytest.mark.integration
-async def test_delete_counter_group_still_emits_group_deleted(
-    client: AsyncClient, acting_user, monkeypatch
-):
-    """Deleting a group must still emit ``group_deleted``. Regression: the group
-    is soft-deleted before _emit_counter runs, so its fallback guild lookup is
-    hidden by the global deleted_at IS NULL filter — the delete path must pass
-    guild_id explicitly or the event is silently dropped."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    group = await _create_group(client, a)
-
-    from app.services import stream_authz
-
-    emitted: list[tuple] = []
-
-    async def _record(guild_id, resource_type, resource_id, event_type, data):
-        emitted.append((guild_id, resource_type, resource_id, event_type))
-
-    monkeypatch.setattr(stream_authz.authority, "emit", _record)
-
-    resp = await client.delete(a.g(f"/counter-groups/{group['id']}"), headers=a.headers)
-    assert resp.status_code == 204, resp.text
-    assert (a.guild.id, "counter_group", group["id"], "group_deleted") in emitted
-
-
-@pytest.mark.integration
 async def test_counter_group_counts_by_initiative(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

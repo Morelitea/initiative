@@ -34,8 +34,6 @@
     "counters_one": "{{count}} contador",
     "counters_other": "{{count}} contadores"
   },
-  "generatedBy": "generado el {{date}} por {{author}}",
-  "exported": "exportado el {{date}}",
   "round": "ronda {{round}}",
   "pageOf": "de",
   "status": {
@@ -62,7 +60,6 @@
     "start": "Inicio"
   },
   "fallback": {
-    "unknownAuthor": "desconocido",
     "untitled": "(sin título)"
   }
 }

@@ -29,7 +29,6 @@ import {
   SIDEBAR_TOOLS,
   showsRelations,
   singularOf,
-  TOGGLEABLE_TOOLS,
   TOOL_ICONS,
   TOOL_SETTINGS_SECTIONS,
   TOOLS,
@@ -39,13 +38,11 @@ import {
   toolCreateLabelKey,
   toolCreatePermission,
   toolDetailRoute,
-  toolKebabSingular,
   toolListRoute,
   toolNavLabelKey,
   toolParamName,
   toolPascalPlural,
   toolPlural,
-  toolRefRoute,
   toolRouteSegment,
   toolSettingsRoute,
   toolSettingsSectionRoute,
@@ -198,7 +195,7 @@ describe("tool i18n", () => {
       ).toBeTruthy();
     }
     const featureKeys = initiatives as unknown as Record<string, string>;
-    for (const tool of TOGGLEABLE_TOOLS) {
+    for (const tool of TOOLS) {
       const camel = toolCamelPlural(tool);
       expect(
         featureKeys[`${camel}Feature`],
@@ -324,7 +321,6 @@ describe("tool route builders", () => {
 
   it("routes a bare id through the resolver", () => {
     expect(entityRefRoute("document", 42)).toBe("/go/document/42");
-    expect(toolRefRoute(Tool.counter_group, 3)).toBe("/go/counter-group/3");
   });
 });
 
@@ -344,21 +340,6 @@ describe("tool surfaces", () => {
         TOOL_TAB_VIEWS.get(tool),
         `missing InitiativeDetailPage tab view for ${tool}`
       ).toBeTruthy();
-    }
-  });
-});
-
-describe("tool surfaces", () => {
-  it("every tool resolves through /go", async () => {
-    // `toolRefRoute` mints `/go/<kebab singular>/<id>` for every tool, so a
-    // tool the resolver does not know sends its links to the guild home
-    // instead — which is how a notification about a post landed nowhere.
-    const { isEntityRefType } = await import("@/lib/entityResolver");
-    for (const tool of TOOLS) {
-      expect(
-        isEntityRefType(toolKebabSingular(tool)),
-        `entityResolver cannot address a ${tool}`
-      ).toBe(true);
     }
   });
 });
@@ -437,7 +418,7 @@ describe("tool exports", () => {
     const { DOCUMENT_TYPE_FORMATS, TOOL_EXPORT_FORMATS } = await import(
       "@/components/exports/formats"
     );
-    const { DocumentReadDocumentType } = await import("@/api/generated/initiativeAPI.schemas");
+    const { DocumentType } = await import("@/api/generated/initiativeAPI.schemas");
     const { BULK_EXPORT_TOOLS } = await import("@/lib/tools");
 
     for (const tool of BULK_EXPORT_TOOLS) {
@@ -449,7 +430,7 @@ describe("tool exports", () => {
         `missing TOOL_EXPORT_FORMATS[${tool}]`
       ).toBeGreaterThan(0);
     }
-    for (const type of Object.values(DocumentReadDocumentType)) {
+    for (const type of Object.values(DocumentType)) {
       expect(
         DOCUMENT_TYPE_FORMATS[type]?.length,
         `missing DOCUMENT_TYPE_FORMATS.${type}`
@@ -467,12 +448,10 @@ describe("tool exports", () => {
   });
 
   it("derives the engine endpoint and selector params from the enum", async () => {
-    const { toolExportEndpoint, toolExportIdParam, toolExportIdsParam } = await import(
-      "@/lib/tools"
-    );
+    const { toolExportEndpoint, toolExportIdsParam, toolIdParam } = await import("@/lib/tools");
     expect(toolExportEndpoint(Tool.counter_group)).toBe("/exports/counter-group");
     expect(toolExportEndpoint(Tool.document)).toBe("/exports/document");
-    expect(toolExportIdParam(Tool.queue)).toBe("queue_id");
+    expect(toolIdParam(Tool.queue)).toBe("queue_id");
     expect(toolExportIdsParam(Tool.counter_group)).toBe("counter_group_ids");
   });
 });
@@ -518,11 +497,12 @@ describe("tool imports", () => {
     for (const locale of locales) {
       const file = await import(`../../public/locales/${locale}/exports.json`);
       const labels = (file.default ?? file).table.source as Record<string, string>;
-      // `tasks` is a project sub-resource and `initiative`/`guild` are the
-      // aggregate backup scopes — the same three non-tool sources the backend's
-      // adapter-coverage test allows.
+      // `tasks` and `events` are the filterable task and event lists and
+      // `initiative`/`guild` are the aggregate backup scopes — the same four
+      // non-tool sources the backend's adapter-coverage test allows.
       const expected = [
         "tasks",
+        "events",
         "initiative",
         "guild",
         ...BULK_EXPORT_TOOLS.map(toolKebabSingular),

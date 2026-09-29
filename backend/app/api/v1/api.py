@@ -10,12 +10,6 @@ from app.api.deps import DirectMessagesEnabledDep
 #                          …), including the cross-guild "my" aggregates that read
 #                          them — the one place tenant data is read without a
 #                          single guild context (see /me routes below).
-#   app_service_endpoints/ — the channels an external app service calls back on.
-#                          Split by CALLER rather than by data: no user is
-#                          resolved, the caller is established from a request
-#                          signature, and which guild it may reach follows from
-#                          that.
-from app.api.v1 import app_service_endpoints
 from app.api.v1.tenant_endpoints import (
     moderation,
     support,
@@ -59,6 +53,7 @@ from app.api.v1.tenant_endpoints import (
     task_statuses,
     tasks,
     tool_grants,
+    tool_lifecycle,
     tool_lists,
     tool_views,
     tools,
@@ -70,7 +65,13 @@ from app.api.v1.platform_endpoints import (
     access_grants,
     announcements,
     ai_settings as platform_ai_settings,
+    app_consent_requests,
+    app_oauth,
     app_platform,
+    app_installation,
+    app_hub,
+    app_connection_callbacks,
+    app_hooks,
     app_services,
     auth,
     auth_providers,
@@ -78,7 +79,6 @@ from app.api.v1.platform_endpoints import (
     billing,
     config,
     contacts,
-    delegation_exchange,
     guild_reference,
     guild_provider_connections,
     guilds,
@@ -127,7 +127,7 @@ api_router.include_router(passwordless.router, prefix="/auth", tags=["auth"])
 api_router.include_router(email_otp.router, prefix="/auth", tags=["auth"])
 api_router.include_router(sessions.router, prefix="/auth", tags=["auth"])
 api_router.include_router(operator.router, prefix="/operator", tags=["operator"])
-api_router.include_router(guilds.router, prefix="/guilds", tags=["guilds"])
+api_router.include_router(guilds.router, prefix="/communities", tags=["communities"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 # Direct messages, both halves, gated on the platform switch in one place: a
 # deployment that does not offer messaging refuses the whole surface rather
@@ -147,7 +147,7 @@ api_router.include_router(
 # What this deployment carries: the operator's catalog rescan, the signed
 # registry, and the mirrored listing artwork. A property of the deployment
 # rather than of any guild, so it takes no guild segment. Reading the
-# marketplace is guild-addressed (see /g/{guild_id}/marketplace below).
+# marketplace is guild-addressed (see /c/{guild_id}/marketplace below).
 api_router.include_router(
     marketplace.router, prefix="/marketplace", tags=["marketplace"]
 )
@@ -170,27 +170,45 @@ api_router.include_router(intake.router, prefix="/settings", tags=["intake"])
 api_router.include_router(
     app_services.router, prefix="/app-services", tags=["app-services"]
 )
+api_router.include_router(
+    app_services.publishers_router, prefix="/app-publishers", tags=["app-services"]
+)
 # Public: apps verify the context JWTs we send them against this key set. No
 # credential, because requiring one to fetch a verification key is circular.
 api_router.include_router(
     app_platform.router, prefix="/app-platform", tags=["app-platform"]
 )
-# Same prefix, but authenticated: a delegate trades the token it holds for one
-# addressed to the app it is about to call, because only this side holds both
-# sectors' references (history/opaque-identity-design.md §12).
-api_router.include_router(
-    delegation_exchange.router, prefix="/app-platform", tags=["app-platform"]
-)
 api_router.include_router(
     guild_reference.router, prefix="/app-platform", tags=["app-platform"]
 )
-# The other half of that wiring: what a registered app service may call back on.
-# Authenticated by request signature against its registration's shared secret —
-# no user, no session, no guild in a header. The guild each call operates in is
-# named in the path and re-checked against the caller's own installs.
+# The token endpoint: an app authenticates with a JWT it signs and is issued an
+# app or installation token. The listing of its installs takes the app token.
 api_router.include_router(
-    app_service_endpoints.router, prefix="/app-service", tags=["app-service"]
+    app_oauth.router, prefix="/app-platform", tags=["app-platform"]
 )
+# An installed app asking a member to let it act as them, on its installation
+# token. The member answers on their own consent screen.
+api_router.include_router(
+    app_consent_requests.router, prefix="/app-platform", tags=["app-platform"]
+)
+# An installed app's calls about its own installation — its configuration, its
+# members' connections, its verdict on the configuration and the events it
+# re-emits — on its installation token. The install comes from the token.
+api_router.include_router(
+    app_installation.router, prefix="/app-platform", tags=["app-platform"]
+)
+# An installed app calling another app's public endpoint, on its installation
+# or member token. Initiative checks the call and makes it.
+api_router.include_router(app_hub.router, prefix="/app-platform", tags=["app-platform"])
+# Where a vendor returns a person during an app connection's flow. The two
+# addresses an operator registers with each vendor client; they act on the
+# flow's sealed state alone.
+api_router.include_router(
+    app_connection_callbacks.router, prefix="/app-connections", tags=["app-platform"]
+)
+# Where a vendor sends an app's webhooks, one address per app. A delivery is
+# admitted by its signature and routed by the install index.
+api_router.include_router(app_hooks.router, prefix="/app-hooks", tags=["app-platform"])
 api_router.include_router(
     auth_providers.router, prefix="/settings/auth/providers", tags=["auth-providers"]
 )
@@ -201,15 +219,15 @@ api_router.include_router(
 )
 api_router.include_router(
     guild_provider_connections.router,
-    prefix="/guilds",
-    tags=["guild-provider-connections"],
+    prefix="/communities",
+    tags=["community-provider-connections"],
 )
 # Service-to-service endpoints for the external billing service.
 api_router.include_router(billing.router, prefix="/billing", tags=["billing"])
 api_router.include_router(
     platform_ai_settings.platform_router, prefix="/settings", tags=["ai-settings"]
 )
-# Notifications are user-scoped (cross-guild) — not under /g.
+# Notifications are user-scoped (cross-guild) — not under /c.
 api_router.include_router(
     notifications.router, prefix="/notifications", tags=["notifications"]
 )
@@ -224,11 +242,11 @@ api_router.include_router(
 
 # ---------------------------------------------------------------------------
 # Guild-scoped routes: everything that resolves a single guild's data lives
-# under /g/{guild_id}. The guild is taken from the path (see
+# under /c/{guild_id}. The guild is taken from the path (see
 # deps.get_guild_membership); a guild-scoped router mounted outside this prefix
 # fails at startup (missing path param) — a useful guard.
 # ---------------------------------------------------------------------------
-guild_router = APIRouter(prefix="/g/{guild_id}")
+guild_router = APIRouter(prefix="/c/{guild_id}")
 guild_router.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])
 # Every tool's list and its sidebar counts, mounted once per Tool at each
 # tool's own path (see tenant_endpoints/tool_lists.py). Included FIRST so each
@@ -279,6 +297,7 @@ guild_router.include_router(
 guild_router.include_router(posts.router, prefix="/posts", tags=["posts"])
 guild_router.include_router(galleries.router, prefix="/galleries", tags=["galleries"])
 guild_router.include_router(wikis.router, prefix="/wikis", tags=["wikis"])
+guild_router.include_router(wikis.pages_router, tags=["wikis"])
 # Apps installed at guild scope. Every member reads them (the sidebar needs to
 # know what is there); installing and removing are guild-admin actions.
 #
@@ -314,7 +333,7 @@ guild_router.include_router(
 guild_router.include_router(tags.router, prefix="/tags", tags=["tags"])
 # Generic per-tool surfaces addressed by the Tool enum ({tool} path param).
 guild_router.include_router(tools.router, prefix="/tools", tags=["tools"])
-# Recent views: POST/DELETE /{tool}/{id}/view, mounted once per Tool at each
+# Recent views: POST /{tool}/{id}/view, mounted once per Tool at each
 # tool's own path. The routes carry their own tags (see tenant_endpoints/
 # tool_views.py), so none is added here.
 guild_router.include_router(tool_views.router)
@@ -322,6 +341,8 @@ guild_router.include_router(tool_views.router)
 # path. The routes carry their own tags (see tenant_endpoints/tool_grants.py),
 # so none is added here.
 guild_router.include_router(tool_grants.router)
+# Deleting: DELETE /{tool}/{id}, the same way (tenant_endpoints/tool_lifecycle.py).
+guild_router.include_router(tool_lifecycle.router)
 guild_router.include_router(guild_search.router, prefix="/search", tags=["search"])
 guild_router.include_router(
     smart_chips.router, prefix="/smart-chips", tags=["smart-chips"]
@@ -341,7 +362,7 @@ guild_router.include_router(users.guild_router, prefix="/users", tags=["users"])
 # Recents: the addressed DELETE is guild-scoped (the cross-guild GET list stays
 # top-level — fully separate endpoints, see recents.py).
 guild_router.include_router(recents.guild_router, prefix="/recents", tags=["recents"])
-# WebSockets (guild-scoped). Mounting under /g fixes the URL shape now; the
+# WebSockets (guild-scoped). Mounting under /c fixes the URL shape now; the
 # handlers are rewired to read the path guild in a follow-up step.
 guild_router.include_router(events.router, prefix="/events", tags=["events"])
 guild_router.include_router(

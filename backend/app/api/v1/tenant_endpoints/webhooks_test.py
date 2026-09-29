@@ -1,7 +1,6 @@
 """Webhook subscription endpoints.
 
-These cover the three things registration decides, now that the delegate gate is
-gone:
+These cover the three things registration decides:
 
 * **Who may register one** — any guild member, because registering grants no
   access: delivery reads the change log as the creator, so a subscription's
@@ -20,11 +19,9 @@ import socket
 from contextlib import contextmanager
 from unittest.mock import patch
 
-import pytest
 
 from app.models.platform.guild import GuildRole
-
-pytestmark = pytest.mark.integration
+from app.db.request_context import SystemGuild
 
 
 _WEBHOOK_HOST = "hooks.example.com"
@@ -57,7 +54,7 @@ def _mock_public_dns():
 
 
 def _url(guild_id: int, suffix: str = "") -> str:
-    return f"/api/v1/g/{guild_id}/webhooks/subscriptions{suffix}"
+    return f"/api/v1/c/{guild_id}/webhooks/subscriptions{suffix}"
 
 
 def _body(**overrides) -> dict:
@@ -107,7 +104,7 @@ async def test_dead_letter_count_is_visible_on_every_read(client, acting_user, s
     subscription_id = created.json()["id"]
     assert created.json()["dead_letter_count"] == 0
 
-    await set_rls_context(session, guild_id=a.guild.id)
+    await set_rls_context(session, SystemGuild(a.guild.id))
     await session.exec(
         sa_text(
             "INSERT INTO webhook_deliveries "

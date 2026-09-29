@@ -2,7 +2,6 @@
 endpoint, soft-delete interaction, and the cross-initiative isolation gate.
 """
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel import select
 
@@ -38,7 +37,6 @@ async def _task_tag_ids(session, guild_id: int, task_id: int) -> set[int]:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_any_guild_member_can_manage_the_tag_dictionary(
     client: AsyncClient, acting_user
 ):
@@ -77,7 +75,6 @@ async def test_any_guild_member_can_manage_the_tag_dictionary(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_set_task_tags_replaces_and_dedups(
     client: AsyncClient, acting_user, session
 ):
@@ -101,7 +98,6 @@ async def test_set_task_tags_replaces_and_dedups(
     assert await _task_tag_ids(session, a.guild.id, task.id) == {other.id}
 
 
-@pytest.mark.integration
 async def test_set_tags_rejects_trashed_tag(client: AsyncClient, acting_user, session):
     """A trashed tag id is invalid everywhere — the incident regression: a
     stale client merging a since-trashed tag id must get a clean 400."""
@@ -119,7 +115,6 @@ async def test_set_tags_rejects_trashed_tag(client: AsyncClient, acting_user, se
     assert response.json()["detail"] == "INVALID_TAG_IDS"
 
 
-@pytest.mark.integration
 async def test_set_tags_rejects_other_guilds_tag(
     client: AsyncClient, acting_user, session
 ):
@@ -137,14 +132,13 @@ async def test_set_tags_rejects_other_guilds_tag(
     assert response.json()["detail"] == "INVALID_TAG_IDS"
 
 
-@pytest.mark.integration
 async def test_generic_tool_tags_route_covers_every_tool(
     client: AsyncClient, acting_user, session
 ):
     """PUT /tools/{tool}/{tool_id}/tags works for EVERY Tool member.
 
-    Both halves derive from the enum — the feature toggles from
-    ``TOGGLEABLE_TOOLS`` and the entities from ``TOOL_FACTORIES`` — so a new
+    Both halves derive from the enum — the feature toggles from ``Tool`` and
+    the entities from ``TOOL_FACTORIES`` — so a new
     tool is exercised here the moment it exists, rather than when someone
     remembers to add a line. A tool with no factory fails at import of
     ``app.testing``, once, naming itself.
@@ -175,10 +169,7 @@ async def test_generic_tool_tags_route_covers_every_tool(
     # differs between one tool's listing and the next is only whether it
     # remembered to ask for them.
     for tool, entity in entities.items():
-        # The route segment is the plural in kebab: counter_groups is served
-        # at /counter-groups/, the way every event's resource type resolves.
-        segment = tool.plural.replace("_", "-")
-        listing = await client.get(a.g(f"/{segment}/"), headers=a.headers)
+        listing = await client.get(a.g(f"/{tool.route_segment}/"), headers=a.headers)
         assert listing.status_code == 200, (tool, listing.text)
         body = listing.json()
         rows = body["items"] if isinstance(body, dict) else body
@@ -186,7 +177,6 @@ async def test_generic_tool_tags_route_covers_every_tool(
         assert [t["id"] for t in row["tags"]] == [tag.id], tool
 
 
-@pytest.mark.integration
 async def test_generic_tool_tags_route_rejects_unknown_tool(
     client: AsyncClient, acting_user
 ):
@@ -202,7 +192,6 @@ async def test_generic_tool_tags_route_rejects_unknown_tool(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_bulk_add_and_remove_task_tags(client: AsyncClient, acting_user, session):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     keep = await create_tag(session, a.guild)
@@ -246,7 +235,62 @@ async def test_bulk_add_and_remove_task_tags(client: AsyncClient, acting_user, s
         assert await _task_tag_ids(session, a.guild.id, task.id) == set()
 
 
-@pytest.mark.integration
+async def test_every_tag_target_is_bulk_tagged_and_listed_on_its_tag(
+    client: AsyncClient, acting_user, session
+):
+    """Bulk editing reaches every taggable kind — each tool, and each
+    sub-resource through the tool that governs it — and the tag's own page
+    lists every one of them back."""
+    from app.core.tools import TAGGABLE_EXTRAS, Tool
+    from app.testing import (
+        create_calendar_event,
+        create_gallery_image,
+        create_queue_item,
+        create_tool_entity,
+        create_wiki_page,
+        enable_all_tools,
+    )
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await enable_all_tools(session, a.initiative)
+    tag = await create_tag(session, a.guild)
+    tools = {
+        tool: await create_tool_entity(session, tool, a.initiative, a.user)
+        for tool in Tool
+    }
+    extras = {
+        "task": await create_task(session, tools[Tool.project]),
+        "queue_item": await create_queue_item(session, tools[Tool.queue]),
+        "calendar_event": await create_calendar_event(
+            session, tools[Tool.calendar], a.user
+        ),
+        "gallery_image": await create_gallery_image(
+            session, tools[Tool.gallery], a.user, write_blob=False
+        ),
+        "wiki_page": await create_wiki_page(session, tools[Tool.wiki], a.user),
+    }
+    assert set(extras) == set(TAGGABLE_EXTRAS)
+    targets = {tool.value: entity for tool, entity in tools.items()} | extras
+
+    for target, entity in targets.items():
+        response = await client.post(
+            a.g("/tags/bulk"),
+            headers=a.headers,
+            json={
+                "target_type": target,
+                "target_ids": [entity.id],
+                "add_tag_ids": [tag.id],
+            },
+        )
+        assert response.status_code == 200, (target, response.text)
+
+    listed = await client.get(a.g(f"/tags/{tag.id}/entities"), headers=a.headers)
+    assert listed.status_code == 200, listed.text
+    assert {
+        (item["entity_type"], item["entity_id"]) for item in listed.json()["items"]
+    } == {(target, entity.id) for target, entity in targets.items()}
+
+
 async def test_bulk_edit_requires_an_operation(client: AsyncClient, acting_user):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     response = await client.post(
@@ -257,7 +301,6 @@ async def test_bulk_edit_requires_an_operation(client: AsyncClient, acting_user)
     assert response.status_code == 422
 
 
-@pytest.mark.integration
 async def test_bulk_edit_rejects_trashed_tag_atomically(
     client: AsyncClient, acting_user, session
 ):
@@ -281,7 +324,6 @@ async def test_bulk_edit_rejects_trashed_tag_atomically(
     assert await _task_tag_ids(session, a.guild.id, task.id) == set()
 
 
-@pytest.mark.integration
 async def test_bulk_edit_denied_without_project_write(
     client: AsyncClient, acting_user, session
 ):
@@ -315,7 +357,6 @@ async def test_bulk_edit_denied_without_project_write(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_cross_initiative_member_cannot_touch_tags(
     client: AsyncClient, acting_user, session
 ):

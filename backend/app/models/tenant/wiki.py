@@ -21,7 +21,7 @@ from sqlmodel import Field, Relationship
 from app.core.tools import Tool
 from app.models.tenant._mixins import (
     ArchiveMixin,
-    attach_access_level,
+    attach_actions,
     CommentsToggleMixin,
     CreatedByMixin,
     ListingProvenanceMixin,
@@ -184,7 +184,6 @@ class Wiki(
             nullable=True,
         ),
     )
-    created_by: int = Field(foreign_key="users.id", nullable=False)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -312,7 +311,6 @@ class WikiPage(CreatedByMixin, SoftDeleteMixin, table=True):
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),
     )
-    created_by: int = Field(foreign_key="users.id", nullable=False)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -334,4 +332,4 @@ class WikiPage(CreatedByMixin, SoftDeleteMixin, table=True):
     )
 
 
-attach_access_level(Wiki, Tool.wiki)
+attach_actions(Wiki, Tool.wiki)

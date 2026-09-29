@@ -10,6 +10,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
+from pydantic import TypeAdapter
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
@@ -20,14 +21,19 @@ from slowapi.middleware import SlowAPIMiddleware, _should_exempt, sync_check_lim
 from starlette.routing import Match
 
 from sqlalchemy.exc import DBAPIError
-from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.deps import declines_this_credential, get_upload_user
+from app.api.deps import (
+    GuildAccessError,
+    SessionDep,
+    establish_guild_access,
+    get_upload_user,
+    raise_for_guild_access,
+)
 from app.api.embed_csp import app_frame_policy
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.csrf import CsrfOriginMiddleware
 from app.api.v1.api import api_router
-from app.core.messages import CommonMessages, GuildMessages
+from app.core.messages import AttachmentMessages, CommonMessages, GuildMessages
 from app.core.rate_limit import limiter
 from app.core.security import (
     billing_support_handoff_enabled,
@@ -36,12 +42,15 @@ from app.core.config import API_V1_STR, PROJECT_NAME, settings
 from app.core.logging_config import configure_logging
 from app.core.request_audit import RequestAuditMiddleware
 from app.core.version import __version__
+from app.core.smart_chips import SmartChipKind
 from app.db.errors import INSUFFICIENT_PRIVILEGE_SQLSTATE, dbapi_sqlstate
 from app.db.frozen import FROZEN_PARENT_CONSTRAINT, frozen_refusal
-from app.db.session import SystemSessionLocal, get_system_session
+from app.db.session import SystemSessionLocal
 from app.models.platform.user import User
 from app.services import background_tasks as background_tasks_service
 from app.services import captcha_config
+from app.services.marketplace.installs import ListingInstallError
+from app.services.tenant.attachments import StorageQuotaExceededError
 from app.services.platform.users import SeatWouldBeEmptied
 
 # Before anything in this process logs: the served wiring for the application
@@ -154,8 +163,9 @@ async def lifespan(app: FastAPI):
     # fire-and-forget by design: it maintains its own connection in the
     # background and a deployment that cannot reach it still delivers every
     # frame to the sockets this process holds.
+    from app.services import guild_work
     from app.services.platform import notify_bus, user_stream
-    from app.services.tenant import room_sink
+    from app.services.tenant import outbox_poller, room_sink
 
     notify_bus.register(
         user_stream.CHANNEL,
@@ -165,6 +175,9 @@ async def lifespan(app: FastAPI):
     notify_bus.register(
         room_sink.CHANNEL, room_sink.deliver, on_connect=room_sink.on_bus_connected
     )
+    # The same hint wakes the webhook outbox's drain.
+    notify_bus.register(room_sink.CHANNEL, outbox_poller.hint)
+    notify_bus.register(guild_work.CHANNEL, guild_work.deliver)
     await notify_bus.start()
 
     # Write collaborative documents that have changed on an interval, so what a
@@ -186,10 +199,14 @@ async def lifespan(app: FastAPI):
         for task in tasks:
             with suppress(asyncio.CancelledError):
                 await task
-        # Imports the dispatcher started run as tasks of their own.
-        from app.services.import_engine.worker import cancel_running_jobs
+        # Imports and exports the dispatcher started run as tasks of their own.
+        from app.services.data_jobs import cancel_running_jobs
 
         await cancel_running_jobs()
+        # Community steps a commit started finish before the pools close.
+        from app.db import cohorts
+
+        await cohorts.settle_all()
 
 
 # Gate the interactive docs + raw OpenAPI schema behind a setting (pentest
@@ -343,6 +360,37 @@ async def seat_would_be_emptied_handler(
     )
 
 
+@app.exception_handler(ListingInstallError)
+async def listing_install_error_handler(
+    request: Request, exc: ListingInstallError
+) -> JSONResponse:
+    """A catalog listing that cannot be installed: 404 when there is no such
+    listing, 409 for the conflicts a real one can be in. Raised by
+    ``resolve_listing_install``, which every install route goes through."""
+    return JSONResponse(
+        status_code=(
+            status.HTTP_404_NOT_FOUND if exc.not_found else status.HTTP_409_CONFLICT
+        ),
+        content={"detail": exc.code},
+    )
+
+
+@app.exception_handler(StorageQuotaExceededError)
+async def storage_quota_exceeded_handler(
+    request: Request, exc: StorageQuotaExceededError
+) -> JSONResponse:
+    """A write whose files would take the community past its storage limit.
+
+    Handled here rather than at each save route because saving content can copy
+    the files it shows (``attachments.claim_uploads``), and every save goes
+    through that.
+    """
+    return JSONResponse(
+        status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
+        content={"detail": AttachmentMessages.STORAGE_QUOTA_EXCEEDED},
+    )
+
+
 @app.exception_handler(DBAPIError)
 async def insufficient_privilege_handler(
     request: Request, exc: DBAPIError
@@ -469,9 +517,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(SecurityHeadersMiddleware)
 
-# Body-size bounds for upload-shaped routes — enforced at the ASGI seam so an
-# oversized (or chunked, length-less) request is refused before its body is
-# buffered, not after FastAPI has already parsed it.
+# Body-size bounds for every request — a route's own where it has one, a
+# default otherwise — enforced at the ASGI seam so an oversized (or chunked,
+# length-less) request is refused before its body is buffered, not after
+# FastAPI has already parsed it.
 app.add_middleware(BodySizeLimitMiddleware)
 
 # Origin checking for cookie-authenticated writes; see app/core/csrf.py.
@@ -510,7 +559,7 @@ async def serve_upload_file(
     guild_id: int,
     filename: str,
     current_user: Annotated[User, Depends(get_upload_user)],
-    session: Annotated[AsyncSession, Depends(get_system_session)],
+    session: SessionDep,
 ) -> Response:
     """Serve an uploaded file — requires authentication and an Upload row in
     the path-addressed guild."""
@@ -520,59 +569,19 @@ async def serve_upload_file(
 
     from app.services.storage import build_upload_response, get_guild_storage
 
-    # Guild authorization via the ``/uploads/{guild_id}/…`` path: media is
-    # referenced by pages inside a guild, and ``<img>``/iframe can't send headers,
-    # so the guild rides in the URL (and a cookie is per-browser, not per-tab).
-    # Validate access (membership or live PAM grant) against the path guild →
-    # route into that ONE guild schema and look the filename up there. Fail
-    # closed: no access, no schema, or no Upload row in that guild all 404
-    # without confirming the blob exists.
-    from app.db.session import set_rls_context
-    from app.db.schema_provisioning import guild_schema_name
-    from app.models.platform.guild import LIVE_STATUS_VALUES
-    from app.services.platform import access_grants as access_grants_service
-    from app.services.platform import guilds as guilds_service
-
-    membership = await guilds_service.get_membership(
-        session, guild_id=guild_id, user_id=current_user.id
-    )
-    if membership is None:
-        grant = await access_grants_service.get_live_grant(
-            session, user_id=current_user.id, guild_id=guild_id
-        )
-        if grant is None:
-            raise HTTPException(status_code=404)
-
-    guild = await guilds_service.get_guild(session, guild_id=guild_id)
-    if membership is not None and guild.status not in LIVE_STATUS_VALUES:
-        # A guild that is not live is unreadable to its members (mirrors the
-        # resolver gate in deps._load_guild_context; this route resolves access
-        # inline). The grant branch above deliberately skips the status — PAM
-        # overrides it. read_only needs nothing here: serving a file is a read.
-        raise HTTPException(status_code=404)
-    # And the same resolver's question about the credential, which binds
-    # members and grantees alike. Asked once access is settled, so it is
-    # answered only to somebody who reaches the guild.
-    if declines_this_credential(guild):
-        raise HTTPException(
-            status_code=403, detail=GuildMessages.GUILD_API_KEYS_REFUSED
-        )
-
-    # The system login role has NO table grants on a guild schema, so SET ROLE
-    # into the guild role (``set_rls_context``) before reading its ``uploads``
-    # — and only if the schema actually exists (pg_namespace is readable by
-    # any role; SET ROLE into a missing role would error).
+    # Media is referenced by pages inside a guild, and ``<img>``/iframe can't
+    # send headers, so the guild rides in the URL (and a cookie is per-browser,
+    # not per-tab). Access is established through the one seam every guild
+    # request uses, which routes the session into that guild. No access and no
+    # Upload row both 404, so the blob's existence is never confirmed; a
+    # refusal that names what is missing answers as it does everywhere else.
+    try:
+        await establish_guild_access(session, current_user, guild_id)
+    except GuildAccessError as exc:
+        if exc.detail == GuildMessages.GUILD_ACCESS_DENIED:
+            raise HTTPException(status_code=404) from exc
+        raise_for_guild_access(exc)
     fname = FilePath(filename).name
-    schema = guild_schema_name(int(guild_id))
-    exists = (
-        await session.exec(
-            text("SELECT 1 FROM pg_namespace WHERE nspname = :ns"),
-            params={"ns": schema},
-        )
-    ).first()
-    if exists is None:
-        raise HTTPException(status_code=404)
-    await set_rls_context(session, guild_id=int(guild_id))
     hit = (
         await session.exec(
             text("SELECT content_type FROM uploads WHERE filename = :fn LIMIT 1"),
@@ -711,6 +720,12 @@ def custom_openapi() -> dict:
     )
 
     _inject_query_schemas(openapi_schema)
+
+    # The chips an editor may offer. No route returns the list, but the client
+    # builds its menu from this enum, so it is published for Orval to generate.
+    components.setdefault("schemas", {})["SmartChipKind"] = TypeAdapter(
+        SmartChipKind
+    ).json_schema()
 
     for path_item in openapi_schema.get("paths", {}).values():
         for operation in path_item.values():

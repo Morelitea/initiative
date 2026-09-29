@@ -2,7 +2,7 @@ import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { deleteUserApiV1GGuildIdUsersUserIdDelete } from "@/api/generated/users/users";
+import { deleteUserApiV1CGuildIdUsersUserIdDelete } from "@/api/generated/users/users";
 import { invalidate, q } from "@/api/query-keys";
 import {
   AlertDialog,
@@ -51,7 +51,7 @@ export const RemoveGuildMemberDialog = ({
     if (userId === null) return;
     setRemoving(true);
     try {
-      await deleteUserApiV1GGuildIdUsersUserIdDelete(guildId, userId);
+      await deleteUserApiV1CGuildIdUsersUserIdDelete(guildId, userId);
       void invalidate(q.guildMembers());
       // The guild entry carries member_count, which the invite surfaces read
       // to tell a full guild from one with a seat free. It is provider state,

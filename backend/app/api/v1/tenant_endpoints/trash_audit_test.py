@@ -6,15 +6,12 @@ of the row afterwards: which kind of thing it was, which id, and who did it.
 
 from __future__ import annotations
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
 from app.models.platform.guild import GuildRole
 from app.testing import create_project, emitted
-
-pytestmark = pytest.mark.integration
 
 
 async def test_purging_an_entity_records_what_was_destroyed(

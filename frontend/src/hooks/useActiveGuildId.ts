@@ -5,7 +5,7 @@ import { useGuilds } from "@/hooks/useGuilds";
  *
  * Sourced from the guild context, which mirrors the `/c/$guildId` route
  * segment. Guild-scoped hooks pass this to the path-based
- * (`/api/v1/g/{guild_id}/...`) generated client. Only meaningful inside the
+ * (`/api/v1/c/{guild_id}/...`) generated client. Only meaningful inside the
  * guild route tree; personal/cross-guild pages (`/me/*`) call the dedicated
  * cross-guild endpoints and do not use guild-scoped hooks.
  *

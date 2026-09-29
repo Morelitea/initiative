@@ -2,37 +2,34 @@ from datetime import datetime, timezone
 from typing import Annotated, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import ColumnElement, func, update as sa_update
-from sqlalchemy.orm import selectinload
+from sqlalchemy import update as sa_update
 from sqlmodel import select
 
 from app.api import resource_access
+from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    ActorContext,
+    ActorSessionDep,
+    ActorUserDep,
     IncludeDeletedDep,
-    GuildContext,
     RLSSessionDep,
     SessionDep,
+    app_scope,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
-from app.core.messages import (
-    GalleryMessages,
-    QueueMessages,
-    TagMessages,
-    TaskMessages,
-)
+from app.core.app_scopes import tool_resource
+from app.core.messages import AppMessages, TagMessages
 from app.core.tools import Tool
+from app.db.guild_standing import InstallContext
+from app.db.initiative_rls import governing_path
 from app.models.tenant.tag import Tag
-from app.models.tenant.task import Task
-from app.models.tenant.project import Project
-from app.models.tenant.document import Document
-from app.models.tenant.gallery import GalleryImage
-from app.models.tenant.queue import QueueItem
 from app.models.platform.user import User
 from app.services import permissions as permissions_service
-from app.services.platform import guilds as guilds_service
 from app.services.tenant import tags as tags_service
-from app.services.tenant.soft_delete import soft_delete_entity
+from app.services.tenant.names import ensure_name_free
+from app.services.tenant.soft_delete import trash
+from app.schemas.tenant.search import SearchHit
 from app.schemas.tenant.tag import (
     TagBulkEditRequest,
     TagBulkEditResponse,
@@ -41,9 +38,6 @@ from app.schemas.tenant.tag import (
     serialize_tag,
     TagUpdate,
     TaggedEntitiesResponse,
-    TaggedTaskSummary,
-    TaggedProjectSummary,
-    TaggedDocumentSummary,
 )
 
 # The tag dictionary is a guild-wide folksonomy BY DESIGN: every guild member
@@ -51,9 +45,39 @@ from app.schemas.tenant.tag import (
 # trash tags, so the only gate here is guild membership. Hard purge alone is
 # admin-gated (the RESTRICTIVE RLS policy on ``tags``). Pinned by
 # ``test_any_guild_member_can_manage_the_tag_dictionary``.
-router = APIRouter()
+router = APIRouter(route_class=ActorRoute)
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+#: The routes an installed app may call, under the tags scopes.
+TagsRead = Annotated[ActorContext, Depends(app_scope("tags:read"))]
+TagsWrite = Annotated[ActorContext, Depends(app_scope("tags:write"))]
+
+
+def _governing(
+    spec: tags_service.TagLinkSpec,
+) -> tuple[Tool, tuple[tuple[str, str], ...]]:
+    """The tool whose sharing governs a taggable kind, and the join chain from
+    the kind's table to it — ``()`` where the row is the tool itself. Read from
+    the registry the kind's RLS policy is rendered from."""
+    governed = governing_path(str(spec.entity.__tablename__))
+    if governed is None:  # pragma: no cover - every tag target has a tool
+        raise RuntimeError(f"no single tool governs {spec.entity.__tablename__!r}")
+    return governed
+
+
+def _require_install_tagging_scopes(actor: ActorContext, target: str) -> None:
+    """Raise 403 unless an installed app's standing also holds what tagging
+    ``target`` writes beside the tag: the write scope of the tool that governs
+    the tagged thing, and ``relationships:write`` for the assignment itself,
+    which is stored as a relationship. A person passes."""
+    if not isinstance(actor, InstallContext):
+        return
+    tool, _chain = _governing(tags_service.TAG_LINKS[target])
+    needed = ["relationships:write", f"{tool_resource(tool).value}:write"]
+    if not all(actor.holds(scope) for scope in needed):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AppMessages.SCOPE_REQUIRED,
+        )
 
 
 async def _get_tag_or_404(session: SessionDep, tag_id: int, guild_id: int) -> Tag:
@@ -68,31 +92,11 @@ async def _get_tag_or_404(session: SessionDep, tag_id: int, guild_id: int) -> Ta
     return tag
 
 
-async def _check_duplicate_name(
-    session: SessionDep,
-    guild_id: int,
-    name: str,
-    exclude_tag_id: int | None = None,
-) -> None:
-    """Check for case-insensitive duplicate tag name within guild."""
-    stmt = select(Tag).where(
-        func.lower(Tag.name) == name.lower().strip(),
-    )
-    if exclude_tag_id is not None:
-        stmt = stmt.where(Tag.id != exclude_tag_id)
-    result = await session.exec(stmt)
-    if result.one_or_none() is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=TagMessages.NAME_ALREADY_EXISTS,
-        )
-
-
 @router.get("/", response_model=List[TagRead])
 async def list_tags(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: TagsRead,
 ) -> list[TagRead]:
     """List all tags in the current guild."""
     stmt = select(Tag).order_by(Tag.name.asc())
@@ -108,7 +112,9 @@ async def create_tag(
     guild_context: GuildContextDep,
 ) -> TagRead:
     """Create a new tag in the current guild."""
-    await _check_duplicate_name(session, guild_context.guild_id, tag_in.name)
+    await ensure_name_free(
+        session, Tag.name, tag_in.name, detail=TagMessages.NAME_ALREADY_EXISTS
+    )
 
     tag = Tag(
         name=tag_in.name.strip(),
@@ -123,19 +129,21 @@ async def create_tag(
 @router.post("/bulk", response_model=TagBulkEditResponse)
 async def bulk_edit_tags(
     payload: TagBulkEditRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: TagsWrite,
 ) -> TagBulkEditResponse:
     """Add and/or remove tags across many entities of one type, atomically.
 
-    Every target is authorized with the same write gate its own set-tags
-    endpoint uses (tasks/queue items via their parent project/queue, tools via
-    the unified resource-access registry). Nothing is applied unless every
-    target passes — one transaction, and for tasks one realtime signal per
-    affected project instead of one per task.
+    Every target is authorized with write on the tool that governs it, read
+    from the registry its RLS policy is rendered from: a tool row asks itself,
+    a sub-resource (a task, a queue item, a wiki page, …) asks its parent tool.
+    Nothing is applied unless every target passes — one transaction, and a
+    parent tool's ``updated_at`` moves once for all of its sub-resources rather
+    than once per row.
     """
     target = payload.target_type.value
+    _require_install_tagging_scopes(guild_context, target)
     spec = tags_service.TAG_LINKS[target]
     add_ids = await tags_service.validate_guild_tag_ids(
         session, guild_context.guild_id, payload.add_tag_ids
@@ -143,85 +151,29 @@ async def bulk_edit_tags(
     remove_ids = list(dict.fromkeys(payload.remove_tag_ids))
     target_ids = list(dict.fromkeys(payload.target_ids))
 
-    # project_id -> initiative_id for the post-commit broadcasts, captured off
-    # the rows the authorization step already loads — no re-query later.
-    project_initiatives: dict[int, int] = {}
-    if target == "task":
+    tool, chain = _governing(spec)
+    parent_ids = target_ids
+    if chain:
+        ((parent_fk, _parent_table),) = chain
         rows = (
             await session.exec(
-                select(Task.id, Task.project_id).where(Task.id.in_(target_ids))
-            )
-        ).all()
-        if len(rows) != len(target_ids):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
-            )
-        for project_id in {project_id for _, project_id in rows}:
-            project = await resource_access.load_authorized(
-                session,
-                Tool.project,
-                project_id,
-                current_user,
-                guild_context,
-                access="write",
-            )
-            project_initiatives[project_id] = project.initiative_id
-    elif target == "queue_item":
-        rows = (
-            await session.exec(
-                select(QueueItem.id, QueueItem.queue_id).where(
-                    QueueItem.id.in_(target_ids)
+                select(spec.entity.id, getattr(spec.entity, parent_fk)).where(
+                    spec.entity.id.in_(target_ids)
                 )
             )
         ).all()
         if len(rows) != len(target_ids):
+            # Every tag target's code follows the one spelling:
+            # TASK_NOT_FOUND, QUEUE_ITEM_NOT_FOUND, WIKI_PAGE_NOT_FOUND, …
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=QueueMessages.ITEM_NOT_FOUND,
+                detail=f"{target.upper()}_NOT_FOUND",
             )
-        for queue_id in {queue_id for _, queue_id in rows}:
-            await resource_access.load_authorized(
-                session,
-                Tool.queue,
-                queue_id,
-                current_user,
-                guild_context,
-                access="write",
-            )
-    elif target == "gallery_image":
-        # A picture is the gallery's content: write on the gallery, the way a
-        # task asks its project.
-        rows = (
-            await session.exec(
-                select(GalleryImage.id, GalleryImage.gallery_id).where(
-                    GalleryImage.id.in_(target_ids)
-                )
-            )
-        ).all()
-        if len(rows) != len(target_ids):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=GalleryMessages.IMAGE_NOT_FOUND,
-            )
-        for gallery_id in {gallery_id for _, gallery_id in rows}:
-            await resource_access.load_authorized(
-                session,
-                Tool.gallery,
-                gallery_id,
-                current_user,
-                guild_context,
-                access="write",
-            )
-    else:
-        for target_id in target_ids:
-            await resource_access.load_authorized(
-                session,
-                Tool(target),
-                target_id,
-                current_user,
-                guild_context,
-                access="write",
-            )
+        parent_ids = list(dict.fromkeys(parent_id for _, parent_id in rows))
+    for parent_id in parent_ids:
+        await resource_access.load_authorized(
+            session, tool, parent_id, current_user, guild_context, access="write"
+        )
 
     await tags_service.bulk_edit_tags(
         session,
@@ -230,10 +182,11 @@ async def bulk_edit_tags(
         add_tag_ids=add_ids,
         remove_tag_ids=remove_ids,
     )
-    if project_initiatives:
+    if chain:
+        parent = tags_service.TOOL_TAG_LINKS[tool].entity
         await session.exec(
-            sa_update(Project)
-            .where(Project.id.in_(project_initiatives))
+            sa_update(parent)
+            .where(parent.id.in_(parent_ids))
             .values(updated_at=datetime.now(timezone.utc))
         )
     await session.commit()
@@ -267,11 +220,12 @@ async def update_tag(
 
     update_data = tag_in.model_dump(exclude_unset=True)
     if "name" in update_data and update_data["name"] is not None:
-        await _check_duplicate_name(
+        await ensure_name_free(
             session,
-            guild_context.guild_id,
+            Tag.name,
             update_data["name"],
-            exclude_tag_id=tag.id,
+            Tag.id != tag.id,
+            detail=TagMessages.NAME_ALREADY_EXISTS,
         )
         tag.name = update_data["name"].strip()
 
@@ -296,14 +250,10 @@ async def delete_tag(
     stay in place (reads hide them via the soft-delete filter) and fall with
     the tag's ORM relationship cascade on hard purge."""
     tag = await _get_tag_or_404(session, tag_id, guild_context.guild_id)
-    retention_days = await guilds_service.get_guild_retention_days(
-        session, guild_context.guild_id
-    )
-    await soft_delete_entity(
+    await trash(
         session,
         tag,
         deleted_by_user_id=current_user.id,
-        retention_days=retention_days,
     )
     await session.commit()
 
@@ -315,107 +265,51 @@ async def get_tag_entities(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> TaggedEntitiesResponse:
-    """Get all entities (tasks, projects, documents) with this tag.
+    """Everything carrying this tag, of every taggable kind.
 
     A tag reaches across every initiative in the community, so this listing
     answers what has been shared with the reader — the same rule the community
     front page's table and the ``/me/*`` views follow. A guild admin's authority
     over any one initiative is unchanged; it is asked about by opening that
     initiative, not by opening a tag.
+
+    Each row names itself and the tool it lives in, the way a search hit does,
+    which is everything a client needs to address it.
     """
     tag = await _get_tag_or_404(session, tag_id, guild_context.guild_id)
 
-    # A tag is guild-wide, so what it has been put on spans initiatives: the
-    # sharing gate here asks what reaches the reader, not what their standing
-    # could reach. Two columns name a project — a task's FK and the project's
-    # own id — so the clause is built against each.
-    def _project_scope(col: ColumnElement[int]) -> ColumnElement[bool]:
-        return permissions_service.granted_scope_clause(
-            Tool.project, col, current_user.id, context=guild_context
+    items: list[SearchHit] = []
+    for spec in tags_service.TAG_LINKS.values():
+        model = spec.entity
+        tool, chain = _governing(spec)
+        # A sub-resource is shared as part of its tool, so the sharing leg and
+        # the initiative are both read off the parent row.
+        parent = tags_service.TOOL_TAG_LINKS[tool].entity
+        tool_id = getattr(model, chain[0][0]) if chain else model.id
+        label = getattr(model, model.display_field())
+        statement = (
+            select(model.id, label, parent.initiative_id, tool_id)
+            .where(
+                model.id.in_(tags_service.tagged_entity_ids(spec, [tag.id])),
+                permissions_service.granted_scope_clause(
+                    tool, tool_id, current_user.id, context=guild_context
+                ),
+            )
+            .order_by(label)
         )
-
-    # Get tasks with this tag that user can access
-    tasks_stmt = (
-        select(Task)
-        .where(
-            Task.id.in_(
-                tags_service.tagged_entity_ids(tags_service.TAG_LINKS["task"], [tag.id])
-            ),
-            _project_scope(Task.project_id),
+        if chain:
+            statement = statement.join_from(model, parent, parent.id == tool_id)
+        items.extend(
+            SearchHit(
+                entity_type=spec.kind,
+                entity_id=entity_id,
+                title=title or "",
+                initiative_id=initiative_id,
+                tool=tool,
+                tool_id=parent_id,
+            )
+            for entity_id, title, initiative_id, parent_id in (
+                await session.exec(statement)
+            ).all()
         )
-        .options(selectinload(Task.project))
-    )
-    tasks_result = await session.exec(tasks_stmt)
-    tasks = tasks_result.all()
-    task_summaries = [
-        TaggedTaskSummary(
-            id=task.id,
-            title=task.title,
-            project_id=task.project_id,
-            project_name=task.project.name if task.project else None,
-        )
-        for task in tasks
-    ]
-
-    # Get projects with this tag that user can access
-    projects_stmt = (
-        select(Project)
-        .where(
-            Project.id.in_(
-                tags_service.tagged_entity_ids(
-                    tags_service.TAG_LINKS["project"], [tag.id]
-                )
-            ),
-            _project_scope(Project.id),
-        )
-        .options(selectinload(Project.initiative))
-    )
-    projects_result = await session.exec(projects_stmt)
-    projects = projects_result.all()
-    project_summaries = [
-        TaggedProjectSummary(
-            id=project.id,
-            name=project.name,
-            initiative_id=project.initiative_id,
-            initiative_name=project.initiative.name if project.initiative else None,
-        )
-        for project in projects
-    ]
-
-    doc_scope = permissions_service.granted_scope_clause(
-        Tool.document,
-        Document.id,
-        current_user.id,
-        context=guild_context,
-    )
-
-    # Get documents with this tag that user can access
-    documents_stmt = (
-        select(Document)
-        .where(
-            Document.id.in_(
-                tags_service.tagged_entity_ids(
-                    tags_service.TAG_LINKS["document"], [tag.id]
-                )
-            ),
-            doc_scope,
-        )
-        .options(selectinload(Document.initiative))
-    )
-    documents_result = await session.exec(documents_stmt)
-    documents = documents_result.all()
-    document_summaries = [
-        TaggedDocumentSummary(
-            id=doc.id,
-            name=doc.name,
-            initiative_id=doc.initiative_id,
-            initiative_name=doc.initiative.name if doc.initiative else None,
-        )
-        for doc in documents
-    ]
-
-    return TaggedEntitiesResponse(
-        tasks=task_summaries,
-        projects=project_summaries,
-        documents=document_summaries,
-    )
+    return TaggedEntitiesResponse(items=items)

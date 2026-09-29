@@ -10,7 +10,7 @@ import {
   useTestMemberAI,
 } from "@/hooks/useAISettings";
 import { toast } from "@/lib/chesterToast";
-import { getErrorMessage } from "@/lib/errorMessage";
+import { getErrorMessage, messageForCode } from "@/lib/errorMessage";
 
 import { MemberAIConnectionRow, myConnectionValue } from "./MemberAIConnectionRow";
 
@@ -74,9 +74,9 @@ export const MyGuildAISection = ({ guildId, guildName, connections }: MyGuildAIS
     testMember.mutate(undefined, {
       onSuccess: (data) => {
         if (data.success) {
-          toast.success(data.message || t("memberAI.testSuccess"));
+          toast.success(t("memberAI.testSuccess"));
         } else {
-          toast.error(data.message || t("ai.testError"));
+          toast.error(messageForCode(data.message, "settings:ai.testError"));
         }
       },
       onError: (error) => toast.error(getErrorMessage(error, "settings:ai.testError")),

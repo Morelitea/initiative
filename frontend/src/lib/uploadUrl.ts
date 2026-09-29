@@ -57,7 +57,7 @@ export function resolveHeaderlessApiUrl(apiPath: string): string {
 /**
  * Resolve a document ID to its authorized download URL (current version).
  *
- * The download is guild-scoped (``/g/{guildId}/…``): served via iframe/
+ * The download is guild-scoped (``/c/{guildId}/…``): served via iframe/
  * window.open, which can't send headers, so the guild rides in the path.
  */
 export function resolveDocumentDownloadUrl(
@@ -68,7 +68,7 @@ export function resolveDocumentDownloadUrl(
   if (!documentId || !guildId) {
     return null;
   }
-  const base = `/api/v1/g/${guildId}/documents/${documentId}/download`;
+  const base = `/api/v1/c/${guildId}/documents/${documentId}/download`;
   return resolveHeaderlessApiUrl(inline ? `${base}?inline=1` : base);
 }
 
@@ -86,7 +86,7 @@ export function resolveDocumentVersionDownloadUrl(
   if (!documentId || !versionId || !guildId) {
     return null;
   }
-  const base = `/api/v1/g/${guildId}/documents/${documentId}/versions/${versionId}/download`;
+  const base = `/api/v1/c/${guildId}/documents/${documentId}/versions/${versionId}/download`;
   return resolveHeaderlessApiUrl(inline ? `${base}?inline=1` : base);
 }
 

@@ -6,8 +6,8 @@ guild they don't, or no guild at all. So it lives here rather than inside any
 one channel's connection manager, and every channel that proves a person is
 present feeds the same roll.
 
-Two do. The guild events socket (``app.services.realtime``) only exists while a
-tab sits inside a guild. The notification stream
+Two do. The guild events socket (``app.services.content_sockets``) only exists
+while a tab sits inside a guild. The notification stream
 (``app.services.platform.notification_stream``) has no guild in its address and
 is open on every page for as long as someone is signed in, which is what makes
 it the signal that actually answers the question.
@@ -36,9 +36,10 @@ tells a reader less rather than more.
 """
 
 from time import monotonic
-from typing import Dict, Iterable, Optional, Set
+from typing import Dict, Optional, Set
 
 from app.models.platform.user import Presence
+from app.db.request_context import Unattributed
 
 #: How long a person's tabs go without a sign of them before they read as idle.
 #: Long enough to sit through reading a document, short enough that a tab left
@@ -158,10 +159,6 @@ class OnlineRoll:
         """
         return self.presence_of(user_id) is not Presence.offline
 
-    def online_users(self, user_ids: Iterable[int]) -> Set[int]:
-        """Which of these accounts are online, for a page of them at a time."""
-        return {user_id for user_id in user_ids if self.is_online(user_id)}
-
 
 #: The one roll every channel feeds and every reader asks.
 online = OnlineRoll()
@@ -198,7 +195,7 @@ async def process_activity_flush() -> None:
     if not user_ids:
         return
     async with SystemSessionLocal() as session:
-        await set_rls_context(session)
+        await set_rls_context(session, Unattributed())
         await session.exec(
             text(
                 "UPDATE users SET last_active_at = now() "

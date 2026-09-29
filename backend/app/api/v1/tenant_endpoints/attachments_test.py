@@ -5,7 +5,7 @@ import io
 import pytest
 from httpx import AsyncClient
 
-from app.api.v1.tenant_endpoints.attachments import _detect_content_type
+from app.services.tenant.attachments import detect_document_image_type
 from app.models.platform.guild import GuildRole
 
 #: A real 1x1 PNG — the header reader walks IHDR, so a stub signature is not
@@ -19,7 +19,6 @@ TINY_PNG = (
 )
 
 
-@pytest.mark.integration
 async def test_upload_image_too_large(client: AsyncClient, acting_user):
     """Uploading an image larger than MAX_IMAGE_BYTES returns 413."""
     a = await acting_user(guild_role=GuildRole.admin)
@@ -35,7 +34,6 @@ async def test_upload_image_too_large(client: AsyncClient, acting_user):
     assert response.json()["detail"] == "ATTACHMENT_TOO_LARGE"
 
 
-@pytest.mark.integration
 async def test_upload_image_within_limit(client: AsyncClient, acting_user):
     """A valid PNG under the size limit is accepted."""
     a = await acting_user(guild_role=GuildRole.admin)
@@ -50,7 +48,6 @@ async def test_upload_image_within_limit(client: AsyncClient, acting_user):
     assert response.json()["url"].startswith("/uploads/")
 
 
-@pytest.mark.integration
 async def test_upload_names_the_file_after_its_bytes(client: AsyncClient, acting_user):
     """The stored name and type come from the bytes, not from what the client
     called the file — so the name a serve request reads back describes it."""
@@ -69,7 +66,6 @@ async def test_upload_names_the_file_after_its_bytes(client: AsyncClient, acting
     assert payload["url"].endswith(".svg")
 
 
-@pytest.mark.integration
 async def test_upload_ignores_a_declared_svg_type(client: AsyncClient, acting_user):
     """A raster is identified as one however it is labelled."""
     a = await acting_user(guild_role=GuildRole.admin)
@@ -86,7 +82,6 @@ async def test_upload_ignores_a_declared_svg_type(client: AsyncClient, acting_us
     assert payload["url"].endswith(".png")
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "prolog",
     [
@@ -115,7 +110,6 @@ async def test_upload_accepts_an_svg_behind_a_prolog(
     assert response.json()["url"].endswith(".svg")
 
 
-@pytest.mark.integration
 async def test_upload_refuses_bytes_that_are_no_image(client: AsyncClient, acting_user):
     """Nothing the detector recognizes means nothing is stored, whatever the
     client called it."""
@@ -137,7 +131,6 @@ async def test_upload_refuses_bytes_that_are_no_image(client: AsyncClient, actin
     assert response.json()["detail"] == "ATTACHMENT_INVALID_IMAGE"
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "contents",
     [
@@ -154,10 +147,9 @@ async def test_upload_refuses_bytes_that_are_no_image(client: AsyncClient, actin
 def test_an_svg_root_is_found_behind_its_prolog(contents: bytes):
     """Whatever an SVG carries ahead of its root element, the root is what
     decides."""
-    assert _detect_content_type(contents) == "image/svg+xml"
+    assert detect_document_image_type(contents) == "image/svg+xml"
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "contents",
     [
@@ -172,13 +164,12 @@ def test_an_svg_root_is_found_behind_its_prolog(contents: bytes):
 def test_markup_that_is_not_an_svg_is_not_an_image(contents: bytes):
     """Naming the element somewhere in the file is not being it — the root
     element is, so none of these are stored as pictures."""
-    assert _detect_content_type(contents) is None
+    assert detect_document_image_type(contents) is None
 
 
-@pytest.mark.unit
 def test_a_raster_is_identified_before_markup():
     """A raster signature settles it; nothing goes looking for markup in a PNG."""
-    assert _detect_content_type(TINY_PNG) == "image/png"
+    assert detect_document_image_type(TINY_PNG) == "image/png"
 
 
 # ---------------------------------------------------------------------------
@@ -219,7 +210,6 @@ async def _set_description(client: AsyncClient, a, task_id: int, text: str) -> N
     assert response.status_code == 200, response.text
 
 
-@pytest.mark.integration
 async def test_a_pasted_picture_is_named_as_pasted(client: AsyncClient, acting_user):
     from app.services.tenant.attachments import PASTED_IMAGE_PREFIX
 
@@ -230,7 +220,6 @@ async def test_a_pasted_picture_is_named_as_pasted(client: AsyncClient, acting_u
     assert url.startswith(f"/uploads/{a.guild.id}/{PASTED_IMAGE_PREFIX}")
 
 
-@pytest.mark.integration
 async def test_taking_a_picture_out_of_a_description_deletes_it(
     client: AsyncClient, session, acting_user
 ):
@@ -249,17 +238,20 @@ async def test_taking_a_picture_out_of_a_description_deletes_it(
     assert not await _stored(session, a.guild.id, url)
 
 
-@pytest.mark.integration
 async def test_a_picture_another_task_still_shows_stays(
     client: AsyncClient, session, acting_user
 ):
-    """A duplicated task shares its original's pictures."""
+    """A duplicated task shares its original's pictures, and one that shows
+    it counts wherever it is — in an initiative the editor is not in too."""
     from app.testing import create_task
 
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    other = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=True, project=True
+    )
     url = await _paste(client, a)
     task = await create_task(session, a.project, description=f"![shot]({url})")
-    await create_task(session, a.project, description=f"copy ![shot]({url})")
+    await create_task(session, other.project, description=f"copy ![shot]({url})")
     await session.commit()
 
     await _set_description(client, a, task.id, "Never mind")
@@ -267,7 +259,6 @@ async def test_a_picture_another_task_still_shows_stays(
     assert await _stored(session, a.guild.id, url)
 
 
-@pytest.mark.integration
 async def test_a_picture_that_is_not_a_description_s_is_never_deleted(
     client: AsyncClient, session, acting_user
 ):
@@ -290,7 +281,6 @@ async def test_a_picture_that_is_not_a_description_s_is_never_deleted(
     assert await _stored(session, a.guild.id, doc_url)
 
 
-@pytest.mark.integration
 async def test_purging_a_task_deletes_its_pictures(
     client: AsyncClient, session, acting_user
 ):
@@ -317,6 +307,65 @@ async def test_purging_a_task_deletes_its_pictures(
     assert not await _stored(session, a.guild.id, url)
 
 
+def _lexical(*urls: str) -> dict:
+    """A document body showing these pictures."""
+    return {"root": {"children": [{"type": "image", "src": url} for url in urls]}}
+
+
+async def test_a_picture_taken_out_of_a_document_goes_when_nothing_shows_it(
+    client: AsyncClient, session, acting_user
+):
+    """Editing a document lets go of a picture it stopped showing, but only
+    once nothing else shows it, and only a file this community stores — a
+    body naming another community's file leaves that file alone. A duplicate
+    shows its own copy, stored at the same size, so it is not what keeps the
+    original."""
+    from pathlib import Path
+
+    from sqlmodel import select
+
+    from app.models.tenant.upload import Upload
+    from app.testing import create_document
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    b = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    url = await _paste(client, a)
+    elsewhere = await _paste(client, b)
+    first = await create_document(session, a.initiative, a.user, content=_lexical(url))
+    second = await create_document(
+        session, a.initiative, a.user, content=_lexical(url, elsewhere)
+    )
+    await session.commit()
+
+    duplicate = await client.post(
+        a.g(f"/documents/{first.id}/duplicate"), headers=a.headers, json={"name": "C"}
+    )
+    assert duplicate.status_code == 201, duplicate.text
+    copy = duplicate.json()["content"]["root"]["children"][0]["src"]
+    assert copy != url and await _stored(session, a.guild.id, copy)
+    sizes = await session.exec(
+        select(Upload.size_bytes).where(
+            Upload.filename.in_([Path(url).name, Path(copy).name])
+        )
+    )
+    assert set(sizes.all()) == {len(TINY_PNG)}
+
+    async def clear(document_id: int) -> None:
+        response = await client.patch(
+            a.g(f"/documents/{document_id}"),
+            headers=a.headers,
+            json={"content": _lexical()},
+        )
+        assert response.status_code == 200, response.text
+
+    await clear(first.id)
+    assert await _stored(session, a.guild.id, url), "the second one still shows it"
+
+    await clear(second.id)
+    assert not await _stored(session, a.guild.id, url)
+    assert await _stored(session, b.guild.id, elsewhere)
+
+
 async def _discard(client: AsyncClient, a, url: str) -> None:
     from pathlib import Path
 
@@ -326,7 +375,6 @@ async def _discard(client: AsyncClient, a, url: str) -> None:
     assert response.status_code == 204, response.text
 
 
-@pytest.mark.integration
 async def test_a_picture_left_unsaved_is_discarded(
     client: AsyncClient, session, acting_user
 ):
@@ -338,7 +386,6 @@ async def test_a_picture_left_unsaved_is_discarded(
     assert not await _stored(session, a.guild.id, url)
 
 
-@pytest.mark.integration
 async def test_a_saved_picture_is_not_discarded(
     client: AsyncClient, session, acting_user
 ):
@@ -356,7 +403,6 @@ async def test_a_saved_picture_is_not_discarded(
     assert await _stored(session, a.guild.id, url)
 
 
-@pytest.mark.integration
 async def test_nobody_discards_somebody_else_s_picture(
     client: AsyncClient, session, acting_user
 ):
@@ -369,7 +415,6 @@ async def test_nobody_discards_somebody_else_s_picture(
     assert await _stored(session, a.guild.id, url)
 
 
-@pytest.mark.integration
 async def test_only_a_pasted_picture_can_be_discarded(
     client: AsyncClient, session, acting_user
 ):
@@ -386,13 +431,16 @@ async def test_only_a_pasted_picture_can_be_discarded(
     assert await _stored(session, a.guild.id, doc_url)
 
 
-@pytest.mark.integration
 async def test_the_sweep_takes_pictures_nobody_saved_once_their_grace_is_over(
     client: AsyncClient, session, acting_user
 ):
-    """A tab closed rather than left never discards what it pasted."""
+    """A tab closed rather than left never discards what it pasted. A saved
+    one is claimed for the initiative that shows it and not looked at again."""
     from datetime import datetime, timedelta, timezone
 
+    from sqlmodel import select
+
+    from app.models.tenant.upload import Upload
     from app.services.tenant.attachments import (
         UNCLAIMED_PASTED_IMAGE_GRACE,
         release_unclaimed_pasted_images,
@@ -403,7 +451,7 @@ async def test_the_sweep_takes_pictures_nobody_saved_once_their_grace_is_over(
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     unsaved = await _paste(client, a)
     saved = await _paste(client, a)
-    await create_task(session, a.project, description=f"![shot]({saved})")
+    task = await create_task(session, a.project, description=f"![shot]({saved})")
     await session.commit()
 
     await route_session_to_guild(session, a.guild.id)
@@ -415,6 +463,72 @@ async def test_the_sweep_takes_pictures_nobody_saved_once_their_grace_is_over(
     released = await release_unclaimed_pasted_images(session, now=later)
 
     assert released == {unsaved.rsplit("/", 1)[1]}
+    saved_name = saved.rsplit("/", 1)[1]
+    claimed = (
+        await session.exec(select(Upload).where(Upload.filename == saved_name))
+    ).one()
+    assert claimed.claimed_at is not None
+    assert claimed.initiative_id == a.initiative.id
+
+    # Once claimed, the sweep leaves it alone even when nothing shows it.
+    task.description = "No picture"
+    session.add(task)
+    await session.commit()
+    assert await release_unclaimed_pasted_images(session, now=later) == set()
+    assert await _stored(session, a.guild.id, saved)
+
+
+async def test_the_sweep_copies_a_picture_two_initiatives_show(
+    client: AsyncClient, session, acting_user
+):
+    """The oldest showing row's initiative keeps the file, and the other gets
+    a copy of its own that its row shows."""
+    from datetime import datetime, timedelta, timezone
+
+    from sqlmodel import select
+
+    from app.models.tenant.task import Task
+    from app.models.tenant.upload import Upload
+    from app.services.tenant.attachments import (
+        UNCLAIMED_PASTED_IMAGE_GRACE,
+        release_unclaimed_pasted_images,
+    )
+    from app.testing import create_initiative, create_project, create_task
+    from app.testing.schema_harness import route_session_to_guild
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    elsewhere = await create_initiative(session, a.guild, a.user)
+    other = await create_project(session, elsewhere, a.user)
+    url = await _paste(client, a)
+    await create_task(session, a.project, description=f"![shot]({url})")
+    later_task = await create_task(session, other, description=f"![shot]({url})")
+    await session.commit()
+
+    await route_session_to_guild(session, a.guild.id)
+    later = datetime.now(timezone.utc) + UNCLAIMED_PASTED_IMAGE_GRACE
+    assert (
+        await release_unclaimed_pasted_images(session, now=later + timedelta(minutes=1))
+        == set()
+    )
+
+    kept = {
+        u.filename: u.initiative_id
+        for u in await session.exec(
+            select(Upload).execution_options(populate_existing=True)
+        )
+    }
+    name = url.rsplit("/", 1)[1]
+    [copy] = set(kept) - {name}
+    assert kept == {name: a.initiative.id, copy: elsewhere.id}
+    description = (
+        await session.exec(
+            select(Task.description)
+            .where(Task.id == later_task.id)
+            .execution_options(populate_existing=True)
+        )
+    ).one()
+    assert description == f"![shot](/uploads/{a.guild.id}/{copy})"
+    assert await _stored(session, a.guild.id, f"/uploads/{a.guild.id}/{copy}")
 
 
 async def _edit_comment(client: AsyncClient, a, comment_id: int, text: str) -> None:
@@ -424,7 +538,6 @@ async def _edit_comment(client: AsyncClient, a, comment_id: int, text: str) -> N
     assert response.status_code == 200, response.text
 
 
-@pytest.mark.integration
 async def test_taking_a_picture_out_of_a_comment_deletes_it(
     client: AsyncClient, session, acting_user
 ):
@@ -443,7 +556,6 @@ async def test_taking_a_picture_out_of_a_comment_deletes_it(
     assert not await _stored(session, a.guild.id, url)
 
 
-@pytest.mark.integration
 async def test_a_picture_a_comment_shows_outlives_the_description(
     client: AsyncClient, session, acting_user
 ):
@@ -462,7 +574,6 @@ async def test_a_picture_a_comment_shows_outlives_the_description(
     assert await _stored(session, a.guild.id, url)
 
 
-@pytest.mark.integration
 async def test_purging_a_task_takes_its_comments_pictures_too(
     client: AsyncClient, session, acting_user
 ):
@@ -485,3 +596,210 @@ async def test_purging_a_task_takes_its_comments_pictures_too(
     await session.commit()
 
     assert not await _stored(session, a.guild.id, url)
+
+
+async def _status(client: AsyncClient, a, url: str) -> int:
+    return (await client.get(url, headers=a.headers)).status_code
+
+
+async def _uploads(session, guild_id: int) -> list:
+    from sqlmodel import select
+
+    from app.models.tenant.upload import Upload
+    from app.testing.schema_harness import route_session_to_guild
+
+    await route_session_to_guild(session, guild_id)
+    rows = await session.exec(select(Upload).execution_options(populate_existing=True))
+    return list(rows.all())
+
+
+async def test_a_saved_picture_reaches_its_initiative_and_nobody_else(
+    client: AsyncClient, session, acting_user
+):
+    """Until it is saved a picture is its uploader's; once a task shows it,
+    the task's initiative reads it and the rest of the guild does not."""
+    from app.testing import create_task
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    peer = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    url = await _paste(client, a)
+    task = await create_task(session, a.project)
+    await session.commit()
+
+    assert await _status(client, a, url) == 200
+    assert await _status(client, peer, url) == 404
+
+    await _set_description(client, a, task.id, f"![shot]({url})")
+
+    assert await _status(client, peer, url) == 200
+    assert await _status(client, outsider, url) == 404
+
+
+async def test_one_picture_in_a_document_and_a_task_stays_one_file(
+    client: AsyncClient, session, acting_user
+):
+    from app.testing import create_document, create_task
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    url = await _paste(client, a)
+    task = await create_task(session, a.project)
+    document = await create_document(session, a.initiative, a.user)
+    await session.commit()
+
+    await _set_description(client, a, task.id, f"![shot]({url})")
+    response = await client.patch(
+        a.g(f"/documents/{document.id}"),
+        headers=a.headers,
+        json={"content": _lexical(url)},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["content"]["root"]["children"][0]["src"] == url
+    [upload] = await _uploads(session, a.guild.id)
+    assert upload.initiative_id == a.initiative.id
+
+
+async def test_a_picture_pasted_from_another_initiative_is_copied(
+    client: AsyncClient, session, acting_user
+):
+    """Saving a picture kept for another initiative makes one copy for this
+    one, which its members read, and leaves the original where it was."""
+    from app.testing import create_initiative, create_project, create_task
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    elsewhere = await create_initiative(session, a.guild, a.user)
+    project = await create_project(session, elsewhere, a.user)
+    there = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=elsewhere,
+        initiative_role="member",
+    )
+    url = await _paste(client, a)
+    first = await create_task(session, a.project)
+    second = await create_task(session, project)
+    await session.commit()
+    await _set_description(client, a, first.id, f"![shot]({url})")
+
+    await _set_description(client, a, second.id, f"![shot]({url}) and ![again]({url})")
+
+    response = await client.get(a.g(f"/tasks/{second.id}"), headers=a.headers)
+    copy = response.json()["description"].split("(")[1].split(")")[0]
+    assert copy != url
+    assert response.json()["description"] == f"![shot]({copy}) and ![again]({copy})"
+    kept = {u.filename: u.initiative_id for u in await _uploads(session, a.guild.id)}
+    assert kept == {
+        url.rsplit("/", 1)[1]: a.initiative.id,
+        copy.rsplit("/", 1)[1]: elsewhere.id,
+    }
+    assert await _status(client, there, copy) == 200
+    assert await _status(client, there, url) == 404
+
+
+async def test_a_picture_the_saver_cannot_read_is_left_as_written(
+    client: AsyncClient, session, acting_user
+):
+    from app.testing import create_task
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    c = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=True, project=True
+    )
+    url = await _paste(client, a)
+    mine = await create_task(session, a.project)
+    theirs = await create_task(session, c.project)
+    await session.commit()
+    await _set_description(client, a, mine.id, f"![shot]({url})")
+
+    await _set_description(client, c, theirs.id, f"![shot]({url})")
+
+    response = await client.get(c.g(f"/tasks/{theirs.id}"), headers=c.headers)
+    assert response.json()["description"] == f"![shot]({url})"
+    assert len(await _uploads(session, a.guild.id)) == 1
+    assert await _status(client, c, url) == 404
+
+
+async def test_a_task_moved_to_another_initiative_takes_copies_of_its_pictures(
+    client: AsyncClient, session, acting_user
+):
+    """The task and its conversation show one copy kept for the destination;
+    the original still serves the initiative it came from."""
+    from app.testing import create_comment, create_initiative, create_project
+    from app.testing import create_task
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    stay = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    elsewhere = await create_initiative(session, a.guild, a.user)
+    destination = await create_project(session, elsewhere, a.user)
+    there = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=elsewhere,
+        initiative_role="member",
+    )
+    url = await _paste(client, a)
+    task = await create_task(session, a.project)
+    await session.commit()
+    await _set_description(client, a, task.id, f"![shot]({url})")
+    comment = await create_comment(
+        session, a.user, task=task, content=f"See ![shot]({url})"
+    )
+    await session.commit()
+
+    response = await client.post(
+        a.g(f"/tasks/{task.id}/move"),
+        headers=a.headers,
+        json={"target_project_id": destination.id},
+    )
+
+    assert response.status_code == 200, response.text
+    copy = response.json()["description"].removeprefix("![shot](").removesuffix(")")
+    assert copy != url
+    await session.refresh(comment)
+    assert comment.content == f"See ![shot]({copy})"
+    assert await _status(client, there, copy) == 200
+    assert await _status(client, there, url) == 404
+    assert await _status(client, stay, url) == 200
+
+
+async def test_the_quota_counts_files_the_uploader_cannot_read(
+    client: AsyncClient, session, acting_user
+):
+    from sqlmodel import select
+
+    from app.models.platform.guild_administration import GuildAdministration
+    from app.testing import create_upload
+
+    a = await acting_user(guild_role=GuildRole.member)
+    other = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    await create_upload(session, a.guild, other.user, size_bytes=1000)
+    administration = (
+        await session.exec(
+            select(GuildAdministration).where(
+                GuildAdministration.guild_id == a.guild.id
+            )
+        )
+    ).one()
+    administration.max_storage_bytes = 1000 + len(TINY_PNG) - 1
+    session.add(administration)
+    await session.commit()
+
+    response = await client.post(
+        a.g("/attachments/pasted"),
+        headers=a.headers,
+        files={"file": ("pasted.png", io.BytesIO(TINY_PNG), "image/png")},
+    )
+
+    assert response.status_code == 507
+    assert response.json()["detail"] == "ATTACHMENT_STORAGE_QUOTA_EXCEEDED"

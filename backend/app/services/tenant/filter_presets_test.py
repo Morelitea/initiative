@@ -1,6 +1,5 @@
 """Seeding, slugs, defaults, and cloning for project filter presets."""
 
-import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.services.tenant import filter_presets as filter_presets_service
@@ -11,8 +10,6 @@ from app.testing.factories import (
     create_task_status,
     create_user,
 )
-
-pytestmark = [pytest.mark.integration, pytest.mark.service]
 
 
 async def _project(session: AsyncSession):
@@ -43,11 +40,10 @@ async def test_seeding_is_idempotent(session: AsyncSession):
 
 async def test_all_is_the_default_so_behaviour_is_unchanged(session: AsyncSession):
     project = await _project(session)
-    await filter_presets_service.ensure_default_presets(session, project.id)
+    presets = await filter_presets_service.ensure_default_presets(session, project.id)
 
-    default = await filter_presets_service.get_default_preset(session, project.id)
+    default = next(p for p in presets if p.is_default)
 
-    assert default is not None
     assert default.slug == "all"
     assert default.filters == {}
 

@@ -18,7 +18,9 @@ Postgres can serve nothing, so the three engines decide the verdict. The rest
 but do not: each one is normally reachable or unreachable for the entire
 fleet at once, and a fleet that removes every pod from rotation over one of
 them has turned a partial outage into a total one. They show up in the body as
-``degraded`` so an operator reading the probe sees what a dashboard would.
+``degraded`` so an operator reading the probe sees what a dashboard would. A
+read replica (``DATABASE_URL_QUERY``) is one of these: losing it costs
+dashboards and exports, not every page.
 
 Both probes are unauthenticated, and all three routes are exempt from the
 global rate limit: a probe answered with a 429 reports a failure the process
@@ -96,14 +98,24 @@ async def _rate_limit_store() -> None:
         raise RuntimeError("unavailable")
 
 
-CHECKS: dict[str, Callable[[], Awaitable[None]]] = {
-    "database": lambda: _ping("engine"),
-    "database_system": lambda: _ping("system_engine"),
-    "database_provisioning": lambda: _ping("provisioning_engine"),
-    "storage": _storage,
-    "notify_bus": _notify_bus,
-    "rate_limit_store": _rate_limit_store,
-}
+def declared_checks() -> dict[str, Callable[[], Awaitable[None]]]:
+    """Every dependency this deployment's probe asks about."""
+    checks: dict[str, Callable[[], Awaitable[None]]] = {
+        "database": lambda: _ping("engine"),
+        "database_system": lambda: _ping("system_engine"),
+        "database_provisioning": lambda: _ping("provisioning_engine"),
+        "storage": _storage,
+        "notify_bus": _notify_bus,
+        "rate_limit_store": _rate_limit_store,
+    }
+    # Only when it is a server of its own; otherwise it is the request
+    # database, which the first check already asks about.
+    if settings.DATABASE_URL_QUERY:
+        checks["database_query"] = lambda: _ping("query_engine")
+    return checks
+
+
+CHECKS = declared_checks()
 
 
 async def _run(name: str, check: Callable[[], Awaitable[None]]) -> str:

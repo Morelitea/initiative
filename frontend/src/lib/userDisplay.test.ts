@@ -50,9 +50,10 @@ describe("getUserDisplayName", () => {
     expect(getUserDisplayName({ ...withHandle, status: "deactivated" })).toBe("foobar#0012");
   });
 
-  it("leaves an unresolved id to the caller's placeholder", () => {
-    expect(getUserDisplayName({ id: 42 }, "User #42")).toBe("User #42");
-    expect(getUserDisplayName(null, "User")).toBe("User");
+  it("names an unresolved id by its number unless the caller has a placeholder", () => {
+    expect(getUserDisplayName({ id: 42 })).toBe("User #42");
+    expect(getUserDisplayName(null)).toBe("User");
+    expect(getUserDisplayName({ id: 42 }, "#42")).toBe("#42");
   });
 });
 

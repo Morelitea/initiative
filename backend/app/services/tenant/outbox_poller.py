@@ -1,16 +1,26 @@
-"""Drain ``event_outbox`` to each subscription's target.
+"""Drain ``event_outbox`` and ``app_event_outbox`` to each subscription's target.
+
+The change log and the events installed apps emit share one delivery: the same
+ledger, backoff, dead-letter and retention, and one envelope per transaction,
+where an app event is one entry in ``changes`` carrying its payload. An app
+event reaches a subscription by the rules in :func:`_matches_app_event`.
 
 **A subscription's reach is the scope it names.** ``initiative_id`` set means
 that initiative's changes; naming none means the community's. ``_matches``
 applies it per change item, before a batch is assembled, and that is the whole
 of the decision — no account's standing is consulted anywhere in a pass.
 
+A subscription an installed app registered is also capped by the app's reach
+as it is now: the install is live, it is placed in the change's initiative, and
+its grant holds the read scope of what changed. That is read with the roster,
+one statement per guild per pass (:class:`InstallReach`), so removing a
+placement or a scope stops delivery from the next pass on.
+
 That is the right granularity because of what a delivery is. An envelope is
 identifiers and changed column **names**; a consumer reads current state back
-through the REST path, where every gate applies to the read. An automation
-calling back presents a delegation naming a member, and that request is gated
-as if the member had made it, on a grant re-read every call — so what an
-automation may *do*, and the instant at which it stops being able to, is
+through the REST path, where every gate applies to the read. An installed app
+calling back presents its own token, whose standing is read on every call — so
+what an app may *do*, and the instant at which it stops being able to, is
 decided there rather than here.
 
 A subscription is therefore the community's integration configuration, not the
@@ -51,34 +61,40 @@ next pass.
 
 from __future__ import annotations
 
+import asyncio
+
 import logging
 import uuid
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import ARRAY, Integer, bindparam, text
+from sqlalchemy import ARRAY, Integer, and_, bindparam, delete, func, or_, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db import session as db_session
+from app.core import webhook_events
+from app.core.app_scopes import UnknownAppScope, app_scope_target, expand
 from app.db.session import (
     set_rls_context,
-    set_system_guild_context,
 )
-from app.models.platform.guild import Guild, GuildStatus
+from app.models.tenant.app_event_outbox import AppEventOutbox
+from app.models.tenant.app_hook_delivery import AppHookDelivery
+from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.event_outbox import EventOutbox
+from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.webhook_subscription import WebhookSubscription
-from app.services.tenant import webhook_refs
-from app.services.tenant import webhook_subscriptions
+from app.services.guild_sweeps import Drain
+from app.services.marketplace.registration_lookup import load_registrations
+from app.services.tenant import room_sink, webhook_refs
 from app.services.tenant.webhook_dispatcher import deliver
+from app.db.request_context import SystemGuild, SystemMaintenance
 
 logger = logging.getLogger(__name__)
 
-#: How often the drain runs.
-OUTBOX_POLL_SECONDS = 5
-
-#: How often delivered history is swept.
-OUTBOX_RETENTION_POLL_SECONDS = 3600
+#: How long the drain lets further changes gather before it visits.
+DRAIN_SETTLE_SECONDS = 1.0
 
 #: How long delivered change events are kept. A subscriber further behind than
 #: this has stopped consuming and resumes from the current head.
@@ -93,6 +109,9 @@ LEASE_SECONDS = 300
 
 #: Backoff schedule, in seconds, indexed by consecutive failures on a batch.
 _BACKOFF_SECONDS = (5, 30, 120, 600, 1800, 3600)
+#: A retry due sooner than this is woken for; a later one waits for the minute
+#: pass, which comes round at least this often.
+RETRY_WAKE_WITHIN_SECONDS = 60
 
 #: The same schedule, bound as an array parameter. The interval has to be chosen
 #: in the same statement that increments ``attempts`` — computing it in Python
@@ -118,14 +137,93 @@ def _event_type(row: EventOutbox) -> str:
     return f"{row.resource_type}.{row.action}"
 
 
-def _matches(row: EventOutbox, subscription: WebhookSubscription) -> bool:
+@dataclass(frozen=True)
+class InstallReach:
+    """What an installed app may hear right now, for a subscription it holds.
+
+    Read with the subscription roster, in the same statement, once per pass:
+    whether the install is live, the initiatives it is placed in, the
+    resources the seat's grant lets it read (writing implies reading), and the
+    apps it may hear from (``apps:<public_id>``).
+    """
+
+    live: bool
+    placed: frozenset[int]
+    readable: frozenset[str]
+    apps: frozenset[str] = frozenset()
+
+    @classmethod
+    def from_row(
+        cls,
+        *,
+        live: bool | None,
+        placed: Iterable[int] | None,
+        granted_scopes: Iterable[str] | None,
+    ) -> "InstallReach":
+        readable: set[str] = set()
+        apps: set[str] = set()
+        for scope in granted_scopes or ():
+            target = app_scope_target(scope)
+            if target is not None:
+                apps.add(target)
+                continue
+            # A scope the vocabulary no longer has grants nothing.
+            try:
+                read, _write = expand([scope])
+            except UnknownAppScope:
+                continue
+            readable.update(resource.value for resource in read)
+        return cls(
+            live=bool(live),
+            placed=frozenset(placed or ()),
+            readable=frozenset(readable),
+            apps=frozenset(apps),
+        )
+
+    def hears_app(self, emitter: str, initiative_id: int | None) -> bool:
+        """Whether it may hear an event ``emitter`` emitted about
+        ``initiative_id`` (``None`` for the community): it is live, holds
+        ``apps:<emitter>``, and is placed in that initiative."""
+        return (
+            self.live
+            and emitter in self.apps
+            and (initiative_id is None or initiative_id in self.placed)
+        )
+
+
+def _within_reach(row: EventOutbox, reach: InstallReach) -> bool:
+    """Whether an installed app may hear about this change now: it is live,
+    placed in the change's initiative (or the change belongs to none), and
+    holds the read scope of what changed."""
+    if not reach.live:
+        return False
+    if row.initiative_id is not None and row.initiative_id not in reach.placed:
+        return False
+    resource = webhook_events.read_scope_for(_event_type(row))
+    return resource is not None and resource.value in reach.readable
+
+
+def _matches(
+    row: EventOutbox,
+    subscription: WebhookSubscription,
+    reach: InstallReach | None = None,
+) -> bool:
     """Whether one change-item belongs in this subscription's batch.
 
     Applied per item BEFORE the batch is assembled, so a column filter costs a
     set intersection and no request, and grouping by transaction never widens
     what a subscription receives.
+
+    A subscription an installed app registered also answers to the app's
+    reach (:class:`InstallReach`): its declared scope, capped by where the app
+    is placed and what it is granted now. ``reach`` is ``None`` only for a
+    subscription no app registered.
     """
     if _event_type(row) not in subscription.event_types:
+        return False
+    if subscription.app_install_id is not None and (
+        reach is None or not _within_reach(row, reach)
+    ):
         return False
     if (
         subscription.initiative_id is not None
@@ -140,6 +238,37 @@ def _matches(row: EventOutbox, subscription: WebhookSubscription) -> bool:
     return True
 
 
+def _matches_app_event(
+    event: AppEventOutbox,
+    emitter: str,
+    emitter_placed: Iterable[int],
+    subscription: WebhookSubscription,
+    reach: InstallReach | None = None,
+) -> bool:
+    """Whether one app event belongs in this subscription's batch.
+
+    An event about an initiative reaches a subscription in that initiative, or
+    the community's. One about no initiative — a vendor organization is not an
+    initiative — reaches the community's, and one narrowed to an initiative
+    the emitting app is placed in too. A subscription an installed app
+    registered also answers to its reach (:meth:`InstallReach.hears_app`),
+    in the initiative the event lands in.
+    """
+    if event.event_type not in subscription.event_types:
+        return False
+    lands_in = event.initiative_id
+    if subscription.initiative_id is not None:
+        if lands_in is None and subscription.initiative_id in set(emitter_placed):
+            lands_in = subscription.initiative_id
+        if lands_in != subscription.initiative_id:
+            return False
+    if subscription.app_install_id is not None and (
+        reach is None or not reach.hears_app(emitter, lands_in)
+    ):
+        return False
+    return True
+
+
 def _envelope(
     subscription: WebhookSubscription,
     txn_id: int,
@@ -147,6 +276,8 @@ def _envelope(
     *,
     guild_ref: str,
     actor_ref: str | None,
+    actor_app: str | None = None,
+    app_events: Sequence[tuple[AppEventOutbox, str]] = (),
 ) -> dict[str, Any]:
     """One transaction's matching rows as a single envelope.
 
@@ -158,13 +289,22 @@ def _envelope(
     per-guild-schema id, which says nothing without the guild;
     ``subscription_id`` included, and that one is what a receiver matches a
     delivery to its own record by.
+
+    ``actor_app`` is the ``public_id`` of the app whose request wrote the
+    change, so an app can recognise its own writes. It is set independently of
+    ``actor_ref``: an app acting as its community names no person.
+
+    ``app_events`` are the events apps emitted in the transaction, each with
+    its emitter's ``public_id``. Each is one entry in ``changes`` carrying its
+    payload.
     """
-    first = rows[0]
+    first = rows[0] if rows else app_events[0][0]
     return {
         "event_id": _event_id(subscription.id, txn_id),
         "subscription_id": subscription.id,
         "guild_ref": guild_ref,
         "actor_ref": actor_ref,
+        "actor_app": actor_app,
         "occurred_at": first.occurred_at.isoformat(),
         "changes": [
             {
@@ -179,6 +319,15 @@ def _envelope(
                 "changed": list(row.changed),
             }
             for row in rows
+        ]
+        + [
+            {
+                "event_type": event.event_type,
+                "initiative_id": event.initiative_id,
+                "app": emitter,
+                "payload": event.payload,
+            }
+            for event, emitter in app_events
         ],
     }
 
@@ -205,7 +354,8 @@ async def _pending_transactions(
     rows = await session.exec(
         text(
             "SELECT o.txn_id "
-            "FROM event_outbox o "
+            "FROM (SELECT id, txn_id FROM event_outbox "
+            "      UNION ALL SELECT id, txn_id FROM app_event_outbox) o "
             "WHERE pg_visible_in_snapshot(o.txn_id::text::xid8, pg_current_snapshot()) "
             "  AND NOT EXISTS ("
             "    SELECT 1 FROM webhook_deliveries d "
@@ -265,8 +415,9 @@ async def _settle(
     *,
     now: datetime,
     accepted: bool,
-) -> bool:
-    """Record the outcome. Returns whether this call dead-lettered the batch.
+) -> tuple[bool, datetime | None]:
+    """Record the outcome. Returns whether this call dead-lettered the batch,
+    and when a refused batch is next tried.
 
     ``delivered_at IS NULL`` in the predicate keeps a pass whose lease lapsed
     mid-flight from reopening a batch another pass has already completed.
@@ -282,7 +433,7 @@ async def _settle(
             "UPDATE webhook_deliveries "
             "SET delivered_at = :now, next_attempt_at = NULL "
             "WHERE subscription_id = :sid AND txn_id = :txn AND delivered_at IS NULL "
-            "RETURNING false"
+            "RETURNING false, NULL::timestamptz"
         ).bindparams(now=now, sid=subscription.id, txn=txn_id)
     else:
         statement = text(
@@ -298,12 +449,21 @@ async def _settle(
             "      ELSE NULL "
             "    END "
             "WHERE subscription_id = :sid AND txn_id = :txn AND delivered_at IS NULL "
-            "RETURNING dead_lettered_at IS NOT NULL"
+            "RETURNING dead_lettered_at IS NOT NULL, next_attempt_at"
         ).bindparams(_BACKOFF_PARAM, now=now, sid=subscription.id, txn=txn_id)
     result = await session.exec(statement)
     row = result.first()
     await session.commit()
-    return bool(row[0]) if row is not None else False
+    return (bool(row[0]), row[1]) if row is not None else (False, None)
+
+
+def _emitter_placed() -> Any:
+    """The initiatives an app event's emitting install is placed in."""
+    return (
+        select(func.array_agg(AppPlacement.initiative_id))
+        .where(AppPlacement.install_id == AppEventOutbox.install_id)
+        .scalar_subquery()
+    )
 
 
 async def _drain_subscription(
@@ -312,6 +472,8 @@ async def _drain_subscription(
     *,
     guild_id: int,
     now: datetime,
+    reach: InstallReach | None = None,
+    app_ids: Mapping[str, str] | None = None,
 ) -> None:
     """Deliver one subscription's pending transactions, within its own scope.
 
@@ -332,25 +494,52 @@ async def _drain_subscription(
 
     Routed with ``guild_id`` alone: a poller is not anybody, so it carries no
     user and no role, and the policies admit it by the connection's own login.
+
+    ``reach`` is what the app that registered this subscription may hear, read
+    with the roster; ``app_ids`` maps an install's ``listing_uid`` to its
+    registration's ``public_id``, for naming the app that wrote a change.
+    Transactions outside the reach are settled like any other non-match, so
+    they are not delivered later either.
     """
-    await set_system_guild_context(session, guild_id=guild_id)
+    await set_rls_context(session, SystemMaintenance(guild_id))
     pending = await _pending_transactions(session, subscription, now=now)
 
-    await set_rls_context(session, guild_id=guild_id)
+    await set_rls_context(session, SystemGuild(guild_id))
 
     for txn_id in pending:
         if not await _claim(session, subscription, txn_id, now=now):
             continue
 
+        # The writing app's listing rides along with each row, so naming it
+        # costs no statement of its own.
         rows = list(
             await session.exec(
-                select(EventOutbox)
+                select(EventOutbox, GuildApp.listing_uid)
+                .outerjoin(GuildApp, GuildApp.id == EventOutbox.actor_install_id)
                 .where(EventOutbox.txn_id == txn_id)
                 .order_by(EventOutbox.id.asc())
             )
         )
-        batch = [row for row in rows if _matches(row, subscription)]
-        if not batch:
+        matched = [
+            (row, listing_uid)
+            for row, listing_uid in rows
+            if _matches(row, subscription, reach)
+        ]
+        batch = [row for row, _listing_uid in matched]
+        # An emitter is named by its install's listing, so an install that is
+        # gone emits to nobody.
+        app_events = [
+            (event, emitter)
+            for event, listing_uid, placed in await session.exec(
+                select(AppEventOutbox, GuildApp.listing_uid, _emitter_placed())
+                .outerjoin(GuildApp, GuildApp.id == AppEventOutbox.install_id)
+                .where(AppEventOutbox.txn_id == txn_id)
+                .order_by(AppEventOutbox.id.asc())
+            )
+            if (emitter := (app_ids or {}).get(listing_uid or "")) is not None
+            and _matches_app_event(event, emitter, placed or (), subscription, reach)
+        ]
+        if not batch and not app_events:
             # Nothing in this transaction was for this subscriber. Record it so
             # it is not reconsidered every pass; no request was made, so nothing
             # is claimed about the target.
@@ -359,8 +548,18 @@ async def _drain_subscription(
 
         # One transaction, one actor — the batch is what a single request
         # touched. Named for this subscriber, in the sector its install or its
-        # own registration gives it.
-        actor_id = batch[0].actor_user_id
+        # own registration gives it. An app's events name the app that emitted
+        # them and no person.
+        if batch:
+            actor_id = batch[0].actor_user_id
+            actor_listing = matched[0][1]
+            actor_app = (
+                None
+                if batch[0].actor_install_id is None or actor_listing is None
+                else (app_ids or {}).get(actor_listing)
+            )
+        else:
+            actor_id, actor_app = None, app_events[0][1]
         guild_ref, actor_refs = await webhook_refs.name_for_subscriber(
             guild_id=guild_id,
             app_install_id=subscription.app_install_id,
@@ -377,9 +576,11 @@ async def _drain_subscription(
                 batch,
                 guild_ref=guild_ref,
                 actor_ref=None if actor_id is None else actor_refs[actor_id],
+                actor_app=actor_app,
+                app_events=app_events,
             ),
         )
-        dead_lettered = await _settle(
+        dead_lettered, retry_at = await _settle(
             session, subscription, txn_id, now=now, accepted=accepted
         )
         if dead_lettered:
@@ -390,6 +591,12 @@ async def _drain_subscription(
                 subscription.target_url,
             )
         elif not accepted:
+            if retry_at is not None:
+                # A retry due before the minute pass would come round is
+                # woken for, so the first backoff steps keep their timing.
+                delay = (retry_at - now).total_seconds()
+                if delay < RETRY_WAKE_WITHIN_SECONDS:
+                    asyncio.get_running_loop().call_later(delay, drain.wake, guild_id)
             # Deliver in order: hold the rest of this subscription's backlog
             # until the refused batch gets through. Once dead-lettered there is
             # nothing left to wait on, so later transactions proceed instead of
@@ -397,32 +604,117 @@ async def _drain_subscription(
             return
 
 
-async def _drain_guild(session: AsyncSession, guild_id: int, *, now: datetime) -> None:
+def _roster(live_listings: Iterable[str]):
+    """The active subscriptions, each with what its app may hear right now.
+
+    One statement for the whole guild. A subscription an app registered is
+    joined to its install: live when the install is enabled and its
+    registration is (``live_listings``, the listings of the live registrations,
+    by the rule the install standing reads), the initiatives it is
+    placed in, and the scopes its seat granted. A subscription no app
+    registered carries NULLs there and is not asked about any of it.
+    """
+    placed = (
+        select(func.array_agg(AppPlacement.initiative_id))
+        .where(AppPlacement.install_id == WebhookSubscription.app_install_id)
+        .scalar_subquery()
+    )
+    live = and_(
+        GuildApp.enabled.is_(True),
+        GuildApp.listing_uid.in_(sorted(set(live_listings))),
+    )
+    return (
+        select(
+            WebhookSubscription.id,
+            WebhookSubscription.app_install_id,
+            live.label("live"),
+            placed.label("placed"),
+            GuildApp.granted_scopes,
+        )
+        .outerjoin(GuildApp, GuildApp.id == WebhookSubscription.app_install_id)
+        .where(
+            WebhookSubscription.active.is_(True),
+            # An install that is gone is drained to nobody: its subscription
+            # carries no foreign key to it, so the join is what asks.
+            or_(
+                WebhookSubscription.app_install_id.is_(None),
+                GuildApp.id.is_not(None),
+            ),
+        )
+        .order_by(WebhookSubscription.id.asc())
+    )
+
+
+#: Communities with an active subscription, as this process last read them.
+#: The minute pass's visit keeps it current, and a subscription changing
+#: wakes the drain, whose visit does the same.
+_subscribed: set[int] = set()
+
+#: Communities whose log moved and which have somebody to deliver it to.
+drain = Drain("outbox", settle=DRAIN_SETTLE_SECONDS)
+
+
+async def hint(payload: str) -> None:
+    """A committed transaction wrote to a community's log. Registered on the
+    capture's channel beside the room sink; a community with no active
+    subscription is left alone."""
+    schema, _, _txn = payload.partition(":")
+    guild_id = room_sink.schema_guild_id(schema)
+    if guild_id in _subscribed:
+        drain.wake(guild_id)
+
+
+def subscriptions_changed(guild_id: int) -> None:
+    """A subscription in the community was created, enabled or deleted. Its
+    visit reads the roster again, and settles whether it stays in
+    :data:`_subscribed`."""
+    _subscribed.add(guild_id)
+    drain.wake(guild_id)
+
+
+async def drain_guild(
+    session: AsyncSession, guild_id: int, *, now: datetime | None = None
+) -> None:
+    """Deliver what the community's subscriptions are owed."""
+    now = now or datetime.now(timezone.utc)
     # Read the subscription roster with full guild authority: which targets are
     # registered is guild configuration, not initiative content. What each of
-    # them may then SEE is decided per subscription in _drain_subscription,
-    # under its own owner's context.
-    await set_rls_context(session, guild_id=guild_id)
+    # them may then SEE is decided per subscription in _drain_subscription:
+    # the scope it names and, for one an app registered, the app's reach.
+    registrations = (await load_registrations()).values()
+    app_ids = {r.listing_uid: r.public_id for r in registrations if r.listing_uid}
+    live_listings = [r.listing_uid for r in registrations if r.listing_uid and r.live]
+    await set_rls_context(session, SystemGuild(guild_id))
     # Ids, not instances: each pass ends by expunging the identity map (ids
     # repeat across guild schemas), and an instance held across that is detached.
-    subscription_ids = list(
-        await session.exec(
-            select(WebhookSubscription.id)
-            .where(
-                WebhookSubscription.active.is_(True),
-                # Same rule the dispatcher applies: an install that is gone is
-                # drained to nobody.
-                webhook_subscriptions.registered_install_is_live(),
-            )
-            .order_by(WebhookSubscription.id.asc())
+    roster = [
+        (
+            row.id,
+            None
+            if row.app_install_id is None
+            else InstallReach.from_row(
+                live=row.live, placed=row.placed, granted_scopes=row.granted_scopes
+            ),
         )
-    )
-    for subscription_id in subscription_ids:
+        for row in await session.exec(_roster(live_listings))
+    ]
+    if roster:
+        _subscribed.add(guild_id)
+    else:
+        _subscribed.discard(guild_id)
+    for subscription_id, reach in roster:
         try:
             subscription = await session.get(WebhookSubscription, subscription_id)
             if subscription is None or not subscription.active:
                 continue
-            await _drain_subscription(session, subscription, guild_id=guild_id, now=now)
+            await _drain_subscription(
+                session,
+                subscription,
+                guild_id=guild_id,
+                now=now,
+                reach=reach,
+                app_ids=app_ids,
+            )
         except Exception:
             logger.exception(
                 "outbox drain failed: guild=%s subscription=%s",
@@ -432,57 +724,34 @@ async def _drain_guild(session: AsyncSession, guild_id: int, *, now: datetime) -
             await session.rollback()
         finally:
             session.expunge_all()
-            await set_rls_context(session, guild_id=guild_id)
+            await set_rls_context(session, SystemGuild(guild_id))
 
 
-async def _active_guild_ids(session: AsyncSession) -> list[int]:
-    await set_rls_context(session)
-    return list(
-        await session.exec(
-            select(Guild.id)
-            .where(Guild.status == GuildStatus.active.value)
-            .order_by(Guild.id.asc())
-        )
-    )
+async def expire_history(session: AsyncSession, guild_id: int) -> None:
+    """Drop the community's outbox history past the window: change events and
+    app events, the ledger rows naming their transactions, and the vendor
+    webhook delivery ids past their expiry.
 
-
-async def process_outbox_deliveries() -> None:
-    """One drain pass across every active guild. Idempotent."""
-    now = datetime.now(timezone.utc)
-    async with db_session.SystemSessionLocal() as session:
-        for guild_id in await _active_guild_ids(session):
-            session.expunge_all()
-            await _drain_guild(session, guild_id, now=now)
-
-
-async def process_outbox_retention() -> None:
-    """Drop outbox history, and the ledger rows referencing it, past the window.
-
-    Age-based on purpose: a subscription weeks behind is broken, and holding the
-    log open for it would grow the table without bound on every instance that
-    never configures a target at all. Ledger rows go with the events they
+    Age-based on purpose: a subscription weeks behind is broken, and holding
+    the log open for it would grow the table without bound on every instance
+    that never configures a target at all. Ledger rows go with the events they
     describe, so the pair stays the same size.
     """
-    cutoff = datetime.now(timezone.utc) - timedelta(days=OUTBOX_RETENTION_DAYS)
-    async with db_session.SystemSessionLocal() as session:
-        for guild_id in await _active_guild_ids(session):
-            session.expunge_all()
-            await set_rls_context(session, guild_id=guild_id)
-            stale = list(
-                await session.exec(
-                    select(EventOutbox).where(EventOutbox.occurred_at < cutoff)
-                )
-            )
-            if not stale:
-                await session.commit()
-                continue
-            txn_ids = sorted({row.txn_id for row in stale})
-            for row in stale:
-                await session.delete(row)
-            await session.exec(
-                text(
-                    "DELETE FROM webhook_deliveries WHERE txn_id = ANY(:txn_ids)"
-                ).bindparams(txn_ids=txn_ids)
-            )
-            logger.info("outbox retention: guild=%s removed=%s", guild_id, len(stale))
-            await session.commit()
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=OUTBOX_RETENTION_DAYS)
+    txn_ids: set[int] = set()
+    for log in (EventOutbox, AppEventOutbox):
+        removed = await session.exec(
+            delete(log).where(log.occurred_at < cutoff).returning(log.txn_id)
+        )
+        txn_ids.update(txn_id for (txn_id,) in removed.all())
+    if txn_ids:
+        await session.exec(
+            text(
+                "DELETE FROM webhook_deliveries WHERE txn_id = ANY(:txn_ids)"
+            ).bindparams(txn_ids=sorted(txn_ids))
+        )
+        logger.info(
+            "outbox retention: guild=%s transactions=%s", guild_id, len(txn_ids)
+        )
+    await session.exec(delete(AppHookDelivery).where(AppHookDelivery.expires_at < now))

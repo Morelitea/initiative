@@ -7,15 +7,13 @@ assertion (the app-layer ``membership.py`` clause can't paper over it). Proves t
 initiative-membership for non-admin guild roles.
 """
 
-import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.tools import Tool
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.platform.guild import GuildRole
 from app.models.tenant.project import Project
 from app.testing import (
+    create_resource_grant,
     create_guild,
     create_guild_membership,
     create_initiative,
@@ -25,7 +23,6 @@ from app.testing import (
 )
 
 
-@pytest.mark.integration
 async def test_non_admin_member_sees_only_their_initiatives_content(
     session: AsyncSession, reading_as
 ):
@@ -46,16 +43,7 @@ async def test_non_admin_member_sees_only_their_initiatives_content(
     await create_project(session, init_b, owner, name="B-Proj")
     # Shared with Alpha, so the sharing gate admits it and what this measures is
     # the initiative one: Bravo's project stays hidden either way.
-    session.add(
-        ResourceGrant(
-            resource_type=Tool.project.value,
-            resource_id=proj_a.id,
-            all_initiative_members=True,
-            level=ResourceAccessLevel.read,
-            initiative_id=init_a.id,
-        )
-    )
-    await session.commit()
+    await create_resource_grant(session, proj_a, all_initiative_members=True)
 
     # On the request login, where the policies bind.
     reader = await reading_as(member.id, guild.id)

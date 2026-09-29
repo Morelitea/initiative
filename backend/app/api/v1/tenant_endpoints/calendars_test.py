@@ -2,22 +2,22 @@
 authorization gates (initiative isolation, role create gate, feature gate,
 DAC levels, guild-admin override)."""
 
-import pytest
 from httpx import AsyncClient
-from sqlalchemy import delete as sa_delete
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
 from app.models.tenant.calendar_event import CalendarEvent
-from app.models.tenant.resource_grant import ResourceGrant
+from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.testing import (
+    strip_non_owner_grants,
     create_calendar,
     create_calendar_event,
     create_guild_app,
     route_session_to_guild,
     create_initiative,
     create_guild_calendar,
+    create_resource_grant,
 )
 
 CALENDAR_APP = {
@@ -46,26 +46,11 @@ async def _calendars_enabled(session: AsyncSession, initiative) -> None:
     await session.refresh(initiative)
 
 
-async def _strip_non_owner_grants(session, calendar, owner_id: int) -> None:
-    """Remove every grant except the owner's own — the calendar becomes
-    invisible to other members. (is_distinct_from: role grants carry a NULL
-    user_id, which a plain ``!=`` would silently skip.)"""
-    await session.exec(
-        sa_delete(ResourceGrant).where(
-            ResourceGrant.resource_type == "calendar",
-            ResourceGrant.resource_id == calendar.id,
-            ResourceGrant.user_id.is_distinct_from(owner_id),
-        )
-    )
-    await session.commit()
-
-
 # ---------------------------------------------------------------------------
 # CRUD
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_create_calendar(client: AsyncClient, acting_user, session):
     """A PM creates a calendar: creator owner grant + the default
     all-initiative-members read grant."""
@@ -90,7 +75,7 @@ async def test_create_calendar(client: AsyncClient, acting_user, session):
     assert data["color"] == "#7c3aed"
     assert data["initiative_id"] == a.initiative.id
     assert data["created_by"] == a.user.id
-    assert data["my_permission_level"] == "owner"
+    assert data["can"]["delete"] is True
     grant_shapes = {
         (g["level"], g["all_initiative_members"], g["user_id"]) for g in data["grants"]
     }
@@ -98,7 +83,6 @@ async def test_create_calendar(client: AsyncClient, acting_user, session):
     assert ("read", True, None) in grant_shapes
 
 
-@pytest.mark.integration
 async def test_create_calendar_requires_feature_enabled(
     client: AsyncClient, acting_user, session
 ):
@@ -121,7 +105,6 @@ async def test_create_calendar_requires_feature_enabled(
     assert response.json()["detail"] == "CALENDARS_NOT_ENABLED"
 
 
-@pytest.mark.integration
 async def test_create_calendar_non_pm_forbidden(
     client: AsyncClient, acting_user, session
 ):
@@ -144,7 +127,6 @@ async def test_create_calendar_non_pm_forbidden(
     assert response.status_code == 403
 
 
-@pytest.mark.integration
 async def test_get_calendar(client: AsyncClient, acting_user, session):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _calendars_enabled(session, a.initiative)
@@ -155,10 +137,9 @@ async def test_get_calendar(client: AsyncClient, acting_user, session):
     assert response.status_code == 200
     data = response.json()
     assert data["id"] == calendar.id
-    assert data["my_permission_level"] == "owner"
+    assert data["can"]["delete"] is True
 
 
-@pytest.mark.integration
 async def test_list_calendars_dac_filtered(client: AsyncClient, acting_user, session):
     """The list applies calendar sharing, and it spans initiatives — so it
     answers what has been shared with the reader, a guild admin included.
@@ -175,7 +156,7 @@ async def test_list_calendars_dac_filtered(client: AsyncClient, acting_user, ses
     admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
     shared = await create_calendar(session, a.initiative, a.user, name="Shared")
     secret = await create_calendar(session, a.initiative, a.user, name="Secret")
-    await _strip_non_owner_grants(session, secret, a.user.id)
+    await strip_non_owner_grants(session, secret, a.user.id)
 
     member_list = await client.get(member.g("/calendars/"), headers=member.headers)
     assert member_list.status_code == 200
@@ -195,7 +176,6 @@ async def test_list_calendars_dac_filtered(client: AsyncClient, acting_user, ses
     assert {shared.name, secret.name} <= {c["name"] for c in within.json()["items"]}
 
 
-@pytest.mark.integration
 async def test_calendar_404_outside_initiative(
     client: AsyncClient, acting_user, session
 ):
@@ -213,7 +193,6 @@ async def test_calendar_404_outside_initiative(
     assert response.status_code == 404
 
 
-@pytest.mark.integration
 async def test_update_calendar_requires_write(
     client: AsyncClient, acting_user, session
 ):
@@ -245,7 +224,6 @@ async def test_update_calendar_requires_write(
     assert renamed.json()["color"] == "#16a34a"
 
 
-@pytest.mark.integration
 async def test_delete_calendar_owner_only_and_cascades(
     client: AsyncClient, acting_user, session
 ):
@@ -295,7 +273,6 @@ async def test_delete_calendar_owner_only_and_cascades(
     assert row.deleted_at is not None
 
 
-@pytest.mark.integration
 async def test_guild_admin_can_delete_any_calendar(
     client: AsyncClient, acting_user, session
 ):
@@ -339,25 +316,31 @@ async def test_calendar_counts_by_initiative(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
-async def test_any_member_creates_a_guild_calendar(
+async def test_a_guild_calendar_is_the_admin_s_and_the_install_owns_it(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """No initiative means no initiative gate: an ordinary member may add a
-    calendar to the guild's own, and owns what they made."""
+    """No initiative means no initiative gate: a guild calendar is the guild
+    admin's to make. The calendar app's install owns it, which is what makes it
+    one of the app's artifacts and what uninstalling trashes."""
     admin = await acting_user(guild_role=GuildRole.admin)
-    await _install_calendar_app(session, admin.guild, admin.user)
+    app = await _install_calendar_app(session, admin.guild, admin.user)
     member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
 
+    refused = await client.post(
+        member.g("/calendars/"), headers=member.headers, json={"name": "Holidays"}
+    )
+    assert refused.status_code == 403
+    assert refused.json()["detail"] == "GUILD_ADMIN_REQUIRED"
+
     response = await client.post(
-        member.g("/calendars/"),
-        headers=member.headers,
+        admin.g("/calendars/"),
+        headers=admin.headers,
         json={"name": "Holidays", "color": "#22c55e"},
     )
     assert response.status_code == 201, response.text
     body = response.json()
     assert body["initiative_id"] is None
-    assert body["my_permission_level"] == "owner"
+    assert body["can"]["delete"] is True
 
     await route_session_to_guild(session, admin.guild.id)
     grants = (
@@ -368,74 +351,57 @@ async def test_any_member_creates_a_guild_calendar(
             )
         )
     ).all()
-    # The creator owns it, and the default sharing reads as the whole guild.
-    assert {(g.user_id, str(g.level), g.all_initiative_members) for g in grants} == {
-        (member.user.id, "owner", False),
-        (None, "read", True),
-    }
+    # The install owns it, and the default sharing reads as the whole guild.
+    assert {
+        (g.app_install_id, g.user_id, str(g.level), g.all_initiative_members)
+        for g in grants
+    } == {(app.id, None, "owner", False), (None, None, "read", True)}
     assert all(g.initiative_id is None for g in grants)
 
+    listed = await client.get(admin.g(f"/apps/{app.id}"), headers=admin.headers)
+    assert listed.json()["artifacts"] == [{"type": "calendar", "id": body["id"]}]
 
-@pytest.mark.integration
-async def test_a_guild_calendar_joins_the_app_s_artifacts(
+
+async def test_a_write_grant_writes_a_guild_calendar_s_events(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """The app is the container: removing it walks its artifacts, so a calendar
-    added later has to be among them."""
-    a = await acting_user(guild_role=GuildRole.admin)
-    app = await _install_calendar_app(session, a.guild, a.user)
-
-    response = await client.post(
-        a.g("/calendars/"), headers=a.headers, json={"name": "Holidays"}
+    """The admin decides who writes what a guild calendar holds. Changing the
+    calendar itself — renaming it, archiving it — stays the admin's."""
+    admin = await acting_user(guild_role=GuildRole.admin)
+    app = await _install_calendar_app(session, admin.guild, admin.user)
+    calendar = await create_guild_calendar(session, admin.guild, admin.user, app=app)
+    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    await create_resource_grant(
+        session, calendar, level=ResourceAccessLevel.write, user=member.user
     )
-    assert response.status_code == 201, response.text
 
-    await route_session_to_guild(session, a.guild.id)
-    await session.refresh(app)
-    assert app.artifacts == [{"type": "calendar", "id": response.json()["id"]}]
-
-
-@pytest.mark.integration
-async def test_a_calendar_joins_artifacts_it_never_saw(
-    session: AsyncSession, acting_user
-):
-    """Any member may add a calendar, so two of them can be adding one at the
-    same moment. The append is made against the stored list rather than against
-    a copy of it, so an entry written since this one was read still survives —
-    otherwise it would stop being something the app removes."""
-    from sqlalchemy import update
-
-    from app.models.tenant.guild_app import GuildApp
-    from app.services.tenant import guild_apps as guild_apps_service
-
-    a = await acting_user(guild_role=GuildRole.admin)
-    app = await _install_calendar_app(session, a.guild, a.user)
-    calendar = await create_guild_calendar(session, a.guild, a.user)
-
-    # Someone else's calendar lands first; this copy of the row knows nothing
-    # about it.
-    await route_session_to_guild(session, a.guild.id)
-    await session.exec(
-        update(GuildApp)
-        .where(GuildApp.id == app.id)
-        .values(artifacts=[{"type": "calendar", "id": calendar.id}])
-        .execution_options(synchronize_session=False)
+    renamed = await client.patch(
+        member.g(f"/calendars/{calendar.id}"),
+        headers=member.headers,
+        json={"name": "Mine now"},
     )
-    await session.commit()
+    assert renamed.status_code == 403
+    assert renamed.json()["detail"] == "CALENDAR_WRITE_ACCESS_REQUIRED"
 
-    await guild_apps_service.record_artifact(
-        session, app, artifact_type="calendar", artifact_id=999
+    archived = await client.post(
+        member.g(f"/archive/calendar/{calendar.id}"), headers=member.headers
     )
-    await session.commit()
+    assert archived.status_code == 403
 
-    await session.refresh(app)
-    assert app.artifacts == [
-        {"type": "calendar", "id": calendar.id},
-        {"type": "calendar", "id": 999},
-    ]
+    event = await client.post(
+        member.g("/calendar-events/"),
+        headers=member.headers,
+        json={
+            "calendar_id": calendar.id,
+            "title": "Club night",
+            "start_at": "2026-07-01T19:00:00Z",
+            "end_at": "2026-07-01T22:00:00Z",
+            "all_day": False,
+        },
+    )
+    assert event.status_code == 201, event.text
 
 
-@pytest.mark.integration
 async def test_a_guild_calendar_needs_the_app(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -450,7 +416,6 @@ async def test_a_guild_calendar_needs_the_app(
     assert response.json()["detail"] == "CALENDAR_GUILD_APP_REQUIRED"
 
 
-@pytest.mark.integration
 async def test_guild_scope_lists_only_the_guild_s_own(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -472,7 +437,6 @@ async def test_guild_scope_lists_only_the_guild_s_own(
     assert body["total_count"] == 1
 
 
-@pytest.mark.integration
 async def test_a_guild_calendar_is_hidden_when_it_is_not_shared(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

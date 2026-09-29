@@ -4,8 +4,6 @@ import pytest
 
 from app.core import audit_context
 
-pytestmark = pytest.mark.unit
-
 
 def test_outside_a_request_there_is_no_context():
     """A background sweep writes a line with nothing to say about a request,

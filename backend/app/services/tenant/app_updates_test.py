@@ -5,22 +5,33 @@ install a guild took off the track stays where it is, and a version this
 deployment cannot run is applied to nobody. Those are the cases where sweeping
 the wrong install has a cost, and neither shows up on the happy path.
 
-The inner pass is driven with the test session — routed into the guild the way
-the worker routes itself — because ``process_app_auto_updates`` opens its own
-system-engine session against the configured database rather than the test one.
+The inner pass is driven with the test session, routed into the guild the way
+the hourly pass routes its own.
 """
 
 import asyncio
+from datetime import datetime
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.models.platform.guild import GuildRole
+from app.models.platform.notification import Notification, NotificationType
+from app.models.tenant.app_schedule_run import AppScheduleRun
 from app.models.tenant.guild_app import GuildApp
 from app.services.tenant import app_updates
-from app.services.tenant.app_updates import _update_guild, update_version
+from app.services.tenant.app_updates import (
+    AskedUpdate,
+    _update_guild,
+    decline_version,
+    notify_pending_updates,
+    update_version,
+)
 from app.testing import (
+    create_app_service_registration,
     create_guild,
     create_guild_app,
+    create_guild_membership,
     create_marketplace_listing,
     create_user,
     marketplace_uid,
@@ -97,6 +108,14 @@ async def _reread(session: AsyncSession, guild_id: int, app_id: int) -> GuildApp
     session.expunge_all()
     await route_session_to_guild(session, guild_id)
     return (await session.exec(select(GuildApp).where(GuildApp.id == app_id))).one()
+
+
+async def _schedules(session: AsyncSession, guild_id: int) -> dict[str, datetime]:
+    """When each of the community's schedules is next due, by id."""
+    session.expunge_all()
+    await route_session_to_guild(session, guild_id)
+    runs = (await session.exec(select(AppScheduleRun))).all()
+    return {run.schedule_id: run.next_due_at for run in runs}
 
 
 class TestTheSweep:
@@ -228,6 +247,31 @@ class TestTheSweep:
         # read stores ``before.example`` here instead.
         assert updated.config["admin"]["shop_domain"] == "typed-just-now.example"
 
+    async def test_a_new_version_brings_its_schedules(self, session: AsyncSession):
+        """A schedule the new version adds gets a row, one it dropped loses
+        its row, and one it kept keeps its row as it was."""
+        uid = marketplace_uid("autoschedules")
+
+        def scheduled(*ids: str) -> dict:
+            schedules = [{"id": schedule_id, "every": "15m"} for schedule_id in ids]
+            return {**_connection_definition(), "schedules": schedules}
+
+        await _publish(session, uid, "1.0.0", definition=scheduled("kept", "dropped"))
+        guild, _ = await _installed(
+            session, uid, definition=scheduled("kept", "dropped")
+        )
+        before = await _schedules(session, guild.id)
+        assert set(before) == {"kept", "dropped"}
+
+        await _publish(session, uid, "1.1.0", definition=scheduled("kept", "added"))
+        await route_session_to_guild(session, guild.id)
+        assert await _update_guild(session, guild.id) == 1
+        await session.commit()
+
+        after = await _schedules(session, guild.id)
+        assert set(after) == {"kept", "added"}
+        assert after["kept"] == before["kept"]
+
     async def test_a_disabled_install_still_tracks(self, session: AsyncSession):
         """Turning an app off is not the same answer as taking it off the
         track: one switched back on months later should not come back on a
@@ -352,3 +396,331 @@ class TestUpdateVersion:
 
         await route_session_to_guild(session, guild.id)
         assert await update_version(session, app) == "1.3.0"
+
+
+# --- versions that ask for more ----------------------------------------------
+
+ASKING_SERVICE = "tests.asksmore"
+
+
+def _asking_definition(
+    *, scopes=("projects:read",), inside=(), name: str = "Asks"
+) -> dict:
+    """A service app requesting ``scopes``, with one initiative surface per id
+    in ``inside``."""
+    return {
+        "app_kind": "service",
+        "service": {
+            "public_id": ASKING_SERVICE,
+            "protocol": 1,
+            "scopes": list(scopes),
+        },
+        "features": ["embeds"] if inside else [],
+        "default_name": name,
+        **(
+            {
+                "embeds": [
+                    {
+                        "id": surface,
+                        "path": f"/embed/{surface}",
+                        "scopes": ["initiative"],
+                        "admin_only": False,
+                        "name": {"en": surface.title()},
+                    }
+                    for surface in inside
+                ]
+            }
+            if inside
+            else {}
+        ),
+    }
+
+
+async def _asking_install(
+    session: AsyncSession,
+    uid: str,
+    *,
+    granted=("projects:read",),
+    mandatory: bool = False,
+    **definition,
+):
+    """An install of a registered service app pinned at 1.0.0, granted
+    ``granted``, whose community has a seat holder."""
+    await create_app_service_registration(
+        session,
+        public_id=ASKING_SERVICE,
+        listing_uid=uid,
+        scope_ceiling=["projects:read", "projects:write", "comments:read"],
+        mandatory=mandatory,
+    )
+    await _publish(session, uid, "1.0.0", definition=_asking_definition(**definition))
+    seat = await create_user(session)
+    guild = await create_guild(session, creator=seat)
+    await create_guild_membership(
+        session, user=seat, guild=guild, role=GuildRole.superadmin
+    )
+    app = await create_guild_app(
+        session,
+        guild,
+        seat,
+        definition=_asking_definition(**definition),
+        listing_uid=uid,
+        listing_version="1.0.0",
+        granted_scopes=list(granted),
+    )
+    return seat, guild, app
+
+
+async def _sweep(session: AsyncSession, guild_id: int) -> tuple[int, list[AskedUpdate]]:
+    asked: list[AskedUpdate] = []
+    await route_session_to_guild(session, guild_id)
+    moved = await _update_guild(session, guild_id, asked=asked)
+    await session.commit()
+    return moved, asked
+
+
+class TestVersionsThatAskForMore:
+    async def test_a_version_asking_nothing_new_applies(self, session: AsyncSession):
+        uid = marketplace_uid("asksnothing")
+        _, guild, app = await _asking_install(session, uid)
+        await _publish(
+            session, uid, "1.1.0", definition=_asking_definition(name="Asks v2")
+        )
+
+        moved, asked = await _sweep(session, guild.id)
+
+        assert (moved, asked) == (1, [])
+        updated = await _reread(session, guild.id, app.id)
+        assert updated.listing_version == "1.1.0"
+        assert updated.pending_version is None
+
+    async def test_a_scope_the_seat_left_out_is_not_asked_again(
+        self, session: AsyncSession
+    ):
+        """The pinned version requested ``comments:read`` and the seat did not
+        grant it: a version requesting it again has answered nothing new."""
+        uid = marketplace_uid("asksanswered")
+        _, guild, app = await _asking_install(
+            session, uid, scopes=("projects:read", "comments:read")
+        )
+        await _publish(
+            session,
+            uid,
+            "1.1.0",
+            definition=_asking_definition(scopes=("projects:read", "comments:read")),
+        )
+
+        moved, asked = await _sweep(session, guild.id)
+
+        assert (moved, asked) == (1, [])
+
+    async def test_a_new_scope_waits_and_the_seat_is_told(self, session: AsyncSession):
+        uid = marketplace_uid("asksscope")
+        seat, guild, app = await _asking_install(session, uid)
+        await _publish(
+            session,
+            uid,
+            "1.1.0",
+            definition=_asking_definition(scopes=("projects:read", "projects:write")),
+        )
+
+        moved, asked = await _sweep(session, guild.id)
+
+        assert moved == 0
+        assert asked == [AskedUpdate(app_id=app.id, app_name=app.name, version="1.1.0")]
+        waiting = await _reread(session, guild.id, app.id)
+        assert waiting.listing_version == "1.0.0"
+        assert waiting.pending_version == "1.1.0"
+        assert waiting.granted_scopes == ["projects:read"]
+
+        await notify_pending_updates(session, guild.id, asked)
+        await session.commit()
+        notices = (
+            await session.exec(
+                select(Notification).where(
+                    Notification.user_id == seat.id,
+                    Notification.type == NotificationType.app_update_pending,
+                )
+            )
+        ).all()
+        assert [notice.data["version"] for notice in notices] == ["1.1.0"]
+        assert notices[0].guild_id == guild.id
+        assert notices[0].data["app_id"] == app.id
+
+        # Already waiting: the next pass neither applies it nor asks again.
+        moved, asked = await _sweep(session, guild.id)
+        assert (moved, asked) == (0, [])
+
+    async def test_a_required_app_applies_and_takes_its_new_scopes(
+        self, session: AsyncSession
+    ):
+        """The registration granted what a required app requests at install,
+        with no seat asked, so a newer version is applied the same way."""
+        uid = marketplace_uid("asksrequired")
+        _, guild, app = await _asking_install(session, uid, mandatory=True, scopes=())
+        await _publish(
+            session,
+            uid,
+            "1.1.0",
+            definition=_asking_definition(
+                scopes=("projects:read", "projects:write", "tags:read")
+            ),
+        )
+
+        moved, asked = await _sweep(session, guild.id)
+
+        assert (moved, asked) == (1, [])
+        updated = await _reread(session, guild.id, app.id)
+        assert updated.listing_version == "1.1.0"
+        assert updated.pending_version is None
+        # What the version asks for within the ceiling; tags:read is above it.
+        assert sorted(updated.granted_scopes) == ["projects:read", "projects:write"]
+
+    async def test_a_required_app_already_waiting_is_applied(
+        self, session: AsyncSession
+    ):
+        uid = marketplace_uid("askswaiting")
+        _, guild, app = await _asking_install(session, uid, mandatory=True)
+        await _publish(
+            session,
+            uid,
+            "1.1.0",
+            definition=_asking_definition(scopes=("projects:read", "projects:write")),
+        )
+        await route_session_to_guild(session, guild.id)
+        row = await _reread(session, guild.id, app.id)
+        row.pending_version = "1.1.0"
+        session.add(row)
+        await session.commit()
+
+        moved, _ = await _sweep(session, guild.id)
+
+        assert moved == 1
+        updated = await _reread(session, guild.id, app.id)
+        assert (updated.listing_version, updated.pending_version) == ("1.1.0", None)
+        assert "projects:write" in updated.granted_scopes
+
+    async def test_a_new_initiative_surface_waits(self, session: AsyncSession):
+        uid = marketplace_uid("askssurface")
+        _, guild, app = await _asking_install(session, uid, inside=("board",))
+        await _publish(
+            session,
+            uid,
+            "1.1.0",
+            definition=_asking_definition(inside=("board", "planner")),
+        )
+
+        moved, asked = await _sweep(session, guild.id)
+
+        assert moved == 0
+        assert [one.version for one in asked] == ["1.1.0"]
+        offer = await app_updates.update_offer(
+            session, await _reread(session, guild.id, app.id)
+        )
+        assert offer is not None
+        assert offer.asks.added_scopes == ()
+        assert [surface["id"] for surface in offer.asks.added_surfaces] == ["planner"]
+
+    async def test_a_declined_version_is_not_asked_again_until_a_newer_one(
+        self, session: AsyncSession
+    ):
+        uid = marketplace_uid("asksdecline")
+        _, guild, app = await _asking_install(session, uid)
+        wider = _asking_definition(scopes=("projects:read", "projects:write"))
+        await _publish(session, uid, "1.1.0", definition=wider)
+        await _sweep(session, guild.id)
+
+        waiting = await _reread(session, guild.id, app.id)
+        decline_version(waiting, "1.1.0")
+        session.add(waiting)
+        await session.commit()
+
+        moved, asked = await _sweep(session, guild.id)
+        assert (moved, asked) == (0, [])
+        declined = await _reread(session, guild.id, app.id)
+        assert declined.declined_version == "1.1.0"
+        assert declined.pending_version is None
+        assert declined.listing_version == "1.0.0"
+
+        await _publish(session, uid, "1.2.0", definition=wider)
+        moved, asked = await _sweep(session, guild.id)
+        assert moved == 0
+        assert [one.version for one in asked] == ["1.2.0"]
+        assert (await _reread(session, guild.id, app.id)).pending_version == "1.2.0"
+
+    async def test_accepting_applies_and_grants(self, session: AsyncSession):
+        uid = marketplace_uid("asksaccept")
+        _, guild, app = await _asking_install(session, uid)
+        await _publish(
+            session,
+            uid,
+            "1.1.0",
+            definition=_asking_definition(scopes=("projects:read", "projects:write")),
+        )
+        await _sweep(session, guild.id)
+
+        waiting = await _reread(session, guild.id, app.id)
+        offer = await app_updates.update_offer(session, waiting)
+        assert offer is not None
+        await app_updates.apply_version(
+            session,
+            waiting,
+            offer.update,
+            guild_id=guild.id,
+            add_scopes=offer.asks.added_scopes,
+        )
+        await session.commit()
+
+        accepted = await _reread(session, guild.id, app.id)
+        assert accepted.listing_version == "1.1.0"
+        assert accepted.granted_scopes == ["projects:read", "projects:write"]
+        assert accepted.pending_version is None
+        assert accepted.declined_version is None
+
+
+def _asking(*scopes: str) -> dict:
+    return {
+        "app_kind": "service",
+        "service": {"public_id": "tests.caller", "protocol": 1, "scopes": list(scopes)},
+        "features": [],
+    }
+
+
+def test_a_version_asking_to_use_another_app_asks_for_more():
+    """An ``apps:`` scope is a new thing the seat has not answered, like any
+    other scope a version adds."""
+    app = GuildApp(
+        listing_uid="TESTCALLER0001",
+        listing_version="1.0.0",
+        app_kind="service",
+        name="Caller",
+        definition=_asking("documents:read"),
+        granted_scopes=["documents:read"],
+        created_by=1,
+    )
+    ceiling = ("documents:read", "apps:tests.github")
+
+    asks = app_updates.upgrade_asks(
+        app, _asking("documents:read", "apps:tests.github"), ceiling
+    )
+
+    assert asks.added_scopes == ("apps:tests.github",)
+    assert asks.asks_more
+
+
+def test_an_app_scope_above_the_ceiling_asks_for_nothing():
+    app = GuildApp(
+        listing_uid="TESTCALLER0001",
+        listing_version="1.0.0",
+        app_kind="service",
+        name="Caller",
+        definition=_asking("documents:read"),
+        granted_scopes=["documents:read"],
+        created_by=1,
+    )
+
+    asks = app_updates.upgrade_asks(
+        app, _asking("documents:read", "apps:tests.github"), ("documents:read",)
+    )
+
+    assert not asks.asks_more

@@ -24,13 +24,12 @@ from sqlmodel import select
 
 from app.db.session import require_guild_context
 from app.api.deps import (
-    GuildContext,
     RLSSessionDep,
     UserSessionDep,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
-from app.core.tools import RECENTABLE_TOOLS, Tool
+from app.core.tools import Tool
 from app.services.tenant.tags import TOOL_TAG_LINKS
 from app.models.tenant.document import Document
 from app.models.platform.guild import GuildMembership
@@ -46,11 +45,9 @@ from app.services.tenant.recent_views import RecentEntityType
 
 router = APIRouter()
 # Guild-scoped sub-router: closing a tab (the delete) is the one guild-scoped
-# recents operation and mounts under /g/{guild_id}/recents. The cross-guild
+# recents operation and mounts under /c/{guild_id}/recents. The cross-guild
 # tabs-bar list stays on the top-level router above — fully separate endpoints.
 guild_router = APIRouter()
-
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 @dataclass(frozen=True)
@@ -93,7 +90,7 @@ RECENT_TOOL_SPECS: dict[Tool, RecentToolSpec] = {
         name_attr=TOOL_TAG_LINKS[tool].entity.display_field(),
         extra=_RECENT_EXTRAS.get(tool),
     )
-    for tool in RECENTABLE_TOOLS
+    for tool in Tool
 }
 
 RECENT_SPECS_BY_ENTITY_TYPE: dict[str, tuple[Tool, RecentToolSpec]] = {
@@ -130,7 +127,7 @@ async def _enrich_recent_rows(
             .options(
                 selectinload(model.grants).selectinload(ResourceGrant.role),
                 selectinload(model.initiative),
-                undefer(model.access_level),
+                undefer(model.actions),
             )
         )
         result = await session.exec(stmt)
@@ -229,7 +226,7 @@ async def clear_recent(
 ) -> None:
     """Close a tab: delete the caller's own recent-view row.
 
-    Guild-scoped — mounted under /g/{guild_id}/recents because a tab can belong
+    Guild-scoped — mounted under /c/{guild_id}/recents because a tab can belong
     to any of the user's guilds and per-schema ids are only unique within a
     guild. Idempotent.
     """

@@ -12,12 +12,12 @@ Per-request routing (search_path + SET ROLE in `set_rls_context`) sends
 guild-scoped queries into the schema, where the RLS policies (deferring to
 `initiative_access`) enforce initiative membership for non-admin roles.
 
-`backfill_guild_schemas` re-runs that idempotent provisioning for *every*
-existing guild on every boot (`main.on_startup`). This closes two drift gaps: a
-guild provisioned before guild_template gained a table/column/index never
-receives it, and a crash mid-provision can leave a guild row whose schema
-doesn't exist. Provisioning is ~0.2s/guild and idempotent, so a plain
-sequential loop heals both with no extra bookkeeping.
+`backfill_guild_schemas` runs on every boot and brings each guild up to date:
+a guild provisioned before guild_template gained a table/column/index, or
+before a registry changed, gets the parts that changed since; a crash
+mid-provision that left a guild row without its schema gets all of them. Each
+schema's comment records a digest per part, so a boot with nothing changed
+touches no guild.
 """
 
 from __future__ import annotations
@@ -26,9 +26,11 @@ import asyncio
 import hashlib
 import logging
 from dataclasses import dataclass, field
+from enum import StrEnum
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.db import bootstrap
@@ -50,8 +52,40 @@ def guild_schema_name(guild_id: int) -> str:
     return f"guild_{int(guild_id)}"
 
 
-def guild_role_name(guild_id: int) -> str:
-    """Cluster-global role name for a guild, e.g. ``guild_42``.
+class GuildRoleKind(StrEnum):
+    """A guild's roles, each spelled ``guild_<id>`` plus its suffix. The login
+    roles can ``SET ROLE`` into every one and hold no standing access to any.
+    """
+
+    #: The full role: DML on the schema, and the ``app_guild_base`` floor. A
+    #: member's request assumes it.
+    full = ""
+    #: SELECT on the schema and nothing written, over the read-only floor
+    #: ``app_guild_base_ro``. Assumed by PAM *read* grants, read-only members
+    #: and settings-only grants.
+    read_only = "_ro"
+    #: A scoped ``read_write`` grant (the ``support`` identity): DML on content,
+    #: SELECT-only on ``SUPPORT_WRITE_PROTECTED_TABLES``, so the grantee cannot
+    #: manage who is in the guild or who can see what.
+    support = "_support"
+    #: The SQL query surface: ``USAGE`` on the schema, ``SELECT`` on its
+    #: tables, and in ``public`` only the routed community's members
+    #: (``current_guild_members``). No shared floor, so a statement reaches no
+    #: other community. Initiative RLS still applies, because the policies read
+    #: the request's identity rather than its role.
+    query = "_q"
+    #: The seat: inherits the full role and ``app_superadmin``, the floor
+    #: carrying the community's sign-in configuration. Assumed by a request
+    #: that asked for the seat and holds it; an ordinary request by a seat
+    #: holder routes as the full role.
+    seat = "_superadmin"
+    #: An installed app's request: only what ``app.db.app_rls.APP_TABLE_ACCESS``
+    #: names, no default privileges, and ``app_install_base`` for ``public``.
+    app = "_app"
+
+
+def guild_role_name(guild_id: int, kind: GuildRoleKind = GuildRoleKind.full) -> str:
+    """Cluster-global role name for a guild, e.g. ``guild_42`` or ``guild_42_ro``.
 
     Carries ``settings.GUILD_ROLE_PREFIX`` (empty in prod/dev). Roles are
     cluster-global — unlike schemas, which are per-database — so the test suite
@@ -59,61 +93,13 @@ def guild_role_name(guild_id: int) -> str:
     Deliberately a separate name from the schema: a role and a schema are
     different objects with different collision scopes.
     """
-    return f"{settings.GUILD_ROLE_PREFIX}guild_{int(guild_id)}"
+    return f"{settings.GUILD_ROLE_PREFIX}guild_{int(guild_id)}{kind.value}"
 
 
-def guild_readonly_role_name(guild_id: int) -> str:
-    """Read-only role for a guild, e.g. ``guild_42_ro``.
-
-    Assumed by PAM *read* grants and by read-only members: SELECT on the schema
-    and on the shared tables, and no DML anywhere — unlike the full guild role
-    used for membership/writes, which carries the writable shared floor.
-    """
-    return f"{settings.GUILD_ROLE_PREFIX}guild_{int(guild_id)}_ro"
-
-
-def guild_support_role_name(guild_id: int) -> str:
-    """Restricted read_write role for a guild, e.g. ``guild_42_support``.
-
-    Assumed by a scoped read_write PAM grant (the ``support`` guild identity): it
-    can SELECT everything and edit content, but the structural / permission tables
-    in ``SUPPORT_WRITE_PROTECTED_TABLES`` are SELECT-only, so a support grantee
-    cannot manage who is in the guild or who can see what. Break-glass (full
-    admin) uses the full ``guild_<id>`` role instead; a read grant uses ``_ro``.
-    """
-    return f"{settings.GUILD_ROLE_PREFIX}guild_{int(guild_id)}_support"
-
-
-def guild_superadmin_role_name(guild_id: int) -> str:
-    """The seat's role for a guild, e.g. ``guild_42_superadmin``.
-
-    Assumed by a request that asked for the seat and reached it — the
-    membership row says ``superadmin``, or a live ``superadmin`` settings
-    grant does. It inherits ``guild_<id>`` (the schema, and through it the
-    ``app_guild_base`` floor) and ``app_superadmin``, the floor carrying the
-    community's sign-in configuration.
-
-    Asking for it is a separate condition from holding it: an ordinary
-    request by a seat holder routes as ``guild_<id>``, so a content read
-    carries none of the configuration grants.
-    """
-    return f"{settings.GUILD_ROLE_PREFIX}guild_{int(guild_id)}_superadmin"
-
-
-def guild_query_role_name(guild_id: int) -> str:
-    """Read-only role for the SQL query surface, e.g. ``guild_42_q``.
-
-    Assumed for a member's own query: ``USAGE`` on the schema and ``SELECT`` on
-    its tables, and nothing else — no writes, and no reach outside the schema
-    and what ``app_guild_base`` already carries. Initiative RLS still applies,
-    because the policies read the request's identity rather than its role.
-
-    Deliberately not ``_ro``, which is the PAM read role. Two identities that
-    happen to hold the same privileges today are still two identities, and an
-    audit that cannot tell a grantee's read from a member's query is worth
-    less than a second ``CREATE ROLE``.
-    """
-    return f"{settings.GUILD_ROLE_PREFIX}guild_{int(guild_id)}_q"
+def guild_role_regex() -> str:
+    """A Postgres regex matching every guild's roles, under the current prefix."""
+    suffixes = "|".join(k.value for k in GuildRoleKind if k.value)
+    return f"^{settings.GUILD_ROLE_PREFIX}guild_[0-9]+({suffixes})?$"
 
 
 # Permission tables the restricted ``support`` role may READ but never WRITE:
@@ -130,26 +116,24 @@ SUPPORT_WRITE_PROTECTED_TABLES: tuple[str, ...] = (
     # outside system through this guild is access management, not the
     # edit-existing-content a scoped read_write grant is for.
     "guild_app_user_connections",
-    # A member's own authorization for an installed app to act as them. Access
-    # management for the same reason, and pointedly so: the row holds what one
-    # person decided about their own name, which is not a support grantee's to
-    # write in either direction.
-    "guild_app_user_delegations",
+    # A member's answer to an app asking to act as them. Access management for
+    # the same reason, and pointedly so: the row holds what one person decided
+    # about their own name, which is not a support grantee's to write in either
+    # direction.
+    "app_member_consents",
 )
 
 # Direct grants for the guild-scoped system operations that must not go through
 # tenant visibility rules: removing an account's embedded display name, and the
-# webhook poller's scan for what each subscription is still owed. The system
+# webhook poller's scan for what each subscription is still owed. The columns
+# the name is removed from are every column somebody writes in
+# (``search_index.written_columns``); they are added by
+# :func:`system_maintenance_grants`, so this names only the rest. The system
 # login can already assume every guild role, so this adds no reachable guild;
 # it lets those narrowly bounded operations retain app_admin's BYPASSRLS
 # identity instead of putting a comments UPDATE, or a scan of the whole change
 # log every five seconds, through initiative_access() one row at a time.
 SYSTEM_GUILD_MAINTENANCE_GRANTS: dict[str, tuple[str, ...]] = {
-    "comments": ("SELECT", "UPDATE"),
-    "documents": ("SELECT", "UPDATE"),
-    "posts": ("SELECT", "UPDATE"),
-    # A task's description carries the same mention markup as a comment.
-    "tasks": ("SELECT", "UPDATE"),
     "task_assignment_digest_items": ("SELECT", "UPDATE"),
     # The frozen-ancestor guard reads each supported parent into a composite
     # record (``SELECT *``) before capture/search triggers resolve identifiers.
@@ -169,13 +153,15 @@ SYSTEM_GUILD_MAINTENANCE_GRANTS: dict[str, tuple[str, ...]] = {
     # Content and search-index triggers must still record the scrub. Their
     # writes are column-scoped where possible; DELETE needs a table privilege.
     "event_outbox": (
-        "INSERT (txn_id, occurred_at, actor_user_id, initiative_id, "
-        "resource_type, resource_id, action, changed, parents)",
+        "INSERT (txn_id, occurred_at, actor_user_id, actor_install_id, "
+        "initiative_id, resource_type, resource_id, action, changed, parents)",
         # The poller's candidate scan: which transactions exist, in what order.
         # Nothing of what a row says — that is read per transaction, as the
         # subscription's owner, where RLS decides it.
         "SELECT (id, txn_id)",
     ),
+    # The same scan over the events apps emit.
+    "app_event_outbox": ("SELECT (id, txn_id)",),
     # The other half of that scan: what the ledger already records as settled
     # or leased for a subscription, so only the remainder is named.
     "webhook_deliveries": (
@@ -189,16 +175,25 @@ SYSTEM_GUILD_MAINTENANCE_GRANTS: dict[str, tuple[str, ...]] = {
     ),
 }
 
+
+def system_maintenance_grants() -> dict[str, tuple[str, ...]]:
+    """:data:`SYSTEM_GUILD_MAINTENANCE_GRANTS`, plus reading and rewriting every
+    column somebody writes in — and the collaboration state beside it, which
+    has to be cleared when the text under it changes."""
+    from app.db.search_index import written_columns
+
+    grants = dict(SYSTEM_GUILD_MAINTENANCE_GRANTS)
+    for model, columns in written_columns().items():
+        if "yjs_state" in model.__table__.c:
+            columns = (*columns, "yjs_state")
+        grants[model.__table__.name] = ("SELECT", f"UPDATE ({', '.join(columns)})")
+    return grants
+
+
 SYSTEM_GUILD_MAINTENANCE_SEQUENCE_GRANTS: dict[str, tuple[str, ...]] = {
     "event_outbox_id_seq": ("USAGE",),
 }
 
-
-# The platform privilege ladder, least -> most, as ``users.role`` spells it.
-# The migration creates one ``platform_<tier>`` NOLOGIN role per entry plus a
-# shared ``platform_base`` floor; the public/platform request path assumes
-# ``platform_<users.role>``.
-PLATFORM_TIERS: tuple[str, ...] = tuple(role.value for role in UserRole)
 
 #: The platform role a suspended account assumes whatever its tier: it holds no
 #: rung while in time out. ``platform_suspended`` inherits only
@@ -207,8 +202,12 @@ PLATFORM_TIERS: tuple[str, ...] = tuple(role.value for role in UserRole)
 #: holds it — so it sits beside the ladder rather than on it.
 PLATFORM_SUSPENDED = "suspended"
 
-#: Every platform role a request may assume: the ladder, and the time-out role.
-PLATFORM_ROUTES: tuple[str, ...] = (*PLATFORM_TIERS, PLATFORM_SUSPENDED)
+#: Every platform role a request may assume: one ``platform_<tier>`` per rung
+#: of the ladder (``users.role``), and the time-out role.
+PLATFORM_ROUTES: tuple[str, ...] = (
+    *(role.value for role in UserRole),
+    PLATFORM_SUSPENDED,
+)
 
 
 def platform_role_name(role: str) -> str:
@@ -217,8 +216,8 @@ def platform_role_name(role: str) -> str:
     Carries ``settings.PLATFORM_ROLE_PREFIX`` (empty in prod/dev; ``test_`` under
     the suite) so these cluster-global roles don't collide with a co-located dev
     DB's. ``role`` is a ``users.role`` value or :data:`PLATFORM_SUSPENDED`, and is
-    validated by the caller against :data:`PLATFORM_ROUTES` before reaching the
-    privileged ``SET ROLE`` sink.
+    validated by the caller against :data:`PLATFORM_ROUTES` before the role is
+    assumed.
     """
     return f"{settings.PLATFORM_ROLE_PREFIX}platform_{role}"
 
@@ -230,6 +229,14 @@ def billing_role_name() -> str:
     return f"{settings.PLATFORM_ROLE_PREFIX}initiative_billing"
 
 
+#: What provisioning applies to a guild schema, in the order it applies them.
+#: A schema's comment records one digest per part; a boot re-applies only the
+#: parts whose digest moved, except that new structure re-applies every part,
+#: since the others reach the tables it adds.
+PARTS = ("schema", "grants", "rls", "capture", "search")
+_STAMP_PREFIX = "provisioned:"
+
+
 @dataclass(frozen=True)
 class ProvisioningBundle:
     """The per-process render of everything provisioning applies.
@@ -238,21 +245,39 @@ class ProvisioningBundle:
     ``guild_template`` schema; ``rls_ddl`` is rendered from the
     ``INITIATIVE_PATHS`` registry (see ``app.db.guild_ddl``). There are no
     committed artifacts — new guilds match the template + registry by
-    construction. ``stamp`` hashes both renders plus the rendered grant
-    statements, so ANY provisioning-relevant change (a guild migration, a
-    registry edit, a grants change) produces a new stamp and a one-time
-    re-provisioning sweep on the next boot.
+    construction. ``digests`` hashes each part's render (the grants as
+    rendered statements), so a guild migration, a registry edit or a grants
+    change moves the digest of the part it touches and nothing else.
     """
 
     schema_ddl: str
     rls_ddl: str
     capture_ddl: str
     search_ddl: str
-    stamp: str
+    digests: dict[str, str]
+
+    @property
+    def stamp(self) -> str:
+        """The schema comment a guild carries once every part is applied."""
+        return _STAMP_PREFIX + ",".join(f"{p}={self.digests[p]}" for p in PARTS)
+
+    def stale_parts(self, stamp: str | None) -> tuple[str, ...]:
+        """The parts a schema commented ``stamp`` still needs, in apply order."""
+        applied = dict(
+            item.split("=", 1)
+            for item in (stamp or "").removeprefix(_STAMP_PREFIX).split(",")
+            if "=" in item
+        )
+        stale = tuple(p for p in PARTS if applied.get(p) != self.digests[p])
+        return PARTS if "schema" in stale else stale
 
 
 _bundle: ProvisioningBundle | None = None
 _bundle_lock = asyncio.Lock()
+
+
+def _digest(*renders: str) -> str:
+    return hashlib.sha256("\n".join(renders).encode()).hexdigest()[:12]
 
 
 async def get_provisioning_bundle() -> ProvisioningBundle:
@@ -263,53 +288,31 @@ async def get_provisioning_bundle() -> ProvisioningBundle:
     async with _bundle_lock:
         if _bundle is not None:
             return _bundle
-        from app.db.event_capture import (
-            CAPTURE_FUNCTION_SQL,
-            render_guild_capture_ddl,
-        )
+        from app.db.event_capture import render_guild_capture_ddl
         from app.db.guild_ddl import render_guild_rls_ddl, render_guild_schema_ddl
-        from app.db.search_index import (
-            DEPENDENT_FUNCTION_SQL,
-            SEARCH_FUNCTION_SQL,
-            WRITE_FUNCTION_SQL,
-            render_guild_search_ddl,
-        )
+        from app.db.search_index import render_guild_search_ddl
 
         schema_ddl = await render_guild_schema_ddl(db_session.provisioning_engine)
         rls_ddl = render_guild_rls_ddl()
         capture_ddl = render_guild_capture_ddl()
         # Naming the operator class in the rendered text is what makes the
-        # stamp move when it is installed later, so the sweep rebuilds indexes
+        # digest move when it is installed later, so the sweep rebuilds indexes
         # that were created without it.
         opclass = f"public.{SEARCH_OPCLASS}" if await search_operator_ready() else None
         search_ddl = render_guild_search_ddl(opclass)
-        digest = hashlib.sha256()
-        digest.update(schema_ddl.encode())
-        digest.update(rls_ddl.encode())
-        digest.update(capture_ddl.encode())
-        digest.update(CAPTURE_FUNCTION_SQL.encode())
-        digest.update(search_ddl.encode())
-        digest.update(SEARCH_FUNCTION_SQL.encode())
-        digest.update(WRITE_FUNCTION_SQL.encode())
-        digest.update(DEPENDENT_FUNCTION_SQL.encode())
-        digest.update(
-            "\n".join(
-                _grant_statements(
-                    "__stamp__",
-                    "__stamp_role__",
-                    "__stamp_ro__",
-                    "__stamp_support__",
-                    "__stamp_q__",
-                    "__stamp_seat__",
-                )
-            ).encode()
-        )
+        grants = _grant_statements("__stamp__", 0)
         _bundle = ProvisioningBundle(
             schema_ddl=schema_ddl,
             rls_ddl=rls_ddl,
             capture_ddl=capture_ddl,
             search_ddl=search_ddl,
-            stamp=f"provisioned:{digest.hexdigest()[:16]}",
+            digests={
+                "schema": _digest(schema_ddl),
+                "grants": _digest(*grants),
+                "rls": _digest(rls_ddl),
+                "capture": _digest(capture_ddl),
+                "search": _digest(search_ddl),
+            },
         )
         return _bundle
 
@@ -357,29 +360,52 @@ async def apply_guild_rls(conn: AsyncConnection, schema: str) -> None:
     )
 
 
+async def apply_guild_trigger_functions(conn: AsyncConnection) -> None:
+    """Re-assert the shared ``public`` functions the capture and search
+    triggers call, from their registries.
+
+    Migrations create them, but a migration freezes the body it was written
+    with; the registries are the current truth, so re-rendering them here is
+    what lets a change to the capture or search rule reach existing installs
+    on the next boot rather than needing a migration per edit. Runs once per
+    boot, ahead of the guild back-fill, not once per guild. Idempotent
+    ``CREATE OR REPLACE``.
+    """
+    from app.db.event_capture import CAPTURE_FUNCTION_SQL
+    from app.db.search_index import (
+        DEPENDENT_FUNCTION_SQL,
+        SEARCH_FUNCTION_SQL,
+        WRITE_FUNCTION_SQL,
+    )
+
+    raw = await conn.get_raw_connection()
+    # The write function first: both search trigger functions call it.
+    await raw.driver_connection.execute(
+        "SET check_function_bodies = false;\n"
+        + "\n".join(
+            (
+                CAPTURE_FUNCTION_SQL,
+                WRITE_FUNCTION_SQL,
+                SEARCH_FUNCTION_SQL,
+                DEPENDENT_FUNCTION_SQL,
+            )
+        )
+    )
+
+
 async def apply_guild_capture(conn: AsyncConnection, schema: str) -> None:
     """Install the change-capture triggers on ``schema``'s evented tables.
 
     Schema-relative + idempotent (``DROP TRIGGER IF EXISTS`` + ``CREATE
     TRIGGER``), so a re-run re-asserts them harmlessly. Every trigger calls the
     one ``public.capture_change`` (qualified, so it resolves regardless of
-    search_path); the per-table initiative lookups it runs resolve against the
-    guild-local tables through the caller's search_path, the same way the RLS
-    policies' EXISTS joins do. Requires ``public.capture_change`` to exist
-    (created by migration 20260815_0184).
+    search_path), kept current by :func:`apply_guild_trigger_functions`; the
+    per-table initiative lookups it runs resolve against the guild-local
+    tables through the caller's search_path, the same way the RLS policies'
+    EXISTS joins do.
     """
-    from app.db.event_capture import CAPTURE_FUNCTION_SQL
-
     ddl = (await get_provisioning_bundle()).capture_ddl
     raw = await conn.get_raw_connection()
-    # Re-assert the shared function before the triggers that call it. A migration
-    # creates it, but a migration freezes the body it was written with — the
-    # registry is the current truth, so re-rendering here is what lets a change
-    # to the capture rule reach existing installs on the next boot rather than
-    # needing a migration per edit. Idempotent CREATE OR REPLACE.
-    await raw.driver_connection.execute(
-        "SET check_function_bodies = false;\n" + CAPTURE_FUNCTION_SQL
-    )
     await raw.driver_connection.execute(
         f'SET search_path TO "{schema}", public;\n{ddl}\nSET search_path TO public;'
     )
@@ -388,28 +414,11 @@ async def apply_guild_capture(conn: AsyncConnection, schema: str) -> None:
 async def apply_guild_search(conn: AsyncConnection, schema: str) -> None:
     """Install the search-index refresh triggers on ``schema``'s indexed tables.
 
-    Same shape as :func:`apply_guild_capture`: re-assert the shared function
-    from the registry (so a change to what is indexed reaches existing installs
-    on the next boot rather than needing a migration per edit), then the
-    per-table triggers, both idempotent.
+    Same shape as :func:`apply_guild_capture`: per-table triggers calling
+    shared functions that :func:`apply_guild_trigger_functions` keeps current.
     """
-    from app.db.search_index import (
-        DEPENDENT_FUNCTION_SQL,
-        SEARCH_FUNCTION_SQL,
-        WRITE_FUNCTION_SQL,
-    )
-
     ddl = (await get_provisioning_bundle()).search_ddl
     raw = await conn.get_raw_connection()
-    # The write function first: both trigger functions call it.
-    await raw.driver_connection.execute(
-        "SET check_function_bodies = false;\n"
-        + WRITE_FUNCTION_SQL
-        + "\n"
-        + SEARCH_FUNCTION_SQL
-        + "\n"
-        + DEPENDENT_FUNCTION_SQL
-    )
     await raw.driver_connection.execute(
         f'SET search_path TO "{schema}", public;\n{ddl}\nSET search_path TO public;'
     )
@@ -483,16 +492,90 @@ async def strip_template_registry_objects(conn: AsyncConnection) -> int:
     return len(policies) + len(triggers) + functions
 
 
-def _grant_statements(
-    schema: str,
-    role: str,
-    ro_role: str,
-    support_role: str,
-    query_role: str,
-    seat_role: str,
-) -> list[str]:
-    """Fail-closed grants tying a guild's ``role`` (read/write), ``ro_role``
-    (read-only) and ``support_role`` (restricted read/write) to its ``schema``.
+#: What ``guild_<id>_app`` reads outside ``APP_TABLE_ACCESS``: table -> the
+#: columns, or ``()`` for the whole row. The install standing statement reads
+#: the install, the scopes its pinned version requests and where it is
+#: placed, and for a member token the member's
+#: consent and what their initiative roles permit; the sharing gate reads the
+#: grant rows; a notification about what the install did names it. No route
+#: addresses any of them for an app.
+APP_ROLE_MACHINERY_READS: dict[str, tuple[str, ...]] = {
+    "guild_apps": (
+        "id",
+        "listing_uid",
+        "enabled",
+        "granted_scopes",
+        "definition",
+        "name",
+    ),
+    "app_placements": ("install_id", "initiative_id"),
+    "app_member_consents": (
+        "install_id",
+        "user_id",
+        "purpose",
+        "initiative_id",
+        "granted_access",
+        "revoked_at",
+    ),
+    "initiative_role_permissions": ("initiative_role_id", "permission_key", "enabled"),
+    "resource_grants": (),
+}
+
+#: What ``guild_<id>_app`` writes outside ``APP_TABLE_ACCESS``: table -> the
+#: verbs. The owner grant on a resource an install creates names the install,
+#: and an install with ``sharing:write`` rewrites a resource's shares; the row
+#: policies on ``resource_grants`` admit those rows and no other.
+APP_ROLE_MACHINERY_WRITES: dict[str, tuple[str, ...]] = {
+    "resource_grants": ("INSERT", "DELETE"),
+}
+
+
+def _app_role_grant_statements(schema: str, app_role: str) -> list[str]:
+    """The app role's grants, rendered from ``APP_TABLE_ACCESS`` in table order.
+
+    A scoped table an app writes, a side-effect table and the subscriptions
+    table take DML (the row policies decide which rows); a scoped read-only
+    table takes ``SELECT``. Every other table in the schema takes nothing.
+    The role's table grants are cleared first, so a re-provision leaves it
+    holding what the registry says now.
+    """
+    from app.db.app_rls import APP_TABLE_ACCESS, AppTableKind
+
+    stmts = [
+        f'REVOKE ALL ON ALL TABLES IN SCHEMA "{schema}" FROM "{app_role}"',
+        f'GRANT USAGE ON SCHEMA "{schema}" TO "{app_role}"',
+    ]
+    for table in sorted(APP_TABLE_ACCESS):
+        access = APP_TABLE_ACCESS[table]
+        if access.writable or access.kind is AppTableKind.side_effect:
+            verbs = "SELECT, INSERT, UPDATE, DELETE"
+        else:
+            verbs = "SELECT"
+        stmts.append(f'GRANT {verbs} ON TABLE "{schema}"."{table}" TO "{app_role}"')
+    # Read by the install standing statement and the gates, never addressed
+    # by an app: the install's own row and its placements, column by column,
+    # and the sharing rows ``resource_access`` reads under the invoker's role.
+    for table, columns in sorted(APP_ROLE_MACHINERY_READS.items()):
+        target = f" ({', '.join(columns)})" if columns else ""
+        stmts.append(
+            f'GRANT SELECT{target} ON TABLE "{schema}"."{table}" TO "{app_role}"'
+        )
+    for table, verbs in sorted(APP_ROLE_MACHINERY_WRITES.items()):
+        stmts.append(
+            f'GRANT {", ".join(verbs)} ON TABLE "{schema}"."{table}" TO "{app_role}"'
+        )
+    stmts += [
+        # Ids of the rows it writes come from the schema's sequences.
+        f'GRANT USAGE ON ALL SEQUENCES IN SCHEMA "{schema}" TO "{app_role}"',
+        f'GRANT app_install_base TO "{app_role}"',
+        f'GRANT "{app_role}" TO "{APP_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" '
+        f"WITH INHERIT FALSE",
+    ]
+    return stmts
+
+
+def _grant_statements(schema: str, guild_id: int) -> list[str]:
+    """Fail-closed grants tying each of the guild's roles to its ``schema``.
 
     NOTE: the provisioning-bundle stamp hashes this function's RENDERED
     output, so changing WHAT it grants invalidates every guild's stamp and
@@ -506,8 +589,14 @@ def _grant_statements(
     role (assumed by PAM read grants) gets SELECT only, so a write is denied.
     The support role (scoped read_write grants) gets DML on content but is
     revoked write on the structural/permission tables — the DB-enforced
-    "no member/permission management" line.
+    "no member/permission management" line. The query role holds no shared
+    floor: its schema and the routed community's members. The app role (an
+    installed app's requests) holds only what ``_app_role_grant_statements``
+    renders.
     """
+    role, ro_role, support_role, query_role, seat_role, app_role = _guild_roles(
+        guild_id
+    )
     stmts = [
         # Account-erasure maintenance: direct, table-bounded access lets the
         # app_admin login retain BYPASSRLS while it removes embedded names.
@@ -515,7 +604,7 @@ def _grant_statements(
         *(
             f"GRANT {', '.join(privileges)} ON TABLE "
             f'"{schema}"."{table}" TO "{SYSTEM_LOGIN_ROLE}"'
-            for table, privileges in SYSTEM_GUILD_MAINTENANCE_GRANTS.items()
+            for table, privileges in system_maintenance_grants().items()
         ),
         *(
             f"GRANT {', '.join(privileges)} ON SEQUENCE "
@@ -559,15 +648,18 @@ def _grant_statements(
         # Query role: SELECT on the schema's tables and nothing else. No
         # sequences — a read names no sequence — and no DML at any level.
         #
-        # The shared floor is the read-only one: app_guild_base carries DML on
-        # the shared tables, and a privilege reached by inheritance cannot be
-        # revoked back off. Reading them is needed — the guild policies call
-        # public.guild_auth_satisfied(), which reads public.guild_auth_policies.
+        # No shared floor: a query reads its own community and nothing in
+        # ``public`` but the routed community's members. ``USAGE`` on
+        # ``public`` names that view and the types the gates take, and holds
+        # no table. The floor it once inherited is revoked, for the schemas
+        # provisioned while it did.
         f'GRANT USAGE ON SCHEMA "{schema}" TO "{query_role}"',
         f'ALTER DEFAULT PRIVILEGES IN SCHEMA "{schema}" '
         f'GRANT SELECT ON TABLES TO "{query_role}"',
         f'GRANT SELECT ON ALL TABLES IN SCHEMA "{schema}" TO "{query_role}"',
-        f'GRANT app_guild_base_ro TO "{query_role}"',
+        f'REVOKE app_guild_base_ro FROM "{query_role}"',
+        f'GRANT USAGE ON SCHEMA public TO "{query_role}"',
+        f'GRANT SELECT ON public.current_guild_members TO "{query_role}"',
         f'GRANT "{query_role}" TO "{APP_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" '
         f"WITH INHERIT FALSE",
         # Seat role: the full guild role's reach into the schema and the
@@ -587,6 +679,9 @@ def _grant_statements(
             f'REVOKE INSERT, UPDATE, DELETE ON "{schema}"."{table}" '
             f'FROM "{support_role}"'
         )
+    # App role: table by table from the app registry, with no default
+    # privileges and no guild role composed in.
+    stmts.extend(_app_role_grant_statements(schema, app_role))
     return stmts
 
 
@@ -602,51 +697,84 @@ async def _exec_batch(conn: AsyncConnection, statements: list[str]) -> None:
     await raw.driver_connection.execute(";\n".join(statements) + ";")
 
 
-async def _role_exists(conn: AsyncConnection, role: str) -> bool:
-    return (
-        await conn.scalar(
-            text("SELECT 1 FROM pg_roles WHERE rolname = :r"), {"r": role}
+def _guild_roles(guild_id: int) -> tuple[str, ...]:
+    """A guild's roles, one per :class:`GuildRoleKind`, in its order."""
+    return tuple(guild_role_name(guild_id, kind) for kind in GuildRoleKind)
+
+
+async def _existing_roles(conn: AsyncConnection, roles: tuple[str, ...]) -> set[str]:
+    rows = await conn.execute(
+        text("SELECT rolname FROM pg_roles WHERE rolname = ANY(:r)"),
+        {"r": list(roles)},
+    )
+    return set(rows.scalars())
+
+
+#: Namespace for the per-guild provisioning lock, so the key cannot collide
+#: with another feature's advisory lock on the same guild id. Key 0, which no
+#: guild has, orders the shared trigger functions.
+_PROVISION_LOCK_NAMESPACE = 0x50524F56  # "PROV"
+
+#: How many guilds one process back-fills at once.
+_BACKFILL_CONCURRENCY = 4
+
+
+async def _lock_guild(conn: AsyncConnection, guild_id: int, *, wait: bool) -> bool:
+    """Take the guild's provisioning lock, held to the end of the transaction.
+
+    With ``wait=False``, returns False at once when another process holds it.
+    """
+    params = {"ns": _PROVISION_LOCK_NAMESPACE, "gid": guild_id}
+    if wait:
+        await conn.execute(text("SELECT pg_advisory_xact_lock(:ns, :gid)"), params)
+        return True
+    return bool(
+        await conn.scalar(text("SELECT pg_try_advisory_xact_lock(:ns, :gid)"), params)
+    )
+
+
+async def _apply_parts(
+    conn: AsyncConnection, guild_id: int, parts: tuple[str, ...]
+) -> None:
+    """Apply ``parts`` of the bundle to ``guild_<id>``, then stamp the schema.
+
+    Every part is idempotent (``IF NOT EXISTS``, ``CREATE OR REPLACE``, drop
+    and re-create), so re-applying one that was current changes nothing.
+    """
+    schema = guild_schema_name(guild_id)
+    if "schema" in parts:
+        await conn.exec_driver_sql(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
+        await apply_guild_schema(conn, schema)  # canonical Alembic-owned table DDL
+    if "grants" in parts:
+        roles = _guild_roles(guild_id)
+        existing = await _existing_roles(conn, roles)
+        await _exec_batch(
+            conn,
+            [
+                *(f'CREATE ROLE "{r}" NOLOGIN' for r in roles if r not in existing),
+                *_grant_statements(schema, guild_id),
+            ],
         )
-    ) is not None
-
-
-async def _ensure_role(conn: AsyncConnection, role: str) -> None:
-    if not await _role_exists(conn, role):
-        await conn.exec_driver_sql(f'CREATE ROLE "{role}" NOLOGIN')
+    if "rls" in parts:
+        await apply_guild_rls(conn, schema)  # initiative-level RLS policies
+    if "capture" in parts:
+        await apply_guild_capture(conn, schema)  # change-capture triggers
+    if "search" in parts:
+        await apply_guild_search(conn, schema)  # search-index refresh triggers
+    # Constant hex digests, safe to inline.
+    stamp = (await get_provisioning_bundle()).stamp
+    await conn.exec_driver_sql(f"COMMENT ON SCHEMA \"{schema}\" IS '{stamp}'")
 
 
 async def provision_guild_schema(conn: AsyncConnection, guild_id: int) -> str:
-    """Create/refresh ``guild_<id>`` (schema + tables + scoped role). Idempotent.
+    """Create/refresh ``guild_<id>`` (schema, tables, roles, grants, policies,
+    triggers) under the guild's provisioning lock. Idempotent.
 
-    Needs a privileged connection (CREATEROLE + CREATE on the database). The
-    table DDL and grants run as a single round-trip; ``IF NOT EXISTS`` makes a
-    re-run back-fill any newly-manifested table and re-apply grants harmlessly.
+    Needs a privileged connection (CREATEROLE + CREATE on the database).
     """
-    schema = guild_schema_name(guild_id)
-    role = guild_role_name(guild_id)
-    ro_role = guild_readonly_role_name(guild_id)
-    support_role = guild_support_role_name(guild_id)
-    query_role = guild_query_role_name(guild_id)
-    seat_role = guild_superadmin_role_name(guild_id)
-    await conn.exec_driver_sql(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
-    await _ensure_role(conn, role)
-    await _ensure_role(conn, ro_role)
-    await _ensure_role(conn, support_role)
-    await _ensure_role(conn, query_role)
-    await _ensure_role(conn, seat_role)
-    await apply_guild_schema(conn, schema)  # canonical Alembic-owned table DDL
-    await _exec_batch(
-        conn,
-        _grant_statements(schema, role, ro_role, support_role, query_role, seat_role),
-    )
-    await apply_guild_rls(conn, schema)  # initiative-level RLS policies
-    await apply_guild_capture(conn, schema)  # change-capture triggers
-    await apply_guild_search(conn, schema)  # search-index refresh triggers
-    # Stamp the artifacts' version so the boot back-fill can skip this guild
-    # until they change (constant hex literal, safe to inline).
-    stamp = (await get_provisioning_bundle()).stamp
-    await conn.exec_driver_sql(f"COMMENT ON SCHEMA \"{schema}\" IS '{stamp}'")
-    return schema
+    await _lock_guild(conn, guild_id, wait=True)
+    await _apply_parts(conn, guild_id, PARTS)
+    return guild_schema_name(guild_id)
 
 
 async def drop_guild_schema(conn: AsyncConnection, guild_id: int) -> None:
@@ -660,14 +788,10 @@ async def drop_guild_schema(conn: AsyncConnection, guild_id: int) -> None:
     await conn.exec_driver_sql("SET lock_timeout = '10s'")
     await conn.exec_driver_sql(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE')
     provisioning_login, _ = settings.database_login("DATABASE_URL")
-    for role in (
-        guild_role_name(guild_id),
-        guild_readonly_role_name(guild_id),
-        guild_support_role_name(guild_id),
-        guild_query_role_name(guild_id),
-        guild_superadmin_role_name(guild_id),
-    ):
-        if await _role_exists(conn, role):
+    roles = _guild_roles(guild_id)
+    existing = await _existing_roles(conn, roles)
+    for role in roles:
+        if role in existing:
             # DROP OWNED requires the role's PRIVILEGES, not just ADMIN OPTION
             # on it (PG16+ separates the two). The provisioning login
             # administers every guild role, so grant itself membership first —
@@ -715,30 +839,51 @@ class BackfillSummary:
     total: int
     provisioned: int
     failed: int
-    skipped: int = 0  # stamp matched — provisioned by the current artifacts
+    skipped: int = 0  # every part current, here or in another process
     failed_guild_ids: list[int] = field(default_factory=list)
 
 
-async def backfill_guild_schemas() -> BackfillSummary:
-    """Re-provision every guild schema the current artifacts haven't built yet.
+async def _backfill_guild(guild_id: int, *, wait: bool) -> bool | None:
+    """Apply the parts ``guild_<id>`` is missing, under its provisioning lock.
 
-    Enumerates guild ids (and their schema-comment stamps) from the
-    provisioning engine, then runs the idempotent ``provision_guild`` for each
-    guild whose stamp doesn't match the bundle stamp — i.e. its
-    schema predates the current template structure / rendered RLS /
-    grants version, is missing entirely, or was never stamped. Because
-    provisioning re-runs the canonical DDL (``CREATE ... IF NOT EXISTS``) and
-    re-applies grants, this back-fills any table/column/index/grant added
-    since, then re-stamps. Already-stamped guilds are skipped, so a boot with
-    unchanged artifacts is O(changed guilds), not O(all guilds) — set
-    ``FORCE_GUILD_BACKFILL=true`` to sweep everything regardless.
+    Returns whether anything was applied, or None when ``wait`` is False and
+    another process holds the lock.
+    """
+    bundle = await get_provisioning_bundle()
+    async with db_session.provisioning_engine.begin() as conn:
+        if not await _lock_guild(conn, guild_id, wait=wait):
+            return None
+        # Read again under the lock: another process may have just done it.
+        stamp = await conn.scalar(
+            text("SELECT obj_description(to_regnamespace(:s), 'pg_namespace')"),
+            {"s": guild_schema_name(guild_id)},
+        )
+        parts = PARTS if settings.FORCE_GUILD_BACKFILL else bundle.stale_parts(stamp)
+        if parts:
+            await _apply_parts(conn, guild_id, parts)
+        return bool(parts)
+
+
+async def backfill_guild_schemas() -> BackfillSummary:
+    """Bring every guild schema up to the current bundle.
+
+    Enumerates guild ids and their schema-comment stamps, and for each guild
+    whose stamp is behind applies the parts that moved: every part for a
+    schema that is missing, unstamped or behind on structure, otherwise only
+    the grants, policies or triggers whose render changed. Set
+    ``FORCE_GUILD_BACKFILL=true`` to re-apply every part of every guild.
+
+    Several processes booting at once share the work: each guild is applied
+    under its advisory lock, a first pass takes only the guilds nobody else
+    holds, and a second waits for the rest and re-reads their stamps, so every
+    process returns with every guild current and each guild applied once.
 
     Per-guild failures are logged with the guild id and skipped so one broken
-    guild can't take down boot for the rest; ``provision_guild`` runs each guild
-    in its own transaction, so a failure rolls back only that guild. Returns a
-    summary for the caller to log.
+    guild can't take down boot for the rest; each guild runs in its own
+    transaction, so a failure rolls back only that guild. Returns a summary
+    for the caller to log.
     """
-    stamp = (await get_provisioning_bundle()).stamp
+    bundle = await get_provisioning_bundle()
 
     # The template carries structure only. Earlier boots rendered the
     # registries into it as well, and those copies bind functions the
@@ -752,14 +897,15 @@ async def backfill_guild_schemas() -> BackfillSummary:
     except Exception:  # noqa: BLE001 — never block boot on the template
         logger.exception("guild_template clean-up failed")
 
+    async with db_session.provisioning_engine.begin() as conn:
+        await _lock_guild(conn, 0, wait=True)
+        await apply_guild_trigger_functions(conn)
+
     # Enumerate on the SYSTEM engine, not the provisioning engine: guild ids
     # live in the RLS-forced public.guilds, and the provisioner is a pure DDL
     # actor — FORCE RLS filters its unrouted data reads to zero rows (by
     # design). Reading data is the system engine's job (BYPASSRLS).
     async with db_session.system_engine.connect() as conn:
-        # Pooled connection: shed any guild role a previous checkout assumed
-        # (a leaked role would RLS-filter public.guilds to zero rows).
-        await conn.execute(text("SELECT set_config('role', 'none', false)"))
         rows = (
             await conn.execute(
                 text(
@@ -770,26 +916,34 @@ async def backfill_guild_schemas() -> BackfillSummary:
                 )
             )
         ).all()
+    behind = [
+        gid
+        for gid, stamp in rows
+        if settings.FORCE_GUILD_BACKFILL or bundle.stale_parts(stamp)
+    ]
 
-    provisioned = 0
-    skipped = 0
+    limit = asyncio.Semaphore(_BACKFILL_CONCURRENCY)
     failed_guild_ids: list[int] = []
-    for gid, comment in rows:
-        if comment == stamp and not settings.FORCE_GUILD_BACKFILL:
-            skipped += 1
-            continue
-        try:
-            await provision_guild(gid)
-            provisioned += 1
-        except Exception:  # noqa: BLE001 — one broken guild must not block boot
-            failed_guild_ids.append(gid)
-            logger.exception("guild schema back-fill failed for guild %s", gid)
+
+    async def backfill(guild_id: int, wait: bool) -> bool | None:
+        async with limit:
+            try:
+                return await _backfill_guild(guild_id, wait=wait)
+            except Exception:  # noqa: BLE001 — one broken guild must not block boot
+                failed_guild_ids.append(guild_id)
+                logger.exception("guild schema back-fill failed for guild %s", guild_id)
+                return False
+
+    first = await asyncio.gather(*(backfill(gid, False) for gid in behind))
+    held = [gid for gid, applied in zip(behind, first, strict=True) if applied is None]
+    second = await asyncio.gather(*(backfill(gid, True) for gid in held))
+    provisioned = sum(1 for applied in (*first, *second) if applied)
 
     return BackfillSummary(
         total=len(rows),
         provisioned=provisioned,
         failed=len(failed_guild_ids),
-        skipped=skipped,
+        skipped=len(rows) - provisioned - len(failed_guild_ids),
         failed_guild_ids=failed_guild_ids,
     )
 
@@ -894,11 +1048,15 @@ async def search_operator_ready() -> bool:
 SEARCH_REINDEX_BATCH = 500
 
 
-async def reindex_guild_search(engine, schema: str, *, force: bool = False) -> int:
+async def reindex_guild_search(
+    session: AsyncSession, guild_id: int, *, force: bool = False
+) -> int:
     """Rebuild one guild's search entries when its generation marker is stale.
 
-    The marker is a comment on the guild's ``search_entries``, the same shape
-    as the provisioning stamp on the schema. Adding a source or changing an
+    ``session`` is a system session routed into the guild, and each batch
+    commits on it. The marker is a comment on the guild's ``search_entries``,
+    the same shape as the provisioning stamp on the schema, written on the
+    provisioning engine, which owns the table. Adding a source or changing an
     extraction moves :func:`search_generation`, and this walks each source table
     in batches, writing through the same function the refresh trigger uses.
 
@@ -906,16 +1064,13 @@ async def reindex_guild_search(engine, schema: str, *, force: bool = False) -> i
     """
     from app.db.search_index import reindex_plan, search_generation
 
-    # The schema names its community, and the role to assume for it is named
-    # from the same id — a role name carries a per-checkout prefix, so it is
-    # not the schema's own spelling.
-    role = guild_role_name(int(schema.removeprefix("guild_")))
+    schema = guild_schema_name(guild_id)
     generation = search_generation()
-    async with engine.connect() as conn:
-        current = await conn.scalar(
-            text("SELECT obj_description(to_regclass(:t), 'pg_class')"),
-            {"t": f'"{schema}".search_entries'},
-        )
+    conn = await session.connection()
+    current = await conn.scalar(
+        text("SELECT obj_description(to_regclass(:t), 'pg_class')"),
+        {"t": f'"{schema}".search_entries'},
+    )
     if current == generation and not force:
         return 0
 
@@ -923,35 +1078,24 @@ async def reindex_guild_search(engine, schema: str, *, force: bool = False) -> i
     for _entity_type, statement in reindex_plan():
         cursor = 0
         while True:
-            async with engine.begin() as conn:
-                # System routing: no user id, so the sign-in gate reads this as
-                # a system session; the index's own policy admits the write by
-                # the connection's login, which is the system engine's.
-                # Both names are built from the community's id, not from
-                # anything a request supplies, the way every other identifier
-                # in this module is.
-                await conn.exec_driver_sql(
-                    f"SELECT set_config('search_path', '\"{schema}\", public', true),"
-                    f" set_config('role', '{role}', true),"
-                    " set_config('app.current_user_id', '', true),"
-                    " set_config('app.guild_auth_ok', 'true', true)"
+            conn = await session.connection()
+            rows = (
+                await conn.execute(
+                    text(statement),
+                    {
+                        "schema": schema,
+                        "cursor": cursor,
+                        "batch": SEARCH_REINDEX_BATCH,
+                    },
                 )
-                rows = (
-                    await conn.execute(
-                        text(statement),
-                        {
-                            "schema": schema,
-                            "cursor": cursor,
-                            "batch": SEARCH_REINDEX_BATCH,
-                        },
-                    )
-                ).all()
+            ).all()
+            await session.commit()
             if not rows:
                 break
             cursor = max(r.id for r in rows)
             written += len(rows)
 
-    async with engine.begin() as conn:
+    async with db_session.provisioning_engine.begin() as conn:
         await conn.exec_driver_sql(
             f"COMMENT ON TABLE \"{schema}\".search_entries IS '{generation}'"
         )
@@ -961,30 +1105,21 @@ async def reindex_guild_search(engine, schema: str, *, force: bool = False) -> i
 async def backfill_guild_search() -> int:
     """Reindex every guild whose search generation is stale.
 
-    Runs after schema provisioning, on its own connections: a guild's content is
-    walked in bounded transactions, so a large install fills in progressively
-    instead of holding one transaction open across the whole sweep.
+    Runs after schema provisioning, visiting each guild on a system session
+    from its cohort. A guild's content is walked in bounded transactions, so a
+    large install fills in progressively instead of holding one transaction
+    open across the whole sweep. A guild that fails is logged and the others
+    carry on.
     """
-    from sqlalchemy import text as _text
+    from app.services.guild_sweeps import Scope, each_guild
 
-    async with db_session.provisioning_engine.connect() as conn:
-        schemas = [
-            r[0]
-            for r in (
-                await conn.execute(
-                    _text(
-                        "SELECT nspname FROM pg_namespace "
-                        "WHERE nspname LIKE 'guild\\_%' ORDER BY nspname"
-                    )
-                )
-            ).all()
-        ]
     total = 0
-    for schema in schemas:
-        try:
-            total += await reindex_guild_search(db_session.system_engine, schema)
-        except Exception:
-            logger.exception("search reindex failed for %s", schema)
+
+    async def reindex(session: AsyncSession, guild_id: int) -> None:
+        nonlocal total
+        total += await reindex_guild_search(session, guild_id)
+
+    await each_guild([(Scope.PROVISIONED, reindex)], name="search-reindex")
     if total:
         logger.info("search reindex wrote %d entries", total)
     return total
@@ -1113,11 +1248,8 @@ def _expected_shared_table_grants() -> list[tuple[str, str, frozenset[str]]]:
     from app.db import system_grants
 
     expected: list[tuple[str, str, frozenset[str]]] = []
-    for role, matrix in (
-        ("app_admin", system_grants.SHARED_TABLE_SYSTEM_GRANTS),
-        ("app_user", system_grants.SHARED_TABLE_APP_USER_GRANTS),
-    ):
-        for table, verbs in matrix.items():
+    for role in ("app_admin", "app_user"):
+        for table, verbs in system_grants.ROLE_GRANTS[role].items():
             if verbs:
                 expected.append((role, table, verbs))
     return expected
@@ -1434,13 +1566,13 @@ async def verify_effective_shared_grants() -> None:
             db_session.system_engine,
             "DATABASE_URL_ADMIN",
             "app_admin",
-            system_grants.SHARED_TABLE_SYSTEM_GRANTS,
+            system_grants.ROLE_GRANTS["app_admin"],
         ),
         (
             db_session.engine,
             "DATABASE_URL_APP",
             "app_user",
-            system_grants.SHARED_TABLE_APP_USER_GRANTS,
+            system_grants.ROLE_GRANTS["app_user"],
         ),
     ):
         async with engine_.connect() as conn:

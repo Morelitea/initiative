@@ -1,15 +1,6 @@
 import { Link, useBlocker, useParams } from "@tanstack/react-router";
 import type { SerializedEditorState } from "lexical";
-import {
-  CalendarClock,
-  Loader2,
-  Pin,
-  PinOff,
-  SearchX,
-  Settings,
-  ShieldAlert,
-  Vote,
-} from "lucide-react";
+import { CalendarClock, Loader2, Pin, PinOff, Settings, Vote } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -27,7 +18,7 @@ import {
 } from "@/components/initiativeTools/posts/PollEditor";
 import { PostPoll } from "@/components/initiativeTools/posts/PostPoll";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
-import { StatusMessage } from "@/components/StatusMessage";
+import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { UserHandle } from "@/components/UserHandle";
@@ -39,8 +30,8 @@ import { RelativeTime } from "@/components/ui/relative-time";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
-import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiative } from "@/hooks/useInitiatives";
+import { useReadOnOpen } from "@/hooks/useNotifications";
 import {
   useDeletePostPoll,
   usePost,
@@ -50,10 +41,8 @@ import {
 } from "@/hooks/usePosts";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { toast } from "@/lib/chesterToast";
-import { getHttpStatus } from "@/lib/errorMessage";
 import { formatDateTime, fromLocalDateTimeInput, toLocalDateTimeInput } from "@/lib/formatDate";
 import { useGuildPath } from "@/lib/guildUrl";
-import { hasWriteAccess } from "@/lib/permissions";
 import { hasBody, MAX_POST_TEXT_CHARS } from "@/lib/posts";
 import { referenceRef } from "@/lib/smartChips";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
@@ -86,16 +75,16 @@ export function PostDetailPage() {
 
   const recordViewMutation = useRecordRecentView("post", Number(guildId));
   const viewedPostId = post?.id;
+  useReadOnOpen(Tool.post, viewedPostId);
   useEffect(() => {
     if (!viewedPostId) return;
     recordViewMutation.mutate(viewedPostId);
   }, [viewedPostId, recordViewMutation.mutate]);
 
-  const canEdit = hasWriteAccess(post?.my_permission_level);
+  const canEdit = Boolean(post?.can.edit);
 
   const initiativeQuery = useInitiative(post?.initiative_id ?? null);
-  const { canManage } = useInitiativeAccess();
-  const canPin = initiativeQuery.data ? canManage(initiativeQuery.data) : false;
+  const canPin = Boolean(initiativeQuery.data?.can.manage);
 
   const update = useUpdatePost(parsedId, {
     onSuccess: () => {
@@ -164,33 +153,13 @@ export function PostDetailPage() {
     withResolver: true,
   });
 
-  if (!Number.isFinite(parsedId)) {
-    return <p className="text-destructive">{t("notFound")}</p>;
-  }
-
-  if (postQuery.isError) {
-    const status = getHttpStatus(postQuery.error);
-    const backTo = gp(toolListRoute(Tool.post, initiativeId));
-    const backLabel = t("backToPosts");
-
-    if (status === 403) {
-      return (
-        <StatusMessage
-          icon={<ShieldAlert />}
-          title={t("noAccess")}
-          description={t("noAccessDescription")}
-          backTo={backTo}
-          backLabel={backLabel}
-        />
-      );
-    }
+  if (!Number.isFinite(parsedId) || postQuery.isError) {
     return (
-      <StatusMessage
-        icon={<SearchX />}
-        title={t("notFound")}
-        description={t("notFoundDescription")}
-        backTo={backTo}
-        backLabel={backLabel}
+      <ToolAccessStatus
+        error={postQuery.error}
+        keys="posts:"
+        backTo={gp(toolListRoute(Tool.post, initiativeId))}
+        backLabel={t("backToPosts")}
       />
     );
   }

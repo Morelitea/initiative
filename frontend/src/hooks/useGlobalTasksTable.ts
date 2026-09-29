@@ -14,7 +14,7 @@ import type {
   TaskStatusCategory,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import { listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
+import { listTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
 import {
   getListMyTasksApiV1MeTasksGetQueryKey,
   listMyTasksApiV1MeTasksGet,
@@ -25,13 +25,7 @@ import { useUpdateTaskInGuild } from "@/hooks/useTasks";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-
-const statusFallbackOrder: Record<TaskStatusCategory, TaskStatusCategory[]> = {
-  backlog: ["backlog"],
-  todo: ["todo", "backlog"],
-  in_progress: ["in_progress", "todo", "backlog"],
-  done: ["done", "in_progress", "todo", "backlog"],
-};
+import { statusForCategory } from "@/lib/taskStatusDefaults";
 
 const SORT_DEFAULTS: SortField[] = [
   { field: "date_group", dir: "asc" },
@@ -398,7 +392,7 @@ export function useGlobalTasksTable() {
     }
     // Explicit guild address: the project lives in the task's guild, which
     // need not be the user's current context on these cross-guild pages.
-    const statuses = await listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet(
+    const statuses = await listTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGet(
       guildId,
       projectId
     );
@@ -415,14 +409,7 @@ export function useGlobalTasksTable() {
   const resolveStatusIdForCategory = useCallback(
     async (projectId: number, category: TaskStatusCategory, guildId: number | null) => {
       const statuses = await fetchProjectStatuses(projectId, guildId);
-      const fallback = statusFallbackOrder[category] ?? [category];
-      for (const candidate of fallback) {
-        const match = statuses.find((status) => status.category === candidate);
-        if (match) {
-          return match.id;
-        }
-      }
-      return null;
+      return statusForCategory(statuses, category)?.id ?? null;
     },
     [fetchProjectStatuses]
   );

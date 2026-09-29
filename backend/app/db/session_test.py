@@ -11,8 +11,6 @@ from sqlalchemy import text
 from app.core import audit_context, metrics
 from app.db import session as db_session
 
-pytestmark = pytest.mark.integration
-
 
 @pytest.fixture
 def every_statement_is_slow(monkeypatch: pytest.MonkeyPatch) -> None:

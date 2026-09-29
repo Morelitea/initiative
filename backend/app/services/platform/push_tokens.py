@@ -5,14 +5,18 @@ policies admit that account's own rows. Delivery reads and prunes a
 recipient's rows on the system engine (``push_notifications.send_push_to_user``).
 """
 
-from datetime import datetime, timezone
+import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Iterable, List, Optional
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy import and_, or_
 from sqlmodel import select, delete, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.push_token import PushToken
+from app.services.auth import sessions as session_service
+from app.services.platform import user_tokens
 
 
 async def register_push_token(
@@ -22,6 +26,7 @@ async def register_push_token(
     push_token: str,
     platform: str,
     device_token_id: Optional[int] = None,
+    session_id: Optional[uuid.UUID] = None,
 ) -> PushToken:
     """Register or update a push notification token for a user.
 
@@ -36,6 +41,7 @@ async def register_push_token(
             push_token=push_token,
             platform=platform,
             device_token_id=device_token_id,
+            session_id=session_id,
             created_at=now,
             updated_at=now,
         )
@@ -44,6 +50,7 @@ async def register_push_token(
             set_=dict(
                 platform=platform,
                 device_token_id=device_token_id,
+                session_id=session_id,
                 updated_at=now,
             ),
         )
@@ -69,6 +76,86 @@ async def get_push_tokens_for_user(
     )
     result = await session.exec(stmt)
     return list(result.all())
+
+
+#: How long a row that names no sign-in is sent to after it was last
+#: registered.
+UNLINKED_GRACE = timedelta(days=7)
+
+
+async def live_for_user(session: AsyncSession, *, user_id: int) -> List[PushToken]:
+    """The recipient's devices whose sign-in still stands.
+
+    A row stands while the session that registered it has a live chain, or,
+    registered under a device token, while that token is good. A row that
+    names neither, registered before rows named their sign-in, stands for
+    :data:`UNLINKED_GRACE` after it was last registered; the app registers
+    again each time it starts. Rows whose sign-in has ended are removed, and a
+    row whose session was renewed moves to the live row. Does not commit — the
+    caller owns the transaction.
+    """
+    rows = await get_push_tokens_for_user(session, user_id=user_id)
+    tips = await session_service.live_chain_tips(
+        session, session_ids={r.session_id for r in rows if r.session_id}
+    )
+    devices = await user_tokens.live_device_token_ids(
+        session, token_ids={r.device_token_id for r in rows if r.device_token_id}
+    )
+    live: List[PushToken] = []
+    ended: List[PushToken] = []
+    unlinked_since = datetime.now(timezone.utc) - UNLINKED_GRACE
+    for row in rows:
+        if row.session_id is not None:
+            tip = tips.get(row.session_id)
+            if tip is None:
+                ended.append(row)
+                continue
+            if tip != row.session_id:
+                await follow_session(session, from_id=row.session_id, to_id=tip)
+            live.append(row)
+        elif row.device_token_id is not None:
+            (live if row.device_token_id in devices else ended).append(row)
+        elif row.updated_at > unlinked_since:
+            live.append(row)
+        else:
+            ended.append(row)
+    if ended:
+        # Only a row still naming the sign-in read above: one registered again
+        # in the meantime names its new session and stays.
+        await session.exec(
+            delete(PushToken).where(
+                PushToken.user_id == user_id,
+                or_(
+                    *(
+                        and_(
+                            PushToken.id == row.id,
+                            PushToken.session_id.is_not_distinct_from(row.session_id),
+                            PushToken.device_token_id.is_not_distinct_from(
+                                row.device_token_id
+                            ),
+                        )
+                        for row in ended
+                    )
+                ),
+            )
+        )
+    return live
+
+
+async def follow_session(
+    session: AsyncSession, *, from_id: uuid.UUID, to_id: uuid.UUID
+) -> None:
+    """Move the devices one session registered to the session taking its place.
+
+    Called wherever a session is succeeded — a refresh, a step-up, a
+    replacement — so a device's row names a live row of its sign-in. Does not
+    commit: it lands with the session change.
+    """
+    await session.exec(
+        update(PushToken)
+        .where(PushToken.session_id == from_id)
+        .values(session_id=to_id)
+    )
 
 
 async def delete_push_token(

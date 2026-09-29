@@ -7,7 +7,7 @@ from sqlmodel import Field, Relationship
 from app.core.tools import Tool
 from app.models.tenant._mixins import (
     ArchiveMixin,
-    attach_access_level,
+    attach_actions,
     CommentsToggleMixin,
     CreatedByMixin,
     ListingProvenanceMixin,
@@ -109,4 +109,4 @@ class Project(
     )
 
 
-attach_access_level(Project, Tool.project)
+attach_actions(Project, Tool.project)

@@ -9,7 +9,6 @@ The rule itself is unit-tested in
 ``app/services/tenant/task_completion_test.py``.
 """
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -64,7 +63,6 @@ async def _set_status(
 # --- creation ---------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_task_created_in_done_status_is_complete(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -76,7 +74,6 @@ async def test_task_created_in_done_status_is_complete(
     assert task["completed_at"] is not None
 
 
-@pytest.mark.integration
 async def test_task_created_in_open_status_is_incomplete(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -91,7 +88,6 @@ async def test_task_created_in_open_status_is_incomplete(
 # --- status changes on the task --------------------------------------------
 
 
-@pytest.mark.integration
 async def test_moving_into_done_stamps_completed_at(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -107,7 +103,6 @@ async def test_moving_into_done_stamps_completed_at(
     assert updated["completed_at"] is not None
 
 
-@pytest.mark.integration
 async def test_moving_out_of_done_clears_completed_at(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -124,7 +119,6 @@ async def test_moving_out_of_done_clears_completed_at(
     assert updated["completed_at"] is None
 
 
-@pytest.mark.integration
 async def test_moving_between_done_statuses_keeps_the_original_time(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -145,7 +139,6 @@ async def test_moving_between_done_statuses_keeps_the_original_time(
     assert updated["completed_at"] == completed_at
 
 
-@pytest.mark.integration
 async def test_kanban_drag_into_done_stamps_completed_at(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -173,7 +166,6 @@ async def test_kanban_drag_into_done_stamps_completed_at(
     assert (await _get_task(client, a, task["id"]))["completed_at"] is not None
 
 
-@pytest.mark.integration
 async def test_kanban_drag_out_of_done_clears_completed_at(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -203,7 +195,6 @@ async def test_kanban_drag_out_of_done_clears_completed_at(
 # --- recategorising a status (no task row is written) -----------------------
 
 
-@pytest.mark.integration
 async def test_recategorising_a_column_out_of_done_clears_its_tasks(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -232,7 +223,6 @@ async def test_recategorising_a_column_out_of_done_clears_its_tasks(
     assert (await _get_task(client, a, task["id"]))["completed_at"] is None
 
 
-@pytest.mark.integration
 async def test_recategorising_a_column_into_done_stamps_its_tasks(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -252,7 +242,6 @@ async def test_recategorising_a_column_into_done_stamps_its_tasks(
     assert (await _get_task(client, a, task["id"]))["completed_at"] is not None
 
 
-@pytest.mark.integration
 async def test_recategorising_a_column_leaves_other_columns_alone(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -288,7 +277,6 @@ async def test_recategorising_a_column_leaves_other_columns_alone(
 # --- other writers ----------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_moving_a_done_task_to_another_project_clears_completed_at(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -312,7 +300,6 @@ async def test_moving_a_done_task_to_another_project_clears_completed_at(
     assert response.json()["completed_at"] is None
 
 
-@pytest.mark.integration
 async def test_duplicating_a_done_task_produces_a_complete_copy(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

@@ -11,6 +11,7 @@ import { defineExtension } from "lexical";
 
 import { createCalloutTransformer } from "@/components/ui/editor/transformers/markdown-callout-transformer";
 import { createColumnsTransformer } from "@/components/ui/editor/transformers/markdown-columns-transformer";
+import { EMBED } from "@/components/ui/editor/transformers/markdown-embed-transformer";
 import { EMOJI } from "@/components/ui/editor/transformers/markdown-emoji-transformer";
 import {
   EXCALIDRAW_EXPORT,
@@ -18,6 +19,10 @@ import {
 } from "@/components/ui/editor/transformers/markdown-excalidraw-transformer";
 import { HR } from "@/components/ui/editor/transformers/markdown-hr-transformer";
 import { IMAGE } from "@/components/ui/editor/transformers/markdown-image-transformer";
+import {
+  PERSON_MENTION,
+  REFERENCE,
+} from "@/components/ui/editor/transformers/markdown-reference-transformers";
 import { STATUS } from "@/components/ui/editor/transformers/markdown-status-transformer";
 import { TABLE } from "@/components/ui/editor/transformers/markdown-table-transformer";
 import { TWEET } from "@/components/ui/editor/transformers/markdown-tweet-transformer";
@@ -31,11 +36,16 @@ export const MARKDOWN_TRANSFORMERS: Transformer[] = [
   EXCALIDRAW_EXPORT,
   TABLE,
   HR,
+  // Ahead of the image `![` would otherwise begin.
+  EMBED,
   IMAGE,
   EMOJI,
   TWEET,
   CHECK_LIST,
   STATUS,
+  REFERENCE,
+  // Ahead of the link `[Ada](4)` would otherwise be read as.
+  PERSON_MENTION,
   ...ELEMENT_TRANSFORMERS,
   ...MULTILINE_ELEMENT_TRANSFORMERS,
   ...TEXT_FORMAT_TRANSFORMERS,

@@ -88,16 +88,3 @@ export const readableTextShadow = (ink: string): string => {
     ? "0 1px 2px rgba(0,0,0,0.55), 0 0 14px rgba(0,0,0,0.45)"
     : "0 1px 2px rgba(255,255,255,0.7), 0 0 14px rgba(255,255,255,0.6)";
 };
-
-/**
- * `hex` at `alpha`, as an `rgba()` string.
- *
- * For the chips that sit on a banner: they are tinted with the same ink the
- * words are written in, so one stored colour dresses the whole banner and a
- * chip can never turn out to be the one element that fails to read.
- */
-export const withAlpha = (hex: string, alpha: number): string => {
-  const rgb = channels(hex);
-  if (!rgb) return `rgba(255, 255, 255, ${alpha})`;
-  return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`;
-};

@@ -9,28 +9,33 @@ last swept for.
 
 from __future__ import annotations
 
-import pytest
 from sqlalchemy import text
 from sqlmodel import select
 
+from app.db import cohorts
 from app.db import session as db_session
-from app.db.schema_provisioning import reindex_guild_search
+from app.db.schema_provisioning import backfill_guild_search, reindex_guild_search
 from app.db.search_index import search_generation
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.tenant.search_entry import SearchEntry
 from app.testing import create_project, create_tag, create_task
-
-pytestmark = pytest.mark.integration
+from app.db.request_context import SystemGuild
 
 
 async def _entries(session, guild_id: int, entity_type: str) -> list[SearchEntry]:
-    await set_rls_context(session, guild_id=guild_id)
+    await set_rls_context(session, SystemGuild(guild_id))
     return list(
         await session.exec(
             select(SearchEntry).where(SearchEntry.entity_type == entity_type)
         )
     )
+
+
+async def _reindex(guild_id: int) -> int:
+    async with cohorts.system_session(guild_id) as session:
+        await set_rls_context(session, SystemGuild(guild_id))
+        return await reindex_guild_search(session, guild_id)
 
 
 async def _wipe(guild_id: int) -> None:
@@ -53,9 +58,7 @@ async def test_it_indexes_content_that_predates_the_index(session, acting_user):
     await _wipe(a.guild.id)
     assert await _entries(session, a.guild.id, "task") == []
 
-    written = await reindex_guild_search(
-        db_session.provisioning_engine, f"guild_{a.guild.id}"
-    )
+    written = await _reindex(a.guild.id)
     assert written > 0
 
     tasks = await _entries(session, a.guild.id, "task")
@@ -79,7 +82,7 @@ async def test_the_swept_rows_carry_the_same_identity_the_trigger_writes(
     fields = (before.initiative_id, before.dac_tool, before.dac_id, before.title)
 
     await _wipe(a.guild.id)
-    await reindex_guild_search(db_session.provisioning_engine, f"guild_{a.guild.id}")
+    await _reindex(a.guild.id)
 
     after = next(
         r for r in await _entries(session, a.guild.id, "task") if r.entity_id == task.id
@@ -97,7 +100,7 @@ async def test_soft_deleted_content_is_not_swept_in(session, acting_user):
     await session.commit()
     await _wipe(a.guild.id)
 
-    await reindex_guild_search(db_session.provisioning_engine, f"guild_{a.guild.id}")
+    await _reindex(a.guild.id)
     assert [
         r for r in await _entries(session, a.guild.id, "task") if r.entity_id == task.id
     ] == []
@@ -109,13 +112,9 @@ async def test_a_current_guild_is_left_alone(session, acting_user):
     await create_task(session, a.project, title="already indexed")
     await _wipe(a.guild.id)
 
-    first = await reindex_guild_search(
-        db_session.provisioning_engine, f"guild_{a.guild.id}"
-    )
+    first = await _reindex(a.guild.id)
     assert first > 0
-    second = await reindex_guild_search(
-        db_session.provisioning_engine, f"guild_{a.guild.id}"
-    )
+    second = await _reindex(a.guild.id)
     assert second == 0, "a guild already at the current generation was swept again"
 
 
@@ -123,9 +122,9 @@ async def test_the_marker_records_the_generation(session, acting_user):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await create_project(session, a.initiative, a.user, name="p")
     await _wipe(a.guild.id)
-    await reindex_guild_search(db_session.provisioning_engine, f"guild_{a.guild.id}")
+    await _reindex(a.guild.id)
 
-    await set_rls_context(session, guild_id=a.guild.id)
+    await set_rls_context(session, SystemGuild(a.guild.id))
     marker = (
         await session.exec(
             text("SELECT obj_description(to_regclass(:t), 'pg_class')").bindparams(
@@ -136,7 +135,6 @@ async def test_the_marker_records_the_generation(session, acting_user):
     assert marker == search_generation()
 
 
-@pytest.mark.unit
 def test_every_reindex_statement_locks_the_rows_it_rewrites():
     """The sweep reads a row's text and replaces that row's entries.
 
@@ -165,9 +163,22 @@ async def test_a_write_during_the_sweep_wins(session, acting_user):
     session.add(task)
     await session.commit()
 
-    await reindex_guild_search(db_session.provisioning_engine, f"guild_{a.guild.id}")
+    await _reindex(a.guild.id)
 
     rows = [
         r for r in await _entries(session, a.guild.id, "task") if r.entity_id == task.id
     ]
     assert [r.title for r in rows] == ["edited"]
+
+
+async def test_the_boot_sweep_reindexes_each_stale_guild(session, acting_user):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    task = await create_task(session, a.project, title="swept at boot")
+    await _wipe(a.guild.id)
+
+    assert await backfill_guild_search() > 0
+    assert [
+        r.title
+        for r in await _entries(session, a.guild.id, "task")
+        if r.entity_id == task.id
+    ] == ["swept at boot"]

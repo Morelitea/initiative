@@ -69,7 +69,6 @@ async def _stored_id(
     return response.json()["id"]
 
 
-@pytest.mark.integration
 async def test_create_spreadsheet_round_trips_cells(client: AsyncClient, author: Actor):
     cells = {
         "0:0": "Date",
@@ -104,7 +103,6 @@ async def test_create_spreadsheet_round_trips_cells(client: AsyncClient, author:
     assert _sheet(content)["cells"] == cells
 
 
-@pytest.mark.integration
 async def test_patch_spreadsheet_replaces_cells(client: AsyncClient, author: Actor):
     doc_id = await _stored_id(client, author, {"cells": {"0:0": "before"}})
 
@@ -119,7 +117,6 @@ async def test_patch_spreadsheet_replaces_cells(client: AsyncClient, author: Act
     assert cells == {"0:0": "after", "5:7": 99}
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("case", "content"),
     [
@@ -172,7 +169,6 @@ async def test_create_spreadsheet_refuses_a_malformed_payload(
     assert response.json()["detail"] == "DOCUMENT_SPREADSHEET_INVALID_PAYLOAD"
 
 
-@pytest.mark.integration
 async def test_create_spreadsheet_canonicalizes_cell_keys(
     client: AsyncClient, author: Actor
 ):
@@ -201,7 +197,6 @@ async def test_create_spreadsheet_canonicalizes_cell_keys(
     }
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "content",
     [None, {"schema_version": 3, "kind": "spreadsheet", "sheets": []}],
@@ -229,7 +224,6 @@ async def test_a_workbook_with_nothing_in_it_opens_on_one_empty_sheet(
     assert _sheet(stored)["frozen"] == {"rows": 0, "cols": 0}
 
 
-@pytest.mark.integration
 async def test_v1_payload_upcasts_to_current(client: AsyncClient, author: Actor):
     """An explicit v1 payload (no formatting keys) is accepted and saved
     as the current version with empty formatting structures — existing
@@ -254,7 +248,6 @@ async def test_v1_payload_upcasts_to_current(client: AsyncClient, author: Actor)
     assert _sheet(content)["frozen"] == {"rows": 0, "cols": 0}
 
 
-@pytest.mark.integration
 async def test_v2_formatting_round_trips(client: AsyncClient, author: Actor):
     """A full v2 payload round-trips: widths, styles, number formats,
     per-cell overrides, and the frozen-pane hint."""
@@ -303,7 +296,6 @@ async def test_v2_formatting_round_trips(client: AsyncClient, author: Actor):
     assert _sheet(content)["frozen"] == {"rows": 1, "cols": 1}
 
 
-@pytest.mark.integration
 async def test_v2_clamps_sizes_and_frozen(client: AsyncClient, author: Actor):
     """Out-of-range widths/heights/decimals/frozen are clamped, not
     rejected."""
@@ -329,7 +321,6 @@ async def test_v2_clamps_sizes_and_frozen(client: AsyncClient, author: Actor):
     assert _sheet(content)["frozen"] == {"rows": 8, "cols": 0}
 
 
-@pytest.mark.integration
 async def test_v2_drops_malformed_formatting(client: AsyncClient, author: Actor):
     """A bad ``align``, bad hex, and an unknown style key are stripped — the
     document still saves (201, NOT 400) because formatting failures must never
@@ -362,7 +353,6 @@ async def test_v2_drops_malformed_formatting(client: AsyncClient, author: Actor)
     assert _sheet(content)["cellStyles"] == {}
 
 
-@pytest.mark.integration
 async def test_v2_canonicalizes_formatting_keys(client: AsyncClient, author: Actor):
     """Leading-zero index/cell keys collapse to canonical form so they
     survive the JS Y.Map round-trip, exactly like the cell map."""
@@ -382,7 +372,6 @@ async def test_v2_canonicalizes_formatting_keys(client: AsyncClient, author: Act
     assert _sheet(content)["cellStyles"] == {"1:2": {"style": {"italic": True}}}
 
 
-@pytest.mark.integration
 async def test_v2_border_round_trips_and_drops_bad_edges(
     client: AsyncClient, author: Actor
 ):
@@ -415,7 +404,6 @@ async def test_v2_border_round_trips_and_drops_bad_edges(
     }
 
 
-@pytest.mark.integration
 async def test_v2_tier1_style_and_number_options(client: AsyncClient, author: Actor):
     """Underline/strike/valign/fontSize and number-format grouping +
     negatives round-trip; fontSize is clamped, bad valign/negatives are
@@ -478,7 +466,6 @@ async def test_v2_tier1_style_and_number_options(client: AsyncClient, author: Ac
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_v3_multiple_sheets_round_trip(client: AsyncClient, author: Actor):
     """A workbook keeps its sheets, their order, and each sheet's own cells,
     dimensions, and formatting."""
@@ -518,7 +505,6 @@ async def test_v3_multiple_sheets_round_trip(client: AsyncClient, author: Actor)
     assert _sheet(content, 1)["columns"] == {"0": {"width": 140}}
 
 
-@pytest.mark.integration
 async def test_v2_payload_upcasts_to_single_sheet(client: AsyncClient, author: Actor):
     """A pre-multi-sheet payload is read as the workbook's one sheet, keeping
     its cells and formatting — existing documents never 422 and never lose
@@ -546,7 +532,6 @@ async def test_v2_payload_upcasts_to_single_sheet(client: AsyncClient, author: A
     assert _sheet(content)["frozen"] == {"rows": 1, "cols": 1}
 
 
-@pytest.mark.integration
 async def test_v3_sheet_names_are_sanitized_and_deduplicated(
     client: AsyncClient, author: Actor
 ):
@@ -580,7 +565,6 @@ async def test_v3_sheet_names_are_sanitized_and_deduplicated(
     assert names[4] == "x" * 31
 
 
-@pytest.mark.integration
 async def test_v3_duplicate_sheet_ids_are_repaired(client: AsyncClient, author: Actor):
     """Two sheets sharing an id would share one Yjs container on the client,
     so the second is re-issued rather than rejected."""
@@ -605,7 +589,6 @@ async def test_v3_duplicate_sheet_ids_are_repaired(client: AsyncClient, author: 
 # ── import ───────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.integration
 async def test_import_returns_sheets_without_writing_the_document(
     client: AsyncClient, author: Actor
 ):
@@ -637,7 +620,6 @@ async def test_import_returns_sheets_without_writing_the_document(
     assert _sheet(response.json()["content"])["cells"] == {}
 
 
-@pytest.mark.integration
 async def test_import_refuses_a_file_it_cannot_read(client: AsyncClient, author: Actor):
     doc_id = await _stored_id(client, author, name="Inventory")
 
@@ -651,7 +633,6 @@ async def test_import_refuses_a_file_it_cannot_read(client: AsyncClient, author:
     assert response.json()["detail"] == "DOCUMENT_SPREADSHEET_UNREADABLE_FILE"
 
 
-@pytest.mark.integration
 async def test_import_refuses_a_document_that_is_not_a_spreadsheet(
     client: AsyncClient, author: Actor
 ):
@@ -676,7 +657,6 @@ async def test_import_refuses_a_document_that_is_not_a_spreadsheet(
     assert response.status_code == 400
 
 
-@pytest.mark.integration
 async def test_import_needs_write_access(
     client: AsyncClient, author: Actor, acting_user
 ):

@@ -23,19 +23,16 @@ from app.schemas.platform.user import (
 )
 
 
-@pytest.mark.unit
 def test_self_update_accepts_an_external_avatar_url() -> None:
     model = UserSelfUpdate(avatar_url="https://idp.example/pic.png")
 
     assert model.avatar_url == "https://idp.example/pic.png"
 
 
-@pytest.mark.unit
 def test_self_update_accepts_clearing_the_avatar_url() -> None:
     assert UserSelfUpdate(avatar_url=None).avatar_url is None
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize("schema", [UserPublic, UserSummary, UserRead, UserSelfUpdate])
 def test_no_schema_carries_the_image_itself(schema) -> None:
     """The picture travels as a URL now; nothing should reintroduce the blob."""
@@ -43,7 +40,6 @@ def test_no_schema_carries_the_image_itself(schema) -> None:
     assert "avatar_url" in schema.model_fields
 
 
-@pytest.mark.unit
 def test_there_is_no_schema_for_editing_another_account() -> None:
     """A guild admin manages membership, not the person.
 
@@ -55,7 +51,6 @@ def test_there_is_no_schema_for_editing_another_account() -> None:
     assert not hasattr(user_schemas, "UserUpdate")
 
 
-@pytest.mark.unit
 def test_the_guild_read_of_an_account_carries_no_name() -> None:
     """``UserGuildRead`` is a handle and a standing, and stops there.
 
@@ -68,20 +63,17 @@ def test_the_guild_read_of_an_account_carries_no_name() -> None:
         assert absent not in UserGuildRead.model_fields
 
 
-@pytest.mark.unit
 def test_the_shape_everything_is_built_from_has_no_name() -> None:
     """``UserIdentity`` is the half every user shape shares, and the name is
     deliberately not in it — a shape adds one only by saying so."""
     assert "full_name" not in UserIdentity.model_fields
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize("schema", [UserPublic, UserGuildMember, UserSummary])
 def test_a_guild_shape_declares_the_name_it_may_render(schema) -> None:
     assert "full_name" in schema.model_fields
 
 
-@pytest.mark.unit
 def test_no_guild_content_reads_a_person_from_the_users_table() -> None:
     """Why none of those shapes needs a rule of its own about names.
 
@@ -109,7 +101,6 @@ def test_no_guild_content_reads_a_person_from_the_users_table() -> None:
     )
 
 
-@pytest.mark.unit
 def test_a_year_is_kept_for_a_decoration_that_carries_one() -> None:
     """The year is the wearer's, not the clock's: somebody who finished in 2014
     is still a 2014 grad next January, so it is stored as given."""
@@ -118,14 +109,12 @@ def test_a_year_is_kept_for_a_decoration_that_carries_one() -> None:
     assert worn.grad_year == 2014
 
 
-@pytest.mark.unit
 def test_a_year_is_kept_when_the_trophy_is_what_carries_it() -> None:
     worn = ProfileDecorations(trophies=["education.gradtrophy"], grad_year=2031)
 
     assert worn.grad_year == 2031
 
 
-@pytest.mark.unit
 def test_a_year_on_something_that_carries_none_is_dropped() -> None:
     """The same rule a stray colour gets: a value nothing would draw is not
     state worth keeping, and nothing else would ever clear it."""
@@ -134,7 +123,6 @@ def test_a_year_on_something_that_carries_none_is_dropped() -> None:
     assert worn.grad_year is None
 
 
-@pytest.mark.unit
 def test_a_year_outside_the_range_is_refused() -> None:
     with pytest.raises(ValidationError):
         ProfileDecorations(trophies=["education.gradtrophy"], grad_year=1492)

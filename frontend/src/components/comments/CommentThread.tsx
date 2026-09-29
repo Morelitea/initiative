@@ -4,12 +4,14 @@ import { useTranslation } from "react-i18next";
 
 import { ReactionTarget } from "@/api/generated/initiativeAPI.schemas";
 import { ReportButton } from "@/components/moderation/ReportButton";
+import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
 import { Button } from "@/components/ui/button";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { UserHoverLink } from "@/components/user/UserHoverLink";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { getUserDisplayName, isAnonymizedUser } from "@/lib/userDisplay";
+import { cn } from "@/lib/utils";
 
 import { CommentContent } from "./CommentContent";
 import { CommentInput } from "./CommentInput";
@@ -57,6 +59,8 @@ interface CommentThreadProps {
   canReact?: boolean;
   deleteError?: string | null;
   userDisplayNames?: Map<number, string>;
+  /** Comments that were unread when the thread was opened. */
+  unreadIds?: Set<number>;
   taskTitles?: Map<number, string>;
   docTitles?: Map<number, string>;
   projectNames?: Map<number, string>;
@@ -76,6 +80,7 @@ export const CommentThread = ({
   canReact = true,
   deleteError,
   userDisplayNames = new Map(),
+  unreadIds,
   taskTitles = new Map(),
   docTitles = new Map(),
   projectNames = new Map(),
@@ -94,15 +99,17 @@ export const CommentThread = ({
   // wrote the row rather than whoever said this.
   const importedAuthorName = comment.imported_author_name?.trim() || null;
   const anonymizedAuthor = !importedAuthorName && isAnonymizedUser(comment.author);
+  // A comment an app wrote as its community names no account.
   const displayName =
     importedAuthorName ??
-    (comment.author
-      ? getUserDisplayName(comment.author, `User #${comment.created_by}`)
-      : `User #${comment.created_by}`);
+    (comment.created_by == null
+      ? t("comments:appAuthor")
+      : getUserDisplayName(comment.author ?? { id: comment.created_by }));
   const canDelete = currentUserId === comment.created_by || canModerate;
   const canEdit = currentUserId === comment.created_by;
   const visualDepth = Math.min(depth, MAX_VISUAL_DEPTH);
   const isEdited = Boolean(comment.updated_at);
+  const isUnread = unreadIds?.has(comment.id) ?? false;
 
   const handleReplySubmit = (content: string) => {
     onReply(comment.id, content);
@@ -127,7 +134,13 @@ export const CommentThread = ({
       className={visualDepth > 0 ? "ml-4 border-l-2 pl-4" : ""}
       style={visualDepth > 0 ? { borderColor: threadLineColor(visualDepth) } : undefined}
     >
-      <div className="rounded-md border border-border p-3">
+      <div
+        data-unread={isUnread || undefined}
+        className={cn(
+          "rounded-md border border-border p-3",
+          isUnread && "border-primary/50 bg-primary/5"
+        )}
+      >
         <div className="flex gap-3">
           {/* The same picture component the profile and the sidebar draw, so
               a frame someone put on shows wherever they appear at a size it
@@ -163,6 +176,7 @@ export const CommentThread = ({
                 {relativeCreatedAt}
                 {isEdited && <span className="ml-1 text-muted-foreground">{t("edited")}</span>}
               </span>
+              {isUnread && <UnreadDot />}
               {!isEditing && (
                 <div className="ml-auto flex items-center gap-1">
                   <Button
@@ -286,6 +300,7 @@ export const CommentThread = ({
               canReact={canReact}
               deleteError={deleteError}
               userDisplayNames={userDisplayNames}
+              unreadIds={unreadIds}
               taskTitles={taskTitles}
               docTitles={docTitles}
               projectNames={projectNames}

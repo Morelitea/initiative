@@ -9,7 +9,6 @@ These read the projection through the request-path role rather than the
 superuser-backed ``session`` fixture, which answers for a role nothing runs as.
 """
 
-import pytest
 from sqlmodel import select
 
 from app.db.session import set_rls_context
@@ -17,8 +16,7 @@ from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
 from app.testing.factories import create_guild, create_guild_membership, create_user
 from app.testing import route_as
-
-pytestmark = pytest.mark.integration
+from app.db.request_context import ContentGrantee
 
 
 async def _name_read_in(role_session, *, user, guild):
@@ -102,10 +100,7 @@ async def test_a_grant_reads_the_guild_it_reaches(session, role_session):
 
     s_ = await role_session("app_user")
     await set_rls_context(
-        s_,
-        user_id=visitor.id,
-        pam_guild_id=guild.id,
-        pam_read=True,
+        s_, ContentGrantee(guild_id=guild.id, user_id=visitor.id, read_write=False)
     )
     assert (
         await s_.exec(
@@ -120,10 +115,7 @@ async def test_a_grant_into_a_quiet_guild_still_reads_no_name(session, role_sess
 
     s_ = await role_session("app_user")
     await set_rls_context(
-        s_,
-        user_id=visitor.id,
-        pam_guild_id=guild.id,
-        pam_read=True,
+        s_, ContentGrantee(guild_id=guild.id, user_id=visitor.id, read_write=False)
     )
     assert (
         await s_.exec(

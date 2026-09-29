@@ -6,8 +6,10 @@ from typing import List, Literal, Optional
 from pydantic import field_validator, ConfigDict, EmailStr, Field
 
 from app.core.guild_auth_options import GuildAuthOption
+from app.core.login_methods import LoginMethod
 from app.core.messages import GuildMessages
 from app.schemas.base import RawTextStr, RichTextStr, SanitizedBaseModel, TitleStr
+from app.schemas.query import PageMeta
 
 from app.core.email_masking import mask_email
 from app.models.platform.guild import (
@@ -75,8 +77,36 @@ class GuildCreate(GuildBase):
     owner_user_id: Optional[int] = Field(default=None, ge=1)
 
 
+class GuildCan(SanitizedBaseModel):
+    """What the caller may do in a community, as the server answers it.
+
+    Each flag is the check the routes that do the thing run, so a client reads
+    its affordances here rather than working them out from a rung."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    #: Open it at all. False for a community in time out, which its
+    #: administrators still see listed; the flags below say what the rung
+    #: carries once it is lifted.
+    enter: bool = False
+    #: Reach its work. A settings grant reaches the configuration alone.
+    content: bool = False
+    #: Run its configuration, roster and invites: its administrator, or a
+    #: settings grant at either rung.
+    administer: bool = False
+    #: Change that configuration: its administrator, or a settings grant
+    #: beside a ``read_write`` content grant.
+    configure: bool = False
+    #: Administer its work — create and delete initiatives, add the
+    #: community's own calendars. The membership row's administrator; no
+    #: grant makes one.
+    administer_content: bool = False
+    #: Hold its top seat: sign-in, billing, AI, apps, data and deletion.
+    seat: bool = False
+
+
 class GuildRead(GuildBase):
-    """A guild as its own members see it (``GET /guilds/`` and friends).
+    """A guild as its own members see it (``GET /communities/`` and friends).
 
     The payload has two tiers, decided in one place — ``_serialize_guild`` in
     the guilds router:
@@ -96,23 +126,17 @@ class GuildRead(GuildBase):
 
     id: int
     #: The rung this caller holds in the community: the membership row's own,
-    #: or the one a live settings grant confers for its window. It is the only
-    #: thing here that says what they may do — administering is this reaching
-    #: ``admin`` and the seat is it reaching ``superadmin``, asked of the
-    #: ladder rather than answered again as a flag apiece.
+    #: or the one a live settings grant confers for its window. Shown as it
+    #: stands; what it lets them do is ``can``.
     role: GuildRole
-    #: Whether this caller may change the configuration its rung reaches. The
-    #: membership row's administrator does; a settings grant does only beside
-    #: a ``read_write`` content grant. The same rule the settings routes refuse
-    #: a change by.
-    can_write_settings: bool = False
+    can: GuildCan = Field(default_factory=GuildCan)
     position: int
     created_at: datetime
     updated_at: datetime
     # ADMIN-ONLY. Trash retention window, set from the guild's trash settings tab.
     retention_days: Optional[int] = None
     # ADMIN-ONLY. Operator-set caps, rendered against usage on the settings page
-    # (the usage half, /g/{id}/storage/usage, is guild-admin only too).
+    # (the usage half, /c/{id}/storage/usage, is guild-admin only too).
     max_storage_bytes: Optional[int] = None
     max_users: Optional[int] = None
     member_count: int = 0
@@ -318,6 +342,12 @@ class PlatformGuildStorageRead(SanitizedBaseModel):
     support_enabled: bool = False
 
 
+class PlatformGuildStorageListResponse(PageMeta):
+    """One page of the operator's community list."""
+
+    items: List[PlatformGuildStorageRead]
+
+
 class PlatformGuildRestore(SanitizedBaseModel):
     """Bring a deleted guild back (platform ``guilds.manage``).
 
@@ -389,7 +419,7 @@ class PlatformGuildStorageUpdate(SanitizedBaseModel):
 #: session has proved, and those two are about whether the deployment offers
 #: them at all. The same asymmetry the database holds as CHECKs on
 #: ``require_methods``.
-GuildRequirableMethod = Literal["sso", "totp", "passkey"]
+GuildRequirableMethod = Literal[LoginMethod.sso, LoginMethod.totp, LoginMethod.passkey]
 
 
 class GuildAuthPolicyRead(SanitizedBaseModel):
@@ -511,7 +541,7 @@ class GuildNotificationPolicyUpdate(SanitizedBaseModel):
 
 
 class GuildDeletionRequest(SanitizedBaseModel):
-    """Body for ``DELETE /guilds/{id}``.
+    """Body for ``DELETE /communities/{id}``.
 
     Deleting a guild cascades through every initiative, project, task,
     document, membership, invite, and settings row it owns, so the
@@ -533,16 +563,6 @@ class GuildDeletionRequest(SanitizedBaseModel):
 class GuildOrderUpdate(SanitizedBaseModel):
     model_config = ConfigDict(populate_by_name=True)
     guild_ids: list[int] = Field(min_length=1, alias="guildIds")
-
-
-class GuildSummary(SanitizedBaseModel):
-    model_config = ConfigDict(
-        from_attributes=True, json_schema_serialization_defaults_required=True
-    )
-
-    id: int
-    name: str
-    icon_url: Optional[str] = None
 
 
 class GuildEntitlementsRead(SanitizedBaseModel):

@@ -130,7 +130,6 @@
     "noInitiatives": "Keine Initiativen hier, zu denen du Dokumente hinzufügen kannst."
   },
   "detail": {
-    "invalidId": "Ungültige Dokument-ID.",
     "loading": "Dokument wird geladen…",
     "notFound": "Dokument nicht gefunden",
     "notFoundDescription": "Dieses Dokument wurde möglicherweise gelöscht oder du bist einem fehlerhaften Link gefolgt.",
@@ -209,6 +208,7 @@
     "cancelDrawing": "Abbrechen",
     "checklist": "Checkliste",
     "clearFormatting": "Formatierung entfernen",
+    "collapseCallout": "Hinweisbox zuklappen",
     "colorBlack": "Schwarz",
     "colorBlue": "Blau",
     "colorDefault": "Standard",
@@ -232,6 +232,7 @@
     "editStatus": "Status ändern",
     "embed": "Einbetten",
     "embedContent": "{{contentName}} einbetten",
+    "expandCallout": "Hinweisbox aufklappen",
     "fontSize": "Schriftgröße",
     "format": "Format",
     "horizontalRule": "Horizontale Linie",
@@ -281,6 +282,13 @@
     "undo": "Rückgängig",
     "unmergeCells": "Zellen trennen",
     "youtubeVideo": "YouTube-Video"
+  },
+  "embeds": {
+    "insert": "Einbetten",
+    "showAsEmbed": "Vollständig anzeigen",
+    "showAsLink": "Als Link anzeigen",
+    "expand": "Aufklappen",
+    "collapse": "Zuklappen"
   },
   "outline": {
     "title": "Inhalt",
@@ -377,6 +385,7 @@
   "smartChips": {
     "aspects": {
       "assignee": "Zuständige Person",
+      "checklist": "Erledigt",
       "due": "Fälligkeitsdatum",
       "priority": "Priorität",
       "progress": "Fortschritt",
@@ -398,6 +407,7 @@
     "searchPlaceholder": "Suche etwas zum Anzeigen",
     "searching": "Suche läuft …",
     "taskAssignee": "Zuständige Person",
+    "taskChecklist": "Aufgaben-Kontrollkästchen",
     "taskDue": "Fälligkeitsdatum",
     "taskPriority": "Priorität",
     "taskStatus": "Aufgabenstatus",

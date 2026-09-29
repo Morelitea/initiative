@@ -9,8 +9,6 @@ import {
   Loader2,
   MoreHorizontal,
   Save,
-  SearchX,
-  ShieldAlert,
   Sparkles,
   Trash2,
   X,
@@ -18,17 +16,18 @@ import {
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { getListCommentsApiV1GGuildIdCommentsGetQueryKey } from "@/api/generated/comments/comments";
+import { getListCommentsApiV1CGuildIdCommentsGetQueryKey } from "@/api/generated/comments/comments";
 import type { CommentRead, PropertySummary, TaskRead } from "@/api/generated/initiativeAPI.schemas";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
-import { getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey } from "@/api/generated/tasks/tasks";
+import { getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey } from "@/api/generated/tasks/tasks";
 import { invalidate, q } from "@/api/query-keys";
 import { CommentSection } from "@/components/comments/CommentSection";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { MentionComposer } from "@/components/markdown/MentionComposer";
-import { normalizePropertyValue } from "@/components/properties/PropertyFields";
+import { normalizePropertyValue } from "@/components/properties/propertyHelpers";
 import { StatusMessage } from "@/components/StatusMessage";
 import { TaskEditSkeleton } from "@/components/skeletons/PageSkeletons";
+import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { MoveTaskDialog } from "@/components/tasks/MoveTaskDialog";
 import { TaskChecklist } from "@/components/tasks/TaskChecklist";
 import { TaskDescription } from "@/components/tasks/TaskDescription";
@@ -60,6 +59,7 @@ import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useComments } from "@/hooks/useComments";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useReadOnOpen } from "@/hooks/useNotifications";
 import { usePastedImages } from "@/hooks/usePastedImages";
 import { useProject, useProjectTaskStatuses, useWritableProjects } from "@/hooks/useProjects";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
@@ -74,9 +74,7 @@ import {
 } from "@/hooks/useTasks";
 import { toast } from "@/lib/chesterToast";
 import { dateRangeBounds } from "@/lib/dateRange";
-import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
-import { hasWriteAccess } from "@/lib/permissions";
 import { queryClient } from "@/lib/queryClient";
 import { referenceRef } from "@/lib/smartChips";
 import { dateTimePattern } from "@/lib/timeFormat";
@@ -176,6 +174,7 @@ export const TaskEditPage = () => {
   const [moveContext, setMoveContext] = useState<MoveTaskVariables | null>(null);
 
   const taskQuery = useTask(parsedTaskId);
+  useReadOnOpen("task", taskQuery.data?.id);
 
   const projectId = projectIdParam ? Number(projectIdParam) : taskQuery.data?.project_id;
   const projectQuery = useProject(projectId ?? null);
@@ -196,7 +195,7 @@ export const TaskEditPage = () => {
   const taskStatusesQuery = useProjectTaskStatuses(projectId ?? null);
 
   const commentsQueryParams = { task_id: parsedTaskId };
-  const commentsQueryKey = getListCommentsApiV1GGuildIdCommentsGetQueryKey(
+  const commentsQueryKey = getListCommentsApiV1CGuildIdCommentsGetQueryKey(
     guildId,
     commentsQueryParams
   );
@@ -275,7 +274,7 @@ export const TaskEditPage = () => {
   const moveTask = useMoveTask({
     onSuccess: (updatedTask) => {
       queryClient.setQueryData<TaskRead>(
-        getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey(guildId, parsedTaskId),
+        getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey(guildId, parsedTaskId),
         updatedTask
       );
       const previousProjectId = moveContext?.previousProjectId;
@@ -377,10 +376,9 @@ export const TaskEditPage = () => {
   const creationContext = useMemo(() => {
     if (!task?.created_at) return null;
     const anonymized = isAnonymizedUser(creator);
-    const displayName = creator
-      ? getUserDisplayName(creator)
-      : task.created_by != null
-        ? `User #${task.created_by}`
+    const displayName =
+      creator || task.created_by != null
+        ? getUserDisplayName(creator ?? { id: task.created_by })
         : null;
     const avatarSrc = creator && !anonymized ? getAvatarSrc(creator) : undefined;
     return {
@@ -408,7 +406,7 @@ export const TaskEditPage = () => {
 
   // Pure DAC: permissions inherited from project. Server-computed — already
   // capped at "read" when the guild's content is frozen (read_only status).
-  const hasWritePermission = hasWriteAccess(project?.my_permission_level);
+  const hasWritePermission = Boolean(project?.can.edit);
   const canWriteProject = hasWritePermission;
   const projectIsArchived = (project?.archived_at ?? null) !== null;
   const isReadOnly = !canWriteProject || projectIsArchived;
@@ -474,54 +472,15 @@ export const TaskEditPage = () => {
     withResolver: true,
   });
 
-  const handleBackClick = () => {
-    router.history.back();
-  };
-
-  if (!Number.isFinite(parsedTaskId)) {
-    return (
-      <div className="space-y-4">
-        <p className="text-destructive">{t("edit.invalidTaskId")}</p>
-        <Button variant="link" className="px-0" onClick={handleBackClick}>
-          {t("edit.back")}
-        </Button>
-      </div>
-    );
-  }
-
   if (taskQuery.isLoading || isProjectContextLoading || taskStatusesQuery.isLoading) {
     return <TaskEditSkeleton label={t("edit.loadingTask")} />;
   }
 
   if (taskQuery.isError || taskStatusesQuery.isError || !taskQuery.data) {
-    const status = getHttpStatus(taskQuery.error) ?? getHttpStatus(taskStatusesQuery.error);
-
-    if (status === 404) {
-      return (
-        <StatusMessage
-          icon={<SearchX />}
-          title={t("edit.notFound")}
-          description={t("edit.notFoundDescription")}
-          backTo={gp(toolListRoute(Tool.project, initiativeId))}
-          backLabel={t("edit.backToProjects")}
-        />
-      );
-    }
-    if (status === 403) {
-      return (
-        <StatusMessage
-          icon={<ShieldAlert />}
-          title={t("edit.noAccess")}
-          description={t("edit.noAccessDescription")}
-          backTo={gp(toolListRoute(Tool.project, initiativeId))}
-          backLabel={t("edit.backToProjects")}
-        />
-      );
-    }
     return (
-      <StatusMessage
-        icon={<AlertCircle />}
-        title={t("edit.loadError")}
+      <ToolAccessStatus
+        error={taskQuery.error ?? taskStatusesQuery.error}
+        keys="tasks:edit."
         backTo={gp(toolListRoute(Tool.project, initiativeId))}
         backLabel={t("edit.backToProjects")}
       />

@@ -23,7 +23,7 @@ from app.core.encryption import (
     encrypt_field,
     hash_email,
 )
-from app.db import session as db_session
+from app.db import cohorts
 from app.db.schema_provisioning import (
     drop_guild_schema,
     guild_schema_name,
@@ -97,8 +97,6 @@ async def test_maybe_rotate_at_startup_is_noop_when_unset(monkeypatch):
 
 
 # ── end-to-end against real tables ───────────────────────────────────────────
-
-pytestmark = pytest.mark.database
 
 
 async def _insert_user(conn, email: str, *, key: str) -> int:
@@ -236,9 +234,8 @@ async def test_dry_run_reports_but_does_not_write(engine, monkeypatch):
 async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):
     """The guild AI key columns are guild-scoped, so they live in guild_<id>
     schemas — the sweep re-keys them there. This covers both a guild-level table
-    (guild_ai_connections) and the own-row-RLS member-key table
-    (guild_ai_member_keys): the per-guild sweep sets current_guild_role='admin'
-    so the own-row policy admits the maintenance sweep. Guild data is re-keyed
+    (guild_ai_connection_keys) and the own-row-RLS member-key table
+    (guild_ai_member_keys). Guild data is re-keyed
     ONLY through its guild schema, never an unrouted public pathway."""
     gid = None
     try:
@@ -257,10 +254,8 @@ async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):
             )
             await conn.execute(
                 text(
-                    f'INSERT INTO "{schema}".guild_ai_connections '  # noqa: S608
-                    "(label, provider, api_key_encrypted, enabled, "
-                    " is_default, created_at, updated_at) "
-                    "VALUES ('c', 'openai', :a, true, false, now(), now())"
+                    f'INSERT INTO "{schema}".guild_ai_connection_keys '  # noqa: S608
+                    "(connection_id, api_key_encrypted) VALUES (1, :a)"
                 ),
                 {
                     "a": encrypt_field("guild-ai", SALT_AI_API_KEY, secret_key=OLD),
@@ -283,7 +278,9 @@ async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):
 
         async with engine.connect() as conn:
             conn_ct = await conn.scalar(
-                text(f'SELECT api_key_encrypted FROM "{schema}".guild_ai_connections'),
+                text(
+                    f'SELECT api_key_encrypted FROM "{schema}".guild_ai_connection_keys'  # noqa: S608
+                ),
             )
             member_ct = await conn.scalar(
                 text(f'SELECT api_key_encrypted FROM "{schema}".guild_ai_member_keys'),
@@ -291,12 +288,11 @@ async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):
         assert decrypt_field(conn_ct, SALT_AI_API_KEY, secret_key=NEW) == "guild-ai"
         assert decrypt_field(member_ct, SALT_AI_API_KEY, secret_key=NEW) == "member-ai"
 
-        # The per-guild sweep assumes guild_<id> roles on pooled system-engine
-        # connections; a fresh checkout afterwards must run as the plain system
-        # login again (a lingering guild role would RLS-filter public tables to
-        # zero rows for every later consumer of the pool).
-        async with db_session.system_engine.connect() as conn:
-            who = (await conn.execute(text("SELECT current_user"))).scalar()
+        # The per-guild sweep routes pooled connections from the guild's
+        # cohort; a fresh checkout afterwards runs as the plain system login.
+        async with cohorts.system_session(gid) as check:
+            conn = await check.connection()
+            who = await conn.scalar(text("SELECT current_user"))
             visible = await conn.scalar(text("SELECT count(*) FROM public.guilds"))
         assert who == "app_admin"
         assert visible >= 1

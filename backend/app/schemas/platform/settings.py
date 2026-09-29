@@ -3,6 +3,7 @@ from typing import Annotated, List, Literal, Optional
 
 from pydantic import ConfigDict, EmailStr, Field, field_validator
 
+from app.core.config import CaptchaProvider, StorageBackendKind
 from app.core.login_methods import LoginMethod, SecondFactorRequirement
 from app.core.user_input_validators import validate_provider_slug
 from app.models.platform.app_setting import (
@@ -329,17 +330,6 @@ class GuildClaimRuleCreate(SanitizedBaseModel):
     provider_id: int
     claim_value: str = Field(max_length=500)
     guild_role: str = "member"
-    initiative_id: Optional[int] = None
-    initiative_role_id: Optional[int] = None
-
-
-class GuildClaimRuleUpdate(SanitizedBaseModel):
-    """Change where a group lands. Its provider is not editable: a group value
-    means nothing without knowing who asserted it, so a rule pointed at
-    another provider is a different rule."""
-
-    claim_value: Optional[str] = Field(default=None, max_length=500)
-    guild_role: Optional[str] = None
     initiative_id: Optional[int] = None
     initiative_role_id: Optional[int] = None
 
@@ -772,7 +762,7 @@ class EmailTestResponse(SanitizedBaseModel):
 class StorageSettingsResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    backend: Literal["local", "s3"] = "local"
+    backend: StorageBackendKind = StorageBackendKind.local
     s3_bucket: Optional[str] = None
     s3_region: str = "us-east-1"
     s3_endpoint_url: Optional[str] = None
@@ -784,7 +774,7 @@ class StorageSettingsResponse(SanitizedBaseModel):
 
 
 class StorageSettingsUpdate(SanitizedBaseModel):
-    backend: Literal["local", "s3"] = "local"
+    backend: StorageBackendKind = StorageBackendKind.local
     s3_bucket: Optional[str] = None
     s3_region: str = "us-east-1"
     s3_endpoint_url: Optional[str] = None
@@ -804,7 +794,7 @@ class CaptchaSettingsResponse(SanitizedBaseModel):
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    provider: Optional[Literal["hcaptcha", "turnstile", "recaptcha"]] = None
+    provider: Optional[CaptchaProvider] = None
     site_key: Optional[str] = None
     has_secret_key: bool = False
     #: Whether enforcement is actually on — all three of provider, site key and
@@ -814,7 +804,7 @@ class CaptchaSettingsResponse(SanitizedBaseModel):
 
 
 class CaptchaSettingsUpdate(SanitizedBaseModel):
-    provider: Optional[Literal["hcaptcha", "turnstile", "recaptcha"]] = None
+    provider: Optional[CaptchaProvider] = None
     site_key: Optional[str] = None
     #: Omit to keep the stored secret; send null or "" to clear it. Raw text:
     #: a provider secret is opaque and must not be sanitized.

@@ -8,17 +8,20 @@ with ``permission denied for table notifications``.
 
 from __future__ import annotations
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.tools import COMMENT_TARGETS, Tool
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import NotificationType
 from app.services.platform import user_notifications
 from app.testing.factories import (
     create_guild,
     create_task,
+    create_tool_entity,
     create_user,
+    create_wiki_page,
+    enable_all_tools,
     get_auth_headers,
     set_notification_prefs,
 )
@@ -36,7 +39,6 @@ async def _seed_notification(session: AsyncSession, user_id: int) -> int:
     return notification.id
 
 
-@pytest.mark.integration
 async def test_list_notifications(client: AsyncClient, session: AsyncSession):
     user = await create_user(session)
     await _seed_notification(session, user.id)
@@ -51,7 +53,12 @@ async def test_list_notifications(client: AsyncClient, session: AsyncSession):
     assert body["notifications"][0]["type"] == "task_assignment"
 
 
-@pytest.mark.integration
+#: A place naming nothing at any level.
+_NOWHERE = dict.fromkeys(
+    ("guild_id", "initiative_id", "tool", "resource_id", "subject_type", "subject_id")
+)
+
+
 async def test_unread_places(client: AsyncClient, session: AsyncSession):
     """Where the dots go. A notification with no community is still a place —
     that is what makes "anything unread at all" the same question."""
@@ -62,12 +69,9 @@ async def test_unread_places(client: AsyncClient, session: AsyncSession):
         "/api/v1/notifications/unread", headers=get_auth_headers(user)
     )
     assert response.status_code == 200
-    assert response.json() == {
-        "places": [{"guild_id": None, "initiative_id": None, "tool": None}]
-    }
+    assert response.json() == {"places": [_NOWHERE]}
 
 
-@pytest.mark.integration
 async def test_unread_places_carries_the_whole_tree(
     client: AsyncClient, session: AsyncSession
 ):
@@ -77,7 +81,14 @@ async def test_unread_places_carries_the_whole_tree(
         session,
         user_id=user.id,
         notification_type=NotificationType.comment_on_task,
-        data={"guild_id": guild.id, "initiative_id": 9, "entity_type": "project"},
+        data={
+            "guild_id": guild.id,
+            "initiative_id": 9,
+            "entity_type": "project",
+            "resource_id": 4,
+            "subject_type": "task",
+            "subject_id": 7,
+        },
     )
     await session.commit()
 
@@ -85,11 +96,17 @@ async def test_unread_places_carries_the_whole_tree(
         "/api/v1/notifications/unread", headers=get_auth_headers(user)
     )
     assert response.json()["places"] == [
-        {"guild_id": guild.id, "initiative_id": 9, "tool": "project"}
+        {
+            "guild_id": guild.id,
+            "initiative_id": 9,
+            "tool": "project",
+            "resource_id": 4,
+            "subject_type": "task",
+            "subject_id": 7,
+        }
     ]
 
 
-@pytest.mark.integration
 async def test_reading_everything_empties_the_places(
     client: AsyncClient, session: AsyncSession
 ):
@@ -103,7 +120,6 @@ async def test_reading_everything_empties_the_places(
     assert response.json() == {"places": []}
 
 
-@pytest.mark.integration
 async def test_the_popover_can_take_every_unread_page(
     client: AsyncClient, session: AsyncSession
 ):
@@ -133,7 +149,6 @@ async def test_the_popover_can_take_every_unread_page(
     assert len(set(seen)) == 5
 
 
-@pytest.mark.integration
 async def test_marking_unread_puts_a_line_back(
     client: AsyncClient, session: AsyncSession
 ):
@@ -150,7 +165,6 @@ async def test_marking_unread_puts_a_line_back(
     assert response.json()["read_at"] is None
 
 
-@pytest.mark.integration
 async def test_dismissing_removes_the_line(client: AsyncClient, session: AsyncSession):
     user = await create_user(session)
     notification_id = await _seed_notification(session, user.id)
@@ -166,7 +180,6 @@ async def test_dismissing_removes_the_line(client: AsyncClient, session: AsyncSe
     assert body["unread_count"] == 0
 
 
-@pytest.mark.integration
 async def test_read_all_can_clear_one_community(
     client: AsyncClient, session: AsyncSession
 ):
@@ -192,10 +205,9 @@ async def test_read_all_can_clear_one_community(
     places = (await client.get("/api/v1/notifications/unread", headers=headers)).json()[
         "places"
     ]
-    assert places == [{"guild_id": kept.id, "initiative_id": None, "tool": None}]
+    assert places == [{**_NOWHERE, "guild_id": kept.id}]
 
 
-@pytest.mark.integration
 async def test_the_bell_can_be_switched_off_for_a_category(
     client: AsyncClient, session: AsyncSession
 ):
@@ -219,7 +231,6 @@ async def test_the_bell_can_be_switched_off_for_a_category(
     assert body["notifications"] == []
 
 
-@pytest.mark.integration
 async def test_mark_notification_read(client: AsyncClient, session: AsyncSession):
     user = await create_user(session)
     notification_id = await _seed_notification(session, user.id)
@@ -235,7 +246,6 @@ async def test_mark_notification_read(client: AsyncClient, session: AsyncSession
     assert listed.json()["unread_count"] == 0
 
 
-@pytest.mark.integration
 async def test_mark_all_notifications_read(client: AsyncClient, session: AsyncSession):
     user = await create_user(session)
     await _seed_notification(session, user.id)
@@ -248,7 +258,6 @@ async def test_mark_all_notifications_read(client: AsyncClient, session: AsyncSe
     assert response.json() == {"unread_count": 0}
 
 
-@pytest.mark.integration
 async def test_cannot_read_other_users_notification(
     client: AsyncClient, session: AsyncSession
 ):
@@ -263,7 +272,6 @@ async def test_cannot_read_other_users_notification(
     assert response.status_code == 404
 
 
-@pytest.mark.integration
 async def test_the_bell_reads_the_title_back_from_the_community(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -300,3 +308,42 @@ async def test_the_bell_reads_the_title_back_from_the_community(
     await session.commit()
 
     assert (await _line())["data"]["task_title"] == "Renamed after the fact"
+
+    # A comment's line names whatever the comment is on — every tool, and each
+    # extra that carries a thread of its own — by that thing's own label.
+    await enable_all_tools(session, actor.initiative)
+    subjects = {
+        tool.value: await create_tool_entity(
+            session, tool, actor.initiative, actor.user
+        )
+        for tool in Tool
+    }
+    subjects["task"] = task
+    subjects["wiki_page"] = await create_wiki_page(
+        session, subjects[Tool.wiki.value], actor.user
+    )
+    assert set(subjects) == set(COMMENT_TARGETS)
+    for kind, entity in subjects.items():
+        await user_notifications.create_notification(
+            session,
+            user_id=actor.user.id,
+            notification_type=NotificationType.comment_on_resource,
+            data={
+                "entity_type": kind,
+                "entity_id": entity.id,
+                "guild_id": actor.guild.id,
+            },
+        )
+    await session.commit()
+
+    response = await client.get("/api/v1/notifications/", headers=actor.headers)
+    assert response.status_code == 200
+    named = {
+        line["data"]["entity_type"]: line["data"].get("entity_name")
+        for line in response.json()["notifications"]
+        if "entity_type" in line["data"]
+    }
+    assert named == {
+        kind: getattr(entity, type(entity).display_field())
+        for kind, entity in subjects.items()
+    }

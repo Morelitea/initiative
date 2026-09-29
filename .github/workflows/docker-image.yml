@@ -1,0 +1,183 @@
+name: Docker Image
+
+# Builds the runtime image natively per platform, pushes each by digest, then
+# merges the digests into one multi-arch manifest under the caller's tags.
+# Called by Dev Build (dev tags) and Build and Release (semver + latest).
+
+on:
+  workflow_call:
+    inputs:
+      name:
+        description: Distinguishes this caller's digest artifacts (e.g. dev, release).
+        required: true
+        type: string
+      build-args:
+        description: Docker build arguments, one KEY=value per line.
+        required: false
+        type: string
+        default: ""
+      labels:
+        description: Attach docker/metadata-action's OCI labels to the image.
+        required: false
+        type: boolean
+        default: false
+      tags:
+        description: docker/metadata-action tag rules for the merged manifest. The highest-priority tag is the one inspected.
+        required: true
+        type: string
+      signing-environment:
+        description: The environment whose OTA_SIGNING_KEY signs the app update (ota-release, ota-dev); the build fails without it. Empty builds an unsigned image.
+        required: false
+        type: string
+        default: ""
+    secrets:
+      DOCKERHUB_USERNAME:
+        required: false
+      DOCKERHUB_TOKEN:
+        required: false
+      # OTA_SIGNING_KEY comes from `signing-environment`, which reaches this
+      # workflow only when the caller passes `secrets: inherit`.
+
+env:
+  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/initiative
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    # Holds OTA_SIGNING_KEY, the key the app's updates are signed with.
+    environment: ${{ inputs.signing-environment }}
+    steps:
+      - name: Prepare platform pair
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          echo "PLATFORM_PAIR=${PLATFORM//\//-}" >> "$GITHUB_ENV"
+
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check for required secrets
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [ -z "$DOCKERHUB_USERNAME" ] || [ -z "$DOCKERHUB_TOKEN" ]; then
+            echo "::error::Required secrets DOCKERHUB_USERNAME and DOCKERHUB_TOKEN are not set"
+            echo "::error::Please configure these secrets in your repository settings"
+            echo "::error::See .github/DOCKER_SETUP.md for instructions"
+            exit 1
+          fi
+          echo "Required secrets are configured"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata (labels) for Docker
+        id: meta
+        if: inputs.labels
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE_NAME }}
+
+      - name: Require the app update signing key
+        if: inputs.signing-environment != ''
+        env:
+          OTA_SIGNING_KEY: ${{ secrets.OTA_SIGNING_KEY }}
+          SIGNING_ENVIRONMENT: ${{ inputs.signing-environment }}
+        run: |
+          if [ -z "$OTA_SIGNING_KEY" ]; then
+            echo "::error::OTA_SIGNING_KEY is not set in the $SIGNING_ENVIRONMENT environment; this image must carry a signed app update."
+            exit 1
+          fi
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        env:
+          OTA_SIGNING_KEY: ${{ secrets.OTA_SIGNING_KEY }}
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # A new APT_REFRESH per run: every published image applies the
+          # updates available when it was built, not those its cache holds.
+          build-args: |
+            APT_REFRESH=${{ github.run_id }}-${{ github.run_attempt }}
+            ${{ inputs.build-args }}
+          # From the environment: the key is a multi-line PEM, which the
+          # line-per-entry `secrets` input splits apart.
+          secret-envs: ${{ inputs.signing-environment != '' && 'ota_signing_key=OTA_SIGNING_KEY' || '' }}
+          outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=docker-build-${{ env.PLATFORM_PAIR }}
+          cache-to: type=gha,scope=docker-build-${{ env.PLATFORM_PAIR }},mode=max
+
+      - name: Export digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: digests-${{ inputs.name }}-${{ env.PLATFORM_PAIR }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-${{ inputs.name }}-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata (tags) for Docker
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: ${{ inputs.tags }}
+
+      - name: Create and push manifest
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf "$IMAGE_NAME@sha256:%s " *)
+
+      - name: Inspect image
+        if: steps.meta.outputs.version != ''
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          docker buildx imagetools inspect "$IMAGE_NAME:$VERSION"

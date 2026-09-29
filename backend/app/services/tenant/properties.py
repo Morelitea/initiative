@@ -20,15 +20,17 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Set
 
 from fastapi import HTTPException, status
 from pydantic import AnyHttpUrl, TypeAdapter, ValidationError
+from pydantic_core import PydanticCustomError
 from sqlalchemy import func, true
 from sqlmodel import SQLModel, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.messages import PropertyMessages
+from app.core.identity_boundary import current_install_boundary
+from app.core.messages import AppMessages, PropertyMessages
+from app.models.platform.identity_ref import IdentityEntity
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.document import Document
-from app.models.tenant.initiative import InitiativeMember
 from app.models.tenant.property import (
     CalendarEventPropertyValue,
     DocumentPropertyValue,
@@ -42,6 +44,8 @@ from app.schemas.tenant.property import (
     PropertySummary,
     PropertyValueInput,
 )
+from app.core.tools import Tool
+from app.services.tenant import named_people
 
 # Cap on the number of property predicates accepted by list endpoints.
 # Bounds the per-request subquery count against each entity's value table.
@@ -213,21 +217,6 @@ def _parsed_options(defn: PropertyDefinition) -> List[PropertyOption]:
     return parsed
 
 
-async def _ensure_user_in_initiative(
-    session: AsyncSession, user_id: int, initiative_id: int
-) -> None:
-    stmt = select(InitiativeMember).where(
-        InitiativeMember.initiative_id == initiative_id,
-        InitiativeMember.user_id == user_id,
-    )
-    result = await session.exec(stmt)
-    if result.one_or_none() is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=PropertyMessages.USER_NOT_IN_INITIATIVE,
-        )
-
-
 def _is_empty_value(raw_value: Any) -> bool:
     """Return True when ``raw_value`` represents "attached but no value".
 
@@ -245,11 +234,8 @@ def _is_empty_value(raw_value: Any) -> bool:
     return False
 
 
-async def _validate_value_for_type(
-    session: AsyncSession,
-    defn: PropertyDefinition,
-    raw_value: Any,
-    initiative_id: int,
+def _validate_value_for_type(
+    defn: PropertyDefinition, raw_value: Any
 ) -> Dict[str, Any]:
     """Return the typed-column dict for ``raw_value`` under ``defn``.
 
@@ -258,8 +244,8 @@ async def _validate_value_for_type(
     persists as an attached-but-empty record.
 
     Raises ``HTTPException`` 400 on type mismatches or select/option
-    issues, 400 ``USER_NOT_IN_INITIATIVE`` for cross-initiative
-    ``user_reference`` values.
+    issues. Who a ``user_reference`` may name is asked of the whole set by
+    :func:`_set_property_values`.
     """
     cols = _empty_columns()
 
@@ -308,7 +294,6 @@ async def _validate_value_for_type(
     elif ptype is PropertyType.user_reference:
         if not isinstance(raw_value, int) or isinstance(raw_value, bool):
             raise _bad_value()
-        await _ensure_user_in_initiative(session, raw_value, initiative_id)
         cols["value_user_id"] = raw_value
     else:  # pragma: no cover - defensive; PropertyType is closed
         raise _bad_value()
@@ -334,8 +319,9 @@ async def _set_property_values(
     entity_kind: str,
     entity_id: int,
     values: Sequence[PropertyValueInput],
-    initiative_id: int,
+    governing: named_people.Governing,
 ) -> None:
+    initiative_id = governing.initiative_id
     binding = _binding_for(entity_kind)
     value_model = binding.model
     fk_column = binding.fk_column
@@ -356,7 +342,8 @@ async def _set_property_values(
     definitions = await _load_definitions(session, requested_ids)
 
     fk_name = fk_column.key
-
+    named: set[int] = set()
+    rows = []
     for entry in values:
         defn = definitions.get(entry.property_id)
         if defn is None or defn.initiative_id != initiative_id:
@@ -364,13 +351,50 @@ async def _set_property_values(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=PropertyMessages.DEFINITION_NOT_FOUND,
             )
-        cols = await _validate_value_for_type(session, defn, entry.value, initiative_id)
+        cols = _validate_value_for_type(defn, entry.value)
+        if cols["value_user_id"] is not None:
+            named.add(cols["value_user_id"])
+        rows.append(value_model(**{fk_name: entity_id, "property_id": defn.id}, **cols))
+    await named_people.require_readers(session, governing, named)
+    session.add_all(rows)
 
-        row = value_model(
-            **{fk_name: entity_id, "property_id": defn.id},
-            **cols,
-        )
-        session.add(row)
+
+async def property_values_by_row_id(
+    session: AsyncSession, values: Sequence[PropertyValueInput]
+) -> list[PropertyValueInput]:
+    """``values`` with each person a ``user_reference`` value names as a row
+    id.
+
+    Unchanged for a person. An installed app names a person by the reference
+    it was given for them, which is resolved here the way a ``PersonId`` field
+    is; anything else in that place is a 422 (``APP_REFERENCE_UNKNOWN``). Only
+    a person-valued property's value is read this way, since which values
+    name a person depends on each value's definition.
+    """
+    boundary = current_install_boundary()
+    if boundary is None or not values:
+        return list(values)
+    definitions = await load_definitions_by_ids(
+        session, [entry.property_id for entry in values]
+    )
+    resolved: list[PropertyValueInput] = []
+    for entry in values:
+        defn = definitions.get(entry.property_id)
+        if (
+            defn is not None
+            and defn.type is PropertyType.user_reference
+            and entry.value is not None
+        ):
+            try:
+                row_id = boundary.resolve(entry.value, IdentityEntity.user)
+            except PydanticCustomError:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail=AppMessages.REFERENCE_UNKNOWN,
+                )
+            entry = entry.model_copy(update={"value": row_id})
+        resolved.append(entry)
+    return resolved
 
 
 async def set_document_property_values(
@@ -388,7 +412,7 @@ async def set_document_property_values(
         entity_kind="document",
         entity_id=document.id,
         values=values,
-        initiative_id=initiative_id,
+        governing=named_people.Governing(Tool.document, document.id, initiative_id),
     )
 
 
@@ -407,7 +431,7 @@ async def set_task_property_values(
         entity_kind="task",
         entity_id=task.id,
         values=values,
-        initiative_id=initiative_id,
+        governing=named_people.Governing(Tool.project, task.project_id, initiative_id),
     )
 
 
@@ -426,7 +450,9 @@ async def set_event_property_values(
         entity_kind="event",
         entity_id=event.id,
         values=values,
-        initiative_id=initiative_id,
+        governing=named_people.Governing(
+            Tool.calendar, event.calendar_id, initiative_id
+        ),
     )
 
 

@@ -32,7 +32,6 @@ def _resolves_to(ip: str):
     )
 
 
-@pytest.mark.unit
 async def test_request_targets_validated_ip_and_keeps_hostname():
     with _resolves_to("93.184.216.34"):
         request = await build_validated_request(
@@ -50,7 +49,6 @@ async def test_request_targets_validated_ip_and_keeps_hostname():
     assert request.extensions["sni_hostname"] == "hooks.example.com"
 
 
-@pytest.mark.unit
 async def test_host_header_includes_explicit_port():
     with _resolves_to("93.184.216.34"):
         request = await build_validated_request(
@@ -61,7 +59,6 @@ async def test_host_header_includes_explicit_port():
     assert request.headers["host"] == "hooks.example.com:8443"
 
 
-@pytest.mark.unit
 async def test_private_resolution_is_refused():
     with _resolves_to("10.0.0.5"):
         with pytest.raises(WebhookTargetUrlPrivateError):
@@ -70,7 +67,6 @@ async def test_private_resolution_is_refused():
             )
 
 
-@pytest.mark.unit
 async def test_send_connects_to_pinned_ip():
     seen = {}
 
@@ -98,7 +94,6 @@ async def test_send_connects_to_pinned_ip():
     }
 
 
-@pytest.mark.unit
 async def test_redirects_are_not_followed():
     calls = []
 
@@ -120,7 +115,6 @@ async def test_redirects_are_not_followed():
     assert calls == ["93.184.216.34"]  # only the pinned host was contacted
 
 
-@pytest.mark.unit
 async def test_dev_flag_pins_private_local_target(monkeypatch):
     """With the dev flag on, a local target is allowed *and* still pinned
     to the resolved address — the round-trip works and pinning holds."""
@@ -137,7 +131,6 @@ async def test_dev_flag_pins_private_local_target(monkeypatch):
     assert request.headers["host"] == "localhost:8201"
 
 
-@pytest.mark.unit
 async def test_falls_back_to_next_validated_address():
     """If the first validated address is unreachable, the request retries
     the other validated addresses instead of failing outright."""
@@ -168,7 +161,6 @@ async def test_falls_back_to_next_validated_address():
     assert seen == ["93.184.216.34", "93.184.216.35"]
 
 
-@pytest.mark.unit
 async def test_connect_timeout_does_not_fall_back():
     """A connect timeout is not retried across addresses — it has already
     consumed the caller's budget — so the request fails without multiplying
@@ -198,7 +190,6 @@ async def test_connect_timeout_does_not_fall_back():
     assert seen == ["93.184.216.34"]  # stopped after the timeout; no fallback
 
 
-@pytest.mark.unit
 async def test_allow_private_permits_and_pins_private_target():
     """allow_private lets an operator-configured internal target through,
     still pinned to the resolved address with the hostname preserved."""
@@ -213,7 +204,6 @@ async def test_allow_private_permits_and_pins_private_target():
     assert request.headers["host"] == "ollama.internal"
 
 
-@pytest.mark.unit
 async def test_allow_private_permits_http_to_private():
     """With allow_private an operator ``http://internal`` target is accepted
     and pinned (Ollama on a private host with no TLS)."""
@@ -228,7 +218,6 @@ async def test_allow_private_permits_http_to_private():
     assert request.url.scheme == "http"
 
 
-@pytest.mark.unit
 async def test_allow_private_still_rejects_http_to_public():
     """allow_private does not relax the http-to-public prohibition."""
     with _resolves_to("93.184.216.34"):
@@ -238,7 +227,6 @@ async def test_allow_private_still_rejects_http_to_public():
             )
 
 
-@pytest.mark.unit
 async def test_private_target_still_refused_without_allow_private():
     """Default (allow_private=False) still refuses a private target."""
     with _resolves_to("10.0.0.5"):
@@ -259,7 +247,6 @@ def _gzipped(body: bytes):
     return httpx.MockTransport(handler)
 
 
-@pytest.mark.unit
 async def test_a_bounded_read_is_counted_after_decoding():
     """A small compressed body that inflates past the bound is refused."""
     with _resolves_to("93.184.216.34"), pytest.raises(ResponseTooLargeError):
@@ -272,7 +259,6 @@ async def test_a_bounded_read_is_counted_after_decoding():
         )
 
 
-@pytest.mark.unit
 async def test_a_bounded_read_within_its_bound_reads_as_usual():
     with _resolves_to("93.184.216.34"):
         response = await request_public_target(

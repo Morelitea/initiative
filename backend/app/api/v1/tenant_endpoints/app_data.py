@@ -12,15 +12,14 @@ an address — it names a read endpoint on an installed app, and this route turn
 that into one bounded call to the app's own service. The request carries the dashboard the
 widget sits on, and that is what makes the gates run **before** anything else:
 
-* the URL is ``/g/{guild_id}/…`` under a session that assumes the guild's own
+* the URL is ``/c/{guild_id}/…`` under a session that assumes the guild's own
   Postgres role, so the install row is reachable only from inside the guild;
 * the dashboard is loaded through the ordinary resource path, so a member of the
   guild who is not in the dashboard's initiative gets the same answer they would
   get for the dashboard itself — nothing;
 * the dashboard has to actually bind this endpoint, so holding one dashboard is
   not a key to every endpoint an app offers;
-* the endpoint's own ``visibility`` is then checked against the caller's real
-  guild role.
+* an endpoint marked ``admin_only`` is then read by the guild's admins alone.
 
 Only after all of that does the service layer look at the response cache, which
 is why the cache is a cache of *responses* rather than of decisions.
@@ -29,24 +28,22 @@ is why the cache is a cache of *responses* rather than of decisions.
 read here with no dashboard on it, because it exists to fill in a form for a
 widget nobody has placed yet — and what stands in for that gate is that the
 caller cannot name what gets called: the source comes from the app's own
-declaration, and its own visibility is enforced on the caller's credentials.
+declaration, and it is fetched on the caller's own credentials.
 """
 
 from typing import Annotated, Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 from sqlmodel import select
 
 from app.api import resource_access
 from app.api.deps import (
-    GuildContext,
     RLSSessionDep,
-    get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
+    CurrentUser,
 )
 from app.core.messages import AppDataMessages
 from app.core.tools import Tool
-from app.models.platform.user import User
 from app.models.tenant.guild_app import GuildApp
 from app.schemas.sql_query import QueryColumnDescription
 from app.services.query import rows as rows_query
@@ -62,7 +59,7 @@ from app.schemas.tenant.app_data import (
     AppWidgetRead,
 )
 from app.services.marketplace import app_data as app_data_service
-from app.services.marketplace.service_apps import app_widget_type
+from app.services.marketplace.service_apps import app_widget_type, is_admin_only
 
 
 def _projected_sample(raw: Any, endpoints: dict[str, dict[str, Any]]) -> dict[str, Any]:
@@ -86,9 +83,6 @@ def _projected_sample(raw: Any, endpoints: dict[str, dict[str, Any]]) -> dict[st
 
 
 router = APIRouter()
-
-CurrentUser = Annotated[User, Depends(get_current_active_user)]
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 def _bound_bindings(
@@ -177,7 +171,7 @@ async def read_app_widget_catalog(
         endpoints = [
             AppEndpointRead(
                 id=endpoint["id"],
-                visibility=endpoint.get("visibility") or "member",
+                admin_only=is_admin_only(endpoint),
                 cache_ttl_seconds=endpoint.get("cache_ttl_seconds") or 0,
                 params=endpoint.get("params") or [],
                 returns=endpoint.get("returns") or [],
@@ -373,8 +367,8 @@ async def read_app_param_options(
     ``options_from`` of the parameter being filled in — so the reachable set is
     exactly the reads a publisher marked as menu sources, and the arguments are
     the ones that source's ``needs`` names, mapped from answers this same form
-    already holds. The source's own ``visibility`` is then enforced on the
-    caller's own credentials, exactly as it is for a placed tile.
+    already holds. The source is then fetched on the caller's own credentials,
+    exactly as it is for a placed tile.
 
     A source that will not resolve is not an error: it comes back as
     ``unavailable`` with no options, and the parameter stays typeable.

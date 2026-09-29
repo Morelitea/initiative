@@ -5,19 +5,22 @@ from typing import Annotated, List, Optional, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    ActorContext,
+    ActorSessionDep,
     GuildContext,
     RLSSessionDep,
+    app_scope,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
-from app.core.messages import PropertyMessages
+from app.core.messages import InitiativeMessages, PropertyMessages
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.document import Document
@@ -43,10 +46,15 @@ from app.schemas.tenant.tag import (
     TaggedTaskSummary,
 )
 from app.services.tenant import properties as properties_service
+from app.services.tenant.names import ensure_name_free
 
-router = APIRouter()
+router = APIRouter(route_class=ActorRoute)
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+#: The routes an installed app may call. Property definitions are part of how
+#: an initiative is set up, so they answer to the initiatives scope.
+PropertyDefinitionsRead = Annotated[
+    ActorContext, Depends(app_scope("initiatives:read"))
+]
 
 
 class PropertyEntitiesResult(BaseModel):
@@ -62,6 +70,8 @@ class PropertyEntitiesResult(BaseModel):
 async def _get_definition_or_404(
     session: AsyncSession,
     definition_id: int,
+    *,
+    lock: bool = False,
 ) -> PropertyDefinition:
     """Fetch a definition by id, relying on RLS for scope enforcement.
 
@@ -71,6 +81,8 @@ async def _get_definition_or_404(
     what decides which guild's row an id resolves to.
     """
     stmt = select(PropertyDefinition).where(PropertyDefinition.id == definition_id)
+    if lock:
+        stmt = stmt.with_for_update()
     result = await session.exec(stmt)
     defn = result.one_or_none()
     if defn is None:
@@ -79,26 +91,6 @@ async def _get_definition_or_404(
             detail=PropertyMessages.DEFINITION_NOT_FOUND,
         )
     return defn
-
-
-async def _check_duplicate_name(
-    session: AsyncSession,
-    initiative_id: int,
-    name: str,
-    exclude_id: Optional[int] = None,
-) -> None:
-    stmt = select(PropertyDefinition).where(
-        PropertyDefinition.initiative_id == initiative_id,
-        func.lower(PropertyDefinition.name) == name.lower().strip(),
-    )
-    if exclude_id is not None:
-        stmt = stmt.where(PropertyDefinition.id != exclude_id)
-    result = await session.exec(stmt)
-    if result.one_or_none() is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=PropertyMessages.NAME_ALREADY_EXISTS,
-        )
 
 
 async def _ensure_initiative_member(
@@ -165,6 +157,29 @@ async def _ensure_initiative_member(
     )
 
 
+def _manages(guild_context: GuildContext, initiative_id: int) -> bool:
+    """Reshaping or removing a definition is how the initiative is set up, so it
+    takes a manager of the initiative or an admin of the community."""
+    return guild_context.is_admin or initiative_id in guild_context.manager_initiatives
+
+
+def _manager_required() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=InitiativeMessages.MANAGER_REQUIRED,
+    )
+
+
+def _added_options(defn: PropertyDefinition, options: list) -> list[dict]:
+    """The options among ``options`` that ``defn`` does not have yet — what a
+    member adds picking a value nobody has offered. One it already has stays
+    as it is."""
+    existing = {opt.get("value") for opt in defn.options or []}
+    return [
+        opt for opt in _serialize_options(options) or [] if opt["value"] not in existing
+    ]
+
+
 def _serialize_options(options: Optional[list]) -> Optional[list[dict]]:
     """Coerce PropertyOption models into plain dicts for JSONB storage."""
     if options is None:
@@ -180,8 +195,8 @@ def _serialize_options(options: Optional[list]) -> Optional[list[dict]]:
 
 @router.get("/", response_model=List[PropertyDefinitionRead])
 async def list_property_definitions(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    session: ActorSessionDep,
+    guild_context: PropertyDefinitionsRead,
     initiative_id: Optional[int] = Query(default=None),
 ) -> Sequence[PropertyDefinition]:
     """List property definitions.
@@ -221,7 +236,13 @@ async def create_property_definition(
     await _ensure_initiative_member(
         session, guild_context, payload.initiative_id, current_user
     )
-    await _check_duplicate_name(session, payload.initiative_id, payload.name)
+    await ensure_name_free(
+        session,
+        PropertyDefinition.name,
+        payload.name,
+        PropertyDefinition.initiative_id == payload.initiative_id,
+        detail=PropertyMessages.NAME_ALREADY_EXISTS,
+    )
 
     defn = PropertyDefinition(
         initiative_id=payload.initiative_id,
@@ -252,6 +273,7 @@ async def update_property_definition(
     definition_id: int,
     payload: PropertyDefinitionUpdate,
     session: RLSSessionDep,
+    guild_context: GuildContextDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> PropertyDefinitionUpdateResponse:
     """Update a property definition.
@@ -261,16 +283,40 @@ async def update_property_definition(
     select / multi_select definition returns ``orphaned_value_count`` so
     the SPA can warn about dangling values.
     """
-    defn = await _get_definition_or_404(session, definition_id)
+    defn = await _get_definition_or_404(session, definition_id, lock=True)
 
     data = payload.model_dump(exclude_unset=True)
+    if not _manages(guild_context, defn.initiative_id):
+        # A member adds options and nothing else: the ones sent that are new
+        # join the list as it stands, so two members adding at once both land,
+        # and the options already there are left as they are.
+        if set(data) != {"options"} or defn.type not in {
+            PropertyType.select,
+            PropertyType.multi_select,
+        }:
+            raise _manager_required()
+        added = _added_options(defn, payload.options or [])
+        await _ensure_initiative_member(
+            session, guild_context, defn.initiative_id, current_user
+        )
+        defn.options = [*(defn.options or []), *added]
+        defn.updated_at = datetime.now(timezone.utc)
+        session.add(defn)
+        await session.commit()
+        await session.refresh(defn)
+        return PropertyDefinitionUpdateResponse(
+            definition=PropertyDefinitionRead.model_validate(defn),
+            orphaned_value_count=0,
+        )
 
     if "name" in data and data["name"] is not None:
-        await _check_duplicate_name(
+        await ensure_name_free(
             session,
-            defn.initiative_id,
+            PropertyDefinition.name,
             data["name"],
-            exclude_id=defn.id,
+            PropertyDefinition.initiative_id == defn.initiative_id,
+            PropertyDefinition.id != defn.id,
+            detail=PropertyMessages.NAME_ALREADY_EXISTS,
         )
         defn.name = data["name"].strip()
 
@@ -313,10 +359,13 @@ async def update_property_definition(
 async def delete_property_definition(
     definition_id: int,
     session: RLSSessionDep,
+    guild_context: GuildContextDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> None:
     """Delete a property definition. Cascades to remove all attached values."""
     defn = await _get_definition_or_404(session, definition_id)
+    if not _manages(guild_context, defn.initiative_id):
+        raise _manager_required()
     await session.delete(defn)
     await session.commit()
 

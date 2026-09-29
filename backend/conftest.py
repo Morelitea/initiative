@@ -9,10 +9,12 @@ This module provides the core testing infrastructure including:
 """
 
 import asyncio
+import functools
 import hashlib
 import os
-from collections.abc import AsyncGenerator
-from contextlib import suppress
+from collections.abc import AsyncGenerator, AsyncIterator
+from contextlib import asynccontextmanager, suppress
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -26,19 +28,25 @@ from alembic.script import ScriptDirectory
 from cryptography.hazmat.primitives import serialization as _serialization
 from cryptography.hazmat.primitives.asymmetric import rsa as _rsa
 from httpx import ASGITransport, AsyncClient
+from starlette.requests import HTTPConnection
 from sqlalchemy import event, text
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.rate_limit import limiter
+from app.db import cohorts
 from app.db.session import (
     clear_rls_context,
     get_system_session,
     get_session,
+    prepare_query_engine,
+    served_guild_id,
 )
 from app.testing.schema_harness import clear_search_path_pin
+from app.db.guild_migrations import GUILD_SCHEMA_REGEX
+from app.db.schema_provisioning import drop_guild_schema
 from app.db.tenancy import SHARED_TABLES
 from app.main import app
 
@@ -74,27 +82,10 @@ RUN_ID = f"{CHECKOUT_ID}_{WORKER_ID}"
 settings.GUILD_ROLE_PREFIX = f"test_{RUN_ID}_"
 settings.PLATFORM_ROLE_PREFIX = f"test_{RUN_ID}_"
 
-# Advanced-tool handoff tokens are always RS256 (verified across a trust
-# boundary), so any test that mints one needs a real signing key. Generate one
-# ephemeral keypair for the whole session: the private PEM is what the mint path
-# reads; the public PEM is exported for tests that verify a minted token's
-# signature end to end.
-_handoff_key = _rsa.generate_private_key(public_exponent=65537, key_size=2048)
-HANDOFF_TEST_PRIVATE_PEM = _handoff_key.private_bytes(
-    encoding=_serialization.Encoding.PEM,
-    format=_serialization.PrivateFormat.PKCS8,
-    encryption_algorithm=_serialization.NoEncryption(),
-).decode("ascii")
-HANDOFF_TEST_PUBLIC_PEM = (
-    _handoff_key.public_key()
-    .public_bytes(
-        encoding=_serialization.Encoding.PEM,
-        format=_serialization.PublicFormat.SubjectPublicKeyInfo,
-    )
-    .decode("ascii")
-)
-settings.HANDOFF_SIGNING_PRIVATE_KEY_PEM = HANDOFF_TEST_PRIVATE_PEM
-settings.HANDOFF_SIGNING_KEY_ID = "test-handoff-key"
+# Handoff tokens are RS256 and need a real signing key, which a test that mints
+# one asks for through ``handoff_signing_key``. Everywhere else the deployment
+# default holds: no key.
+settings.HANDOFF_SIGNING_PRIVATE_KEY_PEM = None
 
 # Pin the dev-only webhook/AI target escape hatch OFF so the suite asserts
 # production target policy (https + public addresses) regardless of a local
@@ -342,15 +333,25 @@ async def _apply_public_rls() -> None:
     migration, and a deployment applies them in ``ensure_public_rls`` moments
     after migrating. This is that step for the worker's own database, run on
     every session so a registry edit reaches a database that was migrated
-    before it."""
+    before it. The shared trigger functions the guild back-fill re-renders
+    come along for the same reason."""
     from app.db.public_rls import apply_public_rls_if_changed
+    from app.db.schema_provisioning import apply_guild_trigger_functions
 
     engine = create_async_engine(TEST_DATABASE_URL)
     try:
         async with engine.begin() as conn:
             await apply_public_rls_if_changed(conn)
+            await apply_guild_trigger_functions(conn)
     finally:
         await engine.dispose()
+
+
+async def _narrow_set_config() -> None:
+    """Take ``set_config`` from ``PUBLIC``, as boot does after migrating."""
+    from app.db.bootstrap import ensure_set_config_narrowed
+
+    assert await ensure_set_config_narrowed(bootstrap_url=TEST_DATABASE_URL)
 
 
 async def _retire_public_authorization_copies() -> None:
@@ -430,6 +431,7 @@ def _run_test_migrations() -> None:
         # never connects as.
         asyncio.run(_bootstrap_under_lock())
     asyncio.run(_apply_public_rls())
+    asyncio.run(_narrow_set_config())
     asyncio.run(_retire_public_authorization_copies())
     asyncio.run(_grant_test_temporary())
     asyncio.run(_set_db_statement_timeout())
@@ -467,19 +469,23 @@ def _isolated_uploads_dir(monkeypatch, tmp_path):
 
 
 @pytest.fixture(autouse=True)
-def _reset_app_registration_cache():
-    """Start and end every test with no cached app service registrations.
+def _reset_app_caches():
+    """Start and end every test with no cached app service registrations and
+    no cached install references.
 
-    The request path reads registrations through a short-lived in-process
-    snapshot (see ``registration_lookup``). Test databases are rebuilt per test
-    while that snapshot is module state, so without this a registration created
-    in one test would still be answering reads in the next.
+    The request path reads both through in-process caches (see
+    ``registration_lookup`` and ``app_refs``). Test databases are rebuilt per
+    test while those caches are module state, so without this a row created in
+    one test would still be answering reads in the next.
     """
+    from app.services.marketplace.app_refs import forget_cached_install_refs
     from app.services.marketplace.registration_lookup import invalidate_registrations
 
     invalidate_registrations()
+    forget_cached_install_refs()
     yield
     invalidate_registrations()
+    forget_cached_install_refs()
 
 
 @pytest.fixture(autouse=True)
@@ -499,6 +505,36 @@ def _reset_presence_roll():
     presence.online = presence.OnlineRoll()
 
 
+@functools.cache
+def _handoff_keypair() -> tuple[str, str]:
+    """One RSA keypair per process, built the first time a test asks for it."""
+    key = _rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    private_pem = key.private_bytes(
+        encoding=_serialization.Encoding.PEM,
+        format=_serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=_serialization.NoEncryption(),
+    ).decode("ascii")
+    public_pem = (
+        key.public_key()
+        .public_bytes(
+            encoding=_serialization.Encoding.PEM,
+            format=_serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        .decode("ascii")
+    )
+    return private_pem, public_pem
+
+
+@pytest.fixture
+def handoff_signing_key(monkeypatch) -> str:
+    """Configure a handoff signing key for this test; returns its public PEM
+    for tests that verify a minted token's signature."""
+    private_pem, public_pem = _handoff_keypair()
+    monkeypatch.setattr(settings, "HANDOFF_SIGNING_PRIVATE_KEY_PEM", private_pem)
+    monkeypatch.setattr(settings, "HANDOFF_SIGNING_KEY_ID", "test-handoff-key")
+    return public_pem
+
+
 @pytest.fixture(autouse=True)
 def _disable_hibp_check(monkeypatch):
     """Disable the HaveIBeenPwned breach lookup for all tests by default.
@@ -514,11 +550,10 @@ def _disable_hibp_check(monkeypatch):
 
 
 @pytest.fixture(scope="function")
-async def engine():
-    """Create a test database engine."""
-    test_engine = create_async_engine(TEST_DATABASE_URL, echo=False, pool_pre_ping=True)
-    yield test_engine
-    await test_engine.dispose()
+async def engine(_worker_engines):
+    """The test database engine, as the superuser."""
+    yield _worker_engines.superuser
+    await _worker_engines.superuser.dispose()
 
 
 def _test_url_for_role(role: str) -> str:
@@ -616,9 +651,79 @@ async def reading_as(role_session):
 # created a guild schema pays for the catalog scan + DROP SCHEMA/ROLE.
 _provisioned_guild_ids: set[int] = set()
 
+#: How many cohorts the suite divides communities into. More than one, so the
+#: paths that give each community a session of its own are the ones exercised.
+_TEST_COHORTS = 2
+
+#: The provisioning render of this worker's migrated ``guild_template``, made
+#: by the first test and handed to every test after it.
+_template_bundle: Any = None
+
+
+@dataclass(frozen=True)
+class _WorkerEngines:
+    """The engines app code reaches during a test, built once per worker.
+
+    A test runs on an event loop of its own and a connection belongs to the
+    loop that opened it, so the harness empties every pool when a test ends;
+    the engines, and the dialect set-up their first connection paid for, are
+    kept.
+    """
+
+    superuser: AsyncEngine
+    system: AsyncEngine
+    query: AsyncEngine
+    app: AsyncEngine
+    cohort_request: tuple[AsyncEngine, ...]
+    cohort_system: tuple[AsyncEngine, ...]
+    cohort_query: tuple[AsyncEngine, ...]
+
+    def app_engines(self) -> tuple[AsyncEngine, ...]:
+        """Every engine but the superuser's, which ``engine`` empties."""
+        return (
+            self.system,
+            self.query,
+            self.app,
+            *self.cohort_request,
+            *self.cohort_system,
+            *self.cohort_query,
+        )
+
+
+@pytest.fixture(scope="session")
+def _worker_engines() -> _WorkerEngines:
+    def _make(role: str) -> AsyncEngine:
+        return create_async_engine(
+            _test_url_for_role(role), echo=False, pool_pre_ping=True
+        )
+
+    engines = _WorkerEngines(
+        superuser=_make("superuser"),
+        system=_make("app_admin"),
+        query=prepare_query_engine(_make("app_user")),
+        app=_make("app_user"),
+        cohort_request=tuple(_make("app_user") for _ in range(_TEST_COHORTS)),
+        cohort_system=tuple(_make("app_admin") for _ in range(_TEST_COHORTS)),
+        cohort_query=tuple(
+            prepare_query_engine(_make("app_user")) for _ in range(_TEST_COHORTS)
+        ),
+    )
+    # Two cohorts, each with a request, a system and a query pool on this
+    # worker's database, so every test that reaches a community through a
+    # session of its own (the sockets, the cross-community reads, the sweeps,
+    # the query surface) does so from that community's cohort — and a route
+    # outside it raises. The platform
+    # system pool is tagged as in production, so its routes are counted.
+    # Tagging adds listeners, so it happens here, once per engine.
+    cohorts.use_request_engines(list(engines.cohort_request))
+    cohorts.use_system_engines(list(engines.cohort_system))
+    cohorts.use_query_engines(list(engines.cohort_query))
+    cohorts.tag_engine(engines.system, cohorts.PLATFORM_SYSTEM)
+    return engines
+
 
 @pytest.fixture(autouse=True)
-async def _schema_test_harness(engine, monkeypatch):
+async def _schema_test_harness(engine, _worker_engines, monkeypatch):
     """Make every test schema-per-guild aware.
 
     - Installs the before_flush router so direct-session (factory) guild-scoped
@@ -647,47 +752,47 @@ async def _schema_test_harness(engine, monkeypatch):
     install_guild_routing()
     monkeypatch.setattr(db_session, "provisioning_engine", engine)
 
-    # The provisioning bundle reflects the LIVE guild_template; reset it per
-    # test so a stale render can't leak across the per-worker test DB lifecycle.
-    schema_provisioning.reset_provisioning_bundle()
+    # The provisioning bundle reflects the live guild_template. Tests leave
+    # the template as they found it, so it is rendered once per worker, and
+    # every test starts from that render whatever the one before it cached.
+    global _template_bundle
+    if _template_bundle is None:
+        schema_provisioning.reset_provisioning_bundle()
+        _template_bundle = await schema_provisioning.get_provisioning_bundle()
+    monkeypatch.setattr(schema_provisioning, "_bundle", _template_bundle)
 
-    test_system_engine = create_async_engine(
-        _test_url_for_role("app_admin"), echo=False, pool_pre_ping=True
-    )
-    monkeypatch.setattr(db_session, "system_engine", test_system_engine)
+    engines = _worker_engines
+    monkeypatch.setattr(db_session, "system_engine", engines.system)
 
     # The query surface keeps a pool of its own, so it needs pointing at this
     # worker's database like the others — it is created at import against the
     # configured one.
-    test_query_engine = create_async_engine(
-        _test_url_for_role("app_user"), echo=False, pool_pre_ping=True
-    )
-    monkeypatch.setattr(db_session, "query_engine", test_query_engine)
+    monkeypatch.setattr(db_session, "query_engine", engines.query)
     monkeypatch.setattr(
         db_session,
         "SystemSessionLocal",
         async_sessionmaker(
-            bind=test_system_engine,
+            bind=engines.system,
             autoflush=False,
             expire_on_commit=False,
             class_=AsyncSession,
         ),
     )
 
-    test_app_engine = create_async_engine(
-        _test_url_for_role("app_user"), echo=False, pool_pre_ping=True
-    )
-    monkeypatch.setattr(db_session, "engine", test_app_engine)
+    monkeypatch.setattr(db_session, "engine", engines.app)
     monkeypatch.setattr(
         db_session,
         "AsyncSessionLocal",
         async_sessionmaker(
-            bind=test_app_engine,
+            bind=engines.app,
             autoflush=False,
             expire_on_commit=False,
             class_=AsyncSession,
         ),
     )
+
+    monkeypatch.setattr(settings, "DB_COHORTS", _TEST_COHORTS)
+    monkeypatch.setattr(cohorts, "STRICT", True)
 
     _provisioned_guild_ids.clear()
     _orig_provision_guild = schema_provisioning.provision_guild
@@ -702,9 +807,12 @@ async def _schema_test_harness(engine, monkeypatch):
         schema_provisioning, "provision_guild", _tracking_provision_guild
     )
     yield
-    await test_system_engine.dispose()
-    await test_query_engine.dispose()
-    await test_app_engine.dispose()
+    try:
+        # Community steps a commit started finish before the pools close.
+        await cohorts.settle_all()
+    finally:
+        for worker_engine in engines.app_engines():
+            await worker_engine.dispose()
 
 
 @pytest.fixture(scope="function")
@@ -774,50 +882,31 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
 
     # Session is now closed (its rollback released any lock on public.guilds the
     # create-guild endpoint's trailing SELECT left held). Clean up on a fresh
-    # connection: drop the per-guild schemas/roles provisioned during the test
-    # (cluster-global roles must not leak between tests), then truncate public.
-    # Per-guild schema/role cleanup only matters if THIS test provisioned a
-    # guild schema (tracked in _provisioned_guild_ids). Most tests don't, so
-    # skip the two catalog scans + DROPs entirely for them.
-    roles: list[str] = []
-    schemas: list[str] = []
+    # connection: drop the per-guild schemas and roles provisioned during the test
+    # (cluster-global roles must not leak between tests — guild ids restart with
+    # the identity below), then truncate public. Only a test that provisioned a
+    # guild schema (tracked in _provisioned_guild_ids) pays for the catalog scan.
+    guild_ids: list[int] = []
     if _provisioned_guild_ids:
-        async with engine.begin() as conn:
-            await conn.exec_driver_sql("SET lock_timeout = '10s'")
-            schemas = [
-                schema
+        async with engine.connect() as conn:
+            guild_ids = [
+                int(schema.removeprefix("guild_"))
                 for (schema,) in (
                     await conn.execute(
-                        text(
-                            "SELECT nspname FROM pg_namespace "
-                            "WHERE nspname ~ '^guild_[0-9]+$'"
-                        )
-                    )
-                ).all()
-            ]
-            # Only the suite's own prefixed roles (test_guild_<id>) — never a
-            # co-located dev DB's unprefixed guild_<id> roles (they share this
-            # cluster-global catalog but belong to that database).
-            role_pattern = f"^{settings.GUILD_ROLE_PREFIX}guild_[0-9]+(_ro)?$"
-            roles = [
-                r
-                for (r,) in (
-                    await conn.execute(
-                        text("SELECT rolname FROM pg_roles WHERE rolname ~ :pat"),
-                        {"pat": role_pattern},
+                        text("SELECT nspname FROM pg_namespace WHERE nspname ~ :pat"),
+                        {"pat": GUILD_SCHEMA_REGEX},
                     )
                 ).all()
             ]
 
-    # One schema per transaction. A guild schema holds ~60 tables and their
+    # One guild per transaction. A guild schema holds ~60 tables and their
     # indexes, policies and triggers, and DROP ... CASCADE takes a lock on each;
     # dropping several alongside the TRUNCATE below put hundreds of locks in one
     # transaction, which several xdist workers doing it at once can exhaust
     # (``max_locks_per_transaction`` sizes one shared table for the cluster).
-    for schema in schemas:
+    for guild_id in guild_ids:
         async with engine.begin() as conn:
-            await conn.exec_driver_sql("SET lock_timeout = '10s'")
-            await conn.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
+            await drop_guild_schema(conn, guild_id)
 
     # Truncate the SHARED (public-schema) tables to reset state — one
     # multi-table TRUNCATE (a single round-trip) instead of one statement
@@ -836,16 +925,6 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
             text(f"TRUNCATE TABLE {shared_tables} RESTART IDENTITY CASCADE")
         )
         await conn.execute(text("SET session_replication_role = 'origin'"))
-
-    # Drop the suite's prefixed roles, each in its own transaction. Prefixed roles
-    # are distinct from a co-located dev DB's, so these should succeed — the
-    # suppress is belt-and-suspenders so one stuck role can't abort the rest.
-    for role in roles:
-        with suppress(Exception):
-            async with engine.begin() as rconn:
-                await rconn.exec_driver_sql("SET lock_timeout = '5s'")
-                await rconn.exec_driver_sql(f'DROP OWNED BY "{role}"')
-                await rconn.exec_driver_sql(f'DROP ROLE IF EXISTS "{role}"')
 
 
 @pytest.fixture
@@ -869,26 +948,41 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     Each request/system session is bound to a single connection so the per-request
     ``SET ROLE`` / ``search_path`` GUCs persist across the request's statements.
     """
-    app_engine = create_async_engine(
-        _test_url_for_role("app_user"), echo=False, pool_pre_ping=True
-    )
-    system_engine = create_async_engine(
-        _test_url_for_role("app_admin"), echo=False, pool_pre_ping=True
-    )
-    req_conn = await app_engine.connect()
-    admin_conn = await system_engine.connect()
+    # One connection per (login, pool) a request can be served from: each
+    # cohort, and the platform pool for a request that names no community.
+    # Each is tagged like the production pool it stands in for, so a session
+    # routed outside its cohort raises here as it would be counted there.
+    # Opened on first use; a test pays only for the pools it reaches.
+    #
     # NOTE on deadlocks: the request path (app_user) and system path (app_admin)
-    # are now SEPARATE connections, so an endpoint that locks a row on one and
+    # are SEPARATE connections, so an endpoint that locks a row on one and
     # waits on the other can app-level deadlock — a wait Postgres can't detect.
     # The net is the DATABASE-level statement_timeout armed in _run_test_migrations
     # (covers EVERY connection, incl. the privileged setup/provisioning conn that a
     # per-connection SET here would miss — which is what hung admin_test).
-    req_session = async_sessionmaker(
-        bind=req_conn, class_=AsyncSession, expire_on_commit=False, autoflush=False
-    )()
-    system_session = async_sessionmaker(
-        bind=admin_conn, class_=AsyncSession, expire_on_commit=False, autoflush=False
-    )()
+    served: dict[tuple[str, int | str], tuple[AsyncSession, Any, Any]] = {}
+
+    async def _served_session(login: str, guild_id: int | None) -> AsyncSession:
+        if guild_id is not None:
+            tag: int | str = cohorts.cohort_of(guild_id)
+        else:
+            tag = cohorts.PLATFORM if login == "app_user" else cohorts.PLATFORM_SYSTEM
+        key = (login, tag)
+        if key not in served:
+            pool_engine = create_async_engine(
+                _test_url_for_role(login), echo=False, pool_pre_ping=True
+            )
+            cohorts.tag_engine(pool_engine, tag)
+            conn = await pool_engine.connect()
+            fresh = async_sessionmaker(
+                bind=conn, class_=AsyncSession, expire_on_commit=False, autoflush=False
+            )()
+            if login == "app_user":
+                cohorts.mark_request_session(fresh)
+            else:
+                cohorts.mark_system_session(fresh)
+            served[key] = (fresh, conn, pool_engine)
+        return served[key][0]
 
     async def _publish_setup_state() -> None:
         """Commit the setup ``session`` so the request — on its OWN real-role
@@ -914,34 +1008,43 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     # leaves an open transaction (e.g. SELECT ... FOR UPDATE then a 4xx without
     # commit) leaks its row locks onto the next request, or onto a follow-up setup
     # write on the SAME row, which then blocks until statement_timeout.
-    async def override_get_session() -> AsyncGenerator[AsyncSession, None]:
+    @asynccontextmanager
+    async def _override(
+        login: str, connection: HTTPConnection
+    ) -> AsyncIterator[AsyncSession]:
         await _publish_setup_state()
+        reused = await _served_session(login, served_guild_id(connection))
         # Production gets a FRESH session (empty info) per request; this reused
         # session must drop the previous request's stored context or the next
         # transaction would replay it (stale user/guild) — including any
         # harness pin the before_flush net recorded during the previous
         # request's tenant writes. The DB side needs no reset:
         # transaction-local context died with the request's rollback.
-        clear_rls_context(req_session)
-        clear_search_path_pin(req_session)
+        clear_rls_context(reused)
+        clear_search_path_pin(reused)
         # A fresh session also starts with an empty identity map: a row an
         # earlier request loaded would otherwise come back as that request saw
         # it, not as the database now holds it.
-        req_session.expunge_all()
+        reused.expunge_all()
         try:
-            yield req_session
+            yield reused
         finally:
-            await req_session.rollback()
+            await reused.rollback()
 
-    async def override_get_system_session() -> AsyncGenerator[AsyncSession, None]:
-        await _publish_setup_state()
-        clear_rls_context(system_session)
-        clear_search_path_pin(system_session)
-        system_session.expunge_all()
-        try:
-            yield system_session
-        finally:
-            await system_session.rollback()
+    # ``async with``, not ``async for``: closing the dependency must run the
+    # rollback before the next request, rather than leave the inner generator
+    # for the event loop to close later on the same connection.
+    async def override_get_session(
+        connection: HTTPConnection,
+    ) -> AsyncGenerator[AsyncSession, None]:
+        async with _override("app_user", connection) as reused:
+            yield reused
+
+    async def override_get_system_session(
+        connection: HTTPConnection,
+    ) -> AsyncGenerator[AsyncSession, None]:
+        async with _override("app_admin", connection) as reused:
+            yield reused
 
     app.dependency_overrides[get_session] = override_get_session
     app.dependency_overrides[get_system_session] = override_get_system_session
@@ -978,10 +1081,7 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         # connection. ``engine.dispose()`` is the guaranteed backstop — it
         # force-closes the pooled connection even if the graceful role-reset above
         # it failed — so it runs for every engine regardless.
-        for sess, conn, eng in (
-            (req_session, req_conn, app_engine),
-            (system_session, admin_conn, system_engine),
-        ):
+        for sess, conn, eng in served.values():
             with suppress(Exception):
                 await sess.close()
             with suppress(Exception):
@@ -1014,14 +1114,31 @@ async def acting_user(session):
         await client.get(a.g("/projects/"), headers=a.headers)
 
     With the real-role ``client`` fixture the request runs AS the actor's
-    platform tier (public path) or guild role (``/g/{guild_id}`` path) on a
+    platform tier (public path) or guild role (``/c/{guild_id}`` path) on a
     real ``app_user`` connection — RLS enforced, like production.
     """
-    import functools
-
     from app.testing.actor import make_actor
 
     return functools.partial(make_actor, session)
+
+
+@pytest.fixture
+async def account_socket():
+    """Open a notification-stream socket for an account
+    (``app.testing.sockets.open_account_socket``); each leaves the register at
+    teardown."""
+    from app.services.content_sockets import sockets
+    from app.testing.sockets import open_account_socket
+
+    opened: list = []
+
+    def open_(user_id: int, websocket=None, **kwargs):
+        opened.append(open_account_socket(user_id, websocket, **kwargs))
+        return opened[-1]
+
+    yield open_
+    for websocket in opened:
+        sockets.leave(websocket)
 
 
 @pytest.fixture

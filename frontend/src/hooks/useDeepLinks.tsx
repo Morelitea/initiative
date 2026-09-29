@@ -1,55 +1,76 @@
 import { App, type URLOpenListenerEvent } from "@capacitor/app";
+import { Browser } from "@capacitor/browser";
 import { useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 
+import { useAuth } from "@/hooks/useAuth";
+import { redeemNativeSignIn, takePendingSignIn } from "@/lib/nativeSignIn";
+
 import { useServer } from "./useServer";
 
+/** Whether `url` is the address the app's sign-in comes back to. */
+const isSignInCallback = (url: URL) =>
+  url.protocol === "initiative:" && url.host === "oidc" && url.pathname === "/callback";
+
 /**
- * Hook to handle deep links on native platforms.
- * Listens for app URL open events and routes them appropriately.
+ * Finish a sign-in the app began in the phone's browser.
+ *
+ * Handles the link whether it wakes the running app or starts it: the phone
+ * often closes the app while the browser is in front. Only a callback for a
+ * sign-in this app began, against the server it is on, is answered.
  */
 export function useDeepLinks() {
   const router = useRouter();
-  const { isNativePlatform } = useServer();
+  const { isNativePlatform, getServerOrigin } = useServer();
+  const { completeOidcLogin } = useAuth();
 
   useEffect(() => {
     if (!isNativePlatform) return;
 
-    const listener = App.addListener("appUrlOpen", (event: URLOpenListenerEvent) => {
+    const handle = async (raw: string) => {
+      let url: URL;
       try {
-        const url = new URL(event.url);
-
-        // Handle OIDC callback: initiative://oidc/callback?token=xxx
-        // The URL can come as initiative://oidc/callback or initiative://oidc
-        if (
-          url.pathname === "/oidc/callback" ||
-          url.pathname === "/callback" ||
-          url.host === "oidc"
-        ) {
-          const token = url.searchParams.get("token");
-          const error = url.searchParams.get("error");
-          if (token) {
-            const token_type = url.searchParams.get("token_type");
-            router.navigate({
-              to: "/oidc/callback",
-              search: token_type ? { token, token_type } : { token },
-              replace: true,
-            });
-          } else if (error) {
-            router.navigate({
-              to: "/oidc/callback",
-              search: { error },
-              replace: true,
-            });
-          }
-        }
-      } catch (err) {
-        console.error("Failed to parse deep link URL:", err);
+        url = new URL(raw);
+      } catch {
+        return;
       }
-    });
+      if (!isSignInCallback(url)) return;
+      const pending = takePendingSignIn(getServerOrigin());
+      if (!pending) return;
+      await Browser.close().catch(() => undefined);
 
-    return () => {
-      listener.then((l) => l.remove());
+      const error = url.searchParams.get("error");
+      const code = url.searchParams.get("code");
+      // A deployment from before the code flow hands back a device token.
+      const deviceToken = url.searchParams.get("token");
+      try {
+        if (code) {
+          const session = await redeemNativeSignIn(code, pending);
+          if (!session) throw new Error("NOT_AUTHENTICATED");
+          await completeOidcLogin(session);
+        } else if (deviceToken) {
+          await completeOidcLogin({ deviceToken });
+        } else {
+          throw new Error(error ?? "NOT_AUTHENTICATED");
+        }
+        await router.navigate({ to: "/", replace: true });
+      } catch (err) {
+        await router.navigate({
+          to: "/oidc/callback",
+          search: { error: error ?? (err instanceof Error ? err.message : "NOT_AUTHENTICATED") },
+          replace: true,
+        });
+      }
     };
-  }, [isNativePlatform, router]);
+
+    void App.getLaunchUrl().then((launch) => {
+      if (launch?.url) void handle(launch.url);
+    });
+    const listener = App.addListener("appUrlOpen", (event: URLOpenListenerEvent) => {
+      void handle(event.url);
+    });
+    return () => {
+      void listener.then((l) => l.remove());
+    };
+  }, [isNativePlatform, getServerOrigin, completeOidcLogin, router]);
 }

@@ -26,7 +26,6 @@ from app.testing import (
     marketplace_uid,
 )
 
-pytestmark = pytest.mark.integration
 
 CALENDAR_APP_UID = marketplace_uid("auditcalendar")
 UPGRADE_APP_UID = marketplace_uid("auditupgrade")
@@ -99,6 +98,7 @@ class TestInstalling:
             "listing_uid": CALENDAR_APP_UID,
             "version": "1.0.0",
             "via": "install",
+            "granted_scopes": [],
         }
 
     async def test_a_refused_install_records_nothing(
@@ -263,5 +263,5 @@ class TestUninstalling:
         assert row["detail"] == {
             "listing_uid": CALENDAR_APP_UID,
             "connections": 0,
-            "delegations": 0,
+            "consents": 0,
         }

@@ -34,8 +34,6 @@
     "counters_one": "{{count}} Zähler",
     "counters_other": "{{count}} Zähler"
   },
-  "generatedBy": "erstellt am {{date}} von {{author}}",
-  "exported": "exportiert am {{date}}",
   "round": "Runde {{round}}",
   "pageOf": "von",
   "status": {
@@ -62,7 +60,6 @@
     "start": "Beginn"
   },
   "fallback": {
-    "unknownAuthor": "unbekannt",
     "untitled": "(ohne Titel)"
   }
 }

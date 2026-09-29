@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useInitiativeAccess, useToolCreateAccess } from "@/hooks/useInitiativeAccess";
+import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { PostReadTrackerProvider } from "@/hooks/usePostReadTracker";
 import { usePostsFeed, usePostsTimeline } from "@/hooks/usePosts";
@@ -126,8 +126,7 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
   // Pinning is initiative authority, not write access on the post — the same
   // rule the server applies, asked here only to decide what to offer.
   const initiativeQuery = useInitiative(fixedInitiativeId);
-  const { canManage } = useInitiativeAccess();
-  const canPin = initiativeQuery.data ? canManage(initiativeQuery.data) : false;
+  const canPin = Boolean(initiativeQuery.data?.can.manage);
 
   const {
     open: createOpen,

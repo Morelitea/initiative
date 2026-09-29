@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from contextlib import suppress
 from typing import Annotated, List
 
 from fastapi import (
@@ -28,15 +27,17 @@ from app.api.deps import (
     UserSessionDep,
     GuildAccessError,
     establish_guild_access,
+    holds_guild_role,
     raise_for_guild_access,
     get_current_active_user,
+    SystemSessionDep,
 )
 from app.api.v1.platform_endpoints.password_recheck import (
     require_password_or_recent_proof,
 )
 from app.core import auth_context
 from app.core.intake import IntakeStream
-from app.core.auth_context import satisfied_provider_ids
+from app.core.auth_context import satisfied_providers
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
 from app.core.login_methods import LoginMethod, SecondFactorRequirement
@@ -49,8 +50,7 @@ from app.core.security import (
 )
 from app.services.platform.identity_refs import billing_refs
 from app.services.marketplace import app_refs
-from app.db.schema_provisioning import deprovision_guild
-from app.db.session import get_system_session
+from app.db import cohorts
 from app.core.audit_events import AuditEventType
 from app.services import audit as audit_service
 from app.services import email as email_service
@@ -60,6 +60,7 @@ from app.models.platform.guild import (
     GuildCategory,
     GuildRole,
     GuildStatus,
+    LIVE_STATUS_VALUES,
 )
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.platform.guild_image import (
@@ -73,6 +74,7 @@ from app.schemas.platform.guild import (
     CommunityGuildPage,
     CommunityGuildRead,
     GuildBannerRead,
+    GuildCan,
     GuildEntitlementsRead,
     GuildApiAccessRead,
     GuildApiAccessUpdate,
@@ -117,13 +119,11 @@ from app.services.platform import guild_images as images_service
 from app.services.tenant.attachments import FileTooLargeError, read_upload_bounded
 from app.services.platform import guilds as guilds_service
 from app.services.platform import intake as intake_service
-from app.services.realtime import manager as realtime_manager
+from app.services.content_sockets import sockets as content_sockets
 from app.services.tenant import app_connections as app_connections_service
 from app.services.tenant import app_revocation as app_revocation_service
-from app.services.stream_authz import authority as stream_authority
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -136,6 +136,36 @@ def _position_of(guild_context: GuildContext) -> int:
     return membership.position if membership is not None else 0
 
 
+def _can_of(guild_context: GuildContext) -> GuildCan:
+    """What the caller may do in the community, by the standing: each flag is
+    what the guard on the routes that do the thing asks."""
+    return GuildCan(
+        # The seam admitted the request, which a community in time out refuses.
+        enter=True,
+        content=not guild_context.is_settings_only,
+        administer=holds_guild_role(guild_context, GuildRole.admin, settings=True),
+        configure=guild_context.writes_settings,
+        administer_content=holds_guild_role(guild_context, GuildRole.admin),
+        seat=guild_context.guild_seat,
+    )
+
+
+def _can_of_membership(guild: Guild, role: GuildRole) -> GuildCan:
+    """The same answers for a membership row read without a standing, as the
+    caller's own list is: the row's rung asked of the ladder the standing's
+    admin fact is rendered from, and the lifecycle status the seam admits a
+    member by."""
+    administers = role.reaches(GuildRole.admin)
+    return GuildCan(
+        enter=guild.status in LIVE_STATUS_VALUES,
+        content=True,
+        administer=administers,
+        configure=administers,
+        administer_content=administers,
+        seat=role.reaches(GuildRole.superadmin),
+    )
+
+
 def _serialize_guild(
     guild: Guild,
     *,
@@ -145,7 +175,7 @@ def _serialize_guild(
     member_count: int = 0,
     administration: GuildAdministration | None = None,
     images: dict[GuildImageVariant, str] | None = None,
-    writes_settings: bool | None = None,
+    can: GuildCan | None = None,
     closed_contact: str | None = None,
 ) -> GuildRead:
     """Build one entry of the caller's own guild list.
@@ -159,7 +189,7 @@ def _serialize_guild(
     - **Guild admins only** — the administration fields: the operator-set caps
       and plan label, the trash retention window, the lifecycle status, and the
       per-guild sign-in entitlement. Each backs an admin-only surface (the whole
-      guild settings section is admin-gated, as is ``/g/{id}/storage/usage``,
+      guild settings section is admin-gated, as is ``/c/{id}/storage/usage``,
       the panel's other half), so a regular member's payload leaves them
       ``None``.
 
@@ -167,15 +197,14 @@ def _serialize_guild(
     the caller may read but no request path may write. Callers serving a member
     pass ``None`` for it and never read the row at all.
 
-    ``writes_settings`` is the caller's standing, where the caller has one
-    (``GuildContext.writes_settings``); left out, the membership row answers.
+    ``can`` is the caller's standing, where the caller has one
+    (:func:`_can_of`); left out, the membership row answers.
 
     ``closed_contact`` is who a suspended guild's admins are told to contact;
     it reaches the payload only for that guild and that rung.
     """
     # The rung decides, not the caller: passing the row for a member still
     # serves a member's payload, so this stays the one place the split is made.
-    # Not on the wire — a reader asks the ladder the same question.
     is_admin = role.reaches(GuildRole.admin)
     admin_row = administration if is_admin else None
     return GuildRead(
@@ -185,7 +214,7 @@ def _serialize_guild(
         created_at=guild.created_at,
         updated_at=guild.updated_at,
         role=role,
-        can_write_settings=is_admin if writes_settings is None else writes_settings,
+        can=_can_of_membership(guild, role) if can is None else can,
         position=position,
         # Trash retention window — set from the admin-only trash settings tab.
         retention_days=retention_days if is_admin else None,
@@ -241,7 +270,7 @@ def _serialize_guild(
         # Read here rather than passed in, so every payload that names a guild
         # carries the same figure without each call site remembering to ask.
         # It costs no query — presence is a dict this process already holds.
-        online_count=realtime_manager.present_count(guild.id),
+        online_count=content_sockets.present_count(guild.id),
     )
 
 
@@ -354,7 +383,7 @@ async def reorder_guilds(
 MAX_COMMUNITY_PAGE_SIZE = 60
 
 
-@router.get("/communities", response_model=CommunityGuildPage)
+@router.get("/directory", response_model=CommunityGuildPage)
 async def list_community_guilds(
     session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -385,8 +414,8 @@ async def list_community_guilds(
             user_id=current_user.id,
             query=q,
             category=category.value if category else None,
-            offset=(page - 1) * page_size,
-            limit=page_size,
+            page=page,
+            page_size=page_size,
         )
     except guilds_service.CommunityDirectoryDisabledError as exc:
         raise HTTPException(
@@ -394,7 +423,7 @@ async def list_community_guilds(
         ) from exc
     # Who is present is live state held by the process, not a column, so it is
     # read here for the page being returned rather than joined in the query.
-    online = realtime_manager.present_counts(guild.id for guild, _, _ in rows)
+    online = content_sockets.present_counts(guild.id for guild, _, _ in rows)
     # Digests only, in one query: a card names its pictures, never carries them.
     images = await images_service.image_urls(
         session,
@@ -424,7 +453,7 @@ async def list_community_guilds(
     )
 
 
-@router.post("/communities/{guild_id}/join", response_model=GuildRead)
+@router.post("/directory/{guild_id}/join", response_model=GuildRead)
 async def join_community_guild(
     guild_id: int,
     session: SystemSessionDep,
@@ -460,6 +489,7 @@ async def join_community_guild(
             status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
         ) from exc
     await session.commit()
+    await cohorts.settle(session)
     membership = await guilds_service.get_membership(
         session, guild_id=guild.id, user_id=current_user.id
     )
@@ -569,18 +599,20 @@ async def create_guild(
             detail=GuildMessages.FREE_COMMUNITY_ALREADY_HELD,
         )
 
-    # The guild's shared rows (guild + admin membership) live in public. Commit
-    # them first so provisioning + the in-schema seed below run as a distinct,
-    # compensatable step (on failure: deprovision + delete these committed rows).
-    guild = await guilds_service.create_guild(
-        session,
-        name=name,
-        description=guild_in.description,
-        creator=current_user,
-        owner=owner,
-        actor_user_id=current_user.id,
-    )
-    await session.commit()
+    try:
+        guild = await guilds_service.provision_new_guild(
+            session,
+            name=name,
+            description=guild_in.description,
+            creator=current_user,
+            owner=owner,
+            actor_user_id=current_user.id,
+        )
+    except guilds_service.GuildProvisionError:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=GuildMessages.GUILD_PROVISION_FAILED,
+        )
     if owner.id != current_user.id:
         # Both identities: created_by holds the first, the admin
         # membership the second.
@@ -589,37 +621,6 @@ async def create_guild(
             guild.id,
             current_user.id,
             owner.id,
-        )
-    try:
-        # Provision the schema and create the guild-scoped seed rows (settings +
-        # default initiative) *inside* it — so a new guild is schema-native from
-        # birth, with private config (API keys, etc.) isolated in its schema.
-        await guilds_service.seed_guild_content(
-            session,
-            guild_id=guild.id,
-            owner=owner,
-        )
-        await session.commit()
-    except Exception:
-        logger.exception("Guild %s setup failed; rolling back", guild.id)
-        # Roll back first: discards the failed seed's partial writes AND reverts
-        # the SET ROLE guild_<id> (Postgres SET is transactional) so deprovision
-        # can DROP the role. The system session is then back to app_admin
-        # (BYPASSRLS), so removing the shared rows isn't filtered by RLS.
-        await session.rollback()
-        with suppress(Exception):
-            await deprovision_guild(guild.id)  # drops the schema + any partial content
-        stale = await guilds_service.get_guild(session, guild_id=guild.id)
-        if stale:
-            stale_id = stale.id
-            await guilds_service.delete_guild(
-                session, stale, actor_user_id=current_user.id, via="provision_failed"
-            )
-            await session.commit()
-            await app_refs.forget_guild(guild_id=stale_id)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=GuildMessages.GUILD_PROVISION_FAILED,
         )
     # Committed and seeded. Claimed for the owner — who holds the admin
     # membership — rather than the caller. Fire-and-forget.
@@ -666,7 +667,7 @@ async def read_guild(
     session: SettingsRLSSessionDep,
 ) -> GuildRead:
     """The community as the caller's standing sees it — how a community
-    reached by a settings grant, which has no entry in ``GET /guilds/``, gets
+    reached by a settings grant, which has no entry in ``GET /communities/``, gets
     its entry and the answer to what the caller may change there.
 
     Without its pictures: a settings rung reads on the read-only floor, which
@@ -676,9 +677,9 @@ async def read_guild(
     return _serialize_guild(
         guild,
         role=guild_context.rung,
-        writes_settings=guild_context.writes_settings,
+        can=_can_of(guild_context),
         position=_position_of(guild_context),
-        retention_days=await guilds_service.get_guild_retention_days(session, guild_id),
+        retention_days=await guilds_service.get_guild_retention_days(session),
         member_count=await guilds_service.count_members(session, guild_id=guild_id),
         administration=await guilds_service.get_administration(
             session, guild_id=guild_id
@@ -726,7 +727,7 @@ async def update_guild(
         _GUILD_PROFILE_FIELDS,
     )
     retention_before = (
-        await guilds_service.get_guild_retention_days(session, guild_id)
+        await guilds_service.get_guild_retention_days(session)
         if retention_days_provided
         else None
     )
@@ -783,20 +784,18 @@ async def update_guild(
             area="retention",
             before={"retention_days": retention_before},
             after={
-                "retention_days": await guilds_service.get_guild_retention_days(
-                    session, guild_id
-                )
+                "retention_days": await guilds_service.get_guild_retention_days(session)
             },
         )
     await session.commit()
-    retention_days = await guilds_service.get_guild_retention_days(session, guild_id)
+    retention_days = await guilds_service.get_guild_retention_days(session)
     member_count = await guilds_service.count_members(session, guild_id=guild_id)
     # Only a guild admin reaches this endpoint, so the caps belong in the reply.
     administration = await guilds_service.get_administration(session, guild_id=guild_id)
     return _serialize_guild(
         guild,
         role=guild_context.rung,
-        writes_settings=guild_context.writes_settings,
+        can=_can_of(guild_context),
         position=_position_of(guild_context),
         retention_days=retention_days,
         member_count=member_count,
@@ -812,7 +811,7 @@ async def update_guild(
 # The pictures a guild is known by are the only guild media a stranger can be
 # shown: a listed guild's icon and its banner's card rendition are what its
 # community-directory card is made of. Which is why these routes are here on
-# the platform router rather than under ``/g/{id}/…``, and why they run on the
+# the platform router rather than under ``/c/{id}/…``, and why they run on the
 # system engine — see ``guild_images.may_read_image`` for the rule and the
 # reasoning.
 
@@ -1033,9 +1032,9 @@ async def _guild_payload_after_image_change(
     return _serialize_guild(
         guild,
         role=guild_context.rung,
-        writes_settings=guild_context.writes_settings,
+        can=_can_of(guild_context),
         position=_position_of(guild_context),
-        retention_days=await guilds_service.get_guild_retention_days(session, guild_id),
+        retention_days=await guilds_service.get_guild_retention_days(session),
         member_count=await guilds_service.count_members(session, guild_id=guild_id),
         administration=await guilds_service.get_administration(
             session, guild_id=guild_id
@@ -1368,7 +1367,7 @@ async def set_guild_auth_policy(
     # outlive.
     await guilds_service.lock_guild_seats(session, guild_id)
 
-    require_methods: list[str] = sorted({str(m) for m in payload.require_methods})
+    require_methods: list[str] = sorted({m.value for m in payload.require_methods})
     if payload.provider_id is None and not require_methods:
         # ``required`` has to require something.
         raise HTTPException(
@@ -1399,7 +1398,7 @@ async def set_guild_auth_policy(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=GuildMessages.GUILD_AUTH_POLICY_INVALID_PROVIDER,
             )
-        if provider.id not in satisfied_provider_ids():
+        if provider.id not in satisfied_providers():
             raise _auth_policy_refusal(
                 GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED, "provider"
             )
@@ -1815,6 +1814,7 @@ async def accept_invite(
             status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
         ) from exc
     await session.commit()
+    await cohorts.settle(session)
     membership = await guilds_service.get_membership(
         session, guild_id=guild.id, user_id=current_user.id
     )
@@ -1947,19 +1947,17 @@ async def update_guild_membership(
             target_id=guild_id,
             detail={"from": previous_role.value, "to": payload.role.value},
         )
-    # Written out here, where this request's own context still applies: the
-    # reconciliation below borrows the session for the guild's schema.
-    await session.flush()
     # A promotion changes the guild role underneath initiative rows that already
     # exist; bring them up to the manager role an admin's row carries.
-    await guilds_service.align_admin_initiative_roles(
+    guilds_service.align_admin_initiative_roles(
         session, guild_id=guild_id, user_id=user_id, role=payload.role
     )
     await session.commit()
+    await cohorts.settle(session)
     # Guild-level access change (e.g. admin → member loses the guild-admin
     # bypass): re-check this user's live content streams now so the change takes
     # effect immediately, not on the next bounded re-auth tick.
-    await stream_authority.revoke_user(guild_id, user_id)
+    await content_sockets.revoke_user(guild_id, user_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -2060,7 +2058,7 @@ async def leave_guild(
 
     await session.commit()
     # Left the guild — drop this user's live content streams immediately.
-    await stream_authority.revoke_user(guild_id, current_user.id)
+    await content_sockets.revoke_user(guild_id, current_user.id)
     # …and tell this guild's apps that the credentials this person connected
     # under it are finished. After the commit, so an app is never told to let go
     # of something a rollback would have put back.

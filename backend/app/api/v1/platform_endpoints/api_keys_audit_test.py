@@ -7,7 +7,6 @@ its hash.
 
 from __future__ import annotations
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -20,8 +19,6 @@ from app.testing.factories import (
     create_user,
     get_auth_headers,
 )
-
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 
 def _where(row) -> tuple:

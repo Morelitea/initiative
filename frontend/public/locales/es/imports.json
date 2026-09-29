@@ -84,6 +84,7 @@
     "people": {
       "prompt": "¿Quiénes son estas personas aquí?",
       "note": "Elige quién es cada persona aquí. Las coincidencias exactas de identificador ya están rellenadas; si dejas una en blanco, solo se conserva su nombre.",
+      "access": "Quien quede asignado, invitado o nombrado en una propiedad se añade a la iniciativa si la gestionas, y obtiene acceso a lo importado.",
       "comments_one": "{{count}} comentario",
       "comments_other": "{{count}} comentarios",
       "unmapped": "Nadie aquí",
@@ -100,7 +101,7 @@
       "initiativesCreated_other": "{{count}} iniciativas creadas",
       "perTool": "{{created}} creados · {{failed}} fallidos · {{skipped}} omitidos",
       "assets": "{{restored}} archivos restaurados, {{deduped}} ya presentes",
-      "unmatchedHandles": "Algunas personas no se pudieron emparejar por identificador: {{handles}}",
+      "unmatchedHandles": "Algunas personas no se asignaron. Nadie aquí coincide con ellas, o no puedes añadirlas a esta iniciativa: {{handles}}",
       "failedEntries": "Elementos que no se importaron:",
       "nothing": "No se importó nada."
     },
@@ -241,8 +242,8 @@
     "importing": "Importando…",
     "success": "\"{{name}}\" importado.",
     "queued": "Importación iniciada: recibirás una notificación cuando termine.",
-    "warningUnmatched_one": "{{count}} persona no se pudo emparejar por identificador: {{handles}}",
-    "warningUnmatched_other": "{{count}} personas no se pudieron emparejar por identificador: {{handles}}",
+    "warningUnmatched_one": "{{count}} persona no se asignó. Nadie aquí coincide con ella, o no puedes añadirla a esta iniciativa: {{handles}}",
+    "warningUnmatched_other": "{{count}} personas no se asignaron. Nadie aquí coincide con ellas, o no puedes añadirlas a esta iniciativa: {{handles}}",
     "error": "La importación falló."
   },
   "entry": {

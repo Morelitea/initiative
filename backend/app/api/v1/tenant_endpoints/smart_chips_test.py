@@ -22,20 +22,24 @@ from app.core.references import NOT_REFERENCEABLE, REFERENCEABLE_TYPES
 from app.db.reference_targets import referenceable_types
 from app.services.tenant.smart_chips import MAX_REFS, SMART_CHIP_SOURCES
 from app.testing import (
+    create_resource_grant,
     Actor,
     create_calendar,
     create_calendar_event,
     create_counter,
     create_comment,
     create_counter_group,
+    create_document,
     create_queue,
     create_queue_item,
     create_task,
     create_task_status,
     create_user,
+    create_wiki,
+    create_wiki_page,
 )
+from app.models.tenant.document import DocumentType
 
-pytestmark = pytest.mark.integration
 
 ActingUser = Callable[..., Awaitable[Actor]]
 
@@ -178,6 +182,176 @@ async def test_a_priority_carries_its_own_urgency(
 
     body = await _chips(client, a, f"task:{task.id}:priority")
     assert body[f"task:{task.id}:priority"]["tone"] == "danger"
+
+
+async def test_a_checkbox_reads_whether_the_task_is_finished(
+    client, session, acting_user: ActingUser
+) -> None:
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    task = await create_task(session, a.project, title="Take attendance")
+
+    open_state = (await _chips(client, a, f"task:{task.id}:checklist"))[
+        f"task:{task.id}:checklist"
+    ]
+    assert open_state["tone"] == "neutral"
+    assert open_state["title"] == "Take attendance"
+    assert open_state["writable"] is True
+
+    await _move_to(session, task, a.project, TaskStatusCategory.done)
+    done_state = (await _chips(client, a, f"task:{task.id}:checklist"))[
+        f"task:{task.id}:checklist"
+    ]
+    assert done_state["tone"] == "good"
+
+
+async def test_a_checkbox_is_offered_only_to_whoever_may_tick_it(
+    client, session, acting_user: ActingUser
+) -> None:
+    """Read access shows the box; only write access lets it be ticked. Every
+    other chip is a reading, so none of them claims to be writable."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    await create_resource_grant(session, a.project, user=b.user)
+    task = await create_task(session, a.project)
+
+    body = await _chips(
+        client, b, f"task:{task.id}:checklist", f"task:{task.id}:status"
+    )
+    assert body[f"task:{task.id}:checklist"]["writable"] is False
+    assert body[f"task:{task.id}:status"]["writable"] is False
+
+
+async def test_an_embed_shows_the_name_and_the_description(
+    client, session, acting_user: ActingUser
+) -> None:
+    """A kind without a description column embeds as its name alone, and
+    something that is not there is absent, as it is for a chip."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    task = await create_task(
+        session, a.project, title="Roll call", description="Bring the **sheet**."
+    )
+    group = await create_counter_group(session, a.initiative, a.user)
+    counter = await create_counter(session, group, name="Signups")
+    missing = f"task:{task.id + 999}"
+
+    response = await client.get(
+        a.g("/smart-chips/embeds"),
+        headers=a.headers,
+        params={"ref": [f"task:{task.id}", f"counter:{counter.id}", missing]},
+    )
+    assert response.status_code == 200, response.text
+    body = {item["ref"]: item for item in response.json()["items"]}
+    assert body[f"task:{task.id}"]["title"] == "Roll call"
+    assert body[f"task:{task.id}"]["description"] == "Bring the **sheet**."
+    assert body[f"counter:{counter.id}"]["title"] == "Signups"
+    assert body[f"counter:{counter.id}"]["description"] is None
+    assert missing not in body
+
+
+def _prose(text: str) -> dict:
+    """A Lexical body holding one paragraph."""
+    return {
+        "root": {
+            "type": "root",
+            "version": 1,
+            "children": [
+                {
+                    "type": "paragraph",
+                    "version": 1,
+                    "children": [{"type": "text", "version": 1, "text": text}],
+                }
+            ],
+        }
+    }
+
+
+async def _embeds(client, actor: Actor, *refs: str) -> dict[str, dict]:
+    response = await client.get(
+        actor.g("/smart-chips/embeds"),
+        headers=actor.headers,
+        params={"ref": list(refs)},
+    )
+    assert response.status_code == 200, response.text
+    return {item["ref"]: item for item in response.json()["items"]}
+
+
+async def test_an_embedded_text_document_shows_its_body(
+    client, session, acting_user: ActingUser
+) -> None:
+    """Prose embeds as what it says; a document that is not prose, one with
+    nothing written in it, and a kind with no body at all embed as a name."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    written = await create_document(
+        session, a.initiative, a.user, name="Lore", content=_prose("Here be dragons.")
+    )
+    blank = await create_document(session, a.initiative, a.user, name="Blank")
+    sheet = await create_document(
+        session,
+        a.initiative,
+        a.user,
+        name="Ledger",
+        document_type=DocumentType.spreadsheet,
+        content={"cells": {"A1": "1"}},
+    )
+    task = await create_task(session, a.project, title="Roll call")
+
+    body = await _embeds(
+        client,
+        a,
+        f"document:{written.id}",
+        f"document:{blank.id}",
+        f"document:{sheet.id}",
+        f"task:{task.id}",
+    )
+    assert body[f"document:{written.id}"]["title"] == "Lore"
+    assert body[f"document:{written.id}"]["body"] == _prose("Here be dragons.")
+    assert body[f"document:{blank.id}"]["body"] is None
+    assert body[f"document:{sheet.id}"]["title"] == "Ledger"
+    assert body[f"document:{sheet.id}"]["body"] is None
+    assert body[f"task:{task.id}"]["body"] is None
+
+
+async def test_an_embedded_wiki_page_shows_its_body_but_not_a_draft(
+    client, session, acting_user: ActingUser
+) -> None:
+    """A draft is hidden from a reader everywhere else, so an embed of one is
+    absent to them rather than a window onto it."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    initiative = a.initiative
+    assert initiative is not None
+    initiative.wikis_enabled = True
+    session.add(initiative)
+    await session.commit()
+    wiki = await create_wiki(session, initiative, a.user)
+    page = await create_wiki_page(
+        session, wiki, a.user, title="Rota", content=_prose("Tuesdays.")
+    )
+    draft = await create_wiki_page(
+        session,
+        wiki,
+        a.user,
+        title="Half written",
+        content=_prose("Secret."),
+        is_draft=True,
+    )
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+
+    body = await _embeds(client, b, f"wiki_page:{page.id}", f"wiki_page:{draft.id}")
+    assert body[f"wiki_page:{page.id}"]["body"] == _prose("Tuesdays.")
+    assert f"wiki_page:{draft.id}" not in body
+
+    written = await _embeds(client, a, f"wiki_page:{draft.id}")
+    assert written[f"wiki_page:{draft.id}"]["body"] == _prose("Secret.")
 
 
 async def test_a_counter_reads_its_number_and_its_ceiling(
@@ -394,7 +568,9 @@ def test_what_can_be_referred_to_and_what_can_be_resolved_are_the_same_set():
     assert set(REFERENCEABLE_TYPES) == set(referenceable_types())
 
 
-@pytest.mark.parametrize("aspect", ["status", "assignee", "due", "priority"])
+@pytest.mark.parametrize(
+    "aspect", ["status", "assignee", "due", "priority", "checklist"]
+)
 async def test_no_task_chip_answers_without_the_project(
     client, session, acting_user: ActingUser, aspect: str
 ) -> None:

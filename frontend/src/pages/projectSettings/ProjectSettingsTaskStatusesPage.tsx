@@ -6,7 +6,6 @@ import { useParams } from "@tanstack/react-router";
 
 import { ProjectTaskStatusesManager } from "@/components/projects/ProjectTaskStatusesManager";
 import { useProject } from "@/hooks/useProjects";
-import { hasWriteAccess } from "@/lib/permissions";
 
 export const ProjectSettingsTaskStatusesPage = () => {
   const { projectId } = useParams({ strict: false }) as { projectId?: string };
@@ -18,10 +17,5 @@ export const ProjectSettingsTaskStatusesPage = () => {
 
   if (!project) return null;
 
-  return (
-    <ProjectTaskStatusesManager
-      projectId={project.id}
-      canManage={hasWriteAccess(project.my_permission_level)}
-    />
-  );
+  return <ProjectTaskStatusesManager projectId={project.id} canManage={project.can.edit} />;
 };

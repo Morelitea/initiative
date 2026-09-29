@@ -16,7 +16,7 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlmodel import Enum as SQLEnum, Field, Relationship
+from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
 from app.models.tenant._mixins import CreatedByMixin
 
@@ -119,7 +119,39 @@ class PropertyDefinition(CreatedByMixin, table=True):
     )
 
 
-class DocumentPropertyValue(CreatedByMixin, table=True):
+class PropertyValueColumns(SQLModel):
+    """The typed value columns every ``*_property_values`` table carries,
+    whichever entity it attaches to.
+
+    Declared without ``sa_column`` so each table builds its own Column.
+    """
+
+    value_text: Optional[str] = Field(default=None, sa_type=Text, nullable=True)
+    value_number: Optional[Decimal] = Field(
+        default=None, sa_type=Numeric, nullable=True
+    )
+    value_boolean: Optional[bool] = Field(default=None, sa_type=Boolean, nullable=True)
+    value_date: Optional[date] = Field(default=None, sa_type=Date, nullable=True)
+    value_datetime: Optional[datetime] = Field(
+        default=None, sa_type=DateTime(timezone=True), nullable=True
+    )
+    value_user_id: Optional[int] = Field(
+        default=None, foreign_key="users.id", nullable=True
+    )
+    value_json: Optional[Any] = Field(default=None, sa_type=JSONB, nullable=True)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
+        nullable=False,
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_type=DateTime(timezone=True),
+        nullable=False,
+    )
+
+
+class DocumentPropertyValue(CreatedByMixin, PropertyValueColumns, table=True):
     """Typed property value attached to a document."""
 
     __tablename__ = "document_property_values"
@@ -141,44 +173,6 @@ class DocumentPropertyValue(CreatedByMixin, table=True):
             index=True,
         ),
     )
-    value_text: Optional[str] = Field(
-        default=None,
-        sa_column=Column(Text, nullable=True),
-    )
-    value_number: Optional[Decimal] = Field(
-        default=None,
-        sa_column=Column(Numeric, nullable=True),
-    )
-    value_boolean: Optional[bool] = Field(
-        default=None,
-        sa_column=Column(Boolean, nullable=True),
-    )
-    value_date: Optional[date] = Field(
-        default=None,
-        sa_column=Column(Date, nullable=True),
-    )
-    value_datetime: Optional[datetime] = Field(
-        default=None,
-        sa_column=Column(DateTime(timezone=True), nullable=True),
-    )
-    value_user_id: Optional[int] = Field(
-        default=None,
-        foreign_key="users.id",
-        nullable=True,
-    )
-    value_json: Optional[Any] = Field(
-        default=None,
-        sa_column=Column(JSONB, nullable=True),
-    )
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
     document: Optional["Document"] = Relationship(back_populates="property_values")
     property_definition: Optional[PropertyDefinition] = Relationship(
         back_populates="document_values"
@@ -193,7 +187,7 @@ class DocumentPropertyValue(CreatedByMixin, table=True):
     )
 
 
-class TaskPropertyValue(CreatedByMixin, table=True):
+class TaskPropertyValue(CreatedByMixin, PropertyValueColumns, table=True):
     """Typed property value attached to a task."""
 
     __tablename__ = "task_property_values"
@@ -215,44 +209,6 @@ class TaskPropertyValue(CreatedByMixin, table=True):
             index=True,
         ),
     )
-    value_text: Optional[str] = Field(
-        default=None,
-        sa_column=Column(Text, nullable=True),
-    )
-    value_number: Optional[Decimal] = Field(
-        default=None,
-        sa_column=Column(Numeric, nullable=True),
-    )
-    value_boolean: Optional[bool] = Field(
-        default=None,
-        sa_column=Column(Boolean, nullable=True),
-    )
-    value_date: Optional[date] = Field(
-        default=None,
-        sa_column=Column(Date, nullable=True),
-    )
-    value_datetime: Optional[datetime] = Field(
-        default=None,
-        sa_column=Column(DateTime(timezone=True), nullable=True),
-    )
-    value_user_id: Optional[int] = Field(
-        default=None,
-        foreign_key="users.id",
-        nullable=True,
-    )
-    value_json: Optional[Any] = Field(
-        default=None,
-        sa_column=Column(JSONB, nullable=True),
-    )
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
     task: Optional["Task"] = Relationship(back_populates="property_values")
     property_definition: Optional[PropertyDefinition] = Relationship(
         back_populates="task_values"
@@ -267,7 +223,7 @@ class TaskPropertyValue(CreatedByMixin, table=True):
     )
 
 
-class CalendarEventPropertyValue(CreatedByMixin, table=True):
+class CalendarEventPropertyValue(CreatedByMixin, PropertyValueColumns, table=True):
     """Typed property value attached to a calendar event."""
 
     __tablename__ = "calendar_event_property_values"
@@ -289,44 +245,6 @@ class CalendarEventPropertyValue(CreatedByMixin, table=True):
             index=True,
         ),
     )
-    value_text: Optional[str] = Field(
-        default=None,
-        sa_column=Column(Text, nullable=True),
-    )
-    value_number: Optional[Decimal] = Field(
-        default=None,
-        sa_column=Column(Numeric, nullable=True),
-    )
-    value_boolean: Optional[bool] = Field(
-        default=None,
-        sa_column=Column(Boolean, nullable=True),
-    )
-    value_date: Optional[date] = Field(
-        default=None,
-        sa_column=Column(Date, nullable=True),
-    )
-    value_datetime: Optional[datetime] = Field(
-        default=None,
-        sa_column=Column(DateTime(timezone=True), nullable=True),
-    )
-    value_user_id: Optional[int] = Field(
-        default=None,
-        foreign_key="users.id",
-        nullable=True,
-    )
-    value_json: Optional[Any] = Field(
-        default=None,
-        sa_column=Column(JSONB, nullable=True),
-    )
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
     calendar_event: Optional["CalendarEvent"] = Relationship(
         back_populates="property_values"
     )

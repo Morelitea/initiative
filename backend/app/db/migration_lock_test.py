@@ -11,8 +11,6 @@ from app.core.config import settings
 from app.db.session import MIGRATION_LOCK_KEY, migration_lock
 from conftest import TEST_DATABASE_URL
 
-pytestmark = pytest.mark.database
-
 
 @pytest.fixture(autouse=True)
 def _lock_against_the_test_database(monkeypatch):

@@ -2,7 +2,7 @@
  * Importing an .ics file addresses the community it imports into.
  *
  * Every tooling request carries its community in the path
- * (`/api/v1/g/{guildId}/…`), and this dialog asked for the two import routes
+ * (`/api/v1/c/{guildId}/…`), and this dialog asked for the two import routes
  * without it, so the parse step reported an unreadable file for a perfectly
  * good calendar.
  */
@@ -11,6 +11,7 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
+import { writerCan } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
@@ -32,8 +33,7 @@ const CALENDAR = {
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
   archived_at: null,
-  can_unarchive: false,
-  my_permission_level: "write",
+  can: writerCan(),
   comments_enabled: true,
   tags: [],
   grants: [],
@@ -106,8 +106,8 @@ describe("ICalImportDialog", () => {
     expect(await screen.findByText("Import complete!")).toBeInTheDocument();
     expect(screen.getByText("2 events created")).toBeInTheDocument();
     expect(paths).toEqual([
-      "/api/v1/g/1/calendar-events/import/parse",
-      "/api/v1/g/1/calendar-events/import",
+      "/api/v1/c/1/calendar-events/import/parse",
+      "/api/v1/c/1/calendar-events/import",
     ]);
   });
 });

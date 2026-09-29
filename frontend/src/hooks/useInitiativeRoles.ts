@@ -5,61 +5,33 @@ import type {
   InitiativeRoleCreate,
   InitiativeRoleRead,
   InitiativeRoleUpdate,
-  MyInitiativePermissions,
   PermissionKey,
   Tool,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  createInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesPost,
-  deleteInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdDelete,
-  getGetMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGetQueryKey,
-  getListInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGetQueryKey,
-  getMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet,
-  listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet,
-  updateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatch,
+  createInitiativeRoleApiV1CGuildIdInitiativesInitiativeIdRolesPost,
+  deleteInitiativeRoleApiV1CGuildIdInitiativesInitiativeIdRolesRoleIdDelete,
+  getListInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGetQueryKey,
+  listInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGet,
+  updateInitiativeRoleApiV1CGuildIdInitiativesInitiativeIdRolesRoleIdPatch,
 } from "@/api/generated/initiatives/initiatives";
 import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import {
-  DEFAULT_ENABLED_TOOLS,
-  TOOLS,
-  toolCamelPlural,
-  toolCreatePermission,
-  toolPascalPlural,
-  toolViewPermission,
-} from "@/lib/tools";
+import { TOOLS, toolCreatePermission, toolPascalPlural, toolViewPermission } from "@/lib/tools";
 
 export const useInitiativeRoles = (initiativeId: number | null) => {
   const guildId = useActiveGuildId();
   return useQuery<InitiativeRoleRead[]>({
-    queryKey: getListInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGetQueryKey(
+    queryKey: getListInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGetQueryKey(
       guildId,
       initiativeId!
     ),
     queryFn: () =>
-      listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet(guildId, initiativeId!),
+      listInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGet(guildId, initiativeId!),
     enabled: !!initiativeId,
     staleTime: 30 * 1000,
-  });
-};
-
-export const useMyInitiativePermissions = (initiativeId: number | null) => {
-  const guildId = useActiveGuildId();
-  return useQuery<MyInitiativePermissions>({
-    queryKey:
-      getGetMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGetQueryKey(
-        guildId,
-        initiativeId!
-      ),
-    queryFn: () =>
-      getMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet(
-        guildId,
-        initiativeId!
-      ),
-    enabled: !!initiativeId,
-    staleTime: 60 * 1000,
   });
 };
 
@@ -69,7 +41,7 @@ export const useCreateRole = (initiativeId: number) => {
 
   return useMutation({
     mutationFn: async (data: InitiativeRoleCreate) => {
-      return createInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesPost(
+      return createInitiativeRoleApiV1CGuildIdInitiativesInitiativeIdRolesPost(
         guildId,
         initiativeId,
         data
@@ -91,7 +63,7 @@ export const useUpdateRole = (initiativeId: number) => {
 
   return useMutation({
     mutationFn: async ({ roleId, data }: { roleId: number; data: InitiativeRoleUpdate }) => {
-      return updateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatch(
+      return updateInitiativeRoleApiV1CGuildIdInitiativesInitiativeIdRolesRoleIdPatch(
         guildId,
         initiativeId,
         roleId,
@@ -100,7 +72,7 @@ export const useUpdateRole = (initiativeId: number) => {
     },
     onSuccess: () => {
       toast.success(t("settings.roleUpdated"));
-      void invalidate(q.initiativeRoles(initiativeId), q.myPermissions(initiativeId));
+      void invalidate(q.initiativeRoles(initiativeId), q.allInitiatives());
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "initiatives:settings.roleUpdateError"));
@@ -137,7 +109,7 @@ export const useGrantToolToRoles = (initiativeId: number) => {
   return useMutation({
     mutationFn: async ({ tool }: { tool: Tool }) => {
       const key = toolViewPermission(tool);
-      const roles = await listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet(
+      const roles = await listInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGet(
         guildId,
         initiativeId
       );
@@ -146,7 +118,7 @@ export const useGrantToolToRoles = (initiativeId: number) => {
       );
       const results = await Promise.allSettled(
         needsGrant.map((role) =>
-          updateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatch(
+          updateInitiativeRoleApiV1CGuildIdInitiativesInitiativeIdRolesRoleIdPatch(
             guildId,
             initiativeId,
             role.id,
@@ -159,7 +131,7 @@ export const useGrantToolToRoles = (initiativeId: number) => {
       return needsGrant.length;
     },
     onSettled: () => {
-      void invalidate(q.initiativeRoles(initiativeId), q.myPermissions(initiativeId));
+      void invalidate(q.initiativeRoles(initiativeId), q.allInitiatives());
     },
   });
 };
@@ -205,14 +177,14 @@ export const useGrantToolsToMembers = () => {
         permissions[toolViewPermission(tool)] = audience !== "managers";
         permissions[toolCreatePermission(tool)] = audience === "create";
       }
-      const roles = await listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet(
+      const roles = await listInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGet(
         guildId,
         initiativeId
       );
       const ordinary = roles.filter((role) => !role.is_manager);
       const results = await Promise.allSettled(
         ordinary.map((role) =>
-          updateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatch(
+          updateInitiativeRoleApiV1CGuildIdInitiativesInitiativeIdRolesRoleIdPatch(
             guildId,
             initiativeId,
             role.id,
@@ -225,10 +197,7 @@ export const useGrantToolsToMembers = () => {
       return ordinary.length;
     },
     onSettled: (_data, _error, variables) => {
-      void invalidate(
-        q.initiativeRoles(variables.initiativeId),
-        q.myPermissions(variables.initiativeId)
-      );
+      void invalidate(q.initiativeRoles(variables.initiativeId), q.allInitiatives());
     },
   });
 };
@@ -239,7 +208,7 @@ export const useDeleteRole = (initiativeId: number) => {
 
   return useMutation({
     mutationFn: async (roleId: number) => {
-      await deleteInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdDelete(
+      await deleteInitiativeRoleApiV1CGuildIdInitiativesInitiativeIdRolesRoleIdDelete(
         guildId,
         initiativeId,
         roleId
@@ -255,28 +224,6 @@ export const useDeleteRole = (initiativeId: number) => {
   });
 };
 
-// Helper to check if a tool is visible to the user.
-// Reads the permission value directly — the backend already accounts for
-// initiative-level master switches and manager status, so we must not
-// short-circuit on is_manager here.
-export const isToolVisible = (
-  permissions: MyInitiativePermissions | undefined,
-  tool: Tool
-): boolean => {
-  if (!permissions) return false;
-  return permissions.permissions[toolViewPermission(tool)] ?? false;
-};
-
-// Helper to check if the user can create a tool's content.
-// Same as isToolVisible — reads the backend value directly.
-export const canCreateTool = (
-  permissions: MyInitiativePermissions | undefined,
-  tool: Tool
-): boolean => {
-  if (!permissions) return false;
-  return permissions.permissions[toolCreatePermission(tool)] ?? false;
-};
-
 // i18n-based permission label keys (use with t()) — one view/create pair per
 // tool, derived: settings.permissions.view{PascalPlural} / create{PascalPlural}.
 export const PERMISSION_LABEL_KEYS: Record<PermissionKey, string> = Object.fromEntries(
@@ -285,27 +232,3 @@ export const PERMISSION_LABEL_KEYS: Record<PermissionKey, string> = Object.fromE
     [toolCreatePermission(tool), `settings.permissions.create${toolPascalPlural(tool)}`],
   ])
 ) as Record<PermissionKey, string>;
-
-// Permission groups for card-based layout
-export type PermissionGroup = {
-  labelKey: string;
-  keys: PermissionKey[];
-};
-
-const toolPermissionGroup = (tool: Tool): PermissionGroup => ({
-  labelKey: `settings.permissionGroups.${toolCamelPlural(tool)}`,
-  keys: [toolViewPermission(tool), toolCreatePermission(tool)],
-});
-
-// The permissions for the tools an initiative starts with, always visible.
-// This is a question of what to put in front of someone editing a role, not of
-// what a tool is: every tool is switchable now, and these two are simply the
-// ones almost every initiative has.
-export const CORE_PERMISSION_GROUPS: PermissionGroup[] = TOOLS.filter((tool) =>
-  DEFAULT_ENABLED_TOOLS.has(tool)
-).map(toolPermissionGroup);
-
-// The rest, shown in an accordion.
-export const ADVANCED_PERMISSION_GROUPS: PermissionGroup[] = TOOLS.filter(
-  (tool) => !DEFAULT_ENABLED_TOOLS.has(tool)
-).map(toolPermissionGroup);

@@ -13,10 +13,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   buildInitiative,
-  buildInitiativeMember,
   buildSearchSuggestion,
   buildUser,
-  buildUserPublic,
+  initiativeCan,
 } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
@@ -66,7 +65,7 @@ vi.mock("sigma/rendering", () => ({ drawDiscNodeLabel: () => {} }));
 const uploadDocumentFile = vi.hoisted(() => vi.fn());
 vi.mock("@/api/generated/documents/documents", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/generated/documents/documents")>()),
-  uploadDocumentFileApiV1GGuildIdDocumentsUploadPost: uploadDocumentFile,
+  uploadDocumentFileApiV1CGuildIdDocumentsUploadPost: uploadDocumentFile,
 }));
 
 import { RelationsSection } from "./RelationsSection";
@@ -162,13 +161,10 @@ const mountUploader = ({ canCreateDocuments = true, canViewDocuments = true } = 
       HttpResponse.json([
         buildInitiative({
           id: 3,
-          members: [
-            buildInitiativeMember({
-              user: buildUserPublic({ id: user.id }),
-              can_create_documents: canCreateDocuments,
-              can_view_documents: canViewDocuments,
-            }),
-          ],
+          can: initiativeCan({
+            view: canViewDocuments ? [Tool.document] : [],
+            create: canCreateDocuments ? [Tool.document] : [],
+          }),
         }),
       ])
     ),

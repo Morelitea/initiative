@@ -37,6 +37,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.intake import CaseField, CASE_FIELD_TYPES, IntakeStream, STREAM_FIELDS
+from app.db import cohorts
 from app.db.session import set_rls_context
 from app.models.platform.app_setting import AppSetting
 from app.models.tenant.intake import DEDUPE_KEY_LENGTH, IntakeBinding, IntakeCase
@@ -46,6 +47,7 @@ from app.models.tenant.task import Task, TaskStatus, TaskStatusCategory
 from app.schemas.tenant.property import PropertyValueInput
 from app.services.tenant import properties as properties_service
 from app.services.tenant import task_creation as task_creation_service
+from app.db.request_context import SystemGuild
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +109,12 @@ async def operations_guild_id(session: AsyncSession) -> Optional[int]:
     return row.operations_guild_id if row is not None else None
 
 
+async def _configured_operations_guild_id() -> Optional[int]:
+    """:func:`operations_guild_id`, read on a platform system session."""
+    async with cohorts.system_session(None) as session:
+        return await operations_guild_id(session)
+
+
 async def contact_for(session: AsyncSession, stream: IntakeStream) -> Optional[str]:
     """Who somebody is told to contact about ``stream``.
 
@@ -140,17 +148,15 @@ async def stream_is_bound(stream: IntakeStream) -> bool:
 
     What a surface asks before offering to send something: a form that can only
     answer "nowhere to send it" is worse than the surface that replaces it.
-    Runs on its own system session and routes into the operations guild, the
-    way :func:`open_case` does, because the binding lives there.
+    Runs on a system session of its own from the operations guild's cohort,
+    routed into it, the way :func:`open_case` does, because the binding lives
+    there.
     """
-    from app.db.session import SystemSessionLocal
-
-    async with SystemSessionLocal() as session:
-        guild_id = await operations_guild_id(session)
-        if guild_id is None:
-            return False
-        session.expunge_all()
-        await set_rls_context(session, guild_id=guild_id)
+    guild_id = await _configured_operations_guild_id()
+    if guild_id is None:
+        return False
+    async with cohorts.system_session(guild_id) as session:
+        await set_rls_context(session, SystemGuild(guild_id))
         return await _binding_for(session, stream) is not None
 
 
@@ -321,23 +327,15 @@ async def open_case(
     because of us (a rule watching the request path) runs this in the
     background and handles that itself.
     """
-    # Imported here, not at module scope, so the session maker is read at call
-    # time — the idiom the other system-engine callers use.
-    from app.db.session import SystemSessionLocal
-
     moment = now or datetime.now(timezone.utc)
     if dedupe_key is not None and len(dedupe_key) > DEDUPE_KEY_LENGTH:
         raise ValueError("dedupe_key is longer than the column that stores it")
 
-    async with SystemSessionLocal() as session:
-        guild_id = await operations_guild_id(session)
-        if guild_id is None:
-            return None
-
-        # Ids are unique only within a schema, so nothing cached from the
-        # public read may survive into the routed one.
-        session.expunge_all()
-        await set_rls_context(session, guild_id=guild_id)
+    guild_id = await _configured_operations_guild_id()
+    if guild_id is None:
+        return None
+    async with cohorts.system_session(guild_id) as session:
+        await set_rls_context(session, SystemGuild(guild_id))
 
         binding = await _binding_for(session, stream)
         if binding is None:

@@ -9,8 +9,8 @@ import type {
   ProjectActivityResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetQueryKey,
-  projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet,
+  getProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGetQueryKey,
+  projectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet,
 } from "@/api/generated/projects/projects";
 import { CommentContent } from "@/components/comments/CommentContent";
 import { Button } from "@/components/ui/button";
@@ -43,7 +43,7 @@ export const ProjectActivitySidebar = ({
   const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
 
   const activityQuery = useInfiniteQuery<ProjectActivityResponse>({
-    queryKey: getProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetQueryKey(
+    queryKey: getProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGetQueryKey(
       guildId,
       projectId!
     ),
@@ -51,7 +51,7 @@ export const ProjectActivitySidebar = ({
       if (!projectId) {
         throw new Error("Project id required");
       }
-      return projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet(guildId, projectId, {
+      return projectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGet(guildId, projectId, {
         page: pageParam as number,
       }) as unknown as Promise<ProjectActivityResponse>;
     },
@@ -129,10 +129,7 @@ export const ProjectActivitySidebar = ({
             ) : (
               <ul className="space-y-3">
                 {entries.map((entry) => {
-                  const authorName = getUserDisplayName(
-                    entry.author,
-                    `User #${entry.author?.id ?? "?"}`
-                  );
+                  const authorName = getUserDisplayName(entry.author);
                   return (
                     <li
                       key={entry.comment_id}

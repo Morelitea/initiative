@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -10,7 +9,6 @@ from app.models.platform.user_view_preference import MAX_VALUE_JSON_BYTES
 from app.testing.factories import create_user, get_auth_headers
 
 
-@pytest.mark.integration
 async def test_list_empty(client: AsyncClient, session: AsyncSession):
     user = await create_user(session)
     response = await client.get(
@@ -20,7 +18,6 @@ async def test_list_empty(client: AsyncClient, session: AsyncSession):
     assert response.json() == {"items": {}}
 
 
-@pytest.mark.integration
 async def test_put_then_get_roundtrip(client: AsyncClient, session: AsyncSession):
     user = await create_user(session)
     headers = get_auth_headers(user)
@@ -35,7 +32,6 @@ async def test_put_then_get_roundtrip(client: AsyncClient, session: AsyncSession
     assert get_resp.json() == {"items": {"my-tasks": payload["value"]}}
 
 
-@pytest.mark.integration
 async def test_put_overwrites_existing(client: AsyncClient, session: AsyncSession):
     user = await create_user(session)
     headers = get_auth_headers(user)
@@ -53,34 +49,6 @@ async def test_put_overwrites_existing(client: AsyncClient, session: AsyncSessio
     assert get_resp.json() == {"items": {"my-tasks": {"v": 2}}}
 
 
-@pytest.mark.integration
-async def test_delete_removes_row(client: AsyncClient, session: AsyncSession):
-    user = await create_user(session)
-    headers = get_auth_headers(user)
-    await client.put(
-        "/api/v1/user-view-preferences/my-tasks",
-        headers=headers,
-        json={"value": {"v": 1}},
-    )
-    delete_resp = await client.delete(
-        "/api/v1/user-view-preferences/my-tasks", headers=headers
-    )
-    assert delete_resp.status_code == 204
-    get_resp = await client.get("/api/v1/user-view-preferences", headers=headers)
-    assert get_resp.json() == {"items": {}}
-
-
-@pytest.mark.integration
-async def test_delete_missing_is_idempotent(client: AsyncClient, session: AsyncSession):
-    user = await create_user(session)
-    response = await client.delete(
-        "/api/v1/user-view-preferences/never-written",
-        headers=get_auth_headers(user),
-    )
-    assert response.status_code == 204
-
-
-@pytest.mark.integration
 async def test_cross_user_isolation_via_application_filter(
     client: AsyncClient, session: AsyncSession
 ):
@@ -113,7 +81,6 @@ async def test_cross_user_isolation_via_application_filter(
     assert b_get.json() == {"items": {}}
 
 
-@pytest.mark.integration
 async def test_scope_key_pattern_rejects_invalid(
     client: AsyncClient, session: AsyncSession
 ):
@@ -134,7 +101,6 @@ async def test_scope_key_pattern_rejects_invalid(
         )
 
 
-@pytest.mark.integration
 async def test_scope_key_length_cap(client: AsyncClient, session: AsyncSession):
     user = await create_user(session)
     too_long = "x" * 129  # MAX is 128
@@ -146,7 +112,6 @@ async def test_scope_key_length_cap(client: AsyncClient, session: AsyncSession):
     assert resp.status_code == 422
 
 
-@pytest.mark.integration
 async def test_value_size_cap(client: AsyncClient, session: AsyncSession):
     user = await create_user(session)
     headers = get_auth_headers(user)

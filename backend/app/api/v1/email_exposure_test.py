@@ -16,11 +16,9 @@ than something nobody noticed.
 import json
 from typing import Any, Iterable
 
-import pytest
 
 from app.main import app
 
-pytestmark = pytest.mark.unit
 
 #: Shapes that carry a stored address in full, each mapped to the routes that
 #: serve it — every one of them returning the caller their own account.

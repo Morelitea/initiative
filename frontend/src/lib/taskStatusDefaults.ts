@@ -1,6 +1,6 @@
 import type { IconName } from "lucide-react/dynamic";
 
-import type { TaskStatusCategory } from "@/api/generated/initiativeAPI.schemas";
+import type { TaskStatusCategory, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
 
 export const TASK_STATUS_CATEGORY_DEFAULTS: Record<
   TaskStatusCategory,
@@ -31,4 +31,26 @@ export const maybeSwapDefaultsOnCategoryChange = (
       : currentColor,
     icon: currentIcon === previousDefaults.icon ? nextDefaults.icon : (currentIcon as IconName),
   };
+};
+
+/** Where a task lands when it is moved to a category its project may not have:
+ *  the nearest one before it, so "done" in a project with no done column is
+ *  the furthest the project goes. */
+const CATEGORY_FALLBACK: Record<TaskStatusCategory, TaskStatusCategory[]> = {
+  backlog: ["backlog"],
+  todo: ["todo", "backlog"],
+  in_progress: ["in_progress", "todo", "backlog"],
+  done: ["done", "in_progress", "todo", "backlog"],
+};
+
+/** The status in `statuses` a task moved to `category` lands in, or `null`. */
+export const statusForCategory = (
+  statuses: TaskStatusRead[],
+  category: TaskStatusCategory
+): TaskStatusRead | null => {
+  for (const candidate of CATEGORY_FALLBACK[category]) {
+    const match = statuses.find((status) => status.category === candidate);
+    if (match) return match;
+  }
+  return null;
 };

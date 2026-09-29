@@ -1,7 +1,15 @@
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { useLexicalEditable } from "@lexical/react/useLexicalEditable";
 import { useNavigate } from "@tanstack/react-router";
+import { $getNodeByKey, type NodeKey } from "lexical";
+import { PanelTop } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import type { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
+import { Button } from "@/components/ui/button";
+import { $isEntityMentionNode } from "@/components/ui/editor/nodes/entity-mention-node";
+import { $showAsEmbed } from "@/components/ui/editor/nodes/reference-embed-node";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useReferenceTitle } from "@/hooks/useSmartChips";
 import { entityRefTypeFor } from "@/lib/entityResolver";
@@ -77,5 +85,41 @@ export function EntityReference({
       {showIcon && <Icon className="size-3 shrink-0 self-center" />}
       {label}
     </button>
+  );
+}
+
+/**
+ * A `#` link as the editor draws it: the link, and — while the page is being
+ * written — a hover offering to show the thing in full instead, as `![[ ]]`
+ * would have.
+ */
+export function EditorEntityReference({
+  nodeKey,
+  ...props
+}: EntityReferenceProps & { nodeKey: NodeKey }) {
+  const { t } = useTranslation("documents");
+  const [editor] = useLexicalComposerContext();
+  const editable = useLexicalEditable();
+  const link = <EntityReference {...props} />;
+  if (!editable) return link;
+
+  const showAsEmbed = () =>
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey);
+      if ($isEntityMentionNode(node)) $showAsEmbed(node);
+    });
+
+  return (
+    <HoverCard openDelay={400} closeDelay={100}>
+      <HoverCardTrigger asChild>
+        <span>{link}</span>
+      </HoverCardTrigger>
+      <HoverCardContent align="start" className="w-auto p-1">
+        <Button type="button" variant="ghost" size="sm" onClick={showAsEmbed}>
+          <PanelTop className="size-4" />
+          {t("embeds.showAsEmbed")}
+        </Button>
+      </HoverCardContent>
+    </HoverCard>
   );
 }

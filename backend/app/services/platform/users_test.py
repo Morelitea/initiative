@@ -11,6 +11,7 @@ Tests the business logic in app.services.users including:
 from datetime import datetime, timezone
 
 import pytest
+from sqlalchemy.orm import undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -24,10 +25,9 @@ from app.testing.factories import (
     create_guild_membership,
     create_user,
 )
+from app.db.request_context import SystemGuild, Unattributed
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_the_sole_seat_is_reported(session: AsyncSession):
     """A community whose only superadmin is this account."""
     seat = await create_user(session)
@@ -43,8 +43,6 @@ async def test_the_sole_seat_is_reported(session: AsyncSession):
     assert await user_service.is_last_guild_superadmin(session, seat.id) == [guild.name]
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_another_seat_holder_clears_it(session: AsyncSession):
     """Two superadmins, so neither is the last one."""
     first = await create_user(session, email="first@example.com")
@@ -58,8 +56,6 @@ async def test_another_seat_holder_clears_it(session: AsyncSession):
     assert await user_service.is_last_guild_superadmin(session, first.id) == []
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_an_ordinary_admin_is_not_a_seat(session: AsyncSession):
     """An admin does not count, which is the whole point of the split: their
     leaving never strands a community, because its seat is still there."""
@@ -76,8 +72,6 @@ async def test_an_ordinary_admin_is_not_a_seat(session: AsyncSession):
     assert await user_service.is_last_guild_superadmin(session, admin.id) == []
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_seats_are_reported_per_community(session: AsyncSession):
     """One community where they are the only seat, one where they are not."""
     seat = await create_user(session)
@@ -98,7 +92,6 @@ async def test_seats_are_reported_per_community(session: AsyncSession):
     assert await user_service.is_last_guild_superadmin(session, seat.id) == ["Alone"]
 
 
-@pytest.mark.service
 async def test_check_deletion_eligibility_can_delete(session: AsyncSession):
     """Test that user can be deleted when they have no blocking conditions."""
     # Create a regular member user
@@ -123,8 +116,6 @@ async def test_check_deletion_eligibility_can_delete(session: AsyncSession):
     assert len(blockers) == 0
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_check_deletion_eligibility_blocked_on_the_seat(session: AsyncSession):
     """Holding a community's only seat is what stops an account going."""
     seat = await create_user(session)
@@ -146,8 +137,6 @@ async def test_check_deletion_eligibility_blocked_on_the_seat(session: AsyncSess
     assert any("superadmin" in blocker.lower() for blocker in blockers)
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_an_ordinary_admin_is_not_blocked_from_deleting(session: AsyncSession):
     """Being a community's last *admin* stops nobody: its seat is still there
     and can promote somebody else."""
@@ -169,8 +158,6 @@ async def test_an_ordinary_admin_is_not_blocked_from_deleting(session: AsyncSess
     assert blockers == []
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_removing_the_only_seat_is_refused_where_the_rows_go(
     session: AsyncSession,
 ):
@@ -195,8 +182,6 @@ async def test_removing_the_only_seat_is_refused_where_the_rows_go(
     assert seat.status == UserStatus.active
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_the_only_member_of_a_community_may_go(session: AsyncSession):
     """Nobody to strand, and no remedy to offer: appointing another superadmin
     takes somebody to appoint. The community is left with no members."""
@@ -214,8 +199,6 @@ async def test_the_only_member_of_a_community_may_go(session: AsyncSession):
     assert reloaded.status == UserStatus.deactivated
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_one_other_member_brings_the_block_back(session: AsyncSession):
     """Somebody else is there, so there is somebody to appoint — and somebody
     to strand by not appointing them."""
@@ -236,8 +219,6 @@ async def test_one_other_member_brings_the_block_back(session: AsyncSession):
         await user_service.deactivate_user(session, seat.id)
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_a_second_seat_lets_the_account_go(session: AsyncSession):
     """Somebody else holds it, so nothing is stranded."""
     leaving = await create_user(session, email="leaving@example.com")
@@ -251,16 +232,16 @@ async def test_a_second_seat_lets_the_account_go(session: AsyncSession):
     leaving_id = leaving.id
     await user_service.deactivate_user(session, leaving_id)
 
-    # Re-read rather than refresh: the drop expunges as it walks the guilds.
     reloaded = (await session.exec(select(User).where(User.id == leaving_id))).one()
     assert reloaded.status == UserStatus.deactivated
 
 
-@pytest.mark.unit
-@pytest.mark.service
-async def test_deactivate_user(session: AsyncSession):
-    """Deactivation flips status, drops memberships, bumps token_version,
-    and leaves PII intact so an operator can later reactivate."""
+async def test_deactivate_user(session: AsyncSession, monkeypatch):
+    """Deactivation flips status, drops memberships (telling billing),
+    bumps token_version, and leaves PII intact so an operator can later
+    reactivate."""
+    from app.services.platform import billing_ping
+
     user = await create_user(
         session, email="todeactivate@example.com", full_name="Original Name"
     )
@@ -275,8 +256,11 @@ async def test_deactivate_user(session: AsyncSession):
     )
 
     original_token_version = user.token_version
+    pinged: list[int] = []
+    monkeypatch.setattr(billing_ping, "notify_membership_changed", pinged.append)
 
     await user_service.deactivate_user(session, user.id)
+    assert pinged == [guild.id]
 
     stmt = select(User).where(User.id == user.id)
     result = await session.exec(stmt)
@@ -291,8 +275,6 @@ async def test_deactivate_user(session: AsyncSession):
     )
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_soft_delete_user_anonymizes_pii(session: AsyncSession, role_session):
     """Soft delete (anonymize) clears PII, blocks login, drops memberships,
     demotes platform staff to member, revokes auth artifacts, and keeps
@@ -407,8 +389,6 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession, role_sessi
     assert push_tokens_left == []
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_erasing_a_user_stops_their_references_resolving(
     session: AsyncSession,
 ):
@@ -542,8 +522,6 @@ async def test_soft_delete_user_scrubs_addressed_invites(
     assert open_after.max_uses == 5
 
 
-@pytest.mark.integration
-@pytest.mark.service
 async def test_hard_delete_user_scrubs_addressed_invites(
     session: AsyncSession, role_session
 ):
@@ -594,8 +572,6 @@ async def test_hard_delete_user_scrubs_addressed_invites(
     assert guild_service.invite_is_active(scrubbed) is False
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_users_table_has_rls_delete_deny_policy(session: AsyncSession):
     """``users`` carries FORCE RLS, the ``users_no_delete`` restrictive policy,
     and the per-role policy set that leaves every request-path write on the
@@ -649,8 +625,6 @@ async def test_users_table_has_rls_delete_deny_policy(session: AsyncSession):
     assert deny_policy[2] is False  # restrictive
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_is_last_config_manager_ignores_inactive_targets(session: AsyncSession):
     """An owner whose status isn't ``active`` doesn't contribute to the
     active config-manager count, so they can never be "the last owner".
@@ -687,8 +661,6 @@ async def test_is_last_config_manager_ignores_inactive_targets(session: AsyncSes
     )
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_is_last_config_manager_with_other_active_owner(session: AsyncSession):
     """When a second active owner exists, neither is the last owner."""
     from app.models.platform.user import UserRole
@@ -710,8 +682,6 @@ async def test_is_last_config_manager_with_other_active_owner(session: AsyncSess
     )
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_is_last_config_manager_excludes_operator(session: AsyncSession):
     """An operator does not hold ``config.manage``, so they are not counted
     as a config manager and are never "the last owner"."""
@@ -730,7 +700,6 @@ async def test_is_last_config_manager_excludes_operator(session: AsyncSession):
     )
 
 
-@pytest.mark.integration
 async def test_soft_delete_removes_membership_in_guild_schema(
     session: AsyncSession, role_session
 ):
@@ -756,7 +725,7 @@ async def test_soft_delete_removes_membership_in_guild_schema(
     await create_initiative_member(session, initiative=initiative, user=member)
 
     # Sanity: the membership exists in the guild schema before deletion.
-    await set_rls_context(session, guild_id=guild.id)
+    await set_rls_context(session, SystemGuild(guild.id))
     before = (
         await session.exec(
             select(InitiativeMember).where(InitiativeMember.user_id == member.id)
@@ -769,7 +738,7 @@ async def test_soft_delete_removes_membership_in_guild_schema(
 
     # Re-route into the guild schema and confirm the row is gone THERE.
     session.expunge_all()
-    await set_rls_context(session, guild_id=guild.id)
+    await set_rls_context(session, SystemGuild(guild.id))
     after = (
         await session.exec(
             select(InitiativeMember).where(InitiativeMember.user_id == member.id)
@@ -778,32 +747,37 @@ async def test_soft_delete_removes_membership_in_guild_schema(
     assert after == []
 
     # And the user row itself (shared/public) is anonymized.
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     refreshed = (await session.exec(select(User).where(User.id == member.id))).one()
     assert refreshed.status == UserStatus.anonymized
 
 
-@pytest.mark.integration
-@pytest.mark.service
 async def test_soft_delete_scrubs_embedded_mentions(
     session: AsyncSession, role_session
 ):
     """Anonymizing a user rewrites their display name wherever content embedded
-    it as literal text: @-mention markup in comments, Lexical mention nodes in
-    documents (with yjs_state cleared), and digest-row name snapshots
-    (issue #794)."""
+    it as literal text — on every surface somebody writes on: @-mention markup
+    in comments, descriptions and checklist items, Lexical mention nodes in
+    documents and wiki pages (with yjs_state cleared), and digest-row name
+    snapshots (issue #794)."""
     from app.models.tenant.comment import Comment
     from app.models.tenant.document import Document
     from app.models.tenant.task import Task
     from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
+    from app.models.tenant.wiki import WikiPage
     from app.services.tenant.mention_parser import ANONYMIZED_MENTION_NAME
+    from app.models.tenant.project import Project
     from app.testing.factories import (
+        checklist_items,
         create_comment,
         create_document,
         create_initiative,
         create_initiative_member,
         create_project,
         create_task,
+        create_wiki,
+        create_wiki_page,
+        enable_all_tools,
     )
     from app.testing.schema_harness import route_session_to_guild
 
@@ -813,9 +787,14 @@ async def test_soft_delete_scrubs_embedded_mentions(
     await create_guild_membership(session, user=victim, guild=guild)
     initiative = await create_initiative(session, guild, author)
     await create_initiative_member(session, initiative=initiative, user=victim)
-    project = await create_project(session, initiative, author)
+    project = await create_project(
+        session, initiative, author, description=f"lead: @[Vic Tim]({victim.id})"
+    )
     task = await create_task(
-        session, project, description=f"pair with @[Vic Tim]({victim.id})"
+        session,
+        project,
+        description=f"pair with @[Vic Tim]({victim.id})",
+        checklist=checklist_items(f"ask @[Vic Tim]({victim.id})"),
     )
     # Finished work is scrubbed too: an archived task keeps its words, so it
     # would keep the name.
@@ -842,28 +821,33 @@ async def test_soft_delete_scrubs_embedded_mentions(
         content=f"bin @[Vic Tim]({victim.id})",
         deleted_at=datetime.now(timezone.utc),
     )
+    mention_body = {
+        "root": {
+            "type": "root",
+            "children": [
+                {
+                    "type": "paragraph",
+                    "children": [
+                        {
+                            "type": "mention",
+                            "mentionName": "Vic Tim",
+                            "mentionUserId": victim.id,
+                            "text": "Vic Tim",
+                        }
+                    ],
+                }
+            ],
+        }
+    }
     document = await create_document(
+        session, initiative, author, content=mention_body, yjs_state=b"stale-state"
+    )
+    await enable_all_tools(session, initiative)
+    page = await create_wiki_page(
         session,
-        initiative,
+        await create_wiki(session, initiative, author),
         author,
-        content={
-            "root": {
-                "type": "root",
-                "children": [
-                    {
-                        "type": "paragraph",
-                        "children": [
-                            {
-                                "type": "mention",
-                                "mentionName": "Vic Tim",
-                                "mentionUserId": victim.id,
-                                "text": "Vic Tim",
-                            }
-                        ],
-                    }
-                ],
-            }
-        },
+        content=mention_body,
         yjs_state=b"stale-state",
     )
     digest = TaskAssignmentDigestItem(
@@ -887,7 +871,7 @@ async def test_soft_delete_scrubs_embedded_mentions(
 
     from app.db.session import set_rls_context
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await session.exec(
         text(
             f'CREATE POLICY test_erasure_system_path ON "guild_{guild.id}".comments '
@@ -941,15 +925,28 @@ async def test_soft_delete_scrubs_embedded_mentions(
         task.id: f"pair with @[{ANONYMIZED_MENTION_NAME}]({victim_id})",
         archived_task.id: f"was @[{ANONYMIZED_MENTION_NAME}]({victim_id})'s",
     }
-
-    refreshed_doc = (
-        await session.exec(select(Document).where(Document.id == document.id))
+    checklist = (
+        await session.exec(select(Task.checklist).where(Task.id == task.id))
     ).one()
-    node = refreshed_doc.content["root"]["children"][0]["children"][0]
-    assert node["mentionName"] == ANONYMIZED_MENTION_NAME
-    assert node["text"] == ANONYMIZED_MENTION_NAME
-    assert node["mentionUserId"] == victim_id
-    assert refreshed_doc.yjs_state is None
+    assert checklist[0]["text"] == f"ask @[{ANONYMIZED_MENTION_NAME}]({victim_id})"
+    project_description = (
+        await session.exec(select(Project.description).where(Project.id == project.id))
+    ).one()
+    assert project_description == f"lead: @[{ANONYMIZED_MENTION_NAME}]({victim_id})"
+
+    for model, row_id in ((Document, document.id), (WikiPage, page.id)):
+        refreshed = (
+            await session.exec(
+                select(model)
+                .where(model.id == row_id)
+                .options(undefer(model.content), undefer(model.yjs_state))
+            )
+        ).one()
+        node = refreshed.content["root"]["children"][0]["children"][0]
+        assert node["mentionName"] == ANONYMIZED_MENTION_NAME, model
+        assert node["text"] == ANONYMIZED_MENTION_NAME, model
+        assert node["mentionUserId"] == victim_id, model
+        assert refreshed.yjs_state is None, model
 
     refreshed_digest = (
         await session.exec(
@@ -961,8 +958,6 @@ async def test_soft_delete_scrubs_embedded_mentions(
     assert refreshed_digest.assigned_by_name == ANONYMIZED_MENTION_NAME
 
 
-@pytest.mark.integration
-@pytest.mark.service
 async def test_hard_delete_anonymized_user_cleans_guild_data(
     session: AsyncSession, role_session
 ):
@@ -1027,8 +1022,6 @@ async def test_hard_delete_anonymized_user_cleans_guild_data(
     ).one_or_none() is not None
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_soft_delete_user_removes_sign_in_sessions(session: AsyncSession):
     """Erasure empties the account of its sign-in sessions too — those rows
     carry a device label, a user agent and an address."""
@@ -1106,8 +1099,6 @@ async def test_soft_delete_user_removes_the_second_factor(session: AsyncSession)
     )
 
 
-@pytest.mark.integration
-@pytest.mark.service
 async def test_soft_delete_user_empties_the_shared_tables(
     session: AsyncSession, role_session
 ):
@@ -1228,7 +1219,6 @@ async def test_soft_delete_user_empties_the_shared_tables(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_erasure_is_acknowledged_at_every_proved_address(session, monkeypatch):
     """The letter goes to the addresses the account proved, read before the
     erasure takes them away."""
@@ -1259,7 +1249,6 @@ async def test_erasure_is_acknowledged_at_every_proved_address(session, monkeypa
     assert sent == [["erased-primary@example.com", "erased-work@example.com"]]
 
 
-@pytest.mark.integration
 async def test_an_erasure_with_nowhere_to_write_still_happens(session, monkeypatch):
     """No proved address means no letter and no failure — the account is gone
     either way."""

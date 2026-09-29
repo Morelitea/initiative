@@ -7,7 +7,7 @@ import re
 import smtplib
 import ssl
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from email.message import EmailMessage
 from functools import lru_cache
 from pathlib import Path
@@ -571,10 +571,22 @@ async def deliver(
     subject: str,
     html_body: str,
     text_body: str,
+    every_address: bool = False,
 ) -> None:
     """Put a composed message on the wire, to the address this account
-    nominated. The one exit from the outbox."""
+    nominated — or, for a letter about the account itself, to every address it
+    has proved. The one exit from the outbox."""
     settings_obj = await app_settings_service.get_app_settings(session)
+    if every_address:
+        await send_email(
+            session,
+            recipients=await _account_recipients(user),
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+            settings_obj=settings_obj,
+        )
+        return
     await _send_to_primary(
         session,
         user,
@@ -961,153 +973,89 @@ async def send_community_on_hold_email(
     )
 
 
-async def send_second_factor_changed_email(
-    session: AsyncSession, user: User, *, enabled: bool
+async def _queue_account_notice(
+    user: User, *, section: str, key: str, **values: str
 ) -> None:
-    """Tell the account its second factor was turned on or off.
+    """Queue one letter about a way into the account changing.
 
-    Account mail, so it reaches every address its holder has proved rather than
-    only the nominated one: a change nobody made is still seen by somebody who
-    no longer reads one of them.
+    Account mail: it goes out at once, on its own, to every address its holder
+    has proved, whatever their notification settings — a change nobody made is
+    still seen by somebody who no longer reads one of them. ``section`` holds
+    the greeting and the "if this wasn't you" line every letter of its kind
+    shares; ``key`` holds what this one says.
+
+    Called once the change is committed, and never allowed to fail it: the
+    change was made whether or not the letter can go.
     """
-    settings_obj, accent = await _email_context(session)
+    from app.services.platform import email_outbox
+
     locale = _user_locale(user)
-    name = _display_name(user)
-    key = "secondFactor.enabled" if enabled else "secondFactor.disabled"
-    body = f"""
-    <p>{email_t("secondFactor.greeting", locale=locale, name=name)}</p>
-    <p>{email_t(f"{key}.body", locale=locale)}</p>
-    <p>{email_t("secondFactor.fallbackText", locale=locale)}</p>
-    """
-    html_body = _build_html_layout(
-        email_t(f"{key}.title", locale=locale), body, accent, locale=locale
-    )
-    await send_email(
-        session,
-        recipients=await _account_recipients(user),
+    pieces = EmailPieces(
         subject=email_t(f"{key}.subject", locale=locale, escape=False),
-        html_body=html_body,
-        text_body=email_t(f"{key}.textBody", locale=locale, escape=False),
-        settings_obj=settings_obj,
+        headline=email_t(f"{key}.title", locale=locale),
+        body=(
+            f"{email_t(f'{key}.body', locale=locale, **values)}</p>\n\n"
+            f"<p>{email_t(f'{section}.fallbackText', locale=locale)}"
+        ),
     )
+    try:
+        await email_outbox.enqueue_account_letter(user, pieces)
+    except Exception:  # pragma: no cover - the letter is best effort
+        logger.exception("could not queue %s for account %s", key, user.id)
 
 
 async def announce_second_factor_change(
     session: AsyncSession, user: User, *, enabled: bool
 ) -> None:
-    """Tell the account, and never fail the change because the letter could not go.
-
-    By the time this runs the factor has been turned on or off and committed. A
-    deployment with no mail configured still made that change, and answering the
-    request with a failure would say otherwise.
-    """
-    try:
-        await send_second_factor_changed_email(session, user, enabled=enabled)
-    except EmailNotConfiguredError:
-        logger.info(
-            "no mail configured; second-factor change for account %s not announced",
-            user.id,
-        )
-    except Exception:  # pragma: no cover - delivery is best effort
-        logger.exception(
-            "could not announce second-factor change for account %s", user.id
-        )
-
-
-async def send_passkey_changed_email(
-    session: AsyncSession, user: User, *, added: bool, name: str
-) -> None:
-    """Tell the account a passkey was added or removed.
-
-    Account mail, like the second-factor letter: a way in changed, so it goes
-    to every address its holder has proved rather than only the nominated one.
-    """
-    settings_obj, accent = await _email_context(session)
-    locale = _user_locale(user)
-    holder = _display_name(user)
-    key = "passkey.added" if added else "passkey.removed"
-    body = f"""
-    <p>{email_t("passkey.greeting", locale=locale, name=holder)}</p>
-    <p>{email_t(f"{key}.body", locale=locale, passkey=name)}</p>
-    <p>{email_t("passkey.fallbackText", locale=locale)}</p>
-    """
-    html_body = _build_html_layout(
-        email_t(f"{key}.title", locale=locale), body, accent, locale=locale
-    )
-    await send_email(
-        session,
-        recipients=await _account_recipients(user),
-        subject=email_t(f"{key}.subject", locale=locale, escape=False),
-        html_body=html_body,
-        text_body=email_t(f"{key}.textBody", locale=locale, passkey=name, escape=False),
-        settings_obj=settings_obj,
+    """Tell the account its second factor was turned on or off."""
+    await _queue_account_notice(
+        user,
+        section="secondFactor",
+        key="secondFactor.enabled" if enabled else "secondFactor.disabled",
     )
 
 
 async def announce_passkey_change(
     session: AsyncSession, user: User, *, added: bool, name: str
 ) -> None:
-    """Tell the account, and never fail the change because the letter could not go.
+    """Tell the account a passkey was added or removed."""
+    await _queue_account_notice(
+        user,
+        section="passkey",
+        key="passkey.added" if added else "passkey.removed",
+        passkey=name,
+    )
 
-    By the time this runs the passkey has been added or removed and committed.
-    A deployment with no mail configured still made that change, and answering
-    the request with a failure would say otherwise.
-    """
-    try:
-        await send_passkey_changed_email(session, user, added=added, name=name)
-    except EmailNotConfiguredError:
-        logger.info(
-            "no mail configured; passkey change for account %s not announced",
-            user.id,
+
+async def announce_sign_in_locked(
+    session: AsyncSession, user: User, *, lock_for: timedelta
+) -> None:
+    """Tell the account its password and codes are turned off, and for how long."""
+    minutes = int(lock_for.total_seconds()) // 60
+    if minutes < 60:
+        await _queue_account_notice(
+            user,
+            section="signInLocked",
+            key="signInLocked.locked",
+            minutes=str(minutes),
         )
-    except Exception:  # pragma: no cover - delivery is best effort
-        logger.exception("could not announce passkey change for account %s", user.id)
-
-
-async def send_password_removed_email(session: AsyncSession, user: User) -> None:
-    """Tell the account its password is gone and what signs it in now.
-
-    Account mail, like the passkey and second-factor letters: a way in changed,
-    so it goes to every address its holder has proved rather than only the
-    nominated one.
-    """
-    settings_obj, accent = await _email_context(session)
-    locale = _user_locale(user)
-    name = _display_name(user)
-    body = f"""
-    <p>{email_t("passwordRemoved.greeting", locale=locale, name=name)}</p>
-    <p>{email_t("passwordRemoved.body", locale=locale)}</p>
-    <p>{email_t("passwordRemoved.fallbackText", locale=locale)}</p>
-    """
-    html_body = _build_html_layout(
-        email_t("passwordRemoved.title", locale=locale), body, accent, locale=locale
-    )
-    await send_email(
-        session,
-        recipients=await _account_recipients(user),
-        subject=email_t("passwordRemoved.subject", locale=locale, escape=False),
-        html_body=html_body,
-        text_body=email_t("passwordRemoved.textBody", locale=locale, escape=False),
-        settings_obj=settings_obj,
-    )
+    else:
+        await _queue_account_notice(
+            user,
+            section="signInLocked",
+            key="signInLocked.lockedHours",
+            count=str(minutes // 60),
+        )
 
 
 async def announce_password_removed(session: AsyncSession, user: User) -> None:
-    """Tell the account, and never fail the change because the letter could not go.
+    """Tell the account its password is gone and what signs it in now."""
+    await _queue_account_notice(user, section="passwordRemoved", key="passwordRemoved")
 
-    By the time this runs the password is gone and committed. A deployment with
-    no mail configured still made that change, and answering the request with a
-    failure would say otherwise.
-    """
-    try:
-        await send_password_removed_email(session, user)
-    except EmailNotConfiguredError:
-        logger.info(
-            "no mail configured; password removal for account %s not announced",
-            user.id,
-        )
-    except Exception:  # pragma: no cover - delivery is best effort
-        logger.exception("could not announce password removal for account %s", user.id)
+
+async def announce_password_changed(session: AsyncSession, user: User) -> None:
+    """Tell the account its password was changed."""
+    await _queue_account_notice(user, section="passwordChanged", key="passwordChanged")
 
 
 def initiative_added_pieces(user: User, initiative_name: str) -> EmailPieces:
@@ -1202,7 +1150,6 @@ def initiative_join_request_pieces(
     *,
     event: str,
     initiative_name: str,
-    link: str,
     requester: str | None = None,
     message: str | None = None,
 ) -> EmailPieces:
@@ -1213,8 +1160,8 @@ def initiative_join_request_pieces(
     initiative's managers and carries what they need to decide; the other two go
     to the requester and carry the outcome.
 
-    ``link`` is supplied by the caller because these are guild-scoped: it is the
-    guild-aware smart link, not a bare frontend path.
+    No link: these are guild-scoped, so the notice they ride on fills in its
+    guild-aware smart link.
     """
     locale = _user_locale(user)
     base = f"initiativeJoinRequest.{event}"
@@ -1242,7 +1189,6 @@ def initiative_join_request_pieces(
             requester=requester or "",
         )
         + note,
-        link=link,
         link_label=email_t(f"{base}.buttonLabel", locale=locale),
     )
 

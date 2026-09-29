@@ -6,7 +6,8 @@ Two audiences, and the split between them is the security shape of this module:
   does. These run on whatever session the request already has (a platform tier,
   or a guild role), and touch nothing but the two catalog tables.
 * **The writer** — ``upsert_listing``, called only from the system-engine path
-  (boot seeding today, the registry refresh later). No user request reaches it.
+  (boot seeding, the operator's catalog, uploads, and the registry refresh). No
+  user request reaches it.
 
 Everything a publisher supplies is validated before it lands: the uid's shape,
 the ``public_id``'s, the version string's, the attribution, and the definition's
@@ -28,12 +29,14 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.version import get_version
+from app.db.query import apply_pagination
 from app.models.platform.marketplace import (
     MarketplaceListing,
     MarketplaceListingVersion,
     UID_ALPHABET,
     UID_LENGTH,
 )
+from app.services.marketplace import vendor_values as vendor_values_service
 from app.services.marketplace.definitions import (
     LISTING_KINDS,
     LISTING_SOURCES,
@@ -50,6 +53,8 @@ from app.services.marketplace.manifest_values import check_public_id
 
 __all__ = [
     "CatalogError",
+    "CatalogSourceConflict",
+    "REGISTRY_SOURCE",
     "list_listings",
     "get_listing",
     "get_listing_by_uid",
@@ -77,6 +82,14 @@ _MAX_VERSION = contract.cap("versionLength")
 class CatalogError(ValueError):
     """A listing the catalog will not accept. Raised during seeding/refresh, so
     the message names the problem for whoever is publishing."""
+
+
+class CatalogSourceConflict(CatalogError):
+    """The listing's uid or name is held by a listing from another source."""
+
+
+#: The source every listing a registry refresh publishes is stored under.
+REGISTRY_SOURCE = "registry"
 
 
 def _check_uid(uid: str) -> str:
@@ -165,10 +178,9 @@ def version_is_compatible(min_app_version: Optional[str]) -> bool:
 async def _unoffered_app() -> Exists:
     """Matches an app listing this deployment does not run the service for.
 
-    Read from the registration snapshot rather than joined from the table: the
-    row holds the app's shared secret, so nothing on the request path holds a
-    grant on it, and the non-secret half is loaded on the system engine
-    instead.
+    Read from the registration snapshot rather than joined from the table:
+    nothing on the request path holds a grant on it, so it is loaded on the
+    system engine instead.
 
     A listing with no published version and one whose definition names no
     service — an app that mounts one of this build's own tools — match nothing
@@ -198,8 +210,8 @@ async def list_listings(
     query: Optional[str] = None,
     include_unavailable: bool = False,
     bundled_with: Optional[Sequence[str]] = None,
-    offset: int = 0,
-    limit: int = 50,
+    page: int = 1,
+    page_size: int = 50,
 ) -> tuple[Sequence[MarketplaceListing], int]:
     """A page of listings, newest first, with the total that matched.
 
@@ -250,7 +262,9 @@ async def list_listings(
         count_statement = count_statement.where(condition)
 
     total = (await session.exec(count_statement)).one()
-    statement = statement.order_by(MarketplaceListing.name).offset(offset).limit(limit)
+    statement = apply_pagination(
+        statement.order_by(MarketplaceListing.name), page, page_size
+    )
     return (await session.exec(statement)).all(), int(total)
 
 
@@ -418,9 +432,19 @@ async def upsert_listing(
         # reassigned by a later publish.
         by_public_id = await get_listing(session, public_id)
         if by_public_id is not None:
-            raise CatalogError(
+            error = (
+                CatalogSourceConflict
+                if _crosses_sources(by_public_id, source)
+                else CatalogError
+            )
+            raise error(
                 f"{public_id} is already published under uid {by_public_id.uid}"
             )
+    elif _crosses_sources(existing, source):
+        raise CatalogSourceConflict(
+            f"{public_id} is published by the {existing.source} catalog; "
+            f"the {source} catalog does not replace it"
+        )
     elif existing.public_id != public_id:
         raise CatalogError(
             f"uid {uid} is already held by {existing.public_id}; refusing to reassign"
@@ -524,6 +548,12 @@ async def upsert_listing(
         listing.latest_version_id = version.id
     session.add(listing)
     await session.flush()
+    if not version.awaiting_review and kind == "app":
+        # What the latest version requires of the operator is part of whether
+        # a registration speaking for this listing is live.
+        await vendor_values_service.sync_required_for_listing(
+            session, listing.uid, version.definition
+        )
 
     if kind == "app":
         await _publish_bundled_dashboards(
@@ -535,6 +565,17 @@ async def upsert_listing(
         )
 
     return listing
+
+
+def _crosses_sources(existing: MarketplaceListing, source: str) -> bool:
+    """Whether a registry publish would take over another source's listing.
+
+    A registry adds listings beside this deployment's own and never replaces
+    one: a built-in, the operator's catalog directory and a local upload each
+    keep the rows they published. The other sources hold their own guards
+    (the operator catalog and local uploads) or are this build (built-ins).
+    """
+    return source == REGISTRY_SOURCE and existing.source != REGISTRY_SOURCE
 
 
 def published_uids(manifest: dict[str, Any]) -> set[str]:

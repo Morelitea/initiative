@@ -6,14 +6,11 @@ account you ignored off your own roster and leaves you on theirs.
 
 from datetime import datetime, timezone
 
-import pytest
 from sqlalchemy import text
 
 from app.models.platform.guild import GuildRole
 from app.models.platform.user_dm_settings import DmPolicy
 from app.models.platform.user_ignore import UserIgnore
-
-pytestmark = pytest.mark.asyncio
 
 
 async def _policy(session, user, policy: DmPolicy) -> None:

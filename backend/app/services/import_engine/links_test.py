@@ -12,7 +12,6 @@ from app.services.tenant.relationships import Endpoint
 from app.testing.factories import create_task
 
 
-@pytest.mark.unit
 def test_a_ref_nothing_named_registers_nothing():
     """A task with no external ref is a task nothing can point at — not an
     error, and not a key in the map."""
@@ -24,7 +23,6 @@ def test_a_ref_nothing_named_registers_nothing():
     assert collector.pending_count == 1
 
 
-@pytest.mark.unit
 def test_a_link_missing_an_end_is_not_a_link():
     collector = LinkCollector()
     collector.link(None, RelationshipType.depends_on, "jira:ACME-2")
@@ -32,7 +30,6 @@ def test_a_link_missing_an_end_is_not_a_link():
     assert collector.pending_count == 0
 
 
-@pytest.mark.integration
 async def test_links_resolve_once_both_ends_exist(session, acting_user):
     """The whole point: an edge between two things written by two different
     entries becomes a row, and the order they arrived in does not matter."""
@@ -58,7 +55,6 @@ async def test_links_resolve_once_both_ends_exist(session, acting_user):
     ) == [blocker.id]
 
 
-@pytest.mark.integration
 async def test_a_link_out_of_the_selection_is_counted_not_failed(session, acting_user):
     """A Jira project links to issues nobody selected all the time. That is
     a number in the report, not a failed import."""
@@ -73,7 +69,6 @@ async def test_a_link_out_of_the_selection_is_counted_not_failed(session, acting
     assert (resolution.created, resolution.unresolved) == (0, 1)
 
 
-@pytest.mark.integration
 async def test_a_ref_pointing_at_itself_writes_nothing(session, acting_user):
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     task = await create_task(session, a.project, title="Sand the sill")
@@ -86,7 +81,6 @@ async def test_a_ref_pointing_at_itself_writes_nothing(session, acting_user):
     assert (resolution.created, resolution.unresolved) == (0, 1)
 
 
-@pytest.mark.integration
 async def test_an_edge_already_there_is_counted_as_a_duplicate(session, acting_user):
     """Re-asserting an edge is the answer already being correct, not a
     second row and not a failure."""
@@ -104,7 +98,6 @@ async def test_an_edge_already_there_is_counted_as_a_duplicate(session, acting_u
     assert (resolution.created, resolution.duplicate) == (1, 1)
 
 
-@pytest.mark.integration
 async def test_resolving_twice_does_not_write_twice(session, acting_user):
     """The collection is emptied by the pass, so a second call is a no-op
     rather than a second set of edges."""
@@ -123,7 +116,6 @@ async def test_resolving_twice_does_not_write_twice(session, acting_user):
     assert (second.created, second.unresolved, second.duplicate) == (0, 0, 0)
 
 
-@pytest.mark.integration
 async def test_two_things_claiming_one_name_keeps_the_first(session, acting_user):
     """A repeated ref is the source's ambiguity. Keeping the earlier one at
     least makes a re-run land in the same place."""

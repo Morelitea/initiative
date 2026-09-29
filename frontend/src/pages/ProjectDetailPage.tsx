@@ -1,5 +1,5 @@
 import { Link, useParams, useRouter, useSearch } from "@tanstack/react-router";
-import { AlertCircle, SearchX, Settings, ShieldAlert } from "lucide-react";
+import { Settings } from "lucide-react";
 import { useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -10,18 +10,18 @@ import { PullToRefresh } from "@/components/PullToRefresh";
 import { ProjectDocumentsSection } from "@/components/projects/ProjectDocumentsSection";
 import { ProjectOverviewCard } from "@/components/projects/ProjectOverviewCard";
 import { ProjectTasksSection } from "@/components/projects/ProjectTasksSection";
-import { StatusMessage } from "@/components/StatusMessage";
 import { ProjectDetailSkeleton } from "@/components/skeletons/PageSkeletons";
+import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { clearLastUsedProject } from "@/components/tasks/CreateTaskWizard";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Button } from "@/components/ui/button";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
+import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useProject, useProjectTaskStatuses } from "@/hooks/useProjects";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
-import { hasWriteAccess } from "@/lib/permissions";
 import { taskRoute, toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 export const ProjectDetailPage = () => {
@@ -67,6 +67,7 @@ export const ProjectDetailPage = () => {
 
   const recordViewMutation = useRecordRecentView("project", Number(guildId));
   const viewedProjectId = projectQuery.data?.id;
+  useReadOnOpen(Tool.project, viewedProjectId);
   useEffect(() => {
     if (!viewedProjectId) {
       return;
@@ -104,76 +105,28 @@ export const ProjectDetailPage = () => {
     [gp, initiativeId, parsedProjectId]
   );
 
-  if (!Number.isFinite(parsedProjectId)) {
-    return (
-      <div className="space-y-4">
-        <p className="text-destructive">{t("detail.invalidProjectId")}</p>
-        <Button asChild variant="link" className="px-0">
-          <Link to={gp(toolListRoute(Tool.project, initiativeId))}>
-            {t("detail.backToProjects")}
-          </Link>
-        </Button>
-      </div>
-    );
-  }
-
   if (projectQuery.isLoading || taskStatusesQuery.isLoading) {
     return <ProjectDetailSkeleton label={t("detail.loading")} />;
   }
 
   if (projectQuery.isError || taskStatusesQuery.isError || !project) {
-    const status = getHttpStatus(projectQuery.error) ?? getHttpStatus(taskStatusesQuery.error);
-    const backTo = gp(toolListRoute(Tool.project, initiativeId));
-    const backLabel = t("detail.backToProjects");
-
+    const error = projectQuery.error ?? taskStatusesQuery.error;
+    const status = getHttpStatus(error);
     if (status === 404 || status === 403) {
       clearLastUsedProject(parsedProjectId);
     }
-
-    if (status === 404) {
-      return (
-        <StatusMessage
-          icon={<SearchX />}
-          title={t("detail.notFound")}
-          description={t("detail.notFoundDescription")}
-          backTo={backTo}
-          backLabel={backLabel}
-        />
-      );
-    }
-    if (status === 403) {
-      return (
-        <StatusMessage
-          icon={<ShieldAlert />}
-          title={t("detail.noAccess")}
-          description={t("detail.noAccessDescription")}
-          backTo={backTo}
-          backLabel={backLabel}
-        />
-      );
-    }
     return (
-      <StatusMessage
-        icon={<AlertCircle />}
-        title={t("detail.loadError")}
-        backTo={backTo}
-        backLabel={backLabel}
+      <ToolAccessStatus
+        error={error}
+        keys="projects:detail."
+        backTo={gp(toolListRoute(Tool.project, initiativeId))}
+        backLabel={t("detail.backToProjects")}
       />
     );
   }
 
-  const myLevel = project?.my_permission_level;
-  // Pure DAC: write access requires owner or write permission level
-  const hasWritePermission = hasWriteAccess(myLevel);
-
-  // Pure DAC: settings/write access based on permission level
-  const canManageSettings = hasWritePermission;
-  const canWriteProject = hasWritePermission;
-  const canAttachDocuments = canWriteProject;
-  // Pure DAC: any permission grants view access
-  const canViewTaskDetails = Boolean(project && myLevel);
+  const canEdit = project.can.edit;
   const projectIsArchived = project.archived_at !== null;
-  const canEditTaskDetails = Boolean(project && canWriteProject && !projectIsArchived);
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>
@@ -184,7 +137,7 @@ export const ProjectDetailPage = () => {
             initiativeId={project.initiative_id}
             trail={[{ label: project.name }]}
           />
-          {canManageSettings ? (
+          {canEdit ? (
             <Button
               asChild
               variant="outline"
@@ -203,22 +156,20 @@ export const ProjectDetailPage = () => {
           projectName={project.name}
           initiativeId={project.initiative_id}
           canCreate={Boolean(canCreateDocuments && !projectIsArchived)}
-          canAttach={Boolean(canAttachDocuments && !projectIsArchived)}
+          canAttach={canEdit}
         />
         <ProjectTasksSection
           projectId={project.id}
           initiativeId={project.initiative_id}
           taskStatuses={taskStatusesQuery.data ?? []}
           projectDefaultViewMode={project.default_view_mode}
-          canEditTaskDetails={canEditTaskDetails}
-          canWriteProject={Boolean(canWriteProject)}
+          canEditTaskDetails={canEdit}
           projectIsArchived={projectIsArchived}
-          canViewTaskDetails={canViewTaskDetails}
           taskHref={taskHref}
           initialComposerOpen={searchParams.create === "true"}
           onComposerOpenChange={handleComposerOpenChange}
         />
-        <ToolCommentsPanel tool={Tool.project} entity={project} canModerate={hasWritePermission} />
+        <ToolCommentsPanel tool={Tool.project} entity={project} canModerate={canEdit} />
       </div>
     </PullToRefresh>
   );

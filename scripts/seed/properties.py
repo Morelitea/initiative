@@ -1,0 +1,318 @@
+"""Custom properties: each initiative's definitions, and values on its tasks,
+documents and events."""
+
+from __future__ import annotations
+
+from datetime import timedelta
+
+from app.models.tenant.property import PropertyDefinition, PropertyType
+from app.schemas.tenant.property import PropertyValueInput
+from app.services.tenant import properties as properties_service
+
+from seed.common import NOW, Community
+
+#: Each initiative's definitions, in position order. ``options`` — ``(value,
+#: label[, colour])`` — are required for select / multi_select.
+DEFINITIONS: dict[str, dict[str, list[dict]]] = {
+    "primary": {
+        "strahd": [
+            {
+                "name": "Difficulty",
+                "type": PropertyType.select,
+                "color": "#DC2626",
+                "options": [
+                    ("trivial", "Trivial", "#10B981"),
+                    ("moderate", "Moderate", "#F59E0B"),
+                    ("hard", "Hard", "#DC2626"),
+                    ("deadly", "Deadly", "#7F1D1D"),
+                ],
+            },
+            {"name": "XP Reward", "type": PropertyType.number, "color": "#F59E0B"},
+            {"name": "Prep Notes", "type": PropertyType.text},
+            {
+                "name": "Themes",
+                "type": PropertyType.multi_select,
+                "options": [
+                    ("horror", "Horror", "#7F1D1D"),
+                    ("investigation", "Investigation", "#3B82F6"),
+                    ("social", "Social", "#10B981"),
+                    ("combat", "Combat", "#DC2626"),
+                ],
+            },
+            {"name": "Deadline", "type": PropertyType.date},
+            {"name": "Owner", "type": PropertyType.user_reference, "color": "#8B5CF6"},
+            {"name": "Public Knowledge", "type": PropertyType.checkbox},
+        ],
+        "lmop": [
+            {"name": "Hook", "type": PropertyType.text},
+            {"name": "Quest Giver", "type": PropertyType.user_reference},
+            {"name": "Map Link", "type": PropertyType.url, "color": "#3B82F6"},
+        ],
+    },
+    "starforge": {
+        "starfall": [
+            {
+                "name": "System",
+                "type": PropertyType.select,
+                "options": [
+                    ("starfinder", "Starfinder", "#3B82F6"),
+                    ("stars_without_number", "Stars Without Number", "#10B981"),
+                    ("homebrew", "Homebrew", "#F59E0B"),
+                ],
+            },
+            {"name": "Tech Level", "type": PropertyType.number, "color": "#0EA5E9"},
+            {
+                "name": "Faction Tags",
+                "type": PropertyType.multi_select,
+                "options": [
+                    ("exodus_fleet", "Exodus Fleet", "#3B82F6"),
+                    ("krellix", "Krellix Dominion", "#DC2626"),
+                    ("merchant_guild", "Merchant Guild", "#F59E0B"),
+                ],
+            },
+            {"name": "Briefing Required", "type": PropertyType.checkbox},
+            {"name": "Owner", "type": PropertyType.user_reference},
+        ],
+        "fringe": [
+            {
+                "name": "Mission Status",
+                "type": PropertyType.select,
+                "options": [
+                    ("scoping", "Scoping"),
+                    ("active", "Active", "#10B981"),
+                    ("complete", "Complete", "#6B7280"),
+                ],
+            },
+            {"name": "Payout (credits)", "type": PropertyType.number},
+            {"name": "Map Link", "type": PropertyType.url},
+        ],
+    },
+    "tides": {
+        "crimson": [
+            {
+                "name": "Arc",
+                "type": PropertyType.select,
+                "color": "#DC2626",
+                "options": [
+                    ("shattered_seas", "Shattered Seas"),
+                    ("tidestone_hunt", "Tidestone Hunt", "#0EA5E9"),
+                    ("leviathan_finale", "Leviathan Finale", "#7F1D1D"),
+                ],
+            },
+            {
+                "name": "Crew Reward (gold)",
+                "type": PropertyType.number,
+                "color": "#F59E0B",
+            },
+            {
+                "name": "Quest Hooks",
+                "type": PropertyType.multi_select,
+                "options": [
+                    ("treasure", "Treasure", "#F59E0B"),
+                    ("rescue", "Rescue", "#10B981"),
+                    ("revenge", "Revenge", "#DC2626"),
+                    ("exploration", "Exploration", "#0EA5E9"),
+                ],
+            },
+            {"name": "Spoilers Allowed", "type": PropertyType.checkbox},
+            {"name": "Quest Giver", "type": PropertyType.user_reference},
+            {"name": "Map Link", "type": PropertyType.url},
+        ],
+        "navy": [
+            {
+                "name": "Threat Level",
+                "type": PropertyType.select,
+                "options": [
+                    ("frigate", "Frigate", "#10B981"),
+                    ("ship_of_the_line", "Ship of the Line", "#F59E0B"),
+                    ("flagship", "Flagship", "#DC2626"),
+                ],
+            },
+            {"name": "Engagement Date", "type": PropertyType.date},
+        ],
+    },
+}
+
+#: ``(kind, title, {property: value})`` per initiative. A person-valued
+#: property names the person; everything else is the value as written.
+VALUES: dict[str, dict[str, list[tuple]]] = {
+    "primary": {
+        "strahd": [
+            (
+                "task",
+                "Defeat Strahd von Zarovich",
+                {
+                    "Difficulty": "deadly",
+                    "XP Reward": 50000,
+                    "Themes": ["horror", "combat"],
+                    "Owner": "Dungeon Master",
+                    "Deadline": (NOW + timedelta(days=30)).date(),
+                },
+            ),
+            (
+                "task",
+                "Survive the Death House",
+                {
+                    "Difficulty": "hard",
+                    "XP Reward": 4500,
+                    "Themes": ["horror", "investigation"],
+                },
+            ),
+            (
+                "document",
+                "Campaign Setting: The Land of Barovia",
+                {"Public Knowledge": True},
+            ),
+            ("document", "NPC Roster: Curse of Strahd", {"Public Knowledge": False}),
+            (
+                "event",
+                "Session 12: Into the Amber Temple",
+                {"Difficulty": "deadly", "Themes": ["horror", "investigation"]},
+            ),
+            ("event", "Session 11: Vallaki Festival", {"Difficulty": "moderate"}),
+            ("event", "Weekly Strahd Session", {"Owner": "Dungeon Master"}),
+        ],
+        "lmop": [
+            (
+                "document",
+                "NPC Compendium: Phandelver",
+                {"Map Link": "https://example.com/maps/lmop-overview"},
+            )
+        ],
+    },
+    "starforge": {
+        "starfall": [
+            (
+                "task",
+                "Repair the FTL drive core",
+                {
+                    "System": "starfinder",
+                    "Tech Level": 9,
+                    "Briefing Required": True,
+                    "Owner": "Kael Windrunner",
+                },
+            ),
+            (
+                "task",
+                "Negotiate passage through Krellix space",
+                {
+                    "System": "homebrew",
+                    "Tech Level": 7,
+                    "Faction Tags": ["exodus_fleet", "krellix"],
+                    "Owner": "Finley Goldtongue",
+                },
+            ),
+            (
+                "document",
+                "Faction Guide: Krellix Dominion",
+                {"Faction Tags": ["krellix"]},
+            ),
+            ("task", "Quell the mutiny on Deck 7", {"Briefing Required": False}),
+            ("document", "Setting Bible: The Exodus Protocol", {"Owner": "Admin User"}),
+        ],
+        "fringe": [
+            (
+                "task",
+                "Infiltrate Station Omega",
+                {"Mission Status": "active", "Payout (credits)": 75000},
+            ),
+            ("task", "Crack the vault encryption", {"Mission Status": "scoping"}),
+        ],
+    },
+    "tides": {
+        "crimson": [
+            (
+                "task",
+                "Defeat the Leviathan guardian",
+                {
+                    "Arc": "leviathan_finale",
+                    "Crew Reward (gold)": 25000,
+                    "Quest Hooks": ["treasure", "revenge"],
+                },
+            ),
+            (
+                "task",
+                "Decipher the Leviathan Map",
+                {
+                    "Arc": "tidestone_hunt",
+                    "Quest Hooks": ["treasure", "exploration"],
+                    "Quest Giver": "Finley Goldtongue",
+                },
+            ),
+            (
+                "task",
+                "Collect the three Tidestones",
+                {"Arc": "tidestone_hunt", "Crew Reward (gold)": 9000},
+            ),
+            (
+                "document",
+                "The Shattered Seas: World Guide",
+                {
+                    "Spoilers Allowed": True,
+                    "Map Link": "https://example.com/maps/shattered-seas",
+                },
+            ),
+            (
+                "document",
+                "Crew Manifest: The Crimson Maiden",
+                {"Spoilers Allowed": False},
+            ),
+        ],
+        "navy": [
+            (
+                "task",
+                "Evade the HMS Vengeance",
+                {
+                    "Threat Level": "flagship",
+                    "Engagement Date": (NOW + timedelta(days=4)).date(),
+                },
+            )
+        ],
+    },
+}
+
+_SETTERS = {
+    "task": (properties_service.set_task_property_values, "tasks"),
+    "document": (properties_service.set_document_property_values, "docs"),
+    "event": (properties_service.set_event_property_values, "events"),
+}
+
+
+async def seed(c: Community) -> None:
+    for key, definitions in DEFINITIONS[c.key].items():
+        initiative = c.initiatives[key]
+        by_name: dict[str, PropertyDefinition] = {}
+        for position, d in enumerate(definitions, start=1):
+            definition = PropertyDefinition(
+                initiative_id=initiative.id,
+                name=d["name"],
+                type=d["type"],
+                position=float(position),
+                color=d.get("color"),
+                options=[
+                    dict(zip(("value", "label", "color"), option))
+                    for option in d["options"]
+                ]
+                if "options" in d
+                else None,
+            )
+            c.session.add(definition)
+            await c.session.flush()
+            by_name[definition.name] = definition
+            c.ids["property_definitions"].append(definition.id)
+        # Through the service the value editor uses, so a seeded value is
+        # held to the same type, option and membership rules a typed one is.
+        for kind, title, values in VALUES[c.key].get(key, ()):
+            setter, entities = _SETTERS[kind]
+            inputs = [
+                PropertyValueInput(
+                    property_id=by_name[name].id,
+                    value=c.users[value].id
+                    if by_name[name].type is PropertyType.user_reference
+                    else value,
+                )
+                for name, value in values.items()
+            ]
+            await setter(c.session, getattr(c, entities)[title], inputs, initiative.id)
+            c.ids["property_values"].extend(values)
+    await c.session.flush()

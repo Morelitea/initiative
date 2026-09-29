@@ -39,6 +39,7 @@ export function ImportPeopleStep({ people, value, onChange }: ImportPeopleStepPr
   return (
     <div className="space-y-4">
       <p className="text-muted-foreground text-xs">{t("wizard.people.note")}</p>
+      <p className="text-muted-foreground text-xs">{t("wizard.people.access")}</p>
       <ul className="space-y-3">
         {people.map((person) => {
           const who = person.name?.trim() || person.handle;

@@ -6,7 +6,6 @@ sees only the providers it is allowed to, and the narrowing it sets is what
 decides whether somebody arriving is one of theirs.
 """
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -22,8 +21,6 @@ from app.testing.factories import (
     get_auth_headers,
 )
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
-
 
 async def _seat(session: AsyncSession, *, auth_options: list[str] | None = None):
     """A community with somebody in the seat that decides who may enter."""
@@ -37,7 +34,7 @@ async def _seat(session: AsyncSession, *, auth_options: list[str] | None = None)
 
 
 def _base(guild_id: int) -> str:
-    return f"/api/v1/guilds/{guild_id}/auth/connections"
+    return f"/api/v1/communities/{guild_id}/auth/connections"
 
 
 async def test_the_seat_connects_narrows_and_disconnects(

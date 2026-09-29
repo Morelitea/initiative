@@ -10,8 +10,14 @@ from app.testing.schema_harness import route_session_to_guild
 from app.core.config import settings
 from app.core.security import create_upload_token
 from app.testing.factories import (
+    create_access_grant,
+    create_auth_provider,
     create_guild,
+    create_guild_auth_policy,
     create_guild_membership,
+    create_initiative,
+    create_initiative_member,
+    create_upload,
     create_user,
     get_auth_headers,
     get_auth_token,
@@ -40,7 +46,6 @@ def _stage_upload(guild_id: int, filename: str, content: bytes = b"hello") -> No
     get_guild_storage(guild_id).write(filename, content)
 
 
-@pytest.mark.integration
 async def test_upload_unauthenticated_returns_401(client: AsyncClient) -> None:
     """GET /uploads/<file> without any auth token returns 401."""
     uploads_dir = _uploads_dir()
@@ -53,7 +58,6 @@ async def test_upload_unauthenticated_returns_401(client: AsyncClient) -> None:
         test_file.unlink(missing_ok=True)
 
 
-@pytest.mark.integration
 async def test_upload_accessible_with_auth_header(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -81,7 +85,6 @@ async def test_upload_accessible_with_auth_header(
     assert response.status_code == 200
 
 
-@pytest.mark.integration
 async def test_a_served_upload_is_cacheable_but_not_indefinitely(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -123,7 +126,6 @@ async def test_a_served_upload_is_cacheable_but_not_indefinitely(
     assert UPLOAD_CACHE_SECONDS <= 3600
 
 
-@pytest.mark.integration
 async def test_upload_session_jwt_rejected_in_query_param(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -143,7 +145,6 @@ async def test_upload_session_jwt_rejected_in_query_param(
         test_file.unlink(missing_ok=True)
 
 
-@pytest.mark.integration
 async def test_upload_accessible_with_scoped_upload_token(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -172,7 +173,6 @@ async def test_upload_accessible_with_scoped_upload_token(
     assert response.status_code == 200
 
 
-@pytest.mark.integration
 async def test_scoped_upload_token_rejected_as_general_api_credential(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -185,7 +185,6 @@ async def test_scoped_upload_token_rejected_as_general_api_credential(
     assert response.status_code == 401
 
 
-@pytest.mark.integration
 async def test_issue_upload_token_endpoint(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -220,14 +219,12 @@ async def test_issue_upload_token_endpoint(
     assert response.status_code == 200
 
 
-@pytest.mark.integration
 async def test_issue_upload_token_requires_auth(client: AsyncClient) -> None:
     """The mint endpoint itself requires an authenticated session. SEC-12."""
     response = await client.post("/api/v1/auth/upload-token")
     assert response.status_code == 401
 
 
-@pytest.mark.integration
 async def test_upload_missing_file_returns_404(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -238,7 +235,6 @@ async def test_upload_missing_file_returns_404(
     assert response.status_code == 404
 
 
-@pytest.mark.integration
 async def test_upload_path_traversal_rejected(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -252,7 +248,6 @@ async def test_upload_path_traversal_rejected(
     assert response.status_code in (404, 422)
 
 
-@pytest.mark.integration
 async def test_upload_guild_member_can_access_file(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -280,7 +275,6 @@ async def test_upload_guild_member_can_access_file(
     assert response.status_code == 200
 
 
-@pytest.mark.integration
 async def test_upload_non_member_cannot_access_file(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -319,7 +313,6 @@ async def test_upload_non_member_cannot_access_file(
         test_file.unlink(missing_ok=True)
 
 
-@pytest.mark.integration
 async def test_upload_without_db_record_returns_404(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -345,7 +338,6 @@ async def test_upload_without_db_record_returns_404(
         test_file.unlink(missing_ok=True)
 
 
-@pytest.mark.integration
 async def test_security_headers_on_api_response(client: AsyncClient):
     """Every API response must carry baseline security headers."""
     response = await client.get("/api/v1/auth/bootstrap")
@@ -355,7 +347,6 @@ async def test_security_headers_on_api_response(client: AsyncClient):
     assert response.headers.get("referrer-policy") == "strict-origin-when-cross-origin"
 
 
-@pytest.mark.integration
 async def test_upload_row_in_guild_schema_is_served(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -411,80 +402,29 @@ async def test_upload_row_in_guild_schema_is_served(
     assert response.status_code == 404
 
 
-@pytest.mark.integration
-async def test_app_admin_needs_set_role_for_guild_schema(session, role_session):
-    """Regression for the uploads 500 (schema-per-guild grant boundary).
-
-    The serve route runs as ``app_admin``, which has no direct grant on the
-    uploads table — reading it requires ``SET ROLE`` into the guild role (what
-    ``set_rls_context`` does). A raw cross-schema ``SELECT`` as ``app_admin``
-    is permission-denied. The default superuser-backed ``session`` fixture
-    hides this (it bypasses grants), so this test runs as the REAL role via
-    ``role_session``.
-    """
-    from sqlalchemy import text
-
-    from app.db.schema_provisioning import guild_schema_name
-    from app.db.session import set_rls_context
-    from app.models.tenant.upload import Upload
-
-    user = await create_user(session)
-    guild = await create_guild(session, creator=user)
-    await route_session_to_guild(session, guild.id)
-    session.add(
-        Upload(
-            filename="grant_probe.jpg",
-            created_by=user.id,
-            size_bytes=1,
-        )
-    )
-    await session.commit()
-
-    admin = await role_session("app_admin")
-    schema = guild_schema_name(guild.id)
-
-    # Raw cross-schema read as app_admin → permission denied (the old bug).
-    with pytest.raises(Exception) as exc:  # asyncpg InsufficientPrivilegeError
-        await admin.exec(
-            text(f'SELECT 1 FROM "{schema}".uploads LIMIT 1')  # noqa: S608
-        )
-    assert "permission denied" in str(exc.value).lower()
-    await admin.rollback()
-
-    # The production pattern (SET ROLE via set_rls_context) succeeds.
-    await set_rls_context(admin, guild_id=guild.id)
-    row = (
-        await admin.exec(
-            text("SELECT filename FROM uploads WHERE filename = 'grant_probe.jpg'")
-        )
-    ).first()
-    assert row is not None
-
-
-@pytest.mark.integration
 async def test_upload_suspended_guild_member_404_grant_still_served(
     client: AsyncClient, session: AsyncSession
 ) -> None:
     """A member of a SUSPENDED guild can no longer fetch its uploads (404, the
     route's fail-closed shape), while a live PAM grant still serves — the
-    uploads path mirrors the resolver's member-only status gate."""
+    seam's member-only status gate."""
     from datetime import datetime, timedelta, timezone
 
     from app.models.platform.access_grant import AccessGrant
     from app.models.platform.guild import GuildStatus
-    from app.models.tenant.upload import Upload
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild)
+    initiative = await create_initiative(session, guild, user)
     _stage_upload(guild.id, "suspended_guild.txt")
-    await route_session_to_guild(session, guild.id)
-    session.add(
-        Upload(
-            filename="suspended_guild.txt",
-            created_by=user.id,
-            size_bytes=5,
-        )
+    await create_upload(
+        session,
+        guild,
+        user,
+        filename="suspended_guild.txt",
+        initiative_id=initiative.id,
+        claimed_at=datetime.now(timezone.utc),
     )
     guild.status = GuildStatus.suspended.value
     await session.commit()
@@ -519,7 +459,41 @@ async def test_upload_suspended_guild_member_404_grant_still_served(
     assert resp.status_code == 200, resp.text
 
 
-@pytest.mark.integration
+async def test_an_upload_is_reached_the_way_the_community_is(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """The media path is a way into the community like any other: it asks what
+    the community asks of the session, and a settings grant, which reaches the
+    community's configuration and none of its work, is not served its files."""
+    from app.models.tenant.upload import Upload
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild)
+    _stage_upload(guild.id, "rule.txt")
+    await route_session_to_guild(session, guild.id)
+    session.add(Upload(filename="rule.txt", created_by=user.id, size_bytes=5))
+    await session.commit()
+    path = f"/uploads/{guild.id}/rule.txt"
+
+    settings_grantee = await create_user(session, role="support")
+    await create_access_grant(
+        session,
+        user=settings_grantee,
+        guild=guild,
+        access_level="admin",
+        purpose="settings",
+    )
+    resp = await client.get(path, headers=get_auth_headers(settings_grantee))
+    assert resp.status_code == 404
+
+    provider = await create_auth_provider(session, slug="corp")
+    await create_guild_auth_policy(session, guild, provider)
+    resp = await client.get(path, headers=get_auth_headers(user))
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "GUILD_AUTH_STEP_UP_REQUIRED"
+
+
 async def test_a_served_upload_is_typed_from_its_row(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -559,7 +533,6 @@ async def test_a_served_upload_is_typed_from_its_row(
     assert response.headers["x-content-type-options"] == "nosniff"
 
 
-@pytest.mark.integration
 async def test_a_served_raster_stays_inline(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -590,7 +563,6 @@ async def test_a_served_raster_stays_inline(
     assert "content-disposition" not in response.headers
 
 
-@pytest.mark.integration
 async def test_a_row_without_a_recorded_type_falls_back_to_its_name(
     client: AsyncClient, session: AsyncSession
 ) -> None:
@@ -622,3 +594,42 @@ async def test_a_row_without_a_recorded_type_falls_back_to_its_name(
     assert markup.status_code == 200
     assert markup.headers["content-disposition"] == "attachment"
     assert markup.headers["content-security-policy"] == "script-src 'none'"
+
+
+async def test_an_upload_is_reached_through_the_initiative_that_shows_it(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Not yet saved anywhere, a file is its uploader's alone. Saved into an
+    initiative's content, that initiative's members read it and nobody else
+    in the guild does. Saved into content of the whole guild, every member
+    does."""
+    from datetime import datetime, timezone
+
+    uploader = await create_user(session)
+    guild = await create_guild(session, creator=uploader)
+    await create_guild_membership(session, user=uploader, guild=guild)
+    member = await create_user(session)
+    await create_guild_membership(session, user=member, guild=guild)
+    outsider = await create_user(session)
+    await create_guild_membership(session, user=outsider, guild=guild)
+    initiative = await create_initiative(session, guild, uploader)
+    await create_initiative_member(session, initiative, member)
+    now = datetime.now(timezone.utc)
+    kept = {
+        "draft.txt": {},
+        "initiative.txt": {"initiative_id": initiative.id, "claimed_at": now},
+        "guild.txt": {"claimed_at": now},
+    }
+    for name, overrides in kept.items():
+        _stage_upload(guild.id, name)
+        await create_upload(session, guild, uploader, filename=name, **overrides)
+
+    async def status(user, name: str) -> int:
+        response = await client.get(
+            f"/uploads/{guild.id}/{name}", headers=get_auth_headers(user)
+        )
+        return response.status_code
+
+    assert [await status(uploader, name) for name in kept] == [200, 200, 200]
+    assert [await status(member, name) for name in kept] == [404, 200, 200]
+    assert [await status(outsider, name) for name in kept] == [404, 404, 200]

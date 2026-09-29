@@ -1,5 +1,7 @@
 import type { DocumentSummary } from "@/api/generated/initiativeAPI.schemas";
 
+import { ownerCan } from "./can";
+
 let counter = 0;
 
 export function resetCounter(): void {
@@ -20,13 +22,13 @@ export function buildDocumentSummary(overrides: Partial<DocumentSummary> = {}): 
     updated_at: "2026-01-15T00:00:00.000Z",
     initiative: null,
     owner: null,
+    owner_app: null,
     projects: [],
     comment_count: 0,
     comments_enabled: true,
     grants: [],
     archived_at: null,
-    can_unarchive: false,
-    my_permission_level: "owner",
+    can: ownerCan(),
     tags: [],
     properties: [],
     document_type: "native",

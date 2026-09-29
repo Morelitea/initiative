@@ -37,9 +37,6 @@ def _names() -> list[str]:
     return sorted(dataset_names())
 
 
-pytestmark = pytest.mark.unit
-
-
 def _ctx(
     *,
     guild_id: int = 7,
@@ -420,7 +417,6 @@ class TestDeclaration:
         assert dataset("tasks").tool is Tool.project
 
 
-@pytest.mark.unit
 class TestEveryToolIsQueryable:
     """A tool nobody can ask about is a tool a dashboard cannot draw.
 

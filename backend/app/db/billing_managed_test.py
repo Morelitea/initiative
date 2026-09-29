@@ -16,8 +16,6 @@ from app.core.config import settings
 from app.testing import create_guild
 from app.testing.billing_managed import billing_manages_plans
 
-pytestmark = pytest.mark.integration
-
 
 async def _set_recorded(session: AsyncSession, guild_id: int, value: str | None):
     await session.exec(

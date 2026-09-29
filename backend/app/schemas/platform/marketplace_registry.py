@@ -1,9 +1,8 @@
-"""What an operator sees of the signed-registry client.
+"""What an operator sees of the marketplace registry client.
 
-Deployment bookkeeping, not catalog content: whether a registry is configured,
-what this deployment last accepted from it, and what a refresh just did. No
-guild appears here, and neither does any key material — the configured key set
-is read from configuration and never echoed back.
+Deployment bookkeeping, not catalog content: whether the deployment follows a
+registry, how the last refresh or bundle went, and what it did. No guild
+appears here, and no key material.
 """
 
 from datetime import datetime
@@ -15,28 +14,26 @@ from app.schemas.base import SanitizedBaseModel
 
 
 class RegistrySkippedListing(SanitizedBaseModel):
-    """One listing a verified index carried that this deployment did not take."""
+    """A listing (or a publisher) the repository carried that did not land."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    public_id: str
+    #: The listing's target path, or the publisher's role name.
+    name: str
     #: A ``MarketplaceRegistryMessages`` code naming why.
     code: str
 
 
 class RegistryRefreshRead(SanitizedBaseModel):
-    """The outcome of one refresh."""
+    """The outcome of one refresh or bundle upload."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    #: The index counter that was applied.
-    serial: Optional[int] = None
-    #: Which trusted key signed it.
-    key_id: Optional[str] = None
+    #: The version of the newest trusted root the repository verified under.
+    root_version: Optional[int] = None
     upserted: int = 0
     withdrawn: int = 0
-    #: True when the index was byte-identical to the one already applied, so
-    #: there was nothing to do.
+    #: True when the repository had not changed since the last clean refresh.
     unchanged: bool = False
     skipped: List[RegistrySkippedListing] = []
 
@@ -46,15 +43,30 @@ class RegistryStatusRead(SanitizedBaseModel):
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    #: False when no registry is configured, or ingestion is switched off. The
-    #: rest of the fields are then empty and no refresh runs.
+    #: The platform switch.
+    enabled: bool = False
+    #: False when this build ships no trusted root, so there is nothing to
+    #: follow and nothing else here is filled in.
     configured: bool = False
-    registry_url: Optional[str] = None
-    key_id: Optional[str] = None
-    last_serial: Optional[int] = None
-    last_generated_at: Optional[datetime] = None
-    last_fetched_at: Optional[datetime] = None
+    #: True when ``MARKETPLACE_REGISTRY_ROOT`` replaces the shipped root.
+    custom_root: bool = False
+    registry_url: str = ""
+    root_version: Optional[int] = None
+    #: When the verified metadata expires. Past it the listings from the
+    #: registry are stale until a refresh succeeds.
+    expires_at: Optional[datetime] = None
+    #: Whether the last attempt read the network or an uploaded bundle.
+    last_source: Optional[str] = None
+    last_attempt_at: Optional[datetime] = None
     last_success_at: Optional[datetime] = None
     #: A ``MarketplaceRegistryMessages`` code, or null after a clean refresh.
     last_error: Optional[str] = None
     listing_count: int = 0
+
+
+class RegistrySettings(SanitizedBaseModel):
+    """The platform switch for the marketplace registry."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    enabled: bool

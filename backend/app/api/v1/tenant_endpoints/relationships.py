@@ -30,10 +30,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import select
 
 from app.api.deps import (
-    GuildContext,
     RLSSessionDep,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
 from app.core.messages import RelationshipMessages
 from app.core.relationships import (
@@ -57,8 +56,6 @@ from app.services.tenant import relationships as relationships_service
 from app.services.tenant.relationships import Endpoint
 
 router = APIRouter()
-
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 def _parse_ref(value: str) -> EndpointRef:

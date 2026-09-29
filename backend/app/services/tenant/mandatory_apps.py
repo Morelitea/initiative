@@ -5,7 +5,7 @@ An operator says so on the registration (``mandatory``), and this is what that
 statement does — every guild has the app, already there, with no admin
 discovering it in a catalog and no admin able to remove it.
 
-Four properties, and each one is a deliberate choice:
+Six properties, and each one is a deliberate choice:
 
 * **A guild gets it at creation, and an existing guild gets it at boot.** The
   same sweep pattern that reprovisions stale schemas, so the flag reaches guilds
@@ -16,6 +16,15 @@ Four properties, and each one is a deliberate choice:
   next boot tries again.
 * **The kill switch outranks the flag.** A registration the operator turned off
   installs nowhere new — deactivating an app stops it exactly like any other.
+* **It is granted what it asks for, within the ceiling.** The manifest's
+  requested scopes, capped by the registration's ``scope_ceiling``: the
+  operator's registration is the consent a seat would otherwise give. An
+  install already there that holds no grant is given the same on the next
+  sweep; one the seat has granted something is left as the seat set it.
+* **It is placed in every initiative.** Each one that exists when it is
+  installed, and each one created afterwards (``follows_new_initiatives``). The
+  seat may still remove it from any single initiative, and that stays removed:
+  nothing sweeps the initiatives that already exist.
 * **Clearing the flag destroys nothing.** Nothing here removes an install, so an
   app that stops being mandatory simply becomes an ordinary one a guild admin
   may now remove. Tearing an app down is uninstalling it, which is a different
@@ -35,14 +44,16 @@ from typing import Optional
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GUILD_ADMIN_ROLES, Guild, GuildMembership
+from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildMembership
 from app.models.tenant.guild_app import GuildApp
-from app.services.marketplace import registration_lookup
+from app.services.guild_sweeps import Scope, each_guild
+from app.services.marketplace import app_installs, registration_lookup
 from app.services.marketplace.definitions import GUILD_INSTALLABLE_APP_KINDS
 from app.services.marketplace.installs import (
     ListingInstallError,
     resolve_listing_install,
 )
+from app.services.tenant import app_schedules
 from app.services.tenant import guild_apps as guild_apps_service
 
 logger = logging.getLogger(__name__)
@@ -51,6 +62,7 @@ __all__ = [
     "BackfillResult",
     "backfill_mandatory_apps",
     "install_mandatory_apps",
+    "mandatory_grant",
 ]
 
 
@@ -61,6 +73,19 @@ class BackfillResult:
     guilds: int = 0
     installed: int = 0
     failed: int = 0
+
+
+def mandatory_grant(
+    definition: dict, registration: registration_lookup.RegistrationSnapshot
+) -> list[str]:
+    """The scopes a mandatory install is granted: what its manifest requests
+    and its registration's ceiling allows, sorted.
+
+    Written on the system engine, which the install's grant guard admits.
+    """
+    return sorted(
+        guild_apps_service.grantable_scopes(definition, registration.scope_ceiling)
+    )
 
 
 async def _installer_user_id(
@@ -101,7 +126,7 @@ async def install_mandatory_apps(
     commits its apps together with the rest of its seed.
 
     Returns the listing uids installed. Anything that could not be installed —
-    a registration that never verified, a listing this deployment does not hold,
+    a registration naming no listing, a listing this deployment does not hold,
     a version needing a newer build — is logged and skipped, because none of
     those is a reason to fail whatever the caller was doing.
 
@@ -128,10 +153,10 @@ async def install_mandatory_apps(
     installed: list[str] = []
     for registration in registrations:
         if registration.listing_uid is None:
-            # The uid is recorded by the handshake, so a registration that has
-            # never verified does not yet name a listing to install.
+            # A registration from before the listing was stated names none,
+            # so there is nothing to install.
             logger.info(
-                "mandatory apps: %s has not verified yet, so it names no listing",
+                "mandatory apps: %s names no listing to install",
                 registration.public_id,
             )
             continue
@@ -142,6 +167,19 @@ async def install_mandatory_apps(
             )
         ).first()
         if existing is not None:
+            # An install the registration marked mandatory after it landed
+            # follows new initiatives from here on. The initiatives that exist
+            # already keep whatever placement the seat gave them.
+            if not existing.follows_new_initiatives:
+                existing.follows_new_initiatives = True
+                session.add(existing)
+            # One that holds no grant yet gets what a new install would. A
+            # grant the seat already set is theirs and is left as it is.
+            if not existing.granted_scopes:
+                granted = mandatory_grant(existing.definition or {}, registration)
+                if granted:
+                    existing.granted_scopes = granted
+                    session.add(existing)
             continue
 
         try:
@@ -165,7 +203,7 @@ async def install_mandatory_apps(
             )
             continue
 
-        await guild_apps_service.install_app(
+        app = await guild_apps_service.install_app(
             session,
             listing_uid=listing.uid,
             listing_version=version.version,
@@ -175,7 +213,17 @@ async def install_mandatory_apps(
             name=(definition.get("default_name") or listing.name).strip(),
             actor_user_id=created_by,
             via="mandatory",
+            granted_scopes=mandatory_grant(definition, registration),
         )
+        # Placed in every initiative there is, and in each one created later.
+        app.follows_new_initiatives = True
+        session.add(app)
+        await session.flush()
+        await guild_apps_service.place_in_every_initiative(session, app)
+        # Indexed now, before the caller commits: a guild whose seed fails is
+        # removed, and its index rows with it.
+        await app_installs.record(guild_id, app)
+        await app_schedules.reconcile(guild_id, app.id, definition, session=session)
         installed.append(listing.uid)
 
     return installed
@@ -184,41 +232,27 @@ async def install_mandatory_apps(
 async def backfill_mandatory_apps() -> BackfillResult:
     """Place mandatory apps into guilds that predate the flag.
 
-    Runs at boot on the system engine, routing into each guild as a guild admin
-    — the bypass is dropped by ``SET ROLE``, so the sweep needs the guild's own
-    authority to write into its schema. A guild that fails is rolled back and
-    logged; the others still get their app, and the next boot tries again.
+    Runs at boot, visiting every guild whose schema exists on a system session
+    from its cohort. A guild that fails is rolled back and logged; the others
+    still get their app, and the next boot tries again.
 
     Returns immediately when nothing is marked mandatory, which is every
     deployment that has not asked for this.
     """
-    from app.db import session as db_session
-
     if not await registration_lookup.mandatory_registrations():
         return BackfillResult()
 
-    installed = failed = 0
-    async with db_session.SystemSessionLocal() as session:
-        guild_ids = list(
-            (await session.exec(select(Guild.id).order_by(Guild.id))).all()
-        )
-        for guild_id in guild_ids:
-            try:
-                # One session walks every guild schema, and ids restart at 1 in
-                # each of them — so a GuildApp(1) loaded from the last guild is
-                # still in the identity map when the next one queries for its
-                # own. Detach everything between guilds; nothing is carried
-                # across a boundary on purpose.
-                session.expunge_all()
-                await db_session.set_rls_context(session, guild_id=guild_id)
-                added = await install_mandatory_apps(session, guild_id=guild_id)
-                await session.commit()
-                installed += len(added)
-            except Exception:
-                await session.rollback()
-                failed += 1
-                logger.exception(
-                    "mandatory apps: guild %s could not be backfilled", guild_id
-                )
+    visited = succeeded = installed = 0
 
-    return BackfillResult(guilds=len(guild_ids), installed=installed, failed=failed)
+    async def backfill(session: AsyncSession, guild_id: int) -> None:
+        nonlocal visited, succeeded, installed
+        visited += 1
+        added = await install_mandatory_apps(session, guild_id=guild_id)
+        await session.commit()
+        succeeded += 1
+        installed += len(added)
+
+    await each_guild([(Scope.PROVISIONED, backfill)], name="mandatory-apps")
+    return BackfillResult(
+        guilds=visited, installed=installed, failed=visited - succeeded
+    )

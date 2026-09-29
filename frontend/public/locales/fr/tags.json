@@ -12,9 +12,8 @@
     "deleted": "Étiquette supprimée",
     "saving": "Enregistrement…",
     "save": "Enregistrer",
-    "tasksTab": "Tâches ({{count}})",
-    "projectsTab": "Projets ({{count}})",
-    "documentsTab": "Documents ({{count}})"
+    "toolTab": "{{tool}} ({{count}})",
+    "empty": "Rien ne porte encore cette étiquette."
   },
   "manage": {
     "edit": "Modifier les étiquettes",
@@ -54,7 +53,8 @@
     "expand": "Développer"
   },
   "badge": {
-    "remove": "Supprimer l'étiquette {{name}}"
+    "remove": "Supprimer l'étiquette {{name}}",
+    "more": "+{{count}}"
   },
   "updated": "Étiquette mise à jour.",
   "deleted": "Étiquette supprimée.",

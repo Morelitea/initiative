@@ -12,9 +12,15 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit
 
 import httpx
+
+from app.services.safe_http import ResponseTooLargeError, request_public_target
+from app.services.webhook_target_url import (
+    WebhookTargetUrlError,
+    WebhookTargetUrlPrivateError,
+)
 
 ClientFactory = Callable[[], httpx.AsyncClient]
 
@@ -28,6 +34,16 @@ _ERROR_SNIPPET_MAX_BYTES: int = 2048
 class OidcHttpError(Exception):
     """An OIDC HTTPS fetch failed — non-https URL, transport/status error,
     oversized body, or invalid JSON. Callers wrap it in their own error."""
+
+
+class OidcHttpStatusError(OidcHttpError):
+    """The server answered, with an error status. ``body`` is what it said,
+    parsed when it was JSON."""
+
+    def __init__(self, message: str, *, status: int, body: Any = None) -> None:
+        super().__init__(message)
+        self.status = status
+        self.body = body
 
 
 def require_https(url: str) -> None:
@@ -132,3 +148,70 @@ async def _request_json(
         return json.loads(body)
     except ValueError as exc:
         raise OidcHttpError(f"invalid JSON from {url}: {exc}") from exc
+
+
+async def post_form_json_pinned(
+    url: str,
+    data: dict[str, str],
+    *,
+    headers: dict[str, str] | None = None,
+    transport: httpx.AsyncBaseTransport | None = None,
+    timeout_seconds: float = DEFAULT_HTTP_TIMEOUT_SECONDS,
+    max_response_bytes: int = DEFAULT_MAX_RESPONSE_BYTES,
+) -> Any:
+    """POST ``data`` as a form to a vendor's https endpoint and return the
+    parsed JSON response.
+
+    The same contract as :func:`post_form_json`, with the connection made
+    through :func:`app.services.safe_http.request_public_target`: the host is
+    resolved once, checked against the egress policy, and connected to at
+    that address. An error status raises :class:`OidcHttpStatusError` carrying
+    what the server said. A form-encoded answer is read too, since some token
+    endpoints answer in the encoding they were sent.
+    """
+    require_https(url)
+    merged = {
+        "Accept": "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
+        **(headers or {}),
+    }
+    try:
+        response = await request_public_target(
+            "POST",
+            url,
+            headers=merged,
+            content=urlencode(data).encode("ascii"),
+            timeout=timeout_seconds,
+            transport=transport,
+            max_bytes=max_response_bytes,
+        )
+    except ResponseTooLargeError as exc:
+        raise OidcHttpError(
+            f"response from {url} exceeds the {max_response_bytes}-byte cap"
+        ) from exc
+    except (WebhookTargetUrlError, WebhookTargetUrlPrivateError) as exc:
+        raise OidcHttpError(f"refusing target {url!r}: {exc}") from exc
+    except httpx.HTTPError as exc:
+        raise OidcHttpError(f"fetch failed for {url}: {exc}") from exc
+
+    body = response.content
+    parsed: Any
+    try:
+        parsed = json.loads(body) if body else None
+    except ValueError:
+        if "application/x-www-form-urlencoded" in response.headers.get(
+            "content-type", ""
+        ):
+            parsed = dict(parse_qsl(body.decode("utf-8", errors="replace")))
+        else:
+            parsed = None
+    if response.status_code >= 400:
+        snippet = body[:_ERROR_SNIPPET_MAX_BYTES].decode("utf-8", errors="replace")
+        raise OidcHttpStatusError(
+            f"{url} returned {response.status_code}: {snippet}",
+            status=response.status_code,
+            body=parsed,
+        )
+    if parsed is None:
+        raise OidcHttpError(f"invalid JSON from {url}")
+    return parsed

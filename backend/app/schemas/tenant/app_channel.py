@@ -1,13 +1,16 @@
 """What an app service sees of its own installs.
 
-These payloads serialize per-guild install state for the machine-to-machine
-channel an app calls back on, so they are shaped by two rules the browser-facing
-schemas in :mod:`app.schemas.tenant.guild_app` do not share:
+These payloads serialize one install's state for the calls an app makes about
+its own installation (``/app-platform/installation/*``), so they are shaped by
+two rules the browser-facing schemas in :mod:`app.schemas.tenant.guild_app` do
+not share:
 
-* **Credentials do appear here — in exactly one payload.**
-  :class:`AppInstallConfigRead` is the custody channel: the app is the party
-  that uses these values, so it is handed them decrypted. Every other payload,
-  the connections view included, carries state and never a value.
+* **Credentials do appear here — in two payloads.**
+  :class:`AppInstallConfigRead` carries the values a community typed and the
+  managed values a connection's ``after_connect`` hook returned, decrypted; a
+  flow's tokens are never in it. :class:`AppConnectionToken` is one usable
+  access token, asked for by reference. Every other payload, the connections
+  view included, carries state and never a value.
 * **Members are references.** A per-member connection is addressed by its
   opaque ``connection_ref``; there is no user id, email, or display name in any
   shape below.
@@ -28,45 +31,13 @@ from app.schemas.base import SanitizedBaseModel
 __all__ = [
     "AppConnectionRead",
     "AppConnectionsResponse",
-    "AppConnectionWrite",
-    "AppEventIngest",
+    "AppConnectionToken",
     "AppInstallConfigRead",
-    "AppInstallRead",
-    "AppInstallsResponse",
+    "AppInstallationEvent",
     "AppMemberConfigRead",
     "AppStatusReport",
     "AppStatusRead",
 ]
-
-
-class AppInstallRead(SanitizedBaseModel):
-    """One guild that has this app installed.
-
-    Ids and state only — which guild, which install, which version it is pinned
-    to, and whether the guild has it switched on. Nothing about the guild's
-    members, and nothing an app would need a second channel to be told.
-    """
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    install_id: int
-    guild_ref: str
-    listing_uid: str
-    listing_version: str
-    name: str
-    enabled: bool
-    #: The app's own last verdict, echoed back so it can tell what it reported.
-    config_state: str = "unverified"
-    config_state_detail: Optional[str] = None
-    #: Whether a guild admin still has a guild-wide connection to fill in.
-    needs_config: bool = False
-    updated_at: datetime
-
-
-class AppInstallsResponse(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    items: List[AppInstallRead] = []
 
 
 class AppMemberConfigRead(SanitizedBaseModel):
@@ -83,10 +54,11 @@ class AppMemberConfigRead(SanitizedBaseModel):
 class AppInstallConfigRead(SanitizedBaseModel):
     """The decrypted configuration for one install — the custody channel.
 
-    ``connections`` holds the guild-wide values an admin typed, keyed by
-    connection id; ``member_connections`` holds the per-member values the app
-    itself wrote back, keyed by reference. Both are plaintext, and this is the
-    only payload in the build where that is true.
+    ``connections`` holds the guild-wide values, keyed by connection id;
+    ``member_connections`` holds each member's managed values, keyed by
+    reference. ``connection_refs`` names the handle of each guild-wide
+    connection that has one, for asking for its token. A flow's tokens are in
+    none of them.
     """
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
@@ -100,6 +72,7 @@ class AppInstallConfigRead(SanitizedBaseModel):
     config_state_detail: Optional[str] = None
     needs_config: bool = False
     connections: Dict[str, Dict[str, Any]] = {}
+    connection_refs: Dict[str, str] = {}
     member_connections: List[AppMemberConfigRead] = []
 
 
@@ -129,20 +102,18 @@ class AppConnectionsResponse(SanitizedBaseModel):
     items: List[AppConnectionRead] = []
 
 
-class AppConnectionWrite(SanitizedBaseModel):
-    """What an app writes back after completing a vendor flow.
+class AppConnectionToken(SanitizedBaseModel):
+    """A usable access token for one connection.
 
-    Only fields the pinned manifest marked ``managed`` may be set this way; a
-    key sent as ``null`` clears that value, and a key left out is untouched, so
-    a refresh that carries one rotated token does not disturb the rest.
+    Refreshed first when it was close to expiring, or minted for a connection
+    that declares a ``jwt_bearer`` token. ``expires_at`` is in epoch seconds,
+    and absent when the vendor did not say.
     """
 
-    values: Dict[str, Any] = {}
-    #: ``pending`` while a flow is still in progress; otherwise the stored
-    #: values decide, so an app cannot claim a connection it does not hold.
-    status: Optional[Literal["pending", "connected"]] = None
-    #: The vendor account the member connected as, e.g. ``@alice``.
-    account_label: Optional[str] = Field(default=None, max_length=200)
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    access_token: str
+    expires_at: Optional[int] = None
 
 
 class AppStatusReport(SanitizedBaseModel):
@@ -166,14 +137,14 @@ class AppStatusRead(SanitizedBaseModel):
     config_state_detail: Optional[str] = None
 
 
-class AppEventIngest(SanitizedBaseModel):
-    """A third-party event an app is re-emitting into a guild.
+class AppInstallationEvent(SanitizedBaseModel):
+    """An event an app emits in the community whose install its token names.
 
-    The guild is named because one app serves many; the *app* is not, because it
-    is established from the request's signature. ``event_type`` is checked
-    against the pinned definition and against the caller's own namespace.
+    ``event_type`` is checked against the pinned definition and against the
+    caller's own namespace. ``initiative_id`` names the initiative the event
+    is about, when it is about one.
     """
 
-    guild_ref: str
     event_type: str = Field(max_length=200)
     payload: Dict[str, Any] = {}
+    initiative_id: Optional[int] = None

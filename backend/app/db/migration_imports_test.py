@@ -19,9 +19,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-import pytest
-
-pytestmark = pytest.mark.unit
 
 _VERSIONS = Path(__file__).resolve().parents[2] / "alembic" / "versions"
 
@@ -38,13 +35,16 @@ _VERSIONS = Path(__file__).resolve().parents[2] / "alembic" / "versions"
 #: database converges on that module's bodies, re-applied on each boot and
 #: diffed by ``authorization_test``, so a literal copied into a revision is
 #: replaced the next time the app starts. Copying one would only add a second
-#: place for the same SQL to drift.
+#: place for the same SQL to drift. ``app.services.storage`` is where the
+#: deployment keeps its files: a migration that copies one must write it where
+#: the current app reads it, as with encryption.
 _ALLOWED = frozenset(
     {
         "app.db.guild_migrations",
         "app.core.config",
         "app.core.encryption",
         "app.db.authorization",
+        "app.services.storage",
     }
 )
 

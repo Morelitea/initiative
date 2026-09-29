@@ -5,54 +5,41 @@ guild's AI providers here (guild schema). Members attach their own keys
 referencing these by ``(scope="guild", id)``. Guild-level table (guild-wide
 config, schema-boundary protected). ``base_url`` is validated public-only —
 a guild admin can never persist a private/internal target.
+
+A connection's shared key is in ``guild_ai_connection_keys``, which the seat
+and the system engine read. A trigger keeps ``has_api_key`` in step with it,
+so what a member reads is whether the connection has a key.
 """
 
-from datetime import datetime, timezone
-from typing import Optional
-
-from sqlalchemy import Boolean, Column, DateTime, String
-from sqlmodel import Field
+from sqlalchemy import Column, ForeignKey, Integer, String
+from sqlmodel import Field, SQLModel
 from pydantic import ConfigDict
 
+from app.models.platform.ai_connection import AIConnectionColumns
 from app.models.tenant._mixins import CreatedByMixin
 
 
-class GuildAIConnection(CreatedByMixin, table=True):
+class GuildAIConnection(AIConnectionColumns, CreatedByMixin, table=True):
     __tablename__ = "guild_ai_connections"
     __allow_unmapped__ = True
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    id: Optional[int] = Field(default=None, primary_key=True)
-    label: str = Field(sa_column=Column(String(100), nullable=False))
-    provider: str = Field(sa_column=Column(String(50), nullable=False))
-    base_url: Optional[str] = Field(
-        default=None, sa_column=Column(String(1000), nullable=True)
+    has_api_key: bool = Field(
+        default=False, nullable=False, sa_column_kwargs={"server_default": "false"}
     )
-    model: Optional[str] = Field(
-        default=None, sa_column=Column(String(500), nullable=True)
+
+
+class GuildAIConnectionKey(SQLModel, table=True):
+    """The shared key of one guild AI connection. No row means no key."""
+
+    __tablename__ = "guild_ai_connection_keys"
+
+    connection_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("guild_ai_connections.id", ondelete="CASCADE"),
+            primary_key=True,
+            autoincrement=False,
+        )
     )
-    api_key_encrypted: Optional[str] = Field(
-        default=None, sa_column=Column(String(2000), nullable=True)
-    )
-    enabled: bool = Field(
-        default=True,
-        sa_column=Column(Boolean, nullable=False, server_default="true"),
-    )
-    is_default: bool = Field(
-        default=False,
-        sa_column=Column(Boolean, nullable=False, server_default="false"),
-    )
-    # Whether members may attach their own key to this connection. When false,
-    # this connection uses its own shared key only (members can't override).
-    allow_member_keys: bool = Field(
-        default=True,
-        sa_column=Column(Boolean, nullable=False, server_default="true"),
-    )
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
+    api_key_encrypted: str = Field(sa_column=Column(String(2000), nullable=False))

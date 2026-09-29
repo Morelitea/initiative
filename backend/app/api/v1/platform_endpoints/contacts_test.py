@@ -82,7 +82,6 @@ async def _rail(session: AsyncSession, user: User, *guilds: Guild) -> None:
 # --- sections ---------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_an_account_on_its_own_has_nothing_to_list(
     client: AsyncClient, acting_user
 ):
@@ -98,7 +97,6 @@ async def test_an_account_on_its_own_has_nothing_to_list(
     assert favorites.json() == {"items": [], "total_count": 0}
 
 
-@pytest.mark.integration
 async def test_sections_follow_rail_order(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -122,7 +120,6 @@ async def test_sections_follow_rail_order(
     ]
 
 
-@pytest.mark.integration
 async def test_only_a_community_the_caller_shares_gets_a_section(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -146,7 +143,6 @@ async def test_only_a_community_the_caller_shares_gets_a_section(
     assert theirs.id not in ids
 
 
-@pytest.mark.integration
 async def test_a_section_names_the_other_people_who_are_still_here(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -169,7 +165,6 @@ async def test_a_section_names_the_other_people_who_are_still_here(
     assert section["total_count"] == 0
 
 
-@pytest.mark.integration
 async def test_sections_page_within_each_guild(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -191,7 +186,6 @@ async def test_sections_page_within_each_guild(
     assert section["has_next"] is False
 
 
-@pytest.mark.integration
 async def test_guild_ids_narrows_to_one_section(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -209,7 +203,6 @@ async def test_guild_ids_narrows_to_one_section(
 # --- how a person is drawn ---------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_both_ways_of_listing_someone_draw_them_the_same(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -234,7 +227,6 @@ async def test_both_ways_of_listing_someone_draw_them_the_same(
 # --- names, per guild -------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_a_guild_that_hides_real_names_neither_shows_nor_matches_them(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -259,7 +251,6 @@ async def test_a_guild_that_hides_real_names_neither_shows_nor_matches_them(
 # --- the shared-guild chip --------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_shared_guilds_named_on_every_appearance(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -287,7 +278,6 @@ async def test_shared_guilds_named_on_every_appearance(
         assert elsewhere.id not in section["items"][0]["shared_guild_ids"]
 
 
-@pytest.mark.integration
 async def test_shared_guilds_stable_across_pages(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -325,7 +315,6 @@ async def test_shared_guilds_stable_across_pages(
 # --- search -----------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_search_finds_someone_past_the_first_page(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -348,7 +337,6 @@ async def test_search_finds_someone_past_the_first_page(
     assert [i["id"] for i in section["items"]] == [target.id]
 
 
-@pytest.mark.integration
 async def test_search_hides_sections_with_no_match(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -366,7 +354,6 @@ async def test_search_hides_sections_with_no_match(
 # --- favorites --------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_favorite_roundtrip_and_idempotence(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -395,7 +382,6 @@ async def test_favorite_roundtrip_and_idempotence(
     ).status_code == 204
 
 
-@pytest.mark.integration
 async def test_favorite_survives_the_row_appearing_underneath_it(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -421,7 +407,6 @@ async def test_favorite_survives_the_row_appearing_underneath_it(
     assert len(rows) == 1
 
 
-@pytest.mark.integration
 async def test_favorite_someone_sharing_no_guild(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -438,7 +423,6 @@ async def test_favorite_someone_sharing_no_guild(
     assert (await client.get(SECTIONS, headers=a.headers)).json()["sections"] == []
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "target,expected,detail",
     [
@@ -458,7 +442,6 @@ async def test_who_cannot_be_starred(
     assert response.json()["detail"] == detail
 
 
-@pytest.mark.integration
 async def test_suspended_favorite_drops_out_and_returns(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -478,7 +461,6 @@ async def test_suspended_favorite_drops_out_and_returns(
     assert [item["id"] for item in listed["items"]] == [other.id]
 
 
-@pytest.mark.integration
 async def test_favorites_search_matches_the_handle(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -500,7 +482,6 @@ async def test_favorites_search_matches_the_handle(
     assert by_name["items"] == []
 
 
-@pytest.mark.integration
 async def test_a_favorites_list_is_private(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

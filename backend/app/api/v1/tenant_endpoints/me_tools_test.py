@@ -2,10 +2,8 @@
 
 ``GET /api/v1/me/{tool}`` is one route mounted per tool out of
 ``MY_TOOL_LISTS``, so the proofs that hold for every tool are parametrised
-rather than written per tool: they run over the incumbent (queues) and the
-three lists that were hand-written copies of the same merge until the registry
-took them over (projects, documents, calendars). What belongs to one tool — a
-project template, a guild calendar — keeps its own case below.
+over the ``Tool`` enum rather than written per tool. What belongs to one tool
+— a guild calendar, a project's archive — keeps its own case below.
 
 ``GET /api/v1/me/tools/counts``, which is what decides the page's tabs, is at
 the end.
@@ -15,13 +13,12 @@ from datetime import datetime, timezone
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import delete as sa_delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
 from app.models.platform.guild import GuildRole
-from app.models.tenant.resource_grant import ResourceGrant
 from app.testing import (
+    strip_non_owner_grants,
     Actor,
     create_calendar,
     create_guild,
@@ -30,21 +27,18 @@ from app.testing import (
     create_initiative,
     create_initiative_member,
     create_project,
+    create_tool_entity,
     create_user,
     get_auth_headers,
 )
+from app.services.tenant.my_tools import tool_model
 
-#: The tools the shared proofs run over: the one that has always answered here,
-#: and the three that used to answer from a copy of this merge in their own
-#: module.
-SHARED_TOOLS = (Tool.queue, Tool.project, Tool.document, Tool.calendar)
-
-per_tool = pytest.mark.parametrize("tool", SHARED_TOOLS, ids=lambda t: t.value)
+per_tool = pytest.mark.parametrize("tool", list(Tool), ids=lambda t: t.value)
 
 
 def _path(tool: Tool) -> str:
-    """The cross-guild list route for a tool — the plural in kebab case."""
-    return f"/api/v1/me/{tool.plural.replace('_', '-')}"
+    """The cross-guild list route for a tool."""
+    return f"/api/v1/me/{tool.route_segment}"
 
 
 def _keyed(response) -> set[tuple[int, int]]:
@@ -54,16 +48,11 @@ def _keyed(response) -> set[tuple[int, int]]:
 
 
 async def _enable_tools(client, actor):
-    """Turn on the toggleable tools for the actor's initiative."""
+    """Turn on every tool for the actor's initiative."""
     response = await client.patch(
         actor.g(f"/initiatives/{actor.initiative.id}"),
         headers=actor.headers,
-        json={
-            "queues_enabled": True,
-            "counter_groups_enabled": True,
-            "dashboards_enabled": True,
-            "calendars_enabled": True,
-        },
+        json={tool.view_permission: True for tool in Tool},
     )
     assert response.status_code == 200, response.text
 
@@ -74,9 +63,8 @@ async def _create(client, actor, tool: Tool, name: str) -> dict:
     Every tool is created the same way — a name and the initiative that holds
     it — so the route is derived from the enum rather than listed per tool.
     """
-    segment = tool.plural.replace("_", "-")
     response = await client.post(
-        actor.g(f"/{segment}/"),
+        actor.g(f"/{tool.route_segment}/"),
         headers=actor.headers,
         json={"name": name, "initiative_id": actor.initiative.id},
     )
@@ -84,18 +72,20 @@ async def _create(client, actor, tool: Tool, name: str) -> dict:
     return response.json()
 
 
-async def _strip_non_owner_grants(session, tool: Tool, row_id: int, owner_id: int):
-    """Remove every grant except the owner's own, so the row reaches nobody
-    else. (is_distinct_from: role grants carry a NULL user_id, which a plain
-    ``!=`` would silently skip.)"""
-    await session.exec(
-        sa_delete(ResourceGrant).where(
-            ResourceGrant.resource_type == tool.value,
-            ResourceGrant.resource_id == row_id,
-            ResourceGrant.user_id.is_distinct_from(owner_id),
-        )
+async def _second_guild(client, session: AsyncSession, actor: Actor) -> Actor:
+    """The actor's user in a second guild of their own, every tool switched on.
+
+    The same user and auth, bound to the new guild so ``.g()`` addresses it."""
+    guild = await create_guild(session, creator=actor.user, name="Second Guild")
+    await create_guild_membership(
+        session, user=actor.user, guild=guild, role=GuildRole.admin
     )
-    await session.commit()
+    initiative = await create_initiative(session, guild, actor.user, name="Initiative")
+    second = Actor(
+        user=actor.user, headers=actor.headers, guild=guild, initiative=initiative
+    )
+    await _enable_tools(client, second)
+    return second
 
 
 # ---------------------------------------------------------------------------
@@ -103,7 +93,6 @@ async def _strip_non_owner_grants(session, tool: Tool, row_id: int, owner_id: in
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 @per_tool
 async def test_the_list_answers_with_what_reaches_the_caller(
     client: AsyncClient, acting_user, tool: Tool
@@ -121,7 +110,6 @@ async def test_the_list_answers_with_what_reaches_the_caller(
     assert data["total_count"] >= 1
 
 
-@pytest.mark.integration
 @per_tool
 async def test_a_guild_the_caller_is_not_in_contributes_nothing(
     client: AsyncClient, acting_user, tool: Tool
@@ -138,7 +126,6 @@ async def test_a_guild_the_caller_is_not_in_contributes_nothing(
     assert (stranger.guild.id, theirs["id"]) not in _keyed(response)
 
 
-@pytest.mark.integration
 @per_tool
 async def test_created_by_me_keeps_only_what_the_caller_wrote(
     client: AsyncClient, acting_user, tool: Tool
@@ -163,7 +150,6 @@ async def test_created_by_me_keeps_only_what_the_caller_wrote(
     assert theirs["id"] not in {item["id"] for item in mine.json()["items"]}
 
 
-@pytest.mark.integration
 @per_tool
 async def test_guild_ids_narrows_the_merge(
     client: AsyncClient, session: AsyncSession, acting_user, tool: Tool
@@ -172,17 +158,7 @@ async def test_guild_ids_narrows_the_merge(
     ``guild_ids`` narrows it to the ones named."""
     a1 = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _enable_tools(client, a1)
-    user = a1.user
-
-    guild2 = await create_guild(session, creator=user, name="Second Guild")
-    await create_guild_membership(
-        session, user=user, guild=guild2, role=GuildRole.admin
-    )
-    init2 = await create_initiative(session, guild2, user, name="Initiative")
-    # A second actor view for the SAME user bound to guild2, so a2.g() addresses
-    # guild2 while a2.headers is still the user's auth.
-    a2 = Actor(user=user, headers=a1.headers, guild=guild2, initiative=init2)
-    await _enable_tools(client, a2)
+    a2 = await _second_guild(client, session, a1)
 
     row1 = await _create(client, a1, tool, "In Guild 1")
     row2 = await _create(client, a2, tool, "In Guild 2")
@@ -190,17 +166,16 @@ async def test_guild_ids_narrows_the_merge(
     both = await client.get(_path(tool), headers=a1.headers)
     assert both.status_code == 200
     assert (a1.guild.id, row1["id"]) in _keyed(both)
-    assert (guild2.id, row2["id"]) in _keyed(both)
+    assert (a2.guild.id, row2["id"]) in _keyed(both)
 
     narrowed = await client.get(
         f"{_path(tool)}?guild_ids={a1.guild.id}", headers=a1.headers
     )
     assert narrowed.status_code == 200
     assert (a1.guild.id, row1["id"]) in _keyed(narrowed)
-    assert (guild2.id, row2["id"]) not in _keyed(narrowed)
+    assert (a2.guild.id, row2["id"]) not in _keyed(narrowed)
 
 
-@pytest.mark.integration
 @per_tool
 async def test_search_narrows_by_name(client: AsyncClient, acting_user, tool: Tool):
     """The filter box reads the same index the search page does."""
@@ -217,30 +192,52 @@ async def test_search_narrows_by_name(client: AsyncClient, acting_user, tool: To
     assert beta["id"] not in found
 
 
-@pytest.mark.integration
 @per_tool
 async def test_pagination_walks_the_merged_list(
-    client: AsyncClient, acting_user, tool: Tool
+    client: AsyncClient, session: AsyncSession, acting_user, tool: Tool
 ):
-    """Slicing happens over the merged list, since per-schema SQL can't."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _enable_tools(client, a)
-    for index in range(3):
-        await _create(client, a, tool, f"Row {index}")
+    """Each guild orders and limits its own rows, and the pages cut from their
+    merge continue one another across guilds: every row once, in order."""
+    a1 = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _enable_tools(client, a1)
+    a2 = await _second_guild(client, session, a1)
+    for actor, name in [
+        (a1, "Delta"),
+        (a2, "bravo"),
+        (a1, "alpha"),
+        (a2, "Charlie"),
+        (a1, "Echo"),
+    ]:
+        await _create(client, actor, tool, name)
 
-    first = await client.get(f"{_path(tool)}?page=1&page_size=2", headers=a.headers)
-    assert first.status_code == 200
-    assert len(first.json()["items"]) == 2
-    assert first.json()["total_count"] == 3
-    assert first.json()["has_next"] is True
+    pages = []
+    for page in (1, 2, 3):
+        response = await client.get(
+            f"{_path(tool)}?sort_by=name&page={page}&page_size=2", headers=a1.headers
+        )
+        assert response.status_code == 200
+        pages.append(response.json())
 
-    second = await client.get(f"{_path(tool)}?page=2&page_size=2", headers=a.headers)
-    assert second.status_code == 200
-    assert len(second.json()["items"]) == 1
-    assert second.json()["has_next"] is False
+    assert [page["total_count"] for page in pages] == [5, 5, 5]
+    assert [page["has_next"] for page in pages] == [True, True, False]
+    assert pages[1]["has_prev"] is True
+    walked = [item for page in pages for item in page["items"]]
+    assert [item["name"] for item in walked] == [
+        "alpha",
+        "bravo",
+        "Charlie",
+        "Delta",
+        "Echo",
+    ]
+    assert [item["guild_id"] for item in walked] == [
+        a1.guild.id,
+        a2.guild.id,
+        a2.guild.id,
+        a1.guild.id,
+        a1.guild.id,
+    ]
 
 
-@pytest.mark.integration
 @per_tool
 async def test_the_initiatives_switch_takes_a_row_off_the_list(
     client: AsyncClient, acting_user, tool: Tool
@@ -262,24 +259,6 @@ async def test_the_initiatives_switch_takes_a_row_off_the_list(
     assert row["id"] not in {item["id"] for item in response.json()["items"]}
 
 
-@pytest.mark.integration
-async def test_list_my_counter_groups_and_dashboards(client: AsyncClient, acting_user):
-    """The two tools outside the parametrised set answer on their own paths."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _enable_tools(client, a)
-    group = await _create(client, a, Tool.counter_group, "Scores")
-    dashboard = await _create(client, a, Tool.dashboard, "Overview")
-
-    groups = await client.get("/api/v1/me/counter-groups", headers=a.headers)
-    assert groups.status_code == 200
-    assert group["id"] in {g["id"] for g in groups.json()["items"]}
-
-    dashboards = await client.get("/api/v1/me/dashboards", headers=a.headers)
-    assert dashboards.status_code == 200
-    assert dashboard["id"] in {d["id"] for d in dashboards.json()["items"]}
-
-
-@pytest.mark.integration
 async def test_a_co_member_reads_what_was_shared_with_the_initiative(
     client: AsyncClient, acting_user
 ):
@@ -305,7 +284,6 @@ async def test_a_co_member_reads_what_was_shared_with_the_initiative(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_my_projects_excludes_archived(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -325,27 +303,30 @@ async def test_my_projects_excludes_archived(
     assert archived.id not in project_ids
 
 
-@pytest.mark.integration
-async def test_my_projects_excludes_templates(
-    client: AsyncClient, session: AsyncSession, acting_user
+@pytest.mark.parametrize(
+    "tool",
+    [t for t in Tool if "is_template" in tool_model(t).model_fields],
+    ids=lambda t: t.value,
+)
+async def test_my_tools_exclude_templates(
+    client: AsyncClient, session: AsyncSession, acting_user, tool: Tool
 ):
-    """A blueprint is the projects list's own second state, and not work."""
+    """A blueprint is a tool's own second state, and not work — for every tool
+    whose model carries one."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    live = await create_project(session, a.initiative, a.user, name="Project")
-    template = await create_project(session, a.initiative, a.user, name="Template")
-    template.is_template = True
-    session.add(template)
-    await session.commit()
+    live = await create_tool_entity(session, tool, a.initiative, a.user, name="Live")
+    template = await create_tool_entity(
+        session, tool, a.initiative, a.user, name="Template", is_template=True
+    )
 
-    response = await client.get("/api/v1/me/projects", headers=a.headers)
+    response = await client.get(_path(tool), headers=a.headers)
 
     assert response.status_code == 200
-    project_ids = {p["id"] for p in response.json()["items"]}
-    assert live.id in project_ids
-    assert template.id not in project_ids
+    ids = {row["id"] for row in response.json()["items"]}
+    assert live.id in ids
+    assert template.id not in ids
 
 
-@pytest.mark.integration
 async def test_my_projects_follows_grants_not_guild_admin_standing(
     client: AsyncClient, session: AsyncSession
 ):
@@ -380,7 +361,6 @@ async def test_my_projects_follows_grants_not_guild_admin_standing(
     assert unshared.id not in project_ids
 
 
-@pytest.mark.integration
 async def test_an_initiative_listing_still_answers_a_guild_admin_in_full(
     client: AsyncClient, session: AsyncSession
 ):
@@ -405,19 +385,18 @@ async def test_an_initiative_listing_still_answers_a_guild_admin_in_full(
     unshared = await create_project(session, elsewhere, owner, name="Someone Else's")
 
     headers = get_auth_headers(admin)
-    across = await client.get(f"/api/v1/g/{guild.id}/projects/", headers=headers)
+    across = await client.get(f"/api/v1/c/{guild.id}/projects/", headers=headers)
     assert across.status_code == 200
     assert unshared.id not in {p["id"] for p in across.json()["items"]}
 
     within = await client.get(
-        f"/api/v1/g/{guild.id}/projects/?initiative_id={elsewhere.id}",
+        f"/api/v1/c/{guild.id}/projects/?initiative_id={elsewhere.id}",
         headers=headers,
     )
     assert within.status_code == 200
     assert unshared.id in {p["id"] for p in within.json()["items"]}
 
 
-@pytest.mark.integration
 async def test_my_calendars_carry_a_guild_calendar(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -439,7 +418,6 @@ async def test_my_calendars_carry_a_guild_calendar(
     assert next(c for c in items if c["id"] == calendar.id)["initiative_id"] is None
 
 
-@pytest.mark.integration
 async def test_my_calendars_merge_across_guilds_and_apply_sharing(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -467,7 +445,7 @@ async def test_my_calendars_merge_across_guilds_and_apply_sharing(
         initiative=a.initiative,
         initiative_role="member",
     )
-    await _strip_non_owner_grants(session, Tool.calendar, secret.id, a.user.id)
+    await strip_non_owner_grants(session, secret, a.user.id)
     member_resp = await client.get("/api/v1/me/calendars", headers=member.headers)
     assert member_resp.status_code == 200
     member_names = {c["name"] for c in member_resp.json()["items"]}
@@ -481,7 +459,6 @@ async def test_my_calendars_merge_across_guilds_and_apply_sharing(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_my_tool_counts(client: AsyncClient, acting_user):
     """Every tool is answered for, with a zero where the caller has none."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -502,7 +479,6 @@ async def test_my_tool_counts(client: AsyncClient, acting_user):
     assert set(counts) == {tool.value for tool in Tool}
 
 
-@pytest.mark.integration
 async def test_my_tool_counts_created_by_me(client: AsyncClient, acting_user):
     """The counts follow the view the page is in."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)

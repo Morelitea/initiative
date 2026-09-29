@@ -13,32 +13,29 @@ Every deletion path here goes through :func:`_delete_rows`, which is what makes
 than of each caller remembering.
 
 The ``connection_ref`` an app addresses a credential by is minted once per
-(install, connection, member) and reused across reconnects, so a member's
-history stays one row. It is random rather than derived from anything about the
-person, which is what keeps the same member uncorrelated across apps and guilds.
+(install, connection, member), when the member's first flow completes, and
+reused across reconnects, so a member's history stays one row. It is random
+rather than derived from anything about the person, which is what keeps the
+same member uncorrelated across apps and guilds.
 """
 
 from __future__ import annotations
 
-import secrets
-from datetime import datetime, timezone
 from typing import Any, Optional, Sequence
 
+from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.session import routed_guild_id
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
-from app.services.tenant.app_revocation import (
-    RevocationIntent,
-    queue_revocation,
-    queue_revocations_for_rows,
-)
+from app.core.clock import utcnow
+from app.services.tenant.app_config import mint_connection_ref
+from app.services.tenant.app_revocation import queue_revocations_for_rows
 
 __all__ = [
     "block_member_connection",
-    "connect",
+    "connection_tallies",
     "delete_app_connections",
     "delete_guild_connections",
     "delete_member_connections",
@@ -47,23 +44,9 @@ __all__ = [
     "is_blocked",
     "list_app_connections",
     "list_member_connections",
-    "mint_connection_ref",
     "revoke_all",
     "unblock_member_connection",
 ]
-
-#: Long enough that a handle is never guessed, short enough to sit in a URL the
-#: app builds. ``token_urlsafe(24)`` renders as 32 characters, which is the
-#: column width.
-_REF_ENTROPY_BYTES = 24
-
-
-def mint_connection_ref() -> str:
-    return secrets.token_urlsafe(_REF_ENTROPY_BYTES)
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 # --- reading ----------------------------------------------------------------
@@ -109,19 +92,24 @@ async def list_member_connections(
 
 
 async def list_app_connections(
-    session: AsyncSession, *, app_id: int
+    session: AsyncSession,
+    *,
+    app_id: int,
+    user_ids: Optional[Sequence[int]] = None,
 ) -> list[GuildAppUserConnection]:
     """Every member's connection for one install — the admin's Members view.
+    ``user_ids`` narrows it to those members, one page of that view.
 
     Returns only the caller's own rows unless the session is routed as a guild
     admin; the endpoint that offers this requires one.
     """
+    stmt = select(GuildAppUserConnection).where(GuildAppUserConnection.app_id == app_id)
+    if user_ids is not None:
+        stmt = stmt.where(GuildAppUserConnection.user_id.in_(user_ids))
     return list(
         (
             await session.exec(
-                select(GuildAppUserConnection)
-                .where(GuildAppUserConnection.app_id == app_id)
-                .order_by(
+                stmt.order_by(
                     GuildAppUserConnection.connection_id,
                     GuildAppUserConnection.user_id,
                 )
@@ -130,45 +118,25 @@ async def list_app_connections(
     )
 
 
-# --- connecting -------------------------------------------------------------
-
-
-async def connect(
-    session: AsyncSession,
-    *,
-    app: GuildApp,
-    connection_id: str,
-    user_id: int,
-) -> GuildAppUserConnection:
-    """Start (or restart) this member's own connection, returning its row.
-
-    The row and its ``connection_ref`` exist before the vendor flow does, so the
-    app has something to write its result against. Reconnecting reuses the
-    existing row and its ref: the app is already holding credentials under that
-    handle, and handing it a new one would orphan them.
-
-    A blocked member never reaches here — the endpoint refuses first — so this
-    does not have to decide whether a tombstone may be revived.
-    """
-    existing = await get_connection(
-        session, app_id=app.id, connection_id=connection_id, user_id=user_id
+async def connection_tallies(
+    session: AsyncSession, *, app_id: int
+) -> dict[str, tuple[int, int]]:
+    """Per connection of one install: how many members are connected, and how
+    many are blocked."""
+    blocked = GuildAppUserConnection.blocked_at.is_not(None)
+    rows = await session.exec(
+        select(
+            GuildAppUserConnection.connection_id,
+            func.count().filter(~blocked),
+            func.count().filter(blocked),
+        )
+        .where(GuildAppUserConnection.app_id == app_id)
+        .group_by(GuildAppUserConnection.connection_id)
     )
-    if existing is not None:
-        existing.status = "pending"
-        existing.updated_at = _now()
-        session.add(existing)
-        return existing
-
-    row = GuildAppUserConnection(
-        app_id=app.id,
-        connection_id=connection_id,
-        user_id=user_id,
-        connection_ref=mint_connection_ref(),
-        status="pending",
-    )
-    session.add(row)
-    await session.flush()
-    return row
+    return {
+        connection_id: (connected, blocked_count)
+        for connection_id, connected, blocked_count in rows.all()
+    }
 
 
 # --- ending it --------------------------------------------------------------
@@ -178,20 +146,20 @@ async def _delete_rows(
     session: AsyncSession,
     rows: Sequence[GuildAppUserConnection],
     *,
-    listing_uid: str,
     reason: str,
+    installs: dict[int, tuple[str, dict[str, Any] | None]],
 ) -> int:
     """Delete stored credentials and record the matching revocations.
 
-    The single choke point for ending per-member access: an intent is queued for
-    every row before it goes, so no caller can delete values without the app
-    being told which handle stopped being valid.
+    The single choke point for ending per-member access: an intent carrying
+    each row's sealed tokens is queued before the row goes, so no caller can
+    delete values without the grant being ended at the vendor. ``installs`` is
+    as :func:`~app.services.tenant.app_revocation.queue_revocations_for_rows`
+    takes it.
     """
     if not rows:
         return 0
-    queue_revocations_for_rows(
-        session, listing_uid=listing_uid, rows=rows, reason=reason
-    )
+    queue_revocations_for_rows(session, rows, reason=reason, installs=installs)
     for row in rows:
         await session.delete(row)
     return len(rows)
@@ -204,15 +172,28 @@ async def disconnect(
     connection_id: str,
     user_id: int,
     reason: str = "disconnected",
+    definition: dict[str, Any] | None = None,
 ) -> int:
-    """A member's own connection, or one an admin is ending for them."""
+    """A member's own connection, or one an admin is ending for them.
+
+    ``definition`` is the one the connection was made under, when the install
+    has just moved off it.
+    """
     row = await get_connection(
         session, app_id=app.id, connection_id=connection_id, user_id=user_id
     )
     if row is None:
         return 0
     return await _delete_rows(
-        session, [row], listing_uid=app.listing_uid, reason=reason
+        session,
+        [row],
+        reason=reason,
+        installs={
+            app.id: (
+                app.listing_uid,
+                definition if definition is not None else app.definition,
+            )
+        },
     )
 
 
@@ -245,26 +226,20 @@ async def block_member_connection(
             status="blocked",
         )
     else:
-        queue_revocation(
+        queue_revocations_for_rows(
             session,
-            RevocationIntent(
-                guild_id=routed_guild_id(session),
-                app_id=row.app_id,
-                listing_uid=app.listing_uid,
-                connection_id=row.connection_id,
-                connection_ref=row.connection_ref,
-                user_id=row.user_id,
-                reason="blocked",
-            ),
+            [row],
+            reason="blocked",
+            installs={app.id: (app.listing_uid, app.definition)},
         )
         row.status = "blocked"
 
     row.config = {}
     row.config_secrets = {}
     row.account_label = None
-    row.blocked_at = _now()
+    row.blocked_at = utcnow()
     row.blocked_by_id = blocked_by_id
-    row.updated_at = _now()
+    row.updated_at = utcnow()
     session.add(row)
     await session.flush()
     return row
@@ -299,7 +274,12 @@ async def revoke_all(
         for row in await list_app_connections(session, app_id=app.id)
         if row.blocked_at is None
     ]
-    return await _delete_rows(session, rows, listing_uid=app.listing_uid, reason=reason)
+    return await _delete_rows(
+        session,
+        rows,
+        reason=reason,
+        installs={app.id: (app.listing_uid, app.definition)},
+    )
 
 
 async def delete_app_connections(
@@ -312,7 +292,12 @@ async def delete_app_connections(
     left to constrain.
     """
     rows = await list_app_connections(session, app_id=app.id)
-    return await _delete_rows(session, rows, listing_uid=app.listing_uid, reason=reason)
+    return await _delete_rows(
+        session,
+        rows,
+        reason=reason,
+        installs={app.id: (app.listing_uid, app.definition)},
+    )
 
 
 async def delete_member_connections(
@@ -338,27 +323,12 @@ async def delete_member_connections(
             )
         ).all()
     )
-    if not rows:
-        return 0
-
-    listing_uids = await _listing_uids_by_app_id(
-        session, app_ids={row.app_id for row in rows}
+    return await _delete_rows(
+        session,
+        rows,
+        reason=reason,
+        installs=await _installs_by_app_id(session, app_ids={r.app_id for r in rows}),
     )
-    for row in rows:
-        queue_revocation(
-            session,
-            RevocationIntent(
-                guild_id=routed_guild_id(session),
-                app_id=row.app_id,
-                listing_uid=listing_uids.get(row.app_id, ""),
-                connection_id=row.connection_id,
-                connection_ref=row.connection_ref,
-                user_id=row.user_id,
-                reason=reason,
-            ),
-        )
-        await session.delete(row)
-    return len(rows)
 
 
 async def delete_guild_connections(
@@ -371,40 +341,31 @@ async def delete_guild_connections(
     runs first so each app is asked to let go.
     """
     rows = list((await session.exec(select(GuildAppUserConnection))).all())
-    if not rows:
-        return 0
-    listing_uids = await _listing_uids_by_app_id(
-        session, app_ids={row.app_id for row in rows}
+    return await _delete_rows(
+        session,
+        rows,
+        reason=reason,
+        installs=await _installs_by_app_id(session, app_ids={r.app_id for r in rows}),
     )
-    for row in rows:
-        queue_revocation(
-            session,
-            RevocationIntent(
-                guild_id=routed_guild_id(session),
-                app_id=row.app_id,
-                listing_uid=listing_uids.get(row.app_id, ""),
-                connection_id=row.connection_id,
-                connection_ref=row.connection_ref,
-                user_id=row.user_id,
-                reason=reason,
-            ),
-        )
-        await session.delete(row)
-    return len(rows)
 
 
-async def _listing_uids_by_app_id(
+async def _installs_by_app_id(
     session: AsyncSession, *, app_ids: set[int]
-) -> dict[int, str]:
-    """Which listing each install came from, for the revocation address."""
+) -> dict[int, tuple[str, dict[str, Any] | None]]:
+    """Which listing each install came from and the definition it pinned, for
+    the revocations of its connections."""
     if not app_ids:
         return {}
     rows = (
         await session.exec(
-            select(GuildApp.id, GuildApp.listing_uid).where(GuildApp.id.in_(app_ids))
+            select(GuildApp.id, GuildApp.listing_uid, GuildApp.definition).where(
+                GuildApp.id.in_(app_ids)
+            )
         )
     ).all()
-    return {row[0]: row[1] for row in rows}
+    return {
+        row[0]: (row[1], dict(row[2]) if row[2] is not None else None) for row in rows
+    }
 
 
 def is_blocked(row: Optional[Any]) -> bool:

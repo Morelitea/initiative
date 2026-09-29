@@ -1,7 +1,10 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { InitiativeRead, ResourceGrantSchema } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  InitiativeListRead,
+  ResourceGrantSchema,
+} from "@/api/generated/initiativeAPI.schemas";
 import { CreateAccessSection } from "@/components/access/CreateAccessSection";
 import { DEFAULT_GRANTS } from "@/components/access/grants";
 import { EmojiPicker } from "@/components/EmojiPicker";
@@ -35,7 +38,7 @@ type CreateProjectDialogProps = {
   onOpenChange: (open: boolean) => void;
   lockedInitiativeId: number | null;
   lockedInitiativeName: string | null;
-  creatableInitiatives: InitiativeRead[];
+  creatableInitiatives: InitiativeListRead[];
   initiativesQuery: { isLoading: boolean; isError: boolean };
   defaultInitiativeId: string | null;
   onCreated: () => void;

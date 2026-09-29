@@ -39,18 +39,12 @@ from app.testing import create_tool_entity, enable_all_tools
 TOOLS = pytest.mark.parametrize("tool", list(Tool), ids=[t.value for t in Tool])
 
 
-def _segment(tool: Tool) -> str:
-    """The URL segment the tool is addressed by — its plural in kebab case."""
-    return tool.plural.replace("_", "-")
-
-
 async def _entity(session: AsyncSession, actor, tool: Tool):
     """One instance of ``tool``, owned by ``actor``, in an all-tools initiative."""
     await enable_all_tools(session, actor.initiative)
     return await create_tool_entity(session, tool, actor.initiative, actor.user)
 
 
-@pytest.mark.integration
 @TOOLS
 async def test_the_owner_shares_it_with_somebody(
     client: AsyncClient, session: AsyncSession, acting_user, tool: Tool
@@ -65,7 +59,7 @@ async def test_the_owner_shares_it_with_somebody(
     )
 
     response = await client.put(
-        a.g(f"/{_segment(tool)}/{entity.id}/grants"),
+        a.g(f"/{tool.route_segment}/{entity.id}/grants"),
         headers=a.headers,
         json=[{"user_id": b.user.id, "level": "write"}],
     )
@@ -80,7 +74,6 @@ async def test_the_owner_shares_it_with_somebody(
     ]
 
 
-@pytest.mark.integration
 @TOOLS
 async def test_a_role_can_be_named_instead_of_a_person(
     client: AsyncClient, session: AsyncSession, acting_user, tool: Tool
@@ -97,7 +90,7 @@ async def test_a_role_can_be_named_instead_of_a_person(
     ).one()
 
     response = await client.put(
-        a.g(f"/{_segment(tool)}/{entity.id}/grants"),
+        a.g(f"/{tool.route_segment}/{entity.id}/grants"),
         headers=a.headers,
         json=[{"role_id": member_role.id, "level": "read"}],
     )
@@ -108,7 +101,6 @@ async def test_a_role_can_be_named_instead_of_a_person(
     ] == ["read"]
 
 
-@pytest.mark.integration
 @TOOLS
 async def test_a_reader_cannot_reshare_it(
     client: AsyncClient, session: AsyncSession, acting_user, tool: Tool
@@ -124,14 +116,13 @@ async def test_a_reader_cannot_reshare_it(
     )
 
     response = await client.put(
-        b.g(f"/{_segment(tool)}/{entity.id}/grants"),
+        b.g(f"/{tool.route_segment}/{entity.id}/grants"),
         headers=b.headers,
         json=[{"user_id": b.user.id, "level": "write"}],
     )
     assert response.status_code == 403, response.text
 
 
-@pytest.mark.integration
 @TOOLS
 async def test_someone_outside_the_initiative_gets_the_tools_not_found(
     client: AsyncClient, session: AsyncSession, acting_user, tool: Tool
@@ -143,7 +134,7 @@ async def test_someone_outside_the_initiative_gets_the_tools_not_found(
     outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
 
     response = await client.put(
-        outsider.g(f"/{_segment(tool)}/{entity.id}/grants"),
+        outsider.g(f"/{tool.route_segment}/{entity.id}/grants"),
         headers=outsider.headers,
         json=[],
     )
@@ -151,14 +142,14 @@ async def test_someone_outside_the_initiative_gets_the_tools_not_found(
     assert response.json()["detail"] == tool.not_found_code
 
 
-@pytest.mark.integration
 @TOOLS
 async def test_the_room_is_told_that_sharing_moved(
     client: AsyncClient, session: AsyncSession, acting_user, tool: Tool, monkeypatch
 ):
-    """Sharing decides who has the thing at all, so every open window is told
-    and settles for itself what it may now see."""
-    from app.services import stream_authz
+    """Sharing decides who has the thing at all, so everyone in the room is
+    re-checked at once and the ones who remain are told to refetch — with the
+    change's name, never the new sharing itself."""
+    from app.services.content_sockets import resource_room, sockets
 
     a = await acting_user(guild_role=GuildRole.member, initiative=True)
     entity = await _entity(session, a, tool)
@@ -169,24 +160,24 @@ async def test_the_room_is_told_that_sharing_moved(
         initiative_role="member",
     )
 
-    emitted: list[tuple] = []
+    signalled: list[tuple] = []
+    rechecked: list[tuple] = []
 
-    async def _record(guild_id, resource_type, resource_id, event_type, data):
-        emitted.append((guild_id, resource_type, resource_id, event_type, data))
+    def _record(guild_id, signalled_tool, resource_id, event_type):
+        signalled.append((guild_id, signalled_tool, resource_id, event_type))
 
-    monkeypatch.setattr(stream_authz.authority, "emit", _record)
+    async def _recheck(room):
+        rechecked.append(room)
+
+    monkeypatch.setattr(sockets, "signal", _record)
+    monkeypatch.setattr(sockets, "recheck_room", _recheck)
 
     response = await client.put(
-        a.g(f"/{_segment(tool)}/{entity.id}/grants"),
+        a.g(f"/{tool.route_segment}/{entity.id}/grants"),
         headers=a.headers,
         json=[{"user_id": b.user.id, "level": "write"}],
     )
     assert response.status_code == 200, response.text
 
-    changed = [event for event in emitted if event[3] == "permissions_changed"]
-    assert changed, emitted
-    guild_id, resource_type, resource_id, _, data = changed[-1]
-    assert (guild_id, resource_type, resource_id) == (a.guild.id, tool.value, entity.id)
-    assert [
-        grant["level"] for grant in data["grants"] if grant["user_id"] == b.user.id
-    ] == ["write"]
+    assert (a.guild.id, tool, entity.id, "permissions_changed") in signalled
+    assert rechecked == [resource_room(a.guild.id, tool.value, entity.id)]

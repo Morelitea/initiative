@@ -26,6 +26,8 @@ from app.testing import (
     create_user,
 )
 from app.testing.schema_harness import route_session_to_guild
+from app.db.guild_standing import GuildContext
+from app.db.request_context import ContentGrantee, Platform
 
 
 async def _set_app_user(session: AsyncSession) -> None:
@@ -36,7 +38,6 @@ async def _reset_role(session: AsyncSession) -> None:
     await session.exec(text("RESET ROLE"))
 
 
-@pytest.mark.integration
 async def test_pam_read_grant_sees_only_granted_guild(
     session: AsyncSession, reading_as
 ):
@@ -127,7 +128,6 @@ async def test_pam_read_grant_sees_only_granted_guild(
         await session.rollback()
 
 
-@pytest.mark.integration
 async def test_grantee_guild_settings_lazy_create_does_not_fault(
     session: AsyncSession, reading_as
 ):
@@ -143,7 +143,11 @@ async def test_grantee_guild_settings_lazy_create_does_not_fault(
     support = await create_user(
         session, email="support-gs@example.com", role=UserRole.support
     )
-    guild = await create_guild(session, creator=owner)  # no guild_settings row seeded
+    guild = await create_guild(session, creator=owner)
+    # Start without the row the factory seeds, so the read takes the lazy create.
+    await route_session_to_guild(session, guild.id)
+    await session.exec(text("DELETE FROM guild_settings"))
+    await session.commit()
 
     # Live READ grant scoped to the guild, entered through the seam.
     await create_access_grant(session, user=support, guild=guild)
@@ -164,7 +168,6 @@ async def test_grantee_guild_settings_lazy_create_does_not_fault(
     assert persisted == 0, "grantee read must not create a guild_settings row"
 
 
-@pytest.mark.integration
 async def test_pam_read_grant_does_not_fault_legacy_isolation_tables(
     session: AsyncSession, reading_as
 ):
@@ -211,7 +214,6 @@ async def test_pam_read_grant_does_not_fault_legacy_isolation_tables(
     )
 
 
-@pytest.mark.integration
 async def test_no_pam_flag_sees_nothing(session: AsyncSession):
     """An INACTIVE grant (pam_guild_id set, but neither flag) must yield no access.
 
@@ -232,13 +234,13 @@ async def test_no_pam_flag_sees_nothing(session: AsyncSession):
 
     try:
         await _set_app_user(session)
-        # Same guild id, but NO pam flag — the grant is inactive.
+        # Same guild id, but the standing found no live grant — it is inactive.
+        inactive = GuildContext(
+            guild=None, user_id=support.id, guild_id=guild.id
+        ).with_standing({"standing_guild_id": str(guild.id)})
         await set_rls_context(
             session,
-            user_id=support.id,
-            pam_guild_id=guild.id,
-            pam_read=False,
-            pam_write=False,
+            ContentGrantee(guild_id=guild.id, user_id=support.id, standing=inactive),
         )
         # An inactive grant is not routed: no guild role is assumed (set_rls_context
         # resets to the login role) and the guild schema is not on the search_path.
@@ -260,7 +262,6 @@ async def test_no_pam_flag_sees_nothing(session: AsyncSession):
         await _reset_role(session)
 
 
-@pytest.mark.integration
 async def test_pam_write_grant_can_update(session: AsyncSession, reading_as):
     owner = await create_user(session, email="owner3@example.com", role=UserRole.owner)
     support = await create_user(
@@ -283,7 +284,6 @@ async def test_pam_write_grant_can_update(session: AsyncSession, reading_as):
     await reader.rollback()
 
 
-@pytest.mark.integration
 async def test_request_role_cannot_self_insert_an_access_grant(session: AsyncSession):
     """Grant creation is system-engine-only (migration 0146): a routed
     request-path session is refused when it writes ``access_grants``, so the
@@ -293,7 +293,7 @@ async def test_request_role_cannot_self_insert_an_access_grant(session: AsyncSes
     target = await create_guild(session)  # a guild the attacker is not a member of
 
     try:
-        await set_rls_context(session, user_id=attacker.id, platform_role="member")
+        await set_rls_context(session, Platform(user_id=attacker.id, tier="member"))
         with pytest.raises(Exception) as exc:
             await session.exec(
                 text(

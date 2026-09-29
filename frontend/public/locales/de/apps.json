@@ -5,7 +5,7 @@
   "error": "Mit dieser App ist etwas schiefgelaufen.",
   "manage": {
     "title": "Apps",
-    "description": "Apps ergänzen etwas, das die ganze Community teilt. Nur Community-Admins können sie hinzufügen oder entfernen.",
+    "description": "Apps ergänzen etwas, das die ganze Community teilt. Nur der Superadmin der Community kann sie hinzufügen oder entfernen.",
     "empty": "Noch keine Apps installiert.",
     "browse": "Apps durchsuchen",
     "installed": "Hinzugefügt am {{date}}",
@@ -32,14 +32,33 @@
     "upToDate": "Aktuell",
     "upgraded": "Auf {{version}} aktualisiert."
   },
+  "updates": {
+    "wants": "Version {{version}} möchte:",
+    "newSurface": "„{{name}}“ in Initiativen anzeigen",
+    "accept": "Zustimmen und aktualisieren",
+    "decline": "Ablehnen",
+    "declined": "Du hast Version {{version}} abgelehnt. Die App bleibt auf ihrer aktuellen Version.",
+    "declinedDone": "Version {{version}} abgelehnt.",
+    "moved": "Inzwischen gibt es eine andere Version. Prüfe, was sie möchte."
+  },
   "install": {
     "title": "{{name}} hinzufügen",
     "description": "Das ergänzt etwas für die ganze Community. Umbenennen kannst du es jetzt oder später.",
     "name": "Name",
     "action": "Zur Community hinzufügen",
     "done": "{{name}} hinzugefügt.",
-    "adminOnly": "Bitte eine Community-Administratorin oder einen Community-Administrator, diese App hinzuzufügen.",
-    "unknownState": "Es konnte nicht geprüft werden, ob diese App bereits hinzugefügt wurde."
+    "adminOnly": "Bitte den Superadmin deiner Community, diese App hinzuzufügen.",
+    "unknownState": "Es konnte nicht geprüft werden, ob diese App bereits hinzugefügt wurde.",
+    "reachTitle": "Worauf sie zugreifen kann",
+    "whereTitle": "Wo sie arbeitet",
+    "whereDescription": "Sie zeigt ihre Seite und liest und ändert Inhalte nur in den Initiativen, die du auswählst.",
+    "whereDescriptionNoPage": "Sie liest und ändert Inhalte nur in den Initiativen, die du auswählst.",
+    "whoTitle": "Wer sie dort öffnen kann",
+    "roles": {
+      "moderator": "Moderation",
+      "project_manager": "Projektleitung",
+      "member": "Mitglieder"
+    }
   },
   "connections": {
     "none": "Diese App verlangt keine Einrichtung.",
@@ -70,8 +89,10 @@
     "status": {
       "pending": "Wartet auf Abschluss",
       "connected": "Verbunden",
-      "blocked": "Gesperrt"
-    }
+      "blocked": "Gesperrt",
+      "expired": "Abgelaufen"
+    },
+    "expired": "Diese Verbindung ist abgelaufen. Verbinde dich erneut, um sie weiter zu nutzen."
   },
   "members": {
     "title": "Mitglieder",
@@ -98,28 +119,34 @@
   },
   "showMore": "{{count}} weitere",
   "showFewer": "Weniger anzeigen",
-  "delegation": {
-    "title": "In deinem Namen handeln",
-    "description": "{{name}} kann Anfragen in deinem Namen stellen — genau das, was du selbst tun könntest, und nicht mehr. Niemand sonst kann das für dich entscheiden.",
-    "levelNone": "Nicht erlaubt",
-    "levelRead": "Darf als du lesen",
-    "levelWrite": "Darf als du lesen und schreiben",
-    "writeLabel": "Änderungen erlauben",
-    "writeHint": "{{name}} kann als du erstellen und bearbeiten, nicht nur lesen.",
-    "since": "Erlaubt seit {{date}}",
-    "stoppedOn": "Du hast das am {{date}} beendet.",
-    "withdraw": "Nicht mehr in meinem Namen handeln",
-    "allowRead": "Als ich lesen lassen",
-    "allowWrite": "Als ich lesen und schreiben lassen",
-    "authorized": "{{name}} kann jetzt in deinem Namen handeln.",
-    "withdrawn": "{{name}} handelt nicht mehr in deinem Namen.",
-    "failed": "Das konnte nicht geändert werden.",
+  "consent": {
+    "title": "Worum sie dich gebeten hat",
+    "description": "{{name}} fragt für jeden Zweck einzeln. Erlaube nur, was sie in deinem Namen tun soll. Du kannst deine Antwort jederzeit ändern.",
+    "inTheirWords": "{{name}}: „{{label}}“",
+    "appWide": "Alles, was sie tut",
+    "anywhere": "Überall, wo sie zugeordnet ist",
+    "inInitiative": "Nur in {{initiative}}",
+    "inOneInitiative": "Nur in einer Initiative",
+    "askedRead": "Möchte lesen",
+    "askedReadWrite": "Möchte lesen und ändern",
+    "statusPending": "Wartet auf dich",
+    "statusRead": "Darf in deinem Namen lesen",
+    "statusReadWrite": "Darf in deinem Namen lesen und ändern",
+    "statusDeclined": "Abgelehnt",
+    "statusRevoked": "Beendet",
+    "allowRead": "In meinem Namen lesen lassen",
+    "allowReadWrite": "In meinem Namen lesen und ändern lassen",
+    "readOnly": "Nur lesen lassen",
+    "decline": "Ablehnen",
+    "withdraw": "Beenden",
+    "allowed": "Gespeichert. {{name}} darf das in deinem Namen tun.",
+    "declinedToast": "Abgelehnt. {{name}} tut das nicht in deinem Namen.",
+    "withdrawnToast": "{{name}} tut das nicht mehr in deinem Namen.",
+    "failed": "Deine Antwort konnte nicht gespeichert werden.",
     "membersTitle": "Handeln im Namen von Mitgliedern",
-    "authorizedCount_one": "{{count}} Mitglied erlaubt das",
-    "authorizedCount_other": "{{count}} Mitglieder erlauben das",
-    "levelColumn": "Erlaubt",
-    "sinceColumn": "Seit",
-    "withdrawnBadge": "Beendet",
+    "allowedCount_one": "{{count}} Mitglied erlaubt das",
+    "allowedCount_other": "{{count}} Mitglieder erlauben das",
+    "requestsColumn": "Anfragen",
     "memberRevoked": "Die App handelt nicht mehr im Namen dieses Mitglieds.",
     "revokeAll": "Für alle beenden",
     "revokeAllTitle": "Diese App für alle beenden?",
@@ -130,7 +157,7 @@
     "description": "Lege fest, wie sich diese App verbindet.",
     "open": "Einstellungen für {{name}}",
     "adminTitle": "Community-Einstellungen",
-    "adminDescription": "Was der Community für diese App gehört. Nur Community-Admins sehen das."
+    "adminDescription": "Was der Community für diese App gehört. Nur der Superadmin sieht das."
   },
   "embed": {
     "connecting": "Verbinden…",
@@ -144,11 +171,20 @@
   },
   "browse": "App-Store durchsuchen",
   "placement": {
-    "title": "Wo diese App erscheint",
-    "description": "Diese App bietet eine Seite innerhalb von Initiativen. Wähle aus, in welchen sie erscheint.",
-    "all": "Alle Initiativen",
+    "title": "Wo diese App arbeitet",
+    "description": "Diese App zeigt ihre Seite und liest und ändert Inhalte nur in den Initiativen, die du auswählst.",
+    "descriptionNoPage": "Diese App liest und ändert Inhalte nur in den Initiativen, die du auswählst.",
+    "all": "Alle bestehenden Initiativen",
     "some": "Nur ausgewählte Initiativen",
-    "none": "Keine Initiative ausgewählt – diese App erscheint nur Community-weit."
+    "none": "Keine Initiative ausgewählt – diese App erreicht nichts innerhalb von Initiativen.",
+    "roles": {
+      "open": "Wer sie in {{name}} öffnen kann",
+      "title": "Wer sie hier öffnen kann",
+      "adminsAlways": "Community-Admins können sie immer öffnen.",
+      "adminsOnly": "Nur Community-Admins",
+      "count_one": "{{count}} Rolle",
+      "count_other": "{{count}} Rollen"
+    }
   },
   "connected": {
     "connected": {
@@ -171,6 +207,92 @@
       "title": "Warten auf eine Freigabe",
       "body": "Der andere Dienst hat jemanden, dem diese Organisation gehört, um Freigabe dieser App gebeten. Es ist nichts schiefgegangen und noch nichts eingerichtet – sobald sie freigegeben ist, verbinde dich erneut über die Einstellungen der App."
     },
+    "sign_in_required": {
+      "title": "Zum Abschließen anmelden",
+      "body": "Schließe die Verbindung in dem Browser ab, in dem du bei Initiative angemeldet bist, als die Person, die sie begonnen hat."
+    },
     "closeTab": "Du kannst diesen Tab schließen."
+  },
+  "scopes": {
+    "title": "Worauf diese App zugreifen kann",
+    "description": "Wähle aus, was diese App in dieser Community lesen und ändern darf.",
+    "read": "Lesen",
+    "write": "Lesen und ändern",
+    "notAllowed": "Dieser Server erlaubt das nicht",
+    "useApp": "{{name}} in dieser Community verwenden",
+    "saved": "Zugriff gespeichert",
+    "error": "Der Zugriff dieser App konnte nicht gespeichert werden.",
+    "resources": {
+      "comments": "Kommentare",
+      "relationships": "Verknüpfungen",
+      "tags": "Tags",
+      "sharing": "Freigaben",
+      "members": "Mitglieder",
+      "initiatives": "Initiativen"
+    },
+    "sentences": {
+      "projects": {
+        "read": "Projekte lesen",
+        "write": "Projekte lesen und ändern"
+      },
+      "documents": {
+        "read": "Dokumente lesen",
+        "write": "Dokumente lesen und ändern"
+      },
+      "queues": {
+        "read": "Abläufe lesen",
+        "write": "Abläufe lesen und ändern"
+      },
+      "counter_groups": {
+        "read": "Zähler lesen",
+        "write": "Zähler lesen und ändern"
+      },
+      "calendars": {
+        "read": "Kalender lesen",
+        "write": "Kalender lesen und ändern"
+      },
+      "dashboards": {
+        "read": "Dashboards lesen",
+        "write": "Dashboards lesen und ändern"
+      },
+      "posts": {
+        "read": "Beiträge lesen",
+        "write": "Beiträge lesen und ändern"
+      },
+      "galleries": {
+        "read": "Galerien lesen",
+        "write": "Galerien lesen und ändern"
+      },
+      "wikis": {
+        "read": "Wikis lesen",
+        "write": "Wikis lesen und ändern"
+      },
+      "comments": {
+        "read": "Kommentare lesen",
+        "write": "Kommentare lesen und schreiben"
+      },
+      "relationships": {
+        "read": "Verknüpfungen lesen",
+        "write": "Verknüpfungen lesen und ändern"
+      },
+      "tags": {
+        "read": "Tags lesen",
+        "write": "Tags lesen und ändern"
+      },
+      "sharing": {
+        "read": "Sehen, wer worauf Zugriff hat",
+        "write": "Sehen und ändern, wer worauf Zugriff hat"
+      },
+      "members": {
+        "read": "Sehen, wer in deiner Community ist"
+      },
+      "initiatives": {
+        "read": "Die Initiativen deiner Community sehen"
+      },
+      "fallback": {
+        "read": "{{resource}} lesen",
+        "write": "{{resource}} lesen und ändern"
+      }
+    }
   }
 }

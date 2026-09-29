@@ -197,7 +197,7 @@ const AnnouncementSectionView = ({
   return (
     <section className="space-y-3">
       {section.heading ? <h3 className="font-semibold text-base">{section.heading}</h3> : null}
-      {section.body ? <Markdown content={section.body} /> : null}
+      {section.body ? <Markdown remoteImages content={section.body} /> : null}
       {imageSrc ? (
         // A screenshot shrunk into a dialog is often unreadable, so it opens
         // at full size on click.

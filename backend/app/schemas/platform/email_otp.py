@@ -43,16 +43,6 @@ class EmailOtpVerify(SanitizedBaseModel):
     code: str = Field(min_length=1, max_length=16)
 
 
-class EmailOtpTicket(SanitizedBaseModel):
-    """A code answered at an address no account holds.
-
-    Returned with ``202``: the code was right, and what is left is to say who
-    this is. ``ticket`` is spent by the handle screen.
-    """
-
-    registration_ticket: str
-
-
 class EmailOtpRegister(SanitizedBaseModel):
     """Make the account a proved address earned."""
 

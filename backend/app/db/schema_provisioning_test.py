@@ -5,6 +5,7 @@ collide with real data, and drop it in teardown. Runs against the test DB as
 the owning role (the ``engine`` fixture), which has DDL privileges.
 """
 
+import asyncio
 import re
 
 import pytest
@@ -14,22 +15,19 @@ from sqlalchemy.exc import ProgrammingError
 import app.db.schema_provisioning as schema_provisioning
 from app.db.guild_ddl import rendered_constraint_names, rendered_trigger_names
 from app.db.schema_provisioning import (
+    GuildRoleKind,
+    APP_ROLE_MACHINERY_READS,
     SUPPORT_WRITE_PROTECTED_TABLES,
     apply_guild_rls,
     strip_template_registry_objects,
     backfill_guild_schemas,
     drop_guild_schema,
-    guild_readonly_role_name,
     guild_role_name,
-    guild_superadmin_role_name,
     guild_schema_name,
-    guild_query_role_name,
-    guild_support_role_name,
     provision_guild_schema,
 )
 from app.db.tenancy import GUILD_SCOPED_TABLES
 
-pytestmark = pytest.mark.database
 
 # Synthetic ids well above any real guild; each test uses its own.
 _GID_COMPLETE = 990_101
@@ -47,6 +45,8 @@ _GID_READ_FLOOR = 990_121
 _GID_SEAT = 990_122
 _GID_RETIRED_A = 990_123
 _GID_RETIRED_B = 990_124
+_GID_APP = 990_125
+_GID_APP_DENIED = 990_126
 # Back-fill sweep (each pair: one provisioned, one only a public row).
 _GID_BACKFILL_DONE = 990_111
 _GID_BACKFILL_MISSING = 990_112
@@ -54,6 +54,8 @@ _GID_BACKFILL_DRIFT = 990_113
 _GID_BACKFILL_OK_A = 990_114
 _GID_BACKFILL_OK_B = 990_115
 _GID_BACKFILL_FAIL = 990_116
+_GID_BACKFILL_PARTIAL = 990_117
+_GID_BACKFILL_HELD = 990_118
 
 
 async def _insert_public_guild(conn, gid: int, name: str) -> None:
@@ -201,13 +203,7 @@ async def test_guild_role_is_scoped_to_its_own_schema(engine):
 async def test_drop_guild_schema_removes_role(engine):
     """Tearing down a guild drops ALL its roles too, not just the schema."""
     gid = _GID_ROLE_DROP
-    roles = (
-        guild_role_name(gid),
-        guild_readonly_role_name(gid),
-        guild_support_role_name(gid),
-        guild_query_role_name(gid),
-        guild_superadmin_role_name(gid),
-    )
+    roles = tuple(guild_role_name(gid, kind) for kind in GuildRoleKind)
     try:
         async with engine.begin() as conn:
             await provision_guild_schema(conn, gid)
@@ -249,7 +245,7 @@ async def test_the_seat_role_is_the_guild_role_plus_the_communitys_own_settings(
         async with engine.begin() as conn:
             await provision_guild_schema(conn, gid)
         schema = guild_schema_name(gid)
-        seat = guild_superadmin_role_name(gid)
+        seat = guild_role_name(gid, GuildRoleKind.seat)
         role = guild_role_name(gid)
         async with engine.connect() as conn:
             for verb in ("SELECT", "INSERT", "UPDATE", "DELETE"):
@@ -283,20 +279,120 @@ async def test_the_seat_role_is_the_guild_role_plus_the_communitys_own_settings(
             await drop_guild_schema(conn, gid)
 
 
-async def test_the_read_roles_cannot_write_shared_tables(engine):
-    """The two per-guild roles that only read take the read-only shared floor.
+async def test_the_app_role_holds_only_what_an_app_reaches(engine):
+    """``guild_<id>_app`` writes content, reads the initiative structure, and
+    holds nothing on the community's configuration or its app setup beyond
+    the columns its own standing reads."""
+    gid = _GID_APP
+    try:
+        async with engine.begin() as conn:
+            await provision_guild_schema(conn, gid)
+        schema = guild_schema_name(gid)
+        app_role = guild_role_name(gid, GuildRoleKind.app)
 
-    ``guild_<id>_ro`` serves PAM read grants and read-only members and
-    ``guild_<id>_q`` serves the query surface; neither writes anything, in the
-    guild schema or in ``public``. The writable floor the other roles carry
-    would arrive by inheritance, which cannot be revoked back off.
+        async def held(conn, table: str, verb: str) -> bool:
+            return await conn.scalar(
+                text("SELECT has_table_privilege(:r, :t, :p)"),
+                {"r": app_role, "t": f"{schema}.{table}", "p": verb},
+            )
+
+        async with engine.connect() as conn:
+            assert await conn.scalar(
+                text("SELECT 1 FROM pg_roles WHERE rolname = :r"), {"r": app_role}
+            )
+            for verb in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+                assert await held(conn, "tasks", verb) is True, f"tasks {verb}"
+            assert await held(conn, "initiatives", "SELECT") is True
+            for verb in ("INSERT", "UPDATE", "DELETE"):
+                assert await held(conn, "initiatives", verb) is False, (
+                    f"initiatives {verb}"
+                )
+            for table in (
+                "guild_settings",
+                "guild_apps",
+                "guild_app_secrets",
+                "app_placements",
+                "initiative_role_permissions",
+            ):
+                for verb in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+                    assert await held(conn, table, verb) is False, f"{table} {verb}"
+            # The install standing statement reads these columns and no others.
+            for table, columns in APP_ROLE_MACHINERY_READS.items():
+                if not columns:
+                    continue
+                readable = {
+                    row[0]
+                    for row in (
+                        await conn.execute(
+                            text(
+                                "SELECT column_name, has_column_privilege("
+                                ":r, CAST(:t AS text), column_name, 'SELECT') "
+                                "FROM information_schema.columns "
+                                "WHERE table_schema = :s AND table_name = :n"
+                            ),
+                            {
+                                "r": app_role,
+                                "t": f"{schema}.{table}",
+                                "s": schema,
+                                "n": table,
+                            },
+                        )
+                    ).all()
+                    if row[1]
+                }
+                assert readable == set(columns), table
+            assert await held(conn, "resource_grants", "SELECT") is True
+            # The owner grant on what it creates, and the shares it rewrites
+            # with sharing:write; the row policies decide which rows.
+            assert await held(conn, "resource_grants", "INSERT") is True
+            assert await held(conn, "resource_grants", "DELETE") is True
+            assert await held(conn, "resource_grants", "UPDATE") is False
+    finally:
+        async with engine.begin() as conn:
+            await drop_guild_schema(conn, gid)
+
+
+async def test_the_app_role_is_refused_the_communitys_settings(engine):
+    """A session assuming ``guild_<id>_app`` cannot read ``guild_settings``."""
+    gid = _GID_APP_DENIED
+    try:
+        async with engine.begin() as conn:
+            await provision_guild_schema(conn, gid)
+        async with engine.connect() as conn:
+            await conn.exec_driver_sql(
+                f'SET ROLE "{guild_role_name(gid, GuildRoleKind.app)}"'
+            )
+            with pytest.raises(ProgrammingError) as exc:
+                await conn.scalar(
+                    text(
+                        f'SELECT count(*) FROM "{guild_schema_name(gid)}".guild_settings'
+                    )
+                )
+            assert "permission denied" in str(exc.value).lower()
+            await conn.rollback()
+            await conn.exec_driver_sql("RESET ROLE")
+    finally:
+        async with engine.begin() as conn:
+            await drop_guild_schema(conn, gid)
+
+
+async def test_the_read_roles_cannot_write_shared_tables(engine):
+    """The two per-guild roles that only read write nothing in ``public``.
+
+    ``guild_<id>_ro`` serves PAM read grants and read-only members, over the
+    read-only shared floor; ``guild_<id>_q`` serves the query surface and holds
+    no floor at all. The writable floor the other roles carry would arrive by
+    inheritance, which cannot be revoked back off.
     """
     gid = _GID_READ_FLOOR
     try:
         async with engine.begin() as conn:
             await provision_guild_schema(conn, gid)
         async with engine.connect() as conn:
-            for role in (guild_readonly_role_name(gid), guild_query_role_name(gid)):
+            for role in (
+                guild_role_name(gid, GuildRoleKind.read_only),
+                guild_role_name(gid, GuildRoleKind.query),
+            ):
                 for table in (
                     "public.user_view_preferences",
                     "public.user_tokens",
@@ -310,15 +406,6 @@ async def test_the_read_roles_cannot_write_shared_tables(engine):
                             )
                             is False
                         ), f"{role} {verb} {table}"
-                # Reading them still works: the guild policies call
-                # public.guild_auth_satisfied(), which reads guild_auth_policies.
-                assert (
-                    await conn.scalar(
-                        text("SELECT has_table_privilege(:r, :t, 'SELECT')"),
-                        {"r": role, "t": "public.guild_auth_policies"},
-                    )
-                    is True
-                ), role
     finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, gid)
@@ -332,7 +419,7 @@ async def test_support_role_write_capped_on_protected_tables(engine):
     rung beside a read_write grant is among what they admit."""
     gid = _GID_SUPPORT
     schema = guild_schema_name(gid)
-    support = guild_support_role_name(gid)
+    support = guild_role_name(gid, GuildRoleKind.support)
     try:
         async with engine.begin() as conn:
             await provision_guild_schema(conn, gid)
@@ -357,7 +444,7 @@ async def test_support_role_write_capped_on_protected_tables(engine):
             for table in (
                 "resource_grants",
                 "guild_app_user_connections",
-                "guild_app_user_delegations",
+                "app_member_consents",
             ):
                 assert table in SUPPORT_WRITE_PROTECTED_TABLES, table
 
@@ -854,18 +941,16 @@ async def test_backfill_continues_past_a_failing_guild(engine, monkeypatch):
                 await _insert_public_guild(conn, gid, name)
 
         # Force exactly one guild's provisioning to blow up; the real function
-        # handles every other id. backfill_guild_schemas calls provision_guild as
-        # a module-level name, so patching it here is enough.
-        real_provision_guild = schema_provisioning.provision_guild
+        # handles every other id. The sweep calls _apply_parts as a
+        # module-level name, so patching it here is enough.
+        real_apply_parts = schema_provisioning._apply_parts
 
-        async def _flaky_provision_guild(guild_id: int) -> str:
+        async def _flaky_apply_parts(conn, guild_id: int, parts) -> None:
             if guild_id == bad:
                 raise RuntimeError("forced provisioning failure")
-            return await real_provision_guild(guild_id)
+            await real_apply_parts(conn, guild_id, parts)
 
-        monkeypatch.setattr(
-            schema_provisioning, "provision_guild", _flaky_provision_guild
-        )
+        monkeypatch.setattr(schema_provisioning, "_apply_parts", _flaky_apply_parts)
 
         summary = await backfill_guild_schemas()
 
@@ -906,6 +991,70 @@ async def test_backfill_continues_past_a_failing_guild(engine, monkeypatch):
             )
 
 
+async def test_backfill_applies_only_stale_parts_and_waits_for_a_held_guild(
+    engine, monkeypatch
+):
+    """A guild behind on one part gets that part alone. A guild another
+    process holds the provisioning lock on is waited for, and found current
+    once it lets go, rather than applied a second time."""
+    partial, held = _GID_BACKFILL_PARTIAL, _GID_BACKFILL_HELD
+    bundle = await schema_provisioning.get_provisioning_bundle()
+    stale_rls = bundle.stamp.replace(f"rls={bundle.digests['rls']}", "rls=old")
+    try:
+        async with engine.begin() as conn:
+            for gid, name in ((partial, "backfill-partial"), (held, "backfill-held")):
+                await _insert_public_guild(conn, gid, name)
+                await provision_guild_schema(conn, gid)
+                await conn.exec_driver_sql(
+                    f"COMMENT ON SCHEMA \"{guild_schema_name(gid)}\" IS '{stale_rls}'"
+                )
+
+        applied: dict[int, tuple[str, ...]] = {}
+        real_apply_parts = schema_provisioning._apply_parts
+
+        async def _recording_apply_parts(conn, guild_id: int, parts) -> None:
+            applied[guild_id] = parts
+            await real_apply_parts(conn, guild_id, parts)
+
+        monkeypatch.setattr(schema_provisioning, "_apply_parts", _recording_apply_parts)
+
+        # The other process: holds `held`'s lock with the guild brought current
+        # but not yet committed, until the sweep is waiting on it.
+        async with engine.connect() as other:
+            await other.begin()
+            await schema_provisioning._lock_guild(other, held, wait=True)
+            await other.exec_driver_sql(
+                f"COMMENT ON SCHEMA \"{guild_schema_name(held)}\" IS '{bundle.stamp}'"
+            )
+            sweep = asyncio.create_task(backfill_guild_schemas())
+            async with engine.connect() as probe:
+                while not await probe.scalar(
+                    text(
+                        "SELECT 1 FROM pg_locks WHERE locktype = 'advisory' "
+                        "AND NOT granted AND classid::bigint = :ns "
+                        "AND objid::bigint = :gid"
+                    ),
+                    {"ns": schema_provisioning._PROVISION_LOCK_NAMESPACE, "gid": held},
+                ):
+                    assert not sweep.done(), "the sweep did not wait for the lock"
+                    await asyncio.sleep(0.05)
+            await other.commit()
+        summary = await sweep
+
+        assert partial not in summary.failed_guild_ids
+        assert held not in summary.failed_guild_ids
+        assert applied.get(partial) == ("rls",)
+        assert held not in applied
+    finally:
+        async with engine.begin() as conn:
+            for gid in (partial, held):
+                await drop_guild_schema(conn, gid)
+            await conn.execute(
+                text("DELETE FROM public.guilds WHERE id = ANY(:ids)"),
+                {"ids": [partial, held]},
+            )
+
+
 async def test_rendering_the_bundle_twice_gives_the_same_stamp(engine):
     """Reflection reads the template afresh each time, and the catalog does not
     promise to return a table's constraints in the same order twice. The stamp
@@ -924,16 +1073,17 @@ async def test_rendering_the_bundle_twice_gives_the_same_stamp(engine):
 
 
 async def test_provisioning_stamp_tracks_grant_behavior_not_cosmetics(engine):
-    """The back-fill skip stamp is derived from the RENDERED provisioning bundle
+    """The back-fill stamp is derived from the RENDERED provisioning bundle
     (live schema DDL + registry RLS + rendered grant statements) — no manual
-    version bump: a behavioral grants change moves it; a cosmetic rewrite of
-    ``_grant_statements`` does not."""
+    version bump: a behavioral grants change moves the grants digest and no
+    other; a cosmetic rewrite of ``_grant_statements`` moves nothing."""
     from unittest import mock
 
     from app.db import schema_provisioning as sp
 
     sp.reset_provisioning_bundle()
-    baseline = (await sp.get_provisioning_bundle()).stamp
+    base = await sp.get_provisioning_bundle()
+    baseline = base.stamp
 
     _original = sp._grant_statements
 
@@ -947,14 +1097,16 @@ async def test_provisioning_stamp_tracks_grant_behavior_not_cosmetics(engine):
     try:
         with mock.patch.object(sp, "_grant_statements", _different_grants):
             sp.reset_provisioning_bundle()
-            changed = (await sp.get_provisioning_bundle()).stamp
+            changed = await sp.get_provisioning_bundle()
         with mock.patch.object(sp, "_grant_statements", _cosmetic_rewrite):
             sp.reset_provisioning_bundle()
             cosmetic = (await sp.get_provisioning_bundle()).stamp
     finally:
         sp.reset_provisioning_bundle()
 
-    assert changed != baseline, "a behavioral grants change must move the stamp"
+    assert base.stale_parts(changed.stamp) == ("grants",), (
+        "a behavioral grants change must move the grants digest alone"
+    )
     assert cosmetic == baseline, "a cosmetic rewrite must NOT move the stamp"
     assert (await sp.get_provisioning_bundle()).stamp == baseline
 
@@ -1075,16 +1227,12 @@ async def _drop_probe_table(engine):
 def _point_registry_at_probe(monkeypatch, *, sys_verbs, user_verbs):
     from app.db import system_grants
 
-    monkeypatch.setattr(
-        system_grants,
-        "SHARED_TABLE_SYSTEM_GRANTS",
-        {_PROBE_TABLE: frozenset(sys_verbs) if sys_verbs else None},
-    )
-    monkeypatch.setattr(
-        system_grants,
-        "SHARED_TABLE_APP_USER_GRANTS",
-        {_PROBE_TABLE: frozenset(user_verbs) if user_verbs else None},
-    )
+    for role, verbs in (("app_admin", sys_verbs), ("app_user", user_verbs)):
+        monkeypatch.setitem(
+            system_grants.ROLE_GRANTS,
+            role,
+            {_PROBE_TABLE: frozenset(verbs) if verbs else None},
+        )
 
 
 async def test_shared_grants_heal_restores_missing_table_and_sequence(
@@ -1411,7 +1559,6 @@ async def test_privileged_derived_provisioner_names_the_role_to_fix(monkeypatch)
     assert "DATABASE_URL_APP" not in message
 
 
-@pytest.mark.database
 async def test_a_provisioned_schema_names_no_community(engine):
     """A guild schema is what says which community it is, so no table in one
     carries a ``guild_id`` column.

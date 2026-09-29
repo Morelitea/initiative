@@ -9,7 +9,6 @@ sender and counts the messages without ever carrying one.
 import base64
 from unittest.mock import AsyncMock, patch
 
-import pytest
 from sqlalchemy import text
 
 from app.api.v1.platform_endpoints.dm_transport_test import (
@@ -20,8 +19,6 @@ from app.api.v1.platform_endpoints.dm_transport_test import (
 from app.models.platform.user_dm_settings import DmPolicy
 from app.models.platform.user_ignore import UserIgnore
 from app.testing import set_notification_prefs
-
-pytestmark = pytest.mark.asyncio
 
 
 async def _lines(session, user_id: int) -> list[dict]:

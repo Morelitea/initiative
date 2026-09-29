@@ -28,12 +28,9 @@ from app.core.intake import (
 from app.core.moderation import PLATFORM_TARGET_RELATION, PlatformReportTarget
 from app.core.reactions import ReactionTarget
 from app.core.tools import Tool
-from app.db.soft_delete_filter import SOFT_DELETE_MODELS
 from app.services.marketplace.definitions import KIND_AUDIENCE, LISTING_KINDS
 from app.services.tenant.reactions import TARGET_RESOLVERS
-from app.services.tenant.trash_purge import _PURGE_TOP_DOWN
 
-pytestmark = pytest.mark.unit
 
 #: (what it is, the hand-written table, the canonical source it answers for)
 REGISTRIES: list[tuple[str, Any, Any]] = [
@@ -41,11 +38,6 @@ REGISTRIES: list[tuple[str, Any, Any]] = [
         "every tool is reachable through the resource-access registry",
         RESOURCE_ACCESS,
         Tool,
-    ),
-    (
-        "every soft-deletable model is swept by the purge worker",
-        _PURGE_TOP_DOWN,
-        SOFT_DELETE_MODELS,
     ),
     ("every intake stream says what feeds it", STREAMS, IntakeStream),
     (

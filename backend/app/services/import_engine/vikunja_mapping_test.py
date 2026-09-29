@@ -14,8 +14,6 @@ from app.models.tenant.task import TaskPriority, TaskStatusCategory
 from app.schemas.tenant.project_export import ProjectExportEnvelope
 from app.services.import_engine import vikunja_mapping as vm
 
-pytestmark = pytest.mark.unit
-
 
 def _task(**over):
     task = {"id": 1, "title": "A task", "done": False}

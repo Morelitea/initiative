@@ -1,16 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 
 import {
-  createCalendarEventApiV1GGuildIdCalendarEventsPost,
-  deleteCalendarEventApiV1GGuildIdCalendarEventsEventIdDelete,
-  getReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGetQueryKey,
-  importIcalEventsApiV1GGuildIdCalendarEventsImportPost,
-  parseIcalFileApiV1GGuildIdCalendarEventsImportParsePost,
-  readCalendarEventApiV1GGuildIdCalendarEventsEventIdGet,
-  setAttendeesApiV1GGuildIdCalendarEventsEventIdAttendeesPut,
-  setEventTagsApiV1GGuildIdCalendarEventsEventIdTagsPut,
-  updateCalendarEventApiV1GGuildIdCalendarEventsEventIdPatch,
-  updateRsvpApiV1GGuildIdCalendarEventsEventIdRsvpPatch,
+  createCalendarEventApiV1CGuildIdCalendarEventsPost,
+  deleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDelete,
+  getReadCalendarEventApiV1CGuildIdCalendarEventsEventIdGetQueryKey,
+  importIcalEventsApiV1CGuildIdCalendarEventsImportPost,
+  parseIcalFileApiV1CGuildIdCalendarEventsImportParsePost,
+  readCalendarEventApiV1CGuildIdCalendarEventsEventIdGet,
+  setAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPut,
+  setEventTagsApiV1CGuildIdCalendarEventsEventIdTagsPut,
+  updateCalendarEventApiV1CGuildIdCalendarEventsEventIdPatch,
+  updateRsvpApiV1CGuildIdCalendarEventsEventIdRsvpPatch,
 } from "@/api/generated/calendar-events/calendar-events";
 import type {
   CalendarEventCreate,
@@ -36,8 +36,8 @@ export const useCalendarEvent = (
   const guildId = useActiveGuildId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<CalendarEventRead>({
-    queryKey: getReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGetQueryKey(guildId, eventId!),
-    queryFn: () => readCalendarEventApiV1GGuildIdCalendarEventsEventIdGet(guildId, eventId!),
+    queryKey: getReadCalendarEventApiV1CGuildIdCalendarEventsEventIdGetQueryKey(guildId, eventId!),
+    queryFn: () => readCalendarEventApiV1CGuildIdCalendarEventsEventIdGet(guildId, eventId!),
     enabled: eventId !== null && Number.isFinite(eventId) && userEnabled,
     ...rest,
   });
@@ -54,7 +54,7 @@ export const useCreateCalendarEvent = (
   useGuildMutation<CalendarEventRead, CalendarEventCreate>(
     {
       mutationFn: (guildId, data) =>
-        createCalendarEventApiV1GGuildIdCalendarEventsPost(guildId, data),
+        createCalendarEventApiV1CGuildIdCalendarEventsPost(guildId, data),
       invalidate: () => invalidate(q.allCalendarEvents()),
       errorKey: "calendars:error",
     },
@@ -68,7 +68,7 @@ export const useUpdateCalendarEvent = (
   useGuildMutation<CalendarEventRead, CalendarEventUpdate>(
     {
       mutationFn: (guildId, data) =>
-        updateCalendarEventApiV1GGuildIdCalendarEventsEventIdPatch(guildId, eventId, data),
+        updateCalendarEventApiV1CGuildIdCalendarEventsEventIdPatch(guildId, eventId, data),
       invalidate: () => invalidateEventAndList(eventId),
       errorKey: "calendars:error",
     },
@@ -86,7 +86,7 @@ export const useRescheduleCalendarEvent = (
   useGuildMutation<CalendarEventRead, { eventId: number; data: CalendarEventUpdate }>(
     {
       mutationFn: (guildId, { eventId, data }) =>
-        updateCalendarEventApiV1GGuildIdCalendarEventsEventIdPatch(guildId, eventId, data),
+        updateCalendarEventApiV1CGuildIdCalendarEventsEventIdPatch(guildId, eventId, data),
       invalidate: (_data, { eventId }) => invalidateEventAndList(eventId),
       errorKey: "calendars:error",
     },
@@ -97,7 +97,7 @@ export const useDeleteCalendarEvent = (options?: MutationOpts<void, number>) =>
   useGuildMutation<void, number>(
     {
       mutationFn: (guildId, eventId) =>
-        deleteCalendarEventApiV1GGuildIdCalendarEventsEventIdDelete(guildId, eventId),
+        deleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDelete(guildId, eventId),
       invalidate: () => invalidate(q.allCalendarEvents()),
       errorKey: "calendars:error",
     },
@@ -111,7 +111,7 @@ export const useParseIcalFile = (options?: MutationOpts<ICalParseResult, ICalPar
   useGuildMutation<ICalParseResult, ICalParseRequest>(
     {
       mutationFn: (guildId, data) =>
-        parseIcalFileApiV1GGuildIdCalendarEventsImportParsePost(guildId, data),
+        parseIcalFileApiV1CGuildIdCalendarEventsImportParsePost(guildId, data),
       errorKey: "calendars:import.parseFailed",
     },
     options
@@ -122,7 +122,7 @@ export const useImportIcalEvents = (options?: MutationOpts<ICalImportResult, ICa
   useGuildMutation<ICalImportResult, ICalImportRequest>(
     {
       mutationFn: (guildId, data) =>
-        importIcalEventsApiV1GGuildIdCalendarEventsImportPost(guildId, data),
+        importIcalEventsApiV1CGuildIdCalendarEventsImportPost(guildId, data),
       invalidate: () => invalidate(q.allCalendarEvents()),
       errorKey: "calendars:import.importError",
     },
@@ -138,7 +138,7 @@ export const useSetEventAttendees = (
   useGuildMutation<CalendarEventRead, number[]>(
     {
       mutationFn: (guildId, userIds) =>
-        setAttendeesApiV1GGuildIdCalendarEventsEventIdAttendeesPut(guildId, eventId, userIds),
+        setAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPut(guildId, eventId, userIds),
       invalidate: () => invalidateEventAndList(eventId),
       errorKey: "calendars:error",
     },
@@ -152,7 +152,7 @@ export const useUpdateEventRSVP = (
   useGuildMutation<CalendarEventRead, CalendarEventRSVPUpdate>(
     {
       mutationFn: (guildId, data) =>
-        updateRsvpApiV1GGuildIdCalendarEventsEventIdRsvpPatch(guildId, eventId, data),
+        updateRsvpApiV1CGuildIdCalendarEventsEventIdRsvpPatch(guildId, eventId, data),
       invalidate: () => invalidateEventAndList(eventId),
       errorKey: "calendars:error",
     },
@@ -168,7 +168,7 @@ export const useSetEventTags = (
   useGuildMutation<CalendarEventRead, TagSetRequest>(
     {
       mutationFn: (guildId, data) =>
-        setEventTagsApiV1GGuildIdCalendarEventsEventIdTagsPut(guildId, eventId, data),
+        setEventTagsApiV1CGuildIdCalendarEventsEventIdTagsPut(guildId, eventId, data),
       invalidate: () => invalidateEventAndList(eventId),
       errorKey: "calendars:error",
     },

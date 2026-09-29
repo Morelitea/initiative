@@ -175,7 +175,7 @@ async def list_initiative_statuses(
     session: AsyncSession,
     *,
     initiative_id: int,
-    user_id: int,
+    user_id: int | None,
     guild_id: int,
 ) -> list[InitiativeTaskStatusRead]:
     """The distinct status columns across an initiative's readable projects.

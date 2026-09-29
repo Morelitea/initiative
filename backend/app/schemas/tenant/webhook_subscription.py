@@ -10,11 +10,10 @@ from app.schemas.base import SanitizedBaseModel
 
 
 class WebhookSubscriptionCreate(SanitizedBaseModel):
-    """Body for ``POST /api/v1/auto/subscriptions``.
+    """Body for ``POST /api/v1/c/{guild_id}/webhooks/subscriptions``.
 
-    Initiative-id and guild-id are NOT taken from the body — they
-    come from the caller's delegation token (guild) and an optional
-    delegation initiative_id claim.
+    The guild comes from the path. ``initiative_id`` narrows the subscription
+    to one initiative; omitted, it covers the whole community.
     """
 
     target_url: HttpUrl
@@ -51,8 +50,9 @@ class WebhookSubscriptionRead(SanitizedBaseModel):
     #: subscriber holds an unrelated value for the same guild.
     guild_ref: str
     initiative_id: int | None
-    #: Who registered it, named in the same sector as the guild.
-    created_by_ref: str
+    #: Who registered it, named in the same sector as the guild. ``None`` when
+    #: an app registered it rather than a person.
+    created_by_ref: str | None = None
     target_url: str
     event_types: list[str]
     fields: list[str] | None

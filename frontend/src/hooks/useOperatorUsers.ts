@@ -1,11 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import type {
   AccountDeletionResponse,
   DeletionEligibilityResponse,
   ExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetParams,
+  ListAllUsersApiV1OperatorUsersGetParams,
   OperatorDeletionEligibilityResponse,
   OperatorUserDeleteRequest,
+  OperatorUserListResponse,
   OperatorUserRead,
   UserRole,
   VerificationSendResponse,
@@ -17,9 +19,11 @@ import {
   exportPlatformUsersCsvApiV1OperatorUsersExportCsvGet,
   getCheckUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGetQueryKey,
   getListAllUsersApiV1OperatorUsersGetQueryKey,
+  liftSignInLockApiV1OperatorUsersUserIdSignInLockDelete,
   listAllUsersApiV1OperatorUsersGet,
   reactivateUserApiV1OperatorUsersUserIdReactivatePost,
   removeUserAvatarApiV1OperatorUsersUserIdAvatarDelete,
+  resendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPost,
   restoreDeletedUserApiV1OperatorUsersUserIdRestorePost,
   setUserSuspensionApiV1OperatorUsersUserIdSuspensionPost,
   setUserUsernameApiV1OperatorUsersUserIdUsernamePatch,
@@ -38,11 +42,16 @@ import type { QueryOpts } from "@/types/query";
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
-/** Fetch all platform users (operator endpoint). */
-export const usePlatformUsers = (options?: QueryOpts<OperatorUserRead[]>) => {
-  return useQuery<OperatorUserRead[]>({
-    queryKey: getListAllUsersApiV1OperatorUsersGetQueryKey(),
-    queryFn: () => listAllUsersApiV1OperatorUsersGet(),
+/** One page of platform users (operator endpoint), searched and sorted on the
+ *  server. The previous page stays on screen while the next one loads. */
+export const usePlatformUsers = (
+  params: ListAllUsersApiV1OperatorUsersGetParams,
+  options?: QueryOpts<OperatorUserListResponse>
+) => {
+  return useQuery<OperatorUserListResponse>({
+    queryKey: getListAllUsersApiV1OperatorUsersGetQueryKey(params),
+    queryFn: () => listAllUsersApiV1OperatorUsersGet(params),
+    placeholderData: keepPreviousData,
     ...options,
   });
 };
@@ -99,6 +108,18 @@ export const useOperatorTriggerPasswordReset = (
   useApiMutation<VerificationSendResponse, number>(
     {
       mutationFn: (userId) => triggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPost(userId),
+    },
+    options
+  );
+
+/** Send an account's sign-up confirmation letter again (operator endpoint). */
+export const useOperatorResendVerification = (
+  options?: MutationOpts<VerificationSendResponse, number>
+) =>
+  useApiMutation<VerificationSendResponse, number>(
+    {
+      mutationFn: (userId) =>
+        resendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPost(userId),
     },
     options
   );
@@ -168,6 +189,17 @@ export const useOperatorClearAgeBlock = (options?: MutationOpts<OperatorUserRead
   useApiMutation<OperatorUserRead, number>(
     {
       mutationFn: (userId) => clearAgeBlockApiV1OperatorUsersUserIdAgeBlockDelete(userId),
+      invalidate: () => invalidate(q.operatorUsers()),
+    },
+    options
+  );
+
+/** Turn an account's password and code sign-in back on after wrong answers
+ *  turned it off (``users.manage``). */
+export const useOperatorLiftSignInLock = (options?: MutationOpts<OperatorUserRead, number>) =>
+  useApiMutation<OperatorUserRead, number>(
+    {
+      mutationFn: (userId) => liftSignInLockApiV1OperatorUsersUserIdSignInLockDelete(userId),
       invalidate: () => invalidate(q.operatorUsers()),
     },
     options

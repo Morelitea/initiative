@@ -5,8 +5,6 @@ per-guild schemas. These tests assert it routes into the guild schema rather
 than reading the empty ``public`` backup (which returned all-zero dashboards).
 """
 
-import pytest
-
 from app.models.platform.guild import GuildRole
 from app.models.tenant.task import TaskStatusCategory
 from app.services.tenant import stats_service
@@ -17,10 +15,10 @@ from app.testing import (
     create_project,
     create_task,
     create_user,
+    platform_session,
 )
 
 
-@pytest.mark.integration
 async def test_user_stats_reads_guild_schema(session):
     """A guild with completed tasks must report non-zero stats. If stats read
     the unrouted (public) schema this is 0 — the dashboard-zeros regression."""
@@ -44,14 +42,14 @@ async def test_user_stats_reads_guild_schema(session):
         assignees=[user],
     )
 
-    stats = await stats_service.get_user_stats(session, user=user, guild_id=guild.id)
+    async with platform_session(user) as caller:
+        stats = await stats_service.get_user_stats(caller, user=user, guild_id=guild.id)
     assert stats.tasks_completed_total == 2
     assert any(
         g.guild_id == guild.id and g.completed_count == 2 for g in stats.guild_breakdown
     )
 
 
-@pytest.mark.integration
 async def test_user_stats_all_guilds_aggregates(session):
     """guild_id=None aggregates completed counts across the user's guilds."""
     user = await create_user(session, email="multi-guild@example.com")
@@ -72,6 +70,7 @@ async def test_user_stats_all_guilds_aggregates(session):
             )
         totals += count
 
-    stats = await stats_service.get_user_stats(session, user=user, guild_id=None)
+    async with platform_session(user) as caller:
+        stats = await stats_service.get_user_stats(caller, user=user, guild_id=None)
     assert stats.tasks_completed_total == totals  # 3, summed across both guilds
     assert len(stats.guild_breakdown) == 2

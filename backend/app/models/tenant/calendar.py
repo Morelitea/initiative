@@ -7,7 +7,7 @@ from sqlmodel import Field, Relationship
 from app.core.tools import Tool
 from app.models.tenant._mixins import (
     ArchiveMixin,
-    attach_access_level,
+    attach_actions,
     CommentsToggleMixin,
     CreatedByMixin,
     ListingProvenanceMixin,
@@ -65,7 +65,6 @@ class Calendar(
             String(length=32), nullable=False, server_default=DEFAULT_CALENDAR_COLOR
         ),
     )
-    created_by: int = Field(foreign_key="users.id", nullable=False)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -97,4 +96,4 @@ class Calendar(
     )
 
 
-attach_access_level(Calendar, Tool.calendar)
+attach_actions(Calendar, Tool.calendar)

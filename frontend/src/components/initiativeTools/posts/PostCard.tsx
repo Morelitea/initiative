@@ -9,6 +9,7 @@ import { PostBody } from "@/components/initiativeTools/posts/PostBody";
 import { PostPoll } from "@/components/initiativeTools/posts/PostPoll";
 import { PostReadersDialog } from "@/components/initiativeTools/posts/PostReadersDialog";
 import { ReportButton } from "@/components/moderation/ReportButton";
+import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { UserHandle } from "@/components/UserHandle";
@@ -19,6 +20,7 @@ import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { useAuth } from "@/hooks/useAuth";
 import { useMarkReadOnScreen, usePostReadTracker } from "@/hooks/usePostReadTracker";
 import { useMarkPostUnread, useSetPostPin, useUpdatePost } from "@/hooks/usePosts";
+import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { toast } from "@/lib/chesterToast";
 import { formatDateTime } from "@/lib/formatDate";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -76,6 +78,7 @@ const PostCardInner = ({ post, canPin = false, className }: PostCardProps) => {
     onSuccess: () => toast.success(t("read.markedUnread")),
   });
   const [readersOpen, setReadersOpen] = useState(false);
+  const unread = useUnreadTree();
 
   const detailRoute = gp(toolDetailRoute(Tool.post, post.initiative_id, post.id));
 
@@ -149,6 +152,9 @@ const PostCardInner = ({ post, canPin = false, className }: PostCardProps) => {
             <Link to={detailRoute} className="hover:underline">
               {post.name}
             </Link>
+            {unread.hasResource(post.guild_id, Tool.post, post.id) ? (
+              <UnreadDot className="ml-2 inline-block align-middle" />
+            ) : null}
           </CardTitle>
           <div className="flex shrink-0 items-center gap-1">
             {canPin && (

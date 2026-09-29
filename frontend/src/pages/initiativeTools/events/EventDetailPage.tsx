@@ -1,5 +1,5 @@
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
-import { CalendarDays, MapPin, SearchX, Settings, ShieldAlert, Trash2, Users } from "lucide-react";
+import { CalendarDays, MapPin, Settings, Trash2, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -7,8 +7,8 @@ import { type RSVPStatus, SearchEntityType, Tool } from "@/api/generated/initiat
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { PropertyValueCell } from "@/components/properties/PropertyValueCell";
 import { iconForPropertyType } from "@/components/properties/propertyTypeIcons";
-import { StatusMessage } from "@/components/StatusMessage";
 import { DetailPageSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
+import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,10 +28,9 @@ import {
   useUpdateEventRSVP,
 } from "@/hooks/useCalendarEvents";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
+import { useReadOnOpen } from "@/hooks/useNotifications";
 import { toast } from "@/lib/chesterToast";
-import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
-import { hasWriteAccess } from "@/lib/permissions";
 import { hour12Option } from "@/lib/timeFormat";
 import { eventSettingsRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 import { getUserDisplayName } from "@/lib/userDisplay";
@@ -147,6 +146,7 @@ export function EventDetailPage() {
 
   const eventQuery = useCalendarEvent(Number.isFinite(parsedId) ? parsedId : null);
   const event = eventQuery.data;
+  useReadOnOpen("calendar_event", event?.id);
   // The path supplies the initiative while this loads; the entity is the
   // authority once it arrives, and a URL naming a different one is corrected.
   const initiativeId = useCanonicalInitiativeId(event?.initiative_id);
@@ -173,7 +173,9 @@ export function EventDetailPage() {
     },
   });
 
-  const isOwner = event?.created_by === user?.id;
+  // An event takes its level from its calendar; editing and deleting both ask
+  // for write on it.
+  const canWrite = Boolean(event?.can.edit);
 
   // Find current user's RSVP status
   const myAttendee = useMemo(() => {
@@ -184,10 +186,6 @@ export function EventDetailPage() {
   const myRsvpStatus = myAttendee?.rsvp_status ?? null;
 
   // Error / loading states
-  if (!Number.isFinite(parsedId)) {
-    return <p className="text-destructive">{t("notFound")}</p>;
-  }
-
   if (eventQuery.isLoading) {
     return (
       <SkeletonRegion label={t("loadingEvent")}>
@@ -197,32 +195,16 @@ export function EventDetailPage() {
   }
 
   if (eventQuery.isError || !event) {
-    const status = getHttpStatus(eventQuery.error);
-    const backTo = gp(
-      calendarId == null
-        ? toolListRoute(Tool.calendar, initiativeId)
-        : toolDetailRoute(Tool.calendar, initiativeId, calendarId)
-    );
-    const backLabel = t("backToEvents");
-
-    if (status === 403) {
-      return (
-        <StatusMessage
-          icon={<ShieldAlert />}
-          title={t("noAccess")}
-          description={t("noAccessDescription")}
-          backTo={backTo}
-          backLabel={backLabel}
-        />
-      );
-    }
     return (
-      <StatusMessage
-        icon={<SearchX />}
-        title={t("notFound")}
-        description={t("notFoundDescription")}
-        backTo={backTo}
-        backLabel={backLabel}
+      <ToolAccessStatus
+        error={eventQuery.error}
+        keys="calendars:"
+        backTo={gp(
+          calendarId == null
+            ? toolListRoute(Tool.calendar, initiativeId)
+            : toolDetailRoute(Tool.calendar, initiativeId, calendarId)
+        )}
+        backLabel={t("backToEvents")}
       />
     );
   }
@@ -239,20 +221,22 @@ export function EventDetailPage() {
 
         <div className="flex items-center gap-2">
           {event.all_day && <Badge variant="secondary">{t("allDay")}</Badge>}
-          <Button variant="ghost" size="sm" asChild>
-            <Link to={gp(eventSettingsRoute(initiativeId, event.calendar_id, event.id))}>
-              <Settings className="h-4 w-4" />
-            </Link>
-          </Button>
-          {isOwner && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-destructive hover:text-destructive"
-              onClick={() => setDeleteConfirmOpen(true)}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+          {canWrite && (
+            <>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to={gp(eventSettingsRoute(initiativeId, event.calendar_id, event.id))}>
+                  <Settings className="h-4 w-4" />
+                </Link>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive"
+                onClick={() => setDeleteConfirmOpen(true)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -338,7 +322,7 @@ export function EventDetailPage() {
                   className="flex items-center justify-between rounded-md border px-3 py-2"
                 >
                   <span className="font-medium text-sm">
-                    {getUserDisplayName(attendee.user, `User #${attendee.user_id}`)}
+                    {getUserDisplayName(attendee.user ?? { id: attendee.user_id })}
                   </span>
                   <Badge variant={rsvpBadgeVariant(attendee.rsvp_status)}>
                     {t(rsvpLabelKey(attendee.rsvp_status))}
@@ -381,7 +365,7 @@ export function EventDetailPage() {
         tool={Tool.calendar}
         entity={event}
         target={{ type: SearchEntityType.calendar_event, id: parsedId }}
-        canEdit={hasWriteAccess(event.my_permission_level)}
+        canEdit={canWrite}
         entityTitle={event.title}
       />
 

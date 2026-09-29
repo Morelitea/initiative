@@ -36,31 +36,31 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import delete as sa_delete, func
+from sqlalchemy import func
 from sqlalchemy.exc import DataError, IntegrityError
-from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.api import resource_access
+from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    ActorContext,
+    ActorSessionDep,
+    ActorUserDep,
     GuildContext,
     IncludeDeletedDep,
     RLSSessionDep,
+    app_scope,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
 from app.core.messages import (
     AttachmentMessages,
-    CommonMessages,
     GalleryMessages,
-    InitiativeMessages,
 )
 from app.core.tools import Tool
+from app.db.query import apply_pagination, build_paginated_response
 from app.models.platform.user import User
 from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
-from app.models.tenant.initiative import Initiative
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
-from app.models.tenant.upload import Upload
 from app.schemas.tenant.gallery import (
     GalleryCreate,
     GalleryImageBulkDelete,
@@ -71,13 +71,13 @@ from app.schemas.tenant.gallery import (
     GalleryImageVersionRead,
     GalleryRead,
     GalleryUpdate,
-    serialize_gallery,
     serialize_gallery_image,
     serialize_gallery_image_version,
     serialize_gallery_image_versions,
 )
+from app.schemas.tenant.tool import serialize_tool
 from app.schemas.tenant.timeline import TimelineResponse
-from app.services import permissions as permissions_service
+from app.services.permissions import Action
 from app.services import storage_config
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import comments as comments_service
@@ -99,7 +99,7 @@ logger = logging.getLogger(__name__)
 _DEFINITIVELY_NOT_COMMITTED = (IntegrityError, DataError)
 
 
-def _discard_orphans(urls: list[str], failure: BaseException) -> None:
+def _discard_orphans(guild_id: int, urls: list[str], failure: BaseException) -> None:
     """Take back blobs a failed commit left behind — but only where the
     failure proves they are orphans. Anything ambiguous keeps its bytes and
     says so, so the waste is findable rather than the picture missing."""
@@ -107,7 +107,9 @@ def _discard_orphans(urls: list[str], failure: BaseException) -> None:
     if not urls:
         return
     if isinstance(failure, _DEFINITIVELY_NOT_COMMITTED):
-        attachments_service.delete_uploads_by_urls(urls)
+        attachments_service.delete_blobs(
+            guild_id, attachments_service.upload_names(urls)
+        )
         return
     logger.warning(
         "Left %d uploaded blob(s) in place after an inconclusive commit "
@@ -125,10 +127,12 @@ def _discard_orphans(urls: list[str], failure: BaseException) -> None:
 IMAGE_PAGE_SIZE = 40
 MAX_IMAGE_PAGE_SIZE = 200
 
-router = APIRouter()
+router = APIRouter(route_class=ActorRoute)
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
+#: The routes an installed app may call, under the galleries scopes.
+GalleriesRead = Annotated[ActorContext, Depends(app_scope("galleries:read"))]
+GalleriesWrite = Annotated[ActorContext, Depends(app_scope("galleries:write"))]
 
 
 # ---------------------------------------------------------------------------
@@ -136,29 +140,8 @@ CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 # ---------------------------------------------------------------------------
 
 
-async def _get_initiative_for_gallery(
-    session: RLSSessionDep,
-    initiative_id: int,
-) -> Initiative:
-    stmt = (
-        select(Initiative)
-        .where(Initiative.id == initiative_id)
-        .options(
-            selectinload(Initiative.memberships),
-            selectinload(Initiative.roles),
-        )
-    )
-    initiative = (await session.exec(stmt)).one_or_none()
-    if not initiative:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=InitiativeMessages.NOT_FOUND,
-        )
-    return initiative
-
-
 async def _refetch_gallery(
-    session: RLSSessionDep, gallery_id: int, *, user_id: int
+    session: RLSSessionDep, gallery_id: int, *, user_id: int | None
 ) -> Gallery:
     gallery = await galleries_service.get_gallery(
         session, gallery_id, populate_existing=True
@@ -206,7 +189,7 @@ async def _load_image(
     guild_context: GuildContext,
     *,
     access: str = "read",
-    require_owner: bool = False,
+    action: Action | None = None,
 ) -> tuple[Gallery, GalleryImage]:
     """The gallery, authorized at ``access``, and one of its pictures.
 
@@ -220,7 +203,7 @@ async def _load_image(
         current_user,
         guild_context,
         access=access,
-        require_owner=require_owner,
+        action=action,
     )
     image = await galleries_service.get_image(session, gallery.id, image_id)
     if image is None:
@@ -293,43 +276,38 @@ async def _read_picture(
     return contents, header.content_type, extension, width, height, thumbnail
 
 
-def _store_blob(
+async def _store_blob(
     session: RLSSessionDep,
     guild_context: GuildContext,
-    user: User,
+    gallery: Gallery,
     contents: bytes,
     extension: str,
     content_type: str,
 ) -> str:
-    """Write one blob to the guild's storage and record it in ``uploads``, the
-    row the storage quota is summed from. Returns the served URL."""
-    file_url = attachments_service.save_document_file(
-        contents, extension, guild_context.guild_id, content_type=content_type
+    """Store one blob of ``gallery``'s and return its served URL."""
+    return await attachments_service.store_upload(
+        session,
+        guild_id=guild_context.guild_id,
+        filename=attachments_service.new_upload_filename(extension),
+        data=contents,
+        content_type=content_type,
+        created_by=guild_context.user_id,
+        initiative_id=gallery.initiative_id,
     )
-    session.add(
-        Upload(
-            filename=file_url.split("/")[-1],
-            created_by=user.id,
-            size_bytes=len(contents),
-            content_type=content_type,
-            content_hash=attachments_service.compute_content_hash(contents),
-        )
-    )
-    return file_url
 
 
-def _store_thumbnail(
+async def _store_thumbnail(
     session: RLSSessionDep,
     guild_context: GuildContext,
-    user: User,
+    gallery: Gallery,
     thumbnail: galleries_service.Thumbnail | None,
 ) -> str | None:
     if thumbnail is None:
         return None
-    return _store_blob(
+    return await _store_blob(
         session,
         guild_context,
-        user,
+        gallery,
         thumbnail.data,
         thumbnail.extension,
         thumbnail.content_type,
@@ -376,65 +354,52 @@ def _image_scope(
 @router.get("/{gallery_id}", response_model=GalleryRead)
 async def read_gallery(
     gallery_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: GalleriesRead,
     include_deleted: IncludeDeletedDep = False,
 ) -> GalleryRead:
     gallery = await resource_access.load_authorized(
         session, Tool.gallery, gallery_id, current_user, guild_context
     )
     await annotate_gallery_rows(session, [gallery])
-    return serialize_gallery(gallery, user_id=current_user.id, context=guild_context)
+    return serialize_tool(
+        GalleryRead, gallery, user_id=guild_context.user_id, context=guild_context
+    )
 
 
 @router.post("/", response_model=GalleryRead, status_code=status.HTTP_201_CREATED)
 async def create_gallery(
     gallery_in: GalleryCreate,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: GalleriesWrite,
 ) -> GalleryRead:
     """Create a gallery. Requires create_galleries permission on the
     initiative (or guild admin); the creator gets the owner grant."""
-    initiative = await _get_initiative_for_gallery(session, gallery_in.initiative_id)
-    if not initiative.galleries_enabled:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=Tool.gallery.feature_disabled_code,
-        )
-    await resource_access.require_create(
-        session, Tool.gallery, initiative, current_user, guild_context
+    resource_access.refuse_app_sharing(guild_context, gallery_in, "grants")
+    initiative = await resource_access.prepare_create(
+        session, Tool.gallery, gallery_in.initiative_id, current_user, guild_context
     )
 
     gallery = Gallery(
         initiative_id=initiative.id,
-        created_by=current_user.id,
+        created_by=guild_context.user_id,
         name=gallery_in.name.strip(),
         description=(gallery_in.description or "").strip() or None,
     )
     session.add(gallery)
     await session.flush()
 
-    session.add(
-        ResourceGrant(
-            resource_type="gallery",
-            resource_id=gallery.id,
-            user_id=current_user.id,
-            role_id=None,
-            level=ResourceAccessLevel.owner,
-            initiative_id=initiative.id,
-        )
-    )
-    await permissions_service.replace_resource_grants(
+    await resource_access.grant_initial_sharing(
         session,
-        resource_type="gallery",
+        guild_context,
+        Tool.gallery,
+        user=current_user,
         resource_id=gallery.id,
-        guild_id=guild_context.guild_id,
         initiative_id=initiative.id,
-        owner_id=current_user.id,
+        payload=gallery_in,
         grants=gallery_in.grants,
-        actor_user_id=current_user.id,
     )
     if gallery_in.tag_ids:
         await tags_service.set_entity_tags(
@@ -444,18 +409,23 @@ async def create_gallery(
             entity_id=gallery.id,
             tag_ids=gallery_in.tag_ids,
         )
+    await attachments_service.claim_uploads(session, gallery)
     await session.commit()
-    hydrated = await _refetch_gallery(session, gallery.id, user_id=current_user.id)
-    return serialize_gallery(hydrated, user_id=current_user.id, context=guild_context)
+    hydrated = await _refetch_gallery(
+        session, gallery.id, user_id=guild_context.user_id
+    )
+    return serialize_tool(
+        GalleryRead, hydrated, user_id=guild_context.user_id, context=guild_context
+    )
 
 
 @router.patch("/{gallery_id}", response_model=GalleryRead)
 async def update_gallery(
     gallery_id: int,
     gallery_in: GalleryUpdate,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: GalleriesWrite,
 ) -> GalleryRead:
     """Rename, describe, or choose the cover. Requires write access."""
     gallery = await resource_access.load_authorized(
@@ -485,57 +455,34 @@ async def update_gallery(
     if updated:
         gallery.updated_at = datetime.now(timezone.utc)
         session.add(gallery)
+        await attachments_service.claim_uploads(session, gallery)
         await session.commit()
 
-    hydrated = await _refetch_gallery(session, gallery.id, user_id=current_user.id)
-    return serialize_gallery(hydrated, user_id=current_user.id, context=guild_context)
-
-
-@router.delete("/{gallery_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_gallery(
-    gallery_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
-) -> None:
-    """Soft-delete a gallery and its pictures. Requires owner permission or
-    guild admin."""
-    from app.services.platform import guilds as guilds_service
-    from app.services.tenant.soft_delete import soft_delete_entity
-
-    gallery = await resource_access.load_authorized(
-        session,
-        Tool.gallery,
-        gallery_id,
-        current_user,
-        guild_context,
-        require_owner=True,
+    hydrated = await _refetch_gallery(
+        session, gallery.id, user_id=guild_context.user_id
     )
-    retention_days = await guilds_service.get_guild_retention_days(
-        session, guild_context.guild_id
+    return serialize_tool(
+        GalleryRead, hydrated, user_id=guild_context.user_id, context=guild_context
     )
-    await soft_delete_entity(
-        session,
-        gallery,
-        deleted_by_user_id=current_user.id,
-        retention_days=retention_days,
-    )
-    await session.commit()
 
 
 async def read_after_write(
     session: RLSSessionDep,
     gallery_id: int,
-    user: User,
-    guild_context: GuildContext,
+    user: Optional[User],
+    guild_context: ActorContext,
 ) -> GalleryRead:
     """The gallery a write answers with: re-read after the commit, serialized.
 
     Registered in ``tool_lists.TOOL_LISTS`` so the shared sharing route
     (``tool_grants.py``) answers in this tool's own shape.
     """
-    hydrated = await _refetch_gallery(session, gallery_id, user_id=user.id)
-    return serialize_gallery(hydrated, user_id=user.id, context=guild_context)
+    hydrated = await _refetch_gallery(
+        session, gallery_id, user_id=guild_context.user_id
+    )
+    return serialize_tool(
+        GalleryRead, hydrated, user_id=guild_context.user_id, context=guild_context
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -593,23 +540,20 @@ async def list_gallery_images(
         await session.exec(select(func.count()).select_from(count_subq))
     ).one()
 
-    stmt = (
+    stmt = apply_pagination(
         select(GalleryImage)
         .where(*conditions)
         .options(*galleries_service.image_loader_options())
-        .order_by(*galleries_service.image_order(oldest_first=oldest_first))
-        .offset((page - 1) * page_size)
-        .limit(page_size)
+        .order_by(*galleries_service.image_order(oldest_first=oldest_first)),
+        page,
+        page_size,
     )
     images = list((await session.exec(stmt)).unique().all())
     await tags_service.annotate_tags(session, images)
     await galleries_service.annotate_version_counts(session, images)
+    items = [serialize_gallery_image(i, context=guild_context) for i in images]
     return GalleryImageListResponse(
-        items=[serialize_gallery_image(i, context=guild_context) for i in images],
-        total_count=total_count,
-        page=page,
-        page_size=page_size,
-        has_next=page * page_size < total_count,
+        **build_paginated_response(items, total_count, page, page_size)
     )
 
 
@@ -632,20 +576,13 @@ async def get_gallery_image_timeline(
     """The months this gallery has pictures in, newest first — what the
     timeline rail is drawn from. Takes the same filters the list does, so the
     rail is a picture of the list as it currently stands."""
-    try:
-        zone = timeline_service.resolve_zone(tz)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=CommonMessages.UNKNOWN_TIMEZONE,
-        ) from exc
     gallery = await resource_access.load_authorized(
         session, Tool.gallery, gallery_id, current_user, guild_context
     )
     conditions = _image_scope(gallery, tag_ids=tag_ids, search=search)
     return TimelineResponse(
         buckets=await timeline_service.month_buckets(
-            session, date_expr=GalleryImage.created_at, conditions=conditions, tz=zone
+            session, date_expr=GalleryImage.created_at, conditions=conditions, tz=tz
         )
     )
 
@@ -678,10 +615,10 @@ async def upload_gallery_image(
     contents, mime, extension, width, height, thumb = await _read_picture(
         session, guild_context, file
     )
-    file_url = _store_blob(
-        session, guild_context, current_user, contents, extension, mime
+    file_url = await _store_blob(
+        session, guild_context, gallery, contents, extension, mime
     )
-    thumbnail_url = _store_thumbnail(session, guild_context, current_user, thumb)
+    thumbnail_url = await _store_thumbnail(session, guild_context, gallery, thumb)
 
     now = datetime.now(timezone.utc)
     image = GalleryImage(
@@ -726,7 +663,7 @@ async def upload_gallery_image(
         await session.commit()
     except Exception as failed:
         await session.rollback()
-        _discard_orphans([file_url, thumbnail_url], failed)
+        _discard_orphans(guild_context.guild_id, [file_url, thumbnail_url], failed)
         raise
 
     hydrated = await _refetch_image(session, gallery.id, image.id)
@@ -777,6 +714,7 @@ async def update_gallery_image(
         )
     image.updated_at = datetime.now(timezone.utc)
     session.add(image)
+    await attachments_service.claim_uploads(session, image)
     await session.commit()
     hydrated = await _refetch_image(session, gallery.id, image.id)
     return serialize_gallery_image(hydrated, context=guild_context)
@@ -794,20 +732,15 @@ async def delete_gallery_image(
 ) -> None:
     """Send a picture to the trash. Requires write access on the gallery —
     removing a picture is editing the gallery, and it can be restored."""
-    from app.services.platform import guilds as guilds_service
-    from app.services.tenant.soft_delete import soft_delete_entity
+    from app.services.tenant.soft_delete import trash
 
     gallery, image = await _load_image(
         session, gallery_id, image_id, current_user, guild_context, access="write"
     )
-    retention_days = await guilds_service.get_guild_retention_days(
-        session, guild_context.guild_id
-    )
-    await soft_delete_entity(
+    await trash(
         session,
         image,
         deleted_by_user_id=current_user.id,
-        retention_days=retention_days,
     )
     if gallery.cover_image_id == image.id:
         # The list falls back to the newest picture rather than a trashed one.
@@ -852,9 +785,7 @@ async def bulk_delete_gallery_images(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=GalleryMessages.IMAGE_NOT_FOUND,
         )
-    retention_days = await guilds_service.get_guild_retention_days(
-        session, guild_context.guild_id
-    )
+    retention_days = await guilds_service.get_guild_retention_days(session)
     for image in images:
         await soft_delete_entity(
             session,
@@ -896,10 +827,10 @@ async def upload_gallery_image_version(
     contents, mime, extension, width, height, thumb = await _read_picture(
         session, guild_context, file
     )
-    file_url = _store_blob(
-        session, guild_context, current_user, contents, extension, mime
+    file_url = await _store_blob(
+        session, guild_context, gallery, contents, extension, mime
     )
-    thumbnail_url = _store_thumbnail(session, guild_context, current_user, thumb)
+    thumbnail_url = await _store_thumbnail(session, guild_context, gallery, thumb)
 
     version = GalleryImageVersion(
         gallery_image_id=image.id,
@@ -921,7 +852,7 @@ async def upload_gallery_image_version(
         await session.commit()
     except Exception as failed:
         await session.rollback()
-        _discard_orphans([file_url, thumbnail_url], failed)
+        _discard_orphans(guild_context.guild_id, [file_url, thumbnail_url], failed)
         if isinstance(failed, IntegrityError):
             # A concurrent upload claimed the same version number between the
             # MAX() read and this commit. Ask the caller to retry rather than
@@ -974,7 +905,7 @@ async def delete_gallery_image_version(
     one promotes the previous; deleting the last is refused — remove the
     picture instead."""
     _, image = await _load_image(
-        session, gallery_id, image_id, current_user, guild_context, require_owner=True
+        session, gallery_id, image_id, current_user, guild_context, action=Action.delete
     )
     # Serialize concurrent deletes on the same picture: two owner DELETEs that
     # both observe two versions could otherwise each remove one and leave none.
@@ -1005,12 +936,6 @@ async def delete_gallery_image_version(
     doomed_urls = galleries_service.image_blob_urls(target)
 
     await session.delete(target)
-    await session.flush()
-    await session.exec(
-        sa_delete(Upload).where(
-            Upload.filename.in_([u.split("/")[-1] for u in doomed_urls])
-        )
-    )
     if is_current:
         promoted = next((v for v in versions if v.id != version_id), None)
         if promoted is not None:
@@ -1018,5 +943,8 @@ async def delete_gallery_image_version(
             image.updated_at = datetime.now(timezone.utc)
             session.add(image)
     await session.commit()
-    # Blobs after the rows, so a failed commit does not orphan files.
-    attachments_service.delete_uploads_by_urls(doomed_urls)
+    # Once the version is gone, and only if nothing else shows its files.
+    released = await attachments_service.release_unshown(
+        guild_context.guild_id, doomed_urls
+    )
+    attachments_service.delete_blobs(guild_context.guild_id, released)

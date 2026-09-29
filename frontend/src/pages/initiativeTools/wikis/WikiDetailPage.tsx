@@ -2,13 +2,16 @@ import { Navigate, useParams } from "@tanstack/react-router";
 import { BookText, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { WikiPageTree } from "@/components/initiativeTools/wikis/WikiPageTree";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
+import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useCreateWikiPage, useWiki, useWikiPages } from "@/hooks/useWikis";
 import { useGuildPath } from "@/lib/guildUrl";
-import { wikiPageRoute } from "@/lib/tools";
+import { toolListRoute, wikiPageRoute } from "@/lib/tools";
 
 /**
  * A wiki, opened.
@@ -32,14 +35,13 @@ export const WikiDetailPage = () => {
 
   const wikiQuery = useWiki(validIds ? wikiId : null);
   const pagesQuery = useWikiPages(validIds ? wikiId : null);
+  useReadOnOpen(Tool.wiki, wikiQuery.data?.id);
   const createPage = useCreateWikiPage(wikiId);
 
   const pages = pagesQuery.data?.items ?? [];
   const addPage = () => createPage.mutate({});
 
-  const canWrite =
-    wikiQuery.data?.my_permission_level === "write" ||
-    wikiQuery.data?.my_permission_level === "owner";
+  const canWrite = Boolean(wikiQuery.data?.can.edit);
 
   // Inside a wiki, the thing to create is a page. Without this the button in
   // the corner keeps whatever the list before it registered — a second wiki.
@@ -47,12 +49,12 @@ export const WikiDetailPage = () => {
 
   if (!validIds || wikiQuery.isError) {
     return (
-      <Card className="mx-auto mt-10 max-w-md">
-        <CardHeader>
-          <CardTitle>{t("notFound")}</CardTitle>
-          <CardDescription>{t("notFoundDescription")}</CardDescription>
-        </CardHeader>
-      </Card>
+      <ToolAccessStatus
+        error={wikiQuery.error}
+        keys="wikis:"
+        backTo={gp(toolListRoute(Tool.wiki, initiativeId))}
+        backLabel={t("backToWikis")}
+      />
     );
   }
 

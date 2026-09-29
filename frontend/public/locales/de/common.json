@@ -1,5 +1,7 @@
 {
   "deletedUserName": "Gelöschter Benutzer #{{id}}",
+  "user": "Benutzer",
+  "userWithId": "Benutzer #{{id}}",
   "save": "Speichern",
   "cancel": "Abbrechen",
   "delete": "Löschen",
@@ -157,6 +159,7 @@
   },
   "reactions": {
     "add": "Reaktion hinzufügen",
+    "quick": "Mit {{emoji}} reagieren",
     "chipLabel_one": "{{emoji}}, {{count}} Reaktion",
     "chipLabel_other": "{{emoji}}, {{count}} Reaktionen",
     "countOnly_one": "{{count}} Reaktion",
@@ -174,7 +177,9 @@
     "description": "Mit den Pfeiltasten oder durch Wischen zwischen Bildern wechseln.",
     "position": "{{current}} / {{total}}",
     "zoomIn": "Vergrößern",
-    "zoomOut": "Verkleinern"
+    "zoomOut": "Verkleinern",
+    "open": "Dieses Bild in voller Größe ansehen",
+    "openNamed": "{{name}} in voller Größe ansehen"
   },
   "timeline": {
     "label": "Zu einem Monat springen",
@@ -234,5 +239,8 @@
   "notFoundPage": {
     "title": "Seite nicht gefunden",
     "description": "Unter dieser Adresse gibt es nichts. Der Link ist vielleicht falsch geschrieben, oder die Seite wurde verschoben."
+  },
+  "nativeUpdate": {
+    "unsigned": "Das Update dieses Servers wurde nicht von Initiative veröffentlicht, deshalb bleibt die App auf Version {{version}}."
   }
 }

@@ -1,9 +1,8 @@
 """What an app service needs from us in order to trust a call.
 
 One public route, because there is one issuer. Initiative signs every token an
-app receives — the context JWT it sends with a platform call, and the delegated
-one a delegate trades for at ``/delegation/exchange`` — with its own dedicated
-keypair. An app fetches the public half here, and picks the right key out of
+app receives — the context JWT it sends with a platform call — with its own
+dedicated keypair. An app fetches the public half here, and picks the right key out of
 the set while a rotation is in flight.
 
 Unauthenticated by design — a public key is public, and requiring a credential

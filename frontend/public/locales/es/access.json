@@ -26,6 +26,10 @@
     "remove": "Eliminar",
     "fullAccess": "Acceso total",
     "fullAccessHint": "Este rol puede ver y editar todo en esta iniciativa, por lo que siempre es editor aquí.",
+    "app": "Aplicación",
+    "apps": "Aplicaciones",
+    "appFallback": "Aplicación {{id}}",
+    "appGrantHint": "La configuración de la comunidad decide a qué puede acceder una aplicación, así que no se puede cambiar aquí.",
     "settingsDescription": "Elige quién puede ver y editar esto."
   },
   "bulkAccess": {

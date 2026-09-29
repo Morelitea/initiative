@@ -21,7 +21,6 @@ def _task(**overrides: Any) -> Task:
     return Task(project_id=1, task_status_id=1, title="t", **overrides)
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     ("case", "was", "category", "expected"),
     [
@@ -51,7 +50,6 @@ def test_completed_at_follows_the_done_boundary(case: str, was, category, expect
     assert task.completed_at == expected
 
 
-@pytest.mark.unit
 def test_rule_is_idempotent():
     task = _task()
 

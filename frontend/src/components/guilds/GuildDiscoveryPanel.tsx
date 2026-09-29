@@ -26,7 +26,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { updateGuildApiV1GuildsGuildIdPatch } from "@/api/generated/guilds/guilds";
+import { updateGuildApiV1CommunitiesGuildIdPatch } from "@/api/generated/communities/communities";
 import type { GuildCategory, GuildRead } from "@/api/generated/initiativeAPI.schemas";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -35,7 +35,6 @@ import { useAppConfig } from "@/hooks/useAppConfig";
 import { useGuilds } from "@/hooks/useGuilds";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { GUILD_CATEGORIES, guildCategoryLabel } from "@/lib/guildCategories";
-import { administersGuild } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
 import { CommunityAutoJoinPrompt } from "./CommunityAutoJoinPrompt";
@@ -59,7 +58,7 @@ export const GuildDiscoveryPanel = () => {
     setError(null);
   }, [activeGuild]);
 
-  if (!communityDirectoryEnabled || !activeGuild || !administersGuild(activeGuild)) {
+  if (!communityDirectoryEnabled || !activeGuild?.can.administer) {
     return null;
   }
 
@@ -73,9 +72,9 @@ export const GuildDiscoveryPanel = () => {
     setError(null);
     setMessage(null);
     try {
-      const result = (await updateGuildApiV1GuildsGuildIdPatch(
+      const result = (await updateGuildApiV1CommunitiesGuildIdPatch(
         activeGuild.id,
-        updates as Parameters<typeof updateGuildApiV1GuildsGuildIdPatch>[1]
+        updates as Parameters<typeof updateGuildApiV1CommunitiesGuildIdPatch>[1]
       )) as unknown as GuildRead;
       updateGuildInState(result);
       await refreshGuilds();

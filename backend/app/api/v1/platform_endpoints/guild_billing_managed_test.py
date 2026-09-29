@@ -18,9 +18,8 @@ from app.models.platform.guild import GuildRole
 from app.testing import create_guild, create_guild_membership, create_user
 from app.testing.billing_managed import billing_manages_plans
 
-pytestmark = pytest.mark.integration
 
-GUILDS = "/api/v1/settings/guilds"
+GUILDS = "/api/v1/settings/communities"
 
 
 def _billing_sets_plans(monkeypatch) -> None:
@@ -44,7 +43,7 @@ async def _record(session: AsyncSession, guild_id: int, status: str) -> None:
 async def _row(client: AsyncClient, headers: dict, guild_id: int) -> dict:
     resp = await client.get(GUILDS, headers=headers)
     assert resp.status_code == 200, resp.text
-    return next(row for row in resp.json() if row["id"] == guild_id)
+    return next(row for row in resp.json()["items"] if row["id"] == guild_id)
 
 
 @pytest.mark.parametrize(

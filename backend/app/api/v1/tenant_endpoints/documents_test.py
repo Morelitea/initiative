@@ -2,45 +2,25 @@
 Integration tests for document endpoints — create with permissions.
 """
 
-from pathlib import Path
-
 import pytest
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.tenant_endpoints.documents import MAX_DOCUMENT_IDS
-from app.core.config import settings
-from app.core.security import create_upload_token
 from app.models.tenant.document import (
     Document,
-    DocumentFileVersion,
     DocumentType,
 )
 from app.models.platform.guild import GuildRole
 from app.models.tenant.initiative import InitiativeRoleModel
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.testing import (
     guild_of,
     create_document,
     create_initiative,
-    create_user,
-    get_auth_headers,
-    get_auth_token,
+    create_resource_grant,
 )
-
-
-def _uploads_dir() -> Path:
-    path = Path(settings.UPLOADS_DIR)
-    path.mkdir(parents=True, exist_ok=True)
-    return path
-
-
-@pytest.fixture(autouse=True)
-def _isolated_uploads_dir(tmp_path, monkeypatch):
-    """Point UPLOADS_DIR at a throwaway dir so staged blobs (now in per-guild
-    subdirs) don't litter the repo and never leak across tests."""
-    monkeypatch.setattr(settings, "UPLOADS_DIR", str(tmp_path / "uploads"))
 
 
 async def _create_file_document(
@@ -72,7 +52,6 @@ async def _create_file_document(
     )
 
 
-@pytest.mark.integration
 async def test_create_refuses_when_documents_are_switched_off(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -94,7 +73,6 @@ async def test_create_refuses_when_documents_are_switched_off(
     assert response.json()["detail"] == "DOCUMENTS_NOT_ENABLED"
 
 
-@pytest.mark.integration
 async def test_a_guild_admin_does_not_list_documents_of_a_switched_off_initiative(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -117,7 +95,6 @@ async def test_a_guild_admin_does_not_list_documents_of_a_switched_off_initiativ
     assert listed.json()["items"] == []
 
 
-@pytest.mark.integration
 async def test_create_document_with_permissions(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -169,7 +146,6 @@ async def test_create_document_with_permissions(
     assert role_grants[0]["level"] == "read"
 
 
-@pytest.mark.integration
 async def test_create_document_defaults_to_all_members_viewer(
     client: AsyncClient, acting_user
 ):
@@ -195,99 +171,57 @@ async def test_create_document_defaults_to_all_members_viewer(
     )
 
 
-@pytest.mark.integration
-async def test_create_document_rejects_foreign_initiative_role(
+# ---------------------------------------------------------------------------
+# Duplicate / copy / create-from-template tests
+# ---------------------------------------------------------------------------
+
+
+async def test_duplicate_is_held_to_create_and_keeps_the_sources_sharing(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """Role from a different initiative must be silently dropped."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    initiative_a = admin.initiative
-    initiative_b = await create_initiative(
-        session, admin.guild, admin.user, name="Initiative B"
-    )
-
-    # Get a role that belongs to initiative_b, not initiative_a
-    result = await session.exec(
-        select(InitiativeRoleModel).where(
-            InitiativeRoleModel.initiative_id == initiative_b.id,
-            InitiativeRoleModel.name == "member",
-        )
-    )
-    foreign_role = result.one()
-
-    payload = {
-        "name": "Doc Cross Initiative",
-        "initiative_id": initiative_a.id,
-        "grants": [
-            {"role_id": foreign_role.id, "level": "read"},
-        ],
-    }
-
-    response = await client.post(
-        admin.g("/documents/"), headers=admin.headers, json=payload
-    )
-
-    assert response.status_code == 201
-    data = response.json()
-    # Foreign role must have been silently dropped
-    assert len([g for g in data["grants"] if g["role_id"] is not None]) == 0
-
-
-@pytest.mark.integration
-async def test_create_document_skips_owner_level_grants(
-    client: AsyncClient, acting_user
-):
-    """Owner-level grants in user_permissions must be silently ignored."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    member = await acting_user(
+    """A duplicate is a new document: its maker needs the right to create
+    documents, its name must be free, and it is shared with the same people
+    as the document it copies."""
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    writer = await acting_user(
         guild_role=GuildRole.member,
-        guild=admin.guild,
-        initiative=admin.initiative,
+        guild=owner.guild,
+        initiative=owner.initiative,
         initiative_role="member",
     )
+    doc = await create_document(session, owner.initiative, owner.user, name="Plan")
+    await create_resource_grant(
+        session, doc, user=writer.user, level=ResourceAccessLevel.write
+    )
+    await create_resource_grant(session, doc, all_initiative_members=True)
 
-    payload = {
-        "name": "Doc Owner Skip",
-        "initiative_id": admin.initiative.id,
-        "grants": [{"user_id": member.user.id, "level": "owner"}],
+    refused = await client.post(
+        writer.g(f"/documents/{doc.id}/duplicate"), headers=writer.headers
+    )
+    assert refused.status_code == 403
+    assert refused.json()["detail"] == "DOCUMENT_CREATE_PERMISSION_REQUIRED"
+
+    duplicated = await client.post(
+        owner.g(f"/documents/{doc.id}/duplicate"), headers=owner.headers
+    )
+    assert duplicated.status_code == 201, duplicated.text
+    assert duplicated.json()["name"] == "Plan (Copy)"
+    assert {
+        (g["user_id"], g["all_initiative_members"], g["level"])
+        for g in duplicated.json()["grants"]
+    } == {
+        (owner.user.id, False, "owner"),
+        (writer.user.id, False, "write"),
+        (None, True, "read"),
     }
 
-    response = await client.post(
-        admin.g("/documents/"), headers=admin.headers, json=payload
+    again = await client.post(
+        owner.g(f"/documents/{doc.id}/duplicate"), headers=owner.headers
     )
-
-    assert response.status_code == 201
-    member_grants = [
-        g for g in response.json()["grants"] if g["user_id"] == member.user.id
-    ]
-    assert len(member_grants) == 0
+    assert again.status_code == 409
+    assert again.json()["detail"] == "DOCUMENT_NAME_ALREADY_EXISTS"
 
 
-# ---------------------------------------------------------------------------
-# Copy / create-from-template tests
-# ---------------------------------------------------------------------------
-
-
-async def _make_native_doc(
-    session: AsyncSession,
-    *,
-    initiative,
-    creator,
-    name: str,
-    is_template: bool,
-) -> Document:
-    """Create a native document with creator as owner, optionally a template."""
-    return await create_document(
-        session,
-        initiative,
-        creator,
-        name=name,
-        content={"root": {"type": "root", "children": []}},
-        is_template=is_template,
-    )
-
-
-@pytest.mark.integration
 async def test_copy_template_with_read_only_access(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -302,24 +236,15 @@ async def test_copy_template_with_read_only_access(
     )
     initiative = template_owner.initiative
 
-    template = await _make_native_doc(
+    template = await create_document(
         session,
-        initiative=initiative,
-        creator=template_owner.user,
+        initiative,
+        template_owner.user,
         name="Project Kickoff Template",
         is_template=True,
     )
     # Grant reader explicit read-only access on the template.
-    session.add(
-        ResourceGrant(
-            resource_type="document",
-            resource_id=template.id,
-            user_id=reader.user.id,
-            level=ResourceAccessLevel.read,
-            initiative_id=template.initiative_id,
-        )
-    )
-    await session.commit()
+    await create_resource_grant(session, template, user=reader.user)
 
     response = await client.post(
         reader.g(f"/documents/{template.id}/copy"),
@@ -345,7 +270,6 @@ async def test_copy_template_with_read_only_access(
     assert template.name == "Project Kickoff Template"
 
 
-@pytest.mark.integration
 async def test_copy_non_template_still_requires_write_access(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -359,23 +283,10 @@ async def test_copy_non_template_still_requires_write_access(
     )
     initiative = owner.initiative
 
-    doc = await _make_native_doc(
-        session,
-        initiative=initiative,
-        creator=owner.user,
-        name="Confidential Notes",
-        is_template=False,
+    doc = await create_document(
+        session, initiative, owner.user, name="Confidential Notes"
     )
-    session.add(
-        ResourceGrant(
-            resource_type="document",
-            resource_id=doc.id,
-            user_id=reader.user.id,
-            level=ResourceAccessLevel.read,
-            initiative_id=doc.initiative_id,
-        )
-    )
-    await session.commit()
+    await create_resource_grant(session, doc, user=reader.user)
 
     response = await client.post(
         reader.g(f"/documents/{doc.id}/copy"),
@@ -392,7 +303,6 @@ async def test_copy_non_template_still_requires_write_access(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_download_owner_can_download(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -402,18 +312,14 @@ async def test_download_owner_can_download(
     doc = await _create_file_document(
         session, initiative=owner.initiative, owner=owner.user, filename="dl_owner.pdf"
     )
-    try:
-        response = await client.get(
-            owner.g(f"/documents/{doc.id}/download"), headers=owner.headers
-        )
-        assert response.status_code == 200
-        assert "attachment" in response.headers.get("content-disposition", "")
-        assert response.headers.get("x-content-type-options") == "nosniff"
-    finally:
-        (_uploads_dir() / "dl_owner.pdf").unlink(missing_ok=True)
+    response = await client.get(
+        owner.g(f"/documents/{doc.id}/download"), headers=owner.headers
+    )
+    assert response.status_code == 200
+    assert "attachment" in response.headers.get("content-disposition", "")
+    assert response.headers.get("x-content-type-options") == "nosniff"
 
 
-@pytest.mark.integration
 async def test_download_unauthenticated_returns_401(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -423,14 +329,10 @@ async def test_download_unauthenticated_returns_401(
     doc = await _create_file_document(
         session, initiative=owner.initiative, owner=owner.user, filename="dl_unauth.pdf"
     )
-    try:
-        response = await client.get(owner.g(f"/documents/{doc.id}/download"))
-        assert response.status_code == 401
-    finally:
-        (_uploads_dir() / "dl_unauth.pdf").unlink(missing_ok=True)
+    response = await client.get(owner.g(f"/documents/{doc.id}/download"))
+    assert response.status_code == 401
 
 
-@pytest.mark.integration
 async def test_download_guild_member_without_permission_returns_403(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -449,16 +351,12 @@ async def test_download_guild_member_without_permission_returns_403(
         owner=owner.user,
         filename="dl_no_perm.pdf",
     )
-    try:
-        response = await client.get(
-            other.g(f"/documents/{doc.id}/download"), headers=other.headers
-        )
-        assert response.status_code == 403
-    finally:
-        (_uploads_dir() / "dl_no_perm.pdf").unlink(missing_ok=True)
+    response = await client.get(
+        other.g(f"/documents/{doc.id}/download"), headers=other.headers
+    )
+    assert response.status_code == 403
 
 
-@pytest.mark.integration
 async def test_version_download_answers_like_the_file_download(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -478,27 +376,23 @@ async def test_version_download_answers_like_the_file_download(
         owner=owner.user,
         filename="dl_version_no_perm.pdf",
     )
-    try:
-        current = await client.get(
-            other.g(f"/documents/{doc.id}/download"), headers=other.headers
-        )
-        stored = await client.get(
-            other.g(f"/documents/{doc.id}/versions/1/download"),
-            headers=other.headers,
-        )
-        assert current.status_code == 403
-        assert stored.status_code == current.status_code
-    finally:
-        (_uploads_dir() / "dl_version_no_perm.pdf").unlink(missing_ok=True)
+    current = await client.get(
+        other.g(f"/documents/{doc.id}/download"), headers=other.headers
+    )
+    stored = await client.get(
+        other.g(f"/documents/{doc.id}/versions/1/download"),
+        headers=other.headers,
+    )
+    assert current.status_code == 403
+    assert stored.status_code == current.status_code
 
 
-@pytest.mark.integration
 async def test_download_non_guild_member_returns_404(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """User from a different guild gets 404 (document not visible)."""
     owner = await acting_user(guild_role=GuildRole.member, initiative=True)
-    outsider = await create_user(session)
+    outsider = await acting_user("member")
 
     doc = await _create_file_document(
         session,
@@ -506,17 +400,12 @@ async def test_download_non_guild_member_returns_404(
         owner=owner.user,
         filename="dl_outsider.pdf",
     )
-    try:
-        headers = get_auth_headers(outsider)
-        response = await client.get(
-            owner.g(f"/documents/{doc.id}/download"), headers=headers
-        )
-        assert response.status_code == 404
-    finally:
-        (_uploads_dir() / "dl_outsider.pdf").unlink(missing_ok=True)
+    response = await client.get(
+        owner.g(f"/documents/{doc.id}/download"), headers=outsider.headers
+    )
+    assert response.status_code == 404
 
 
-@pytest.mark.integration
 async def test_download_read_permission_grants_access(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -532,26 +421,14 @@ async def test_download_read_permission_grants_access(
     doc = await _create_file_document(
         session, initiative=owner.initiative, owner=owner.user, filename="dl_reader.pdf"
     )
-    read_perm = ResourceGrant(
-        resource_type="document",
-        resource_id=doc.id,
-        user_id=reader.user.id,
-        level=ResourceAccessLevel.read,
-        initiative_id=doc.initiative_id,
+    await create_resource_grant(session, doc, user=reader.user)
+
+    response = await client.get(
+        owner.g(f"/documents/{doc.id}/download"), headers=reader.headers
     )
-    session.add(read_perm)
-    await session.commit()
-
-    try:
-        response = await client.get(
-            owner.g(f"/documents/{doc.id}/download"), headers=reader.headers
-        )
-        assert response.status_code == 200
-    finally:
-        (_uploads_dir() / "dl_reader.pdf").unlink(missing_ok=True)
+    assert response.status_code == 200
 
 
-@pytest.mark.integration
 async def test_download_inline_returns_no_attachment_header(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -561,18 +438,14 @@ async def test_download_inline_returns_no_attachment_header(
     doc = await _create_file_document(
         session, initiative=owner.initiative, owner=owner.user, filename="dl_inline.pdf"
     )
-    try:
-        response = await client.get(
-            owner.g(f"/documents/{doc.id}/download?inline=1"),
-            headers=owner.headers,
-        )
-        assert response.status_code == 200
-        assert "attachment" not in response.headers.get("content-disposition", "")
-    finally:
-        (_uploads_dir() / "dl_inline.pdf").unlink(missing_ok=True)
+    response = await client.get(
+        owner.g(f"/documents/{doc.id}/download?inline=1"),
+        headers=owner.headers,
+    )
+    assert response.status_code == 200
+    assert "attachment" not in response.headers.get("content-disposition", "")
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("filename", ["dl_inline.html", "dl_inline.svg"])
 async def test_download_inline_html_svg_is_same_origin_framable_but_scriptless(
     client: AsyncClient, session: AsyncSession, acting_user, filename: str
@@ -583,24 +456,22 @@ async def test_download_inline_html_svg_is_same_origin_framable_but_scriptless(
     doc = await _create_file_document(
         session, initiative=owner.initiative, owner=owner.user, filename=filename
     )
-    try:
-        response = await client.get(
-            owner.g(f"/documents/{doc.id}/download?inline=1"),
-            headers=owner.headers,
-        )
-        assert response.status_code == 200
-        # Same-origin framing allowed (overrides the global DENY middleware)
-        assert response.headers.get("x-frame-options") == "SAMEORIGIN"
-        csp = response.headers.get("content-security-policy", "")
-        assert "frame-ancestors 'self'" in csp
-        # Stored-XSS hardening preserved: scripts still disabled
-        assert "script-src 'none'" in csp
-        assert "attachment" not in response.headers.get("content-disposition", "")
-    finally:
-        (_uploads_dir() / filename).unlink(missing_ok=True)
+    response = await client.get(
+        owner.g(f"/documents/{doc.id}/download?inline=1"),
+        headers=owner.headers,
+    )
+    assert response.status_code == 200
+    # Same-origin framing allowed (overrides the global DENY middleware)
+    assert response.headers.get("x-frame-options") == "SAMEORIGIN"
+    csp = response.headers.get("content-security-policy", "")
+    assert "frame-ancestors 'self'" in csp
+    # Shown as a static page: sandboxed, with no scripts and no forms.
+    assert "sandbox" in csp
+    assert "script-src 'none'" in csp
+    assert "form-action 'none'" in csp
+    assert "attachment" not in response.headers.get("content-disposition", "")
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("filename", ["dl_attach.html", "dl_attach.svg"])
 async def test_download_non_inline_html_svg_keeps_global_deny(
     client: AsyncClient, session: AsyncSession, acting_user, filename: str
@@ -611,67 +482,18 @@ async def test_download_non_inline_html_svg_keeps_global_deny(
     doc = await _create_file_document(
         session, initiative=owner.initiative, owner=owner.user, filename=filename
     )
-    try:
-        response = await client.get(
-            owner.g(f"/documents/{doc.id}/download"), headers=owner.headers
-        )
-        assert response.status_code == 200
-        # Served as an attachment; the framing relaxation must not apply here
-        assert "attachment" in response.headers.get("content-disposition", "")
-        assert response.headers.get("x-frame-options") != "SAMEORIGIN"
-        csp = response.headers.get("content-security-policy", "")
-        assert "script-src 'none'" in csp
-        assert "frame-ancestors" not in csp
-    finally:
-        (_uploads_dir() / filename).unlink(missing_ok=True)
-
-
-@pytest.mark.integration
-async def test_download_scoped_upload_token_auth(
-    client: AsyncClient, session: AsyncSession, acting_user
-) -> None:
-    """A short-lived, uploads-scoped ?token= authenticates the download (the
-    credential native WebViews carry in the URL). SEC-12."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
-
-    doc = await _create_file_document(
-        session, initiative=owner.initiative, owner=owner.user, filename="dl_token.pdf"
+    response = await client.get(
+        owner.g(f"/documents/{doc.id}/download"), headers=owner.headers
     )
-    try:
-        token, _ = create_upload_token(user_id=owner.user.id)
-        response = await client.get(
-            owner.g(f"/documents/{doc.id}/download?token={token}")
-        )
-        assert response.status_code == 200
-    finally:
-        (_uploads_dir() / "dl_token.pdf").unlink(missing_ok=True)
+    assert response.status_code == 200
+    # Served as an attachment; the framing relaxation must not apply here
+    assert "attachment" in response.headers.get("content-disposition", "")
+    assert response.headers.get("x-frame-options") != "SAMEORIGIN"
+    csp = response.headers.get("content-security-policy", "")
+    assert "script-src 'none'" in csp
+    assert "frame-ancestors" not in csp
 
 
-@pytest.mark.integration
-async def test_download_session_jwt_rejected_in_query_param(
-    client: AsyncClient, session: AsyncSession, acting_user
-) -> None:
-    """The long-lived session JWT must NOT authenticate a download via ?token=
-    (it would leak a full-API credential through the URL). SEC-12."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
-
-    doc = await _create_file_document(
-        session,
-        initiative=owner.initiative,
-        owner=owner.user,
-        filename="dl_session_jwt.pdf",
-    )
-    try:
-        token = get_auth_token(owner.user)
-        response = await client.get(
-            owner.g(f"/documents/{doc.id}/download?token={token}")
-        )
-        assert response.status_code == 401
-    finally:
-        (_uploads_dir() / "dl_session_jwt.pdf").unlink(missing_ok=True)
-
-
-@pytest.mark.integration
 async def test_download_native_document_returns_404(
     client: AsyncClient, acting_user
 ) -> None:
@@ -687,13 +509,11 @@ async def test_download_native_document_returns_404(
     doc_id = response.json()["id"]
 
     response = await client.get(
-        owner.g(f"/documents/{doc_id}/download"),
-        headers=get_auth_headers(owner.user),
+        owner.g(f"/documents/{doc_id}/download"), headers=owner.headers
     )
     assert response.status_code == 404
 
 
-@pytest.mark.integration
 async def test_update_content_clears_yjs_state(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -740,17 +560,17 @@ async def test_update_content_clears_yjs_state(
     assert patch_resp.status_code == 200
 
     # Re-read the document to confirm yjs_state was cleared
-    await session.refresh(doc)
+    await session.refresh(doc, ["yjs_state"])
     assert doc.yjs_state is None
 
 
-@pytest.mark.integration
 async def test_create_whiteboard_document(client: AsyncClient, acting_user) -> None:
     """POST /documents/ with document_type='whiteboard' creates a whiteboard doc.
 
     The response's content should be the empty Excalidraw scene shape
     ({elements, appState, files}) rather than the Lexical root shape. This
     guards against normalize_document_content corrupting whiteboard payloads.
+    A file document is not made here: it comes from uploading its file.
     """
     owner = await acting_user(guild_role=GuildRole.member, initiative=True)
 
@@ -769,6 +589,17 @@ async def test_create_whiteboard_document(client: AsyncClient, acting_user) -> N
     assert body["content"] == {"elements": [], "appState": {}, "files": {}}
     # Ensure the Lexical shape was NOT force-injected
     assert "root" not in body["content"]
+
+    file_doc = await client.post(
+        owner.g("/documents/"),
+        headers=owner.headers,
+        json={
+            "name": "Not a file",
+            "initiative_id": owner.initiative.id,
+            "document_type": "file",
+        },
+    )
+    assert file_doc.status_code == 422
 
 
 def test_normalize_whiteboard_preserves_shape() -> None:
@@ -796,10 +627,11 @@ def test_normalize_native_still_injects_root() -> None:
     assert isinstance(result["root"], dict)
 
 
-@pytest.mark.integration
 async def test_create_smart_link_document(client: AsyncClient, acting_user) -> None:
-    """POST /documents/ with document_type='smart_link' stores only the URL."""
+    """POST /documents/ with document_type='smart_link' stores only the URL,
+    and the list reports the URL without the body."""
     owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    url = "https://www.figma.com/design/abc/Example"
 
     response = await client.post(
         owner.g("/documents/"),
@@ -808,16 +640,22 @@ async def test_create_smart_link_document(client: AsyncClient, acting_user) -> N
             "name": "Design file",
             "initiative_id": owner.initiative.id,
             "document_type": "smart_link",
-            "content": {"url": "https://www.figma.com/design/abc/Example"},
+            "content": {"url": url},
         },
     )
     assert response.status_code == 201
     body = response.json()
     assert body["document_type"] == "smart_link"
-    assert body["content"] == {"url": "https://www.figma.com/design/abc/Example"}
+    assert body["content"] == {"url": url}
+    assert body["smart_link_url"] == url
+
+    listed = await client.get(owner.g("/documents/"), headers=owner.headers)
+    assert listed.status_code == 200, listed.text
+    [row] = listed.json()["items"]
+    assert row["smart_link_url"] == url
+    assert "content" not in row
 
 
-@pytest.mark.integration
 async def test_create_smart_link_rejects_missing_url(
     client: AsyncClient, acting_user
 ) -> None:
@@ -837,7 +675,6 @@ async def test_create_smart_link_rejects_missing_url(
     assert response.json()["detail"] == "DOCUMENT_SMART_LINK_URL_REQUIRED"
 
 
-@pytest.mark.integration
 async def test_create_smart_link_rejects_non_http_url(
     client: AsyncClient, acting_user
 ) -> None:
@@ -909,7 +746,6 @@ def test_document_content_error_is_value_error() -> None:
     assert exc.code == "SOME_CODE"
 
 
-@pytest.mark.integration
 async def test_list_documents_filters_by_ids(client: AsyncClient, session, acting_user):
     """``ids`` narrows the listing to the requested documents so callers can
     hydrate a known set without walking the whole collection."""
@@ -931,7 +767,6 @@ async def test_list_documents_filters_by_ids(client: AsyncClient, session, actin
     assert other.id not in {item["id"] for item in data["items"]}
 
 
-@pytest.mark.integration
 async def test_list_documents_ids_filter_respects_visibility(
     client: AsyncClient, session, acting_user
 ):
@@ -957,7 +792,6 @@ async def test_list_documents_ids_filter_respects_visibility(
     assert response.json()["items"] == []
 
 
-@pytest.mark.integration
 async def test_list_documents_filters_by_template_and_type(
     client: AsyncClient, session, acting_user
 ):
@@ -1007,7 +841,6 @@ async def test_list_documents_filters_by_template_and_type(
     assert [item["id"] for item in response.json()["items"]] == [plain.id]
 
 
-@pytest.mark.integration
 async def test_document_counts_filter_by_template_and_type(
     client: AsyncClient, session, acting_user
 ):
@@ -1054,7 +887,6 @@ async def test_document_counts_filter_by_template_and_type(
     assert response.json()["total_count"] == 2
 
 
-@pytest.mark.integration
 async def test_list_documents_rejects_too_many_ids(client: AsyncClient, acting_user):
     actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
@@ -1068,7 +900,6 @@ async def test_list_documents_rejects_too_many_ids(client: AsyncClient, acting_u
     assert response.json()["detail"] == "DOCUMENT_TOO_MANY_IDS"
 
 
-@pytest.mark.integration
 async def test_document_counts_by_initiative(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1138,7 +969,6 @@ async def test_reading_a_document_can_leave_the_body_out(
     assert body["updated_at"] == full.json()["updated_at"]
 
 
-@pytest.mark.integration
 async def test_a_content_patch_against_a_live_document_is_refused(
     client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
 ) -> None:
@@ -1166,11 +996,10 @@ async def test_a_content_patch_against_a_live_document_is_refused(
 
     assert response.status_code == 409
     assert response.json()["detail"] == "DOCUMENT_LIVE_SESSION_OWNS_CONTENT"
-    await session.refresh(doc)
+    await session.refresh(doc, ["content"])
     assert doc.content == original
 
 
-@pytest.mark.integration
 async def test_a_live_document_can_still_be_renamed(
     client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
 ) -> None:
@@ -1193,113 +1022,3 @@ async def test_a_live_document_can_still_be_renamed(
 
     assert response.status_code == 200
     assert response.json()["name"] == "Renamed while live"
-
-
-# ── downloads on a delegated call ────────────────────────────────────────────
-#
-# These two routes resolve the guild themselves rather than through
-# ``get_guild_membership`` — they establish access, route the session and pick
-# the guild's storage by hand — so the rule that a delegation names its own
-# guild has to be asserted against them directly. See
-# ``history/opaque-identity-design.md`` §13.
-
-
-@pytest.fixture
-async def _delegation_enabled(session: AsyncSession):
-    """Register the delegate whose tokens these two tests present."""
-    from app.core import config as config_module
-    from app.services.marketplace.registration_lookup import invalidate_registrations
-    from app.testing.delegation import register_delegate
-
-    with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(
-            config_module.settings,
-            "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM",
-            "-----BEGIN PRIVATE KEY-----",
-        )
-        await register_delegate(session)
-        yield
-    invalidate_registrations()
-
-
-async def _delegated_headers(session: AsyncSession, *, guild, user) -> dict[str, str]:
-    """A delegation this app may present for this member in this guild."""
-    from app.testing.delegation import (
-        authorize_delegate,
-        delegate_guild_ref,
-        delegate_subject,
-        mint_delegation_token,
-    )
-
-    await authorize_delegate(session, guild, user)
-    token = mint_delegation_token(
-        subject=await delegate_subject(session, guild, user),
-        guild_ref=await delegate_guild_ref(session, guild),
-    )
-    return {"Authorization": f"Bearer {token}"}
-
-
-@pytest.mark.integration
-async def test_a_delegated_download_reads_the_guild_its_token_names(
-    client: AsyncClient, session: AsyncSession, acting_user, _delegation_enabled
-) -> None:
-    """The path names the other guild this person belongs to. The file served
-    is the one in the guild the delegation was minted for."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
-    elsewhere = await acting_user(
-        guild_role=GuildRole.member, initiative=True, user=a.user
-    )
-
-    doc = await _create_file_document(
-        session, initiative=a.initiative, owner=a.user, filename="dl_delegated.pdf"
-    )
-    headers = await _delegated_headers(session, guild=a.guild, user=a.user)
-
-    try:
-        response = await client.get(
-            f"/api/v1/g/{elsewhere.guild.id}/documents/{doc.id}/download",
-            headers=headers,
-        )
-        assert response.status_code == 200, response.text
-        assert response.content == b"%PDF-1.4 test"
-    finally:
-        (_uploads_dir() / "dl_delegated.pdf").unlink(missing_ok=True)
-
-
-@pytest.mark.integration
-async def test_a_delegated_version_download_reads_the_same_guild(
-    client: AsyncClient, session: AsyncSession, acting_user, _delegation_enabled
-) -> None:
-    """The version route loads the document the same way, so it answers the
-    same — asserted separately because it resolves the guild separately."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
-    elsewhere = await acting_user(
-        guild_role=GuildRole.member, initiative=True, user=a.user
-    )
-
-    doc = await _create_file_document(
-        session, initiative=a.initiative, owner=a.user, filename="dl_delegated_v.pdf"
-    )
-    version = DocumentFileVersion(
-        document_id=doc.id,
-        version_number=1,
-        file_url=doc.file_url,
-        original_filename=doc.original_filename,
-        file_content_type="application/pdf",
-        file_size=13,
-        created_by=a.user.id,
-    )
-    session.add(version)
-    await session.commit()
-    headers = await _delegated_headers(session, guild=a.guild, user=a.user)
-
-    try:
-        response = await client.get(
-            f"/api/v1/g/{elsewhere.guild.id}/documents/{doc.id}"
-            f"/versions/{version.id}/download",
-            headers=headers,
-        )
-        assert response.status_code == 200, response.text
-        assert response.content == b"%PDF-1.4 test"
-    finally:
-        (_uploads_dir() / "dl_delegated_v.pdf").unlink(missing_ok=True)

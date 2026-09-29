@@ -13,7 +13,6 @@ from app.services.import_engine import confluence_export as ce
 from app.services.import_engine.confluence_storage import storage_to_lexical
 from app.services.import_engine.jira_attachments import AssetBudget
 
-pytestmark = pytest.mark.unit
 
 PNG = b"\x89PNG\r\n\x1a\nchart"
 PDF = b"%PDF-spec"
@@ -263,11 +262,11 @@ def real_export_bytes() -> bytes:
 
 
 def _real_fetched():
-    from app.services.import_engine.backup import open_backup_zip
+    from app.services.import_engine.zip_bounds import open_zip
     from app.services.import_engine.jira_attachments import bundle_budget
 
     return ce.export_to_fetched(
-        open_backup_zip(real_export_bytes()),
+        open_zip(real_export_bytes()),
         guild_id=1,
         app_version="0.0.0-test",
         asset_budget=bundle_budget(),

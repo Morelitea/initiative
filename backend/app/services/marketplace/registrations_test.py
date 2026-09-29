@@ -1,34 +1,32 @@
 """Tests for the app service registration service.
 
-The handshake is driven by an injected ``httpx.MockTransport`` and the base URL
-is a loopback literal, so nothing here touches the network.
+A registration is stated, not discovered: nothing here calls an app.
 """
 
 import json
-import re
-from pathlib import Path
 
-import httpx
 import pytest
 from fastapi import HTTPException
 from sqlmodel import select
 
 from app.core.config import settings
-from app.core.encryption import SALT_APP_SERVICE_SECRET, decrypt_field
 from app.core.messages import AppServiceMessages
-from app.models.platform.app_service_registration import (
-    APP_SERVICE_GRANTS,
-    AppServiceRegistration,
-    AppServiceStatus,
-)
+from app.models.platform.app_service_registration import AppServiceRegistration
+from app.models.platform.publisher import Publisher
+from app.services.marketplace.vendor_values import load_vendor_values
 from app.services.marketplace import registrations as service
-from app.services.marketplace.handshake_test import BASE_URL, SECRET, make_transport
+from app.services.marketplace.registration_lookup import load_registrations
 
-pytestmark = [pytest.mark.integration, pytest.mark.database]
 
+#: Where the deployment calls the app.
+BASE_URL = "http://127.0.0.1:9100"
+#: An app served over https, for the key set address.
+HTTPS_BASE_URL = "https://widgets.example.com"
 #: A public address for the same app, standing in for what a reverse proxy
 #: publishes while ``BASE_URL`` stays the address the deployment itself calls.
 EMBED_ORIGIN = "https://widgets.example.com"
+#: The catalog listing the app speaks for.
+LISTING_UID = "K7M2QX8N4TVB9C"
 
 
 @pytest.fixture(autouse=True)
@@ -38,48 +36,6 @@ def _signing_key(monkeypatch):
     monkeypatch.setattr(
         settings, "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM", "-----BEGIN PRIVATE KEY-----"
     )
-
-
-# --- grants vocabulary -------------------------------------------------------
-
-
-def test_grants_vocabulary_accepts_only_known_powers():
-    assert service.normalize_grants(["delegation"]) == ["delegation"]
-    assert service.normalize_grants(["delegation", "delegation"]) == ["delegation"]
-    assert service.normalize_grants(None) == []
-
-
-@pytest.mark.parametrize("value", ["admin", "write", "DELEGATION!", "", "*"])
-def test_grants_outside_the_vocabulary_are_refused(value):
-    with pytest.raises(HTTPException) as excinfo:
-        service.normalize_grants([value])
-    assert excinfo.value.status_code == 400
-    assert excinfo.value.detail == AppServiceMessages.UNKNOWN_GRANT
-
-
-# backend/app/services/marketplace/<this file> -> repo root
-_APP_SERVICES_TS = (
-    Path(__file__).resolve().parents[4] / "frontend" / "src" / "lib" / "appServices.ts"
-)
-
-
-def test_the_settings_form_knows_every_grant():
-    """The vocabulary is written twice: here, and as the list the settings form
-    builds its controls from. Nothing connects them at build time, so a grant
-    added on this side and not the other is one an operator has no way to
-    confer — and one a save would take back off a registration that had it.
-
-    Read out of the TypeScript rather than mirrored again here, so this fails on
-    the file that would be wrong.
-    """
-    source = _APP_SERVICES_TS.read_text(encoding="utf-8")
-    match = re.search(
-        r"export const APP_SERVICE_GRANTS = \[(.*?)\] as const;", source, re.S
-    )
-    assert match, f"APP_SERVICE_GRANTS is not declared in {_APP_SERVICES_TS.name}"
-
-    declared = set(re.findall(r'"([^"]+)"', match.group(1)))
-    assert declared == set(APP_SERVICE_GRANTS)
 
 
 def _rsa_jwk(kid: str) -> dict:
@@ -94,34 +50,32 @@ def _rsa_jwk(kid: str) -> dict:
     return jwk
 
 
-def test_delegation_jwks_accepts_a_usable_key_set():
-    key_set = {"keys": [_rsa_jwk("auto.core-delegation-1")]}
-    assert service.normalize_delegation_jwks(key_set) == key_set
+def test_jwks_accepts_a_usable_key_set():
+    key_set = {"keys": [_rsa_jwk("auto.core-1")]}
+    assert service.normalize_jwks(key_set) == key_set
 
 
-def test_delegation_jwks_treats_empty_as_cleared():
-    assert service.normalize_delegation_jwks(None) is None
-    assert service.normalize_delegation_jwks({}) is None
+def test_jwks_treats_empty_as_cleared():
+    assert service.normalize_jwks(None) is None
+    assert service.normalize_jwks({}) is None
 
 
-def test_delegation_jwks_requires_a_kid_on_every_key():
+def test_jwks_requires_a_kid_on_every_key():
     keyless = _rsa_jwk("dropped")
     del keyless["kid"]
     with pytest.raises(HTTPException) as excinfo:
-        service.normalize_delegation_jwks({"keys": [keyless]})
+        service.normalize_jwks({"keys": [keyless]})
     assert excinfo.value.status_code == 400
-    assert excinfo.value.detail == AppServiceMessages.INVALID_DELEGATION_JWKS
+    assert excinfo.value.detail == AppServiceMessages.INVALID_JWKS
 
 
-def test_delegation_jwks_refuses_two_keys_sharing_a_kid():
+def test_jwks_refuses_two_keys_sharing_a_kid():
     with pytest.raises(HTTPException) as excinfo:
-        service.normalize_delegation_jwks(
-            {"keys": [_rsa_jwk("same"), _rsa_jwk("same")]}
-        )
-    assert excinfo.value.detail == AppServiceMessages.INVALID_DELEGATION_JWKS
+        service.normalize_jwks({"keys": [_rsa_jwk("same"), _rsa_jwk("same")]})
+    assert excinfo.value.detail == AppServiceMessages.INVALID_JWKS
 
 
-def test_delegation_jwks_refuses_a_private_key():
+def test_jwks_refuses_a_private_key():
     """The column is served in full to the owner's settings, so it holds the half
     that is meant to be read."""
     from cryptography.hazmat.primitives.asymmetric import rsa
@@ -132,17 +86,17 @@ def test_delegation_jwks_refuses_a_private_key():
     private_jwk["kid"] = "pasted-the-whole-key"
 
     with pytest.raises(HTTPException) as excinfo:
-        service.normalize_delegation_jwks({"keys": [private_jwk]})
+        service.normalize_jwks({"keys": [private_jwk]})
     assert excinfo.value.status_code == 400
-    assert excinfo.value.detail == AppServiceMessages.INVALID_DELEGATION_JWKS
+    assert excinfo.value.detail == AppServiceMessages.INVALID_JWKS
 
 
-def test_delegation_jwks_refuses_a_symmetric_key():
+def test_jwks_refuses_a_symmetric_key():
     with pytest.raises(HTTPException) as excinfo:
-        service.normalize_delegation_jwks(
+        service.normalize_jwks(
             {"keys": [{"kid": "shared", "kty": "oct", "k": "c2hhcmVkLXNlY3JldA"}]}
         )
-    assert excinfo.value.detail == AppServiceMessages.INVALID_DELEGATION_JWKS
+    assert excinfo.value.detail == AppServiceMessages.INVALID_JWKS
 
 
 @pytest.mark.parametrize(
@@ -155,11 +109,11 @@ def test_delegation_jwks_refuses_a_symmetric_key():
         {"no_keys_member": True},
     ],
 )
-def test_delegation_jwks_refuses_a_set_it_could_not_verify_with(value):
+def test_jwks_refuses_a_set_it_could_not_verify_with(value):
     with pytest.raises(HTTPException) as excinfo:
-        service.normalize_delegation_jwks(value)
+        service.normalize_jwks(value)
     assert excinfo.value.status_code == 400
-    assert excinfo.value.detail == AppServiceMessages.INVALID_DELEGATION_JWKS
+    assert excinfo.value.detail == AppServiceMessages.INVALID_JWKS
 
 
 def test_base_url_and_origin_shapes_are_enforced():
@@ -201,241 +155,183 @@ def test_embed_origin_accepts_a_base_and_reports_its_own_code():
 # --- signing key -------------------------------------------------------------
 
 
+async def _create(session, **overrides):
+    fields = {
+        "public_id": "acme.widgets",
+        "listing_uid": LISTING_UID,
+        "base_url": BASE_URL,
+        **overrides,
+    }
+    return await service.create_registration(session, **fields)
+
+
 async def test_registration_fails_closed_without_a_signing_key(session, monkeypatch):
     """The app-platform keypair is required and has no fallback to any other
     configured key, so the registry refuses rather than borrowing one."""
     monkeypatch.setattr(settings, "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM", None)
 
     with pytest.raises(HTTPException) as excinfo:
-        await service.create_registration(
-            session, base_url=BASE_URL, secret=SECRET, transport=make_transport()
-        )
+        await _create(session)
 
     assert excinfo.value.status_code == 503
     assert excinfo.value.detail == AppServiceMessages.SIGNING_NOT_CONFIGURED
 
 
-# --- create / verify ---------------------------------------------------------
+# --- create ------------------------------------------------------------------
 
 
-async def test_create_verifies_and_records_the_manifest(session):
-    row = await service.create_registration(
-        session, base_url=BASE_URL, secret=SECRET, transport=make_transport()
-    )
+async def test_create_stores_what_it_is_told(session):
+    """Nothing is fetched: the id, the listing and the keys are the operator's."""
+    key_set = {"keys": [_rsa_jwk("acme.widgets-1")]}
+    row = await _create(session, jwks=key_set)
 
     assert row.public_id == "acme.widgets"
-    assert row.listing_uid == "K7M2QX8N4TVB9C"
-    assert row.status == AppServiceStatus.OK
-    assert row.last_verified_at is not None
-    assert row.manifest_hash
-    # The secret is stored encrypted and round-trips.
-    assert row.secret_encrypted != SECRET
-    assert decrypt_field(row.secret_encrypted, SALT_APP_SERVICE_SECRET) == SECRET
+    assert row.listing_uid == LISTING_UID
+    assert row.jwks == key_set
+    assert row.jwks_uri is None
 
 
-async def test_create_without_public_id_refuses_an_unreachable_service(session):
-    """Nothing names the row, so there is no registration to store."""
-    transport = make_transport(raise_on_manifest=httpx.ConnectError("refused"))
-
+@pytest.mark.parametrize("value", ["", "short", "K7M2QX8N4TVB9CX", "k7m2qx8n4tvb9c"])
+async def test_create_refuses_a_listing_uid_that_is_not_one(session, value):
     with pytest.raises(HTTPException) as excinfo:
-        await service.create_registration(
-            session, base_url=BASE_URL, secret=SECRET, transport=transport
-        )
-
-    assert excinfo.value.status_code == 502
-    assert excinfo.value.detail == AppServiceMessages.UNREACHABLE
-
-
-async def test_create_with_public_id_stores_an_unreachable_service(session):
-    """A declared app whose container has not booted still gets a row, carrying
-    the reason it is unverified."""
-    transport = make_transport(raise_on_manifest=httpx.ConnectError("refused"))
-
-    row = await service.create_registration(
-        session,
-        base_url=BASE_URL,
-        secret=SECRET,
-        public_id="acme.pending",
-        transport=transport,
-    )
-
-    assert row.status == AppServiceStatus.UNREACHABLE
-    assert row.last_verified_at is None
-    assert row.manifest_hash is None
-
-
-async def test_create_refuses_a_manifest_naming_another_app(session):
-    with pytest.raises(HTTPException) as excinfo:
-        await service.create_registration(
-            session,
-            base_url=BASE_URL,
-            secret=SECRET,
-            public_id="acme.something-else",
-            transport=make_transport(),
-        )
+        await _create(session, listing_uid=value)
 
     assert excinfo.value.status_code == 400
-    assert excinfo.value.detail == AppServiceMessages.PUBLIC_ID_MISMATCH
+    assert excinfo.value.detail == AppServiceMessages.INVALID_LISTING_UID
 
 
 async def test_duplicate_public_id_is_refused(session):
-    await service.create_registration(
-        session, base_url=BASE_URL, secret=SECRET, transport=make_transport()
-    )
+    await _create(session)
 
     with pytest.raises(HTTPException) as excinfo:
-        await service.create_registration(
-            session, base_url=BASE_URL, secret=SECRET, transport=make_transport()
-        )
+        await _create(session)
 
     assert excinfo.value.status_code == 409
     assert excinfo.value.detail == AppServiceMessages.DUPLICATE_PUBLIC_ID
 
 
-async def test_verify_records_a_failure_on_the_row(session):
-    """The outcome is persisted before the refusal is raised, so the list an
-    operator reloads agrees with the response they just got."""
-    row = await service.create_registration(
-        session, base_url=BASE_URL, secret=SECRET, transport=make_transport()
+async def test_a_new_prefix_gets_an_unverified_publisher(session):
+    row = await _create(session, public_id="newpub.widgets")
+
+    publisher = await session.get(Publisher, row.publisher_id)
+    assert publisher is not None
+    assert publisher.prefix == "newpub"
+    assert publisher.verified is False
+    assert publisher.enabled is True
+
+
+async def test_a_known_prefix_keeps_its_publisher_as_it_is(session):
+    """A registration under a switched-off publisher joins it switched off."""
+    session.add(Publisher(prefix="offpub", display_name="Off", enabled=False))
+    await session.commit()
+
+    row = await _create(session, public_id="offpub.widgets")
+
+    publisher = await session.get(Publisher, row.publisher_id)
+    assert publisher.enabled is False
+    snapshot = (await load_registrations(force=True))["offpub.widgets"]
+    assert snapshot.enabled is True
+    assert snapshot.live is False
+
+
+# --- keys --------------------------------------------------------------------
+
+
+async def test_live_needs_a_key_set(session):
+    await _create(session, public_id="acme.keyless")
+    await _create(
+        session,
+        public_id="acme.keyed",
+        jwks={"keys": [_rsa_jwk("acme.keyed-1")]},
+    )
+    await _create(
+        session,
+        public_id="acme.published",
+        base_url=HTTPS_BASE_URL,
+        jwks_uri=f"{HTTPS_BASE_URL}/.well-known/jwks.json",
+    )
+
+    snapshots = await load_registrations(force=True)
+    assert snapshots["acme.keyless"].live is False
+    assert snapshots["acme.keyed"].live is True
+    assert snapshots["acme.published"].live is True
+
+
+@pytest.mark.parametrize(
+    "jwks_uri",
+    [
+        # Not https.
+        "http://widgets.example.com/jwks.json",
+        # Another host.
+        "https://keys.example.net/jwks.json",
+        # Another port.
+        "https://widgets.example.com:8443/jwks.json",
+        # A query.
+        "https://widgets.example.com/jwks.json?v=1",
+    ],
+)
+async def test_a_key_set_address_is_https_on_the_apps_own_origin(session, jwks_uri):
+    with pytest.raises(HTTPException) as excinfo:
+        await _create(session, base_url=HTTPS_BASE_URL, jwks_uri=jwks_uri)
+
+    assert excinfo.value.detail == AppServiceMessages.INVALID_JWKS_URI
+
+
+async def test_moving_the_base_url_rechecks_the_key_set_address(session):
+    row = await _create(
+        session,
+        base_url=HTTPS_BASE_URL,
+        jwks_uri=f"{HTTPS_BASE_URL}/jwks.json",
     )
 
     with pytest.raises(HTTPException) as excinfo:
-        await service.verify_registration(
-            session,
-            row.id,
-            transport=make_transport(sign_with="a-different-secret"),
+        await service.update_registration(
+            session, row.id, base_url="https://elsewhere.example.com"
         )
-    assert excinfo.value.detail == AppServiceMessages.SIGNATURE_MISMATCH
+    assert excinfo.value.detail == AppServiceMessages.INVALID_JWKS_URI
 
-    session.expunge_all()
-    stored = await session.get(AppServiceRegistration, row.id)
-    assert stored.status == AppServiceStatus.SIGNATURE_MISMATCH
-
-
-async def test_rotating_the_secret_clears_the_recorded_verification(session):
-    row = await service.create_registration(
-        session, base_url=BASE_URL, secret=SECRET, transport=make_transport()
-    )
-    assert row.status == AppServiceStatus.OK
-
-    updated = await service.update_registration(session, row.id, secret="rotated")
-
-    assert updated.status == AppServiceStatus.UNVERIFIED
-    assert updated.manifest_hash is None
-    assert updated.last_verified_at is None
+    cleared = await service.update_registration(session, row.id, jwks_uri="")
+    assert cleared.jwks_uri is None
 
 
-async def test_delegation_keys_are_provisioned_and_cleared_without_re_verifying(
-    session,
-):
-    key_set = {"keys": [_rsa_jwk("acme.shopify-delegation-1")]}
-    row = await service.create_registration(
-        session,
-        base_url=BASE_URL,
-        secret=SECRET,
-        grants=["delegation"],
-        delegation_jwks=key_set,
-        transport=make_transport(),
-    )
-    assert row.delegation_jwks == key_set
-    assert row.status == AppServiceStatus.OK
+async def test_keys_are_provisioned_and_cleared(session):
+    key_set = {"keys": [_rsa_jwk("acme.shopify-1")]}
+    row = await _create(session, jwks=key_set)
+    assert row.jwks == key_set
 
-    rotated = {"keys": [_rsa_jwk("acme.shopify-delegation-2")]}
-    updated = await service.update_registration(
-        session, row.id, delegation_jwks=rotated
-    )
-    assert updated.delegation_jwks == rotated
-    # A key set describes who signs, not what was fetched from the app, so the
-    # recorded handshake still stands.
-    assert updated.status == AppServiceStatus.OK
+    rotated = {"keys": [_rsa_jwk("acme.shopify-2")]}
+    updated = await service.update_registration(session, row.id, jwks=rotated)
+    assert updated.jwks == rotated
 
-    cleared = await service.update_registration(session, row.id, delegation_jwks={})
-    assert cleared.delegation_jwks is None
+    cleared = await service.update_registration(session, row.id, jwks={})
+    assert cleared.jwks is None
 
 
-async def test_dropping_the_delegation_grant_drops_the_keys(session):
-    """Taking the power away takes the key material with it, even when the edit
-    says nothing about the key set."""
-    row = await service.create_registration(
-        session,
-        base_url=BASE_URL,
-        secret=SECRET,
-        grants=["delegation"],
-        delegation_jwks={"keys": [_rsa_jwk("acme.widgets-delegation-1")]},
-        transport=make_transport(),
-    )
-    assert row.delegation_jwks is not None
-
-    updated = await service.update_registration(session, row.id, grants=[])
-
-    assert updated.grants == []
-    assert updated.delegation_jwks is None
+# --- addresses ---------------------------------------------------------------
 
 
-async def test_keys_are_not_stored_without_the_grant_that_uses_them(session):
-    row = await service.create_registration(
-        session,
-        base_url=BASE_URL,
-        secret=SECRET,
-        grants=[],
-        delegation_jwks={"keys": [_rsa_jwk("acme.widgets-delegation-1")]},
-        transport=make_transport(),
-    )
-    assert row.delegation_jwks is None
+async def test_the_browser_address_names_the_allowed_origins(session):
+    row = await _create(session, embed_origin=EMBED_ORIGIN)
 
-
-async def test_create_keeps_the_handshake_on_the_wire_surface(session):
-    """A registration can carry two addresses, and the handshake uses exactly
-    one of them: the app is checked where this deployment calls it."""
-    seen: list[str] = []
-    app = make_transport()
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        seen.append(f"{request.url.scheme}://{request.url.netloc.decode()}")
-        return app.handle_request(request)
-
-    row = await service.create_registration(
-        session,
-        base_url=BASE_URL,
-        secret=SECRET,
-        embed_origin=EMBED_ORIGIN,
-        transport=httpx.MockTransport(handler),
-    )
-
-    assert set(seen) == {BASE_URL}
-    assert row.status == AppServiceStatus.OK
     assert row.embed_origin == EMBED_ORIGIN
     # Browser origins, so they come from the browser address.
     assert row.allowed_origins == [EMBED_ORIGIN]
 
 
-async def test_moving_the_browser_address_keeps_the_verification(session):
-    """The manifest hash describes what the handshake fetched, and the handshake
-    never goes to the browser address — so moving it settles nothing."""
-    row = await service.create_registration(
-        session, base_url=BASE_URL, secret=SECRET, transport=make_transport()
-    )
+async def test_moving_the_browser_address_moves_a_default_origin_list(session):
+    row = await _create(session)
     assert row.allowed_origins == [BASE_URL]
 
     updated = await service.update_registration(
         session, row.id, embed_origin=EMBED_ORIGIN
     )
 
-    assert updated.status == AppServiceStatus.OK
-    assert updated.manifest_hash == row.manifest_hash
-    assert updated.last_verified_at is not None
     # The list was still the app's own origin, so it follows the app.
     assert updated.allowed_origins == [EMBED_ORIGIN]
 
 
 async def test_an_operators_own_origin_list_survives_a_move(session):
-    row = await service.create_registration(
-        session,
-        base_url=BASE_URL,
-        secret=SECRET,
-        allowed_origins=["https://chosen.example.com"],
-        transport=make_transport(),
-    )
+    row = await _create(session, allowed_origins=["https://chosen.example.com"])
 
     updated = await service.update_registration(
         session, row.id, embed_origin=EMBED_ORIGIN
@@ -445,13 +341,7 @@ async def test_an_operators_own_origin_list_survives_a_move(session):
 
 
 async def test_clearing_the_browser_address_puts_both_surfaces_back(session):
-    row = await service.create_registration(
-        session,
-        base_url=BASE_URL,
-        secret=SECRET,
-        embed_origin=EMBED_ORIGIN,
-        transport=make_transport(),
-    )
+    row = await _create(session, embed_origin=EMBED_ORIGIN)
 
     updated = await service.update_registration(session, row.id, embed_origin="")
 
@@ -459,15 +349,70 @@ async def test_clearing_the_browser_address_puts_both_surfaces_back(session):
     assert updated.allowed_origins == [BASE_URL]
 
 
-async def test_update_refuses_a_grant_outside_the_vocabulary(session):
-    row = await service.create_registration(
-        session, base_url=BASE_URL, secret=SECRET, transport=make_transport()
+async def test_update_changes_the_listing(session):
+    row = await _create(session)
+
+    updated = await service.update_registration(
+        session, row.id, listing_uid="ABCDEFGHJKMNPQ"
     )
 
-    with pytest.raises(HTTPException) as excinfo:
-        await service.update_registration(session, row.id, grants=["superuser"])
+    assert updated.listing_uid == "ABCDEFGHJKMNPQ"
 
-    assert excinfo.value.detail == AppServiceMessages.UNKNOWN_GRANT
+
+# --- scope ceiling -----------------------------------------------------------
+
+
+def test_scope_ceiling_accepts_known_scopes_sorted_once():
+    assert service.normalize_scope_ceiling(
+        ["projects:write", "comments:read", "projects:write"]
+    ) == ["comments:read", "projects:write"]
+    assert service.normalize_scope_ceiling(None) == []
+    assert service.normalize_scope_ceiling([]) == []
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        ["projects:admin"],
+        ["nothing:read"],
+        # Members are read-only, so there is no write scope to cap at.
+        ["members:write"],
+        [7],
+        "projects:read",
+    ],
+)
+def test_scope_ceiling_outside_the_vocabulary_is_refused(value):
+    with pytest.raises(HTTPException) as excinfo:
+        service.normalize_scope_ceiling(value)
+    assert excinfo.value.status_code == 400
+    assert excinfo.value.detail == AppServiceMessages.UNKNOWN_SCOPE
+
+
+async def test_create_and_update_store_the_scope_ceiling(session):
+    row = await _create(session, scope_ceiling=["projects:write", "comments:read"])
+    assert row.scope_ceiling == ["comments:read", "projects:write"]
+
+    updated = await service.update_registration(
+        session, row.id, scope_ceiling=["documents:read"]
+    )
+    assert updated.scope_ceiling == ["documents:read"]
+
+    untouched = await service.update_registration(session, row.id, enabled=True)
+    assert untouched.scope_ceiling == ["documents:read"]
+
+
+async def test_a_registration_with_no_ceiling_names_none(session):
+    row = await _create(session)
+    assert row.scope_ceiling == []
+
+
+async def test_update_refuses_a_scope_outside_the_vocabulary(session):
+    row = await _create(session)
+
+    with pytest.raises(HTTPException) as excinfo:
+        await service.update_registration(session, row.id, scope_ceiling=["all:write"])
+
+    assert excinfo.value.detail == AppServiceMessages.UNKNOWN_SCOPE
 
 
 # --- boot reconciliation -----------------------------------------------------
@@ -482,7 +427,6 @@ def _write_config(tmp_path, entries) -> str:
 async def test_reconcile_creates_registrations_from_the_mounted_file(
     session, tmp_path, monkeypatch
 ):
-    monkeypatch.setenv("TEST_APP_SECRET", "from-the-environment")
     monkeypatch.setattr(
         settings,
         "APP_SERVICES_CONFIG",
@@ -492,9 +436,8 @@ async def test_reconcile_creates_registrations_from_the_mounted_file(
                 {
                     "public_id": "acme.declared",
                     "base_url": BASE_URL,
-                    "secret_env": "TEST_APP_SECRET",
+                    "listing_uid": LISTING_UID,
                     "allowed_origins": ["https://app.example.com"],
-                    "grants": ["delegation"],
                     "mandatory": True,
                 }
             ],
@@ -513,25 +456,57 @@ async def test_reconcile_creates_registrations_from_the_mounted_file(
     ).one()
     assert row.base_url == BASE_URL
     assert row.allowed_origins == ["https://app.example.com"]
-    assert row.grants == ["delegation"]
     assert row.mandatory is True
-    # Offline by design: reconciliation upserts and stops.
-    assert row.status == AppServiceStatus.UNVERIFIED
-    assert decrypt_field(row.secret_encrypted, SALT_APP_SERVICE_SECRET) == (
-        "from-the-environment"
+    assert row.listing_uid == LISTING_UID
+
+
+async def test_reconcile_seals_the_vendor_values_it_names(
+    session, tmp_path, monkeypatch
+):
+    """``vendor_env`` names environment variables; their values are sealed into
+    the registration on every pass, so rotating one is changing the variable
+    and restarting."""
+    monkeypatch.setenv("TEST_VENDOR_SECRET", "first-secret")
+    entry = {
+        "public_id": "acme.vendored",
+        "base_url": BASE_URL,
+        "listing_uid": LISTING_UID,
+        "vendor_env": {"client_secret": "TEST_VENDOR_SECRET", "absent": "NOT_SET_X"},
+    }
+    monkeypatch.setattr(
+        settings, "APP_SERVICES_CONFIG", _write_config(tmp_path, [entry])
     )
+    await service.reconcile_from_config(session)
+    assert await load_vendor_values("acme.vendored") == {
+        "client_secret": "first-secret"
+    }
+
+    monkeypatch.setenv("TEST_VENDOR_SECRET", "rotated-secret")
+    result = await service.reconcile_from_config(session)
+    assert result.updated == 1
+    assert await load_vendor_values("acme.vendored") == {
+        "client_secret": "rotated-secret"
+    }
+    row = (
+        await session.exec(
+            select(AppServiceRegistration).where(
+                AppServiceRegistration.public_id == "acme.vendored"
+            )
+        )
+    ).one()
+    # Sealed, never stored as the variable held it.
+    assert "rotated-secret" not in str(row.vendor_values)
 
 
 async def test_reconcile_reads_the_browser_address_from_the_file(
     session, tmp_path, monkeypatch
 ):
     """A chart states both addresses, so the two-address case is wired with no
-    owner clicks — and adding one later is an update, not a re-verification."""
-    monkeypatch.setenv("TEST_APP_SECRET", "from-the-environment")
+    owner clicks — and adding one later is an update."""
     entry = {
         "public_id": "acme.two-addresses",
         "base_url": BASE_URL,
-        "secret_env": "TEST_APP_SECRET",
+        "listing_uid": LISTING_UID,
     }
     monkeypatch.setattr(
         settings, "APP_SERVICES_CONFIG", _write_config(tmp_path, [entry])
@@ -557,7 +532,6 @@ async def test_reconcile_reads_the_browser_address_from_the_file(
 
 
 async def test_reconcile_is_idempotent(session, tmp_path, monkeypatch):
-    monkeypatch.setenv("TEST_APP_SECRET", "from-the-environment")
     monkeypatch.setattr(
         settings,
         "APP_SERVICES_CONFIG",
@@ -567,7 +541,7 @@ async def test_reconcile_is_idempotent(session, tmp_path, monkeypatch):
                 {
                     "public_id": "acme.idempotent",
                     "base_url": BASE_URL,
-                    "secret_env": "TEST_APP_SECRET",
+                    "listing_uid": LISTING_UID,
                 }
             ],
         ),
@@ -585,7 +559,6 @@ async def test_reconcile_never_re_enables_a_disabled_registration(
 ):
     """Deactivating an app is the operator's kill switch, so a restart must not
     quietly reverse it — the file still governs everything else."""
-    monkeypatch.setenv("TEST_APP_SECRET", "from-the-environment")
     monkeypatch.setattr(
         settings,
         "APP_SERVICES_CONFIG",
@@ -595,7 +568,7 @@ async def test_reconcile_never_re_enables_a_disabled_registration(
                 {
                     "public_id": "acme.killswitch",
                     "base_url": BASE_URL,
-                    "secret_env": "TEST_APP_SECRET",
+                    "listing_uid": LISTING_UID,
                     "mandatory": False,
                 }
             ],
@@ -620,7 +593,7 @@ async def test_reconcile_never_re_enables_a_disabled_registration(
                 {
                     "public_id": "acme.killswitch",
                     "base_url": BASE_URL,
-                    "secret_env": "TEST_APP_SECRET",
+                    "listing_uid": LISTING_UID,
                     "mandatory": True,
                 }
             ],
@@ -635,22 +608,15 @@ async def test_reconcile_never_re_enables_a_disabled_registration(
     assert stored.mandatory is True
 
 
-async def test_reconcile_skips_an_entry_whose_secret_env_is_unset(
+async def test_reconcile_skips_an_entry_naming_no_listing(
     session, tmp_path, monkeypatch
 ):
-    monkeypatch.delenv("TEST_MISSING_APP_SECRET", raising=False)
     monkeypatch.setattr(
         settings,
         "APP_SERVICES_CONFIG",
         _write_config(
             tmp_path,
-            [
-                {
-                    "public_id": "acme.nosecret",
-                    "base_url": BASE_URL,
-                    "secret_env": "TEST_MISSING_APP_SECRET",
-                }
-            ],
+            [{"public_id": "acme.nolisting", "base_url": BASE_URL}],
         ),
     )
 
@@ -659,10 +625,34 @@ async def test_reconcile_skips_an_entry_whose_secret_env_is_unset(
     assert (result.created, result.skipped) == (0, 1)
 
 
-async def test_reconcile_skips_an_entry_claiming_an_unknown_grant(
-    session, tmp_path, monkeypatch
+async def test_reconcile_reads_the_key_set_address(session, tmp_path, monkeypatch):
+    entry = {
+        "public_id": "acme.published",
+        "listing_uid": LISTING_UID,
+        "base_url": HTTPS_BASE_URL,
+        "jwks_uri": f"{HTTPS_BASE_URL}/jwks.json",
+    }
+    monkeypatch.setattr(
+        settings, "APP_SERVICES_CONFIG", _write_config(tmp_path, [entry])
+    )
+
+    assert (await service.reconcile_from_config(session)).created == 1
+    row = (
+        await session.exec(
+            select(AppServiceRegistration).where(
+                AppServiceRegistration.public_id == "acme.published"
+            )
+        )
+    ).one()
+    assert row.jwks_uri == f"{HTTPS_BASE_URL}/jwks.json"
+
+
+async def test_reconcile_ignores_grants_in_a_file_written_for_an_earlier_release(
+    session, tmp_path, monkeypatch, caplog
 ):
-    monkeypatch.setenv("TEST_APP_SECRET", "from-the-environment")
+    """A registration no longer has grants. An entry that still names them is
+    registered without them and the pass says so, so the file does not stop a
+    boot."""
     monkeypatch.setattr(
         settings,
         "APP_SERVICES_CONFIG",
@@ -670,10 +660,78 @@ async def test_reconcile_skips_an_entry_claiming_an_unknown_grant(
             tmp_path,
             [
                 {
-                    "public_id": "acme.overreach",
+                    "public_id": "acme.earlier",
                     "base_url": BASE_URL,
-                    "secret_env": "TEST_APP_SECRET",
-                    "grants": ["superuser"],
+                    "listing_uid": LISTING_UID,
+                    "grants": ["delegation", "app_directory"],
+                }
+            ],
+        ),
+    )
+
+    with caplog.at_level("WARNING", logger="app.services.marketplace.registrations"):
+        result = await service.reconcile_from_config(session)
+
+    assert (result.created, result.skipped) == (1, 0)
+    assert any("names grants" in record.getMessage() for record in caplog.records)
+    row = (
+        await session.exec(
+            select(AppServiceRegistration).where(
+                AppServiceRegistration.public_id == "acme.earlier"
+            )
+        )
+    ).one()
+    assert not hasattr(row, "grants")
+
+
+async def test_reconcile_reads_the_scope_ceiling_from_the_file(
+    session, tmp_path, monkeypatch
+):
+    entry = {
+        "public_id": "acme.scoped",
+        "base_url": BASE_URL,
+        "listing_uid": LISTING_UID,
+        "scope_ceiling": ["projects:write", "comments:read"],
+    }
+    monkeypatch.setattr(
+        settings, "APP_SERVICES_CONFIG", _write_config(tmp_path, [entry])
+    )
+    assert (await service.reconcile_from_config(session)).created == 1
+
+    row = (
+        await session.exec(
+            select(AppServiceRegistration).where(
+                AppServiceRegistration.public_id == "acme.scoped"
+            )
+        )
+    ).one()
+    assert row.scope_ceiling == ["comments:read", "projects:write"]
+
+    # Changing the ceiling in the file is an update on the next pass.
+    entry["scope_ceiling"] = ["projects:read"]
+    monkeypatch.setattr(
+        settings, "APP_SERVICES_CONFIG", _write_config(tmp_path, [entry])
+    )
+    result = await service.reconcile_from_config(session)
+    assert (result.updated, result.unchanged) == (1, 0)
+    await session.refresh(row)
+    assert row.scope_ceiling == ["projects:read"]
+
+
+async def test_reconcile_skips_an_entry_naming_an_unknown_scope(
+    session, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(
+        settings,
+        "APP_SERVICES_CONFIG",
+        _write_config(
+            tmp_path,
+            [
+                {
+                    "public_id": "acme.overscoped",
+                    "base_url": BASE_URL,
+                    "listing_uid": LISTING_UID,
+                    "scope_ceiling": ["everything:write"],
                 }
             ],
         ),
@@ -708,7 +766,6 @@ async def test_a_repeated_public_id_costs_only_that_entry(
     constraint at the shared commit — which would take every other registration
     in the file with it. The later entry is skipped instead.
     """
-    monkeypatch.setenv("TEST_APP_SECRET", "from-the-environment")
     monkeypatch.setattr(
         settings,
         "APP_SERVICES_CONFIG",
@@ -718,17 +775,17 @@ async def test_a_repeated_public_id_costs_only_that_entry(
                 {
                     "public_id": "acme.twice",
                     "base_url": BASE_URL,
-                    "secret_env": "TEST_APP_SECRET",
+                    "listing_uid": LISTING_UID,
                 },
                 {
                     "public_id": "acme.twice",
                     "base_url": "https://other.example.com",
-                    "secret_env": "TEST_APP_SECRET",
+                    "listing_uid": LISTING_UID,
                 },
                 {
                     "public_id": "acme.innocent",
                     "base_url": BASE_URL,
-                    "secret_env": "TEST_APP_SECRET",
+                    "listing_uid": LISTING_UID,
                 },
             ],
         ),

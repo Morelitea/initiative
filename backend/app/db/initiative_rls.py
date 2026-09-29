@@ -27,6 +27,8 @@ import re
 from dataclasses import dataclass
 from typing import Callable
 
+from app.db import gucs
+from app.core.app_scopes import tool_resource
 from app.core.reactions import ReactionTarget
 from app.core.relationships import (
     ENDPOINT_KINDS,
@@ -36,15 +38,11 @@ from app.core.relationships import (
     Provenance,
     RelationshipType,
 )
-from app.core.tools import DEFAULT_ENABLED_TOOLS, RECENTABLE_TOOLS, Tool
-from app.db.authorization import IN_POLICY, STANDING, in_body
+from app.core.tools import DEFAULT_ENABLED_TOOLS, Tool
+from app.db.authorization import IN_POLICY, STANDING, app_narrowed, app_scope, in_body
 
 #: The legs a policy reads, off this statement's standing.
 _P = IN_POLICY
-
-# The request-GUC user id, NULLIF-guarded so an unset/PAM context yields NULL
-# (no membership) rather than faulting the cast for every row.
-_UID = "(NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer"
 
 # A write flag is a Python bool where the render knows the answer, or the name
 # of a SQL boolean where it does not — inside a function body, its parameter.
@@ -190,7 +188,7 @@ def _resource_call(tool: str, resource_id: str, initiative: str, write: bool) ->
     reads it applies the tool switches.
     """
     return (
-        f"resource_access({tool}, {resource_id}, {_UID}, "
+        f"resource_access({tool}, {resource_id}, {gucs.USER_ID}, "
         f"{initiative}, {_sql_bool(write)}, {STANDING})"
     )
 
@@ -214,8 +212,16 @@ def _tool_gate(
     ``creating`` is the INSERT of the governed resource itself — that asks for
     the tool's create right, where every other command asks to view it, and it
     asks gate 4 nothing.
+
+    An installed app is asked two more things first: that it holds the tool's
+    scope, read for SELECT and write for every other command, and, where its
+    token is narrowed to one initiative, that the row belongs to an initiative
+    at all.
     """
-    legs: list[str] = []
+    legs: list[str] = [
+        app_scope(tool_resource(tool), command != "SELECT", _P),
+        app_narrowed(initiative, _P),
+    ]
 
     # Every tool carries a switch on the initiative. A community admin or a PAM
     # grantee reaches the content of a tool that is switched off — the endpoints
@@ -230,12 +236,12 @@ def _tool_gate(
     key = tool.create_permission if creating else tool.view_permission
     default = "false" if creating else str(tool in DEFAULT_ENABLED_TOOLS).lower()
     legs.append(
-        f"initiative_role_permits({initiative}, {_UID}, '{key}', {default}, {STANDING})"
+        f"initiative_role_permits({initiative}, {gucs.USER_ID}, '{key}', {default}, {STANDING})"
     )
 
     if not creating:
         legs.append(
-            f"resource_access('{tool.value}', {resource_id}, {_UID}, "
+            f"resource_access('{tool.value}', {resource_id}, {gucs.USER_ID}, "
             f"{initiative}, {_sql_bool(write)}, {STANDING})"
         )
 
@@ -349,6 +355,10 @@ class InitiativePath:
     #: and renders no separate ``dac`` leg; ``predicate`` is the read form of
     #: the same call.
     folded: FoldedBuilder | None = None
+    #: What a row responding to this one (a comment, an edge end) asks of its
+    #: initiative, where that is less than writing the row itself; ``None``
+    #: when the two are the same. Read by :func:`_entity_arm`.
+    responding: PathBuilder | None = None
 
 
 #: Types stored once per unordered pair, as a SQL list. A symmetric edge
@@ -362,7 +372,11 @@ _FROM_CONTENT = f"'{Provenance.content.value}'"
 #: community, beside the one that admits trusted system maintenance. Both are
 #: the same legs the gate functions carry — one definition, in
 #: :mod:`app.db.authorization`.
-_GUILD_ADMIN = f"({_P.system} OR {_P.admin})"
+_GUILD_ADMIN = _P.system_or_admin
+
+#: An installed app acting in this community on a token that is not narrowed
+#: to one initiative.
+_UNNARROWED_INSTALL = _P.unnarrowed_install
 
 #: A live PAM window, either level. Used where a leg is about what a guild has
 #: switched on rather than about what one person may reach.
@@ -370,9 +384,7 @@ _PAM_ANY = _P.pam_any
 
 
 def _access(initiative_expr: str, write: bool) -> str:
-    return (
-        f"initiative_access({initiative_expr}, {_UID}, {_sql_bool(write)}, {STANDING})"
-    )
+    return f"initiative_access({initiative_expr}, {gucs.USER_ID}, {_sql_bool(write)}, {STANDING})"
 
 
 def _full_access(initiative_expr: str, write: bool) -> str:
@@ -424,6 +436,34 @@ def direct() -> InitiativePath:
         # thing, which is why the tool tables all take this path.
         parents=_no_parents,
         dac=_dac_self(),
+    )
+
+
+def direct_or_guild() -> InitiativePath:
+    """Own ``initiative_id`` column, or none: a tool made for the whole guild.
+
+    A row naming an initiative is gated like any :func:`direct` row. A row
+    naming none belongs to the guild, where the initiative gate has nothing to
+    decide: every member reads it as its sharing allows, and writing it is the
+    guild admin's (or a live write grant's), or the installed app's on a token
+    not narrowed to one initiative. Sharing still applies on top, which is how
+    the admin decides who writes what the row holds. ``resource_actions``
+    asks the same writer for ``edit``.
+    """
+    writer = _P.guild_row_writer
+    return InitiativePath(
+        predicate=lambda t, w: (
+            f"({_access(f'{t}.initiative_id', w)}"
+            f" AND ({t}.initiative_id IS NOT NULL OR {writer}))"
+            if w
+            else _access(f"{t}.initiative_id", w)
+        ),
+        initiative_expr=lambda r: f"{r}.initiative_id",
+        parents=_no_parents,
+        dac=_dac_self(),
+        # Commenting on a guild-level row is a member's, as adding an event to
+        # it is: the writer rule above is for the row itself.
+        responding=lambda t, w: _access(f"{t}.initiative_id", w),
     )
 
 
@@ -926,7 +966,8 @@ def _entity_arm(table: str) -> str:
         return "(NOT p_need_write AND NOT p_need_share_write) OR " + path.folded(
             "re", "p_need_write", "p_need_share_write"
         )
-    legs = [f"(NOT p_need_write OR ({path.predicate('re', True)}))"]
+    member = path.responding or path.predicate
+    legs = [f"(NOT p_need_write OR ({member('re', True)}))"]
     dac = _entity_dac(table)
     if dac is not None:
         sharing = dac.predicate("re", "UPDATE", True)
@@ -1055,7 +1096,7 @@ def relationships_path() -> InitiativePath:
 # point at is an initiative-scoped table with a direct initiative_id, so the path
 # is a per-type EXISTS join. Derived from the canonical Tool enum: entity_type is
 # the tool's string value, its table is the pluralized stem.
-RECENT_ENTITY_TABLES: dict[str, str] = {t.value: t.plural for t in RECENTABLE_TOOLS}
+RECENT_ENTITY_TABLES: dict[str, str] = {t.value: t.plural for t in Tool}
 
 
 def webhook_subscription_path() -> InitiativePath:
@@ -1070,12 +1111,15 @@ def webhook_subscription_path() -> InitiativePath:
     ``initiative_access`` answer is wrong: a NULL means "the initiative gate has
     nothing to decide", which admits any member. A guild-wide subscription
     reports across every initiative, so reaching it is guild-admin authority —
-    the one role that already spans them.
+    the one role that already spans them — or an installed app's whose token is
+    not narrowed to one initiative. An app sees and changes only the
+    subscriptions it registered (the ``app_scope_*`` policies), and what one
+    delivers is capped by where the app is placed and the scopes it holds.
     """
     return InitiativePath(
         predicate=lambda t, w: (
             f"(CASE WHEN {t}.initiative_id IS NULL "
-            f"THEN {_GUILD_ADMIN} "
+            f"THEN ({_GUILD_ADMIN} OR {_UNNARROWED_INSTALL}) "
             f"ELSE {_access(f'{t}.initiative_id', w)} END)"
         ),
         initiative_expr=lambda r: f"{r}.initiative_id",
@@ -1105,7 +1149,7 @@ def _search_tool_gate(t: str, write: bool) -> str:
     )
     role_arms = " ".join(
         f"WHEN '{tool.value}' THEN initiative_role_permits("
-        f"{t}.initiative_id, {_UID}, '{tool.view_permission}', "
+        f"{t}.initiative_id, {gucs.USER_ID}, '{tool.view_permission}', "
         f"{str(tool in DEFAULT_ENABLED_TOOLS).lower()}, {STANDING})"
         for tool in Tool
     )
@@ -1143,6 +1187,24 @@ def search_entries_path() -> InitiativePath:
     )
 
 
+def uploads_path() -> InitiativePath:
+    """A stored file is reached through the initiative whose content shows it.
+
+    Until it is saved into something (``claimed_at`` NULL) only its uploader
+    reaches it. Once claimed, its ``initiative_id`` is gated like any
+    :func:`direct` row, and a NULL there is content belonging to the whole
+    guild — a guild calendar and what hangs off it — which every member reads.
+    """
+    return InitiativePath(
+        predicate=lambda t, w: (
+            f"(CASE WHEN {t}.claimed_at IS NULL"
+            f" THEN ({t}.created_by = {gucs.USER_ID.once} OR {_P.system})"
+            f" ELSE {_access(f'{t}.initiative_id', w)} END)"
+        ),
+        initiative_expr=lambda r: f"{r}.initiative_id",
+    )
+
+
 def recent_views_path() -> InitiativePath:
     """A reader's own record of visiting something, reached exactly like the
     thing itself: ``(entity_type, entity_id)`` is the pair the entity function
@@ -1176,7 +1238,7 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "documents": direct(),
     "queues": direct(),
     "counter_groups": direct(),
-    "calendars": direct(),
+    "calendars": direct_or_guild(),
     "dashboards": direct(),
     "posts": direct(),
     "galleries": direct(),
@@ -1195,10 +1257,16 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     # through the REST path, where sharing decides. The initiative gate is
     # what scopes it. See outbox_poller's module docstring.
     "event_outbox": direct(),
+    # The events installed apps emit, scoped by the initiative an event names
+    # like the change log beside it. Written by the system engine alone
+    # (app.db.guild_ddl._TRIGGER_WRITTEN_INSERT) and read by the poller.
+    "app_event_outbox": direct(),
     # The search index. Derived from the content tables, and gated like them.
     "search_entries": search_entries_path(),
     # Integration config, reached by whoever can reach what it watches.
     "webhook_subscriptions": webhook_subscription_path(),
+    # Stored files, reached through the initiative whose content shows them.
+    "uploads": uploads_path(),
     # Reports a community settles. Reached by whoever already sees everything
     # in the initiative, plus the guild admin — see direct_full_access.
     "moderation_reports": direct_full_access(),
@@ -1293,6 +1361,42 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
 
 # Derived — the classification follows the registry, never duplicates it.
 INITIATIVE_SCOPED_TABLES: frozenset[str] = frozenset(INITIATIVE_PATHS)
+
+
+@dataclass(frozen=True)
+class NamedPerson:
+    """A column on content that names a person. When the person leaves the
+    initiative the content belongs to, or the community, they are taken off
+    it (the departure section in ``guild_ddl``)."""
+
+    table: str
+    column: str
+    #: The row stays and the column is emptied, rather than the row deleted.
+    clear: bool = False
+
+
+NAMED_PEOPLE: tuple[NamedPerson, ...] = (
+    NamedPerson("task_assignees", "user_id"),
+    NamedPerson("task_property_values", "value_user_id"),
+    NamedPerson("calendar_event_attendees", "user_id"),
+    NamedPerson("calendar_event_property_values", "value_user_id"),
+    NamedPerson("document_property_values", "value_user_id"),
+    NamedPerson("queue_items", "user_id", clear=True),
+)
+
+
+def initiative_of(table: str, row: str, *, qualify: str = "") -> str:
+    """The initiative a row of ``table`` belongs to, as a sub-select, walked
+    through the hops its policies declare. ``qualify`` goes before each table
+    name (a schema)."""
+    hops = INITIATIVE_PATHS[table].dac.via
+    joins = f"{qualify}{hops[0][1]} h1"
+    for i, (fk, parent) in enumerate(hops[1:], start=2):
+        joins += f" JOIN {qualify}{parent} h{i} ON h{i}.id = h{i - 1}.{fk}"
+    return (
+        f"(SELECT h{len(hops)}.initiative_id FROM {joins}"
+        f" WHERE h1.id = {row}.{hops[0][0]})"
+    )
 
 
 #: Which commands ask the sharing gate at WRITE level, for the tables that
@@ -1650,6 +1754,7 @@ class Emit:
 EVENT_SOURCES: dict[str, Emit | Silent] = {
     # -- Silent ------------------------------------------------------------
     "event_outbox": Silent("the log cannot log itself"),
+    "app_event_outbox": Silent("delivered by the poller as events of its own"),
     # What one member did with their own UI, not a change to the initiative's
     # content, so every subscription would pay for pure noise.
     "recent_views": Silent("one member's own viewing state"),
@@ -1666,10 +1771,7 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     "moderation_reports": Silent("who reported whom is not an automation signal"),
     "moderation_report_reporters": Silent("the reporters behind one report"),
     "intake_cases": Silent("the key -> task map; the task is what a subscriber hears"),
-    # Guild-level, and kept out on disclosure: an upload row is reachable from
-    # more than one place, so the initiative gate is not the whole answer for it
-    # the way it is for tags. Gate it properly or leave it silent — silent.
-    "uploads": Silent("reached through several parents; not gated by one of them"),
+    "uploads": Silent("a stored file; the content showing it is what changed"),
     # -- Guild-level tables that emit ---------------------------------------
     # The structural initiative tables are deliberately exempt from
     # initiative-member RLS (a membership table gated by the membership check it

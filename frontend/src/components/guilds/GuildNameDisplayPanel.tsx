@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { updateGuildApiV1GuildsGuildIdPatch } from "@/api/generated/guilds/guilds";
+import { updateGuildApiV1CommunitiesGuildIdPatch } from "@/api/generated/communities/communities";
 import type { GuildRead } from "@/api/generated/initiativeAPI.schemas";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -29,9 +29,9 @@ export const GuildNameDisplayPanel = () => {
   const handleToggle = async (next: boolean) => {
     setSaving(true);
     try {
-      const result = (await updateGuildApiV1GuildsGuildIdPatch(activeGuild.id, {
+      const result = (await updateGuildApiV1CommunitiesGuildIdPatch(activeGuild.id, {
         show_member_names: next,
-      } as Parameters<typeof updateGuildApiV1GuildsGuildIdPatch>[1])) as unknown as GuildRead;
+      } as Parameters<typeof updateGuildApiV1CommunitiesGuildIdPatch>[1])) as unknown as GuildRead;
       updateGuildInState(result);
       await refreshGuilds();
     } catch (err) {

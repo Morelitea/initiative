@@ -3,7 +3,13 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildTagSummary, resetFactories } from "@/__tests__/factories";
+import {
+  buildTagSummary,
+  ownerCan,
+  readerCan,
+  resetFactories,
+  writerCan,
+} from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
@@ -43,12 +49,11 @@ const buildEntity = (overrides: Partial<ToolSettingsEntity> = {}): ToolSettingsE
   name: "Q3 Roadmap",
   description: "A description",
   initiative_id: 3,
-  my_permission_level: "owner",
+  can: ownerCan(),
   tags: [],
   grants: [],
   comments_enabled: true,
   archived_at: null,
-  can_unarchive: false,
   ...overrides,
 });
 
@@ -61,8 +66,6 @@ const renderSection = (Section: React.ComponentType, entity: ToolSettingsEntity)
       value={{
         tool: Tool.queue,
         entity,
-        canManage: entity.my_permission_level !== "read",
-        isOwner: entity.my_permission_level === "owner",
         setGrants: noopMutation(),
         remove: noopMutation(),
       }}
@@ -152,24 +155,21 @@ describe("ToolSettingsAdvancedPage", () => {
     resetFactories();
     // Deletion is the owner's alone and this tool declares no extras, so the
     // tab bar hides the link — but the address is still typeable.
-    renderSection(ToolSettingsAdvancedPage, buildEntity({ my_permission_level: "read" }));
+    renderSection(ToolSettingsAdvancedPage, buildEntity({ can: readerCan() }));
 
     expect(await screen.findByText("Permission required")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
   });
 
-  it("offers the way back out of the archive, which the capped level hides", async () => {
+  it("offers the way back out of the archive, which nothing else on it offers", async () => {
     resetFactories();
-    // What an archived entity actually arrives as: read-only, because the
-    // server caps it there so the edit affordances go off. Reading that for
-    // the unarchive button as well is what left archived tools with no way
-    // back, so the button reads `can_unarchive` instead.
+    // What an archived entity arrives as: nothing on it may be changed but
+    // taking it back out.
     renderSection(
       ToolSettingsAdvancedPage,
       buildEntity({
-        my_permission_level: "read",
+        can: readerCan({ unarchive: true }),
         archived_at: "2026-09-01T00:00:00Z",
-        can_unarchive: true,
       })
     );
 
@@ -181,9 +181,8 @@ describe("ToolSettingsAdvancedPage", () => {
     renderSection(
       ToolSettingsAdvancedPage,
       buildEntity({
-        my_permission_level: "read",
+        can: readerCan(),
         archived_at: "2026-09-01T00:00:00Z",
-        can_unarchive: false,
       })
     );
 
@@ -193,7 +192,7 @@ describe("ToolSettingsAdvancedPage", () => {
 
   it("offers archiving on a live tool to someone who may write it", async () => {
     resetFactories();
-    renderSection(ToolSettingsAdvancedPage, buildEntity({ my_permission_level: "write" }));
+    renderSection(ToolSettingsAdvancedPage, buildEntity({ can: writerCan() }));
 
     expect(await screen.findByRole("button", { name: "Archive" })).toBeInTheDocument();
   });
@@ -221,7 +220,7 @@ describe("ToolSettingsAdvancedPage", () => {
 
   it("offers no export to someone who may edit it but not delete it", async () => {
     resetFactories();
-    renderSection(ToolSettingsAdvancedPage, buildEntity({ my_permission_level: "write" }));
+    renderSection(ToolSettingsAdvancedPage, buildEntity({ can: writerCan() }));
 
     expect(await screen.findByRole("button", { name: "Archive" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Export" })).not.toBeInTheDocument();
@@ -233,7 +232,7 @@ describe("ToolSettingsAccessPage", () => {
     resetFactories();
     // The tab bar hides this section from them; the address is still typeable,
     // so the section says no on its own.
-    renderSection(ToolSettingsAccessPage, buildEntity({ my_permission_level: "read" }));
+    renderSection(ToolSettingsAccessPage, buildEntity({ can: readerCan() }));
 
     expect(await screen.findByText("Permission required")).toBeInTheDocument();
   });

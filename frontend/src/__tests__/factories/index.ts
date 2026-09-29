@@ -1,3 +1,4 @@
+export { ownerCan, readerCan, writerCan } from "./can";
 export {
   buildComment,
   buildReactionGroup,
@@ -20,6 +21,7 @@ export {
   buildBanner,
   buildGuild,
   buildGuildInviteStatus,
+  guildCan,
   resetCounter as resetGuildCounter,
 } from "./guild.factory";
 export {
@@ -28,6 +30,7 @@ export {
   buildInitiativeJoinRequest,
   buildInitiativeMember,
   buildInitiativeRole,
+  initiativeCan,
   resetCounter as resetInitiativeCounter,
 } from "./initiative.factory";
 export {
@@ -38,8 +41,10 @@ export {
 } from "./marketplace.factory";
 export {
   buildNotification,
+  buildNotificationPlace,
   resetCounter as resetNotificationCounter,
 } from "./notification.factory";
+export { buildPage } from "./page.factory";
 export { buildLexicalBody, buildPoll, buildPollOption, buildPost } from "./post.factory";
 export {
   buildDefaultTaskStatuses,

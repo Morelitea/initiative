@@ -16,6 +16,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.notification_categories import NotificationCategory
 from app.models.platform.email_outbox import EmailOutboxItem
 from app.models.platform.notification import NotificationType
+from app.services.auth import sessions as session_service
 from app.services import email as email_service
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import (
@@ -25,8 +26,6 @@ from app.services.platform import (
     push_tokens,
 )
 from app.testing import create_guild, create_user, push_switched_on
-
-pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 
 async def _platform(session: AsyncSession, **fields: bool) -> None:
@@ -166,9 +165,7 @@ def fcm(monkeypatch):
     """A deployment wired to FCM, capturing what would go on the wire."""
     calls: list[dict] = []
 
-    async def _send(
-        push_token, title, body, data=None, platform="android", channel_id=None
-    ):
+    async def _send(client, push_token, title, body, data=None, channel_id=None):
         calls.append({"title": title, "body": body})
         return (True, False)
 
@@ -179,12 +176,15 @@ def fcm(monkeypatch):
 
 async def _with_a_phone(session: AsyncSession, email: str):
     user = await create_user(session, email=email)
+    signed_in = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[]
+    )
     await push_tokens.register_push_token(
         session=session,
         user_id=user.id,
         push_token=f"token-{user.id}",
         platform="android",
-        device_token_id=None,
+        session_id=signed_in.session.id,
     )
     return user
 

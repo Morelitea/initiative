@@ -106,10 +106,6 @@ class RowPlan:
     #: every column it can name was declared.
     columns: tuple[RowColumn, ...]
 
-    @property
-    def is_grouped(self) -> bool:
-        return bool(self.select.groupClause) or _has_aggregate(self.select.targetList)
-
 
 # --- planning ----------------------------------------------------------------
 

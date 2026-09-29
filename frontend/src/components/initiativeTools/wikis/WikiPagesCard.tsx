@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { useUpdateWiki, useWiki, useWikiPages } from "@/hooks/useWikis";
-import { hasWriteAccess } from "@/lib/permissions";
 
 /** A labelled row: the control on the right, what it does underneath. */
 const Setting = ({
@@ -55,7 +54,7 @@ export const WikiPagesCard = ({ wikiId }: { wikiId: number }) => {
 
   if (!wiki) return null;
 
-  const canWrite = hasWriteAccess(wiki.my_permission_level);
+  const canWrite = wiki.can.edit;
   const save = (patch: Parameters<typeof update.mutate>[0]) => {
     if (canWrite) update.mutate(patch);
   };

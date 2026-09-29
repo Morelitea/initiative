@@ -6,6 +6,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from datetime import datetime, timedelta, timezone
 
+from app.core.capabilities import ROLE_MAX_GRANT_MINUTES
 from app.core.tools import Tool
 from app.models.platform.access_grant import AccessGrant
 from app.models.platform.guild import GuildRole
@@ -57,7 +58,6 @@ async def _request_access(client: AsyncClient, actor: Actor, guild, **body) -> o
     )
 
 
-@pytest.mark.integration
 async def test_support_requests_owner_approves_and_the_queue_masks_addresses(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -97,7 +97,6 @@ async def test_support_requests_owner_approves_and_the_queue_masks_addresses(
     assert "@example.com" not in approved.text
 
 
-@pytest.mark.integration
 async def test_my_requests_respects_limit_and_order(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -135,7 +134,6 @@ async def test_my_requests_respects_limit_and_order(
     assert [g["reason"] for g in rest.json()] == ["old 1", "old 0"]
 
 
-@pytest.mark.integration
 async def test_queue_live_filter_excludes_expired(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -159,7 +157,6 @@ async def test_queue_live_filter_excludes_expired(
     assert [g["reason"] for g in queue.json()] == ["live one"]
 
 
-@pytest.mark.integration
 async def test_member_cannot_request_access(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -172,7 +169,6 @@ async def test_member_cannot_request_access(
     assert resp.status_code == 403
 
 
-@pytest.mark.integration
 async def test_requester_cannot_approve_own(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -192,7 +188,31 @@ async def test_requester_cannot_approve_own(
     assert resp.json()["detail"] == "ACCESS_GRANT_CANNOT_APPROVE_OWN"
 
 
-@pytest.mark.integration
+async def test_a_requester_who_may_no_longer_ask_is_not_approved(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Approval asks about the requester as they stand when it is decided."""
+    from app.models.platform.user import User, UserRole
+
+    support = await acting_user("support")
+    owner = await acting_user("owner")
+    guild = await create_guild(session)
+    requested = await _request_access(client, support, guild, reason="ticket")
+    assert requested.status_code == 201, requested.text
+
+    demoted = await session.get(User, support.user.id)
+    assert demoted is not None
+    demoted.role = UserRole.member
+    session.add(demoted)
+    await session.commit()
+
+    resp = await client.post(
+        f"{GRANTS}{requested.json()['id']}/approve", json={}, headers=owner.headers
+    )
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "ACCESS_GRANT_GRANTEE_INELIGIBLE"
+
+
 @pytest.mark.parametrize(
     "tier,minutes,expected",
     [
@@ -220,7 +240,6 @@ async def test_the_window_a_role_may_ask_for(
         assert resp.json()["detail"] == "ACCESS_GRANT_DURATION_TOO_LONG"
 
 
-@pytest.mark.integration
 async def test_revoke_and_cancel(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -245,7 +264,6 @@ async def test_revoke_and_cancel(
     assert revoked.json()["is_live"] is False
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "tool,path,make",
     [
@@ -279,7 +297,6 @@ async def test_a_grant_reaches_a_tools_content_not_who_it_is_shared_with(
     assert resp.json()["detail"] == tool.grant_cannot_manage_members_code
 
 
-@pytest.mark.integration
 async def test_grantee_sees_guild_content(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -305,12 +322,12 @@ async def test_grantee_sees_guild_content(
 
     # Initiative tool views: a grantee has no membership row, and reads them
     # read-only, never as a manager.
-    perms = await client.get(
-        host.g(f"/initiatives/{host.initiative.id}/my-permissions"), headers=headers
+    initiative = await client.get(
+        host.g(f"/initiatives/{host.initiative.id}"), headers=headers
     )
-    assert perms.status_code == 200, perms.text
-    assert perms.json()["is_manager"] is False
-    assert perms.json()["permissions"]["create_projects"] is False
+    assert initiative.status_code == 200, initiative.text
+    assert initiative.json()["can"]["manage"] is False
+    assert initiative.json()["can"]["create"] == []
 
     members = await client.get(
         host.g(f"/initiatives/{host.initiative.id}/members"), headers=headers
@@ -328,14 +345,13 @@ async def test_grantee_sees_guild_content(
     assert viewed.status_code == 200, viewed.text
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("tier", ["moderator", "operator"])
 async def test_a_scoped_read_write_grant_cannot_author_tools(
     client: AsyncClient, session: AsyncSession, acting_user, tier
 ):
     """A scoped read_write grant edits *existing* content only. Authoring a
     new top-level tool is an initiative-role permission a grantee never holds,
-    so ``my-permissions`` reports every create flag off (the UI keys its create
+    so the initiative's ``can.create`` is empty (the UI keys its create
     affordances on these flags) while view flags stay on — and an actual create
     attempt is denied.
 
@@ -349,20 +365,15 @@ async def test_a_scoped_read_write_grant_cannot_author_tools(
     grantee = await acting_user(tier)
     await _approved_grant(session, grantee=grantee, host=host, level="read_write")
 
-    perms = await client.get(
-        host.g(f"/initiatives/{host.initiative.id}/my-permissions"),
-        headers=grantee.headers,
+    initiative = await client.get(
+        host.g(f"/initiatives/{host.initiative.id}"), headers=grantee.headers
     )
-    assert perms.status_code == 200, perms.text
-    permissions = perms.json()["permissions"]
-    assert perms.json()["is_manager"] is False
-    for tool in Tool:
-        assert permissions[tool.create_permission] is False, (
-            f"scoped read_write grant must not author {tool.plural}"
-        )
+    assert initiative.status_code == 200, initiative.text
+    can = initiative.json()["can"]
+    assert can["manage"] is False
+    assert can["create"] == [], "a scoped read_write grant must not author"
     # View access is unaffected — core tools stay visible.
-    assert permissions["projects_enabled"] is True
-    assert permissions["documents_enabled"] is True
+    assert {Tool.project, Tool.document} <= set(can["view"])
 
     created = await client.post(
         host.g("/projects/"),
@@ -372,7 +383,6 @@ async def test_a_scoped_read_write_grant_cannot_author_tools(
     assert created.status_code == 403, created.text
 
 
-@pytest.mark.integration
 async def test_grant_read_carries_guild_status(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -396,7 +406,6 @@ async def test_grant_read_carries_guild_status(
     assert rows and rows[0]["guild_status"] == "suspended"
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "tier,expected",
     [
@@ -425,29 +434,26 @@ async def test_the_queue_is_read_by_approvers_on_their_own_tier(
         assert row["user_email"] is not None
 
 
-@pytest.mark.integration
 async def test_a_grantee_reads_their_own_grant_and_not_somebody_elses(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """One grant, read on the caller's tier: its holder reads it with the
+    """One grant, read on the caller's tier: its holder lists it with the
     community it names; another requester is not shown it."""
     host = await acting_user("owner", guild_role=GuildRole.admin)
     support = await acting_user("support")
     other = await acting_user("support")
     grant = await _approved_grant(session, grantee=support, host=host)
 
-    own = await client.get(f"{GRANTS}{grant.id}", headers=support.headers)
+    own = await client.get(GRANTS, headers=support.headers)
     assert own.status_code == 200, own.text
-    assert own.json()["guild_name"] == host.guild.name
+    row = next(g for g in own.json() if g["id"] == grant.id)
+    assert row["guild_name"] == host.guild.name
 
     listed = await client.get(GRANTS, headers=other.headers)
     assert listed.status_code == 200, listed.text
     assert grant.id not in {g["id"] for g in listed.json()}
-    theirs = await client.get(f"{GRANTS}{grant.id}", headers=other.headers)
-    assert theirs.status_code == 404, theirs.text
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "tier,expected",
     [
@@ -465,7 +471,7 @@ async def test_the_request_form_reads_the_callers_ceiling(
     from app.services.platform import access_grants as service
 
     # A deployment that configured its own figure for one tier.
-    monkeypatch.setitem(service._ROLE_MAX_MINUTES, service.UserRole.support, 90)
+    monkeypatch.setitem(ROLE_MAX_GRANT_MINUTES, service.UserRole.support, 90)
     reader = await acting_user(tier)
 
     limits = await client.get(f"{GRANTS}limits", headers=reader.headers)
@@ -480,7 +486,6 @@ async def test_the_request_form_reads_the_callers_ceiling(
         assert limits.json()["max_duration_minutes"] == 90
 
 
-@pytest.mark.integration
 async def test_break_glass_requirements_carry_the_window(
     client: AsyncClient, acting_user
 ):

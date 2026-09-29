@@ -9,8 +9,6 @@ now, so the guild is a predicate the resolver applies rather than the schema
 the query runs in — which makes it worth holding directly.
 """
 
-import pytest
-
 from app.models.platform.identity_ref import (
     REF_MAX_LENGTH,
     IdentityEntity,
@@ -41,7 +39,6 @@ async def _install(
 
 
 class TestOneReferencePerSector:
-    @pytest.mark.integration
     async def test_two_installs_name_one_person_differently(self, session):
         user = await create_user(session)
         guild = await create_guild(session, creator=user)
@@ -59,7 +56,6 @@ class TestOneReferencePerSector:
         )
         assert first != second
 
-    @pytest.mark.integration
     async def test_one_install_names_two_people_differently(self, session):
         owner = await create_user(session)
         other = await create_user(session)
@@ -73,7 +69,6 @@ class TestOneReferencePerSector:
             guild_id=guild.id, app_install_id=app.id, user_id=other.id
         )
 
-    @pytest.mark.integration
     async def test_one_app_in_two_guilds_names_one_person_differently(self, session):
         user = await create_user(session)
         here = await create_guild(session, creator=user)
@@ -88,7 +83,6 @@ class TestOneReferencePerSector:
             guild_id=there.id, app_install_id=app_there.id, user_id=user.id
         )
 
-    @pytest.mark.integration
     async def test_minting_twice_gives_the_same_reference(self, session):
         user = await create_user(session)
         guild = await create_guild(session, creator=user)
@@ -102,14 +96,12 @@ class TestOneReferencePerSector:
             guild_id=guild.id, app_install_id=app.id, user_id=user.id
         )
 
-    @pytest.mark.unit
     def test_the_value_fits_where_it_has_to_go(self):
         # A JWT claim and a URL bound the width the install parameter accepts.
         assert REF_MAX_LENGTH >= 37
 
 
 class TestTheGuildPredicate:
-    @pytest.mark.integration
     async def test_a_reference_resolves_inside_its_own_guild(self, session):
         user = await create_user(session)
         guild = await create_guild(session, creator=user)
@@ -124,7 +116,6 @@ class TestTheGuildPredicate:
         assert row.entity_id == user.id
         assert row.sector_id == app.id
 
-    @pytest.mark.integration
     async def test_it_does_not_resolve_for_another_guild(self, session):
         user = await create_user(session)
         here = await create_guild(session, creator=user)
@@ -137,7 +128,6 @@ class TestTheGuildPredicate:
         )
         assert await resolve_app_ref(session, ref=ref, guild_id=there.id) is None
 
-    @pytest.mark.integration
     async def test_a_reference_for_another_purpose_does_not_resolve(self, session):
         user = await create_user(session)
         guild = await create_guild(session, creator=user)
@@ -152,7 +142,6 @@ class TestTheGuildPredicate:
         await session.commit()
         assert await resolve_app_ref(session, ref=billing, guild_id=guild.id) is None
 
-    @pytest.mark.integration
     async def test_a_guild_reference_does_not_resolve_as_a_member(self, session):
         user = await create_user(session)
         guild = await create_guild(session, creator=user)
@@ -171,7 +160,6 @@ class TestTheGuildPredicate:
 
 
 class TestMovingOne:
-    @pytest.mark.integration
     async def test_a_member_can_be_made_unrecognisable_to_an_install(self, session):
         user = await create_user(session)
         guild = await create_guild(session, creator=user)
@@ -190,7 +178,6 @@ class TestMovingOne:
         # In flight during the swap still lands.
         assert await resolve_app_ref(session, ref=before, guild_id=guild.id) is not None
 
-    @pytest.mark.integration
     async def test_every_member_at_one_install_can_be_moved_together(self, session):
         owner = await create_user(session)
         other = await create_user(session)
@@ -220,7 +207,6 @@ class TestMovingOne:
 
 
 class TestRemoval:
-    @pytest.mark.integration
     async def test_uninstalling_removes_what_that_install_called_people(self, session):
         user = await create_user(session)
         guild = await create_guild(session, creator=user)
@@ -241,7 +227,6 @@ class TestRemoval:
         assert await resolve_app_ref(session, ref=gone, guild_id=guild.id) is None
         assert await resolve_app_ref(session, ref=kept, guild_id=guild.id) is not None
 
-    @pytest.mark.integration
     async def test_deleting_a_guild_removes_its_app_references(self, session):
         user = await create_user(session)
         here = await create_guild(session, creator=user)
@@ -262,7 +247,6 @@ class TestRemoval:
         assert await resolve_app_ref(session, ref=gone, guild_id=here.id) is None
         assert await resolve_app_ref(session, ref=kept, guild_id=there.id) is not None
 
-    @pytest.mark.integration
     async def test_the_deletion_sequence_its_callers_follow(self, session):
         """Delete, commit, then drop — the order `delete_guild` documents.
 
@@ -292,7 +276,6 @@ class TestRemoval:
 
         assert await resolve_app_ref(session, ref=ref, guild_id=guild_id) is None
 
-    @pytest.mark.integration
     async def test_the_sweep_reclaims_a_deleted_guilds_references(self, session):
         """What a failed post-commit cleanup leaves behind.
 
@@ -327,7 +310,6 @@ class TestRemoval:
         assert await resolve_app_ref(session, ref=orphaned, guild_id=kept_id) is None
         assert await resolve_app_ref(session, ref=live, guild_id=kept_id) is not None
 
-    @pytest.mark.unit
     def test_the_grace_window_is_the_shared_one(self):
         # App references retire on the same clock as every other sector's.
         assert REF_GRACE_PERIOD.days == 30

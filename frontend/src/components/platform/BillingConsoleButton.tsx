@@ -12,7 +12,7 @@ import { type ComponentProps, type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { SecondFactorAnswer } from "@/api/generated/initiativeAPI.schemas";
-import { createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost } from "@/api/generated/settings/settings";
+import { createPlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost } from "@/api/generated/settings/settings";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -56,7 +56,7 @@ export const BillingConsoleButton = ({
     if (tab) tab.opener = null;
     try {
       const { handoff_token } =
-        await createPlatformGuildBillingServiceHandoffApiV1SettingsGuildsGuildIdBillingServiceHandoffPost(
+        await createPlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPost(
           guild.id,
           answer,
           { console }

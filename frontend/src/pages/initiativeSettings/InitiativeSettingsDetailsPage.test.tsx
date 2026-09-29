@@ -3,7 +3,13 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildGuild, buildInitiative, buildInitiativeRole, buildUser } from "@/__tests__/factories";
+import {
+  buildGuild,
+  buildInitiative,
+  buildInitiativeRole,
+  buildUser,
+  initiativeCan,
+} from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
@@ -25,7 +31,14 @@ function stubInitiative(overrides: Partial<InitiativeRead> = {}, patchFails?: [n
   const patches: unknown[] = [];
   server.use(
     guildHttp.get("/initiatives/:id", () =>
-      HttpResponse.json(buildInitiative({ id: INITIATIVE_ID, name: "Apollo", ...overrides }))
+      HttpResponse.json(
+        buildInitiative({
+          id: INITIATIVE_ID,
+          name: "Apollo",
+          can: initiativeCan({ manage: true }),
+          ...overrides,
+        })
+      )
     ),
     guildHttp.patch("/initiatives/:id", async ({ request }) => {
       const body = await request.json();
@@ -86,7 +99,7 @@ beforeEach(() => {
 
 describe("InitiativeSettingsDetailsPage", () => {
   it("refuses the section to someone who reached the address without the standing", async () => {
-    stubInitiative();
+    stubInitiative({ can: initiativeCan() });
 
     // Straight to the section, with no layout in front of it.
     renderDetails("member");

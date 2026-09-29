@@ -4,9 +4,10 @@ import uuid
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import ConfigDict, EmailStr, Field
+from pydantic import ConfigDict, EmailStr, Field, field_validator
 
 from app.schemas.base import SanitizedBaseModel, TitleStr
+from app.services.auth.native_handoff import is_challenge
 
 #: The longest name a passkey may be given. Mirrors the service's cap.
 NAME_MAX_LENGTH = 64
@@ -148,6 +149,16 @@ class PasskeySignInFinish(SanitizedBaseModel):
     #: As on begin. The device name is what the app's device list shows.
     mobile: bool = False
     device_name: str = Field(default="", max_length=255)
+    #: For a mobile sign-in: the app's S256 challenge, which the code handed
+    #: back is bound to.
+    code_challenge: str = ""
+
+    @field_validator("code_challenge")
+    @classmethod
+    def _challenge_shape(cls, value: str) -> str:
+        if value and not is_challenge(value):
+            raise ValueError("code_challenge is not an S256 challenge")
+        return value
 
 
 class PasskeySignInResult(SanitizedBaseModel):
@@ -158,7 +169,7 @@ class PasskeySignInResult(SanitizedBaseModel):
     access_token: Optional[str] = None
     token_type: str = "bearer"
     #: For a mobile sign-in: the app's own callback address carrying the
-    #: device token, which the relay page navigates to.
+    #: one-time code, which the relay page navigates to.
     redirect_to: Optional[str] = None
 
 

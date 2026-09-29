@@ -3,9 +3,9 @@ import { useEffect, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
 import {
-  checkLeaveEligibilityApiV1GuildsGuildIdLeaveEligibilityGet,
-  leaveGuildApiV1GuildsGuildIdLeaveDelete,
-} from "@/api/generated/guilds/guilds";
+  checkLeaveEligibilityApiV1CommunitiesGuildIdLeaveEligibilityGet,
+  leaveGuildApiV1CommunitiesGuildIdLeaveDelete,
+} from "@/api/generated/communities/communities";
 import type {
   GuildRead,
   LeaveGuildEligibilityResponse,
@@ -55,7 +55,7 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
       setLoading(true);
       setError(null);
       try {
-        const data = (await checkLeaveEligibilityApiV1GuildsGuildIdLeaveEligibilityGet(
+        const data = (await checkLeaveEligibilityApiV1CommunitiesGuildIdLeaveEligibilityGet(
           guild.id
         )) as unknown as LeaveGuildEligibilityResponse;
         setEligibility(data);
@@ -75,7 +75,7 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
   const handleLeave = async () => {
     setLeaving(true);
     try {
-      await leaveGuildApiV1GuildsGuildIdLeaveDelete(guild.id);
+      await leaveGuildApiV1CommunitiesGuildIdLeaveDelete(guild.id);
 
       // Switch to another guild if leaving the active one
       if (activeGuildId === guild.id) {

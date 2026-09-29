@@ -299,7 +299,6 @@ async def _handshake(scope: dict) -> list[dict]:
     return [*sent, {"reached_app": connected["value"]}]
 
 
-@pytest.mark.unit
 async def test_a_cross_site_websocket_with_a_session_cookie_is_refused(monkeypatch):
     monkeypatch.setattr(type(settings), "cors_origins", property(lambda _s: [SERVED]))
 
@@ -313,7 +312,6 @@ async def test_a_cross_site_websocket_with_a_session_cookie_is_refused(monkeypat
     assert result[-1]["reached_app"] is False
 
 
-@pytest.mark.unit
 async def test_a_same_origin_websocket_connects(monkeypatch):
     monkeypatch.setattr(type(settings), "cors_origins", property(lambda _s: [SERVED]))
 
@@ -324,7 +322,6 @@ async def test_a_same_origin_websocket_connects(monkeypatch):
     assert result[-1]["reached_app"] is True
 
 
-@pytest.mark.unit
 async def test_a_plain_http_websocket_connects_on_the_host_comparison(monkeypatch):
     # The other half of issue #1857: the same deployment's event stream. A
     # handshake carries no fetch metadata to an untrusted origin either.
@@ -341,7 +338,6 @@ async def test_a_plain_http_websocket_connects_on_the_host_comparison(monkeypatc
     assert result[-1]["reached_app"] is True
 
 
-@pytest.mark.unit
 async def test_a_websocket_from_another_origin_on_the_same_host_is_refused(monkeypatch):
     monkeypatch.setattr(type(settings), "cors_origins", property(lambda _s: [SERVED]))
 
@@ -357,7 +353,6 @@ async def test_a_websocket_from_another_origin_on_the_same_host_is_refused(monke
     assert result[-1]["reached_app"] is False
 
 
-@pytest.mark.unit
 async def test_a_websocket_without_a_session_cookie_is_not_this_rule_s_business(
     monkeypatch,
 ):

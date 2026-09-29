@@ -20,13 +20,12 @@
 import { Link } from "@tanstack/react-router";
 import type { PaginationState } from "@tanstack/react-table";
 import type { ParseKeys } from "i18next";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { InitiativeRead, Tool } from "@/api/generated/initiativeAPI.schemas";
-import { SortIcon } from "@/components/SortIcon";
-import { TagBadge } from "@/components/tags/TagBadge";
-import { Button } from "@/components/ui/button";
+import type { InitiativeListRead, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { SortHeader } from "@/components/SortIcon";
+import { TagBadgeList } from "@/components/tags/TagBadge";
 import { DataTable } from "@/components/ui/data-table";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { guildPath } from "@/lib/guildUrl";
@@ -83,7 +82,7 @@ const InitiativeCell = ({
   initiatives,
 }: {
   row: ToolRow;
-  initiatives: Map<string, InitiativeRead>;
+  initiatives: Map<string, InitiativeListRead>;
 }) => {
   const { t } = useTranslation("guildHome");
   if (row.initiativeId === null) {
@@ -108,26 +107,7 @@ const TagsCell = ({ row }: { row: ToolRow }) => {
     return <span className="text-muted-foreground text-sm">—</span>;
   }
   return (
-    <div className="flex flex-wrap gap-1">
-      {row.tags.slice(0, 3).map((tag) => (
-        <TagBadge key={tag.id} tag={tag} size="sm" to={guildPath(row.guildId, `/tags/${tag.id}`)} />
-      ))}
-      {row.tags.length > 3 && (
-        <span className="text-muted-foreground text-xs">+{row.tags.length - 3}</span>
-      )}
-    </div>
-  );
-};
-
-/** A column header that toggles that column's sort. The arrow reads the
- *  table's own state, which the page keeps in the address bar. */
-const SortHeader = ({ column, label }: { column: AppColumn<ToolRow>; label: string }) => {
-  const isSorted = column.getIsSorted();
-  return (
-    <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-      {label}
-      <SortIcon isSorted={isSorted} />
-    </Button>
+    <TagBadgeList tags={row.tags} tagHref={(tag) => guildPath(row.guildId, `/tags/${tag.id}`)} />
   );
 };
 
@@ -167,7 +147,7 @@ interface ToolTableProps {
   tool: Tool;
   rows: ToolRow[];
   /** Every initiative the rows might name, from however many communities. */
-  initiatives: InitiativeRead[];
+  initiatives: InitiativeListRead[];
   /**
    * Community id → name. Passing it adds the community column, which is what a
    * cross-community table needs and a single community's own page does not.
@@ -175,8 +155,6 @@ interface ToolTableProps {
   communities?: Map<number, string>;
   totalCount: number;
   page: number;
-  /** Computed by the page, which also uses it to recover an out-of-range page. */
-  pageCount: number;
   pageSize: number;
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
@@ -198,7 +176,6 @@ export const ToolTable = ({
   communities,
   totalCount,
   page,
-  pageCount,
   pageSize,
   onPageChange,
   onPageSizeChange,
@@ -210,6 +187,14 @@ export const ToolTable = ({
   sortFields = TOOL_SORT_FIELDS,
 }: ToolTableProps) => {
   const { t } = useTranslation("guildHome");
+
+  const pageCount = Math.max(1, Math.ceil(totalCount / pageSize));
+  // A bookmarked page outlives the rows it pointed at, and a hand-typed one may
+  // never have had any. There are still rows, so land back on the first page
+  // rather than showing an empty table over them.
+  useEffect(() => {
+    if (totalCount > 0 && page > pageCount) onPageChange(1);
+  }, [totalCount, page, pageCount, onPageChange]);
 
   const initiativesByKey = useMemo(
     () =>

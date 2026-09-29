@@ -1,4 +1,8 @@
-"""ASGI body-size enforcement for bounded-upload routes.
+"""ASGI body-size enforcement for every HTTP request.
+
+A route named in ``_RULES`` gets its own bound; every other request gets
+:data:`DEFAULT_MAX_REQUEST_BYTES`, or :data:`MULTIPART_MAX_REQUEST_BYTES` when
+it is a multipart upload.
 
 A handler-level ``Content-Length`` check is too late: FastAPI resolves the
 request body (and parses JSON) before any handler code runs, and a chunked
@@ -18,12 +22,31 @@ import json
 import re
 from typing import Awaitable, Callable
 
+from app.core.messages import CommonMessages
 from app.services.import_engine import limits as import_limits
 
-#: The most any app-service request may carry. Sized for the largest route on
-#: that surface — events — plus its envelope, and kept here rather than imported
-#: from the router so this module stays free of app-layer imports.
-APP_SERVICE_MAX_REQUEST_BYTES = 64 * 1024 + 8 * 1024
+#: The most a request no rule names may carry. The largest ordinary body is a
+#: calendar import — two million characters of iCalendar text in JSON — and
+#: this leaves it room to spare.
+DEFAULT_MAX_REQUEST_BYTES = 4 * 1024 * 1024
+
+#: The most a multipart upload no rule names may carry: the largest file any
+#: upload route takes (a document file, 50 MiB) plus 1 MiB for framing. The
+#: handler's bounded read still enforces each route's own cap exactly.
+MULTIPART_MAX_REQUEST_BYTES = 50 * 1024 * 1024 + 1_048_576
+
+#: The most a document's content may carry. A whiteboard keeps its pictures
+#: inline in the scene, so a board is far larger than any other JSON body.
+DOCUMENT_MAX_REQUEST_BYTES = 64 * 1024 * 1024
+
+#: The most an installed app's installation call may carry. Sized for the
+#: largest route on that surface — events — plus its envelope, and kept here
+#: rather than imported from the router so this module stays free of app-layer
+#: imports.
+APP_INSTALLATION_MAX_REQUEST_BYTES = 8 * 1024 + 8 * 1024
+
+#: The most one vendor webhook delivery may carry.
+APP_HOOK_MAX_REQUEST_BYTES = 1024 * 1024
 
 #: The most an Atlassian request may carry. A connect is a site URL, an
 #: account's address and an API token; a start is a credential id, an
@@ -35,14 +58,14 @@ ATLASSIAN_MAX_REQUEST_BYTES = 16 * 1024
 # settings lazily — the limit is a property of request time, not boot time.
 _RULES: tuple[tuple[re.Pattern[str], Callable[[], int], str], ...] = (
     (
-        re.compile(r"^/api/v1/g/\d+/imports/envelope$"),
+        re.compile(r"^/api/v1/c/\d+/imports/envelope$"),
         lambda: import_limits.IMPORT_MAX_ENVELOPE_BYTES,
         "IMPORT_TOO_LARGE",
     ),
     (
         # A foreign export travels as its own text in a JSON body — the same
         # order of size as an envelope, and bounded the same way.
-        re.compile(r"^/api/v1/g/\d+/imports/foreign/[^/]+(/preview)?$"),
+        re.compile(r"^/api/v1/c/\d+/imports/foreign/[^/]+(/preview)?$"),
         lambda: import_limits.IMPORT_MAX_ENVELOPE_BYTES,
         "IMPORT_TOO_LARGE",
     ),
@@ -52,7 +75,7 @@ _RULES: tuple[tuple[re.Pattern[str], Callable[[], int], str], ...] = (
         # framing overhead around the zip; allow 1 MiB slack over the cap the
         # handler's bounded read enforces exactly.
         re.compile(
-            r"^/api/v1/g/\d+/imports/(backup|atlassian/export|envelope/archive)$"
+            r"^/api/v1/c/\d+/imports/(backup|atlassian/export|envelope/archive)$"
         ),
         lambda: import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES + 1_048_576,
         "IMPORT_TOO_LARGE",
@@ -62,19 +85,35 @@ _RULES: tuple[tuple[re.Pattern[str], Callable[[], int], str], ...] = (
         # business arriving as a megabyte, and both routes reach outward on
         # what they are given, so the transport refuses an oversized one
         # before a handler ever looks at it.
-        re.compile(r"^/api/v1/g/\d+/imports/atlassian/(connect|import)$"),
+        re.compile(r"^/api/v1/c/\d+/imports/atlassian/(connect|import)$"),
         lambda: ATLASSIAN_MAX_REQUEST_BYTES,
         "IMPORT_TOO_LARGE",
     ),
     (
-        # Every app-service route buffers its body before authenticating —
-        # the signature covers those bytes, so they have to be read to check
-        # it. Without a ceiling here that read is unbounded and happens for a
-        # caller who has not proved anything yet, so the transport refuses an
-        # oversized body first and the handler's exact cap still applies after.
-        re.compile(r"^/api/v1/app-service(/|$)"),
-        lambda: APP_SERVICE_MAX_REQUEST_BYTES,
+        # An installed app's installation calls are configuration writes and
+        # events, none larger than an event. The transport refuses a body past
+        # that first, and the handler's exact cap still applies after.
+        re.compile(r"^/api/v1/app-platform/installation(/|$)"),
+        lambda: APP_INSTALLATION_MAX_REQUEST_BYTES,
         "APP_CHANNEL_EVENT_TOO_LARGE",
+    ),
+    (
+        re.compile(r"^/api/v1/app-hooks/[^/]+$"),
+        lambda: APP_HOOK_MAX_REQUEST_BYTES,
+        CommonMessages.REQUEST_TOO_LARGE,
+    ),
+    (
+        # The routes that write a document's content: create, update, a wiki
+        # page, and the edits a closing tab hands over to a room.
+        re.compile(
+            r"^/api/v1/c/\d+/("
+            r"documents(/\d+)?"
+            r"|wikis/\d+/pages(/\d+)?"
+            r"|collaboration/(documents/\d+|wikis/\d+/pages/\d+)/collaborate"
+            r")/?$"
+        ),
+        lambda: DOCUMENT_MAX_REQUEST_BYTES,
+        CommonMessages.REQUEST_TOO_LARGE,
     ),
 )
 
@@ -91,11 +130,7 @@ class BodySizeLimitMiddleware:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
-        rule = self._match(scope.get("path", ""))
-        if rule is None:
-            await self.app(scope, receive, send)
-            return
-        limit, code = rule
+        limit, code = _bound_for(scope)
 
         # Fast path: an honest Content-Length is rejected before ANY body
         # bytes are read.
@@ -147,12 +182,24 @@ class BodySizeLimitMiddleware:
             if not response_started:
                 await _send_413(send, code)
 
-    @staticmethod
-    def _match(path: str) -> tuple[int, str] | None:
-        for pattern, limit_getter, code in _RULES:
-            if pattern.match(path):
-                return limit_getter(), code
-        return None
+
+def _bound_for(scope) -> tuple[int, str]:
+    """The limit and error code for this request: its route's rule if one
+    names it, otherwise the default for its kind of body."""
+    path = scope.get("path", "")
+    for pattern, limit_getter, code in _RULES:
+        if pattern.match(path):
+            return limit_getter(), code
+    if _header(scope, b"content-type").startswith(b"multipart/"):
+        return MULTIPART_MAX_REQUEST_BYTES, CommonMessages.REQUEST_TOO_LARGE
+    return DEFAULT_MAX_REQUEST_BYTES, CommonMessages.REQUEST_TOO_LARGE
+
+
+def _header(scope, name: bytes) -> bytes:
+    for key, value in scope.get("headers", []):
+        if key == name:
+            return value.lower()
+    return b""
 
 
 def _content_length(scope) -> int | None:

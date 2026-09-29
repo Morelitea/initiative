@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 
 import type { OwnedContentResponse, Tool } from "@/api/generated/initiativeAPI.schemas";
-import { useListUnownedContentApiV1GGuildIdUsersUnownedContentGet } from "@/api/generated/users/users";
+import { useListUnownedContentApiV1CGuildIdUsersUnownedContentGet } from "@/api/generated/users/users";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -22,7 +22,7 @@ interface UnownedContentCardProps {
 export const UnownedContentCard = ({ onClaim }: UnownedContentCardProps) => {
   const { t } = useTranslation(["guilds", "nav"]);
   const guildId = useActiveGuildId();
-  const { data } = useListUnownedContentApiV1GGuildIdUsersUnownedContentGet(guildId);
+  const { data } = useListUnownedContentApiV1CGuildIdUsersUnownedContentGet(guildId);
   const content = data as unknown as OwnedContentResponse | undefined;
   const total = content?.total ?? 0;
 

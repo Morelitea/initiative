@@ -37,6 +37,7 @@ from app.services.import_engine.confluence_storage import _Element, _parse, _tex
 from app.services.import_engine.contract import ImportEngineError
 from app.services.import_engine.jira_attachments import AssetBudget, AssetSink
 from app.services.import_engine import limits as import_limits
+from app.services.import_engine.zip_bounds import read_member
 
 logger = logging.getLogger(__name__)
 
@@ -153,12 +154,20 @@ def _root(names: list[str]) -> str:
 
 
 def _read(archive: zipfile.ZipFile, name: str) -> str:
-    return archive.read(name).decode("utf-8", errors="replace")
+    """One HTML file of the export, read up to the envelope cap: a page is
+    held to what one envelope may carry."""
+    data = read_member(archive, name, max_bytes=import_limits.IMPORT_MAX_ENVELOPE_BYTES)
+    return data.decode("utf-8", errors="replace")
 
 
 def read_export(archive: zipfile.ZipFile) -> ExportSpace:
     """The space an HTML export holds: its pages in tree order, each with its
-    parent, its body in storage format, and the files attached to it."""
+    parent, its body in storage format, and the files attached to it.
+
+    A page at a time: every page is parsed once for its title, which a link
+    from any other page may need, and again when its body is translated, so
+    no more than one page's tree is held at once. Blocking; run it in a
+    thread from async code."""
     names = [info.filename for info in archive.infolist() if not info.is_dir()]
     root = _root(names)
     prefix = f"{root}/" if root else ""
@@ -180,9 +189,12 @@ def read_export(archive: zipfile.ZipFile) -> ExportSpace:
     key = details.get("key") or posixpath.basename(root) or "SPACE"
     name = details.get("name") or key
     tree = _index_tree(index, set(page_files)) if index is not None else {}
+    del index
 
-    parsed = {file: _parse(_read(archive, prefix + file)) for file in page_files}
-    titles = {file: _page_title(doc, name, key) or file for file, doc in parsed.items()}
+    titles = {
+        file: _page_title(_parse(_read(archive, prefix + file)), name, key) or file
+        for file in page_files
+    }
 
     ids: dict[str, str] = {}
     for offset, file in enumerate(page_files):
@@ -194,7 +206,7 @@ def read_export(archive: zipfile.ZipFile) -> ExportSpace:
     site = ""
     pages: list[ExportPage] = []
     for file in page_files:
-        doc = parsed[file]
+        doc = _parse(_read(archive, prefix + file))
         attachments = _listed_attachments(doc, prefix, sizes)
         translator = _Translator(
             page_titles=titles,
@@ -743,7 +755,7 @@ async def export_to_fetched(
     ``store`` where each one goes; without a budget none are brought. ``documents`` false is an initiative that cannot take
     file documents: only the pictures the pages show come.
     """
-    space = read_export(archive)
+    space = await asyncio.to_thread(read_export, archive)
     budget_rows = import_limits.IMPORT_FETCH_MAX_ROWS if max_rows is None else max_rows
     by_file = {page.file: page for page in space.pages}
     pages = [
@@ -766,14 +778,13 @@ async def export_to_fetched(
     gathered = Gathered()
     media: dict[str, confluence_attachments.PageMedia] = {}
     if asset_budget is not None and store is not None:
+
+        async def read(item: Any, max_bytes: int) -> bytes:
+            return await asyncio.to_thread(
+                read_member, archive, item.id, max_bytes=max_bytes
+            )
+
         for page in space.pages[: len(pages)]:
-
-            async def read(item: Any, max_bytes: int) -> bytes:
-                info = archive.getinfo(item.id)
-                if info.file_size > max_bytes:
-                    raise ImportEngineError(ImportEngineMessages.IMPORT_TOO_LARGE)
-                return archive.read(info)
-
             media[page.id] = await confluence_attachments.download_page_attachments(
                 [
                     confluence_attachments.PageAttachment(

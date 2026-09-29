@@ -1,20 +1,23 @@
-import { Loader2 } from "lucide-react";
+import { Blocks, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
   OwnedContentResponse,
+  OwnershipTransferRequest,
   OwnershipTransferResponse,
   Tool,
   UserGuildMember,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  claimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost,
-  listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet,
-  listUnownedContentApiV1GGuildIdUsersUnownedContentGet,
-  transferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost,
+  claimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost,
+  listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet,
+  listUnownedContentApiV1CGuildIdUsersUnownedContentGet,
+  transferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost,
 } from "@/api/generated/users/users";
 import { invalidate, q } from "@/api/query-keys";
+import type { MemberLike } from "@/components/members/MemberSearchSelect";
+import { AsyncCombobox } from "@/components/ui/async-combobox";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,16 +28,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import type { SearchableComboboxItem } from "@/components/ui/searchable-combobox";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { USER_ID_LOOKUP_MAX, useUserSearch } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { isAdminRole } from "@/lib/permissions";
 import { toolCamelPlural } from "@/lib/tools";
 import { getUserDisplayName } from "@/lib/userDisplay";
 
@@ -55,23 +54,33 @@ const useToolCounts = (counts: Record<string, number> | undefined) => {
   );
 };
 
+/** A recipient in the picker: an admin (`user:<id>`) or an app (`app:<id>`). */
+const personRecipient = (id: number) => `user:${id}`;
+const appRecipient = (id: number) => `app:${id}`;
+
+/** The request body a picked recipient becomes. */
+const transferBody = (recipient: string): OwnershipTransferRequest => {
+  const [kind, id] = recipient.split(":");
+  return kind === "app" ? { new_owner_app_id: Number(id) } : { new_owner_id: Number(id) };
+};
+
 interface TransferContentOwnershipDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Whose content moves. Null claims everything nobody owns instead. */
   member: UserGuildMember | null;
-  /** Guild admins eligible to receive it. */
-  admins: UserGuildMember[];
   /** Pre-selected recipient — the acting admin. */
-  defaultRecipientId?: number;
+  defaultRecipient?: MemberLike | null;
   onSuccess?: () => void;
 }
 
 /**
  * Moves everything a member owns in this guild to a guild admin, and the only
- * place in the app that does. Recipients are limited to guild admins, who
- * already reach every part of the guild, so a transfer can never widen anyone's
- * access.
+ * place in the app that does. Recipients are guild admins, who already reach
+ * every part of the guild, so a transfer can never widen anyone's access — or
+ * an installed app the server lists as able to own all of it
+ * (`eligible_apps`): one placed where all of it lives and allowed to change
+ * it, which is the reach it already has.
  *
  * With `member` null it claims the guild's unowned content instead — the pile
  * that accumulates as people leave, since departures release ownership rather
@@ -81,13 +90,15 @@ export const TransferContentOwnershipDialog = ({
   open,
   onOpenChange,
   member,
-  admins,
-  defaultRecipientId,
+  defaultRecipient: defaultRecipientUser,
   onSuccess,
 }: TransferContentOwnershipDialogProps) => {
   const { t } = useTranslation(["guilds", "common"]);
   const guildId = useActiveGuildId();
-  const [recipientId, setRecipientId] = useState<string>(defaultRecipientId?.toString() ?? "");
+  const defaultRecipient = defaultRecipientUser ? personRecipient(defaultRecipientUser.id) : "";
+  const [recipientId, setRecipientId] = useState<string>(defaultRecipient);
+  // The picked recipient's name, held because the search that offered it moves on.
+  const [recipientLabel, setRecipientLabel] = useState<string | null>(null);
   const [content, setContent] = useState<OwnedContentResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -101,13 +112,14 @@ export const TransferContentOwnershipDialog = ({
     let cancelled = false;
     setContent(null);
     setLoading(true);
-    setRecipientId(defaultRecipientId?.toString() ?? "");
+    setRecipientId(defaultRecipient);
+    setRecipientLabel(null);
 
     const load = async () => {
       try {
         const data = (memberId === null
-          ? await listUnownedContentApiV1GGuildIdUsersUnownedContentGet(guildId)
-          : await listOwnedContentApiV1GGuildIdUsersUserIdOwnedContentGet(
+          ? await listUnownedContentApiV1CGuildIdUsersUnownedContentGet(guildId)
+          : await listOwnedContentApiV1CGuildIdUsersUserIdOwnedContentGet(
               guildId,
               memberId
             )) as unknown as OwnedContentResponse;
@@ -124,19 +136,52 @@ export const TransferContentOwnershipDialog = ({
     return () => {
       cancelled = true;
     };
-  }, [open, memberId, guildId, defaultRecipientId]);
+  }, [open, memberId, guildId, defaultRecipient]);
 
   const toolCounts = useToolCounts(content?.counts);
   const nothingToMove = !loading && (content?.total ?? 0) === 0;
+  const eligibleApps = content?.eligible_apps ?? [];
+
+  // Admins are found by name on the server rather than read from the whole
+  // roster: the closest matches, of which the admins are offered. The few apps
+  // the server listed are matched here.
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const adminSearch = useUserSearch({
+    search,
+    pageSize: USER_ID_LOOKUP_MAX,
+    enabled: open && pickerOpen,
+  });
+  const recipients = useMemo<SearchableComboboxItem[]>(() => {
+    const term = search.trim().toLowerCase();
+    return [
+      ...(adminSearch.data?.items ?? [])
+        .filter((user) => isAdminRole(user.guild_role) && user.status !== "anonymized")
+        .map((admin) => ({ value: personRecipient(admin.id), label: getUserDisplayName(admin) })),
+      ...(content?.eligible_apps ?? [])
+        .filter((app) => app.name.toLowerCase().includes(term))
+        .map((app) => ({
+          value: appRecipient(app.id),
+          label: app.name,
+          icon: Blocks,
+          hint: t("transferOwnership.appHint"),
+        })),
+    ];
+  }, [adminSearch.data, content, search, t]);
+  const selectedLabel =
+    recipientLabel ??
+    (recipientId && recipientId === defaultRecipient && defaultRecipientUser
+      ? getUserDisplayName(defaultRecipientUser)
+      : null);
 
   const handleSubmit = async () => {
     if (!recipientId) return;
     setSubmitting(true);
     try {
-      const body = { new_owner_id: Number(recipientId) };
+      const body = transferBody(recipientId);
       const result = (member === null
-        ? await claimUnownedContentApiV1GGuildIdUsersUnownedContentClaimPost(guildId, body)
-        : await transferOwnershipApiV1GGuildIdUsersUserIdTransferOwnershipPost(
+        ? await claimUnownedContentApiV1CGuildIdUsersUnownedContentClaimPost(guildId, body)
+        : await transferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost(
             guildId,
             member.id,
             body
@@ -191,20 +236,26 @@ export const TransferContentOwnershipDialog = ({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="transfer-recipient">{t("transferOwnership.recipientLabel")}</Label>
-              <Select value={recipientId} onValueChange={setRecipientId}>
-                <SelectTrigger id="transfer-recipient">
-                  <SelectValue placeholder={t("transferOwnership.recipientPlaceholder")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {admins.map((admin) => (
-                    <SelectItem key={admin.id} value={admin.id.toString()}>
-                      {getUserDisplayName(admin)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-muted-foreground text-xs">{t("transferOwnership.adminsOnly")}</p>
+              <Label>{t("transferOwnership.recipientLabel")}</Label>
+              <AsyncCombobox
+                items={recipients}
+                value={recipientId}
+                onValueChange={(value) => {
+                  setRecipientId(value);
+                  setRecipientLabel(recipients.find((item) => item.value === value)?.label ?? null);
+                }}
+                onSearchChange={setSearch}
+                onOpenChange={setPickerOpen}
+                selectedLabel={selectedLabel}
+                loading={adminSearch.isFetching && recipients.length === 0}
+                placeholder={t("transferOwnership.recipientPlaceholder")}
+                aria-label={t("transferOwnership.recipientLabel")}
+              />
+              <p className="text-muted-foreground text-xs">
+                {eligibleApps.length > 0
+                  ? t("transferOwnership.adminsOrApps")
+                  : t("transferOwnership.adminsOnly")}
+              </p>
             </div>
           </div>
         )}

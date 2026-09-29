@@ -2,7 +2,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildGuild } from "@/__tests__/factories";
+import { buildGuild, guildCan } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { GuildEntry } from "@/hooks/useGuilds";
 
@@ -23,11 +23,11 @@ vi.mock("@/hooks/useSupport", async () => {
     useSupportAvailability: () => ({ data: state.support, isPending: false }),
   };
 });
-vi.mock("@/api/generated/guilds/guilds", () => ({
-  getReadGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGetQueryKey: (id: number) => [
-    `/api/v1/guilds/${id}/billing/payment-issue`,
+vi.mock("@/api/generated/communities/communities", () => ({
+  getReadGuildPaymentIssueApiV1CommunitiesGuildIdBillingPaymentIssueGetQueryKey: (id: number) => [
+    `/api/v1/communities/${id}/billing/payment-issue`,
   ],
-  readGuildPaymentIssueApiV1GuildsGuildIdBillingPaymentIssueGet: askMock,
+  readGuildPaymentIssueApiV1CommunitiesGuildIdBillingPaymentIssueGet: askMock,
 }));
 
 import { GuildStatusNotice, guildStatusNoticeApplies } from "./GuildStatusNotice";
@@ -47,7 +47,9 @@ describe("guildStatusNoticeApplies", () => {
     expect(guildStatusNoticeApplies(seatGuild({ status: "active" }))).toBe(false);
     // A suspended guild is closed rather than noticed: its seat reaches nothing in it.
     expect(guildStatusNoticeApplies(seatGuild({ status: "suspended" }))).toBe(false);
-    expect(guildStatusNoticeApplies(seatGuild({ role: "admin" }))).toBe(false);
+    expect(guildStatusNoticeApplies(seatGuild({ role: "admin", can: guildCan("admin") }))).toBe(
+      false
+    );
     expect(guildStatusNoticeApplies(seatGuild({ accessType: "grant" }))).toBe(false);
   });
 });

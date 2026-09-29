@@ -1,0 +1,30 @@
+name: Set up backend
+description: Install uv and sync backend/.venv from uv.lock.
+
+inputs:
+  dev:
+    description: Install the dev dependency group too ("false" syncs runtime dependencies only).
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Install uv
+      uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      with:
+        version: "0.11.21"
+        enable-cache: true
+        cache-dependency-glob: backend/uv.lock
+
+    - name: Install backend dependencies
+      shell: bash
+      working-directory: backend
+      env:
+        DEV: ${{ inputs.dev }}
+      run: |
+        if [[ "$DEV" == "false" ]]; then
+          uv sync --frozen --no-dev
+        else
+          uv sync --frozen
+        fi

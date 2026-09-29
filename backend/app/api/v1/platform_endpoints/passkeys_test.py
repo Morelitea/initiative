@@ -8,6 +8,7 @@ records about how it was opened.
 """
 
 import json
+import secrets
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
 
@@ -28,7 +29,8 @@ from app.models.platform.auth_challenge import AuthChallenge
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.user import User, UserStatus
 from app.models.platform.user_passkey import UserPasskey
-from app.services import email as email_service
+from app.core.email_i18n import email_t
+from app.services.platform import email_outbox
 from app.services.auth import passkeys as passkey_service
 from app.testing import (
     assertion_for,
@@ -40,7 +42,6 @@ from app.testing import (
     stub_assertion,
 )
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 PASSWORD = "correct-horse-battery-staple"
 
@@ -629,14 +630,19 @@ async def test_the_account_is_told_about_both_changes(
 ):
     sent: list[dict] = []
 
-    async def record(_session, user, *, added: bool, name: str) -> None:
-        sent.append({"user_id": user.id, "added": added, "name": name})
+    async def record(user, pieces) -> None:
+        sent.append(
+            {"user_id": user.id, "subject": pieces.subject, "body": pieces.body}
+        )
 
-    monkeypatch.setattr(email_service, "send_passkey_changed_email", record)
+    monkeypatch.setattr(email_outbox, "enqueue_account_letter", record)
 
     user = await _account(session, "pk-letter@example.com")
     body = await _register(client, user, name="Phone")
-    assert sent == [{"user_id": user.id, "added": True, "name": "Phone"}]
+    [added] = sent
+    assert added["user_id"] == user.id
+    assert added["subject"] == email_t("passkey.added.subject", "en", escape=False)
+    assert "Phone" in added["body"]
 
     response = await client.post(
         f"/api/v1/auth/passkeys/{body['id']}/remove",
@@ -644,7 +650,8 @@ async def test_the_account_is_told_about_both_changes(
         headers=get_auth_headers(user),
     )
     assert response.status_code == 204, response.text
-    assert sent[-1] == {"user_id": user.id, "added": False, "name": "Phone"}
+    assert sent[-1]["subject"] == email_t("passkey.removed.subject", "en", escape=False)
+    assert "Phone" in sent[-1]["body"]
 
 
 async def test_a_letter_that_cannot_go_does_not_undo_the_change(
@@ -655,7 +662,7 @@ async def test_a_letter_that_cannot_go_does_not_undo_the_change(
     async def fail(*args, **kwargs) -> None:
         raise RuntimeError("no mail")
 
-    monkeypatch.setattr(email_service, "send_passkey_changed_email", fail)
+    monkeypatch.setattr(email_outbox, "enqueue_account_letter", fail)
 
     user = await _account(session, "pk-nomail@example.com")
     user_id = user.id
@@ -1004,20 +1011,21 @@ async def test_a_sign_in_challenge_cannot_finish_a_registration(
     assert refused.json()["detail"] == "PASSKEY_REGISTRATION_INVALID"
 
 
-async def test_a_phone_is_handed_a_device_token(
+async def test_a_phone_is_handed_a_code(
     client: AsyncClient, session: AsyncSession, assertion, capfd
 ):
     """The relay page in the system browser opens no session of its own: it is
-    given the address the app is waiting at, carrying a device token."""
-    from app.services.platform import user_tokens
-
+    given the address the app is waiting at, carrying a code bound to the app's
+    challenge. The app's verifier opens the session this sign-in earned."""
     from app.core.security import decode_session_token
+    from app.services.auth.oidc.flow_state import s256
 
     user = await _account(session, "pk-mobile@example.com")
     user_id = user.id
     await create_passkey(session, user)
     capfd.readouterr()
 
+    verifier = secrets.token_urlsafe(48)
     challenge = await _begin_sign_in(client)
     response = await client.post(
         SIGN_IN_FINISH,
@@ -1025,6 +1033,7 @@ async def test_a_phone_is_handed_a_device_token(
             "credential": assertion_for(challenge),
             "mobile": True,
             "device_name": "Pixel 9",
+            "code_challenge": s256(verifier),
         },
     )
     assert response.status_code == 200, response.text
@@ -1032,51 +1041,42 @@ async def test_a_phone_is_handed_a_device_token(
     assert body["access_token"] is None
     redirect = body["redirect_to"]
     assert redirect.startswith("initiative://oidc/callback?")
-
-    handed = parse_qs(urlsplit(redirect).query)
-    assert handed["token_type"] == ["device_token"]
-    record = await user_tokens.get_device_token(session, token=handed["token"][0])
-    assert record is not None
-    assert record.user_id == user_id
-    assert record.device_name == "Pixel 9"
-    # What the ceremony proved rides across with the token. Read before the
-    # expire below, which would make this a load of its own.
-    assert sorted(record.amr) == ["hwk", "mfa"]
-
-    # No session in the relay browser, and nothing set on it either.
+    assert SESSION_COOKIE_NAME not in response.cookies
+    assert REFRESH_COOKIE_NAME not in response.cookies
     session.expire_all()
     assert (
         await session.exec(select(AuthSession).where(AuthSession.user_id == user_id))
     ).all() == []
 
-    # So the session the app trades it for is the one this sign-in earned — a
-    # community asking for a passkey is answered by the phone that just
-    # presented one.
-    exchanged = await client.post(
-        "/api/v1/auth/device-token/exchange",
-        json={"device_token": handed["token"][0]},
+    # So the session the app opens is the one this sign-in earned: a community
+    # asking for a passkey is answered by the phone that just presented one.
+    redeemed = await client.post(
+        "/api/v1/auth/native/token",
+        json={
+            "code": parse_qs(urlsplit(redirect).query)["code"][0],
+            "code_verifier": verifier,
+        },
     )
-    assert exchanged.status_code == 200, exchanged.text
-    opened = decode_session_token(exchanged.json()["access_token"])
+    assert redeemed.status_code == 200, redeemed.text
+    assert redeemed.json()["refresh_token"]
+    opened = decode_session_token(redeemed.json()["access_token"])
     assert sorted(opened["amr"]) == ["hwk", "mfa"]
-    assert SESSION_COOKIE_NAME not in response.cookies
-    assert REFRESH_COOKIE_NAME not in response.cookies
 
     events = [
         row
-        for row in emitted(capfd, AuditEventType.AUTH_DEVICE_TOKEN_ISSUED)
+        for row in emitted(capfd, AuditEventType.AUTH_SIGNED_IN)
         if row["actor_user_id"] == user_id
     ]
-    assert len(events) == 1
-    assert events[0]["detail"] == {
-        "method": "passkey",
-        "device_name": "Pixel 9",
-    }
+    assert [event["detail"] for event in events] == [
+        {"method": "passkey", "native": True, "device_name": "Pixel 9"}
+    ]
 
 
-async def test_a_phone_that_sent_no_name_still_appears_in_the_list(
+async def test_an_older_app_is_handed_a_named_device_token(
     client: AsyncClient, session: AsyncSession, assertion
 ):
+    """An app bundle from before the code flow sends no challenge, and is handed
+    a device token under a name even when it sent none."""
     from app.services.platform import user_tokens
 
     user = await _account(session, "pk-unnamed@example.com")

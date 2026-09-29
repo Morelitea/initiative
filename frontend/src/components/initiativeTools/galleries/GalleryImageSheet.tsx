@@ -49,7 +49,7 @@ interface GalleryImageSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   canEdit: boolean;
-  isOwner: boolean;
+  canDeleteVersions: boolean;
   isCover: boolean;
   onSetCover: (imageId: number) => void;
   onRemoved: (imageId: number) => void;
@@ -71,7 +71,7 @@ export const GalleryImageSheet = ({
   open,
   onOpenChange,
   canEdit,
-  isOwner,
+  canDeleteVersions,
   isCover,
   onSetCover,
   onRemoved,
@@ -345,7 +345,7 @@ export const GalleryImageSheet = ({
                       {version.file_size ? ` · ${formatBytes(version.file_size)}` : ""}
                     </p>
                   </div>
-                  {isOwner && versions.length > 1 && (
+                  {canDeleteVersions && versions.length > 1 && (
                     <Button
                       variant="ghost"
                       size="icon"

@@ -131,14 +131,15 @@ async def _write(
         "target_path": target_path,
     }
 
+    prefs = await notification_prefs.load_prefs_for_delivery(recipient.id)
     await user_notifications.create_notification(
         session,
         user_id=recipient.id,
         notification_type=notification_type,
         data=data,
+        prefs=prefs,
     )
 
-    prefs = await notification_prefs.load_prefs_for_delivery(recipient.id)
     if not notification_prefs.reachable(
         prefs,
         notification_type=notification_type,

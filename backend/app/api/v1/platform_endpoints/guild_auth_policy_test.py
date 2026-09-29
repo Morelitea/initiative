@@ -18,14 +18,14 @@ from app.api.deps import (
     establish_guild_access,
 )
 from app.core.auth_context import (
-    satisfied_provider_ids,
+    satisfied_providers,
     set_satisfied_claims,
     set_satisfied_providers,
 )
-from app.db.session import SYSTEM_SATISFIED, set_rls_context
+from app.db.session import set_rls_context
 from app.models.platform.guild import Guild, GuildRole
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
-from app.models.platform.user import User
+from app.models.platform.user import User, UserRole
 from app.models.tenant.project import Project
 from app.services.auth.assurance import SECOND_FACTOR_AMR
 from app.services.platform import api_keys as api_keys_service
@@ -34,6 +34,7 @@ from app.services.platform.ws_auth import authenticate_ws_token
 from app.testing.actor import Actor
 from app.testing.factories import (
     satisfied_claims_for,
+    create_access_grant,
     create_auth_provider,
     create_document,
     create_guild,
@@ -41,12 +42,12 @@ from app.testing.factories import (
     create_guild_membership,
     create_guild_provider_connection,
     create_initiative,
+    create_user,
     get_auth_token,
     guild_administration,
 )
 from app.testing import route_as
-
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
+from app.db.request_context import SystemGuild
 
 
 def _bearer(token: str) -> dict[str, str]:
@@ -68,7 +69,7 @@ def _sat_headers(user: User, provider_ids: list[int]) -> dict[str, str]:
 
 def _policy(guild_id: int) -> str:
     """The surface the seat holds: one community's sign-in requirement."""
-    return f"/api/v1/guilds/{guild_id}/auth-policy"
+    return f"/api/v1/communities/{guild_id}/auth-policy"
 
 
 # --- Setting, reading and lifting a requirement ------------------------------
@@ -299,7 +300,7 @@ async def test_the_step_up_challenge_is_not_what_an_ordinary_401_says(
     it."""
     guild = await create_guild(session)
 
-    no_credential = await client.get(f"/api/v1/g/{guild.id}/initiatives/")
+    no_credential = await client.get(f"/api/v1/c/{guild.id}/initiatives/")
 
     assert no_credential.status_code == 401
     assert no_credential.headers["WWW-Authenticate"] == "Bearer"
@@ -427,7 +428,7 @@ async def test_an_ordinary_admin_reads_the_seats_surfaces_but_writes_neither(
     keyholder = await _a_seat_and_a_requirement(session, acting_user)
     admin = await acting_user(guild_role=GuildRole.admin, guild=keyholder.guild)
     guild_id = keyholder.guild.id
-    connections = f"/api/v1/guilds/{guild_id}/auth/connections"
+    connections = f"/api/v1/communities/{guild_id}/auth/connections"
 
     read = await client.get(_policy(guild_id), headers=admin.headers)
     assert read.status_code == 200
@@ -441,16 +442,20 @@ async def test_an_ordinary_admin_reads_the_seats_surfaces_but_writes_neither(
     assert offered.status_code == 200
 
     writes = (
-        client.put(_policy(guild_id), headers=admin.headers, json={"policy": "open"}),
-        client.put(
+        lambda: client.put(
+            _policy(guild_id), headers=admin.headers, json={"policy": "open"}
+        ),
+        lambda: client.put(
             _policy(guild_id),
             headers=admin.headers,
             json={"policy": "required", "provider_id": 1},
         ),
-        client.post(connections, headers=admin.headers, json={"provider_id": 1}),
+        lambda: client.post(
+            connections, headers=admin.headers, json={"provider_id": 1}
+        ),
     )
     for write in writes:
-        refused = await write
+        refused = await write()
         assert refused.status_code == 403, refused.text
         assert refused.json()["detail"] == "GUILD_SUPERADMIN_REQUIRED"
 
@@ -470,7 +475,7 @@ async def test_the_last_seat_cannot_be_vacated_while_a_requirement_stands(
     guild_id = keyholder.guild.id
 
     left = await client.delete(
-        f"/api/v1/guilds/{guild_id}/leave", headers=keyholder.headers
+        f"/api/v1/communities/{guild_id}/leave", headers=keyholder.headers
     )
     assert left.status_code == 400, left.text
     assert left.json()["detail"] == "CANNOT_VACATE_LAST_SUPERADMIN"
@@ -491,7 +496,7 @@ async def test_the_last_seat_stays_even_with_no_requirement(
     await session.commit()
 
     refused = await client.delete(
-        f"/api/v1/guilds/{keyholder.guild.id}/leave", headers=keyholder.headers
+        f"/api/v1/communities/{keyholder.guild.id}/leave", headers=keyholder.headers
     )
     assert refused.status_code == 400, refused.text
     assert refused.json()["detail"] == "CANNOT_VACATE_LAST_SUPERADMIN"
@@ -499,7 +504,7 @@ async def test_the_last_seat_stays_even_with_no_requirement(
     # A second holder is what frees the first.
     second = await acting_user(guild_role=GuildRole.superadmin, guild=keyholder.guild)
     allowed = await client.patch(
-        f"/api/v1/guilds/{keyholder.guild.id}/members/{keyholder.user.id}",
+        f"/api/v1/communities/{keyholder.guild.id}/members/{keyholder.user.id}",
         headers=second.headers,
         json={"role": "member"},
     )
@@ -568,7 +573,7 @@ async def test_ws_token_sat_gates_policy_guild(session: AsyncSession, acting_use
     # A session that satisfied nothing: authenticates, gate refuses.
     plain_user = await authenticate_ws_token(get_auth_token(member.user), session)
     assert plain_user is not None
-    assert satisfied_provider_ids() == frozenset()
+    assert satisfied_providers() == frozenset()
     with pytest.raises(GuildAccessError):
         await establish_guild_access(session, plain_user, guild_id)
 
@@ -582,7 +587,7 @@ async def test_ws_token_sat_gates_policy_guild(session: AsyncSession, acting_use
         session,
     )
     assert sat_user is not None
-    assert satisfied_provider_ids() == frozenset({provider_id})
+    assert satisfied_providers() == frozenset({provider_id})
     ctx = await establish_guild_access(session, sat_user, guild_id)
     assert ctx.guild_id == guild_id
 
@@ -626,9 +631,7 @@ async def test_system_sentinel_passes_policy_gate(session: AsyncSession, acting_
     await create_guild_auth_policy(session, member.guild, provider)
     guild_id = member.guild.id
 
-    ctx = await establish_guild_access(
-        session, member.user, guild_id, satisfied_providers=SYSTEM_SATISFIED
-    )
+    ctx = await establish_guild_access(session, member.user, guild_id, on_behalf=True)
     assert ctx.guild_id == guild_id
 
 
@@ -691,7 +694,7 @@ async def test_db_layer_blocks_unsatisfied_session(
         app_session,
         user_id=user_id,
         guild_id=guild_id,
-        satisfied_providers=SYSTEM_SATISFIED,
+        on_behalf=True,
     )
     assert await _visible_projects() == 1
 
@@ -704,8 +707,46 @@ async def test_db_layer_blocks_unsatisfied_session(
     # A routing with nobody behind it is not a session to gate — and on the
     # request login it is not a sweep either: what admits a sweep is the
     # connection's own login, which this is not, so it reads nothing.
-    await set_rls_context(app_session, guild_id=guild_id)
+    await set_rls_context(app_session, SystemGuild(guild_id))
     assert await _visible_projects() == 0
+
+
+async def test_a_grantee_answers_the_rule_a_member_does(
+    session: AsyncSession, role_session, acting_user
+):
+    """A content grant reaches the community's work, and the community's
+    sign-in rule governs that work whoever reaches it. The database answers
+    for the grantee's routing as it does for a member's."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    provider = await create_auth_provider(session, slug="corp")
+    await create_guild_auth_policy(session, a.guild, provider)
+    operator = await create_user(session, role=UserRole.operator)
+    await create_access_grant(session, user=operator, guild=a.guild)
+
+    app_session = await role_session("app_user")
+
+    with pytest.raises(GuildAccessError) as refused:
+        await route_as(app_session, user_id=operator.id, guild_id=a.guild.id)
+    assert refused.value.detail == "GUILD_AUTH_STEP_UP_REQUIRED"
+    assert refused.value.step_up_provider_slug == "corp"
+    await app_session.rollback()
+
+    # Routed on the grant, with nothing on the session that answers the rule.
+    await route_as(
+        app_session,
+        user_id=operator.id,
+        guild_id=a.guild.id,
+        on_behalf=True,
+    )
+    verdict = (
+        await app_session.exec(
+            text(
+                "SELECT set_config('app.satisfied_providers', '', true), "
+                "public.guild_auth_satisfied() AS verdict"
+            )
+        )
+    ).one()
+    assert verdict.verdict is False
 
 
 # --- The rule is decided twice, and the two must agree ----------------------
@@ -1227,10 +1268,9 @@ async def test_a_community_is_told_when_the_deployment_asks_everybody(
 
 def _second_factor(guild_id: int) -> str:
     """The surface the seat holds: what this community asks of a session."""
-    return f"/api/v1/guilds/{guild_id}/second-factor"
+    return f"/api/v1/communities/{guild_id}/second-factor"
 
 
-@pytest.mark.integration
 async def test_a_community_asks_for_a_factor_without_asking_about_arrival(
     client, session: AsyncSession, acting_user
 ):
@@ -1254,7 +1294,6 @@ async def test_a_community_asks_for_a_factor_without_asking_about_arrival(
     assert seat.guild.require_second_factor is True
 
 
-@pytest.mark.integration
 async def test_the_seat_answers_its_own_ask_first(
     client, session: AsyncSession, acting_user
 ):

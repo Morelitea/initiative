@@ -2,9 +2,9 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { endOfMonth, startOfMonth } from "date-fns";
 import { HttpResponse } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { buildProject, buildTask } from "@/__tests__/factories";
+import { buildGuild, buildProject, buildTask, writerCan } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { createTestQueryClient, renderPage } from "@/__tests__/helpers/render";
@@ -13,6 +13,8 @@ import { CALENDAR_VIEW_MODE_KEY } from "@/components/calendar";
 import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
 
 import { CalendarsView } from "./CalendarsPage";
+
+vi.mock("@/lib/csv", () => ({ downloadBlob: vi.fn() }));
 
 const INITIATIVE_ID = 1;
 const PROJECT_ID = 1;
@@ -172,10 +174,9 @@ describe("CalendarsView on a guild calendar", () => {
     created_by: 1,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-    my_permission_level: "write",
+    can: writerCan(),
     comments_enabled: true,
     archived_at: null,
-    can_unarchive: false,
     tags: [],
     grants: [],
   };
@@ -243,10 +244,9 @@ describe("CalendarsView on the calendar app's own surface", () => {
     created_by: 1,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-    my_permission_level: "write",
+    can: writerCan(),
     comments_enabled: true,
     archived_at: null,
-    can_unarchive: false,
     tags: [],
     grants: [],
   });
@@ -290,7 +290,12 @@ describe("CalendarsView on the calendar app's own surface", () => {
     queryClient.setQueryData(VIEW_PREFERENCES_QUERY_KEY, {
       items: { [CALENDAR_VIEW_MODE_KEY]: "list" },
     });
-    return renderPage(() => <CalendarsView guildScope />, { queryClient });
+    // The community's own calendars are its admins' to add.
+    const guild = buildGuild({ id: 1, role: "admin" });
+    return renderPage(() => <CalendarsView guildScope />, {
+      queryClient,
+      guilds: { activeGuildId: 1, activeGuild: guild, guilds: [guild] },
+    });
   }
 
   it("asks for the guild's own calendars and overlays all of them", async () => {
@@ -317,34 +322,68 @@ describe("CalendarsView on the calendar app's own surface", () => {
     expect(projectList).toEqual([]);
   });
 
-  it("lets a reader hide one of them", async () => {
-    stubGuildScope(
-      [guildCalendar(42, "Holidays"), guildCalendar(43, "Game nights")],
-      [
-        {
-          id: 1,
-          calendar_id: 42,
-          title: "Midsummer",
-          description: null,
-          start_at: inFocusMonth(3),
-          end_at: inFocusMonth(3),
-          all_day: true,
-          attendee_previews: [],
-          property_values: [],
-          tags: [],
-          my_permission_level: "write",
-        },
-      ]
-    );
+  const midsummer = {
+    id: 1,
+    calendar_id: 42,
+    guild_id: 1,
+    title: "Midsummer",
+    description: null,
+    start_at: inFocusMonth(3),
+    end_at: inFocusMonth(3),
+    all_day: true,
+    attendee_previews: [],
+    property_values: [],
+    tags: [],
+    can: writerCan(),
+  };
+
+  it("lets a reader hide one of them, and keeps it hidden the next time", async () => {
+    stubGuildScope([guildCalendar(42, "Holidays"), guildCalendar(43, "Game nights")], [midsummer]);
 
     const user = userEvent.setup();
-    renderGuildScope();
+    const { unmount } = renderGuildScope();
 
     expect(await screen.findByText("Midsummer")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /calendars/i }));
     await user.click(await screen.findByRole("checkbox", { name: "Holidays" }));
     await waitFor(() => expect(screen.queryByText("Midsummer")).toBeNull());
+
+    unmount();
+    renderGuildScope();
+
+    expect(await screen.findByRole("button", { name: /1 calendar hidden/i })).toBeInTheDocument();
+    expect(screen.queryByText("Midsummer")).toBeNull();
+  });
+
+  it("exports every date of the calendars on screen, leaving out a hidden one", async () => {
+    stubGuildScope([guildCalendar(42, "Holidays"), guildCalendar(43, "Game nights")]);
+    const exports: URLSearchParams[] = [];
+    server.use(
+      guildHttp.get("/exports/events", ({ request }) => {
+        exports.push(new URL(request.url).searchParams);
+        return new HttpResponse("BEGIN:VCALENDAR", {
+          headers: { "Content-Type": "text/calendar" },
+        });
+      })
+    );
+
+    const user = userEvent.setup();
+    renderGuildScope();
+
+    await user.click(await screen.findByRole("button", { name: /^export$/i }));
+    await waitFor(() => expect(exports).toHaveLength(1));
+    expect(exports[0].get("scope")).toBe("guild");
+    expect(exports[0].getAll("calendar_ids")).toEqual([]);
+    expect(exports[0].get("start_after")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: /calendars/i }));
+    await user.click(await screen.findByRole("checkbox", { name: "Holidays" }));
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: /^export$/i }));
+    await waitFor(() => expect(exports).toHaveLength(2));
+    expect(exports[1].get("scope")).toBe("guild");
+    expect(exports[1].getAll("exclude_calendar_ids")).toEqual(["42"]);
   });
 
   it("puts the picker and the way to add a calendar on the page, not behind the filter button", async () => {
@@ -380,7 +419,7 @@ describe("CalendarsView on the calendar app's own surface", () => {
     renderGuildScope();
 
     expect(await screen.findByText(/no calendars yet/i)).toBeInTheDocument();
-    // Any member may add one, so the offer stands without an initiative role.
+    // An admin adds one here without holding an initiative role.
     expect(screen.getAllByRole("button", { name: /new calendar/i }).length).toBeGreaterThan(0);
   });
 });

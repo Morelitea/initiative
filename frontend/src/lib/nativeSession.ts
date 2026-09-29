@@ -19,9 +19,7 @@
  * and it is one that reaches an installed app over the air. Moving both to the
  * platform keychain is a separate change, and a native release.
  */
-import { getItem, removeItem, setItem } from "@/lib/storage";
-
-export const REFRESH_TOKEN_KEY = "initiative-refresh-token";
+import { CREDENTIAL_KEYS, getItem, removeItem, setItem } from "@/lib/storage";
 
 /** What a native sign-in or exchange hands back. */
 export interface NativeSession {
@@ -31,7 +29,7 @@ export interface NativeSession {
 
 export const readRefreshToken = (): string | null => {
   try {
-    return getItem(REFRESH_TOKEN_KEY);
+    return getItem(CREDENTIAL_KEYS.refreshToken);
   } catch {
     return null;
   }
@@ -39,7 +37,7 @@ export const readRefreshToken = (): string | null => {
 
 export const storeRefreshToken = (token: string): void => {
   try {
-    setItem(REFRESH_TOKEN_KEY, token);
+    setItem(CREDENTIAL_KEYS.refreshToken, token);
   } catch {
     // Nothing persisted means the next launch signs in again, which is worse
     // than it was but not broken. Never worth failing the sign-in over.
@@ -48,7 +46,7 @@ export const storeRefreshToken = (token: string): void => {
 
 export const clearRefreshToken = (): void => {
   try {
-    removeItem(REFRESH_TOKEN_KEY);
+    removeItem(CREDENTIAL_KEYS.refreshToken);
   } catch {
     // Same reasoning as above.
   }

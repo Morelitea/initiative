@@ -35,7 +35,6 @@ BILLING = IdentityPurpose.billing
 
 
 class TestTheRenderedValue:
-    @pytest.mark.unit
     def test_it_is_a_prefix_and_a_random_half(self):
         ref = mint_ref(IdentityEntity.guild, BILLING)
         prefix, _, random_half = ref.partition("_")
@@ -43,18 +42,15 @@ class TestTheRenderedValue:
         assert len(random_half) == REF_RANDOM_LENGTH
         assert len(ref) <= REF_MAX_LENGTH
 
-    @pytest.mark.unit
     def test_it_fits_a_jwt_claim_and_a_url(self):
         random_half = mint_ref(IdentityEntity.user, BILLING).partition("_")[2]
         assert random_half.replace("-", "").replace("_", "").isalnum()
 
-    @pytest.mark.unit
     def test_the_prefix_names_the_entity_and_the_purpose(self):
         assert ref_prefix(IdentityEntity.user, BILLING) == "ubil"
         assert ref_prefix(IdentityEntity.guild, BILLING) == "gbil"
         assert ref_prefix(IdentityEntity.user, IdentityPurpose.app) == "uapp"
 
-    @pytest.mark.unit
     def test_two_mints_never_agree(self):
         assert mint_ref(IdentityEntity.user, BILLING) != mint_ref(
             IdentityEntity.user, BILLING
@@ -62,7 +58,6 @@ class TestTheRenderedValue:
 
 
 class TestMintingAndResolving:
-    @pytest.mark.integration
     async def test_minting_twice_gives_the_same_reference(self, session):
         first = await ensure_ref(
             session, entity_type=IdentityEntity.guild, entity_id=1, purpose=BILLING
@@ -72,7 +67,6 @@ class TestMintingAndResolving:
         )
         assert first == second
 
-    @pytest.mark.integration
     async def test_two_first_callers_racing_get_one_reference(self, session, engine):
         """The claim ``ensure_ref`` makes about concurrency, exercised.
 
@@ -102,7 +96,6 @@ class TestMintingAndResolving:
         settled = await resolve_ref(session, ref=first)
         assert settled is not None and settled.entity_id == 77
 
-    @pytest.mark.integration
     async def test_one_entity_gets_an_unrelated_value_per_purpose(self, session):
         billing = await ensure_ref(
             session, entity_type=IdentityEntity.user, entity_id=1, purpose=BILLING
@@ -117,7 +110,6 @@ class TestMintingAndResolving:
         )
         assert billing != at_app
 
-    @pytest.mark.integration
     async def test_a_user_and_a_guild_of_the_same_id_differ(self, session):
         as_user = await ensure_ref(
             session, entity_type=IdentityEntity.user, entity_id=42, purpose=BILLING
@@ -127,7 +119,6 @@ class TestMintingAndResolving:
         )
         assert as_user != as_guild
 
-    @pytest.mark.integration
     async def test_a_reference_resolves_to_its_entity(self, session):
         ref = await ensure_ref(
             session, entity_type=IdentityEntity.guild, entity_id=9, purpose=BILLING
@@ -138,7 +129,6 @@ class TestMintingAndResolving:
         assert row.entity_id == 9
         assert row.purpose == BILLING
 
-    @pytest.mark.integration
     @pytest.mark.parametrize("candidate", ["", "gbil_nope", "x" * (REF_MAX_LENGTH + 1)])
     async def test_a_value_we_never_minted_resolves_to_nothing(
         self, session, candidate
@@ -147,7 +137,6 @@ class TestMintingAndResolving:
 
 
 class TestReissuingOne:
-    @pytest.mark.integration
     async def test_it_returns_a_new_value(self, session):
         before = await ensure_ref(
             session, entity_type=IdentityEntity.guild, entity_id=1, purpose=BILLING
@@ -157,7 +146,6 @@ class TestReissuingOne:
         )
         assert after != before
 
-    @pytest.mark.integration
     async def test_the_replaced_value_keeps_resolving_for_its_grace_window(
         self, session
     ):
@@ -170,7 +158,6 @@ class TestReissuingOne:
         row = await resolve_ref(session, ref=before)
         assert row is not None and row.entity_id == 1
 
-    @pytest.mark.integration
     async def test_the_replaced_value_stops_resolving_after_it(self, session):
         before = await ensure_ref(
             session, entity_type=IdentityEntity.guild, entity_id=1, purpose=BILLING
@@ -181,7 +168,6 @@ class TestReissuingOne:
         later = datetime.now(timezone.utc) + REF_GRACE_PERIOD + timedelta(days=1)
         assert await resolve_ref(session, ref=before, now=later) is None
 
-    @pytest.mark.integration
     async def test_it_moves_nothing_else(self, session):
         target = await ensure_ref(
             session, entity_type=IdentityEntity.guild, entity_id=1, purpose=BILLING
@@ -227,7 +213,6 @@ class TestReissuingOne:
 
 
 class TestReissuingEvery:
-    @pytest.mark.integration
     async def test_it_moves_every_entity_holding_that_purpose(self, session):
         before = {
             entity_id: await ensure_ref(
@@ -255,7 +240,6 @@ class TestReissuingEvery:
             # Still resolvable, so nothing already in flight breaks.
             assert (await resolve_ref(session, ref=old)) is not None
 
-    @pytest.mark.integration
     async def test_it_leaves_other_purposes_and_entities_alone(self, session):
         at_app = await ensure_ref(
             session,
@@ -294,7 +278,6 @@ class TestReissuingEvery:
             == a_guild
         )
 
-    @pytest.mark.integration
     async def test_a_run_that_stopped_after_retiring_is_finished_by_the_next(
         self, session
     ):
@@ -320,7 +303,6 @@ class TestReissuingEvery:
 
 
 class TestRemoval:
-    @pytest.mark.integration
     async def test_erasing_an_entity_drops_what_every_party_held(self, session):
         billing = await ensure_ref(
             session, entity_type=IdentityEntity.user, entity_id=1, purpose=BILLING
@@ -341,7 +323,6 @@ class TestRemoval:
         assert await resolve_ref(session, ref=billing) is None
         assert await resolve_ref(session, ref=at_app) is None
 
-    @pytest.mark.integration
     async def test_a_deleted_guild_leaves_neither_half(self, session):
         """A guild is in this table twice and both have to go.
 
@@ -371,7 +352,6 @@ class TestRemoval:
         # Another guild's name is not this guild's to take.
         assert await resolve_ref(session, ref=elsewhere) is not None
 
-    @pytest.mark.integration
     async def test_the_sweep_takes_only_what_has_stopped_resolving(self, session):
         live = await ensure_ref(
             session, entity_type=IdentityEntity.user, entity_id=1, purpose=BILLING
@@ -412,7 +392,6 @@ async def drop_live_ref(session, *, entity_id: int) -> None:
 
 
 class TestTheBillingPair:
-    @pytest.mark.integration
     async def test_it_names_the_user_and_the_guild_differently(self, session):
         from app.services.platform.identity_refs import billing_refs
 
@@ -421,7 +400,6 @@ class TestTheBillingPair:
         assert guild_ref.startswith("gbil_")
         assert user_ref != guild_ref
 
-    @pytest.mark.integration
     async def test_asking_twice_gives_the_same_pair(self, session):
         from app.services.platform.identity_refs import billing_refs
 
@@ -430,7 +408,6 @@ class TestTheBillingPair:
 
 
 class TestTheSweep:
-    @pytest.mark.integration
     async def test_it_takes_what_names_nobody_and_keeps_what_can_come_back(
         self, session
     ):

@@ -1,6 +1,5 @@
 """Which ways in the deployment permits."""
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -17,7 +16,6 @@ from app.testing import (
     get_auth_headers,
 )
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 METHODS_URL = "/api/v1/settings/auth/methods"
 READ_URL = "/api/v1/settings/auth/platform"
@@ -229,16 +227,16 @@ async def test_withdrawing_sso_closes_a_guilds_provider_routes_too(
     theirs = await create_auth_provider(session, slug="corp")
     await create_guild_provider_connection(session, guild=guild, provider=theirs)
 
-    listed = await client.get(f"/api/v1/auth/g/{guild.id}/providers")
+    listed = await client.get(f"/api/v1/auth/c/{guild.id}/providers")
     assert any(p["slug"] == "corp" for p in listed.json()["providers"])
 
     put = await client.put(METHODS_URL, headers=headers, json={"methods": ["password"]})
     assert put.status_code == 200
 
-    after = await client.get(f"/api/v1/auth/g/{guild.id}/providers")
+    after = await client.get(f"/api/v1/auth/c/{guild.id}/providers")
     assert after.json()["providers"] == []
     login = await client.get(
-        f"/api/v1/auth/g/{guild.id}/corp/login", follow_redirects=False
+        f"/api/v1/auth/c/{guild.id}/corp/login", follow_redirects=False
     )
     assert login.status_code == 404
 
@@ -265,6 +263,18 @@ async def test_withdrawing_password_closes_its_routes(
     )
     assert token.status_code == 403
     assert token.json()["detail"] == "SETTINGS_LOGIN_METHOD_NOT_PERMITTED"
+
+    # The app's password sign-in is the same door.
+    device = await client.post(
+        "/api/v1/auth/device-token",
+        json={
+            "email": "someone@example.com",
+            "password": "whatever",
+            "device_name": "Phone",
+        },
+    )
+    assert device.status_code == 403
+    assert device.json()["detail"] == "SETTINGS_LOGIN_METHOD_NOT_PERMITTED"
 
     register = await client.post(
         "/api/v1/auth/register",

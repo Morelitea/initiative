@@ -25,7 +25,7 @@ from app.models.platform.mfa_recovery_code import MfaRecoveryCode
 from app.models.platform.user import User, UserStatus
 from app.models.platform.user_passkey import UserPasskey
 from app.models.platform.user_token import UserToken, UserTokenPurpose
-from app.services import email as email_service
+from app.services.platform import email_outbox
 from app.services.auth import sessions as session_service
 from app.services.auth import totp as totp_service
 from app.services.platform import app_settings as app_settings_service
@@ -39,7 +39,6 @@ from app.testing import (
     get_auth_token,
 )
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 PASSWORD = "correct-horse-battery-staple"
 NEW_PASSWORD = "a-different-horse-entirely"
@@ -321,10 +320,10 @@ async def test_the_letter_says_the_password_is_gone(
 ):
     sent: list[int] = []
 
-    async def record(_session, user, *args, **kwargs) -> None:
+    async def record(user, pieces) -> None:
         sent.append(user.id)
 
-    monkeypatch.setattr(email_service, "send_password_removed_email", record)
+    monkeypatch.setattr(email_outbox, "enqueue_account_letter", record)
 
     user = await _account(session, "pl-letter@example.com")
     await _seed_passkey(session, user)
@@ -334,31 +333,6 @@ async def test_the_letter_says_the_password_is_gone(
     )
     assert response.status_code == 200, response.text
     assert sent == [user.id]
-
-
-async def test_a_letter_that_cannot_go_does_not_undo_the_removal(
-    client: AsyncClient, session: AsyncSession, monkeypatch
-):
-    """A deployment with no mail configured still made the change."""
-
-    async def fail(*args, **kwargs) -> None:
-        raise RuntimeError("no mail")
-
-    monkeypatch.setattr(email_service, "send_password_removed_email", fail)
-
-    user = await _account(session, "pl-nomail@example.com")
-    user_id = user.id
-    await _seed_passkey(session, user)
-
-    response = await client.post(
-        REMOVE, json={"current_password": PASSWORD}, headers=get_auth_headers(user)
-    )
-    assert response.status_code == 200, response.text
-
-    session.expire_all()
-    account = await session.get(User, user_id)
-    assert account is not None
-    assert account.hashed_password is None
 
 
 async def test_the_app_is_sent_to_a_browser_for_this(
@@ -734,7 +708,7 @@ async def _delete_guild(
     )
     return await client.request(
         "DELETE",
-        f"/api/v1/guilds/{guild.id}",
+        f"/api/v1/communities/{guild.id}",
         headers=headers,
         json={"confirmation_text": "DELETE COMMUNITY WINDING DOWN"},
     )
@@ -770,6 +744,12 @@ async def _regenerate_codes(
     )
 
 
+async def _enrol_a_factor(
+    client: AsyncClient, session: AsyncSession, user: User, headers: dict[str, str]
+) -> Response:
+    return await client.post("/api/v1/auth/totp/enroll", headers=headers, json={})
+
+
 async def _set_a_password(
     client: AsyncClient, session: AsyncSession, user: User, headers: dict[str, str]
 ) -> Response:
@@ -781,6 +761,7 @@ async def _set_a_password(
 
 _GATED = [
     ("delete-account", _delete_account, 200),
+    ("enrol-a-factor", _enrol_a_factor, 200),
     ("delete-guild", _delete_guild, 204),
     ("register-a-passkey", _begin_registration, 200),
     ("remove-a-passkey", _remove_passkey, 204),
@@ -844,6 +825,27 @@ async def test_a_standing_credential_is_not_somebody_signing_in(
     )
     assert response.status_code == 403
     assert response.json()["detail"] == "SESSION_REQUIRED"
+
+
+async def test_a_session_resumed_from_a_device_token_is_not_a_sign_in(
+    client: AsyncClient, session: AsyncSession
+):
+    """Trading a kept device token for a session opens a new chain that records
+    no sign-in, so it does not speak for the account."""
+    user = await _account(session, "pl-resumed@example.com", password=None)
+    device_token = await user_tokens.create_device_token(
+        session, user_id=user.id, device_name="Phone"
+    )
+    await session.commit()
+    exchanged = await client.post(
+        "/api/v1/auth/device-token/exchange", json={"device_token": device_token}
+    )
+    assert exchanged.status_code == 200, exchanged.text
+    headers = {"Authorization": f"Bearer {exchanged.json()['access_token']}"}
+
+    response = await _regenerate_codes(client, session, user, headers)
+    assert response.status_code == 403, response.text
+    assert response.json()["detail"] == "RECENT_PROOF_REQUIRED"
 
 
 async def test_an_account_holding_a_password_answers_with_it_instead(

@@ -18,15 +18,22 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import GuildMessages, InitiativeMessages
 from app.core.notification_categories import NotificationCategory
+from app.core.tools import Tool
 from app.models.platform.access_grant import AccessGrant
 from app.models.platform.email_outbox import EmailOutboxItem
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.initiative import InitiativeJoinRequest, InitiativeMember
+from app.models.tenant.resource_grant import ResourceGrant
 from app.services import email as email_service
 from app.services.platform import email_outbox
 from app.services.tenant import initiatives as initiatives_service
-from app.testing import guild_of, set_notification_prefs
+from app.testing import (
+    create_resource_grant,
+    create_tool_entity,
+    enable_all_tools,
+    set_notification_prefs,
+)
 from app.testing.factories import create_initiative
 
 
@@ -87,22 +94,10 @@ async def _caller(acting_user, kind: str, owner, initiative):
 async def _project_shared_with_the_initiative(session: AsyncSession, initiative, owner):
     """A project every member of the initiative may read, so that the
     membership row is the only thing that changes when somebody joins."""
-    from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
     from app.testing.factories import create_project
-    from app.testing.schema_harness import route_session_to_guild
 
     project = await create_project(session, initiative, owner, name="Shared work")
-    await route_session_to_guild(session, guild_of(initiative))
-    session.add(
-        ResourceGrant(
-            resource_type="project",
-            resource_id=project.id,
-            all_initiative_members=True,
-            level=ResourceAccessLevel.read,
-            initiative_id=initiative.id,
-        )
-    )
-    await session.commit()
+    await create_resource_grant(session, project, all_initiative_members=True)
     return project
 
 
@@ -195,7 +190,6 @@ def _capture_join_request_emails(monkeypatch) -> list[dict]:
     return sent
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "caller_role",
     [GuildRole.admin, GuildRole.member],
@@ -220,7 +214,6 @@ async def test_the_default_listing_is_the_callers_own_memberships(
     assert "Theirs" not in listed
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("caller_role", "status_code"),
     [(GuildRole.admin, 200), (GuildRole.member, 403)],
@@ -250,7 +243,6 @@ async def test_guild_scope_lists_the_whole_guild_for_admins_only(
         assert response.json()["detail"] == GuildMessages.GUILD_ADMIN_REQUIRED
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("caller", "status_code"),
     [("grantee", 200), ("outsider", 403)],
@@ -283,7 +275,7 @@ async def test_reading_an_initiative_by_id_answers_each_caller(
     else:
         actor = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
 
-    base = f"/api/v1/g/{owner.guild.id}/initiatives/{initiative.id}"
+    base = f"/api/v1/c/{owner.guild.id}/initiatives/{initiative.id}"
     detail = await client.get(base, headers=actor.headers)
 
     assert detail.status_code == status_code, detail.text
@@ -297,7 +289,6 @@ async def test_reading_an_initiative_by_id_answers_each_caller(
     assert "project_manager" in {role["name"] for role in roles.json()}
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("tier", "level"),
     [("support", "read"), ("operator", "read_write")],
@@ -318,14 +309,13 @@ async def test_a_live_grant_lists_the_whole_guild_it_reaches(
     )
 
     response = await client.get(
-        f"/api/v1/g/{owner.guild.id}/initiatives/", headers=grantee.headers
+        f"/api/v1/c/{owner.guild.id}/initiatives/", headers=grantee.headers
     )
 
     assert response.status_code == 200, response.text
     assert "Apollo" in {entry["name"] for entry in response.json()}
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("verb", "caller", "target", "status_code", "detail"),
     [
@@ -394,7 +384,6 @@ async def test_initiative_crud_answers_each_caller(
         assert response.json()["detail"] == detail
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("asked_for", "expected_policy"),
     [({}, "private"), ({"join_policy": "open"}, "open")],
@@ -430,7 +419,6 @@ async def test_creating_an_initiative_records_what_it_was_given(
     assert data["join_policy"] == expected_policy
 
 
-@pytest.mark.integration
 async def test_create_initiative_makes_creator_manager(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -451,7 +439,6 @@ async def test_create_initiative_makes_creator_manager(
     assert data["members"][0]["role_name"] == "moderator"
 
 
-@pytest.mark.integration
 async def test_updating_an_initiative_records_the_new_name_and_description(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -470,7 +457,6 @@ async def test_updating_an_initiative_records_the_new_name_and_description(
     assert data["description"] == "Updated description"
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("verb", ["create", "update"], ids=["creating", "renaming"])
 async def test_an_initiative_name_is_taken_only_once(
     client: AsyncClient, session: AsyncSession, acting_user, verb: str
@@ -502,7 +488,6 @@ async def test_an_initiative_name_is_taken_only_once(
 # ── Archive ──────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.integration
 async def test_archiving_an_initiative_round_trips_and_keeps_it_listed(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -544,7 +529,6 @@ async def test_archiving_an_initiative_round_trips_and_keeps_it_listed(
     assert unarchive.json()["archived_at"] is None
 
 
-@pytest.mark.integration
 async def test_search_initiative_members_slim_and_filtered(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -632,7 +616,6 @@ async def test_search_initiative_members_slim_and_filtered(
     assert response.json()["total_count"] == 0
 
 
-@pytest.mark.integration
 async def test_search_initiative_members_filters_by_user_id(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -670,7 +653,6 @@ async def test_search_initiative_members_filters_by_user_id(
     assert [item["username"] for item in body["items"]] == ["alice-ids"]
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("endpoint", "caller", "status_code"),
     [
@@ -727,7 +709,6 @@ async def test_the_roster_answers_its_members_and_a_guild_admin(
     assert all("email" not in row for row in rows)
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("caller", "status_code", "detail"),
     [
@@ -763,7 +744,6 @@ async def test_adding_a_member_takes_manager_standing(
         assert response.json()["detail"] == detail
 
 
-@pytest.mark.integration
 async def test_add_user_not_in_guild_fails(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -784,7 +764,6 @@ async def test_add_user_not_in_guild_fails(
     assert response.json()["detail"] == "USER_NOT_IN_GUILD"
 
 
-@pytest.mark.integration
 async def test_update_initiative_member_role(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -821,7 +800,6 @@ async def test_update_initiative_member_role(
     assert member_roles[member.user.id] == "project_manager"
 
 
-@pytest.mark.integration
 async def test_member_roster_reports_a_custom_role_as_itself(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -857,7 +835,6 @@ async def test_member_roster_reports_a_custom_role_as_itself(
     assert row["is_manager"] is True
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("inviter", "asked_role", "expected_role"),
     [
@@ -919,7 +896,6 @@ async def test_inviting_a_guild_admin_lands_them_on_a_manager_role(
     assert roles[target.user.id] == expected_role
 
 
-@pytest.mark.integration
 async def test_promotion_to_guild_admin_lifts_existing_initiative_roles(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -940,7 +916,7 @@ async def test_promotion_to_guild_admin_lifts_existing_initiative_roles(
     )
 
     response = await client.patch(
-        f"/api/v1/guilds/{admin.guild.id}/members/{joiner.user.id}",
+        f"/api/v1/communities/{admin.guild.id}/members/{joiner.user.id}",
         headers=admin.headers,
         json={"role": "admin"},
     )
@@ -959,7 +935,6 @@ async def test_promotion_to_guild_admin_lifts_existing_initiative_roles(
     assert role is not None and role.is_manager
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("who", ["a member", "the last manager"])
 async def test_removing_a_membership_ends_it(
     client: AsyncClient, session: AsyncSession, acting_user, who: str
@@ -968,7 +943,8 @@ async def test_removing_a_membership_ends_it(
 
     Ending a membership is not blocked by it being the last manager's;
     ``test_cannot_demote_last_manager`` covers the case that still is, which
-    edits a live membership rather than ending it.
+    edits a live membership rather than ending it. Every grant naming the
+    person in the initiative goes with it, on every tool, owner grants included.
     """
     owner, initiative = await _initiative_with_owner(session, acting_user)
     target = (
@@ -976,6 +952,11 @@ async def test_removing_a_membership_ends_it(
         if who == "the last manager"
         else await _caller(acting_user, "member", owner, initiative)
     )
+    await enable_all_tools(session, initiative)
+    for tool in Tool:
+        row = await create_tool_entity(session, tool, initiative, owner.user)
+        if target is not owner:
+            await create_resource_grant(session, row, user=target.user)
 
     response = await client.delete(
         owner.g(f"/initiatives/{initiative.id}/members/{target.user.id}"),
@@ -985,9 +966,14 @@ async def test_removing_a_membership_ends_it(
     assert response.status_code == 200, response.text
     remaining = {m["user"]["id"] for m in response.json()["members"]}
     assert remaining == (set() if who == "the last manager" else {owner.user.id})
+    levels = (
+        await session.exec(
+            select(ResourceGrant.level).where(ResourceGrant.user_id == target.user.id)
+        )
+    ).all()
+    assert levels == []
 
 
-@pytest.mark.integration
 async def test_cannot_demote_last_manager(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1016,7 +1002,6 @@ async def test_cannot_demote_last_manager(
     assert response.json()["detail"] == "INITIATIVE_MUST_HAVE_PM"
 
 
-@pytest.mark.integration
 async def test_initiative_guild_isolation(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1048,7 +1033,7 @@ async def test_initiative_guild_isolation(
     # ids are per-schema (not globally unique), so initiative1.id may collide with
     # a guild2 initiative — but it must never resolve to guild1's initiative.
     response2 = await client.get(
-        f"/api/v1/g/{guild2.id}/initiatives/{initiative1.id}", headers=a.headers
+        f"/api/v1/c/{guild2.id}/initiatives/{initiative1.id}", headers=a.headers
     )
 
     if response2.status_code == 200:
@@ -1062,7 +1047,6 @@ async def test_initiative_guild_isolation(
 # ============================================================================
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "caller_role",
     [GuildRole.member, GuildRole.admin],
@@ -1114,7 +1098,6 @@ async def test_directory_lists_only_joinable_initiatives(
     assert listed["Anyone"]["join_policy"] == "open"
 
 
-@pytest.mark.integration
 async def test_directory_reports_the_callers_own_state(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1122,7 +1105,7 @@ async def test_directory_reports_the_callers_own_state(
 
     A private initiative appears to its own members — their sidebar already
     shows it — listed ahead of the joinable ones. Each card carries the roster
-    size and where the caller stands with it.
+    size and where the caller stands with it, on which role.
     """
     admin = await acting_user(guild_role=GuildRole.admin)
     mine = await create_initiative(
@@ -1151,13 +1134,14 @@ async def test_directory_reports_the_callers_own_state(
     # The creator (PM) plus the member who joined.
     assert entries[0]["member_count"] == 2
     assert entries[0]["is_member"] is True
+    assert entries[0]["role_display_name"] == "Member"
     assert entries[0]["has_pending_request"] is False
     assert entries[1]["member_count"] == 1
     assert entries[1]["is_member"] is False
+    assert entries[1]["role_display_name"] is None
     assert entries[1]["has_pending_request"] is False
 
 
-@pytest.mark.integration
 async def test_directory_rejects_non_guild_member(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1169,7 +1153,7 @@ async def test_directory_rejects_non_guild_member(
     outsider = await acting_user(guild_role=GuildRole.member)
 
     response = await client.get(
-        f"/api/v1/g/{admin.guild.id}/initiatives/directory", headers=outsider.headers
+        f"/api/v1/c/{admin.guild.id}/initiatives/directory", headers=outsider.headers
     )
 
     assert response.status_code == 403
@@ -1199,7 +1183,6 @@ async def _joiner(acting_user, session: AsyncSession, kind: str, owner, initiati
     return grantee
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("policy", "caller", "status_code", "outcome"),
     [
@@ -1238,7 +1221,7 @@ async def test_self_join_answers_each_policy_and_caller(
     actor = await _joiner(acting_user, session, caller, owner, initiative)
 
     response = await client.post(
-        f"/api/v1/g/{owner.guild.id}/initiatives/{initiative.id}/join",
+        f"/api/v1/c/{owner.guild.id}/initiatives/{initiative.id}/join",
         headers=actor.headers,
     )
 
@@ -1259,7 +1242,6 @@ async def test_self_join_answers_each_policy_and_caller(
     assert rows[0]["oidc_managed"] is False
 
 
-@pytest.mark.integration
 async def test_self_join_absorbs_a_lost_insert_race(
     session: AsyncSession, acting_user, monkeypatch
 ):
@@ -1312,7 +1294,6 @@ async def test_self_join_absorbs_a_lost_insert_race(
     assert len(rows) == 1
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("policy", "auto_join", "caller", "patch", "status_code", "expected"),
     [
@@ -1411,7 +1392,6 @@ async def test_the_join_settings_answer_each_caller_and_pairing(
 # ============================================================================
 
 
-@pytest.mark.integration
 async def test_join_request_created_on_request_policy(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1444,7 +1424,6 @@ async def test_join_request_created_on_request_policy(
     ) is None
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("policy", "caller", "knocked_first", "status_code", "detail"),
     [
@@ -1497,7 +1476,7 @@ async def test_knocking_answers_each_policy_and_caller(
         session, acting_user, name="Doorway", join_policy=policy
     )
     actor = await _joiner(acting_user, session, caller, owner, initiative)
-    url = f"/api/v1/g/{owner.guild.id}/initiatives/{initiative.id}/join-requests"
+    url = f"/api/v1/c/{owner.guild.id}/initiatives/{initiative.id}/join-requests"
 
     if knocked_first:
         first = await client.post(url, headers=actor.headers, json={})
@@ -1509,7 +1488,6 @@ async def test_knocking_answers_each_policy_and_caller(
     assert response.json()["detail"] == detail
 
 
-@pytest.mark.integration
 async def test_denied_requester_may_ask_again(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1544,7 +1522,6 @@ async def test_denied_requester_may_ask_again(
     assert again.json()["prior_denials"] == 1
 
 
-@pytest.mark.integration
 async def test_join_request_absorbs_a_lost_insert_race(
     session: AsyncSession, acting_user, monkeypatch
 ):
@@ -1595,7 +1572,6 @@ async def test_join_request_absorbs_a_lost_insert_race(
     assert len(rows) == 1
 
 
-@pytest.mark.integration
 async def test_the_pending_queue_carries_what_the_decision_needs(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1650,7 +1626,6 @@ async def test_the_pending_queue_carries_what_the_decision_needs(
     assert [row["status"] for row in history.json()] == ["denied"]
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("caller", "path", "status_code", "expected"),
     [
@@ -1710,7 +1685,6 @@ async def test_the_join_queue_answers_each_caller(
     )
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("way_in", "policy"), [("join", "open"), ("approval", "request")]
 )
@@ -1774,7 +1748,6 @@ async def test_joining_flips_content_visibility(
     assert after.json()["name"] == "Shared work"
 
 
-@pytest.mark.integration
 async def test_approving_an_already_resolved_request_conflicts(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1796,7 +1769,6 @@ async def test_approving_an_already_resolved_request_conflicts(
     assert again.json()["detail"] == "INITIATIVE_JOIN_REQUEST_ALREADY_RESOLVED"
 
 
-@pytest.mark.integration
 async def test_resolving_a_request_someone_else_answered_conflicts(
     session: AsyncSession, acting_user
 ):
@@ -1843,7 +1815,6 @@ async def test_resolving_a_request_someone_else_answered_conflicts(
     )
 
 
-@pytest.mark.integration
 async def test_approving_when_already_a_member_succeeds(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1886,7 +1857,6 @@ async def test_approving_when_already_a_member_succeeds(
     assert len(rows) == 1
 
 
-@pytest.mark.integration
 async def test_deny_resolves_without_membership(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1925,7 +1895,6 @@ async def test_deny_resolves_without_membership(
     assert still_hidden.status_code == 404
 
 
-@pytest.mark.integration
 async def test_resolving_a_request_from_another_initiative_is_not_found(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1975,7 +1944,6 @@ async def _resolver(acting_user, session: AsyncSession, kind: str, owner, initia
     return holder
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("action", ["approve", "deny"])
 @pytest.mark.parametrize(
     ("caller", "detail"),
@@ -2006,7 +1974,7 @@ async def test_answering_a_join_request_takes_manager_standing(
     actor = await _resolver(acting_user, session, caller, owner, initiative)
 
     response = await client.post(
-        f"/api/v1/g/{owner.guild.id}/initiatives/{initiative.id}"
+        f"/api/v1/c/{owner.guild.id}/initiatives/{initiative.id}"
         f"/join-requests/{request_id}/{action}",
         headers=actor.headers,
     )
@@ -2021,7 +1989,6 @@ async def test_answering_a_join_request_takes_manager_standing(
     ) is None
 
 
-@pytest.mark.integration
 async def test_a_knock_reaches_the_managers_on_both_channels(
     client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
 ):
@@ -2092,7 +2059,6 @@ async def test_a_knock_reaches_the_managers_on_both_channels(
     assert bystander.user.id not in {m["recipient_id"] for m in sent}
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("action", "expected_type", "subject"),
     [
@@ -2150,7 +2116,6 @@ async def test_a_resolution_reaches_the_requester_on_both_channels(
     assert f"guild_id={manager.guild.id}" in sent[0]["link"]
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("viewer", "expected_count"),
     [
@@ -2214,7 +2179,6 @@ async def test_directory_badges_the_queue_for_whoever_could_answer_it(
     assert entry["has_pending_request"] is (viewer == "the requester")
 
 
-@pytest.mark.integration
 async def test_a_knock_writes_its_mail_down(
     client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
 ):
@@ -2244,7 +2208,6 @@ async def test_a_knock_writes_its_mail_down(
     assert await _pending_mail_for(session, manager.user.id) == 1
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "reason", ["the manager switched approvals off", "no SMTP configured"]
 )
@@ -2297,7 +2260,6 @@ async def test_a_knock_lands_even_when_no_mail_goes_out(
     )
 
 
-@pytest.mark.integration
 async def test_initiative_member_search_finds_a_misspelled_name(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -2319,3 +2281,53 @@ async def test_initiative_member_search_finds_a_misspelled_name(
     )
     assert response.status_code == 200, response.text
     assert member.user.username in {u["username"] for u in response.json()["items"]}
+
+
+async def test_changing_what_an_initiative_allows_rechecks_its_members(
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
+):
+    """Switching a tool off or changing what a role may do re-checks the open
+    connections of the people it applies to once it commits."""
+    from app.api.v1.tenant_endpoints import initiatives as initiatives_routes
+    from app.models.tenant.initiative import InitiativeRoleModel
+
+    manager = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    member = await acting_user(
+        guild=manager.guild, initiative=manager.initiative, initiative_role="member"
+    )
+    initiative_id = manager.initiative.id
+    rechecked: list[set[int]] = []
+
+    async def _record(guild_id, user_ids):
+        rechecked.append(set(user_ids))
+
+    monkeypatch.setattr(initiatives_routes.content_sockets, "refresh_users", _record)
+
+    switched = await client.patch(
+        manager.g(f"/initiatives/{initiative_id}"),
+        headers=manager.headers,
+        json={"documents_enabled": False},
+    )
+    assert switched.status_code == 200, switched.text
+    assert rechecked.pop() == {manager.user.id, member.user.id}
+
+    member_role = (
+        await session.exec(
+            select(InitiativeRoleModel).where(
+                InitiativeRoleModel.initiative_id == initiative_id,
+                InitiativeRoleModel.name == "member",
+            )
+        )
+    ).one()
+    roles = await client.get(
+        manager.g(f"/initiatives/{initiative_id}/roles"), headers=manager.headers
+    )
+    (current,) = [r for r in roles.json() if r["id"] == member_role.id]
+    flipped = not current["permissions"]["create_documents"]
+    changed = await client.patch(
+        manager.g(f"/initiatives/{initiative_id}/roles/{member_role.id}"),
+        headers=manager.headers,
+        json={"permissions": {"create_documents": flipped}},
+    )
+    assert changed.status_code == 200, changed.text
+    assert rechecked.pop() == {member.user.id}

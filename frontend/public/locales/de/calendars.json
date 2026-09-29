@@ -63,10 +63,6 @@
   "tags": "Tags",
   "properties": "Eigenschaften",
   "today": "Heute",
-  "export": {
-    "exportIcs": ".ics exportieren",
-    "exportError": "Termine konnten nicht exportiert werden"
-  },
   "import": {
     "title": "Kalendertermine importieren",
     "importIcs": ".ics importieren",
@@ -90,8 +86,8 @@
   "calendar": "Kalender",
   "selectCalendar": "Kalender auswählen",
   "createCalendar": "Neuer Kalender",
-  "calendarName": "Kalendername",
-  "calendarNamePlaceholder": "z. B. Teamplan",
+  "name": "Kalendername",
+  "namePlaceholder": "z. B. Teamplan",
   "calendarDescriptionPlaceholder": "Wofür ist dieser Kalender?",
   "calendarColor": "Farbe",
   "panel": {

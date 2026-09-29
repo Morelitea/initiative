@@ -7,7 +7,6 @@ holds it, and an account always keeps a proven address and a primary.
 
 from __future__ import annotations
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -17,8 +16,6 @@ from app.models.platform.user_email import UserEmail
 from app.models.platform.user_token import UserToken, UserTokenPurpose
 from app.services.auth import addresses
 from app.testing.factories import create_user, get_auth_headers
-
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 
 async def _enable_smtp(session: AsyncSession) -> None:

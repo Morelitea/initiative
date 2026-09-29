@@ -14,7 +14,7 @@ standing in for one, and nothing counts it as a blocker.
 
 Each rule is a SQL expression over the kind's own table, so the two readers —
 the far end of an edge (:mod:`app.db.reference_targets`) and a task's blocker
-count (``app.api.v1.tenant_endpoints.tasks``) — work from one definition and
+count (``app.services.tenant.task_queries``) — work from one definition and
 cannot drift.
 """
 
@@ -85,11 +85,6 @@ def open_expr(table_name: str, table: Table) -> ColumnElement:
     """This kind's "still outstanding" reading, or NULL where it has none."""
     rule = OPEN_WHEN.get(table_name)
     return rule(table) if rule is not None else null()
-
-
-def can_block(table_name: str) -> bool:
-    """Whether this kind can be said to be holding anything up."""
-    return table_name in OPEN_WHEN
 
 
 def blocking_kinds() -> list[tuple[str, Table, ColumnElement]]:

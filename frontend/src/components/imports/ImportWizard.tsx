@@ -4,13 +4,14 @@ import { type ChangeEvent, type ReactNode, useCallback, useEffect, useMemo, useS
 import { useTranslation } from "react-i18next";
 
 import {
-  useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete,
-  useConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost,
-  useImportForeignApiV1GGuildIdImportsForeignSourcePost,
-  usePreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost,
-  useUploadBackupApiV1GGuildIdImportsBackupPost,
+  useCancelImportJobApiV1CGuildIdImportsJobsJobIdDelete,
+  useConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPost,
+  useImportForeignApiV1CGuildIdImportsForeignSourcePost,
+  usePreviewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPost,
+  useUploadBackupApiV1CGuildIdImportsBackupPost,
 } from "@/api/generated/imports/imports";
 import type { ForeignPreview, ImportJobRead } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   AtlassianChooseStep,
   type AtlassianConnection,
@@ -35,7 +36,7 @@ import {
 import { WizardDialog } from "@/components/ui/wizard-dialog";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useImportJob } from "@/hooks/useImportJob";
-import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
+import { liveInitiatives } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useWizard } from "@/hooks/useWizard";
 import { BackupPeekError, type PeekedManifest, peekBackupManifest } from "@/lib/backupPeek";
@@ -156,33 +157,31 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
   // matches; a handle left out of it stays unmapped on purpose.
   const [peopleMap, setPeopleMap] = useState<Record<string, number | null>>({});
 
-  const uploadMutation = useUploadBackupApiV1GGuildIdImportsBackupPost();
-  const confirmMutation = useConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost();
-  const cancelMutation = useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete();
-  const previewMutation = usePreviewForeignImportApiV1GGuildIdImportsForeignSourcePreviewPost();
-  const importMutation = useImportForeignApiV1GGuildIdImportsForeignSourcePost();
+  const uploadMutation = useUploadBackupApiV1CGuildIdImportsBackupPost();
+  const confirmMutation = useConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPost();
+  const cancelMutation = useCancelImportJobApiV1CGuildIdImportsJobsJobIdDelete();
+  const previewMutation = usePreviewForeignImportApiV1CGuildIdImportsForeignSourcePreviewPost();
+  const importMutation = useImportForeignApiV1CGuildIdImportsForeignSourcePost();
 
   const initiativesQuery = useInitiatives();
-  const { filterVisible, permissionsFor } = useInitiativeAccess();
-  const creatableInitiatives = useMemo(() => {
-    if (!initiativesQuery.data) {
-      return [];
-    }
-    return filterVisible(initiativesQuery.data).filter(
-      (initiative) => permissionsFor(initiative).project.create
-    );
-  }, [initiativesQuery.data, filterVisible, permissionsFor]);
+  const creatableInitiatives = useMemo(
+    () =>
+      liveInitiatives(initiativesQuery.data).filter((initiative) =>
+        initiative.can.create.includes(Tool.project)
+      ),
+    [initiativesQuery.data]
+  );
   // Where an Atlassian import can land, and what may be made in each: its
   // projects need project creation there, its spaces wiki creation.
   const atlassianTargets = useMemo(
     () =>
-      filterVisible(initiativesQuery.data ?? []).map((initiative) => ({
+      liveInitiatives(initiativesQuery.data).map((initiative) => ({
         id: initiative.id,
         name: initiative.name,
-        canCreateProjects: permissionsFor(initiative).project.create,
-        canCreateWikis: permissionsFor(initiative).wiki.create,
+        canCreateProjects: initiative.can.create.includes(Tool.project),
+        canCreateWikis: initiative.can.create.includes(Tool.wiki),
       })),
-    [initiativesQuery.data, filterVisible, permissionsFor]
+    [initiativesQuery.data]
   );
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: runs only on open/close; job state is read at that moment

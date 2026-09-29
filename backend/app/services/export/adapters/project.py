@@ -6,7 +6,8 @@ its payload is the envelope verbatim. The report formats project the same
 envelope into the shared columns/rows payload: a formatted PDF via the
 ``project-report`` template, or a task table via the tabular renderers.
 Archived tasks stay in the backup (it must round-trip everything) but are
-excluded from the report formats, matching the on-screen list defaults.
+excluded from the report formats, matching the on-screen list defaults — save
+the ones archived along with the project, which the list shows too.
 
 Access rule for every format: WRITE on the project (read-only members can't
 take backups), enforced by the ``projects.py`` seams at both count and build
@@ -30,7 +31,7 @@ from app.services.export.adapters._common import (
 )
 from app.services.export.contract import RenderItem
 from app.services.export.i18n import et, export_locale
-from app.core.user_display import display_name
+from app.services.permissions import EXPORT_ACCESS
 
 # (row key, ``exports`` label key, Typst width hint) — labels resolve to the
 # creator's locale at build time.
@@ -53,7 +54,7 @@ def _columns(locale: str) -> list[dict]:
 class ProjectAdapter(ToolExportAdapter):
     tool = Tool.project
     template_id = "project-report"
-    formats = frozenset({"json", "pdf", "csv", "xlsx"})
+    formats = ("json", "pdf", "csv", "xlsx")
 
     async def count(
         self,
@@ -77,15 +78,34 @@ class ProjectAdapter(ToolExportAdapter):
         return total
 
     async def fetch(
-        self, session: AsyncSession, user: User, guild_id: int, project_id: int, /
+        self,
+        session: AsyncSession,
+        user: User,
+        guild_id: int,
+        project_id: int,
+        /,
+        *,
+        access: str = EXPORT_ACCESS,
     ) -> ProjectExportEnvelope:
         from app.api.v1.tenant_endpoints.projects import build_project_export_for_user
 
-        # The seam enforces WRITE per project — one read-only project in
+        # The seam enforces the rung per project — one project short of it in
         # the selection fails the whole export, never a silent gap.
         return await build_project_export_for_user(
-            session, user, guild_id, project_id=project_id
+            session, user, guild_id, project_id=project_id, access=access
         )
+
+    async def initiative_ids(
+        self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
+    ) -> list[int]:
+        from app.services.tenant.project_export import list_project_ids_for_export
+
+        return await list_project_ids_for_export(
+            session, user, guild_id, initiative_ids=[initiative_id]
+        )
+
+    def title(self, envelope: ProjectExportEnvelope, /) -> str:
+        return envelope.project.name
 
     def item(self, envelope: ProjectExportEnvelope, ctx: BuildContext, /) -> RenderItem:
         return build_project_item(envelope, ctx.format, ctx.user, ctx.now)
@@ -103,27 +123,21 @@ def build_project_item(
             key=envelope_key(Tool.project, name, date),
             data=envelope.model_dump(mode="json"),
         )
-    return RenderItem(
-        key=export_stem(name, date), data=_report_payload(envelope, user, now)
-    )
+    return RenderItem(key=export_stem(name, date), data=_report_payload(envelope, user))
 
 
-def _report_payload(envelope: ProjectExportEnvelope, user: User, now: datetime) -> dict:
-    tasks = [t for t in envelope.tasks if t.archived_at is None]
+def _report_payload(envelope: ProjectExportEnvelope, user: User) -> dict:
+    project_archived_at = envelope.project.archived_at
+    tasks = [
+        t
+        for t in envelope.tasks
+        if t.archived_at is None or t.archived_at == project_archived_at
+    ]
     loc = export_locale(user)
-    generated_at = now.strftime("%Y-%m-%d %H:%M %Z")
-    # Both attribution fields can be absent (some OAuth-provisioned accounts
-    # carry neither) — never render the literal "None".
-    author = display_name(user) or et("fallback.unknownAuthor", loc)
     return {
         # The project name is user data — never translated.
         "title": envelope.project.name,
-        "subtitle": " · ".join(
-            [
-                et("summary.tasks", loc, count=len(tasks)),
-                et("generatedBy", loc, date=generated_at, author=author),
-            ]
-        ),
+        "subtitle": et("summary.tasks", loc, count=len(tasks)),
         "footer": et("footer.project", loc, name=envelope.project.name),
         "page_of": et("pageOf", loc),
         "description": envelope.project.description or "",

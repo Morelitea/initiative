@@ -19,8 +19,12 @@ export function create_inbound_session(pickle: string, key: string, their_identi
 
 /**
  * Open a session with a device, spending a prekey claimed from the directory.
+ *
+ * A signed prekey must verify against the device's fingerprint key; an
+ * unsigned one is accepted only from a device the caller already trusts
+ * unsigned (see the trust module).
  */
-export function create_outbound_session(pickle: string, key: string, their_identity_key: string, their_one_time_key: string): any;
+export function create_outbound_session(pickle: string, key: string, their_identity_key: string, their_fingerprint_key: string, their_one_time_key: string, one_time_key_signature: string | null | undefined, fallback: boolean): any;
 
 /**
  * Top the prekey pool up, and mint a fallback key if asked.
@@ -29,6 +33,11 @@ export function create_outbound_session(pickle: string, key: string, their_ident
  * drained, so a device that has been quiet for a long time stays reachable.
  */
 export function generate_keys(pickle: string, key: string, count: number, with_fallback: boolean): any;
+
+/**
+ * Which session a pre-key message opens, and who sent it, without opening it.
+ */
+export function inspect_prekey(ciphertext: string): any;
 
 /**
  * Decrypt one message, advancing the ratchet.
@@ -40,22 +49,37 @@ export function session_decrypt(pickle: string, key: string, message_type: numbe
  */
 export function session_encrypt(pickle: string, key: string, plaintext: string): any;
 
+/**
+ * Sign this device's keys as belonging to `user_id`.
+ */
+export function sign_device(pickle: string, key: string, user_id_value: number): string;
+
+/**
+ * Whether a directory entry's keys were signed, by its own fingerprint key,
+ * as belonging to `user_id`.
+ */
+export function verify_device(user_id_value: number, identity_key: string, fingerprint_key: string, signature: string): boolean;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly create_account: (a: number, b: number) => [number, number, number];
     readonly create_inbound_session: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number];
-    readonly create_outbound_session: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number];
+    readonly create_outbound_session: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number) => [number, number, number];
     readonly generate_keys: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
+    readonly inspect_prekey: (a: number, b: number) => [number, number, number];
     readonly session_decrypt: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
     readonly session_encrypt: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
+    readonly sign_device: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+    readonly verify_device: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number];
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_exn_store: (a: number) => void;
     readonly __externref_table_alloc: () => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __externref_table_dealloc: (a: number) => void;
+    readonly __wbindgen_free: (a: number, b: number, c: number) => void;
     readonly __wbindgen_start: () => void;
 }
 

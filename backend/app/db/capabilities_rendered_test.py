@@ -34,9 +34,9 @@ from app.testing import (
     create_guild,
     create_user,
 )
+from app.db.request_context import Platform
 
 
-@pytest.mark.unit
 def test_a_capability_is_spelled_as_the_tiers_holding_it():
     policy = Policy("p", SELECT, Capability.USERS_READ, using="true")
     assert policy_roles(policy) == (
@@ -48,7 +48,6 @@ def test_a_capability_is_spelled_as_the_tiers_holding_it():
     assert policy_roles(Policy("p", SELECT, ("public",), using="true")) == ("public",)
 
 
-@pytest.mark.unit
 def test_every_policy_on_the_platform_tiers_names_a_capability():
     """Which tier holds what is the capability registry's to say, so no policy
     spells a tier by hand."""
@@ -196,14 +195,12 @@ CASES: list[tuple[str, str, Capability, Callable[[AsyncSession], Awaitable[Probe
 ]
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize("table, name, capability, _probe", CASES)
 def test_the_registry_declares_what_the_probe_asks(table, name, capability, _probe):
     policy = next(p for p in PUBLIC_RLS[table].policies if p.name == name)
     assert policy.roles is capability
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("table, name, capability, probe", CASES)
 @pytest.mark.parametrize("tier", list(UserRole))
 async def test_a_tier_is_admitted_as_the_capability_says(
@@ -213,7 +210,7 @@ async def test_a_tier_is_admitted_as_the_capability_says(
     actor = await create_user(session, role=tier)
 
     s = await role_session("app_user")
-    await set_rls_context(s, user_id=actor.id, platform_role=tier.value)
+    await set_rls_context(s, Platform(user_id=actor.id, tier=tier.value))
     try:
         result = await s.exec(text(sql), params=params)
         admitted = bool(result.all()) if kind == "select" else result.rowcount == 1

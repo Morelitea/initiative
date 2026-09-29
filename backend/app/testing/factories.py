@@ -16,10 +16,14 @@ it was flushed. Raw ``session.add()`` of tenant models in tests is covered by
 the fail-closed flush router in ``schema_harness``.
 """
 
+import json
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from cryptography.hazmat.primitives.asymmetric import ec
+from jwt.algorithms import ECAlgorithm
+from sqlalchemy import delete as sa_delete
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -28,16 +32,13 @@ from app.core.relationships import Provenance, RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.relationship import EntityRelationship
 from app.services.tenant import relationships as relationships_service
-from app.core.encryption import (
-    encrypt_field,
-    SALT_APP_SERVICE_SECRET,
-)
-from app.core.tools import TOGGLEABLE_TOOLS, Tool
+from app.core.tools import Tool
 from app.core.security import (
     get_password_hash,
     mint_access_token,
 )
 from app.models.platform.app_service_registration import AppServiceRegistration
+from app.models.platform.publisher import Publisher, publisher_prefix
 from app.core.reactions import ReactionTarget
 from app.models.tenant.calendar import Calendar
 from app.models.platform.marketplace import (
@@ -51,7 +52,7 @@ from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
 from app.models.tenant.wiki import Wiki, WikiPage
 from app.models.tenant.post_poll import PostPoll, PostPollOption
 from app.models.tenant.guild_app import GuildApp
-from app.models.tenant.guild_app_user_delegation import GuildAppUserDelegation
+from app.models.tenant.guild_app_secret import GuildAppSecret
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
@@ -60,8 +61,10 @@ from app.models.platform.access_grant import AccessGrant
 from app.models.platform.guild import Guild, GuildMembership, GuildRole
 from app.core.guild_auth_options import GuildAuthOption
 from app.models.platform.guild_administration import GuildAdministration
+from app.services.marketplace import app_installs
 from app.services.marketplace import catalog as marketplace_catalog
 from app.services.marketplace.registration_lookup import invalidate_registrations
+from app.services.tenant import app_schedules
 from app.services.tenant.dashboard_definition import (
     normalize_dashboard_definition,
 )
@@ -86,6 +89,8 @@ from app.models.tenant.task import (
     TaskStatusCategory,
 )
 from app.models.tenant.upload import Upload
+from app.models.tenant.export_job import ExportJob
+from app.models.tenant.import_job import ImportJob
 from app.models.platform.auth_provider import AuthProvider, AuthProviderKind
 from app.models.platform.guild_provider_connection import GuildProviderConnection
 from app.models.platform.federated_identity import FederatedIdentity
@@ -93,10 +98,13 @@ from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.user import User, UserRole, UserStatus
 from app.services.auth.platform_provider import PLATFORM_OIDC_SLUG
 from app.core import usernames
+from app.services.platform import guilds as guilds_service
 from app.services.tenant.initiatives import create_builtin_roles
 from app.schemas.tenant.task import mint_checklist_item_id
+from app.services.tenant.ownership import tool_for_row
 from app.services.tenant.task_completion import sync_completed_at
-from app.services.tenant.wikis import slugify_page_title
+from app.services.tenant.task_statuses import ensure_default_statuses
+from app.services.tenant.names import slugify
 from app.testing.schema_harness import guild_of, route_session_to_guild
 
 
@@ -219,46 +227,28 @@ async def create_guild(
     commit: bool = True,
     **overrides: Any,
 ) -> Guild:
+    """Create a test guild through the service's creation path.
+
+    The guild and its administration row, a named ``creator`` seated as its
+    superadmin, its schema provisioned and its settings row seeded — what the
+    community-create endpoint does, less the mandatory apps, which tests reach
+    through the backfill. Without a ``creator`` the guild is recorded as made by
+    a filler account and has no members.
+
+    Overrides for the operator-set fields (``max_storage_bytes``, ``max_users``,
+    ``tier_name``, ``auth_options``) land on ``guild_administration``; the rest
+    on the guild. Example: ``guild = await create_guild(session, name="Test")``.
     """
-    Create a test guild with sensible defaults.
-
-    Args:
-        session: Database session
-        creator: User who creates the guild (will be created if not provided)
-        commit: Whether to commit the transaction (default True)
-        **overrides: Override any default field values
-
-    Returns:
-        Created Guild instance
-
-    Example:
-        guild = await create_guild(session, name="Test Guild")
-    """
-    named_creator = creator is not None
-    if creator is None:
-        creator = await create_user(session, commit=commit)
-
-    # The operator-set fields live on ``guild_administration``, so overrides for
-    # them are routed to that row rather than to the guild. Tests keep passing
-    # them as if they were guild fields.
-    administration_defaults: dict[str, Any] = {
-        # Test guilds hold every sign-in option by default so the guild-auth
-        # surface is exercisable without extra setup; production guilds hold
-        # none (the operator grants each one from the Guilds dashboard). Pass
-        # ``auth_options=[]`` to exercise the ungranted paths, or a shorter list
-        # to exercise one option without the other.
+    # Test guilds hold every sign-in option by default so the guild-auth
+    # surface is exercisable without extra setup; production guilds hold none
+    # (the operator grants each one from the Guilds dashboard). Pass
+    # ``auth_options=[]`` to exercise the ungranted paths, or a shorter list to
+    # exercise one option without the other.
+    administration_data: dict[str, Any] = {
         "auth_options": [option.value for option in GuildAuthOption],
-    }
-    administration_data = {
-        **administration_defaults,
         **{
             field: overrides.pop(field)
-            for field in (
-                "max_storage_bytes",
-                "max_users",
-                "tier_name",
-                "auth_options",
-            )
+            for field in ("max_storage_bytes", "max_users", "tier_name", "auth_options")
             if field in overrides
         },
     }
@@ -267,42 +257,35 @@ async def create_guild(
         option.value if isinstance(option, GuildAuthOption) else option
         for option in administration_data["auth_options"]
     ]
-
-    defaults = {
-        "name": f"Test Guild {datetime.now(timezone.utc).timestamp()}",
-        "description": "A test guild for integration testing",
-        "created_by": creator.id,
-    }
-
-    guild_data = {**defaults, **overrides}
-    guild = Guild(**guild_data)
-    session.add(guild)
-    await session.flush()
-    # Every guild has exactly one, created with it — same as the service path.
-    session.add(GuildAdministration(guild_id=guild.id, **administration_data))
-    # A named creator administers what they made, as the service path has them
-    # do — a routing is a lookup now, so a community whose creator belonged to
-    # nothing could not be entered at all. An *invented* creator is the
-    # factory's own filler and joins nothing, so a test that did not ask for a
-    # member still has none.
-    if named_creator:
-        session.add(
-            GuildMembership(
-                user_id=creator.id,
-                guild_id=guild.id,
-                role=GuildRole.admin,
-                position=0,
-            )
+    if creator is None:
+        overrides.setdefault(
+            "created_by", (await create_user(session, commit=commit)).id
         )
+
+    guild = await guilds_service.create_guild(
+        session,
+        name=overrides.pop(
+            "name", f"Test Guild {datetime.now(timezone.utc).timestamp()}"
+        ),
+        description=overrides.pop(
+            "description", "A test guild for integration testing"
+        ),
+        creator=creator,
+    )
+    for field, value in overrides.items():
+        setattr(guild, field, value)
+    session.add(guild)
+    await guild_administration(session, guild, commit=False, **administration_data)
 
     if commit:
         await session.commit()
         await session.refresh(guild)
-        # Schema-native: commit the guild row, then provision its schema so the
-        # routing harness can send this guild's guild-scoped writes into it.
         from app.db.schema_provisioning import provision_guild
 
         await provision_guild(guild.id)
+        await route_session_to_guild(session, guild.id)
+        await guilds_service.create_guild_settings(session, guild.id)
+        await session.commit()
 
     return guild
 
@@ -533,6 +516,21 @@ def get_auth_headers(user: User) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+async def signed_in_headers(session: AsyncSession, user: User) -> dict[str, str]:
+    """Authorization headers naming a real ``auth_sessions`` row, as a signed-in
+    app's do — for what is tied to the sign-in behind a request, such as a
+    registered push token."""
+    from app.services.auth import sessions as session_service
+
+    user_id = user.id
+    issued = await session_service.create_session(
+        session, user_id=user_id, amr=["pwd"], satisfied_providers=[]
+    )
+    session_id = issued.session.id
+    await session.commit()
+    return {"Authorization": f"Bearer {get_auth_token(user, session_id=session_id)}"}
+
+
 async def create_initiative(
     session: AsyncSession,
     guild: Guild,
@@ -671,18 +669,58 @@ async def create_project(
         await session.refresh(project)
 
         # The owner grant IS the ownership — projects carry no owner column.
-        session.add(
-            ResourceGrant(
-                resource_type="project",
-                resource_id=project.id,
-                user_id=owner.id,
-                level=ResourceAccessLevel.owner,
-                initiative_id=project.initiative_id,
-            )
+        await create_resource_grant(
+            session, project, level=ResourceAccessLevel.owner, user=owner
         )
-        await session.commit()
 
     return project
+
+
+async def create_resource_grant(
+    session: AsyncSession,
+    resource: Any,
+    *,
+    level: ResourceAccessLevel = ResourceAccessLevel.read,
+    user: User | None = None,
+    role_id: int | None = None,
+    all_initiative_members: bool = False,
+    app_install_id: int | None = None,
+    commit: bool = True,
+) -> ResourceGrant:
+    """Share a tool's row: ``level`` for ``user``, for an initiative role, for
+    every member of its initiative, or for an installed app — exactly one."""
+    await route_session_to_guild(session, guild_of(resource))
+    grant = ResourceGrant(
+        resource_type=tool_for_row(resource),
+        resource_id=resource.id,
+        user_id=user.id if user is not None else None,
+        role_id=role_id,
+        all_initiative_members=all_initiative_members,
+        app_install_id=app_install_id,
+        level=level,
+        initiative_id=resource.initiative_id,
+    )
+    session.add(grant)
+    if commit:
+        await session.commit()
+    return grant
+
+
+async def strip_non_owner_grants(
+    session: AsyncSession, resource: Any, owner_id: int
+) -> None:
+    """Remove every grant on a tool's row except ``owner_id``'s own, so the row
+    reaches nobody else. Role and all-member grants carry a NULL ``user_id``,
+    hence ``is_distinct_from`` rather than ``!=``."""
+    await route_session_to_guild(session, guild_of(resource))
+    await session.exec(
+        sa_delete(ResourceGrant).where(
+            ResourceGrant.resource_type == tool_for_row(resource),
+            ResourceGrant.resource_id == resource.id,
+            ResourceGrant.user_id.is_distinct_from(owner_id),
+        )
+    )
+    await session.commit()
 
 
 async def create_task(
@@ -698,33 +736,19 @@ async def create_task(
     """Create a test task (guild-scoped), with a status of the requested
     category and optional assignees.
 
-    Reuses an existing project status of the same category if one exists,
-    otherwise creates one. Pass ``status_category=TaskStatusCategory.done`` and
-    ``assignees=[user]`` to build a completed, assigned task (e.g. for stats).
+    The project gets its default statuses the way the service seeds them, and
+    the task takes the first of the requested category; a category the project
+    has no status for gets one. Pass ``status_category=TaskStatusCategory.done``
+    and ``assignees=[user]`` to build a completed, assigned task (e.g. for stats).
     """
-    from sqlmodel import select as _select
-
     await route_session_to_guild(session, guild_of(project))
 
-    status = (
-        await session.exec(
-            _select(TaskStatus)
-            .where(
-                TaskStatus.project_id == project.id,
-                TaskStatus.category == status_category,
-            )
-            .limit(1)
-        )
-    ).first()
+    statuses = await ensure_default_statuses(session, project.id)
+    status = next((s for s in statuses if s.category == status_category), None)
     if status is None:
-        status = TaskStatus(
-            project_id=project.id,
-            name=status_category.value.replace("_", " ").title(),
-            category=status_category,
-            position=0,
-            is_default=status_category == TaskStatusCategory.todo,
+        status = await create_task_status(
+            session, project, category=status_category, commit=False
         )
-        session.add(status)
         await session.flush()
 
     defaults: dict[str, Any] = {
@@ -794,17 +818,9 @@ async def create_queue(
         await session.commit()
         await session.refresh(queue)
 
-        # Owner grant for creator.
-        session.add(
-            ResourceGrant(
-                resource_type="queue",
-                resource_id=queue.id,
-                user_id=creator.id,
-                initiative_id=queue.initiative_id,
-                level=ResourceAccessLevel.owner,
-            )
+        await create_resource_grant(
+            session, queue, level=ResourceAccessLevel.owner, user=creator
         )
-        await session.commit()
 
     return queue
 
@@ -1128,25 +1144,14 @@ async def create_calendar(
         await session.commit()
         await session.refresh(calendar)
 
-        session.add(
-            ResourceGrant(
-                resource_type="calendar",
-                resource_id=calendar.id,
-                user_id=creator.id,
-                level=ResourceAccessLevel.owner,
-                initiative_id=calendar.initiative_id,
-            )
+        await create_resource_grant(
+            session,
+            calendar,
+            level=ResourceAccessLevel.owner,
+            user=creator,
+            commit=False,
         )
-        session.add(
-            ResourceGrant(
-                resource_type="calendar",
-                resource_id=calendar.id,
-                all_initiative_members=True,
-                level=ResourceAccessLevel.read,
-                initiative_id=calendar.initiative_id,
-            )
-        )
-        await session.commit()
+        await create_resource_grant(session, calendar, all_initiative_members=True)
 
     return calendar
 
@@ -1158,14 +1163,15 @@ async def create_guild_calendar(
     *,
     name: str | None = None,
     shared_with_everyone: bool = True,
+    app: GuildApp | None = None,
     **overrides: Any,
 ) -> Calendar:
     """A guild calendar — the one the calendar app installs.
 
     Belongs to no initiative, which is the whole of what makes it different: it
-    holds its own events and reaches into nothing. Mirrors what
-    ``guild_apps.create_app_artifacts`` builds, so a test exercises the same row
-    an install produces rather than an approximation of one.
+    holds its own events and reaches into nothing. Given ``app``, it is what
+    ``guild_apps.create_app_artifacts`` builds: owned by that install. Without
+    one, ``creator`` owns it.
     """
     await route_session_to_guild(session, guild.id)
 
@@ -1181,25 +1187,18 @@ async def create_guild_calendar(
     await session.commit()
     await session.refresh(calendar)
 
-    session.add(
-        ResourceGrant(
-            resource_type="calendar",
-            resource_id=calendar.id,
-            user_id=creator.id,
-            level=ResourceAccessLevel.owner,
-            initiative_id=None,
-        )
+    await create_resource_grant(
+        session,
+        calendar,
+        level=ResourceAccessLevel.owner,
+        user=creator if app is None else None,
+        app_install_id=app.id if app is not None else None,
+        commit=False,
     )
     if shared_with_everyone:
         # At guild scope the everyone grant reads as every member of the guild.
-        session.add(
-            ResourceGrant(
-                resource_type="calendar",
-                resource_id=calendar.id,
-                all_initiative_members=True,
-                level=ResourceAccessLevel.read,
-                initiative_id=None,
-            )
+        await create_resource_grant(
+            session, calendar, all_initiative_members=True, commit=False
         )
     await session.commit()
     return calendar
@@ -1214,9 +1213,13 @@ async def create_guild_app(
     listing_uid: str = "TESTAPP0000001",
     listing_version: str = "1.0.0",
     name: str = "Test app",
+    secrets: dict[str, Any] | None = None,
     **overrides: Any,
 ) -> GuildApp:
     """An installed app, written straight into the guild's schema.
+
+    ``secrets`` is its secret values, ``{connection_id: {key: ciphertext}}``,
+    stored in ``guild_app_secrets``.
 
     Deliberately not routed through the install endpoint. A ``service`` app's
     definition is publishable and storable today but the install path does not
@@ -1240,8 +1243,62 @@ async def create_guild_app(
     )
     session.add(app)
     await session.commit()
+    if secrets:
+        session.add(GuildAppSecret(install_id=app.id, secrets=secrets))
+        await session.commit()
     await session.refresh(app)
+    await app_installs.record(guild.id, app)
+    await app_schedules.reconcile(guild.id, app.id, app.definition)
     return app
+
+
+_TEST_APP_KEY = ec.generate_private_key(ec.SECP256R1())
+
+
+def sample_app_jwks(kid: str = "tests-app-key") -> dict[str, Any]:
+    """A public key set for a test registration: one P-256 key under ``kid``.
+
+    A registration is live only with a key set, so every test registration
+    carries one unless the test says otherwise.
+    """
+    entry = json.loads(ECAlgorithm.to_jwk(_TEST_APP_KEY.public_key()))
+    entry["kid"] = kid
+    return {"keys": [entry]}
+
+
+async def create_publisher(
+    session: AsyncSession,
+    *,
+    prefix: str = "tests",
+    display_name: str | None = None,
+    verified: bool = True,
+    enabled: bool = True,
+    source: str = "operator",
+) -> Publisher:
+    """The publisher for ``prefix``: the existing row, or a new one."""
+    row = (
+        await session.exec(select(Publisher).where(Publisher.prefix == prefix))
+    ).first()
+    if row is None:
+        row = Publisher(
+            prefix=prefix,
+            display_name=display_name or prefix,
+            verified=verified,
+            enabled=enabled,
+            source=source,
+        )
+        session.add(row)
+        await session.commit()
+        await session.refresh(row)
+        invalidate_registrations()
+    return row
+
+
+def sealed_vendor_values(values: dict[str, str]) -> dict[str, str]:
+    """Vendor values as a registration stores them: one ciphertext per key."""
+    from app.core.encryption import SALT_APP_VENDOR, encrypt_field
+
+    return {key: encrypt_field(value, SALT_APP_VENDOR) for key, value in values.items()}
 
 
 async def create_app_service_registration(
@@ -1251,35 +1308,34 @@ async def create_app_service_registration(
     base_url: str = "https://app.example.test",
     listing_uid: str | None = None,
     allowed_origins: list[str] | None = None,
-    grants: list[str] | None = None,
     mandatory: bool = False,
     enabled: bool = True,
-    status: str = "ok",
+    jwks: dict[str, Any] | None = None,
     **overrides: Any,
 ) -> AppServiceRegistration:
     """A deployment-level registration, written straight into ``public``.
 
-    Deliberately not routed through :mod:`app.services.marketplace.registrations`:
-    creating one there runs the handshake against a live container, which a test
-    has no business standing up. The row is what everything downstream reads, so
-    this is the wiring an operator would have done.
+    Its publisher is the row for its ``public_id`` prefix, made when there is
+    none. It carries :func:`sample_app_jwks` unless ``jwks`` is given, so it is
+    live unless the test switches it or its publisher off; pass
+    ``jwks={}`` for one with no key set.
 
     The in-process snapshot is dropped afterwards, so the very next read sees
     this registration rather than whatever a previous test left cached.
     """
+    publisher = await create_publisher(session, prefix=publisher_prefix(public_id))
     row = AppServiceRegistration(
         **{
             "public_id": public_id,
             "listing_uid": listing_uid,
+            "publisher_id": publisher.id,
             "base_url": base_url,
             "allowed_origins": allowed_origins
             if allowed_origins is not None
             else [base_url],
-            "secret_encrypted": encrypt_field("test-secret", SALT_APP_SERVICE_SECRET),
-            "grants": grants or [],
+            "jwks": (jwks or None) if jwks is not None else sample_app_jwks(),
             "mandatory": mandatory,
             "enabled": enabled,
-            "status": status,
             **overrides,
         }
     )
@@ -1287,37 +1343,6 @@ async def create_app_service_registration(
     await session.commit()
     await session.refresh(row)
     invalidate_registrations()
-    return row
-
-
-async def create_app_delegation(
-    session: AsyncSession,
-    app: GuildApp,
-    user: User,
-    *,
-    can_read: bool = True,
-    can_write: bool = False,
-    **overrides: Any,
-) -> GuildAppUserDelegation:
-    """A member's standing authorization for one install to act as them.
-
-    Written straight into the guild's schema, so a suite that is about what a
-    delegated call may do does not have to walk the consent flow first.
-    """
-    await route_session_to_guild(session, guild_of(app))
-
-    row = GuildAppUserDelegation(
-        **{
-            "app_id": app.id,
-            "user_id": user.id,
-            "can_read": can_read,
-            "can_write": can_write,
-            **overrides,
-        }
-    )
-    session.add(row)
-    await session.commit()
-    await session.refresh(row)
     return row
 
 
@@ -1475,25 +1500,14 @@ async def create_dashboard(
         await session.commit()
         await session.refresh(dashboard)
 
-        session.add(
-            ResourceGrant(
-                resource_type="dashboard",
-                resource_id=dashboard.id,
-                user_id=creator.id,
-                level=ResourceAccessLevel.owner,
-                initiative_id=dashboard.initiative_id,
-            )
+        await create_resource_grant(
+            session,
+            dashboard,
+            level=ResourceAccessLevel.owner,
+            user=creator,
+            commit=False,
         )
-        session.add(
-            ResourceGrant(
-                resource_type="dashboard",
-                resource_id=dashboard.id,
-                all_initiative_members=True,
-                level=ResourceAccessLevel.read,
-                initiative_id=dashboard.initiative_id,
-            )
-        )
-        await session.commit()
+        await create_resource_grant(session, dashboard, all_initiative_members=True)
 
     return dashboard
 
@@ -1572,25 +1586,10 @@ async def create_post(
         await session.commit()
         await session.refresh(post)
 
-        session.add(
-            ResourceGrant(
-                resource_type="post",
-                resource_id=post.id,
-                user_id=creator.id,
-                level=ResourceAccessLevel.owner,
-                initiative_id=post.initiative_id,
-            )
+        await create_resource_grant(
+            session, post, level=ResourceAccessLevel.owner, user=creator, commit=False
         )
-        session.add(
-            ResourceGrant(
-                resource_type="post",
-                resource_id=post.id,
-                all_initiative_members=True,
-                level=ResourceAccessLevel.read,
-                initiative_id=post.initiative_id,
-            )
-        )
-        await session.commit()
+        await create_resource_grant(session, post, all_initiative_members=True)
 
     return post
 
@@ -1696,25 +1695,14 @@ async def create_gallery(
         await session.commit()
         await session.refresh(gallery)
 
-        session.add(
-            ResourceGrant(
-                resource_type="gallery",
-                resource_id=gallery.id,
-                user_id=creator.id,
-                level=ResourceAccessLevel.owner,
-                initiative_id=gallery.initiative_id,
-            )
+        await create_resource_grant(
+            session,
+            gallery,
+            level=ResourceAccessLevel.owner,
+            user=creator,
+            commit=False,
         )
-        session.add(
-            ResourceGrant(
-                resource_type="gallery",
-                resource_id=gallery.id,
-                all_initiative_members=True,
-                level=ResourceAccessLevel.read,
-                initiative_id=gallery.initiative_id,
-            )
-        )
-        await session.commit()
+        await create_resource_grant(session, gallery, all_initiative_members=True)
 
     return gallery
 
@@ -1890,18 +1878,11 @@ async def create_document(
     # rest of the caller's transaction.
     await (session.commit() if commit else session.flush())
     if commit:
-        await session.refresh(document)
-    session.add(
-        ResourceGrant(
-            resource_type="document",
-            resource_id=document.id,
-            user_id=creator.id,
-            level=ResourceAccessLevel.owner,
-            initiative_id=document.initiative_id,
-        )
+        # Every column, the deferred body included: tests read it off the row.
+        await session.refresh(document, [c.key for c in Document.__table__.columns])
+    await create_resource_grant(
+        session, document, level=ResourceAccessLevel.owner, user=creator, commit=commit
     )
-    if commit:
-        await session.commit()
 
     return document
 
@@ -2099,16 +2080,9 @@ async def create_counter_group(
         await session.commit()
         await session.refresh(group)
 
-        session.add(
-            ResourceGrant(
-                resource_type="counter_group",
-                resource_id=group.id,
-                user_id=creator.id,
-                level=ResourceAccessLevel.owner,
-                initiative_id=group.initiative_id,
-            )
+        await create_resource_grant(
+            session, group, level=ResourceAccessLevel.owner, user=creator
         )
-        await session.commit()
 
     return group
 
@@ -2163,6 +2137,37 @@ async def create_upload(
         await session.refresh(upload)
 
     return upload
+
+
+async def create_export_job(
+    session: AsyncSession, guild: Guild, creator: User, **overrides: Any
+) -> ExportJob:
+    """Create a task-list PDF export job, queued unless ``status`` says
+    otherwise."""
+    await route_session_to_guild(session, guild.id)
+    defaults = {
+        "created_by": creator.id,
+        "source": "tasks",
+        "template_id": "task-table",
+        "format": "pdf",
+    }
+    job = ExportJob(**{**defaults, **overrides})
+    session.add(job)
+    await session.commit()
+    await session.refresh(job)
+    return job
+
+
+async def create_import_job(
+    session: AsyncSession, guild: Guild, creator: User, **overrides: Any
+) -> ImportJob:
+    """Create a backup import job, queued unless ``status`` says otherwise."""
+    await route_session_to_guild(session, guild.id)
+    job = ImportJob(**{"created_by": creator.id, "source": "backup", **overrides})
+    session.add(job)
+    await session.commit()
+    await session.refresh(job)
+    return job
 
 
 async def create_auth_provider(
@@ -2386,25 +2391,10 @@ async def create_wiki(
         await session.commit()
         await session.refresh(wiki)
 
-        session.add(
-            ResourceGrant(
-                resource_type="wiki",
-                resource_id=wiki.id,
-                user_id=creator.id,
-                level=ResourceAccessLevel.owner,
-                initiative_id=wiki.initiative_id,
-            )
+        await create_resource_grant(
+            session, wiki, level=ResourceAccessLevel.owner, user=creator, commit=False
         )
-        session.add(
-            ResourceGrant(
-                resource_type="wiki",
-                resource_id=wiki.id,
-                all_initiative_members=True,
-                level=ResourceAccessLevel.read,
-                initiative_id=wiki.initiative_id,
-            )
-        )
-        await session.commit()
+        await create_resource_grant(session, wiki, all_initiative_members=True)
 
     return wiki
 
@@ -2432,7 +2422,7 @@ async def create_wiki_page(
         "wiki_id": wiki.id,
         "created_by": creator.id,
         "title": page_title,
-        "slug": slugify_page_title(page_title, fallback=f"page-{stamp}"),
+        "slug": slugify(page_title, fallback=f"page-{stamp}"),
     }
     page = WikiPage(**{**defaults, **overrides})
     session.add(page)
@@ -2483,12 +2473,12 @@ async def create_tool_entity(
 
 
 async def enable_all_tools(session: AsyncSession, initiative: Initiative) -> Initiative:
-    """Flip on every toggleable tool's master switch, derived from the enum so a
-    new tool is enabled here without an edit."""
+    """Flip on every tool's master switch, derived from the enum so a new tool
+    is enabled here without an edit."""
     await route_session_to_guild(session, guild_of(initiative))
     fresh = await session.get(Initiative, initiative.id)
     assert fresh is not None
-    for tool in TOGGLEABLE_TOOLS:
+    for tool in Tool:
         setattr(fresh, tool.view_permission, True)
     session.add(fresh)
     await session.commit()

@@ -13,6 +13,8 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/c/$guildId
   /** `q`, `sort` and `dir` are the table's search box and its order. They ride
    *  in the address so a narrowed, re-ordered table is a link; the page
    *  resolves an unknown `sort` back to its default rather than refusing it. */
+  /** `app` opens that installed app's settings — the deep link a request from
+   *  the app to act as the reader points at, answered there. */
   validateSearch: (
     search: Record<string, unknown>
   ): {
@@ -22,6 +24,7 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/c/$guildId
     q?: string;
     sort?: string;
     dir?: string;
+    app?: number;
   } => ({
     tool: typeof search.tool === "string" ? search.tool : undefined,
     page: validatePage(search.page),
@@ -29,9 +32,16 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/c/$guildId
     q: typeof search.q === "string" && search.q ? search.q : undefined,
     sort: typeof search.sort === "string" ? search.sort : undefined,
     dir: search.dir === "asc" || search.dir === "desc" ? search.dir : undefined,
+    app: appIdOf(search.app),
   }),
   component: GuildHome,
 });
+
+/** A positive integer id, or nothing. */
+function appIdOf(value: unknown): number | undefined {
+  const id = typeof value === "number" ? value : Number(value);
+  return Number.isInteger(id) && id > 0 ? id : undefined;
+}
 
 const LazyGuildHomePage = lazyRouteComponent(() =>
   import("@/pages/GuildHomePage").then((m) => ({ default: m.GuildHomePage }))

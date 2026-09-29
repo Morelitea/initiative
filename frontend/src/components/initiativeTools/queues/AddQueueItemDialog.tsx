@@ -2,6 +2,7 @@ import { Loader2 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { EntityLinkField } from "@/components/entities/EntityLinkField";
 import { useQueueItemForm } from "@/components/initiativeTools/queues/useQueueItemForm";
 import { MemberSelect } from "@/components/members/MemberSearchSelect";
@@ -229,7 +230,7 @@ export const AddQueueItemDialog = ({
             <Label>{t("linkedUser")}</Label>
             <div className="flex items-center gap-2">
               <MemberSelect
-                scope={{ type: "initiative", initiativeId }}
+                scope={{ type: "canOpen", tool: Tool.queue, id: queueId }}
                 value={userId}
                 onChange={setUserId}
                 placeholder={t("selectUser")}

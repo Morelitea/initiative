@@ -56,8 +56,18 @@ describe("resolveEntityPath", () => {
         HttpResponse.json({ id: 3, calendar_id: 6, initiative_id: null })
       )
     );
-    await expect(resolveEntityPath(queryClient, GUILD, "event", 3)).resolves.toBe(
+    await expect(resolveEntityPath(queryClient, GUILD, "calendar-event", 3)).resolves.toBe(
       "/calendars/6/events/3"
+    );
+  });
+
+  it("opens a wiki page inside its wiki", async () => {
+    server.use(
+      guildHttp.get("/wiki-pages/:id", () => HttpResponse.json({ id: 11, wiki_id: 4 })),
+      guildHttp.get("/wikis/:id", () => HttpResponse.json({ id: 4, initiative_id: 1 }))
+    );
+    await expect(resolveEntityPath(queryClient, GUILD, "wiki-page", 11)).resolves.toBe(
+      "/i/1/wikis/4/pages/11"
     );
   });
 
@@ -75,8 +85,11 @@ describe("resolveEntityPath", () => {
 
   it("recognises exactly the ref types it can resolve", () => {
     expect(isEntityRefType("counter-group")).toBe(true);
+    expect(isEntityRefType("calendar-event")).toBe(true);
     expect(isEntityRefType("counter_group")).toBe(false);
     expect(isEntityRefType("user")).toBe(false);
+    // A picture has no read by its own id, so nothing links to one.
+    expect(isEntityRefType("gallery-image")).toBe(false);
   });
 });
 
@@ -85,7 +98,8 @@ describe("normalizeLegacyTarget", () => {
     expect(normalizeLegacyTarget("/tasks/4")).toBe("/go/task/4");
     expect(normalizeLegacyTarget("/projects/12")).toBe("/go/project/12");
     expect(normalizeLegacyTarget("/documents/3")).toBe("/go/document/3");
-    expect(normalizeLegacyTarget("/calendar-events/8")).toBe("/go/event/8");
+    expect(normalizeLegacyTarget("/calendar-events/8")).toBe("/go/calendar-event/8");
+    expect(normalizeLegacyTarget("/go/event/8")).toBe("/go/calendar-event/8");
   });
 
   it("rewrites an initiative path directly — no lookup needed", () => {

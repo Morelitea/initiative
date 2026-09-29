@@ -76,7 +76,6 @@ async def _live_pair(client: AsyncClient, actor: Actor) -> set[tuple[str, str]]:
     return {(g["purpose"], g["access_level"]) for g in listed.json() if g["is_live"]}
 
 
-@pytest.mark.integration
 async def test_break_glass_self_issues_live_grant(client: AsyncClient, outsider):
     """An operator issues a grant in one step: created AND approved, live
     immediately, with requester == approver as the record of who took it."""
@@ -97,7 +96,6 @@ async def test_break_glass_self_issues_live_grant(client: AsyncClient, outsider)
     assert grant["approved_by_id"] == a.user.id  # self-approved = the record
 
 
-@pytest.mark.integration
 async def test_break_glass_requires_data_bypass(client: AsyncClient, outsider):
     """Support and moderator hold ``access.request`` rather than
     ``data.bypass``, so the request->approve flow is their way in."""
@@ -108,7 +106,6 @@ async def test_break_glass_requires_data_bypass(client: AsyncClient, outsider):
     assert resp.status_code == 403, resp.text
 
 
-@pytest.mark.integration
 async def test_admin_reaches_guild_only_after_clicking_through(
     client: AsyncClient, acting_user, outsider
 ):
@@ -118,19 +115,18 @@ async def test_admin_reaches_guild_only_after_clicking_through(
     a, guild = await outsider()
     host = await acting_user(guild_role=GuildRole.admin, guild=guild, initiative=True)
 
-    before = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=a.headers)
+    before = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=a.headers)
     assert before.status_code == 403
 
     issued = await _break_glass(client, a, guild, reason="investigate")
     assert issued.status_code == 201, issued.text
     assert issued.json()["is_live"] is True
 
-    after = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=a.headers)
+    after = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=a.headers)
     assert after.status_code == 200, after.text
     assert any(i["name"] == host.initiative.name for i in after.json())
 
 
-@pytest.mark.integration
 async def test_break_glass_reaches_no_further_than_any_other_grant(
     client: AsyncClient, acting_user, outsider
 ):
@@ -156,7 +152,7 @@ async def test_break_glass_reaches_no_further_than_any_other_grant(
 
     # Authoring is not what a content grant is: no new project.
     authored = await client.post(
-        f"/api/v1/g/{guild.id}/projects/",
+        f"/api/v1/c/{guild.id}/projects/",
         json={"name": "New Front", "initiative_id": host.initiative.id},
         headers=a.headers,
     )
@@ -164,7 +160,7 @@ async def test_break_glass_reaches_no_further_than_any_other_grant(
 
     # Nor is handing access out.
     shared = await client.put(
-        f"/api/v1/g/{guild.id}/projects/{host.project.id}/grants",
+        f"/api/v1/c/{guild.id}/projects/{host.project.id}/grants",
         json=[{"user_id": target.user.id, "level": "write"}],
         headers=a.headers,
     )
@@ -172,12 +168,11 @@ async def test_break_glass_reaches_no_further_than_any_other_grant(
 
     # What the settings grant carries: the community's own configuration.
     policy = await client.get(
-        f"/api/v1/guilds/{guild.id}/auth-policy", headers=a.headers
+        f"/api/v1/communities/{guild.id}/auth-policy", headers=a.headers
     )
     assert policy.status_code == 200, policy.text
 
 
-@pytest.mark.integration
 async def test_break_glass_already_member_rejected(
     client: AsyncClient, session: AsyncSession, outsider
 ):
@@ -194,7 +189,6 @@ async def test_break_glass_already_member_rejected(
     assert resp.json()["detail"] == "ACCESS_GRANT_ALREADY_MEMBER"
 
 
-@pytest.mark.integration
 async def test_break_glass_duration_capped(client: AsyncClient, outsider):
     """A self-approved grant is capped at the (short) break-glass ceiling,
     below the role's request->approve maximum. 24h is inside an operator's
@@ -209,7 +203,6 @@ async def test_break_glass_duration_capped(client: AsyncClient, outsider):
     assert resp.json()["detail"] == "ACCESS_GRANT_DURATION_TOO_LONG"
 
 
-@pytest.mark.integration
 async def test_breaking_glass_again_supersedes_rather_than_stacking(
     client: AsyncClient, outsider
 ):
@@ -228,7 +221,6 @@ async def test_breaking_glass_again_supersedes_rather_than_stacking(
     assert sum(1 for g in listed.json() if g["status"] == "revoked") == 2
 
 
-@pytest.mark.integration
 async def test_break_glass_denies_a_pending_request_before_issuing_the_pair(
     client: AsyncClient, outsider
 ):
@@ -305,7 +297,6 @@ async def _enrol_factor(
     return secret, confirmed.json()["codes"]
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "colleague_tier,expected,detail",
     [
@@ -343,7 +334,6 @@ async def test_whose_enrolment_turns_the_second_factor_on(
         assert resp.json()["detail"] == detail
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "credential,expected,detail",
     [
@@ -385,7 +375,6 @@ async def test_what_an_enrolled_holder_presents_to_break_glass(
         assert resp.json()["status"] == "approved"
 
 
-@pytest.mark.integration
 async def test_withdrawing_the_authenticator_stops_it_being_asked_for(
     client: AsyncClient, session: AsyncSession, acting_user, outsider
 ):
@@ -417,7 +406,6 @@ async def test_withdrawing_the_authenticator_stops_it_being_asked_for(
     assert resp.status_code == 201, resp.text
 
 
-@pytest.mark.integration
 async def test_the_form_is_told_what_it_will_be_asked_for(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -474,7 +462,6 @@ async def _present_a_key(
     return assertion_for(challenge, credential_id=credential_id)
 
 
-@pytest.mark.integration
 async def test_a_holder_with_only_a_key_is_not_sent_to_enrol_an_authenticator(
     client: AsyncClient, session: AsyncSession, acting_user, outsider, monkeypatch
 ):
@@ -499,7 +486,6 @@ async def test_a_holder_with_only_a_key_is_not_sent_to_enrol_an_authenticator(
     assert answered.json()["status"] == "approved"
 
 
-@pytest.mark.integration
 async def test_a_key_holder_turns_the_ask_on_for_everybody(
     client: AsyncClient, session: AsyncSession, outsider, acting_user
 ):
@@ -518,7 +504,6 @@ async def test_a_key_holder_turns_the_ask_on_for_everybody(
     assert now_asked.json()["detail"] == "ACCESS_GRANT_SECOND_FACTOR_ENROLMENT_REQUIRED"
 
 
-@pytest.mark.integration
 async def test_an_assertion_answers_one_request(
     client: AsyncClient, session: AsyncSession, acting_user, outsider, monkeypatch
 ):
@@ -539,7 +524,6 @@ async def test_an_assertion_answers_one_request(
     assert again.json()["detail"] == "ACCESS_GRANT_PASSKEY_INVALID"
 
 
-@pytest.mark.integration
 async def test_somebody_elses_key_does_not_answer(
     client: AsyncClient, session: AsyncSession, acting_user, outsider, monkeypatch
 ):
@@ -563,7 +547,6 @@ async def test_somebody_elses_key_does_not_answer(
     assert refused.json()["detail"] == "ACCESS_GRANT_PASSKEY_INVALID"
 
 
-@pytest.mark.integration
 async def test_a_step_up_challenge_does_not_break_glass(
     client: AsyncClient, session: AsyncSession, acting_user, outsider, monkeypatch
 ):

@@ -3,8 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
+import { ownerCan } from "@/__tests__/factories";
 import { buildDocumentSummary } from "@/__tests__/factories/document.factory";
-import { buildInitiative, buildInitiativeMember } from "@/__tests__/factories/initiative.factory";
+import { buildInitiative } from "@/__tests__/factories/initiative.factory";
 import { buildUser, buildUserPublic } from "@/__tests__/factories/user.factory";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
@@ -29,11 +30,7 @@ const EDITOR_ROLE_ID = 200;
 
 const bob = buildUserPublic({ id: BOB_ID, full_name: "Bob Builder" });
 
-const initiative = buildInitiative({
-  id: INITIATIVE_ID,
-  name: "Init",
-  members: [buildInitiativeMember({ user: bob, role_id: EDITOR_ROLE_ID })],
-});
+const initiative = buildInitiative({ id: INITIATIVE_ID, name: "Init" });
 
 const roles: InitiativeRoleRead[] = [
   {
@@ -58,7 +55,7 @@ function allMembersDoc(extraGrants: ResourceGrantSchema[] = []): DocumentSummary
   return buildDocumentSummary({
     id: 10,
     initiative_id: INITIATIVE_ID,
-    my_permission_level: "owner",
+    can: ownerCan(),
     grants: [
       { all_initiative_members: true, level: "read" },
       { user_id: 999, level: "owner" },
@@ -75,7 +72,7 @@ function restrictedDoc(id: number): DocumentSummary {
   return buildDocumentSummary({
     id,
     initiative_id: INITIATIVE_ID,
-    my_permission_level: "owner",
+    can: ownerCan(),
     grants: [
       { user_id: 999, level: "owner" },
       { user_id: BOB_ID, level: "read" },
@@ -93,6 +90,7 @@ function captureGrantPuts() {
   server.use(
     guildHttp.get("/initiatives/", () => HttpResponse.json([initiative])),
     guildHttp.get("/initiatives/:initiativeId/roles", () => HttpResponse.json(roles)),
+    guildHttp.get("/initiatives/:initiativeId/members", () => HttpResponse.json([bob])),
     guildHttp.put("/resource-grants/bulk", async ({ request }) => {
       const body = (await request.json()) as {
         items: { resource_type: string; resource_id: number; grants: ResourceGrantSchema[] }[];
@@ -219,7 +217,7 @@ describe("BulkEditAccessDialog grant rebuild", () => {
     const docWithoutBob = buildDocumentSummary({
       id: 11,
       initiative_id: INITIATIVE_ID,
-      my_permission_level: "owner",
+      can: ownerCan(),
       grants: [{ user_id: 999, level: "owner" }],
     });
     renderDialog([docWithBob, docWithoutBob]);

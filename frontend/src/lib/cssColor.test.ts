@@ -26,6 +26,7 @@ describe("themeColor", () => {
 describe("withAlpha", () => {
   it("says a hex colour more quietly", () => {
     expect(withAlpha("#0ea5e9", 0.4)).toBe("#0ea5e966");
+    expect(withAlpha("#fff", 0.4)).toBe("#ffffff66");
   });
 
   it("says an rgb colour more quietly", () => {

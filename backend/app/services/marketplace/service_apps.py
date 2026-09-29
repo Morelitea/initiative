@@ -31,12 +31,16 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from app.core.app_scopes import ALL_SCOPES, app_scope_target
 from app.services.marketplace import contract
 from app.services.marketplace.manifest_values import (
     MAX_HINT_LENGTH,
+    MAX_IDENTIFIER_LENGTH,
     MAX_LABEL_LENGTH,
     MAX_NAME_LENGTH,
+    MAX_PATH_LENGTH,
     check_identifier,
+    check_single_line,
     check_json_size,
     check_path,
     check_public_id,
@@ -47,6 +51,7 @@ from app.services.marketplace.manifest_values import (
     require_mapping,
     utf8_bytes,
 )
+from app.services.tenant.app_config import RESERVED_TOKEN_KEYS
 from app.services.marketplace.widget_meta import (
     MAX_TEXT_LENGTH,
     localized_text,
@@ -64,14 +69,12 @@ __all__ = [
     "FEATURES",
     "FEATURE_BLOCKS",
     "FIELD_TYPES",
-    "GUILD_WIDE_VISIBILITIES",
     "PARAM_TYPES",
     "SURFACE_SCOPES",
-    "VISIBILITIES",
-    "VISIBILITY_LADDER",
     "app_widget_type",
-    "clears_visibility",
+    "is_admin_only",
     "normalize_service_app_definition",
+    "schedule_minutes",
 ]
 
 # --- vocabulary -------------------------------------------------------------
@@ -94,13 +97,28 @@ FEATURE_BLOCKS: dict[str, str] = {feature: feature for feature in sorted(FEATURE
 #: ``interactive`` — each member's own account at a vendor that authorizes
 #: people, and never anybody else's.
 #:
-#: A ``connect_path`` is the second question, asked of either: with one, the app
-#: runs the vendor's flow, and the scope decides who is sent — every member for
-#: their own account, or a guild admin once, for the guild. Without one, a
-#: static connection is a form an admin types into. Some vendors leave no
-#: choice: an organization-wide install is a page at the vendor with a button
-#: on it, and no string an admin retypes here is the same thing.
+#: A ``flow`` is the second question, asked of either: with one, Initiative
+#: runs the vendor's OAuth flow, and the scope decides who is sent — every
+#: member for their own account, or a guild admin once, for the guild. Without
+#: one, a static connection is a form an admin types into. Some vendors leave
+#: no choice: an organization-wide install is a page at the vendor with a
+#: button on it, and no string an admin retypes here is the same thing.
 CONNECTION_SCOPES: frozenset[str] = contract.enum("connectionScope")
+
+#: What a vendor field may hold, what a flow is, how a token is minted, how a
+#: grant is ended, and what a minted token's JWT is signed with.
+VENDOR_FIELD_TYPES: frozenset[str] = contract.enum("vendorFieldType")
+FLOW_TYPES: frozenset[str] = contract.enum("flowType")
+TOKEN_TYPES: frozenset[str] = contract.enum("tokenType")
+REVOKE_METHODS: frozenset[str] = contract.enum("revokeMethod")
+JWT_ALGORITHMS: frozenset[str] = contract.enum("jwtAlgorithm")
+
+#: How a vendor webhook's signature is checked, and the characters a header
+#: name and a body path are written in.
+WEBHOOK_SCHEMES: frozenset[str] = contract.enum("webhookScheme")
+WEBHOOK_ENCODINGS: frozenset[str] = contract.enum("webhookEncoding")
+HEADER_NAME_CHARS = contract.charset("headerName")
+FIELD_PATH_CHARS = contract.charset("fieldPath")
 
 #: Field kinds a connection form can render. The same closed enum the automation
 #: service's node contract settled on, so one generic form renderer draws every
@@ -119,31 +137,32 @@ PARAM_TYPES: frozenset[str] = contract.enum("paramType")
 #: nothing keeps the placement it already had.
 SURFACE_SCOPES: frozenset[str] = contract.enum("surfaceScope")
 
-#: Who may open a surface, in order. A ladder rather than a set: a value names
-#: the floor an audience has to clear, and each rung clears the ones below it.
-#: ``guild_admin`` is the guild's admins, who clear every rung — an admin's
-#: reach over their own guild is the same rule here as it is everywhere else.
-#:
-#: A rung is read against *where* the surface was opened, which is what lets one
-#: value serve a surface in both scopes:
-#:
-#: * ``member`` guild-wide is every member of the installing guild; inside an
-#:   initiative it is that initiative's members, and no one else's — the
-#:   initiative gate is what answers that, not a claim in a manifest.
-#: * ``initiative_manager`` inside an initiative is that initiative's managers;
-#:   guild-wide, where there is no initiative to manage, only the guild's
-#:   admins reach it.
-#:
-#: Deliberately coarser than a tool's permissions. A surface has no grants and
-#: no permission key to hang a per-role dial on, so it names one of three
-#: audiences rather than an arbitrary initiative role.
-VISIBILITY_LADDER: tuple[str, ...] = contract.ladder("visibility")
-VISIBILITIES: frozenset[str] = frozenset(VISIBILITY_LADDER)
+#: How many ``apps:<public_id>`` scopes a service may ask for beside the fixed
+#: ones: one per app it calls through Initiative.
+MAX_APP_SCOPES = contract.cap("appScopes")
 
-#: The rungs something opened without an initiative may ask for.
-#: ``initiative_manager`` is absent: outside an initiative there is nothing to
-#: manage, so the value would be stored as a claim nothing could ever evaluate.
-GUILD_WIDE_VISIBILITIES: frozenset[str] = contract.enum("endpointVisibility")
+#: A term an earlier contract used to say who opens a surface or reads an
+#: endpoint. Who opens a surface is now the community's to choose, per
+#: initiative and role. A manifest still naming it is refused with a reason,
+#: unlike other unknown terms, so its author moves to what replaced it rather
+#: than finding the term quietly gone.
+RETIRED_AUDIENCE_TERM = "visibility"
+
+
+def is_admin_only(declared: Any) -> bool:
+    """Whether a stored surface or endpoint is for the community's admins alone.
+
+    Read off a *pinned* definition, which may predate ``admin_only``: one
+    normalized under the earlier contract says ``visibility: "guild_admin"``
+    instead, and it means the same thing until the install moves to a version
+    published under this one.
+    """
+    if not isinstance(declared, dict):
+        return False
+    if declared.get("admin_only") is True:
+        return True
+    return declared.get(RETIRED_AUDIENCE_TERM) == "guild_admin"
+
 
 #: Browser features an embedded surface may ask its frame for.
 #:
@@ -218,8 +237,18 @@ RETURN_TYPES: frozenset[str] = contract.enum("returnValueType")
 
 MAX_CONNECTIONS = contract.cap("connections")
 MAX_FIELDS_PER_CONNECTION = contract.cap("fieldsPerConnection")
+MAX_VENDOR_FIELDS = contract.cap("vendorFields")
+MAX_FLOW_SCOPES = contract.cap("flowScopes")
+MAX_AUTHORIZE_PARAMS = contract.cap("authorizeParams")
+MAX_TOKEN_LIFETIME_SECONDS = contract.cap("tokenLifetimeSeconds")
+MAX_TEMPLATE_LENGTH = contract.cap("urlLength")
 MAX_SELECT_OPTIONS = contract.cap("selectOptions")
 MAX_ACCESS_HINT_SCOPES = contract.cap("accessHintScopes")
+#: How many schedules an app may declare, and the bounds of each interval.
+MAX_SCHEDULES = contract.cap("schedules")
+SCHEDULE_MIN_MINUTES = contract.cap("scheduleMinMinutes")
+SCHEDULE_MAX_MINUTES = contract.cap("scheduleMaxMinutes")
+MAX_SCHEDULE_EVERY_LENGTH = contract.cap("scheduleEveryLength")
 MAX_REQUIRES_TERMS = contract.cap("requiresTerms")
 MAX_WIDGETS = contract.cap("widgets")
 MAX_WIDGET_ENDPOINTS = contract.cap("widgetEndpoints")
@@ -313,45 +342,29 @@ def _requires(
     return {key: cleaned}
 
 
-def _visibility(raw: Any, *, what: str, allowed: frozenset[str] = VISIBILITIES) -> str:
-    """One rung of the ladder, or the default.
+def _admin_only(raw: dict[str, Any], *, what: str) -> bool:
+    """``admin_only``, defaulting to false; absent and null read the same."""
+    value = raw.get("admin_only")
+    if value is None:
+        return False
+    if not isinstance(value, bool):
+        fail(f"{what}: admin_only must be true or false")
+    return value
 
-    ``allowed`` narrows it for something with no initiative to name, so a value
-    is refused where it could not be evaluated rather than stored and quietly
-    read as something else later.
+
+def _refuse_retired_audience(raw: dict[str, Any], *, what: str) -> None:
+    """Refuse the audience term an earlier contract used.
+
+    Every other unknown term is dropped and reported. This one narrowed who
+    could reach something, so it is refused by name and the author is told
+    what replaced it.
     """
-    if raw is None:
-        return "member"
-    if raw not in VISIBILITIES:
-        fail(f"{what}: unknown visibility {raw!r}")
-    if raw not in allowed:
+    if RETIRED_AUDIENCE_TERM in raw:
         fail(
-            f"{what}: visibility {raw!r} names an initiative audience, and this "
-            "surface is not opened in an initiative"
+            f"{what}: {RETIRED_AUDIENCE_TERM!r} is not a term this contract "
+            "declares; who opens a surface is chosen by the community, and "
+            "'admin_only' limits one to its admins"
         )
-    return raw
-
-
-def clears_visibility(
-    required: Any,
-    *,
-    is_guild_admin: bool,
-    is_initiative_manager: bool = False,
-) -> bool:
-    """Whether a caller reaches something declaring ``required``.
-
-    The ladder's ordering is written once, here, so what a manifest may declare
-    and what a request is measured against cannot drift apart. A caller with no
-    initiative in hand leaves ``is_initiative_manager`` false and is measured on
-    the rungs that remain. Anything unrecognized is refused.
-    """
-    if is_guild_admin:
-        return True
-    if required is None or required == "member":
-        return True
-    if required == "initiative_manager":
-        return is_initiative_manager
-    return False
 
 
 def _field(
@@ -511,7 +524,212 @@ def _access_hint(raw: Any, *, what: str) -> dict[str, Any] | None:
     return cleaned or None
 
 
-def _connection(raw: Any) -> dict[str, Any]:
+def _vendor(raw: Any) -> dict[str, Any] | None:
+    """What an operator supplies for the app's vendor client, declared and
+    never valued: every value is entered on the deployment."""
+    if raw is None:
+        return None
+    vendor = require_mapping(raw, "service app: vendor")
+    entries = require_list(
+        vendor.get("fields"), "service app: vendor fields", MAX_VENDOR_FIELDS
+    )
+    if not entries:
+        fail("service app: vendor must declare at least one field")
+    fields: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for entry in entries:
+        field = require_mapping(entry, "service app: vendor field")
+        key = check_identifier(field.get("key"), what="service app: vendor field key")
+        if key in seen:
+            fail(f"service app: two vendor fields share the key {key!r}")
+        seen.add(key)
+        field_type = field.get("type")
+        if field_type not in VENDOR_FIELD_TYPES:
+            fail(f"service app: vendor field {key!r}: unknown type {field_type!r}")
+        fields.append(
+            {
+                "key": key,
+                "type": field_type,
+                "required": field.get("required") is True,
+                "label": _label(
+                    field.get("label"), what=f"service app: vendor field {key!r}"
+                ),
+            }
+        )
+    cleaned: dict[str, Any] = {"fields": fields}
+    label = localized_text(vendor.get("label"), MAX_TEXT_LENGTH)
+    if label is not None:
+        cleaned["label"] = label
+    return cleaned
+
+
+def _template(
+    raw: Any,
+    *,
+    what: str,
+    vendor_keys: set[str],
+    field_keys: set[str],
+    required: bool = True,
+    https: bool = False,
+) -> str | None:
+    """A declared value that may name ``{vendor.<key>}`` or ``{<key>}``, each
+    of which must be declared: a vendor field, or one of the connection's own
+    fields."""
+    text = clean_text(raw, what=what, limit=MAX_TEMPLATE_LENGTH, required=required)
+    if text is None:
+        return None
+    check_single_line(text, what=what)
+    if https and not text.startswith("https://"):
+        fail(f"{what} must be an https address")
+    position = 0
+    while True:
+        start = text.find("{", position)
+        if start == -1:
+            break
+        end = text.find("}", start + 1)
+        if end == -1:
+            fail(f"{what} opens a '{{' it does not close")
+        name = text[start + 1 : end]
+        if name.startswith("vendor."):
+            if name[len("vendor.") :] not in vendor_keys:
+                fail(
+                    f"{what} names {{{name}}}, which the vendor block does not declare"
+                )
+        elif name not in field_keys:
+            fail(f"{what} names {{{name}}}, which is not a field of this connection")
+        position = end + 1
+    return text
+
+
+def _flow(
+    raw: Any,
+    *,
+    what: str,
+    scope: str,
+    field_keys: set[str],
+    vendor_keys: set[str],
+) -> dict[str, Any]:
+    """How Initiative establishes a connection: an OAuth 2.0 authorization code
+    flow, with the vendor client's values named from the vendor block."""
+    flow = require_mapping(raw, f"{what} flow")
+    flow_type = flow.get("type")
+    if flow_type not in FLOW_TYPES:
+        fail(f"{what} flow: unknown type {flow_type!r}")
+
+    def template(key: str, **kwargs: Any) -> str | None:
+        return _template(
+            flow.get(key),
+            what=f"{what} flow.{key}",
+            vendor_keys=vendor_keys,
+            field_keys=field_keys,
+            **kwargs,
+        )
+
+    cleaned: dict[str, Any] = {
+        "type": flow_type,
+        "authorize_url": template("authorize_url", https=True),
+        "token_url": template("token_url", https=True),
+        "client_id": template("client_id"),
+        "pkce": flow.get("pkce") is not False,
+        "after_connect": flow.get("after_connect") is True,
+    }
+    secret = template("client_secret", required=False)
+    if secret is not None:
+        cleaned["client_secret"] = secret
+    scopes = require_list(flow.get("scopes"), f"{what} flow.scopes", MAX_FLOW_SCOPES)
+    cleaned["scopes"] = [
+        check_single_line(
+            clean_text(item, what=f"{what} flow.scopes entry", limit=MAX_HINT_LENGTH)
+            or "",
+            what=f"{what} flow.scopes entry",
+        )
+        for item in scopes
+    ]
+    params_raw = flow.get("authorize_params")
+    params: dict[str, str] = {}
+    if params_raw is not None:
+        mapping = require_mapping(params_raw, f"{what} flow.authorize_params")
+        if len(mapping) > MAX_AUTHORIZE_PARAMS:
+            fail(
+                f"{what} flow.authorize_params holds more than "
+                f"{MAX_AUTHORIZE_PARAMS} entries"
+            )
+        for name, value in mapping.items():
+            key = check_identifier(name, what=f"{what} flow.authorize_params key")
+            params[key] = (
+                _template(
+                    value,
+                    what=f"{what} flow.authorize_params.{key}",
+                    vendor_keys=vendor_keys,
+                    field_keys=field_keys,
+                )
+                or ""
+            )
+    cleaned["authorize_params"] = params
+
+    install = template("install_url", required=False, https=True)
+    if install is not None:
+        if scope != "static":
+            fail(f"{what}: an install page is for a static connection")
+        if not cleaned["after_connect"]:
+            fail(
+                f"{what}: an installation-style flow calls after_connect, which "
+                "checks who installed it"
+            )
+        cleaned["install_url"] = install
+
+    revoke = flow.get("revoke")
+    if revoke is not None:
+        if revoke not in REVOKE_METHODS:
+            fail(f"{what} flow: unknown revoke {revoke!r}")
+        cleaned["revoke"] = revoke
+    revoke_url = template("revoke_url", required=False, https=True)
+    if revoke_url is not None:
+        cleaned["revoke_url"] = revoke_url
+    if revoke == "rfc7009" and revoke_url is None:
+        fail(f"{what}: rfc7009 revocation posts to revoke_url, which is missing")
+    return cleaned
+
+
+def _token(
+    raw: Any, *, what: str, field_keys: set[str], vendor_keys: set[str]
+) -> dict[str, Any]:
+    """An access token Initiative mints on demand with a vendor key."""
+    token = require_mapping(raw, f"{what} token")
+    token_type = token.get("type")
+    if token_type not in TOKEN_TYPES:
+        fail(f"{what} token: unknown type {token_type!r}")
+
+    def template(key: str, **kwargs: Any) -> str | None:
+        return _template(
+            token.get(key),
+            what=f"{what} token.{key}",
+            vendor_keys=vendor_keys,
+            field_keys=field_keys,
+            **kwargs,
+        )
+
+    alg = token.get("alg", "RS256")
+    if alg not in JWT_ALGORITHMS:
+        fail(f"{what} token: unknown alg {alg!r}")
+    lifetime = token.get("lifetime", 540)
+    if (
+        isinstance(lifetime, bool)
+        or not isinstance(lifetime, int)
+        or not 1 <= lifetime <= MAX_TOKEN_LIFETIME_SECONDS
+    ):
+        fail(f"{what} token.lifetime must be 1..{MAX_TOKEN_LIFETIME_SECONDS} seconds")
+    return {
+        "type": token_type,
+        "exchange_url": template("exchange_url", https=True),
+        "iss": template("iss"),
+        "key": template("key"),
+        "alg": alg,
+        "lifetime": lifetime,
+    }
+
+
+def _connection(raw: Any, *, vendor_keys: set[str]) -> dict[str, Any]:
     connection = require_mapping(raw, "connection")
     connection_id = check_identifier(connection.get("id"), what="connection id")
     what = f"connection {connection_id!r}"
@@ -531,6 +749,8 @@ def _connection(raw: Any) -> dict[str, Any]:
         )
         if field["key"] in seen:
             fail(f"{what}: two fields share the key {field['key']!r}")
+        if field["key"] in RESERVED_TOKEN_KEYS:
+            fail(f"{what}: {field['key']!r} is where a flow keeps its tokens")
         seen.add(field["key"])
         fields.append(field)
 
@@ -541,36 +761,182 @@ def _connection(raw: Any) -> dict[str, Any]:
         "fields": fields,
     }
 
-    if scope == "static" and not fields:
-        # Nothing for the admin to supply, so nothing this connection could be.
-        fail(f"{what}: a static connection must declare at least one field")
+    flow_raw = connection.get("flow")
+    if flow_raw is None:
+        if scope == "interactive":
+            # A member's own account is authorized at the vendor; there is
+            # nothing for them to type.
+            fail(f"{what}: an interactive connection declares a flow")
+        if not fields:
+            # Nothing for the admin to supply, so nothing this connection could be.
+            fail(f"{what}: a static connection must declare at least one field")
+    else:
+        flow = _flow(
+            flow_raw,
+            what=what,
+            scope=scope,
+            field_keys=seen,
+            vendor_keys=vendor_keys,
+        )
+        for field in fields:
+            if field.get("managed") is not True:
+                fail(
+                    f"{what}: field {field['key']!r} — a connection with a flow "
+                    "holds only managed values"
+                )
+        if fields and not flow["after_connect"]:
+            fail(
+                f"{what}: its managed values come from the after_connect hook, "
+                "which the flow does not call"
+            )
+        cleaned["flow"] = flow
 
-    connect_path = connection.get("connect_path")
-    if scope == "interactive" or connect_path is not None:
-        # Where a person is sent so the app can run the vendor's flow. Required
-        # on an interactive connection, which has no other way to be filled at
-        # all; offered on a static one, where it is the difference between an
-        # admin typing an organization's name into a box and an admin running
-        # the vendor's own install, on the vendor's page, for the whole guild.
-        cleaned["connect_path"] = check_path(connect_path, what=f"{what} connect_path")
-
-    if (
-        scope == "static"
-        and connect_path is not None
-        and not any(field.get("managed") is True for field in fields)
-    ):
-        # The app writing back is the only way a static connection with a flow
-        # is ever satisfied, so one with nothing managed to write into can do
-        # nothing but leave the install unconfigured forever.
-        fail(
-            f"{what}: a static connection with a connect_path must declare a "
-            "managed field for the flow to write into"
+    token_raw = connection.get("token")
+    if token_raw is not None:
+        if scope != "static":
+            fail(f"{what}: a minted token belongs to a static connection")
+        cleaned["token"] = _token(
+            token_raw, what=what, field_keys=seen, vendor_keys=vendor_keys
         )
 
     hint = _access_hint(connection.get("access_hint"), what=what)
     if hint is not None:
         cleaned["access_hint"] = hint
     return cleaned
+
+
+def _drawn_from(value: Any, *, what: str, chars: frozenset[str], limit: int) -> str:
+    """A required string written in ``chars`` alone."""
+    if not isinstance(value, str) or not value:
+        fail(f"{what} is required")
+    if len(value) > limit:
+        fail(f"{what} is longer than {limit} characters")
+    for character in value:
+        if character not in chars:
+            fail(f"{what} contains {character!r}, which is not allowed")
+    return value
+
+
+def _webhooks(
+    raw: Any, *, vendor_keys: set[str], connections: list[dict[str, Any]]
+) -> dict[str, Any] | None:
+    """How Initiative receives the vendor's webhooks for the app: the signature
+    it checks, the header naming a delivery, and the static connection field a
+    delivery is routed by."""
+    if raw is None:
+        return None
+    hooks = require_mapping(raw, "service app: webhooks")
+    verify = require_mapping(hooks.get("verify"), "service app: webhooks.verify")
+    scheme = verify.get("scheme")
+    if scheme not in WEBHOOK_SCHEMES:
+        fail(f"service app: webhooks.verify: unknown scheme {scheme!r}")
+    encoding = verify.get("encoding")
+    if encoding not in WEBHOOK_ENCODINGS:
+        fail(f"service app: webhooks.verify: unknown encoding {encoding!r}")
+    secret = verify.get("secret")
+    key = (
+        secret[len("{vendor.") : -1]
+        if isinstance(secret, str)
+        and secret.startswith("{vendor.")
+        and secret.endswith("}")
+        else None
+    )
+    if key not in vendor_keys:
+        fail(
+            "service app: webhooks.verify.secret must be one value the vendor "
+            "block declares, written '{vendor.<key>}'"
+        )
+
+    def header(value: Any, what: str) -> str:
+        return _drawn_from(
+            value, what=what, chars=HEADER_NAME_CHARS, limit=MAX_IDENTIFIER_LENGTH
+        )
+
+    cleaned_verify: dict[str, Any] = {
+        "scheme": scheme,
+        "header": header(verify.get("header"), "service app: webhooks.verify.header"),
+        "encoding": encoding,
+        "secret": secret,
+    }
+    prefix = clean_text(
+        verify.get("prefix"),
+        what="service app: webhooks.verify.prefix",
+        limit=MAX_IDENTIFIER_LENGTH,
+        required=False,
+    )
+    if prefix is not None:
+        cleaned_verify["prefix"] = check_single_line(
+            prefix, what="service app: webhooks.verify.prefix"
+        )
+
+    route = require_mapping(hooks.get("route"), "service app: webhooks.route")
+    connection_id = check_identifier(
+        route.get("connection"), what="service app: webhooks.route.connection"
+    )
+    field = check_identifier(
+        route.get("field"), what="service app: webhooks.route.field"
+    )
+    connection = next((c for c in connections if c["id"] == connection_id), None)
+    if connection is None or connection["scope"] != "static":
+        fail(
+            f"service app: webhooks.route names {connection_id!r}, which is not a "
+            "static connection this app declares"
+        )
+    if field not in {entry["key"] for entry in connection["fields"]}:
+        fail(
+            f"service app: webhooks.route names {field!r}, which is not a field of "
+            f"the connection {connection_id!r}"
+        )
+    return {
+        "verify": cleaned_verify,
+        "dedup": header(hooks.get("dedup"), "service app: webhooks.dedup"),
+        "route": {
+            "path": _drawn_from(
+                route.get("path"),
+                what="service app: webhooks.route.path",
+                chars=FIELD_PATH_CHARS,
+                limit=MAX_PATH_LENGTH,
+            ),
+            "connection": connection_id,
+            "field": field,
+        },
+    }
+
+
+def schedule_minutes(every: str) -> int:
+    """A schedule's interval in minutes: ``15m`` is 15, ``6h`` is 360."""
+    count = int(every[:-1])
+    return count * 60 if every.endswith("h") else count
+
+
+def _schedules(raw: Any) -> list[dict[str, str]]:
+    """The intervals at which Initiative calls the app's ``schedule`` hook:
+    each a unique id and a whole number of minutes or hours, within the
+    bounds."""
+    schedules: list[dict[str, str]] = []
+    for entry in require_list(raw, "service app: schedules", MAX_SCHEDULES):
+        schedule = require_mapping(entry, "service app: schedule")
+        schedule_id = check_identifier(
+            schedule.get("id"), what="service app: schedule id"
+        )
+        if any(kept["id"] == schedule_id for kept in schedules):
+            fail(f"service app: two schedules share the id {schedule_id!r}")
+        every = schedule.get("every")
+        what = f"service app: schedule {schedule_id!r}"
+        if not (
+            isinstance(every, str)
+            and 2 <= len(every) <= MAX_SCHEDULE_EVERY_LENGTH
+            and every[-1] in "mh"
+            and all(character in "0123456789" for character in every[:-1])
+        ):
+            fail(f"{what}: every is a whole number of minutes or hours, like '15m'")
+        if not SCHEDULE_MIN_MINUTES <= schedule_minutes(every) <= SCHEDULE_MAX_MINUTES:
+            fail(
+                f"{what}: every is at least {SCHEDULE_MIN_MINUTES}m and at most "
+                f"{SCHEDULE_MAX_MINUTES // 60}h"
+            )
+        schedules.append({"id": schedule_id, "every": every})
+    return schedules
 
 
 # --- what an app offers -----------------------------------------------------
@@ -662,6 +1028,7 @@ def _endpoint(
         endpoint.get("id"), service_public_id=service_public_id, what="endpoint id"
     )
     what = f"endpoint {endpoint_id!r}"
+    _refuse_retired_audience(endpoint, what=what)
 
     direction = endpoint.get("direction")
     if direction not in DIRECTIONS:
@@ -738,12 +1105,22 @@ def _endpoint(
             "params",
             "requires",
             "cache_ttl_seconds",
-            "visibility",
             "actors",
+            "admin_only",
+            "public",
         ):
             if endpoint.get(absent) is not None:
                 fail(f"{what}: an emit endpoint has no {absent}")
         return cleaned
+
+    # Whoever the call is for, stored whichever way it was declared so every
+    # pinned endpoint answers the question the same way.
+    cleaned["admin_only"] = _admin_only(endpoint, what=what)
+    # Whether other apps may call it through Initiative. Stored only when it
+    # is, so an endpoint published before the term reads the same as one that
+    # left it out.
+    if _public(endpoint, what=what):
+        cleaned["public"] = True
 
     if params:
         cleaned["params"] = params
@@ -752,22 +1129,13 @@ def _endpoint(
     if actors:
         cleaned["actors"] = actors
 
-    # Only a read is answered from cache, and only a read is reached by an
-    # audience wide enough to need a rung. A write is authorized by the token
-    # that carried it.
+    # Only a read is answered from cache.
     if direction == "read":
-        # A read is answered for a guild, not for an initiative, so the rungs
-        # that need one are not on offer here.
-        cleaned["visibility"] = _visibility(
-            endpoint.get("visibility"), what=what, allowed=GUILD_WIDE_VISIBILITIES
-        )
         cleaned["cache_ttl_seconds"] = _cache_ttl(
             endpoint.get("cache_ttl_seconds"), what=what
         )
-    else:
-        for absent in ("cache_ttl_seconds", "visibility"):
-            if endpoint.get(absent) is not None:
-                fail(f"{what}: only a read endpoint has {absent}")
+    elif endpoint.get("cache_ttl_seconds") is not None:
+        fail(f"{what}: only a read endpoint has cache_ttl_seconds")
 
     requires = _requires(
         endpoint.get("requires"), connection_ids=connection_ids, what=what
@@ -775,6 +1143,16 @@ def _endpoint(
     if requires is not None:
         cleaned["requires"] = requires
     return cleaned
+
+
+def _public(raw: dict[str, Any], *, what: str) -> bool:
+    """``public``, defaulting to false; absent and null read the same."""
+    value = raw.get("public")
+    if value is None:
+        return False
+    if not isinstance(value, bool):
+        fail(f"{what}: public must be true or false")
+    return value
 
 
 def _returns(raw: Any, *, what: str) -> list[dict[str, Any]]:
@@ -1166,20 +1544,17 @@ def _embed(raw: Any, *, connection_ids: set[str]) -> dict[str, Any]:
     embed_id = check_identifier(embed.get("id"), what="embed id")
     what = f"embed {embed_id!r}"
 
-    scopes = _scopes(embed.get("scopes"), what=what)
+    _refuse_retired_audience(embed, what=what)
+
+    admin_only = _admin_only(embed, what=what)
+
     cleaned: dict[str, Any] = {
         "id": embed_id,
         "path": check_path(embed.get("path"), what=f"{what} path"),
-        "scopes": scopes,
-        "visibility": _visibility(
-            embed.get("visibility"),
-            what=what,
-            # An initiative audience is only namable by a surface that renders
-            # in one.
-            allowed=(
-                VISIBILITIES if "initiative" in scopes else GUILD_WIDE_VISIBILITIES
-            ),
-        ),
+        "scopes": _scopes(embed.get("scopes"), what=what),
+        # Stored whichever way it was declared, so every pinned surface answers
+        # the question the same way.
+        "admin_only": admin_only,
         "name": _label(embed.get("name"), what=what),
     }
     capabilities = _capabilities(embed.get("capabilities"), what=what)
@@ -1221,7 +1596,42 @@ def _service_block(raw: Any) -> dict[str, Any]:
             f"service app: protocol {protocol} is not one this build speaks "
             f"({sorted(APP_PROTOCOL_VERSIONS)})"
         )
-    return {"public_id": public_id, "protocol": protocol}
+    cleaned: dict[str, Any] = {"public_id": public_id, "protocol": protocol}
+    scopes = _requested_scopes(service.get("scopes"))
+    if scopes:
+        cleaned["scopes"] = scopes
+    return cleaned
+
+
+def _requested_scopes(raw: Any) -> list[str]:
+    """The scopes a service asks a community to grant, canonically.
+
+    Absent means none. Each must be in the vocabulary, or an ``apps:`` scope
+    naming another app's public id, and named once; stored sorted, so
+    re-publishing the same manifest produces the same document.
+    """
+    if raw is None:
+        return []
+    declared = require_list(
+        raw, "service app: service.scopes", len(ALL_SCOPES) + MAX_APP_SCOPES
+    )
+    scopes: set[str] = set()
+    app_scopes = 0
+    for entry in declared:
+        # Typed before it is looked up: set membership is defined only for a
+        # hashable value.
+        if not isinstance(entry, str):
+            fail(f"service app: {entry!r} is not a scope an app may request")
+        if app_scope_target(entry) is not None:
+            app_scopes += 1
+        elif entry not in ALL_SCOPES:
+            fail(f"service app: {entry!r} is not a scope an app may request")
+        if entry in scopes:
+            fail(f"service app: service.scopes names {entry!r} twice")
+        scopes.add(entry)
+    if app_scopes > MAX_APP_SCOPES:
+        fail(f"service app: service.scopes names more than {MAX_APP_SCOPES} apps")
+    return sorted(scopes)
 
 
 def _features(raw: Any) -> list[str]:
@@ -1341,9 +1751,11 @@ def normalize_service_app_definition(definition: Any) -> dict[str, Any]:
     body = require_mapping(definition, "service app definition")
 
     service = _service_block(body.get("service"))
+    vendor = _vendor(body.get("vendor"))
+    vendor_keys = {field["key"] for field in (vendor or {}).get("fields", [])}
 
     connections = [
-        _connection(entry)
+        _connection(entry, vendor_keys=vendor_keys)
         for entry in require_list(
             body.get("connections"), "service app: connections", MAX_CONNECTIONS
         )
@@ -1353,6 +1765,10 @@ def normalize_service_app_definition(definition: Any) -> dict[str, Any]:
         if connection["id"] in connection_ids:
             fail(f"service app: two connections share the id {connection['id']!r}")
         connection_ids.add(connection["id"])
+    webhooks = _webhooks(
+        body.get("webhooks"), vendor_keys=vendor_keys, connections=connections
+    )
+    schedules = _schedules(body.get("schedules"))
 
     # One list for every direction, so a caller resolves an id without being
     # told which kind of thing it is first.
@@ -1410,8 +1826,14 @@ def normalize_service_app_definition(definition: Any) -> dict[str, Any]:
     }
     # Empty blocks are left out entirely, so "does this app offer widgets?" has
     # one answer rather than two shapes that mean the same thing.
+    if vendor is not None:
+        cleaned["vendor"] = vendor
     if connections:
         cleaned["connections"] = connections
+    if webhooks is not None:
+        cleaned["webhooks"] = webhooks
+    if schedules:
+        cleaned["schedules"] = schedules
     if endpoints:
         cleaned["endpoints"] = endpoints
     if widgets:

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
-import { useGetExportJobApiV1GGuildIdExportsJobIdGet } from "@/api/generated/exports/exports";
+import { useGetExportJobApiV1CGuildIdExportsJobIdGet } from "@/api/generated/exports/exports";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
 import { downloadBlob } from "@/lib/csv";
@@ -25,7 +25,7 @@ const pendingKey = (guildId: number) => `exports:pending:${guildId}`;
 export type ExportJobPhase = "idle" | "requesting" | "polling" | "done" | "failed";
 
 export interface StartExportOptions {
-  /** Source create route, e.g. "/exports/tasks" — relative to /g/{guildId}. */
+  /** Source create route, e.g. "/exports/tasks" — relative to /c/{guildId}. */
   endpoint: string;
   /** Query params: the selector plus format. A browser tz is added unless
    * the caller passes an explicit one. */
@@ -64,7 +64,7 @@ export function useExportJob({ resumePending = false }: UseExportJobOptions = {}
   // though polling re-renders keep delivering it.
   const handledJobs = useRef(new Set<number>());
 
-  const jobQuery = useGetExportJobApiV1GGuildIdExportsJobIdGet(guildId, jobId ?? 0, {
+  const jobQuery = useGetExportJobApiV1CGuildIdExportsJobIdGet(guildId, jobId ?? 0, {
     query: {
       enabled: jobId != null,
       refetchInterval: (query) => (TERMINAL.has(query.state.data?.status ?? "") ? false : POLL_MS),
@@ -108,7 +108,7 @@ export function useExportJob({ resumePending = false }: UseExportJobOptions = {}
       // only), and these endpoints are a 200-file / 202-job union — call the
       // shared axios instance directly so auth interceptors and the
       // conditions/sorting paramsSerializer still apply.
-      const res = await apiClient.get<Blob>(`/g/${guildId}${options.endpoint}`, {
+      const res = await apiClient.get<Blob>(`/c/${guildId}${options.endpoint}`, {
         // tz: report timestamps ("generated at …") render in the browser's
         // zone, not UTC. First so an explicit caller tz in params wins.
         params: {

@@ -10,13 +10,12 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
 from app.models.tenant.event_outbox import EventOutbox
-from app.services.realtime import manager
-from app.services.realtime_test import FakeWebSocket
+from app.services.content_sockets import sockets
+from app.testing.sockets import FakeWebSocket, settle, watch_events_bus
 from app.services.tenant import room_sink
 from app.testing import (
     create_comment,
@@ -25,13 +24,12 @@ from app.testing import (
     create_tag,
     create_task,
 )
+from app.db.request_context import SystemGuild
 
-pytestmark = pytest.mark.integration
 
-
-#: A socket belonging to nobody in particular. Rooms are otherwise re-derived
-#: from the roster for whoever holds the socket, so a test that means "only the
-#: rooms I was constructed with" has to hold a socket no roster names.
+#: A socket belonging to nobody in particular. Rooms are otherwise recomputed
+#: for whoever holds the socket when a roster they are on moves, so a test that
+#: means "only the rooms I was constructed with" holds a socket no roster names.
 NOBODY = 0
 
 
@@ -48,21 +46,23 @@ class _Watcher:
 
     async def __aenter__(self) -> "_Watcher":
         room_sink._missed_hints = False
-        await manager.connect(
+        watch_events_bus(
             self._guild_id,
-            list(self._initiative_ids),
+            self._initiative_ids,
             self.socket,
             user_id=self._user_id,
         )
         await room_sink.process_room_sweep()
+        await settle()
         return self
 
     async def __aexit__(self, *exc) -> None:
-        await manager.disconnect(self.socket)
+        sockets.leave(self.socket)  # type: ignore[arg-type]
         room_sink._delivered.pop(self._guild_id, None)
 
     async def catch_up(self) -> None:
         await room_sink.process_room_sweep()
+        await settle()
 
     @property
     def changes(self) -> list[dict]:
@@ -96,7 +96,8 @@ async def test_the_frame_carries_identifiers_and_nothing_else(session, acting_us
 
         assert watcher.changes, "the room heard nothing"
         for change in watcher.changes:
-            assert set(change) == {"resource", "parents", "action"}
+            assert set(change) == {"resource", "parents", "initiative_id", "action"}
+            assert change["initiative_id"] == a.initiative.id
             assert set(change["resource"]) == {"type", "id"}
             assert all(set(p) == {"type", "id"} for p in change["parents"])
 
@@ -180,7 +181,7 @@ async def test_what_is_remembered_is_pruned_to_the_window(session, acting_user):
         from app.db.session import set_rls_context
         from sqlmodel import select
 
-        await set_rls_context(session, guild_id=a.guild.id)
+        await set_rls_context(session, SystemGuild(a.guild.id))
         in_window = {
             row.id
             for row in await session.exec(
@@ -224,7 +225,7 @@ async def _txn_of(session, guild_id: int, resource_type: str, resource_id: int) 
     from app.db.session import set_rls_context
     from sqlmodel import select
 
-    await set_rls_context(session, guild_id=guild_id)
+    await set_rls_context(session, SystemGuild(guild_id))
     row = (
         await session.exec(
             select(EventOutbox)
@@ -310,7 +311,6 @@ async def test_a_steady_bus_names_the_ids(session, acting_user):
         assert all(not frame.get("more") for frame in watcher.socket.sent)
 
 
-@pytest.mark.unit
 async def test_an_unreadable_hint_is_dropped() -> None:
     """Nothing on the bus is load-bearing enough to raise over."""
     await room_sink.deliver("not-a-schema")
@@ -318,7 +318,6 @@ async def test_an_unreadable_hint_is_dropped() -> None:
     await room_sink.deliver("guild_1:not-a-txn")
 
 
-@pytest.mark.unit
 def test_a_transaction_too_large_to_name_says_so_instead() -> None:
     """A bulk write would otherwise send every id it touched to every socket."""
     rows = [
@@ -340,7 +339,6 @@ def test_a_transaction_too_large_to_name_says_so_instead() -> None:
     assert frame == {"changes": [], "more": True}
 
 
-@pytest.mark.unit
 def test_one_row_written_repeatedly_is_one_change() -> None:
     rows = [
         EventOutbox(
@@ -363,6 +361,7 @@ def test_one_row_written_repeatedly_is_one_change() -> None:
         {
             "resource": {"type": "tasks", "id": 4},
             "parents": [{"type": "projects", "id": 7}],
+            "initiative_id": 1,
             "action": "updated",
         }
     ]
@@ -373,7 +372,7 @@ async def _age_the_log(session: AsyncSession, guild_id: int) -> None:
     from app.db.session import set_rls_context
     from sqlalchemy import text
 
-    await set_rls_context(session, guild_id=guild_id)
+    await set_rls_context(session, SystemGuild(guild_id))
     await session.exec(
         text("UPDATE event_outbox SET occurred_at = occurred_at - interval '1 day'")
     )

@@ -255,6 +255,11 @@ class TestUserOrIpKey:
     def test_the_address_is_the_counter_when_nobody_is_named(self):
         assert get_user_or_ip_key(self._request()) == "198.51.100.7"
 
+    def test_an_installed_app_is_counted_by_client_and_install(self):
+        request = self._request()
+        request.state.app_install = ("acme.widgets", 7, 3)
+        assert get_user_or_ip_key(request) == "install:acme.widgets:7:3"
+
 
 class TestDefaultLimitOnTheRealApp:
     """What the default does on the app as assembled, catch-all and all.

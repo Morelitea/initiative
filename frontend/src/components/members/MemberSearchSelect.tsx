@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 /** The slim user shape these pickers render (the search endpoints' `UserSummary`). */
 export type MemberSummary = Pick<
   UserSummary,
-  "id" | "username" | "discriminator" | "full_name" | "avatar_url" | "status"
+  "id" | "username" | "discriminator" | "full_name" | "avatar_url" | "status" | "guild_role"
 >;
 
 /** A member we can render from partial info — a full {@link MemberSummary} from
@@ -45,8 +45,9 @@ export type MemberLike = { id: number } & Partial<MemberSummary>;
  *  filter restored from storage, a stored user-reference property, a page
  *  opened straight onto an existing selection. Those ids are resolved against
  *  the same scoped roster the dropdown searches, so the trigger names them
- *  instead of falling back to "User #<id>". */
-const useSeenMembers = (
+ *  instead of falling back to "User #<id>". Ids are resolved a lookup page at
+ *  a time, so any number of them is named in the end. */
+export const useSeenMembers = (
   scope: MemberSearchScope,
   selectedIds: number[],
   selectedUsers: MemberLike[] | undefined,
@@ -222,7 +223,7 @@ export const MemberMultiSelect = ({
     if (total === 1) {
       if (chosenTokens.length === 1) return chosenTokens[0].label;
       const only = seen.get(selectedIds[0]);
-      return getUserDisplayName(only ?? { id: selectedIds[0] }, `User #${selectedIds[0]}`);
+      return getUserDisplayName(only ?? { id: selectedIds[0] });
     }
     return t("common:countSelected", { count: total });
   }, [selectedIds, tokens, seen, resolvedPlaceholder, t]);
@@ -266,7 +267,7 @@ export const MemberMultiSelect = ({
                 <div className="flex flex-wrap gap-1">
                   {selectedIds.map((id) => {
                     const user = seen.get(id) ?? { id, full_name: null };
-                    const label = getUserDisplayName(user, `User #${id}`);
+                    const label = getUserDisplayName(user);
                     return (
                       <span
                         key={id}
@@ -442,7 +443,7 @@ export const MemberSelect = ({
 
   const selected = value != null ? (seen.get(value) ?? selectedUser ?? { id: value }) : null;
   const triggerLabel = selected
-    ? getUserDisplayName(selected, `User #${value}`)
+    ? getUserDisplayName(selected)
     : (placeholder ?? t("common:selectAnOption"));
 
   return (

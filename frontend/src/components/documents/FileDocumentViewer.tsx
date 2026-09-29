@@ -69,7 +69,7 @@ interface FileDocumentViewerProps {
   /** Whether the current user can upload a new version (write or owner). */
   canEdit?: boolean;
   /** Whether the current user owns the document (can delete versions). */
-  isOwner?: boolean;
+  canDeleteVersions?: boolean;
 }
 
 /**
@@ -90,7 +90,7 @@ export const FileDocumentViewer = ({
   originalFilename,
   fileSize,
   canEdit = false,
-  isOwner = false,
+  canDeleteVersions = false,
 }: FileDocumentViewerProps) => {
   const { t } = useTranslation(["documents", "common"]);
   const { maxUploadBytes } = useAppConfig();
@@ -391,7 +391,7 @@ export const FileDocumentViewer = ({
                             </Badge>
                           )}
                         </button>
-                        {isOwner && (
+                        {canDeleteVersions && (
                           <Button
                             variant="ghost"
                             size="icon"

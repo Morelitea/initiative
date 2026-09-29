@@ -26,6 +26,11 @@ import { $isParagraphNode, $isTextNode, type LexicalNode } from "lexical";
 // import { EMOJI } from "@/components/ui/editor/transformers/markdown-emoji-transformer"
 import { HR } from "@/components/ui/editor/transformers/markdown-hr-transformer";
 import { IMAGE } from "@/components/ui/editor/transformers/markdown-image-transformer";
+import {
+  PERSON_MENTION,
+  REFERENCE,
+} from "@/components/ui/editor/transformers/markdown-reference-transformers";
+import { STATUS } from "@/components/ui/editor/transformers/markdown-status-transformer";
 
 // import { TWEET } from "@/components/ui/editor/transformers/markdown-tweet-transformer"
 
@@ -39,6 +44,10 @@ const OTHER_MARKDOWN_TRANSFORMERS = [
   // EMOJI,
   // TWEET,
   CHECK_LIST,
+  // What a cell points at, as anywhere else in the page.
+  STATUS,
+  REFERENCE,
+  PERSON_MENTION,
   ...ELEMENT_TRANSFORMERS,
   ...MULTILINE_ELEMENT_TRANSFORMERS,
   ...TEXT_FORMAT_TRANSFORMERS,
@@ -61,7 +70,10 @@ const parseRow = (textContent: string): ParsedCell[] | null => {
     return null;
   }
   const cells: ParsedCell[] = [];
-  for (const segment of match[1].split("|")) {
+  // A pipe inside a cell is written `\|` — a link's alias, or the character
+  // itself — so only a bare one ends the cell.
+  for (const raw of match[1].split(/(?<!\\)\|/)) {
+    const segment = raw.replace(/\\\|/g, "|");
     // Nothing at all between two pipes is a span, not an empty cell — an
     // empty cell is written with a space in it.
     if (segment === "" && cells.length > 0) {
@@ -136,10 +148,9 @@ export const TABLE: ElementTransformer = {
         if (entry.cell.__headerState === TableCellHeaderStates.ROW) {
           isHeaderRow = true;
         }
-        const text = $convertToMarkdownString(OTHER_MARKDOWN_TRANSFORMERS, entry.cell).replace(
-          /\n/g,
-          "\\n"
-        );
+        const text = $convertToMarkdownString(OTHER_MARKDOWN_TRANSFORMERS, entry.cell)
+          .replace(/\n/g, "\\n")
+          .replace(/\|/g, "\\|");
         parts.push(`| ${text} ${pipes}`);
       }
       output.push(`${parts.join("")}|`);

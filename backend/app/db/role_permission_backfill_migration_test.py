@@ -22,7 +22,6 @@ import importlib.util
 from pathlib import Path
 from types import ModuleType
 
-import pytest
 from sqlalchemy import text
 
 from app.models.tenant.initiative import PermissionKey
@@ -30,8 +29,6 @@ from app.testing import create_guild, create_initiative, create_user
 
 VERSIONS_DIR = Path(__file__).resolve().parents[2] / "alembic" / "versions"
 DEFAULTS_NAME = "_ROLE_PERMISSION_DEFAULTS"
-
-pytestmark = pytest.mark.unit
 
 
 def _backfill_migrations() -> dict[Path, set[str]]:
@@ -86,7 +83,6 @@ def test_every_permission_key_has_a_backfill_migration() -> None:
     )
 
 
-@pytest.mark.integration
 async def test_backfill_writes_only_the_missing_rows(session) -> None:
     """A role stripped of a key gets it back at the documented default, and a
     row that already exists is left alone — including one an operator turned

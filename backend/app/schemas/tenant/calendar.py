@@ -1,20 +1,15 @@
 from __future__ import annotations
 
-from datetime import datetime
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional
 
-from pydantic import ConfigDict, Field
+from pydantic import Field
 
 from app.schemas.base import SanitizedBaseModel, TitleStr
-from app.schemas.tenant.archive import ArchiveState
+from app.schemas.query import PageMeta
 
 from app.models.tenant.calendar import DEFAULT_CALENDAR_COLOR
-from app.schemas.tenant.resource_grant import ResourceGrantSchema
-from app.schemas.tenant.tag import TagSummary, annotated_tags
-
-if TYPE_CHECKING:  # pragma: no cover
-    from app.db.guild_standing import GuildContext
-    from app.models.tenant.calendar import Calendar
+from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
+from app.schemas.tenant.tool import ToolSummaryBase
 
 
 class CalendarBase(SanitizedBaseModel):
@@ -36,11 +31,7 @@ class CalendarCreate(CalendarBase):
     # Initial sharing — the same grant list the PUT /grants endpoint takes.
     # Defaults to Viewer for all initiative members, which at guild scope reads
     # as every member of the guild.
-    grants: List[ResourceGrantSchema] = Field(
-        default_factory=lambda: [
-            ResourceGrantSchema(all_initiative_members=True, level="read")
-        ]
-    )
+    grants: List[ResourceGrantSchema] = Field(default_factory=initiative_readable)
 
 
 class CalendarUpdate(SanitizedBaseModel):
@@ -50,71 +41,15 @@ class CalendarUpdate(SanitizedBaseModel):
     color: Optional[str] = Field(default=None, min_length=1, max_length=32)
 
 
-class CalendarSummary(CalendarBase, ArchiveState):
-    model_config = ConfigDict(
-        from_attributes=True, json_schema_serialization_defaults_required=True
-    )
-
-    id: int
+class CalendarSummary(CalendarBase, ToolSummaryBase):
     #: NULL on a guild-level calendar — one an app mounted, belonging to the
     #: guild rather than to any initiative.
     initiative_id: Optional[int] = None
-    guild_id: int
-    created_by: int
-    created_at: datetime
-    updated_at: datetime
-    my_permission_level: Optional[str] = None
-    # When false this entity's comment thread is off — the UI renders none
-    # and the API refuses to read or post one. Tasks are unaffected; their
-    # thread belongs to the task, not to the tool.
-    comments_enabled: bool = True
-    tags: List[TagSummary] = Field(default_factory=list)
-    # The full sharing state — every resource_grants row for this calendar.
-    # Exposed on the summary so the calendar list panel can manage sharing
-    # without a per-calendar detail fetch.
-    grants: List[ResourceGrantSchema] = Field(default_factory=list)
 
 
-class CalendarListResponse(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
+class CalendarListResponse(PageMeta):
     items: List[CalendarSummary]
-    total_count: int
-    page: int
-    page_size: int
-    has_next: bool
 
 
 class CalendarRead(CalendarSummary):
     pass
-
-
-def serialize_calendar_summary(
-    calendar: "Calendar", *, context: GuildContext, user_id: Optional[int] = None
-) -> CalendarSummary:
-    # Local import avoids a schema -> service import cycle.
-    from app.services.permissions import client_access, serialize_grants
-
-    return CalendarSummary(
-        id=calendar.id,
-        name=calendar.name,
-        description=calendar.description,
-        color=calendar.color,
-        initiative_id=calendar.initiative_id,
-        guild_id=context.guild_id,
-        created_by=calendar.created_by,
-        created_at=calendar.created_at,
-        updated_at=calendar.updated_at,
-        archived_at=calendar.archived_at,
-        **client_access(calendar, user_id, context=context),
-        comments_enabled=calendar.comments_enabled,
-        tags=annotated_tags(calendar),
-        grants=serialize_grants(calendar),
-    )
-
-
-def serialize_calendar(
-    calendar: "Calendar", *, context: GuildContext, user_id: Optional[int] = None
-) -> CalendarRead:
-    summary = serialize_calendar_summary(calendar, context=context, user_id=user_id)
-    return CalendarRead(**summary.model_dump())

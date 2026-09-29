@@ -1,17 +1,16 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { removeItem } from "@/lib/storage";
+import { CREDENTIAL_KEYS, removeItem } from "@/lib/storage";
 
 import {
   clearRefreshToken,
-  REFRESH_TOKEN_KEY,
   readRefreshToken,
   sessionFromResponse,
   storeRefreshToken,
 } from "./nativeSession";
 
 afterEach(() => {
-  removeItem(REFRESH_TOKEN_KEY);
+  removeItem(CREDENTIAL_KEYS.refreshToken);
 });
 
 describe("the refresh token the native app keeps", () => {

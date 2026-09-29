@@ -5,11 +5,14 @@ from typing import List, Literal, Optional
 
 from pydantic import ConfigDict, Field
 
+from app.core.identity_boundary import GuildId, PersonId
 from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
-from app.schemas.tenant.archive import ArchiveState
+from app.schemas.query import PageMeta
+from app.schemas.tenant.archive import ToolCan, ToolState
 
-from app.schemas.tenant.resource_grant import ResourceGrantSchema
+from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.tenant.initiative import InitiativeSummary
+from app.schemas.tenant.ownership import OwnerAppSummary
 from app.schemas.tenant.document import ProjectDocumentSummary
 from app.schemas.tenant.tag import TagSummary
 from app.schemas.tenant.task_status import TaskStatusRead
@@ -38,17 +41,11 @@ class ProjectBase(SanitizedBaseModel):
 
 class ProjectCreate(ProjectBase):
     name: TitleStr
-    owner_id: Optional[int] = None
     initiative_id: Optional[int] = None
     is_template: bool = False
     template_id: Optional[int] = None
     # Initial sharing — the same grant list the PUT /grants endpoint takes.
-    # Defaults to Viewer for all initiative members.
-    grants: List[ResourceGrantSchema] = Field(
-        default_factory=lambda: [
-            ResourceGrantSchema(all_initiative_members=True, level="read")
-        ]
-    )
+    grants: List[ResourceGrantSchema] = Field(default_factory=initiative_readable)
 
 
 class ProjectUpdate(SanitizedBaseModel):
@@ -77,34 +74,43 @@ class ProjectTaskSummary(SanitizedBaseModel):
     completed: int = 0
 
 
-class ProjectRead(ProjectBase, ArchiveState):
+class ProjectCan(ToolCan):
+    #: Configure the project itself — pin it, set its default view, curate its
+    #: filter presets (``resource_actions``).
+    configure: bool = False
+
+
+class ProjectRead(ProjectBase, ToolState):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
 
     id: int
-    # Who owns the project: the holder of its owner-level grant, or None
-    # when nobody does. ``owner`` carries the same fact with the user attached;
+    # Who owns the project: the person holding its owner-level grant, or None
+    # when nobody does or an app does (``owner_app``). ``owner`` carries the
+    # same fact with the user attached;
     # its ``validation_alias`` (an attribute the ORM row never has) keeps
     # ``model_validate(project)`` from reaching for a relationship that may not
     # be loaded — it is set explicitly in ``_build_project_payload``.
-    owner_id: Optional[int] = None
+    owner_id: Optional[PersonId] = None
     initiative_id: int
     #: The community this project lives in — the one fact a cross-guild list
     #: needs to address the row, and what every other tool summary carries.
     #: Left out of the slim picker projection, which never leaves one guild.
-    guild_id: Optional[int] = None
+    guild_id: Optional[GuildId] = None
     created_at: datetime
     updated_at: datetime
     is_template: bool
     pinned_at: Optional[datetime] = None
     default_view_mode: Optional[str] = None
     owner: Optional[UserPublic] = Field(default=None, validation_alias="owner_source")
+    #: The installed app holding the owner grant, or None when a person owns
+    #: the project or nobody does. At most one of ``owner_id`` and this is set.
+    owner_app: Optional[OwnerAppSummary] = Field(
+        default=None, validation_alias="owner_app_source"
+    )
     initiative: Optional[InitiativeSummary] = None
-    #: Whether the reader may configure the project itself — pin it, set its
-    #: default view, curate its filter presets. The server's own answer, the
-    #: one the configuring routes ask.
-    can_configure: bool = False
+    can: ProjectCan = Field(default_factory=ProjectCan)
     sort_order: Optional[float] = None
     is_favorited: bool = False
     last_viewed_at: Optional[datetime] = None
@@ -125,20 +131,12 @@ class ProjectRead(ProjectBase, ArchiveState):
     # thread belongs to the task, not to the tool.
     comments_enabled: bool = True
     tags: List[TagSummary] = Field(default_factory=list)
-    # The current user's effective level on this resource (what *I* can do).
-    my_permission_level: Optional[str] = None
     # The full sharing state — every resource_grants row for this resource.
     grants: List[ResourceGrantSchema] = Field(default_factory=list)
 
 
-class ProjectListResponse(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
+class ProjectListResponse(PageMeta):
     items: List[ProjectRead]
-    total_count: int
-    page: int
-    page_size: int
-    has_next: bool
 
 
 class ProjectReorderRequest(SanitizedBaseModel):

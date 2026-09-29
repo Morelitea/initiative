@@ -17,7 +17,6 @@ from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
-from zoneinfo import ZoneInfo
 
 import docx
 import pytest
@@ -30,8 +29,8 @@ from sqlmodel import select
 from app.api import deps as api_deps
 from app.core.config import settings
 from app.core.search import SearchEntityType
-from app.core.tools import TOGGLEABLE_TOOLS, Tool, tool_export_source
-from app.models.platform.guild import Guild, GuildRole
+from app.core.tools import Tool, tool_export_source
+from app.models.platform.guild import Guild, GuildRole, GuildStatus
 from app.models.platform.guild_image import GuildImage, GuildImageVariant
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.document import DocumentType
@@ -40,8 +39,9 @@ from app.models.tenant.property import PropertyType
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services import storage as storage_module
 from app.services.export import worker as export_worker
+from app.services.guild_sweeps import Scope, each_guild
 from app.services.storage import get_guild_storage
-from app.testing import route_session_to_guild
+from app.testing import create_resource_grant, route_session_to_guild
 from app.testing.factories import (
     assign_tag,
     checklist_items,
@@ -53,6 +53,7 @@ from app.testing.factories import (
     create_counter_group,
     create_dashboard,
     create_document,
+    create_export_job,
     create_document_property_value,
     create_guild_app,
     create_initiative,
@@ -69,8 +70,6 @@ from app.testing.factories import (
     enable_all_tools,
 )
 from app.services.export import limits as export_limits
-
-pytestmark = pytest.mark.integration
 
 
 # ---------------------------------------------------------------------------
@@ -105,12 +104,10 @@ async def _job(client: AsyncClient, a, job_id: int) -> dict:
     return resp.json()
 
 
-async def _run_worker(monkeypatch, role_session) -> None:
+async def _run_worker() -> None:
     """Render the queued jobs the way the worker does. It re-queries as the
-    creator on an app_user session, so point its session factory at the test DB
-    (the admin side is patched by the standard harness)."""
-    user_session = await role_session("app_user")
-    monkeypatch.setattr(export_worker, "_open_user_session", lambda: user_session)
+    creator on a read session from the community's cohort, which the standard
+    harness points at the test database."""
     await export_worker.process_export_jobs()
 
 
@@ -126,7 +123,7 @@ async def _rendered_zip(client, a, monkeypatch, role_session, resp) -> zipfile.Z
     """202 -> worker render -> download; returns the opened zip."""
     assert resp.status_code == 202, resp.text
     job_id = resp.json()["id"]
-    await _run_worker(monkeypatch, role_session)
+    await _run_worker()
     body = await _job(client, a, job_id)
     assert body["status"] == ExportJobStatus.done.value, body.get("error")
     dl = await _download(client, a, job_id)
@@ -484,7 +481,7 @@ async def test_worker_renders_job_and_download_succeeds(
     assert resp.status_code == 202
     job_id = resp.json()["id"]
 
-    await _run_worker(monkeypatch, role_session)
+    await _run_worker()
 
     body = await _job(client, a, job_id)
     assert body["status"] == ExportJobStatus.done.value, body.get("error")
@@ -555,6 +552,31 @@ async def test_project_report_formats_render_the_live_tasks_only(
     )
 
 
+async def test_an_archived_projects_report_carries_the_tasks_archived_with_it(
+    client: AsyncClient, acting_user, session
+):
+    """Archiving the project stamps its tasks with the project's own time; the
+    report shows those, as the project's task list does, and still leaves out
+    a task archived on its own beforehand."""
+    a = await _actor_with_tasks(acting_user, session)
+    await create_task(
+        session, a.project, title="Old news", archived_at=datetime.now(timezone.utc)
+    )
+    archived = await client.post(
+        a.g(f"/archive/project/{a.project.id}"), headers=a.headers
+    )
+    assert archived.status_code == 200
+
+    resp = await _export(client, a, "project", project_id=a.project.id, format="csv")
+    _assert_export(
+        resp,
+        "csv",
+        disposition_absent=(".initiative-project",),
+        present=("Task 0", "Task 1"),
+        absent=("Old news",),
+    )
+
+
 async def test_project_export_job_path_renders_json(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):
@@ -564,7 +586,7 @@ async def test_project_export_job_path_renders_json(
     assert resp.status_code == 202
     assert resp.json()["source"] == "project"
 
-    await _run_worker(monkeypatch, role_session)
+    await _run_worker()
 
     dl = await _download(client, a, resp.json()["id"])
     envelope = json.loads(_assert_export(dl, "json"))
@@ -917,7 +939,7 @@ async def test_document_export_file_passthrough(
     assert queued.status_code == 202
     job_id = queued.json()["id"]
 
-    await _run_worker(monkeypatch, role_session)
+    await _run_worker()
 
     dl = await _download(client, a, job_id)
     assert dl.content == payload
@@ -955,7 +977,7 @@ async def test_passthrough_exports_do_not_collide_by_filename(
     job_a = await queue_export("src-a.pdf", b"AAAA-first-member")
     job_b = await queue_export("src-b.pdf", b"BBBB-second-member")
 
-    await _run_worker(monkeypatch, role_session)
+    await _run_worker()
 
     row_a = await session.get(ExportJob, job_a)
     row_b = await session.get(ExportJob, job_b)
@@ -1003,22 +1025,24 @@ async def test_gc_expires_the_job_row_and_releases_its_artifact(
     acting_user, session, monkeypatch, storage_fails
 ):
     """Past its expiry, GC drops the artifact and moves the row to ``expired``
-    with no artifact_ref. A storage backend that raises on delete reaches the
-    same row state, with the failure logged, so the pass still completes."""
+    with no artifact_ref, in a community that is not active as in any other.
+    A storage backend that raises on delete reaches the same row state, with
+    the failure logged, so the pass still completes."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     storage = get_guild_storage(a.guild.id)
     key = "exports/424242.pdf"
     storage.write(key, b"%PDF-fake", content_type="application/pdf")
-    job = ExportJob(
-        created_by=a.user.id,
-        source="tasks",
-        template_id="task-table",
-        format="pdf",
+    job = await create_export_job(
+        session,
+        a.guild,
+        a.user,
         status=ExportJobStatus.done,
         artifact_ref=key,
         expires_at=datetime.now(timezone.utc) - timedelta(hours=1),
     )
-    session.add(job)
+    guild = await session.get(Guild, a.guild.id)
+    guild.status = GuildStatus.suspended.value
+    session.add(guild)
     await session.commit()
 
     if storage_fails:
@@ -1026,7 +1050,7 @@ async def test_gc_expires_the_job_row_and_releases_its_artifact(
             storage_module, "get_guild_storage", lambda gid: _BrokenStorage()
         )
 
-    await export_worker.process_export_gc()
+    await each_guild([(Scope.PROVISIONED, export_worker.expire_artifacts)], name="t")
 
     if not storage_fails:
         assert storage.open_readable(key) is None
@@ -1036,6 +1060,41 @@ async def test_gc_expires_the_job_row_and_releases_its_artifact(
     refreshed = await session.get(ExportJob, job.id)
     assert refreshed.status == ExportJobStatus.expired.value
     assert refreshed.artifact_ref is None
+
+
+async def test_an_artifact_past_its_expiry_is_not_served(
+    client: AsyncClient, acting_user, session
+):
+    """Past ``expires_at`` a finished export is refused with 410 and reads as
+    ``expired`` — before GC has swept it as well as after."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    storage = get_guild_storage(a.guild.id)
+    key = "exports/515151.pdf"
+    storage.write(key, b"%PDF-fake", content_type="application/pdf")
+    now = datetime.now(timezone.utc)
+    due = await create_export_job(
+        session,
+        a.guild,
+        a.user,
+        status=ExportJobStatus.done,
+        artifact_ref=key,
+        expires_at=now - timedelta(minutes=1),
+    )
+    swept = await create_export_job(
+        session,
+        a.guild,
+        a.user,
+        status=ExportJobStatus.expired,
+        expires_at=now - timedelta(days=1),
+    )
+
+    for job in (due, swept):
+        dl = await client.get(a.g(f"/exports/{job.id}/download"), headers=a.headers)
+        assert dl.status_code == 410, job.status
+        assert dl.json()["detail"] == "EXPORT_EXPIRED"
+        assert (await _job(client, a, job.id))["status"] == (
+            ExportJobStatus.expired.value
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1235,43 +1294,25 @@ async def test_counter_group_report_formats_render_every_counter(
 # ---------------------------------------------------------------------------
 
 
-async def _project_selector(session, a) -> tuple[str, dict[str, Any]]:
-    return "project", {"project_id": a.project.id}
-
-
-async def _document_selector(session, a) -> tuple[str, dict[str, Any]]:
-    doc = await create_document(session, a.initiative, a.user, name="Secret")
-    return "document", {"document_id": doc.id, "format": "json"}
-
-
-async def _queue_selector(session, a) -> tuple[str, dict[str, Any]]:
-    queue = await create_queue(session, a.initiative, a.user, name="Secret order")
-    return "queue", {"queue_id": queue.id, "format": "json"}
-
-
-async def _counter_group_selector(session, a) -> tuple[str, dict[str, Any]]:
-    group = await create_counter_group(
-        session, a.initiative, a.user, name="Secret counters"
-    )
-    return "counter-group", {"counter_group_id": group.id, "format": "json"}
-
-
-@pytest.mark.parametrize(
-    "selector",
-    [_project_selector, _document_selector, _queue_selector, _counter_group_selector],
-    ids=["project", "document", "queue", "counter-group"],
-)
+@pytest.mark.parametrize("tool", list(Tool), ids=lambda tool: tool.value)
 async def test_export_of_content_outside_the_callers_initiative_is_not_found(
-    client: AsyncClient, acting_user, session, selector
+    client: AsyncClient, acting_user, session, tool
 ):
     """The initiative gate, source by source: a member of the same guild who is
     not in the initiative gets 404 (RLS hides the row), exactly like the rest
-    of the initiative boundary."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    source, params = await selector(session, a)
+    of the initiative boundary. Every tool, from the registry."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    await enable_all_tools(session, a.initiative)
+    entity = await create_tool_entity(session, tool, a.initiative, a.user)
     outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
 
-    resp = await _export(client, a, source, headers=outsider.headers, **params)
+    resp = await _export(
+        client,
+        a,
+        tool_export_source(tool),
+        headers=outsider.headers,
+        **{f"{tool.value}_id": entity.id, "format": "json"},
+    )
     assert resp.status_code == 404
 
 
@@ -1298,17 +1339,9 @@ async def test_exporting_a_tool_takes_the_rung_that_may_delete_it(
         initiative=a.initiative,
         initiative_role="member",
     )
-    await route_session_to_guild(session, a.guild.id)
-    session.add(
-        ResourceGrant(
-            resource_type=tool.value,
-            resource_id=entity.id,
-            user_id=editor.user.id,
-            level=ResourceAccessLevel.write,
-            initiative_id=a.initiative.id,
-        )
+    await create_resource_grant(
+        session, entity, user=editor.user, level=ResourceAccessLevel.write
     )
-    await session.commit()
     admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
     source = tool_export_source(tool)
     params = {f"{tool.value}_id": entity.id, "format": "json"}
@@ -1386,17 +1419,7 @@ async def _wiki_with_filed_documents(session, a, acting_user):
     theirs = await create_document(
         session, a.initiative, other.user, name="Their map", content=_page_body("x")
     )
-    await route_session_to_guild(session, a.guild.id)
-    session.add(
-        ResourceGrant(
-            resource_type="document",
-            resource_id=theirs.id,
-            user_id=a.user.id,
-            level=ResourceAccessLevel.read,
-            initiative_id=a.initiative.id,
-        )
-    )
-    await session.commit()
+    await create_resource_grant(session, theirs, user=a.user)
     handout = await _file_document(
         session,
         a,
@@ -1538,7 +1561,7 @@ async def test_a_gallery_exports_as_a_zip_of_its_envelope_and_pictures(
 
 
 # ---------------------------------------------------------------------------
-# Report chrome: locale, timezone, branding, detailed layout
+# Report chrome: locale, branding, detailed layout
 # ---------------------------------------------------------------------------
 
 
@@ -1571,7 +1594,7 @@ async def test_task_export_localizes_report_content(
         "md",
         present=(
             "# Tareas",  # localized title
-            "1 tarea · generado el",  # localized, singular plural form
+            "\n1 tarea\n",  # localized, singular plural form
         ),
     )
 
@@ -1707,31 +1730,6 @@ async def test_pdf_export_carries_guild_brand_header(
     _assert_export(resp, "pdf", present=("Ravenloft Chronicle",))
 
 
-async def test_export_timestamp_uses_requested_timezone(
-    client: AsyncClient, acting_user, session
-):
-    """The "generated at" line renders in the tz the browser sends, not UTC —
-    and an unknown zone falls back to UTC instead of failing the export."""
-    a = await _actor_with_tasks(acting_user, session, count=1)
-
-    # Snapshot the minute on both sides of the request — the render happens
-    # somewhere between, so either minute is a pass (no :59 flake).
-    before = datetime.now(timezone.utc).astimezone(ZoneInfo("Europe/Berlin"))
-    resp = await _export(client, a, "tasks", format="md", tz="Europe/Berlin")
-    after = datetime.now(timezone.utc).astimezone(ZoneInfo("Europe/Berlin"))
-    body = _assert_export(
-        resp,
-        "md",
-        present=(after.strftime("%Z"),),  # CET/CEST, not UTC
-        absent=(" UTC ",),
-    )
-    accepted = {f"generated {t.strftime('%Y-%m-%d %H:%M')}" for t in (before, after)}
-    assert any(stamp in body for stamp in accepted)
-
-    fallback = await _export(client, a, "tasks", format="md", tz="Not/AZone")
-    _assert_export(fallback, "md", present=("UTC",))
-
-
 async def test_detailed_pdf_page_count_is_localized(
     client: AsyncClient, acting_user, session
 ):
@@ -1849,7 +1847,7 @@ async def test_bulk_counter_group_pdf_zip_through_job_path(
     )
     assert queued.status_code == 202
 
-    await _run_worker(monkeypatch, role_session)
+    await _run_worker()
 
     dl = await _download(client, a, queued.json()["id"])
     _assert_export(dl, "zip", disposition=("counter-group-",))
@@ -1971,7 +1969,9 @@ async def test_calendar_export_applies_calendar_sharing(
     """Calendar sharing holds for exports: export-all carries the calendars the
     exporter may export — the ones they own — and leaves out one they can only
     read as well as one not shared with them at all. Asking for either by id
-    is refused, while a guild admin still reaches them by explicit selection."""
+    is refused, while a guild admin still reaches them by explicit selection.
+    The events export takes read access instead, so it carries the readable
+    calendar too, and still nothing unshared."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     await _events_enabled(session, a.initiative)
     b = await acting_user(
@@ -2028,6 +2028,24 @@ async def test_calendar_export_applies_calendar_sharing(
     admin_env = json.loads(_assert_export(admin_resp, "json"))
     assert {e["title"] for e in admin_env["events"]} == {"Hidden"}
 
+    # The events export is a formatted read: what b can see, and nothing more.
+    body = _assert_export(
+        await _export(client, a, "events", headers=b.headers, format="ics"),
+        "ics",
+        disposition=('filename="events.ics"',),
+        present=("SUMMARY:Their session", "SUMMARY:Read only"),
+        absent=("SUMMARY:Hidden",),
+    )
+    assert body.count("BEGIN:VEVENT") == 2
+    named = await _export(
+        client, a, "events", headers=b.headers, calendar_ids=[secret_cal.id]
+    )
+    assert _assert_export(named, "ics").count("BEGIN:VEVENT") == 0
+    left_out = await _export(
+        client, a, "events", headers=b.headers, exclude_calendar_ids=[read_cal.id]
+    )
+    assert "SUMMARY:Read only" not in _assert_export(left_out, "ics")
+
 
 async def test_calendar_export_initiative_filter(
     client: AsyncClient, acting_user, session
@@ -2059,10 +2077,9 @@ async def _all_tools_enabled(session, initiative):
     """Every non-core tool is off by default — flip each initiative master
     switch so the aggregate enumeration includes them.
 
-    Derived from the enum rather than listed, so a new toggleable tool is
-    switched on here the day it exists instead of quietly sitting out the
-    backup tests."""
-    for tool in TOGGLEABLE_TOOLS:
+    Derived from the enum rather than listed, so a new tool is switched on
+    here the day it exists instead of quietly sitting out the backup tests."""
+    for tool in Tool:
         setattr(initiative, tool.view_permission, True)
     session.add(initiative)
     await session.commit()
@@ -2165,16 +2182,7 @@ async def test_initiative_backup_includes_read_only_projects(
         initiative_role="member",
     )
     theirs = await create_project(session, owner.initiative, owner.user, name="Theirs")
-    session.add(
-        ResourceGrant(
-            resource_type="project",
-            resource_id=theirs.id,
-            user_id=exporter.user.id,
-            level=ResourceAccessLevel.read,
-            initiative_id=theirs.initiative_id,
-        )
-    )
-    await session.commit()
+    await create_resource_grant(session, theirs, user=exporter.user)
 
     # Standalone export of the same project: still write-gated.
     denied = await _export(
@@ -2280,7 +2288,7 @@ async def test_guild_export_belongs_to_the_seat(
     admin = await acting_user(guild_role=GuildRole.admin, guild=seat.guild)
     member = await acting_user(guild_role=GuildRole.member, guild=seat.guild)
     for caller in (admin, member):
-        for source, params in (("guild", {}), ("estimate", {"scope": "guild"})):
+        for source, params in (("community", {}), ("estimate", {"scope": "guild"})):
             resp = await _export(
                 client, caller, source, headers=caller.headers, **params
             )
@@ -2310,7 +2318,7 @@ async def test_guild_backup_spans_initiatives_and_refreshes_access(
 
     monkeypatch.setattr(api_deps, "establish_guild_access", counting_establish)
 
-    resp = await _export(client, a, "guild")
+    resp = await _export(client, a, "community")
     archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
     manifest = json.loads(archive.read("manifest.json"))
     assert manifest["type"] == "guild-backup"
@@ -2444,7 +2452,7 @@ async def test_backup_embedded_image_bytes_hit_cap_at_build(
     assert resp.status_code == 202  # pre-flight can't see embedded bytes
     job_id = resp.json()["id"]
 
-    await _run_worker(monkeypatch, role_session)
+    await _run_worker()
 
     body = await _job(client, a, job_id)
     assert body["status"] == ExportJobStatus.failed.value
@@ -2616,7 +2624,7 @@ async def test_guild_export_seat_vacated_fails_closed(
     a = await acting_user(
         guild_role=GuildRole.superadmin, initiative=True, project=True
     )
-    resp = await _export(client, a, "guild")
+    resp = await _export(client, a, "community")
     assert resp.status_code == 202
     job_id = resp.json()["id"]
 
@@ -2624,7 +2632,7 @@ async def test_guild_export_seat_vacated_fails_closed(
     session.add(a.membership)
     await session.commit()
 
-    await _run_worker(monkeypatch, role_session)
+    await _run_worker()
 
     body = await _job(client, a, job_id)
     assert body["status"] == ExportJobStatus.failed.value
@@ -2648,7 +2656,7 @@ async def test_guild_backup_carries_the_community_itself(
     )
     await create_tag(session, a.guild, name="worldbuilding", color="#ff0000")
 
-    resp = await _export(client, a, "guild")
+    resp = await _export(client, a, "community")
     archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
     names = set(archive.namelist())
     assert {"guild/settings.json", "guild/tags.json", "guild/members.json"} <= names
@@ -2743,7 +2751,7 @@ async def test_guild_backup_bundles_blobs_nothing_points_at(
         content_type="application/octet-stream",
     )
 
-    resp = await _export(client, a, "guild", include_uploads=True)
+    resp = await _export(client, a, "community", include_uploads=True)
     archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
     assert f"assets/{orphan_key}" in archive.namelist()
     assert archive.read(f"assets/{orphan_key}") == b"orphan-bytes"
@@ -2806,7 +2814,7 @@ async def test_backup_skips_third_party_dashboards_and_says_so(
     session.add(theirs)
     await session.commit()
 
-    resp = await _export(client, a, "guild")
+    resp = await _export(client, a, "community")
     archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
     manifest = json.loads(archive.read("manifest.json"))
 
@@ -2840,7 +2848,7 @@ async def test_guild_backup_records_apps_it_does_not_carry(
         name="GitHub",
     )
 
-    resp = await _export(client, a, "guild")
+    resp = await _export(client, a, "community")
     archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
     manifest = json.loads(archive.read("manifest.json"))
 
@@ -2897,16 +2905,16 @@ async def test_whole_community_export_has_a_cooldown(
         guild_role=GuildRole.superadmin, initiative=True, project=True
     )
 
-    first = await _export(client, a, "guild")
+    first = await _export(client, a, "community")
     assert first.status_code == 202, first.text
 
-    again = await _export(client, a, "guild")
+    again = await _export(client, a, "community")
     assert again.status_code == 429
     assert again.json()["detail"] == "EXPORT_COOLDOWN_ACTIVE"
 
     # A second holder of the seat does not get a fresh allowance.
     b = await acting_user(guild_role=GuildRole.superadmin, guild=a.guild)
-    theirs = await _export(client, b, "guild", headers=b.headers)
+    theirs = await _export(client, b, "community", headers=b.headers)
     assert theirs.status_code == 429
 
 
@@ -2918,8 +2926,8 @@ async def test_cooldown_can_be_switched_off(
         guild_role=GuildRole.superadmin, initiative=True, project=True
     )
 
-    assert (await _export(client, a, "guild")).status_code == 202
-    assert (await _export(client, a, "guild")).status_code == 202
+    assert (await _export(client, a, "community")).status_code == 202
+    assert (await _export(client, a, "community")).status_code == 202
 
 
 async def test_guild_export_status_says_who_took_the_last_one_and_when(
@@ -2934,7 +2942,7 @@ async def test_guild_export_status_says_who_took_the_last_one_and_when(
         guild_role=GuildRole.superadmin, initiative=True, project=True
     )
 
-    quiet = await client.get(a.g("/exports/guild/status"), headers=a.headers)
+    quiet = await client.get(a.g("/exports/community/status"), headers=a.headers)
     assert quiet.status_code == 200, quiet.text
     body = quiet.json()
     assert body["latest"] is None
@@ -2942,11 +2950,13 @@ async def test_guild_export_status_says_who_took_the_last_one_and_when(
     assert body["next_available_at"] is None
     assert body["cooldown_hours"] == settings.EXPORT_GUILD_COOLDOWN_HOURS
 
-    started = await _export(client, a, "guild")
+    started = await _export(client, a, "community")
     assert started.status_code == 202, started.text
     job_id = started.json()["id"]
 
-    body = (await client.get(a.g("/exports/guild/status"), headers=a.headers)).json()
+    body = (
+        await client.get(a.g("/exports/community/status"), headers=a.headers)
+    ).json()
     assert body["latest"]["id"] == job_id
     assert body["latest"]["status"] == ExportJobStatus.queued.value
     assert body["latest_started_by"] == (
@@ -2961,7 +2971,7 @@ async def test_guild_export_status_says_who_took_the_last_one_and_when(
         hours=settings.EXPORT_GUILD_COOLDOWN_HOURS
     )
 
-    refused = await _export(client, a, "guild")
+    refused = await _export(client, a, "community")
     assert refused.status_code == 429
     left = (available_at - datetime.now(timezone.utc)).total_seconds()
     assert abs(int(refused.headers["Retry-After"]) - left) <= 5
@@ -2974,7 +2984,7 @@ async def test_guild_export_status_is_the_seats(
     seat = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
     admin = await acting_user(guild_role=GuildRole.admin, guild=seat.guild)
 
-    resp = await client.get(admin.g("/exports/guild/status"), headers=admin.headers)
+    resp = await client.get(admin.g("/exports/community/status"), headers=admin.headers)
     assert resp.status_code == 403
     assert resp.json()["detail"] == "EXPORT_SUPERADMIN_REQUIRED"
 
@@ -2991,14 +3001,16 @@ async def test_a_failed_export_is_reported_but_holds_no_door(
         guild_role=GuildRole.superadmin, initiative=True, project=True
     )
 
-    job_id = (await _export(client, a, "guild")).json()["id"]
-    await _run_worker(monkeypatch, role_session)
+    job_id = (await _export(client, a, "community")).json()["id"]
+    await _run_worker()
 
-    body = (await client.get(a.g("/exports/guild/status"), headers=a.headers)).json()
+    body = (
+        await client.get(a.g("/exports/community/status"), headers=a.headers)
+    ).json()
     assert body["latest"]["id"] == job_id
     assert body["latest"]["status"] == ExportJobStatus.failed.value
     assert body["next_available_at"] is None
-    assert (await _export(client, a, "guild")).status_code == 202
+    assert (await _export(client, a, "community")).status_code == 202
 
 
 async def test_an_archive_over_the_download_bound_is_delivered(
@@ -3012,10 +3024,10 @@ async def test_an_archive_over_the_download_bound_is_delivered(
         guild_role=GuildRole.superadmin, initiative=True, project=True
     )
 
-    resp = await _export(client, a, "guild")
+    resp = await _export(client, a, "community")
     assert resp.status_code == 202, resp.text
     job_id = resp.json()["id"]
-    await _run_worker(monkeypatch, role_session)
+    await _run_worker()
 
     body = await _job(client, a, job_id)
     assert body["status"] == ExportJobStatus.done.value, body.get("error")
@@ -3043,9 +3055,9 @@ async def test_a_delivered_archive_is_not_swept_up_by_artifact_gc(
         guild_role=GuildRole.superadmin, initiative=True, project=True
     )
 
-    resp = await _export(client, a, "guild")
+    resp = await _export(client, a, "community")
     job_id = resp.json()["id"]
-    await _run_worker(monkeypatch, role_session)
+    await _run_worker()
 
     body = await _job(client, a, job_id)
     assert body["expires_at"] is None
@@ -3062,9 +3074,9 @@ async def test_over_the_bound_with_no_destination_fails_the_job_clearly(
         guild_role=GuildRole.superadmin, initiative=True, project=True
     )
 
-    resp = await _export(client, a, "guild")
+    resp = await _export(client, a, "community")
     job_id = resp.json()["id"]
-    await _run_worker(monkeypatch, role_session)
+    await _run_worker()
 
     body = await _job(client, a, job_id)
     assert body["status"] == ExportJobStatus.failed.value
@@ -3104,7 +3116,7 @@ async def test_download_redirects_when_storage_can_sign_a_url(
     resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
     assert resp.status_code == 202, resp.text
     job_id = resp.json()["id"]
-    await _run_worker(monkeypatch, role_session)
+    await _run_worker()
     assert (await _job(client, a, job_id))["status"] == ExportJobStatus.done.value
 
     import app.api.v1.tenant_endpoints.exports as exports_module
@@ -3141,7 +3153,7 @@ async def test_download_stays_proxied_unless_the_operator_turns_it_on(
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
     job_id = resp.json()["id"]
-    await _run_worker(monkeypatch, role_session)
+    await _run_worker()
 
     import app.api.v1.tenant_endpoints.exports as exports_module
 

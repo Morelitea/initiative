@@ -163,7 +163,7 @@ def _default_status_index(ordered: list[dict[str, Any]]) -> int:
 
 
 def board_column_statuses(configuration: Any) -> list[str]:
-    """The status names a board's columns hold, left to right.
+    """The status ids a board's columns hold, left to right.
 
     A column can hold several statuses (a "In Progress" column covering both
     *In Progress* and *In Review*), and they are listed in the column's own
@@ -182,18 +182,6 @@ def board_column_statuses(configuration: Any) -> list[str]:
             if isinstance(status, dict) and status.get("id") is not None:
                 names.append(str(status["id"]))
     return names
-
-
-def board_column_status_names(
-    configuration: Any, status_names_by_id: dict[str, str]
-) -> list[str]:
-    """The board's columns as status *names*, which is how statuses are
-    matched everywhere else here — the board reports ids."""
-    return [
-        status_names_by_id[status_id]
-        for status_id in board_column_statuses(configuration)
-        if status_id in status_names_by_id
-    ]
 
 
 def map_issue(

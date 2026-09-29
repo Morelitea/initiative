@@ -10,7 +10,7 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildUser } from "@/__tests__/factories";
+import { buildPage, buildUser } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 
 const importMutate = vi.fn();
@@ -94,7 +94,7 @@ vi.mock("@/hooks/useIntakeSettings", () => ({
 }));
 
 vi.mock("@/hooks/useSettings", () => ({
-  usePlatformGuilds: () => ({ data: [{ id: 3, name: "Operations" }] }),
+  usePlatformGuilds: () => ({ data: buildPage([{ id: 3, name: "Operations" }]) }),
 }));
 
 import { SettingsIntakePage } from "./SettingsIntakePage";

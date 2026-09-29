@@ -4,8 +4,6 @@ import pytest
 
 from app.services.import_engine.people import user_reference_handles
 
-pytestmark = pytest.mark.unit
-
 
 def _value(handle, property_type="user_reference"):
     return {

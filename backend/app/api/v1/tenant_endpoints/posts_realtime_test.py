@@ -12,15 +12,14 @@ moment the room hears about it.
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
 from app.models.tenant.post import Post
-from app.services.realtime import manager
-from app.services.realtime_test import FakeWebSocket
+from app.services.content_sockets import sockets
+from app.testing.sockets import FakeWebSocket, settle, watch_events_bus
 from app.services.tenant import room_sink
 from app.services.tenant.post_publication import publish_due_posts
 from app.testing import (
@@ -33,8 +32,6 @@ from app.testing import (
     lexical_body,
     route_session_to_guild,
 )
-
-pytestmark = pytest.mark.integration
 
 
 async def _posts_enabled(session: AsyncSession, initiative) -> None:
@@ -61,18 +58,19 @@ class _Room:
         self.socket = FakeWebSocket()
 
     async def __aenter__(self) -> "_Room":
-        await manager.connect(
+        watch_events_bus(
             self._guild_id, [self._initiative_id], self.socket, user_id=self._user_id
         )
         await room_sink.process_room_sweep()
         return self
 
     async def __aexit__(self, *exc) -> None:
-        await manager.disconnect(self.socket)
+        sockets.leave(self.socket)  # type: ignore[arg-type]
         room_sink._delivered.pop(self._guild_id, None)
 
     async def catch_up(self) -> None:
         await room_sink.process_room_sweep()
+        await settle()
 
     def changes(self, resource_type: str = "posts") -> list[dict]:
         return [
@@ -86,7 +84,6 @@ class _Room:
         return [change["action"] for change in self.changes(resource_type)]
 
 
-@pytest.mark.asyncio
 async def test_posting_a_notice_tells_the_room(
     client: AsyncClient, acting_user, session
 ):
@@ -115,10 +112,12 @@ async def test_posting_a_notice_tells_the_room(
         # A notice sits directly in its initiative, so it names no parents.
         assert all(c["parents"] == [] for c in changes)
         # Identifiers and an action. The notice itself is not on the bus.
-        assert all(set(c) == {"resource", "parents", "action"} for c in changes)
+        assert all(
+            set(c) == {"resource", "parents", "initiative_id", "action"}
+            for c in changes
+        )
 
 
-@pytest.mark.asyncio
 async def test_a_scheduled_draft_says_nothing_until_it_goes_up(
     client: AsyncClient, acting_user, session
 ):
@@ -143,7 +142,6 @@ async def test_a_scheduled_draft_says_nothing_until_it_goes_up(
         assert room.changes() == []
 
 
-@pytest.mark.asyncio
 async def test_publishing_a_draft_now_tells_the_room(
     client: AsyncClient, acting_user, session
 ):
@@ -180,7 +178,6 @@ async def test_publishing_a_draft_now_tells_the_room(
         assert changes[0]["resource"] == {"type": "posts", "id": post_id}
 
 
-@pytest.mark.asyncio
 async def test_editing_pinning_and_deleting_each_tell_the_room(
     client: AsyncClient, acting_user, session
 ):
@@ -210,7 +207,6 @@ async def test_editing_pinning_and_deleting_each_tell_the_room(
     assert room.actions() == ["updated", "updated", "deleted"]
 
 
-@pytest.mark.asyncio
 async def test_answering_a_poll_tells_the_room_the_tallies_moved(
     client: AsyncClient, acting_user, session
 ):
@@ -245,7 +241,6 @@ async def test_answering_a_poll_tells_the_room_the_tallies_moved(
     assert room.actions() == ["updated", "updated"]
 
 
-@pytest.mark.asyncio
 async def test_a_notice_never_reaches_another_initiatives_room(
     client: AsyncClient, acting_user, session
 ):

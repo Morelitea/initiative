@@ -42,6 +42,13 @@ class Tool(str, Enum):
         return plural_of(self.value)
 
     @property
+    def route_segment(self) -> str:
+        """The kebab plural every route for this tool is served under
+        (``counter_group`` → ``counter-groups``). The frontend's
+        ``toolRouteSegment`` applies the same rule."""
+        return self.plural.replace("_", "-")
+
+    @property
     def view_permission(self) -> str:
         """The role ``PermissionKey`` value gating viewing this tool. For
         toggleable tools it is also the initiative master-switch column."""
@@ -123,12 +130,7 @@ class Tool(str, Enum):
 # initiative that says nothing about its tools still arrives with projects and
 # documents on, so nothing about making one changes; the switch is simply there
 # to turn off now.
-TOGGLEABLE_TOOLS = tuple(Tool)
 DEFAULT_ENABLED_TOOLS = frozenset({Tool.project, Tool.document})
-
-# Tools that appear in the recent-items bar — every tool has a per-entity
-# detail route to return to.
-RECENTABLE_TOOLS = tuple(Tool)
 
 # Tools WITHOUT an export-engine source, and why. Stated as an exclusion so the
 # default is "a new tool is exportable": the adapter-coverage test then fails

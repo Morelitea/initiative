@@ -75,19 +75,17 @@ class ReactionDisabledError(ReactionError):
 class TargetContext:
     """A loaded, authorized reaction target.
 
-    ``title`` labels it in a notification, ``target_path`` is where a tap on
-    that notification lands, and ``author_id`` is who hears about the reaction
-    (None when nobody should).
+    ``title`` labels it in a notification, ``author_id`` is who hears about the
+    reaction (None when nobody should), and ``about`` is what that notice names
+    — a comment's thread, or the post — from which it takes where it sits and
+    where it opens.
     """
 
     target: ReactionTarget
     target_id: int
     title: str
-    target_path: str
     author_id: Optional[int]
-    #: Where a notification about this belongs in the navigation.
-    initiative_id: Optional[int] = None
-    tool: Optional[str] = None
+    about: tuple[str, int]
 
 
 #: Resolver signature: load + authorize one target, or raise.
@@ -123,18 +121,8 @@ async def _resolve_comment(
         target=ReactionTarget.comment,
         target_id=cast(int, comment.id),
         title=ctx.title,
-        target_path=comments_service.comment_target_path(comment, ctx),
         author_id=comment.created_by,
-        initiative_id=ctx.initiative_id,
-        # A tool comment names its own tool; a task comment belongs to the
-        # Projects list the task lives in.
-        tool=(
-            ctx.tool.value
-            if ctx.tool is not None
-            else Tool.project.value
-            if ctx.task is not None
-            else None
-        ),
+        about=(cast(str, ctx.ref_type), ctx.entity_id),
     )
 
 
@@ -152,7 +140,6 @@ async def _resolve_post(
     can read a comment thread can react in it. So the requested ``access`` is
     not passed through — the resource gate is asked for read either way.
     """
-    from app.services import notifications
     from app.services import permissions as permissions_service
     from app.services.tenant import posts as posts_service
 
@@ -165,11 +152,7 @@ async def _resolve_post(
     # takes none and shows none, keeping the ones already on it.
     if not post.reactions_enabled:
         raise ReactionDisabledError(ReactionMessages.DISABLED)
-    # A notice that has not gone up has nothing to react to, and saying
-    # otherwise would say it exists.
     context = db_session.guild_context(session)
-    if permissions_service.hidden_from_reader(Tool.post, post):
-        raise ReactionNotFoundError(ReactionMessages.TARGET_NOT_FOUND)
     try:
         permissions_service.require_access(
             permissions_service.DAC_RESOURCES[Tool.post],
@@ -184,10 +167,8 @@ async def _resolve_post(
         target=ReactionTarget.post,
         target_id=cast(int, post.id),
         title=post.name,
-        target_path=notifications.reference_path(Tool.post, post.id),
         author_id=post.created_by,
-        initiative_id=post.initiative_id,
-        tool=Tool.post.value,
+        about=(Tool.post.value, cast(int, post.id)),
     )
 
 
@@ -431,6 +412,11 @@ async def _queue_reaction_notification(
 
     if ctx.author_id is None or ctx.author_id == reactor.id:
         return
+    # The line names what was reacted to, so it goes only to an author who can
+    # still open it.
+    subject = await notifications.resolve_subject(session, ctx.about)
+    if subject is None or ctx.author_id not in subject.readers:
+        return
     # On the system engine: whether they want to hear about this, and where to
     # write to, are facts about their account rather than about this guild.
     author = await accounts_service.load_one(
@@ -444,10 +430,9 @@ async def _queue_reaction_notification(
         reactor=reactor,
         reaction=reaction,
         context_title=ctx.title,
-        target_path=ctx.target_path,
+        about=ctx.about,
+        subject=subject,
         guild_id=guild_id,
-        initiative_id=ctx.initiative_id,
-        tool=ctx.tool,
     )
 
 

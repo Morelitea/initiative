@@ -165,7 +165,7 @@ def list_loader_options() -> list:
     return [
         selectinload(Gallery.grants).selectinload(ResourceGrant.role),
         selectinload(Gallery.initiative),
-        undefer(Gallery.access_level),
+        undefer(Gallery.actions),
         selectinload(Gallery.cover_image),
     ]
 

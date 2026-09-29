@@ -41,17 +41,36 @@ from app.services.export.adapters._common import (
     envelope_key,
 )
 from app.services.export.contract import RenderItem
+from app.services.permissions import EXPORT_ACCESS
 
 
 class PostAdapter(ToolExportAdapter):
     tool = Tool.post
 
     async def fetch(
-        self, session: AsyncSession, user: User, guild_id: int, post_id: int, /
+        self,
+        session: AsyncSession,
+        user: User,
+        guild_id: int,
+        post_id: int,
+        /,
+        *,
+        access: str = EXPORT_ACCESS,
     ) -> Post:
         from app.services.tenant.posts import get_post_for_export
 
-        return await get_post_for_export(session, user, guild_id, post_id=post_id)
+        return await get_post_for_export(
+            session, user, guild_id, post_id=post_id, access=access
+        )
+
+    async def initiative_ids(
+        self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
+    ) -> list[int]:
+        from app.services.tenant.posts import list_post_ids_for_export
+
+        return await list_post_ids_for_export(
+            session, user, guild_id, initiative_ids=[initiative_id]
+        )
 
     def item(self, post: Post, ctx: BuildContext, /) -> RenderItem:
         return build_post_item(post, ctx.format, ctx.now)

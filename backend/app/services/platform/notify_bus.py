@@ -92,7 +92,7 @@ class NotifyBus:
     def __init__(self) -> None:
         self._connection: Optional[asyncpg.Connection] = None
         self._task: Optional[asyncio.Task] = None
-        self._handlers: dict[str, Handler] = {}
+        self._handlers: dict[str, list[Handler]] = {}
         self._on_connect: list[OnConnect] = []
         self._lock = asyncio.Lock()
         # One statement at a time on the held connection. A connection carries
@@ -109,7 +109,8 @@ class NotifyBus:
     def register(
         self, channel: str, handler: Handler, *, on_connect: OnConnect | None = None
     ) -> None:
-        """Take delivery of one channel.
+        """Take delivery of one channel. A channel may have several handlers,
+        and each hears every frame on it.
 
         Registering before ``start`` is the ordinary case; registering after it
         is honoured on the next connect rather than immediately, because
@@ -120,7 +121,9 @@ class NotifyBus:
         be told for how long, since a connection can drop and return between
         any two of its own passes.
         """
-        self._handlers[channel] = handler
+        handlers = self._handlers.setdefault(channel, [])
+        if handler not in handlers:
+            handlers.append(handler)
         if on_connect is not None:
             self._on_connect.append(on_connect)
 
@@ -225,15 +228,13 @@ class NotifyBus:
                 logger.exception("notify bus: connect hook failed")
 
     def _on_notify(self, _connection, _pid, channel: str, payload: str) -> None:
-        handler = self._handlers.get(channel)
-        if handler is None:
-            return
         # asyncpg calls this from its reader task, so delivery is scheduled
         # rather than awaited. The task is held until it finishes: the loop
         # keeps only a weak reference, and a collected task drops the frame.
-        task = asyncio.create_task(handler(payload))
-        _inflight.add(task)
-        task.add_done_callback(_inflight.discard)
+        for handler in self._handlers.get(channel, ()):
+            task = asyncio.create_task(handler(payload))
+            _inflight.add(task)
+            task.add_done_callback(_inflight.discard)
 
 
 bus = NotifyBus()

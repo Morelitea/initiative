@@ -21,15 +21,6 @@ import pytest
 from conftest import TEST_DATABASE_URL
 from app.core.config import settings
 from app.services.platform import notify_bus, user_stream
-from app.services.platform.user_stream import UserStream
-
-
-class FakeWebSocket:
-    def __init__(self) -> None:
-        self.sent: list[dict] = []
-
-    async def send_json(self, message: dict) -> None:
-        self.sent.append(message)
 
 
 async def _wait_for(predicate, timeout: float = 5.0) -> bool:
@@ -42,14 +33,12 @@ async def _wait_for(predicate, timeout: float = 5.0) -> bool:
     return False
 
 
-@pytest.mark.integration
-async def test_a_frame_crosses_between_two_connections(monkeypatch) -> None:
-    stream = UserStream()
-    monkeypatch.setattr(user_stream, "stream", stream)
+async def test_a_frame_crosses_between_two_connections(
+    account_socket, monkeypatch
+) -> None:
     monkeypatch.setattr(settings, "DATABASE_URL_LISTEN", TEST_DATABASE_URL)
 
-    tab = FakeWebSocket()
-    await stream.connect(7, tab)
+    tab = account_socket(7)
 
     bus = notify_bus.NotifyBus()
     bus.register(user_stream.CHANNEL, user_stream.deliver_remote)
@@ -71,7 +60,7 @@ async def test_a_frame_crosses_between_two_connections(monkeypatch) -> None:
                 json.dumps(
                     {
                         "origin": "a-different-worker",
-                        "user_id": 7,
+                        "user_ids": [7],
                         "frame": user_stream.build_frame("account", "membership"),
                     }
                 ),
@@ -88,19 +77,17 @@ async def test_a_frame_crosses_between_two_connections(monkeypatch) -> None:
         await bus.stop()
 
 
-@pytest.mark.integration
-async def test_our_own_publish_does_not_come_back_around(monkeypatch) -> None:
+async def test_our_own_publish_does_not_come_back_around(
+    account_socket, monkeypatch
+) -> None:
     """The dedupe, end to end: publish delivers locally exactly once.
 
     Our own listener sees the echo and must drop it — otherwise every frame on
     a single-worker install would arrive twice.
     """
-    stream = UserStream()
-    monkeypatch.setattr(user_stream, "stream", stream)
     monkeypatch.setattr(settings, "DATABASE_URL_LISTEN", TEST_DATABASE_URL)
 
-    tab = FakeWebSocket()
-    await stream.connect(7, tab)
+    tab = account_socket(7)
 
     bus = notify_bus.NotifyBus()
     monkeypatch.setattr(notify_bus, "bus", bus)
@@ -110,7 +97,7 @@ async def test_our_own_publish_does_not_come_back_around(monkeypatch) -> None:
         if not await _wait_for(lambda: bus.running, timeout=10.0):
             pytest.skip("this address cannot hold a LISTEN (a transaction pooler)")
 
-        await user_stream.publish(7, user_stream.build_frame("account", "membership"))
+        await user_stream.publish([7], user_stream.build_frame("account", "membership"))
 
         # Give the echo every chance to arrive before claiming it did not.
         await asyncio.sleep(0.5)
@@ -119,7 +106,6 @@ async def test_our_own_publish_does_not_come_back_around(monkeypatch) -> None:
         await bus.stop()
 
 
-@pytest.mark.integration
 async def test_a_burst_of_frames_all_reach_the_bus(monkeypatch) -> None:
     """The fan-out shape: many frames published at once, none lost.
 
@@ -142,7 +128,7 @@ async def test_a_burst_of_frames_all_reach_the_bus(monkeypatch) -> None:
             *[
                 bus.notify(
                     user_stream.CHANNEL,
-                    json.dumps({"origin": "another", "user_id": n, "frame": {}}),
+                    json.dumps({"origin": "another", "user_ids": [n], "frame": {}}),
                 )
                 for n in range(25)
             ],
@@ -155,20 +141,13 @@ async def test_a_burst_of_frames_all_reach_the_bus(monkeypatch) -> None:
         await bus.stop()
 
 
-@pytest.mark.integration
 async def test_a_community_listing_reaches_every_member_on_another_worker(
-    monkeypatch,
+    account_socket, monkeypatch
 ) -> None:
     """The fan-out, end to end: each member's socket gets exactly one frame."""
-    stream = UserStream()
-    monkeypatch.setattr(user_stream, "stream", stream)
     monkeypatch.setattr(settings, "DATABASE_URL_LISTEN", TEST_DATABASE_URL)
 
-    tabs = {}
-    for user_id in range(1, 16):
-        tab = FakeWebSocket()
-        await stream.connect(user_id, tab)
-        tabs[user_id] = tab
+    tabs = {user_id: account_socket(user_id) for user_id in range(1, 16)}
 
     bus = notify_bus.NotifyBus()
     monkeypatch.setattr(notify_bus, "bus", bus)
@@ -178,14 +157,10 @@ async def test_a_community_listing_reaches_every_member_on_another_worker(
         if not await _wait_for(lambda: bus.running, timeout=10.0):
             pytest.skip("this address cannot hold a LISTEN (a transaction pooler)")
 
-        # Published as the after-commit hook does it: one task per member.
-        await asyncio.gather(
-            *[
-                user_stream.publish(
-                    user_id, user_stream.build_frame("account", "community")
-                )
-                for user_id in tabs
-            ]
+        # Published as the after-commit hook does it: one notice naming every
+        # member.
+        await user_stream.publish(
+            list(tabs), user_stream.build_frame("account", "community")
         )
 
         assert await _wait_for(

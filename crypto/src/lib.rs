@@ -20,15 +20,50 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use vodozemac::{
     olm::{Account, AccountPickle, OlmMessage, Session, SessionConfig, SessionPickle},
-    Curve25519PublicKey,
+    Curve25519PublicKey, Ed25519PublicKey, Ed25519Signature,
 };
 use wasm_bindgen::prelude::*;
 
-/// A published key, as the directory carries it.
+/// A published key, as the directory carries it, signed by the device that
+/// published it.
 #[derive(Serialize, Deserialize)]
 pub struct PublishedKey {
     pub key_id: String,
     pub public_key: String,
+    pub signature: String,
+}
+
+/// What a device signs to say which account its keys belong to. The server
+/// verifies the same bytes (``app.services.platform.dm_transport``).
+const DEVICE_TAG: &[u8] = b"initiative-dm-device-v1\0";
+/// What a device signs over each one-time key it publishes, and its fallback.
+const ONE_TIME_KEY_TAG: &[u8] = b"initiative-dm-otk-v1\0";
+const FALLBACK_KEY_TAG: &[u8] = b"initiative-dm-fallback-v1\0";
+
+fn device_bytes(
+    user_id: u64,
+    identity: &Curve25519PublicKey,
+    fingerprint: &Ed25519PublicKey,
+) -> Vec<u8> {
+    [
+        DEVICE_TAG,
+        &user_id.to_be_bytes(),
+        identity.as_bytes(),
+        fingerprint.as_bytes(),
+    ]
+    .concat()
+}
+
+fn key_bytes(key: &Curve25519PublicKey, fallback: bool) -> Vec<u8> {
+    let tag = if fallback { FALLBACK_KEY_TAG } else { ONE_TIME_KEY_TAG };
+    [tag, key.as_bytes()].concat()
+}
+
+fn user_id(value: f64) -> Result<u64, JsError> {
+    if value.fract() != 0.0 || value < 1.0 || value > 9_007_199_254_740_991.0 {
+        return Err(JsError::new("bad user id"));
+    }
+    Ok(value as u64)
 }
 
 #[derive(Serialize)]
@@ -64,6 +99,12 @@ pub struct Encrypted {
     pub session_pickle: String,
     pub message_type: u8,
     pub ciphertext: String,
+}
+
+#[derive(Serialize)]
+pub struct PreKeyInspected {
+    pub session_id: String,
+    pub identity_key: String,
 }
 
 #[derive(Serialize)]
@@ -112,12 +153,17 @@ fn save_session(session: &Session, key: &str) -> Result<String, JsError> {
     Ok(session.pickle().encrypt(&pickle_key(key)?))
 }
 
-fn published(keys: HashMap<vodozemac::KeyId, Curve25519PublicKey>) -> Vec<PublishedKey> {
+fn published(
+    account: &Account,
+    keys: HashMap<vodozemac::KeyId, Curve25519PublicKey>,
+    fallback: bool,
+) -> Vec<PublishedKey> {
     let mut out: Vec<PublishedKey> = keys
         .into_iter()
         .map(|(id, key)| PublishedKey {
             key_id: id.to_base64(),
             public_key: key.to_base64(),
+            signature: account.sign(key_bytes(&key, fallback)).to_base64(),
         })
         .collect();
     // A stable order so a caller comparing two runs sees the same list.
@@ -156,10 +202,10 @@ pub fn generate_keys(
 ) -> Result<JsValue, JsError> {
     let mut account = load_account(pickle, key)?;
     account.generate_one_time_keys(count);
-    let one_time_keys = published(account.one_time_keys());
+    let one_time_keys = published(&account, account.one_time_keys(), false);
     let fallback_key = if with_fallback {
         account.generate_fallback_key();
-        published(account.fallback_key()).into_iter().next()
+        published(&account, account.fallback_key(), true).into_iter().next()
     } else {
         None
     };
@@ -172,23 +218,86 @@ pub fn generate_keys(
     })
 }
 
+/// Sign this device's keys as belonging to `user_id`.
+#[wasm_bindgen]
+pub fn sign_device(pickle: &str, key: &str, user_id_value: f64) -> Result<String, JsError> {
+    let account = load_account(pickle, key)?;
+    let bytes = device_bytes(
+        user_id(user_id_value)?,
+        &account.curve25519_key(),
+        &account.ed25519_key(),
+    );
+    Ok(account.sign(bytes).to_base64())
+}
+
+fn verify(fingerprint: &Ed25519PublicKey, message: &[u8], signature: &str) -> bool {
+    Ed25519Signature::from_base64(signature)
+        .map(|signature| fingerprint.verify(message, &signature).is_ok())
+        .unwrap_or(false)
+}
+
+/// Whether a directory entry's keys were signed, by its own fingerprint key,
+/// as belonging to `user_id`.
+#[wasm_bindgen]
+pub fn verify_device(
+    user_id_value: f64,
+    identity_key: &str,
+    fingerprint_key: &str,
+    signature: &str,
+) -> Result<bool, JsError> {
+    let identity = Curve25519PublicKey::from_base64(identity_key)
+        .map_err(|_| JsError::new("bad identity key"))?;
+    let fingerprint = Ed25519PublicKey::from_base64(fingerprint_key)
+        .map_err(|_| JsError::new("bad fingerprint key"))?;
+    let bytes = device_bytes(user_id(user_id_value)?, &identity, &fingerprint);
+    Ok(verify(&fingerprint, &bytes, signature))
+}
+
 /// Open a session with a device, spending a prekey claimed from the directory.
+///
+/// A signed prekey must verify against the device's fingerprint key; an
+/// unsigned one is accepted only from a device the caller already trusts
+/// unsigned (see the trust module).
 #[wasm_bindgen]
 pub fn create_outbound_session(
     pickle: &str,
     key: &str,
     their_identity_key: &str,
+    their_fingerprint_key: &str,
     their_one_time_key: &str,
+    one_time_key_signature: Option<String>,
+    fallback: bool,
 ) -> Result<JsValue, JsError> {
     let account = load_account(pickle, key)?;
     let identity = Curve25519PublicKey::from_base64(their_identity_key)
         .map_err(|_| JsError::new("bad identity key"))?;
     let one_time = Curve25519PublicKey::from_base64(their_one_time_key)
         .map_err(|_| JsError::new("bad one-time key"))?;
+    if let Some(signature) = one_time_key_signature {
+        let fingerprint = Ed25519PublicKey::from_base64(their_fingerprint_key)
+            .map_err(|_| JsError::new("bad fingerprint key"))?;
+        if !verify(&fingerprint, &key_bytes(&one_time, fallback), &signature) {
+            return Err(JsError::new("one-time key signature does not verify"));
+        }
+    }
     let session = account.create_outbound_session(SessionConfig::version_2(), identity, one_time);
     to_js(&OutboundSession {
         session_id: session.session_id(),
         session_pickle: save_session(&session, key)?,
+    })
+}
+
+/// Which session a pre-key message opens, and who sent it, without opening it.
+#[wasm_bindgen]
+pub fn inspect_prekey(ciphertext: &str) -> Result<JsValue, JsError> {
+    let message = OlmMessage::from_parts(0, &base64_decode(ciphertext)?)
+        .map_err(|_| JsError::new("not a pre-key message"))?;
+    let OlmMessage::PreKey(prekey) = message else {
+        return Err(JsError::new("not a pre-key message"));
+    };
+    to_js(&PreKeyInspected {
+        session_id: prekey.session_id(),
+        identity_key: prekey.identity_key().to_base64(),
     })
 }
 

@@ -1,0 +1,133 @@
+"""Reading a zip an import was handed: opened within its bounds, and each
+member read no further than its cap.
+
+Every zip the import engine reads — a backup, an exported tool's zip, a
+Confluence HTML export, a bundle a fetch wrote — is opened by
+:func:`open_zip` and its members read by :func:`read_member` or
+:func:`read_json_member`. Opening checks the central directory: how many
+members there are, what they declare they add up to, and that every name is a
+relative path. Reading decompresses a member a chunk at a time and stops once
+it passes its cap, whatever size the member declared.
+
+A bundle the app wrote itself from a fetch (``fetched``) is held to the
+fetch's bounds rather than an upload's, as :mod:`limits` explains.
+"""
+
+from __future__ import annotations
+
+import io
+import json
+import zipfile
+from pathlib import Path
+from typing import Any
+
+from app.core.messages import ImportEngineMessages
+from app.services.import_engine import limits as import_limits
+from app.services.import_engine.contract import ImportEngineError
+
+#: How much of a member is decompressed at a time.
+_CHUNK_BYTES = 1024 * 1024
+
+
+def open_zip(payload: bytes | Path, *, fetched: bool = False) -> zipfile.ZipFile:
+    """Open a zip held in memory or read from a file, and check its central
+    directory. Raises ``IMPORT_ZIP_INVALID`` or ``IMPORT_TOO_LARGE`` before
+    any member is read."""
+    max_members = (
+        import_limits.IMPORT_FETCH_MAX_ZIP_MEMBERS
+        if fetched
+        else import_limits.IMPORT_MAX_ZIP_MEMBERS
+    )
+    max_bytes = (
+        import_limits.IMPORT_FETCH_MAX_BUNDLE_BYTES
+        if fetched
+        else import_limits.IMPORT_MAX_BACKUP_UNCOMPRESSED_BYTES
+    )
+    try:
+        archive = zipfile.ZipFile(
+            payload if isinstance(payload, Path) else io.BytesIO(payload)
+        )
+    except Exception as exc:
+        raise ImportEngineError(ImportEngineMessages.IMPORT_ZIP_INVALID) from exc
+    try:
+        infos = archive.infolist()
+        if len(infos) > max_members:
+            raise ImportEngineError(ImportEngineMessages.IMPORT_TOO_LARGE)
+        declared = 0
+        for info in infos:
+            name = info.filename
+            # A bare "/" is a directory entry some zip writers add for the
+            # root; it names nothing and holds nothing.
+            if name == "/" and info.is_dir():
+                continue
+            if name.startswith("/") or ".." in name.split("/"):
+                raise ImportEngineError(ImportEngineMessages.IMPORT_ZIP_INVALID)
+            declared += info.file_size
+            if declared > max_bytes:
+                raise ImportEngineError(ImportEngineMessages.IMPORT_TOO_LARGE)
+    except BaseException:
+        archive.close()
+        raise
+    return archive
+
+
+def json_cap(*, fetched: bool = False) -> int:
+    """The most one JSON member — an envelope or a manifest — may hold."""
+    return (
+        import_limits.IMPORT_FETCH_MAX_ENVELOPE_BYTES
+        if fetched
+        else import_limits.IMPORT_MAX_ENVELOPE_BYTES
+    )
+
+
+def read_member(
+    archive: zipfile.ZipFile,
+    member: str | zipfile.ZipInfo,
+    *,
+    max_bytes: int,
+    code: str = ImportEngineMessages.IMPORT_TOO_LARGE,
+) -> bytes:
+    """One member's bytes, read up to ``max_bytes``.
+
+    A member that declares more than its cap is refused before it is opened,
+    and one that decompresses to more is refused as soon as it passes the
+    cap: at most ``max_bytes`` plus one chunk is ever held. Raises
+    :class:`ImportEngineError` with ``code`` either way, and ``KeyError`` for
+    a name the zip does not hold. Blocking; run it in a thread from async
+    code.
+    """
+    info = member if isinstance(member, zipfile.ZipInfo) else archive.getinfo(member)
+    if info.file_size > max_bytes:
+        raise ImportEngineError(code)
+    chunks: list[bytes] = []
+    total = 0
+    with archive.open(info) as handle:
+        while True:
+            chunk = handle.read(min(_CHUNK_BYTES, max_bytes + 1 - total))
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > max_bytes:
+                raise ImportEngineError(code)
+            chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def read_json_member(
+    archive: zipfile.ZipFile,
+    member: str | zipfile.ZipInfo,
+    *,
+    max_bytes: int,
+    invalid: str = ImportEngineMessages.IMPORT_INVALID_ENVELOPE,
+) -> Any:
+    """One member parsed as JSON, read up to ``max_bytes``.
+
+    Raises ``IMPORT_TOO_LARGE`` for a member past its cap, ``invalid`` for
+    one that is not JSON, and ``KeyError`` for a name the zip does not hold.
+    Blocking; run it in a thread from async code.
+    """
+    data = read_member(archive, member, max_bytes=max_bytes)
+    try:
+        return json.loads(data)
+    except (ValueError, RecursionError) as exc:
+        raise ImportEngineError(invalid) from exc

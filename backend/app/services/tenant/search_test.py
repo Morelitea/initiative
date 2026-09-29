@@ -11,15 +11,12 @@ project the row belongs to.
 
 from __future__ import annotations
 
-import pytest
 from sqlmodel import select
 
 from app.models.platform.guild import GuildRole
 from app.models.tenant.search_entry import SearchEntry
 from app.services.tenant.search import search_scope_clause
 from app.testing import create_task
-
-pytestmark = pytest.mark.integration
 
 
 async def _search(reading_as, *, user_id: int, guild_id: int) -> list[str]:

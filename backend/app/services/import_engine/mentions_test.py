@@ -2,7 +2,6 @@
 
 import copy
 
-import pytest
 
 from app.services.import_engine.mentions import (
     MENTION_HANDLE,
@@ -13,8 +12,6 @@ from app.services.import_engine.mentions import (
     mention_handles_in,
     place_editor_mentions,
 )
-
-pytestmark = pytest.mark.unit
 
 
 def _mention(name: str, user_id: int | None) -> dict:

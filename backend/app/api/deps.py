@@ -1,31 +1,43 @@
-from collections.abc import Callable
-from datetime import datetime, timezone
-from typing import Annotated, NoReturn, Optional
+from collections.abc import Awaitable, Callable, Iterable, Mapping
+from dataclasses import dataclass
+from typing import Annotated, Any, NoReturn, Optional, Sequence
 
 from fastapi import Cookie, Depends, HTTPException, Path, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer
-import jwt
+from sqlalchemy.exc import DBAPIError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.app_access_token import (
+    AccessTokenError,
+    InstallAccessToken,
+    is_access_token,
+    unseal_access_token,
+)
+from app.core.app_scopes import (
+    UnknownAppScope,
+    parse_scope,
+    validate_scopes,
+)
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import API_V1_STR
 from app.core.login_methods import LoginMethod
 from app.core import auth_context
-from app.core.auth_context import (
-    set_api_key_credential,
-    set_asked_of_account,
-    set_device_token_id,
-    set_satisfied_providers,
-    set_session_amr,
-    claims_from_provider_auth,
-    set_satisfied_claims,
-)
+from app.services.auth import credentials
 from app.services.auth import guild_provider_connections as guild_connections
+from app.services.auth.credentials import (
+    DEVICE_TOKEN_SCHEME,
+    HEADER_CREDENTIALS,
+    URL_CREDENTIALS,
+    Authenticated,
+    CredentialKind,
+    CredentialRefused,
+    asked_of_an_account,
+    clear_recorded_credential,
+)
 from app.services.auth.assurance import (
     SECOND_FACTOR_AMR,
     carries_passkey,
-    policy_markers,
 )
 from app.core.login_methods import SecondFactorRequirement
 from app.models.platform.app_setting import AppSetting
@@ -34,6 +46,7 @@ from app.services.platform.app_settings import GLOBAL_SETTINGS_ID
 from app.core import audit_context
 from app.core.messages import (
     AccessGrantMessages,
+    AppMessages,
     AuthMessages,
     DirectMessageMessages,
     GuildMessages,
@@ -42,27 +55,39 @@ from app.core.messages import (
 from app.core.security import (
     SESSION_COOKIE_NAME,
     STEP_UP_CHALLENGE,
-    AutoDelegationVerificationError,
-    UploadTokenError,
-    delegation_possible,
-    delegation_token_kid,
-    decode_session_token,
-    verify_auto_delegation_token,
-    verify_upload_token,
 )
-from app.db.guild_standing import GuildContext
+from app.core.identity_boundary import InstallBoundary, admit_install
+from app.db import cohorts
+from app.db.guild_standing import (
+    ActorContext,
+    GuildContext,
+    InstallContext,
+    named_ref_candidates,
+)
+from app.models.platform.identity_ref import IdentityEntity
 from app.db.schema_provisioning import PLATFORM_SUSPENDED
+from app.db.request_context import (
+    ContentGrantee,
+    SignIn,
+    Install,
+    Member,
+    Platform,
+    SettingsGrantee,
+)
 from app.db.session import (
-    SYSTEM_SATISFIED,
     apply_guild_standing,
+    apply_install_standing,
+    clear_rls_context,
     get_session,
+    get_system_session,
+    restore_rls_context,
+    save_rls_context,
     set_rls_context,
 )
 from app.models.platform.access_grant import (
     AccessGrantPurpose,
     AccessLevel,
 )
-from app.models.platform.api_key import UserApiKey
 from app.models.platform.guild import (
     LIVE_STATUS_VALUES,
     Guild,
@@ -76,15 +101,10 @@ from app.models.platform.user import (
     User,
     UserStatus,
 )
-from app.schemas.platform.token import TokenPayload
-from app.services.auth.subject import account_for_subject
 from app.services.platform import access_grants as access_grants_service
-from app.services.platform import api_keys as api_keys_service
-from app.services.marketplace import registration_lookup
-from app.services.platform import auto_delegation_blocklist
-from app.services.platform import user_tokens
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
+SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl=f"{API_V1_STR}/auth/token", auto_error=False
@@ -98,10 +118,12 @@ _SAFE_HTTP_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 #: through a script is still that person. It matters where the *act* is granting
 #: something authority the credential itself carries, because there the
 #: credential is a party to the decision rather than a way of transporting it.
-CREDENTIAL_SESSION = "session"
-CREDENTIAL_API_KEY = "api_key"
-CREDENTIAL_DEVICE_TOKEN = "device_token"
-CREDENTIAL_DELEGATION = "delegation"
+CREDENTIAL_SESSION = CredentialKind.session.value
+CREDENTIAL_API_KEY = CredentialKind.api_key.value
+CREDENTIAL_DEVICE_TOKEN = CredentialKind.device_token.value
+#: An installed app's access token. Only a route that names an app scope
+#: admits one (:func:`app_scope`).
+CREDENTIAL_INSTALL = "install"
 
 #: The credentials that are somebody signing in, as opposed to something acting
 #: for them in their absence. The native app trades an email and password for a
@@ -110,197 +132,43 @@ CREDENTIAL_DELEGATION = "delegation"
 FIRST_PARTY_CREDENTIALS = frozenset({CREDENTIAL_SESSION, CREDENTIAL_DEVICE_TOKEN})
 
 
-async def _authenticate_device_token(
-    session: AsyncSession, token: str
-) -> Optional[User]:
-    """Authenticate using a device token and return the associated user.
+def _admit(request: Request, authenticated: Authenticated) -> User:
+    """Hand the request the account a credential named, and say which
+    credential it was.
 
-    Records which token it was (see ``app.core.auth_context``). That row is the
-    server's only durable name for one installed client, and two registrations
-    that have to end up pointing at the same phone -- its push token and its
-    message key store -- both read it from there rather than being told an id
-    by the client.
-
-    The token is resolved on the system engine, as a personal API key is; the
-    account it names is loaded on the request's own session.
+    ``read_only`` API keys may only issue safe (non-mutating) HTTP methods;
+    that is the one part of a key's scope that needs the request itself. The
+    guild a key is limited to was recorded where it was read, and the
+    guild-access gate applies it.
     """
-    device_token = await user_tokens.authenticate_device_token(token)
-    if not device_token:
-        return None
-    statement = select(User).where(User.id == device_token.user_id)
-    result = await session.exec(statement)
-    user = result.one_or_none()
-    if user is not None:
-        set_device_token_id(device_token.id)
-    return user
-
-
-async def _authenticate_auto_delegation(
-    request: Request,
-    session: AsyncSession,
-    token: str,
-) -> Optional[User]:
-    """Try to interpret ``token`` as a delegation JWT from initiative-auto.
-
-    Returns the named user when the token verifies; ``None`` otherwise so
-    the caller can fall through to other auth methods (regular JWT, API
-    key, etc.) without 401-ing on what's actually a session-token-shaped
-    bearer arriving at the same header.
-
-    Authorization beyond authentication still happens downstream — this
-    function only resolves identity. RLS, role-permission checks, and
-    master switches gate the actual operation as if the user were
-    calling directly.
-
-    Two security checks fire here in order:
-      1. Token verifies (signature, audience, issuer, required claims).
-      2. ``jti`` is not in the blocklist — first presentation only.
-
-    A verified token also pins the request's guild context. The token names its
-    guild by a ``guild_ref`` claim — the reference the app was given, not a row
-    id — which is resolved here to the guild it stands for and put on
-    ``request.state.delegated_guild_id``: delegation tokens are minted for
-    exactly one guild, and a machine caller has no guild context of its own to
-    resolve from. The resolved guild is validated against the user's memberships
-    and must agree with the ``/g/{guild_id}`` path, so an auto workflow always
-    acts in the guild its token was issued for.
-    """
-    if not delegation_possible():
-        return None  # no app platform here — let other auth paths run
-
-    # Which app signed this decides which keys may verify it. The token names a
-    # `kid`, and the registrations that published it must be enabled and hold
-    # the `delegation` grant, so an operator ends an app's ability to act with
-    # an edit rather than a key rotation. Resolving nothing ends the attempt:
-    # there is no other key this token could be held against.
-    candidates = await registration_lookup.delegation_keys_for(
-        delegation_token_kid(token) or ""
-    )
-
-    # One candidate at a time, so the app this call is attributed to is the one
-    # whose key actually verified. Two apps may publish the same `kid` — it is
-    # an opaque label each picks — and everything downstream (which install must
-    # exist, which app acted) has to follow the signature, not the order.
-    claims = None
-    signer = None
-    for candidate in candidates:
-        try:
-            claims = verify_auto_delegation_token(token, keys=[candidate.key])
-        except AutoDelegationVerificationError:
-            # Could also be a session JWT or API key arriving on the same
-            # header; falling through lets the caller try those.
-            continue
-        signer = candidate
-        break
-
-    if claims is None or signer is None:
-        return None
-
-    request.state.delegating_app = signer.registration.public_id
-
-    # Replay guard: a delegation JWT is one-shot. Even though the JWT is
-    # technically valid for 15 minutes, a captured token must not be
-    # usable a second time. The pre-flight ``is_jti_redeemed`` is a fast
-    # path; the ``record_jti`` insert below is the actual race-safe
-    # guarantee (unique-violation on the PK).
-    if await auto_delegation_blocklist.is_jti_redeemed(session, claims.jti):
-        return None
-
-    # The token names its guild by reference too, so the id everything below
-    # works in is resolved here rather than taken from the token.
-    from app.services.marketplace.app_refs import resolve_app_guild_ref
-
-    resolved_guild = await resolve_app_guild_ref(ref=claims.guild_ref)
-    if resolved_guild is None:
-        return None
-    guild_id, install_id = resolved_guild
-    # Which install this delegate is, here. The reference it named the guild by
-    # was minted for exactly one, so the sector is already settled by the time
-    # the token verifies — and a handler that has to name something back to
-    # this delegate needs the same sector to name it in.
-    request.state.delegating_install_id = install_id
-
-    # The token names its member by the reference the app was given, not by a
-    # user id. Resolving it takes both the guild it was minted in and the app
-    # that signed, which together are the sector it belongs to.
-    resolved = await registration_lookup.resolve_delegated_member(
-        guild_id, signer.registration.public_id, claims.subject
-    )
-    if resolved is None:
-        return None
-
-    statement = select(User).where(User.id == resolved)
-    result = await session.exec(statement)
-    user = result.one_or_none()
-    if user is None or user.status != UserStatus.active:
-        # The member the subject names has been deactivated since it was
-        # minted. A delegate cannot act for a non-active account — workflows
-        # die when their owner leaves, by design.
-        return None
-
-    # Identity settled, authorization next. Two parties have to have said yes:
-    # the guild installed the app, and this member authorized it to carry their
-    # name — to the depth this call needs. Checked against the token's own
-    # claims rather than the path, so it holds for every route a delegated call
-    # can reach, including the cross-guild `/me/*` views that have no path
-    # guild.
-    #
-    # The read/write split follows the request method, the same line
-    # `_enforce_api_key_scope` draws for a read-only PAT.
-    if not await registration_lookup.delegation_allowed(
-        guild_id,
-        signer.registration.public_id,
-        resolved,
-        need_write=request.method not in _SAFE_HTTP_METHODS,
+    api_key = authenticated.api_key
+    if (
+        api_key is not None
+        and api_key.read_only
+        and request.method not in _SAFE_HTTP_METHODS
     ):
-        return None
-
-    # Burn the jti now. Two requests racing past the pre-flight check
-    # collide on the PK and the loser's ``record_jti`` raises
-    # ``DelegationReplayError``, which we convert to the same None
-    # signal — the request will be re-authenticated by another path or
-    # rejected by the standard 401.
-    try:
-        await auto_delegation_blocklist.record_jti(
-            session, jti=claims.jti, expires_at=_delegation_exp_from_jwt(token)
-        )
-    except auto_delegation_blocklist.DelegationReplayError:
-        return None
-
-    # Bind the request to the token's guild (see docstring). Stored on
-    # request.state so the guild-context resolver can read it without the
-    # claims object having to travel through every auth signature.
-    request.state.delegated_guild_id = guild_id
-
-    return user
-
-
-def _delegation_exp_from_jwt(token: str) -> datetime:
-    """Pull the ``exp`` timestamp out of a delegation JWT without
-    re-verifying. Caller has already verified — we just need the value
-    for the blocklist row's ``expires_at`` column so the cleanup job
-    can prune expired entries.
-    """
-    payload = jwt.decode(token, options={"verify_signature": False})
-    return datetime.fromtimestamp(int(payload["exp"]), tz=timezone.utc)
-
-
-def _enforce_api_key_scope(request: Request, api_key: UserApiKey) -> None:
-    """Apply a scoped PAT's restrictions at authentication time.
-
-    ``read_only`` keys may only issue safe (non-mutating) HTTP methods. A
-    ``guild_id``-bound key stashes its guild on ``request.state`` for
-    ``get_guild_membership`` to pin against the ``/g/{guild_id}`` path — the one
-    place that sees both the token's guild and the path's, mirroring how
-    delegation tokens are pinned.
-    """
-    if api_key.read_only and request.method not in _SAFE_HTTP_METHODS:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=UserMessages.API_KEY_READ_ONLY,
         )
-    if api_key.guild_id is not None:
-        request.state.api_key_guild_id = api_key.guild_id
+    request.state.credential = authenticated.kind.value
+    # Which session this request is: what lets an endpoint act on the
+    # account's other ones and leave the caller where they are.
+    if authenticated.session_id is not None:
+        request.state.session_id = str(authenticated.session_id)
+    return authenticated.user
+
+
+def _presented(
+    request: Request, bearer_token: str | None, session_cookie: str | None
+) -> tuple[str | None, frozenset[CredentialKind]]:
+    """The credential a request's headers or cookie carry, and the kinds it
+    may be. The ``DeviceToken`` scheme names its own kind; a bearer token or
+    the session cookie may be a session or a personal API key."""
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("DeviceToken "):
+        return auth_header.removeprefix("DeviceToken "), DEVICE_TOKEN_SCHEME
+    return bearer_token or session_cookie, HEADER_CREDENTIALS
 
 
 async def get_current_user(
@@ -309,116 +177,24 @@ async def get_current_user(
     bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
     session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
 ) -> User:
-    # Start from the fail-closed empty satisfied-provider set; only the session
-    # JWT branch below records a real one (see app.core.auth_context).
-    set_satisfied_providers(None)
-    set_satisfied_claims(None)
-    set_session_amr(None)
-    set_device_token_id(None)
-    set_asked_of_account(None)
-    # Not an API key until the branch below says so, which is the answer a
-    # community that declines them admits.
-    set_api_key_credential(False)
-    # Which kind of credential this turns out to be, for the few endpoints that
-    # care (see `require_first_party_session`). Set before any branch can
-    # return, so an unrecognized path reads as something other than a session.
+    # Nothing recorded until a credential is read, so a request that presents
+    # none reads as something other than a session.
+    clear_recorded_credential()
     request.state.credential = None
-
-    # Check for Authorization header - could be Bearer, DeviceToken, or API key
-    auth_header = request.headers.get("Authorization", "")
-
-    # Handle DeviceToken scheme
-    if auth_header.startswith("DeviceToken "):
-        device_token = auth_header[12:]  # len("DeviceToken ") = 12
-        user = await _authenticate_device_token(session, device_token)
-        if user:
-            request.state.credential = CREDENTIAL_DEVICE_TOKEN
-            return user
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=AuthMessages.INVALID_DEVICE_TOKEN,
-            headers={"WWW-Authenticate": "DeviceToken"},
-        )
-
-    # Use the bearer token from OAuth2 scheme, fall back to HttpOnly cookie (web sessions)
-    token = bearer_token or session_cookie
+    token, allow = _presented(request, bearer_token, session_cookie)
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=AuthMessages.NOT_AUTHENTICATED,
             headers={"WWW-Authenticate": "Bearer"},
         )
-
-    # A personal API key names itself by its prefix; anything else is not one.
-    api_auth = (
-        await api_keys_service.authenticate_api_key(session, token)
-        if token.startswith(api_keys_service.API_KEY_PREFIX)
-        else None
-    )
-    if api_auth:
-        user, api_key = api_auth
-        _enforce_api_key_scope(request, api_key)
-        set_api_key_credential(True)
-        request.state.credential = CREDENTIAL_API_KEY
-        return user
-
-    # Try delegation JWT from initiative-auto (RS256, distinct audience).
-    # Returns None on shape/algorithm mismatch so a regular HS256 session
-    # JWT carrying through this header gracefully falls through to the
-    # next branch.
-    user = await _authenticate_auto_delegation(request, session, token)
-    if user:
-        request.state.credential = CREDENTIAL_DELEGATION
-        return user
-
-    # Try JWT authentication. Any PyJWTError (expired signature, bad sig,
-    # malformed claims, …) is a credentials problem, so it should be 401
-    # "please re-authenticate", not 403 "you're not allowed". The SPA's
-    # 401 interceptor depends on this to auto-redirect to /welcome when
-    # the access token expires.
+    # A credential that cannot be read is 401 "please re-authenticate", not
+    # 403: the SPA's 401 interceptor sends an expired session to /welcome.
     try:
-        payload = decode_session_token(token)
-        token_data = TokenPayload(**payload)
-    except jwt.PyJWTError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS,
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from exc
-
-    # The satisfied-provider set the guild auth-policy gate reads. A
-    # non-session credential never reaches this branch and leaves it empty.
-    set_satisfied_providers(frozenset(token_data.sat or ()))
-    set_satisfied_claims(claims_from_provider_auth(token_data.satd))
-    # What the sign-in wrote about how it was made — the second-factor marker
-    # where a code was presented, the passkey markers where a key answered.
-    # Empty on every credential that is not a session.
-    set_session_amr(policy_markers(token_data.amr))
-
-    if not token_data.sub:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=AuthMessages.INVALID_TOKEN_PAYLOAD,
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    account = await account_for_subject(session, subject=token_data.sub)
-    if not account:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
-        )
-    user, settings_row = account
-    if token_data.ver is None or token_data.ver != user.token_version:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail=AuthMessages.INVALID_TOKEN
-        )
-    # What the deployment asks of an account, off the row the lookup carried.
-    set_asked_of_account(_asked_of_an_account(settings_row))
-    request.state.credential = CREDENTIAL_SESSION
-    # Which session this request is: what lets an endpoint act on the
-    # account's other ones and leave the caller where they are.
-    request.state.session_id = token_data.sid
-    return user
+        authenticated = await credentials.authenticate(session, token, allow=allow)
+    except CredentialRefused as exc:
+        raise exc.as_http() from exc
+    return _admit(request, authenticated)
 
 
 def require_first_party_session(request: Request) -> str:
@@ -459,19 +235,18 @@ async def get_current_user_optional(
         return None
 
 
-async def _account_holds_factor(user: User) -> bool:
+async def _account_holds_factor(user: User, guild_id: int | None) -> bool:
     """Whether this account holds a second factor.
 
     Both credential stores are ``app_admin``-only, so the question goes to the
-    system engine — the shape a personal API key's own lookup already uses.
+    system engine — the shape a personal API key's own lookup already uses —
+    from the cohort of the community the request serves, if it serves one.
 
     Asked afresh each time rather than remembered against the request: the
     answer changes the moment somebody enrols, and that is exactly the moment
     they are trying to get back in.
     """
-    from app.db.session import SystemSessionLocal
-
-    async with SystemSessionLocal() as system_session:
+    async with cohorts.system_session(guild_id) as system_session:
         return await auth_posture.holds_second_factor(system_session, user_id=user.id)
 
 
@@ -479,6 +254,7 @@ async def platform_factor_unmet(
     session: AsyncSession,
     user: User,
     *,
+    guild_id: int | None,
     level: SecondFactorRequirement | None = None,
 ) -> bool:
     """Whether the deployment asks this account for a second factor it lacks.
@@ -498,6 +274,8 @@ async def platform_factor_unmet(
     so the question costs that path no round trip of its own. Left out, it is
     what the credential validator recorded beside the account, and read here
     only where nothing was.
+
+    ``guild_id`` is the community the request serves, or ``None``.
     """
     if SECOND_FACTOR_AMR in auth_context.session_amr():
         auth_context.set_platform_factor(True)
@@ -509,7 +287,7 @@ async def platform_factor_unmet(
     if not auth_posture.rule_covers(level, user.role):
         auth_context.set_platform_factor(True)
         return False
-    held = await _account_holds_factor(user)
+    held = await _account_holds_factor(user, guild_id)
     auth_context.set_platform_factor(held)
     return not held
 
@@ -559,12 +337,15 @@ async def get_current_active_user(
     because this one is the deployment's.
     """
     user = await _active_user(request, current_user)
-    await _require_platform_factor(session, user)
+    await _require_platform_factor(request, session, user)
     return user
 
 
-async def _require_platform_factor(session: AsyncSession, user: User) -> None:
-    if await platform_factor_unmet(session, user):
+async def _require_platform_factor(
+    request: Request, session: AsyncSession, user: User
+) -> None:
+    guild_id = cohorts.addressed_guild_id(request.path_params)
+    if await platform_factor_unmet(session, user, guild_id=guild_id):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED,
@@ -584,7 +365,7 @@ async def get_current_account_holder(
     sessions, its notifications — and nothing another person can see.
     """
     user = await _active_user(request, current_user, admit_suspended=True)
-    await _require_platform_factor(session, user)
+    await _require_platform_factor(request, session, user)
     return user
 
 
@@ -617,6 +398,7 @@ async def get_active_user_exempt_from_factor(
     return await _active_user(request, current_user)
 
 
+CurrentUser = Annotated[User, Depends(get_current_active_user)]
 #: For the handful of routes above. Everything else takes ``CurrentUser``.
 FactorExemptUser = Annotated[User, Depends(get_active_user_exempt_from_factor)]
 
@@ -653,7 +435,7 @@ class GuildAccessError(Exception):
     raises this instead of an ``HTTPException`` so the access decision stays
     independent of how the caller speaks to the client: the REST dependency maps
     it to ``HTTPException(403)``, a WebSocket handler maps it to a ``1008`` close,
-    the keepalive ``sync-content`` POST maps it to its soft-error body. It carries
+    and the collaboration handover POST maps it the way REST does. It carries
     the machine-readable ``detail`` code so the REST mapping is byte-identical to
     the prior inline ``raise HTTPException``.
     """
@@ -675,17 +457,24 @@ class GuildAccessError(Exception):
         super().__init__(detail)
 
 
-def _satp_param(value: frozenset[int] | str) -> list[int] | str:
-    """``set_rls_context`` form of a satisfied set: the system sentinel passes
-    through verbatim, a provider-id set sorts for a deterministic GUC."""
-    return value if isinstance(value, str) else sorted(value)
+def _sign_in(satisfied: frozenset[int], on_behalf: bool) -> SignIn:
+    """How this request's session signed in, as the routing records it: the
+    providers ``satisfied`` names, and the rest as the credential validator
+    recorded it."""
+    return SignIn(
+        providers=tuple(satisfied),
+        claims=auth_context.satisfied_claims(),
+        amr=auth_context.session_amr(),
+        platform_factor=auth_context.platform_factor(),
+        on_behalf=on_behalf,
+    )
 
 
 async def _enforce_guild_auth_policy(
     session: AsyncSession,
     policy: GuildAuthPolicy | None,
     guild_id: int,
-    satisfied: frozenset[int] | str,
+    satisfied: frozenset[int],
     markers: frozenset[str] = frozenset(),
     *,
     require_second_factor: bool = False,
@@ -693,10 +482,11 @@ async def _enforce_guild_auth_policy(
     """Gate 0 of guild access (history/auth-detailed-design.md §5): the guild's
     sign-in policy must be satisfied by THIS session — membership and PAM
     grants alike. No policy row (or ``open``) admits any authenticated
-    session; the SYSTEM_SATISFIED sentinel (user-attributed system work whose
-    enqueueing request already passed this gate) passes. Mirrored at the
-    database layer by ``public.guild_auth_satisfied()`` inside the guild
-    RLS.
+    session.
+
+    Decided by ``public.guild_auth_satisfied()``, which the standing statement
+    asks for every request. This is the same rule read in Python, run once the
+    standing has said no, to name the step-up the session owes.
 
     A row can ask two things and a session has to answer both. ``provider_id``
     names one provider the session must have come through; ``require_methods``
@@ -704,12 +494,8 @@ async def _enforce_guild_auth_policy(
     are one question to ``guild_connection_admits``, which also applies the
     narrowing a community put on the connection.
 
-    ``policy`` is the guild's row as the session may see it, read by whichever
-    branch of :func:`_load_guild_context` got here — a member's read and a
-    grantee's happen under different contexts, and each carries its own.
+    ``policy`` is the guild's row, read under the routed session.
     """
-    if satisfied == SYSTEM_SATISFIED:
-        return
     # Asked of everybody reaching this community, whatever it says about how
     # they arrive — so it is read before a community with no sign-in rule
     # returns. The answer names no provider and no kind of factor: the
@@ -739,9 +525,8 @@ async def _enforce_guild_auth_policy(
 
     # "Any of ours": any connection this community holds, narrowing included.
     # Named rather than counted: ``require_methods`` may hold more than one
-    # method, and each is read as itself. Mirrors the matching leg in
-    # ``public.guild_auth_satisfied()``, which the database applies to the same
-    # row.
+    # method, and each is read as itself. The matching leg in
+    # ``public.guild_auth_satisfied()`` reads the same row.
     if LoginMethod.sso in policy.require_methods and not (
         await guild_connections.admits_this_session(session, guild_id=guild_id)
     ):
@@ -773,12 +558,19 @@ def declines_this_credential(guild: Guild) -> bool:
     off. The key's own ``guild_id`` says nothing here: a key pinned elsewhere
     and a key pinned nowhere both address this guild the same way.
 
-    The rule itself, so the three places that apply it read the same line — the
-    guild-context gate below, the ``/uploads`` route, which resolves the guild
-    itself, and the cross-guild aggregates, which visit each guild in turn (see
-    ``app.services.cross_guild``).
+    The rule itself, so the two places that apply it read the same line — the
+    guild-context gate below and the cross-guild aggregates, which visit each
+    guild in turn (see ``app.services.cross_guild``).
     """
     return not guild.allow_api_keys and auth_context.api_key_credential()
+
+
+def pinned_elsewhere(guild_id: int) -> bool:
+    """Whether this request's API key is limited to a guild other than
+    ``guild_id``. False for a key limited to no guild and for every other
+    credential."""
+    pinned = auth_context.api_key_guild_id()
+    return pinned is not None and pinned != guild_id
 
 
 def _enforce_guild_api_access(guild: Guild) -> None:
@@ -789,38 +581,23 @@ def _enforce_guild_api_access(guild: Guild) -> None:
     not who made it.
 
     Covers every path that resolves its guild through
-    :func:`_load_guild_context`: REST, document downloads, the realtime sockets
-    and the keepalive. The two that resolve one themselves ask the same
-    question where they do it.
+    :func:`_load_guild_context`: REST, uploads and document downloads, the
+    realtime sockets and the keepalive. The cross-guild aggregates, which pick
+    their guilds themselves, ask the same question where they do it.
     """
     if declines_this_credential(guild):
         raise GuildAccessError(detail=GuildMessages.GUILD_API_KEYS_REFUSED)
 
 
-def _asked_of_an_account(settings_row: AppSetting | None) -> SecondFactorRequirement:
-    """What the deployment asks, from the row the gate read.
-
-    A database with no singleton yet asks nothing — the same conclusion
-    ``public.platform_factor_satisfied()`` reaches from the same absence, so
-    the two layers agree on a deployment that has not finished starting.
-    """
-    if settings_row is None:
-        return SecondFactorRequirement.nobody
-    return auth_posture.requirement_from_row(settings_row)
-
-
 async def _read_membership_gate(
     session: AsyncSession, guild_id: int, user_id: int
-) -> (
-    tuple[GuildMembership, Guild, GuildAuthPolicy | None, SecondFactorRequirement, bool]
-    | None
-):
-    """The four rows the gate needs about a member, in one query.
+) -> tuple[GuildMembership, Guild, SecondFactorRequirement, bool] | None:
+    """The three rows the gate needs about a member, in one query.
 
-    ``guild_memberships``, ``guilds`` and ``guild_auth_policies`` all live in
-    ``public`` and are all keyed on the guild this request addresses, so asking
-    for them separately was three trips for one answer. The settings singleton
-    rides along for the same reason — what the deployment asks of an account is
+    ``guild_memberships`` and ``guilds`` both live in ``public`` and are both
+    keyed on the guild this request addresses, so asking for them separately
+    was two trips for one answer. The settings singleton rides along for the
+    same reason — what the deployment asks of an account is
     decided in the same breath as what the community asks of the session, and a
     read of its own would be a round trip on every guild request there is.
 
@@ -831,12 +608,9 @@ async def _read_membership_gate(
     """
     row = (
         await session.exec(
-            select(GuildMembership, Guild, GuildAuthPolicy, AppSetting)
+            select(GuildMembership, Guild, AppSetting)
             .select_from(GuildMembership)
             .outerjoin(Guild, Guild.id == GuildMembership.guild_id)
-            .outerjoin(
-                GuildAuthPolicy, GuildAuthPolicy.guild_id == GuildMembership.guild_id
-            )
             .outerjoin(AppSetting, AppSetting.id == GLOBAL_SETTINGS_ID)
             .where(
                 GuildMembership.guild_id == guild_id,
@@ -846,7 +620,7 @@ async def _read_membership_gate(
     ).one_or_none()
     if row is None:
         return None
-    membership, guild, policy, settings_row = row
+    membership, guild, settings_row = row
     if guild is None:
         raise ValueError(GuildMessages.GUILD_NOT_FOUND)
     # The age switch rides along for the same reason the factor requirement
@@ -855,50 +629,47 @@ async def _read_membership_gate(
     age_gate_on = bool(
         settings_row is not None and settings_row.community_age_gate_enabled
     )
-    return membership, guild, policy, _asked_of_an_account(settings_row), age_gate_on
+    return membership, guild, asked_of_an_account(settings_row), age_gate_on
 
 
 async def _read_grant_gate(
     session: AsyncSession, guild_id: int
-) -> tuple[Guild, GuildAuthPolicy | None, SecondFactorRequirement]:
+) -> tuple[Guild, SecondFactorRequirement]:
     """The same public rows for a grantee, whose PAM context has just been
     applied — a grant reaches the guild row through its own policy leg, so this
     read cannot be folded into the membership one above."""
     row = (
         await session.exec(
-            select(Guild, GuildAuthPolicy, AppSetting)
+            select(Guild, AppSetting)
             .select_from(Guild)
-            .outerjoin(GuildAuthPolicy, GuildAuthPolicy.guild_id == Guild.id)
             .outerjoin(AppSetting, AppSetting.id == GLOBAL_SETTINGS_ID)
             .where(Guild.id == guild_id)
         )
     ).one_or_none()
     if row is None:
         raise ValueError(GuildMessages.GUILD_NOT_FOUND)
-    return row[0], row[1], _asked_of_an_account(row[2])
+    return row[0], asked_of_an_account(row[1])
 
 
 async def _load_guild_context(
     session: AsyncSession,
     current_user: User,
     guild_id: int,
-    satisfied: frozenset[int] | str = frozenset(),
     *,
     for_settings: bool = False,
 ) -> GuildContext:
     """Resolve and validate the guild context for one guild.
 
     ``guild_id`` is the single guild the request operates in (on REST it comes
-    from the ``/g/{guild_id}/...`` path, which is only a selector, never a trust
+    from the ``/c/{guild_id}/...`` path, which is only a selector, never a trust
     boundary). Access is validated fresh on every call — real membership or a
     live PAM grant, else ``GuildAccessError`` — so a stale or mistyped guild id
-    fails closed. The caller has already coerced ``guild_id`` to ``int`` before
-    it reaches the privileged ``SET ROLE``/``search_path`` sink.
+    fails closed. The caller has already coerced ``guild_id`` to ``int``; it
+    names the role and ``search_path`` the session assumes.
 
-    Transport-agnostic: it takes only the resolved ``guild_id``. The REST-only
-    auto-delegation guard (token-guild must equal path-guild) lives in
-    ``get_guild_membership``, where both values exist — WS / keepalive callers
-    have no delegation token, so the shared resolver never deals with one.
+    Transport-agnostic: it takes only the resolved ``guild_id``. A personal
+    API key limited to one guild is refused every other one here, so the rule
+    holds on every surface that resolves a guild through this function.
 
     ``for_settings`` is the community's own configuration surface, which a
     guild administrator keeps while its content is frozen: a ``read_only``
@@ -917,25 +688,24 @@ async def _load_guild_context(
     # still theirs when the suspension lifts.
     if current_user.status == UserStatus.suspended:
         raise GuildAccessError()
+    if pinned_elsewhere(guild_id):
+        raise GuildAccessError()
 
     # Establish the caller context before loading their membership.
-    await set_rls_context(
-        session,
-        user_id=current_user.id,
-    )
+    await set_rls_context(session, Platform(user_id=current_user.id))
 
     gate = await _read_membership_gate(session, guild_id, current_user.id)
     if gate is None:
         # Resolve live grants when the caller has no membership.
-        grant = await access_grants_service.get_live_grant(
+        grants = await access_grants_service.get_live_grants(
             session, user_id=current_user.id, guild_id=guild_id
         )
-        settings_grant = await access_grants_service.get_live_grant(
-            session,
-            user_id=current_user.id,
-            guild_id=guild_id,
-            purpose=AccessGrantPurpose.settings,
-        )
+        grant = grants.get(AccessGrantPurpose.content)
+        # A settings grant reaches the community's configuration and nothing
+        # of its work, so a content request needs the content grant.
+        if grant is None and not for_settings:
+            raise GuildAccessError()
+        settings_grant = grants.get(AccessGrantPurpose.settings)
         if grant is None and settings_grant is None:
             raise GuildAccessError()
         is_read_write = (
@@ -944,37 +714,21 @@ async def _load_guild_context(
         # Establish the grant context before loading guild metadata.
         await set_rls_context(
             session,
-            user_id=current_user.id,
-            pam_guild_id=guild_id,
-            pam_read=True,
-            pam_write=is_read_write,
+            ContentGrantee(
+                guild_id=guild_id, user_id=current_user.id, read_write=is_read_write
+            ),
         )
-        guild, policy, asked = await _read_grant_gate(session, guild_id)
+        guild, asked = await _read_grant_gate(session, guild_id)
         _enforce_guild_api_access(guild)
         # What the deployment asks of the account, before what this community
         # asks of the session. Asked here as well as in the dependency above
         # because the sockets, the keepalive and the stream re-check resolve
         # their guild through this function and never run that one — off the
         # row the read above already carried.
-        if await platform_factor_unmet(session, current_user, level=asked):
+        if await platform_factor_unmet(
+            session, current_user, guild_id=guild_id, level=asked
+        ):
             raise GuildAccessError(GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED)
-        # The guild's sign-in policy binds grantees too — PAM is a scoped
-        # access path, not a policy bypass. Content only, the same line the
-        # membership branch draws: the rule a community sets for coming in
-        # governs its work, and the surface that sets the rule is reachable by
-        # whoever administers the community, which is what a settings grant
-        # lends. The database draws the same line on its own — the standing
-        # statement answers the sign-in question from the rows, and the
-        # initiative gates read that answer whatever this call was for.
-        if not for_settings:
-            await _enforce_guild_auth_policy(
-                session,
-                policy,
-                guild_id,
-                satisfied,
-                auth_context.session_amr(),
-                require_second_factor=guild.require_second_factor,
-            )
         # A grantee holds no membership row, and none is invented for them:
         # what the two grants reach is computed from the rows themselves by
         # the standing statement. ``context.role`` answers ``support`` — the
@@ -989,7 +743,7 @@ async def _load_guild_context(
                 None if settings_grant is None else settings_grant.access_level
             ),
         )
-    membership, guild, policy, asked, age_gate_on = gate
+    membership, guild, asked, age_gate_on = gate
     # Membership access respects the guild's lifecycle status: the statuses
     # that serve members are named, and every other one is refused, on every
     # surface. A suspended community is in time out — its administrators are
@@ -1017,17 +771,10 @@ async def _load_guild_context(
             else GuildMessages.AGE_CONFIRMATION_REQUIRED
         )
     # And the deployment's own question, off the row the gate read carried.
-    if await platform_factor_unmet(session, current_user, level=asked):
+    if await platform_factor_unmet(
+        session, current_user, guild_id=guild_id, level=asked
+    ):
         raise GuildAccessError(GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED)
-    if not for_settings:
-        await _enforce_guild_auth_policy(
-            session,
-            policy,
-            guild_id,
-            satisfied,
-            auth_context.session_amr(),
-            require_second_factor=guild.require_second_factor,
-        )
     return GuildContext(
         guild=guild,
         user_id=current_user.id,
@@ -1040,27 +787,6 @@ async def _load_guild_context(
     )
 
 
-def addressed_guild_id(request: Request, path_guild_id: int) -> int:
-    """Which guild this request operates in.
-
-    Two kinds of caller say it two ways.
-
-    A **browser** says it in the path, and has to: a tab, a download, an
-    ``<img>``, an SSE stream and a WebSocket all carry the guild, and the URL is
-    the only thing all of them can carry (#680 removed the header version).
-
-    A **delegate** says it in its token, and only there. It holds one
-    credential, that credential is for one guild, and which guild was settled
-    when the call authenticated. Our id is an index and its reference is minted
-    for it alone, so neither is a name it should be spelling into a URL — the
-    segment it writes is its own business, and this does not read it.
-
-    See ``history/opaque-identity-design.md`` §13.
-    """
-    delegated = getattr(request.state, "delegated_guild_id", None)
-    return path_guild_id if delegated is None else delegated
-
-
 async def get_guild_membership(
     request: Request,
     session: SessionDep,
@@ -1070,31 +796,24 @@ async def get_guild_membership(
     """The establishment seam for a REST request: who this reader is in the
     community the path addresses, and the session routed to match.
 
-    Every guild-scoped router mounts under ``/g/{guild_id}``, so FastAPI injects
-    the segment here; :func:`addressed_guild_id` decides whether that is the
-    answer or whether the call's delegation already gave one. Membership (or a
-    live PAM grant) is validated fresh; a non-member or stale grant gets 403. A
-    guild-scoped route mounted *outside* the prefix fails at startup (missing
-    path param) — a useful guard that every such route is path-addressed.
+    Every guild-scoped router mounts under ``/c/{guild_id}``, so FastAPI injects
+    the segment here. Membership (or a live PAM grant) is validated fresh; a
+    non-member or stale grant gets 403. A guild-scoped route mounted *outside*
+    the prefix fails at startup (missing path param) — a useful guard that every
+    such route is path-addressed.
 
     The context it returns carries the standing computed in the routed schema,
     so it is resolved and applied together rather than in two steps that could
     disagree. ``RLSSessionDep`` is the other half of this one call: FastAPI
     caches a dependency per request, so it hands back the session this routed.
     """
-    guild_id = addressed_guild_id(request, guild_id)
-    # A guild-bound API key (PAT) is pinned to one guild the same way: refuse if
-    # the path addresses a different guild than the key was scoped to.
-    key_guild = getattr(request.state, "api_key_guild_id", None)
-    if key_guild is not None and key_guild != guild_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_ACCESS_DENIED,
-        )
     try:
         return await establish_guild_access(session, current_user, guild_id)
     except GuildAccessError as exc:
         raise_for_guild_access(exc)
+
+
+GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 def raise_for_guild_access(exc: GuildAccessError) -> NoReturn:
@@ -1175,7 +894,7 @@ def require_seat(
     """Raise 403 unless this request holds the community's seat, by the
     standing — the membership row's, or lent by a settings grant at that
     rung."""
-    if not context.seat:
+    if not context.guild_seat:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
 
 
@@ -1218,6 +937,11 @@ def require_guild_roles(
     return dependency
 
 
+GuildAdminContext = Annotated[
+    GuildContext, Depends(require_guild_roles(GuildRole.admin))
+]
+
+
 def _note_privileged_request(current_user: User, guild_context: GuildContext) -> None:
     """Record on the request's own context which grant is serving it.
 
@@ -1247,8 +971,9 @@ async def apply_guild_session_context(
     session: AsyncSession,
     current_user: User,
     guild_context: GuildContext,
-    satisfied: frozenset[int] | str = frozenset(),
+    satisfied: frozenset[int] = frozenset(),
     *,
+    on_behalf: bool = False,
     for_seat: bool = False,
 ) -> GuildContext:
     """Route ``session`` into ``guild_context``'s community and compute the
@@ -1277,14 +1002,14 @@ async def apply_guild_session_context(
         _note_privileged_request(current_user, guild_context)
         await set_rls_context(
             session,
-            user_id=current_user.id,
-            context=guild_context,
-            settings_guild_id=guild_context.guild_id,
-            seat=seat,
-            platform_role=current_user.role.value,
-            satisfied_providers=_satp_param(satisfied),
-            satisfied_claims=auth_context.satisfied_claims(),
-            session_amr=auth_context.session_amr(),
+            SettingsGrantee(
+                guild_id=guild_context.guild_id,
+                user_id=current_user.id,
+                standing=guild_context,
+                tier=current_user.role.value,
+                sign_in=_sign_in(satisfied, on_behalf),
+                seat=seat,
+            ),
         )
         return await apply_guild_standing(session, guild_context)
 
@@ -1300,45 +1025,38 @@ async def apply_guild_session_context(
         )
         await set_rls_context(
             session,
-            user_id=current_user.id,
-            context=guild_context,
-            guild_id=None,
-            pam_guild_id=guild_context.guild_id,
-            pam_read=True,
-            pam_write=(access_level == AccessLevel.read_write.value),
-            # Break-glass is a pair: the content grant names the community on
-            # the PAM axis, and a settings grant beside it names the same one
-            # on the configuration axis, which is what the shared tables' own
-            # policies read.
-            settings_guild_id=(
-                guild_context.guild_id
-                if guild_context.settings_grant is not None
-                else None
+            ContentGrantee(
+                guild_id=guild_context.guild_id,
+                user_id=current_user.id,
+                standing=guild_context,
+                read_write=access_level == AccessLevel.read_write.value,
+                # Break-glass is a pair: a settings grant beside the content
+                # grant, into the same community.
+                settings=guild_context.settings_grant is not None,
+                tier=current_user.role.value,
+                sign_in=_sign_in(satisfied, on_behalf),
+                seat=seat,
             ),
-            seat=seat,
-            platform_role=current_user.role.value,
-            satisfied_providers=_satp_param(satisfied),
-            satisfied_claims=auth_context.satisfied_claims(),
-            session_amr=auth_context.session_amr(),
         )
         return await apply_guild_standing(session, guild_context)
 
     await set_rls_context(
         session,
-        user_id=current_user.id,
-        context=guild_context,
-        guild_id=guild_context.guild_id,
-        # Recorded, not routed with: the community's own role governs inside
-        # the schema. It is what a later hop back out to ``public`` re-assumes.
-        platform_role=current_user.role.value,
-        # Community in read_only status: the membership legs evaluate normally
-        # but the session assumes the SELECT-only guild_<id>_ro Postgres role,
-        # so content writes are refused by Postgres rather than by app code.
-        read_only=guild_context.content_read_only,
-        seat=seat,
-        satisfied_providers=_satp_param(satisfied),
-        satisfied_claims=auth_context.satisfied_claims(),
-        session_amr=auth_context.session_amr(),
+        Member(
+            guild_id=guild_context.guild_id,
+            user_id=current_user.id,
+            standing=guild_context,
+            # Recorded, not routed with: the community's own role governs
+            # inside the schema. It is what a later hop back out to ``public``
+            # re-assumes.
+            tier=current_user.role.value,
+            sign_in=_sign_in(satisfied, on_behalf),
+            # Community in read_only status: the membership legs evaluate
+            # normally but the session assumes the SELECT-only role, so content
+            # writes are refused by Postgres rather than by app code.
+            read_only=guild_context.content_read_only,
+            seat=seat,
+        ),
     )
     return await apply_guild_standing(session, guild_context)
 
@@ -1360,13 +1078,6 @@ async def get_guild_settings_context(
     the settings that govern them. A suspended community has no settings
     surface for its members: it is in time out.
     """
-    guild_id = addressed_guild_id(request, guild_id)
-    key_guild = getattr(request.state, "api_key_guild_id", None)
-    if key_guild is not None and key_guild != guild_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_ACCESS_DENIED,
-        )
     try:
         return await establish_guild_access(
             session, current_user, guild_id, for_settings=True
@@ -1377,21 +1088,15 @@ async def get_guild_settings_context(
 
 async def get_guild_session(
     session: SessionDep,
-    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+    _guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> AsyncSession:
     """The session :func:`get_guild_membership` routed, for content requests.
 
     The routing and the standing are applied there — one seam call, of which
-    this is the other half — so this adds only the refusal a content request
-    owes a settings-only grant. Context is transaction-local and replayed at
-    the start of every transaction (see ``app.db.session``), so post-commit
-    queries need no manual re-apply.
+    this is the other half. Context is transaction-local and replayed at the
+    start of every transaction (see ``app.db.session``), so post-commit queries
+    need no manual re-apply.
     """
-    if guild_context.is_settings_only:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_ACCESS_DENIED,
-        )
     return session
 
 
@@ -1418,8 +1123,9 @@ async def establish_guild_access(
     session: AsyncSession,
     current_user: User,
     guild_id: int,
-    satisfied_providers: frozenset[int] | str | None = None,
+    satisfied_providers: frozenset[int] | None = None,
     *,
+    on_behalf: bool = False,
     for_settings: bool = False,
     for_seat: bool = False,
 ) -> GuildContext:
@@ -1437,9 +1143,14 @@ async def establish_guild_access(
     ``satisfied_providers`` feeds the guild auth-policy gate and the
     ``app.satisfied_providers`` GUC. ``None`` (the default) reads the ambient
     ``auth_context`` the credential validator recorded — right for every path
-    serving a live session. Explicit values are for the two non-session cases:
-    user-attributed system jobs pass ``SYSTEM_SATISFIED``, and the stream
-    re-auth sweep replays the set captured at socket join.
+    serving a live session. The stream re-auth sweep passes the set captured
+    at socket join.
+
+    ``on_behalf`` is work a job does as the person who asked for it — an
+    export, an import, a published view drawn as its author, a digest. Their
+    own request met the community's sign-in rule when it was made, so the
+    routing answers that rule for them; membership, grants and the standing
+    are resolved exactly as for the person themselves.
     """
     satisfied = (
         auth_context.satisfied_providers()
@@ -1447,11 +1158,493 @@ async def establish_guild_access(
         else satisfied_providers
     )
     guild_context = await _load_guild_context(
-        session, current_user, guild_id, satisfied=satisfied, for_settings=for_settings
+        session, current_user, guild_id, for_settings=for_settings
     )
-    return await apply_guild_session_context(
-        session, current_user, guild_context, satisfied=satisfied, for_seat=for_seat
+    looked_up = save_rls_context(session)
+    guild_context = await apply_guild_session_context(
+        session,
+        current_user,
+        guild_context,
+        satisfied=satisfied,
+        on_behalf=on_behalf,
+        for_seat=for_seat,
     )
+    # The community's sign-in rule governs its work, not the surface that sets
+    # the rule: an administrator keeps that one while their session does not
+    # answer it.
+    if not for_settings and not guild_context.guild_auth_ok:
+        try:
+            await _refuse_sign_in(session, guild_context, satisfied)
+        except GuildAccessError:
+            # Refused, the session goes back to the lookup's context, as a
+            # refusal before routing leaves it: a caller that carries on with
+            # it is not left inside the community.
+            await restore_rls_context(session, looked_up)
+            raise
+    return guild_context
+
+
+async def _refuse_sign_in(
+    session: AsyncSession, guild_context: GuildContext, satisfied: frozenset[int]
+) -> NoReturn:
+    """Refuse a session the standing says does not answer the community's
+    sign-in rule, saying what it is missing.
+
+    The standing statement answered the question from the rows; this reads the
+    rule, under the routing, to name the step-up the caller owes.
+    """
+    guild_id = guild_context.guild_id
+    await _enforce_guild_auth_policy(
+        session,
+        await session.get(GuildAuthPolicy, guild_id),
+        guild_id,
+        satisfied,
+        auth_context.session_amr(),
+        require_second_factor=guild_context.guild.require_second_factor,
+    )
+    raise GuildAccessError()
+
+
+@dataclass(frozen=True)
+class VerifiedInstall:
+    """An install whose token has been verified: the community it is installed
+    in, the install, the client the token was issued to, the scopes it carries,
+    the one initiative it is narrowed to, when it is, and, for a member token,
+    the member it acts for and the purpose they consented to."""
+
+    guild_id: int
+    install_id: int
+    client_id: str
+    scopes: frozenset[str]
+    initiative_id: int | None = None
+    user_id: int | None = None
+    purpose: str | None = None
+
+
+class InstallAccessError(Exception):
+    """Transport-agnostic "this install may not act here" signal.
+
+    Raised by :func:`establish_install_access` when the install's standing is
+    not live, or its community cannot be routed into. The route dependency maps
+    it to 401.
+    """
+
+
+async def establish_install_access(
+    session: AsyncSession,
+    install: VerifiedInstall,
+    named_refs: Sequence[str] = (),
+) -> InstallContext:
+    """Route ``session`` as an installed app and compute its standing — the
+    establishment seam for an install, beside :func:`establish_guild_access`.
+    On a request, ``session`` is the one :func:`get_session` hands out, which
+    is from the cohort of the community the install's token names.
+
+    Two statements and no lookup ahead of them: the routing (the community's
+    ``guild_<id>_app`` role, the install, its client, its token's scopes, the
+    narrowed initiative and, for a member token, the member and the purpose,
+    all from ``install``), and the install standing statement, which reads
+    everything else from rows — for a member token, the member's membership,
+    account and consent among them. The context it returns
+    is what that statement computed, and is stored with the routing for the
+    replay hook.
+
+    ``named_refs`` are the references the request names. The standing
+    statement resolves them in the install's own sector and returns them on
+    the context (``named_refs``), with the install's community reference; they
+    choose rows to look up and decide nothing about access.
+
+    Raises :class:`InstallAccessError` when the standing is not live — the
+    community is not in use, the install or its registration is off, the
+    registration is not the client the token names, or a member token's member
+    has left, is not active or has no live consent — and when the community
+    has no role or schema to route into. The session is left unrouted after a
+    refusal of the second kind, with its transaction rolled back.
+    """
+    try:
+        scopes = validate_scopes(install.scopes)
+    except UnknownAppScope as exc:
+        raise InstallAccessError("unknown scope") from exc
+    pending = InstallContext(
+        guild_id=int(install.guild_id),
+        install_id=int(install.install_id),
+        client_id=install.client_id,
+        token_scopes=scopes,
+        scope_initiative_id=(
+            int(install.initiative_id) if install.initiative_id is not None else None
+        ),
+        member_user_id=int(install.user_id) if install.user_id is not None else None,
+        purpose=install.purpose if install.user_id is not None else None,
+    )
+    try:
+        await set_rls_context(
+            session,
+            Install(
+                guild_id=pending.guild_id,
+                install_id=pending.install_id,
+                standing=pending,
+                token_client_id=pending.client_id,
+                token_scopes=pending.token_scopes,
+                scope_initiative_id=pending.scope_initiative_id,
+                member_user_id=pending.member_user_id,
+                token_purpose=pending.purpose,
+            ),
+        )
+        completed = await apply_install_standing(session, pending, named_refs)
+    except DBAPIError as exc:
+        # A community that was deleted has no role left to assume and no schema
+        # to read, which is the same answer as an install that may not act.
+        clear_rls_context(session)
+        await session.rollback()
+        raise InstallAccessError("community cannot be routed") from exc
+    if not completed.live:
+        raise InstallAccessError("install is not live")
+    return completed
+
+
+#: The attribute a scoped route's dependency carries its scope on, for a walk
+#: over the routes.
+APP_SCOPE_ATTRIBUTE = "__app_scope__"
+#: Every scope the dependency may ask of a request, for the same walk: the one
+#: scope of :func:`app_scope`, each of :func:`app_scope_by`'s and of
+#: :func:`app_scope_checked`'s.
+APP_SCOPES_ATTRIBUTE = "__app_scopes__"
+
+
+def _refuse_install_credential() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS,
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+def _strings_in(value: Any) -> list[str]:
+    """Every string in a parsed JSON document, keys included."""
+    found: list[str] = []
+    pending = [value]
+    while pending:
+        current = pending.pop()
+        if isinstance(current, str):
+            found.append(current)
+        elif isinstance(current, dict):
+            pending.extend(current.keys())
+            pending.extend(current.values())
+        elif isinstance(current, list):
+            pending.extend(current)
+    return found
+
+
+async def _named_refs(request: Request) -> list[str]:
+    """The references an installed app's request names: in its path, its query
+    string and its JSON body.
+
+    Read before FastAPI validates any of them, so the standing statement can
+    resolve them in the same round trip. Starlette keeps the body it read, so
+    the route reads the same bytes after this. A body that is not JSON names
+    nobody here; FastAPI answers for it.
+    """
+    values: list[str] = [str(v) for v in request.path_params.values()]
+    values.extend(v for _, v in request.query_params.multi_items())
+    content_type = request.headers.get("content-type", "")
+    if "json" in content_type and await request.body():
+        try:
+            values.extend(_strings_in(await request.json()))
+        except ValueError:
+            pass
+    return named_ref_candidates(values)
+
+
+async def _establish_install_request(
+    request: Request, session: AsyncSession, token: str, scope: str | None
+) -> InstallContext:
+    """Admit an installed app's request to a route that names ``scope``, or
+    to an :func:`app_scope_checked` route, which names none here (``None``)
+    and checks what the request asks for itself.
+
+    The token is read locally; nothing reaches the database until it has been
+    unsealed and found to be an installation token. Then the seam routes the
+    request's session as the install and computes its standing, the two
+    statements an install pays before its handler. The standing statement also
+    resolves the references the request names, which the route's identity
+    types read while FastAPI validates it (``app.core.identity_boundary``).
+    """
+    try:
+        unsealed = unseal_access_token(token)
+    except AccessTokenError as exc:
+        raise _refuse_install_credential() from exc
+    if not isinstance(unsealed, InstallAccessToken):
+        raise _refuse_install_credential()
+
+    install = VerifiedInstall(
+        guild_id=unsealed.guild_id,
+        install_id=unsealed.install_id,
+        client_id=unsealed.client_id,
+        scopes=unsealed.scopes,
+        initiative_id=unsealed.initiative_id,
+        user_id=unsealed.user_id,
+        purpose=unsealed.purpose,
+    )
+    named = await _named_refs(request)
+    try:
+        context = await establish_install_access(session, install, named)
+    except InstallAccessError as exc:
+        raise _refuse_install_credential() from exc
+
+    request.state.credential = CREDENTIAL_INSTALL
+    audit_context.note_install(
+        app=context.client_id,
+        guild_id=context.guild_id,
+        install_id=context.install_id,
+    )
+    # Whose request this is, for the rate limiter's key (see
+    # ``app.core.rate_limit.get_user_or_ip_key``).
+    request.state.app_install = (
+        context.client_id,
+        context.guild_id,
+        context.install_id,
+    )
+    # Asked of what the standing holds — the token's scopes and the seat's
+    # grant together, with writes off in a read-only community — so a scope
+    # the seat has since taken back answers here on the next request.
+    if scope is not None and not context.holds(scope):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AppMessages.SCOPE_REQUIRED,
+        )
+    admit_install(
+        InstallBoundary(
+            guild_id=context.guild_id,
+            install_id=context.install_id,
+            guild_ref=context.guild_ref,
+            named={
+                ref: (IdentityEntity(entity_type), entity_id)
+                for ref, entity_type, entity_id in context.named_refs
+            },
+            session=session,
+        )
+    )
+    return context
+
+
+def app_scope(scope: str) -> Callable[..., Awaitable[ActorContext]]:
+    """The dependency a route names to admit an installed app, at ``scope``.
+
+    A person passes through to the ordinary seam, exactly as
+    :data:`GuildContextDep` would take them, so one route serves both. An
+    installation token is admitted only here: :func:`get_current_user` refuses
+    one, so a route that names no scope cannot be reached by an app. For an
+    install, the guild comes from the token and the path's ``{guild_id}`` is
+    not read (``history/opaque-identity-design.md`` §13); a token whose scopes
+    do not cover ``scope`` gets 403 (``APP_SCOPE_REQUIRED``).
+
+    Either way the request's session — the one :data:`SessionDep` hands out,
+    which FastAPI resolves once per request — is routed before the handler
+    runs. A scoped route reads it through :data:`ActorSessionDep`.
+
+    A scoped route's router uses ``app.api.actor_route.ActorRoute``. For an
+    install, this dependency hands that route class the boundary its
+    ``PersonId`` and ``GuildId`` fields translate through; an install's request
+    on a route served by any other class is refused.
+
+    The returned callable carries ``scope`` on :data:`APP_SCOPE_ATTRIBUTE`.
+    A route names it the way the type checker reads, as a module-level alias
+    or inline::
+
+        DocumentsRead = Annotated[ActorContext, Depends(app_scope("documents:read"))]
+
+        async def list_documents(actor: DocumentsRead, session: ActorSessionDep): ...
+    """
+    parse_scope(scope)
+
+    async def dependency(
+        request: Request,
+        session: SessionDep,
+        guild_id: Annotated[int, Path(description="Guild this request operates in")],
+        person: Annotated[Optional[User], Depends(get_actor_user)],
+        bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
+    ) -> ActorContext:
+        if person is None:
+            # ``get_actor_user`` answers ``None`` only for an access token.
+            if not bearer_token:
+                raise _refuse_install_credential()
+            return await _establish_install_request(
+                request, session, bearer_token, scope
+            )
+        context = await get_guild_membership(request, session, person, guild_id)
+        return context
+
+    setattr(dependency, APP_SCOPE_ATTRIBUTE, scope)
+    setattr(dependency, APP_SCOPES_ATTRIBUTE, frozenset({scope}))
+    dependency.__name__ = f"app_scope_{scope.replace(':', '_')}"
+    dependency.__qualname__ = dependency.__name__
+    return dependency
+
+
+def app_scope_by(
+    param: str, scopes: Mapping[str, str]
+) -> Callable[..., Awaitable[ActorContext]]:
+    """:func:`app_scope` for a route that serves several kinds of thing, named
+    by the path parameter ``param``: an installed app's request needs
+    ``scopes[<the parameter's value>]``. A value with no entry is one no app
+    may ask about, and an installation token gets 403 (``APP_SCOPE_REQUIRED``)
+    for it. A person passes through to the ordinary seam, as with
+    :func:`app_scope`.
+
+    The returned callable carries every scope it may ask on
+    :data:`APP_SCOPES_ATTRIBUTE`, and ``by <param>`` on
+    :data:`APP_SCOPE_ATTRIBUTE`.
+    """
+    for scope in scopes.values():
+        parse_scope(scope)
+
+    async def dependency(
+        request: Request,
+        session: SessionDep,
+        guild_id: Annotated[int, Path(description="Guild this request operates in")],
+        person: Annotated[Optional[User], Depends(get_actor_user)],
+        bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
+    ) -> ActorContext:
+        if person is None:
+            if not bearer_token:
+                raise _refuse_install_credential()
+            scope = scopes.get(str(request.path_params.get(param)))
+            if scope is None:
+                # Read locally first, so a token that is not one answers 401
+                # whatever it asked for.
+                try:
+                    unseal_access_token(bearer_token)
+                except AccessTokenError as exc:
+                    raise _refuse_install_credential() from exc
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=AppMessages.SCOPE_REQUIRED,
+                )
+            return await _establish_install_request(
+                request, session, bearer_token, scope
+            )
+        context = await get_guild_membership(request, session, person, guild_id)
+        return context
+
+    setattr(dependency, APP_SCOPE_ATTRIBUTE, f"by {param}")
+    setattr(dependency, APP_SCOPES_ATTRIBUTE, frozenset(scopes.values()))
+    dependency.__name__ = f"app_scope_by_{param}"
+    dependency.__qualname__ = dependency.__name__
+    return dependency
+
+
+def app_scope_checked(
+    scopes: Iterable[str], *, per: str
+) -> Callable[..., Awaitable[ActorContext]]:
+    """:func:`app_scope` for a route whose scope depends on what the request
+    asks for, so no one scope fits the route: ``per`` names what decides it
+    (``"event type"``). An installation token is admitted here without a
+    scope asked of it, and the route's own code — its service, once it has
+    read the request — asks each scope the request needs of the install's
+    standing (:meth:`InstallContext.holds`), answering 403
+    (``APP_SCOPE_REQUIRED``) for one it does not hold. A person passes through
+    to the ordinary seam, as with :func:`app_scope`.
+
+    ``scopes`` is every scope such a check may ask, carried on
+    :data:`APP_SCOPES_ATTRIBUTE` for the walk over the routes; ``per <per>``
+    is carried on :data:`APP_SCOPE_ATTRIBUTE`.
+    """
+    asked = frozenset(scopes)
+    if not asked:
+        raise ValueError("a checked app scope names the scopes it may ask")
+    for scope in asked:
+        parse_scope(scope)
+
+    async def dependency(
+        request: Request,
+        session: SessionDep,
+        guild_id: Annotated[int, Path(description="Guild this request operates in")],
+        person: Annotated[Optional[User], Depends(get_actor_user)],
+        bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
+    ) -> ActorContext:
+        if person is None:
+            if not bearer_token:
+                raise _refuse_install_credential()
+            return await _establish_install_request(
+                request, session, bearer_token, None
+            )
+        context = await get_guild_membership(request, session, person, guild_id)
+        return context
+
+    label = per.replace(" ", "_")
+    setattr(dependency, APP_SCOPE_ATTRIBUTE, f"per {per}")
+    setattr(dependency, APP_SCOPES_ATTRIBUTE, asked)
+    dependency.__name__ = f"app_scope_per_{label}"
+    dependency.__qualname__ = dependency.__name__
+    return dependency
+
+
+async def get_actor_user(
+    request: Request,
+    session: SessionDep,
+    bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
+    session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
+) -> Optional[User]:
+    """The person a scoped route serves, or ``None`` for an installed app.
+
+    For a person, the same two dependencies a content route composes, in the
+    same order. An installation token is not read here and costs nothing: the
+    route's :func:`app_scope` dependency admits it. FastAPI resolves this once
+    per request, so a handler that takes :data:`ActorUserDep` beside its scope
+    gets the account the scope dependency authenticated.
+    """
+    if bearer_token and is_access_token(bearer_token):
+        return None
+    user = await get_current_user(request, session, bearer_token, session_cookie)
+    return await get_current_active_user(request, session, user)
+
+
+#: The account a scoped route serves; ``None`` when an installed app calls it.
+ActorUserDep = Annotated[Optional[User], Depends(get_actor_user)]
+
+
+def route_app_scope(route: Any) -> str | None:
+    """The app scope a route names, or ``None``: read from its dependencies."""
+    dependant = getattr(route, "dependant", None)
+    pending = list(getattr(dependant, "dependencies", ()) or ())
+    while pending:
+        current = pending.pop()
+        found = getattr(current.call, APP_SCOPE_ATTRIBUTE, None)
+        if isinstance(found, str):
+            return found
+        pending.extend(current.dependencies or ())
+    return None
+
+
+def route_app_scopes(route: Any) -> frozenset[str]:
+    """Every app scope a route may ask of a request: read from its
+    dependencies. Empty for a route that names none."""
+    dependant = getattr(route, "dependant", None)
+    pending = list(getattr(dependant, "dependencies", ()) or ())
+    while pending:
+        current = pending.pop()
+        found = getattr(current.call, APP_SCOPES_ATTRIBUTE, None)
+        if isinstance(found, frozenset):
+            return found
+        pending.extend(current.dependencies or ())
+    return frozenset()
+
+
+async def get_actor_session(request: Request, session: SessionDep) -> AsyncSession:
+    """The session a scoped route's :func:`app_scope` dependency routed.
+
+    The same instance, since FastAPI resolves :data:`SessionDep` once per
+    request, and every dependency resolves before the handler runs, so by then
+    it is routed as the person or the install. A route that takes this without
+    naming a scope is a wiring mistake, and is refused as one.
+    """
+    if route_app_scope(request.scope.get("route")) is None:
+        raise RuntimeError("ActorSessionDep is for a route that names an app scope")
+    return session
+
+
+#: The routed session of a route that names an app scope.
+ActorSessionDep = Annotated[AsyncSession, Depends(get_actor_session)]
 
 
 async def get_guild_seat_context(
@@ -1473,7 +1666,7 @@ async def get_guild_seat_context(
         )
     except GuildAccessError as exc:
         raise_for_guild_access(exc)
-    if not context.seat:
+    if not context.guild_seat:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=GuildMessages.GUILD_SUPERADMIN_REQUIRED,
@@ -1552,7 +1745,7 @@ SeatWriteSessionDep = Annotated[AsyncSession, Depends(get_guild_seat_write_sessi
 
 
 async def _include_deleted_flag(
-    session: RLSSessionDep,
+    session: SessionDep,
     include_deleted: Annotated[
         bool,
         Query(
@@ -1571,7 +1764,8 @@ async def _include_deleted_flag(
     see ``app.db.soft_delete_filter``) so every load in the handler, including
     the DAC loaders, can resolve a trashed row. Discloses nothing new: RLS and
     the per-resource access checks run unchanged, and the trash surface already
-    shows these rows to the same audience.
+    shows these rows to the same audience. The route's own seam routes the
+    session — a person's or an installed app's — so this only sets the flag.
     """
     if include_deleted:
         session.info["include_deleted"] = True
@@ -1597,11 +1791,7 @@ async def _apply_user_session_context(
         if current_user.status == UserStatus.suspended
         else current_user.role.value
     )
-    await set_rls_context(
-        session,
-        user_id=current_user.id,
-        platform_role=tier,
-    )
+    await set_rls_context(session, Platform(user_id=current_user.id, tier=tier))
     return session
 
 
@@ -1670,77 +1860,6 @@ async def get_user_session(
 UserSessionDep = Annotated[AsyncSession, Depends(get_user_session)]
 
 
-async def _load_active_user_by_id(session: AsyncSession, user_id: int) -> User:
-    """Load a user by id for the uploads route, enforcing active status.
-
-    Shared by the scoped-upload-token path so a deactivated account can't
-    keep pulling media with a still-valid token.
-    """
-    statement = select(User).where(User.id == user_id)
-    result = await session.exec(statement)
-    user = result.one_or_none()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
-        )
-    if user.status != UserStatus.active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
-        )
-    return user
-
-
-async def _authenticate_upload_query_token(
-    session: AsyncSession, token_param: str
-) -> User:
-    """Resolve a ``?token=`` query-param credential for /uploads/*.
-
-    Query params leak via logs, browser history, and Referer headers, so this
-    path deliberately accepts ONLY URL-safe, narrowly-scoped credentials:
-
-      1. A short-lived, uploads-scoped JWT minted by ``POST /auth/upload-token``
-         (native <img>/<iframe> media loads can't send headers or cookies).
-      2. A device token (native long-lived credential, already used this way).
-
-    It intentionally does NOT accept a full session JWT or an API key — those
-    are long-lived, full-API credentials that must never ride in a URL. A
-    session JWT presented here therefore 401s.
-    """
-    # 1. Scoped upload token (preferred for native media).
-    try:
-        (
-            user_id,
-            token_satisfied,
-            token_claims,
-            token_markers,
-        ) = verify_upload_token(token_param)
-    except UploadTokenError:
-        pass
-    else:
-        # The scoped token copied its minting session's satisfied set — record
-        # it so the guild auth-policy gate treats this request as that session.
-        set_satisfied_providers(token_satisfied)
-        set_satisfied_claims(token_claims)
-        set_session_amr(policy_markers(token_markers))
-        return await _load_active_user_by_id(session, user_id)
-
-    # 2. Device token fallback (native apps historically pass these as ?token=).
-    user = await _authenticate_device_token(session, token_param)
-    if user:
-        if user.status != UserStatus.active:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=AuthMessages.INACTIVE_USER,
-            )
-        return user
-
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail=AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS,
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-
 async def _resolve_upload_user(
     request: Request,
     session: SessionDep,
@@ -1750,134 +1869,33 @@ async def _resolve_upload_user(
 ) -> User:
     """Auth dependency for /uploads/* and authenticated document downloads.
 
-    Held to the deployment's second-factor rule like any other request: this
-    resolves its own caller rather than going through
-    ``get_current_active_user``, so it asks the same question itself.
-
     Two trust tiers, by where the credential arrives:
 
-      * Authorization header or HttpOnly cookie — not exposed in URLs, so the
-        full credential set is honored (session JWT, API key, delegation JWT,
-        DeviceToken scheme). This is the web <img> path (cookie) and direct API
-        callers.
+      * Authorization header or HttpOnly cookie — not exposed in URLs, so what
+        every other route accepts is accepted here.
       * ``?token=`` query param — leaks via logs/history/Referer, so only a
-        short-lived uploads-scoped token or a device token is accepted (see
-        ``_authenticate_upload_query_token``). A full session JWT here is
-        rejected; native clients fetch a scoped token from
-        ``POST /auth/upload-token`` instead.
+        short-lived uploads-scoped token or a device token is accepted. A
+        session token or API key there is refused; native clients fetch a
+        scoped token from ``POST /auth/upload-token`` instead.
+
+    Held to the same account status rule as every other route.
     """
-    # Fail-closed default; the session-JWT and scoped-token branches record the
-    # credential's real satisfied set (see app.core.auth_context).
-    set_satisfied_providers(None)
-    set_satisfied_claims(None)
-    set_session_amr(None)
-    set_device_token_id(None)
-    set_api_key_credential(False)
-    set_asked_of_account(None)
-
-    auth_header = request.headers.get("Authorization", "")
-
-    # 1. DeviceToken scheme (Authorization header only — device tokens aren't safe in URLs)
-    if auth_header.startswith("DeviceToken "):
-        device_token = auth_header[12:]  # len("DeviceToken ") = 12
-        user = await _authenticate_device_token(session, device_token)
-        if user:
-            if user.status != UserStatus.active:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=AuthMessages.INACTIVE_USER,
-                )
-            return user
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=AuthMessages.INVALID_DEVICE_TOKEN,
-            headers={"WWW-Authenticate": "DeviceToken"},
-        )
-
-    # 2. Header bearer or cookie carries the full-trust credential. A ?token=
-    #    query param, by contrast, is restricted to URL-safe scoped credentials.
-    header_token = bearer_token or session_cookie
-    if not header_token:
-        if token_param:
-            return await _authenticate_upload_query_token(session, token_param)
+    clear_recorded_credential()
+    request.state.credential = None
+    token, allow = _presented(request, bearer_token, session_cookie)
+    if not token and token_param:
+        token, allow = token_param, URL_CREDENTIALS
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=AuthMessages.NOT_AUTHENTICATED,
             headers={"WWW-Authenticate": "Bearer"},
         )
-
-    token = header_token
-
-    # A personal API key names itself by its prefix; anything else is not one.
-    api_auth = (
-        await api_keys_service.authenticate_api_key(session, token)
-        if token.startswith(api_keys_service.API_KEY_PREFIX)
-        else None
-    )
-    if api_auth:
-        user, api_key = api_auth
-        if user.status != UserStatus.active:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=AuthMessages.INACTIVE_USER,
-            )
-        _enforce_api_key_scope(request, api_key)
-        set_api_key_credential(True)
-        return user
-
-    # Try delegation JWT from initiative-auto. Same chain placement as
-    # ``get_current_user`` so /uploads/* accepts auto-driven workflow
-    # downloads without per-route changes. Falls through on shape /
-    # algorithm / audience mismatch so a regular HS256 session JWT
-    # arriving on the same header still hits the standard JWT branch
-    # below.
-    user = await _authenticate_auto_delegation(request, session, token)
-    if user:
-        # Delegation already enforces ``user.status == active``;
-        # ``_authenticate_auto_delegation`` returned None otherwise.
-        return user
-
-    # Try JWT authentication. Expired / malformed tokens are 401 (not 403)
-    # so the SPA can auto-redirect to /welcome when the session lapses.
     try:
-        payload = decode_session_token(token)
-        token_data = TokenPayload(**payload)
-    except jwt.PyJWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS,
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    if not token_data.sub:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=AuthMessages.INVALID_TOKEN_PAYLOAD,
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    account = await account_for_subject(session, subject=token_data.sub)
-    if not account:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
-        )
-    user, settings_row = account
-    if token_data.ver is None or token_data.ver != user.token_version:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail=AuthMessages.INVALID_TOKEN
-        )
-    set_asked_of_account(_asked_of_an_account(settings_row))
-    if user.status != UserStatus.active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
-        )
-    set_satisfied_providers(frozenset(token_data.sat or ()))
-    set_satisfied_claims(claims_from_provider_auth(token_data.satd))
-    # What the session proved about the person, read from its own ``amr`` as
-    # ``get_current_user`` reads it — a community asking for either answers a
-    # picture and a download the same way it answers a page.
-    set_session_amr(policy_markers(token_data.amr))
-    return user
+        authenticated = await credentials.authenticate(session, token, allow=allow)
+    except CredentialRefused as exc:
+        raise exc.as_http() from exc
+    return await _active_user(request, _admit(request, authenticated))
 
 
 async def get_upload_user(
@@ -1896,7 +1914,8 @@ async def get_upload_user(
     user = await _resolve_upload_user(
         request, session, bearer_token, token_param, session_cookie
     )
-    if await platform_factor_unmet(session, user):
+    guild_id = cohorts.addressed_guild_id(request.path_params)
+    if await platform_factor_unmet(session, user, guild_id=guild_id):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED,

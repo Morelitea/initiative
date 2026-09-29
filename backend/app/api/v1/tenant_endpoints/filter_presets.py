@@ -11,14 +11,14 @@ from typing import Annotated, List, Sequence
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import delete, select
 
+from app.api import resource_access
 from app.api.deps import (
     GuildContext,
     RLSSessionDep,
     SessionDep,
     get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
 )
-from app.api.v1.tenant_endpoints.tasks import _get_project_with_access
 from app.core.messages import FilterPresetMessages, ProjectMessages
 from app.models.platform.user import User
 from app.models.tenant.filter_preset import ProjectFilterPreset
@@ -37,8 +37,6 @@ router = APIRouter(
     prefix="/projects/{project_id}/filter-presets", tags=["filter-presets"]
 )
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
-
 
 async def _require_manageable_project(
     session: SessionDep,
@@ -55,12 +53,12 @@ async def _require_manageable_project(
     hold only read on this project. ``require_project_configure`` is the gate —
     manager, project owner, or guild admin — and an owner holds write anyway.
     """
-    project = await _get_project_with_access(
+    project = await resource_access.load_authorized(
         session,
+        resource_access.governing_tool("tasks"),
         project_id,
         user,
-        context=guild_context,
-        access="read",
+        guild_context,
     )
     if project.archived_at is not None:
         raise HTTPException(
@@ -95,16 +93,16 @@ async def list_filter_presets(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> FilterPresetListResponse:
-    project = await _get_project_with_access(
+    project = await resource_access.load_authorized(
         session,
+        resource_access.governing_tool("tasks"),
         project_id,
         current_user,
-        context=guild_context,
-        access="read",
+        guild_context,
     )
     presets = await filter_presets_service.list_presets(session, project_id)
-    can_manage = permissions_service.can_configure_project(
-        project, context=guild_context
+    can_manage = permissions_service.allows(
+        project, permissions_service.Action.configure
     )
     return FilterPresetListResponse(
         items=[FilterPresetRead.model_validate(preset) for preset in presets],

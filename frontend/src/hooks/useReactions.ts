@@ -8,9 +8,9 @@ import { useQuery } from "@tanstack/react-query";
 
 import type { ReactionSummary, ReactionTarget } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getSuggestedReactionsApiV1GGuildIdReactionsSuggestedGetQueryKey,
-  suggestedReactionsApiV1GGuildIdReactionsSuggestedGet,
-  toggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPut,
+  getSuggestedReactionsApiV1CGuildIdReactionsSuggestedGetQueryKey,
+  suggestedReactionsApiV1CGuildIdReactionsSuggestedGet,
+  toggleReactionApiV1CGuildIdReactionsTargetTypeTargetIdPut,
 } from "@/api/generated/reactions/reactions";
 import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -34,8 +34,8 @@ const INVALIDATE_BY_TARGET: Record<ReactionTarget, () => void> = {
 export const useSuggestedReactions = (options?: QueryOpts<string[]>) => {
   const guildId = useActiveGuildId();
   return useQuery<string[]>({
-    queryKey: getSuggestedReactionsApiV1GGuildIdReactionsSuggestedGetQueryKey(guildId),
-    queryFn: () => suggestedReactionsApiV1GGuildIdReactionsSuggestedGet(guildId),
+    queryKey: getSuggestedReactionsApiV1CGuildIdReactionsSuggestedGetQueryKey(guildId),
+    queryFn: () => suggestedReactionsApiV1CGuildIdReactionsSuggestedGet(guildId),
     // A fixed list; there is no reason to ask again this session.
     staleTime: Number.POSITIVE_INFINITY,
     ...options,
@@ -57,7 +57,7 @@ export const useToggleReaction = (options?: MutationOpts<ReactionSummary, Toggle
   useGuildMutation<ReactionSummary, ToggleReactionVars>(
     {
       mutationFn: (guildId, { targetType, targetId, emoji }) =>
-        toggleReactionApiV1GGuildIdReactionsTargetTypeTargetIdPut(guildId, targetType, targetId, {
+        toggleReactionApiV1CGuildIdReactionsTargetTypeTargetIdPut(guildId, targetType, targetId, {
           emoji,
         }),
       invalidate: (_data, vars) => INVALIDATE_BY_TARGET[vars.targetType]?.(),

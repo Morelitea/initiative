@@ -23,7 +23,7 @@ shortening the session they are in.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from sqlalchemy import Interval, cast, func, literal, update
 from sqlmodel import select
@@ -32,10 +32,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.guild import Guild, GuildMembership
 from app.models.platform.user_token import UserToken, UserTokenPurpose
 from app.services.platform import app_settings as app_settings_service
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
+from app.core.clock import utcnow
 
 
 def _window(hours: int):
@@ -149,7 +146,7 @@ async def apply_to_device_tokens(session: AsyncSession) -> None:
     """
     row = await app_settings_service.get_app_settings(session)
     platform_hours = row.session_max_hours
-    now = _now()
+    now = utcnow()
 
     if platform_hours is not None:
         await session.exec(

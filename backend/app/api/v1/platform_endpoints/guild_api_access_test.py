@@ -20,8 +20,6 @@ from app.testing.factories import (
     get_auth_headers,
 )
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
-
 
 async def _key_headers(client: AsyncClient, headers: dict, **body) -> dict[str, str]:
     """Mint a key for the caller and return the headers that present it."""
@@ -45,24 +43,24 @@ async def test_the_seat_switches_api_access_and_the_guild_list_reads_it(
     )
     headers = get_auth_headers(admin)
 
-    listed = await client.get("/api/v1/guilds/", headers=headers)
+    listed = await client.get("/api/v1/communities/", headers=headers)
     assert [g["allow_api_keys"] for g in listed.json() if g["id"] == guild.id] == [True]
 
     off = await client.put(
-        f"/api/v1/guilds/{guild.id}/api-access",
+        f"/api/v1/communities/{guild.id}/api-access",
         headers=headers,
         json={"allow_api_keys": False},
     )
     assert off.status_code == 200, off.text
     assert off.json() == {"allow_api_keys": False}
 
-    listed = await client.get("/api/v1/guilds/", headers=headers)
+    listed = await client.get("/api/v1/communities/", headers=headers)
     assert [g["allow_api_keys"] for g in listed.json() if g["id"] == guild.id] == [
         False
     ]
 
     on = await client.put(
-        f"/api/v1/guilds/{guild.id}/api-access",
+        f"/api/v1/communities/{guild.id}/api-access",
         headers=headers,
         json={"allow_api_keys": True},
     )
@@ -79,7 +77,7 @@ async def test_only_the_seat_switches_api_access(
     await create_guild_membership(session, user=user, guild=guild, role=role)
 
     response = await client.put(
-        f"/api/v1/guilds/{guild.id}/api-access",
+        f"/api/v1/communities/{guild.id}/api-access",
         headers=get_auth_headers(user),
         json={"allow_api_keys": False},
     )
@@ -98,7 +96,7 @@ async def test_api_access_waits_on_the_master_entitlement(
     )
 
     response = await client.put(
-        f"/api/v1/guilds/{guild.id}/api-access",
+        f"/api/v1/communities/{guild.id}/api-access",
         headers=get_auth_headers(admin),
         json={"allow_api_keys": False},
     )
@@ -141,23 +139,23 @@ async def test_a_key_minted_before_the_switch_stops_reaching_the_guild(
     headers = get_auth_headers(admin)
     key_headers = await _key_headers(client, headers, guild_id=guild.id)
 
-    before = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=key_headers)
+    before = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=key_headers)
     assert before.status_code == 200
 
     await client.put(
-        f"/api/v1/guilds/{guild.id}/api-access",
+        f"/api/v1/communities/{guild.id}/api-access",
         headers=headers,
         json={"allow_api_keys": False},
     )
 
-    after = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=key_headers)
+    after = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=key_headers)
     assert after.status_code == 403
     assert after.json()["detail"] == "GUILD_API_KEYS_REFUSED"
 
     # The same account's own sign-in still reaches it, so what was refused was
     # the credential rather than the membership.
     assert (
-        await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
+        await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=headers)
     ).status_code == 200
 
 
@@ -176,12 +174,12 @@ async def test_an_unpinned_key_does_not_reach_a_guild_that_declines_them(
     key_headers = await _key_headers(client, get_auth_headers(user))
 
     reached = await client.get(
-        f"/api/v1/g/{open_guild.id}/initiatives/", headers=key_headers
+        f"/api/v1/c/{open_guild.id}/initiatives/", headers=key_headers
     )
     assert reached.status_code == 200
 
     refused = await client.get(
-        f"/api/v1/g/{closed.id}/initiatives/", headers=key_headers
+        f"/api/v1/c/{closed.id}/initiatives/", headers=key_headers
     )
     assert refused.status_code == 403
     assert refused.json()["detail"] == "GUILD_API_KEYS_REFUSED"
@@ -190,8 +188,8 @@ async def test_an_unpinned_key_does_not_reach_a_guild_that_declines_them(
 async def test_an_upload_is_not_served_to_a_key_the_guild_declines(
     client: AsyncClient, session: AsyncSession, tmp_path, monkeypatch
 ):
-    """``/uploads`` resolves its guild inline rather than through the gate, so
-    it asks the same question where it does that."""
+    """``/uploads`` reaches its guild through the same seam as REST, so a
+    guild that declines keys declines them there too."""
     from app.core.config import settings
     from app.models.tenant.upload import Upload
     from app.services.storage import get_guild_storage
@@ -221,7 +219,7 @@ async def test_an_upload_is_not_served_to_a_key_the_guild_declines(
     assert (await client.get(path, headers=key_headers)).status_code == 200
 
     await client.put(
-        f"/api/v1/guilds/{guild.id}/api-access",
+        f"/api/v1/communities/{guild.id}/api-access",
         headers=headers,
         json={"allow_api_keys": False},
     )
@@ -259,3 +257,29 @@ async def test_the_cross_guild_aggregate_leaves_out_a_guild_that_declines_keys(
 
     by_key = await client.get("/api/v1/me/projects", headers=key_headers)
     assert {p["name"] for p in by_key.json()["items"]} == {names[open_guild.id]}
+
+
+async def test_a_key_limited_to_one_guild_reads_only_that_guild_across_guilds(
+    client: AsyncClient, session: AsyncSession
+):
+    """``/me/*`` visits each guild the account belongs to; a key limited to
+    one guild visits that one and no other."""
+    user = await create_user(session)
+    pinned = await create_guild(session, creator=user)
+    other = await create_guild(session, creator=user)
+    names = {}
+    for guild in (pinned, other):
+        await create_guild_membership(
+            session, user=user, guild=guild, role=GuildRole.member
+        )
+        initiative = await create_initiative(session, guild, user)
+        project = await create_project(session, initiative, user)
+        names[guild.id] = project.name
+    pinned_id = pinned.id
+
+    headers = get_auth_headers(user)
+    key_headers = await _key_headers(client, headers, guild_id=pinned_id)
+
+    by_key = await client.get("/api/v1/me/projects", headers=key_headers)
+    assert by_key.status_code == 200, by_key.text
+    assert {p["name"] for p in by_key.json()["items"]} == {names[pinned_id]}

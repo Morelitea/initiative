@@ -14,9 +14,11 @@ Two things a caller needs:
     leg the guild home's table uses), the search box, and the page's
     everything/made-by-me toggle.
 
-``sort_merged`` / :func:`count_across_guilds`
-    Ordering and counting over the merged result. Both happen in Python: ids
-    are unique per schema, so a single statement cannot span guilds.
+``sort_key`` / :func:`count_across_guilds`
+    The order a list runs in, as an expression each guild orders by in SQL,
+    and the counts behind the page's tabs. Ids are unique per schema, so no
+    single statement spans guilds: each answers for itself and the caller
+    merges (:func:`cross_guild.page_across_guilds`).
 """
 
 from typing import Any, Callable, Optional, Sequence
@@ -30,10 +32,8 @@ from app.db.guild_standing import GuildContext
 from app.db.session import require_guild_context
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative
-from app.models.tenant.project import Project
 from app.services import permissions as permissions_service
 from app.services.tenant import archive as archive_service
-from app.services.tenant import posts as posts_service
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.services.tenant import search as search_service
 from app.services.tenant.ownership import OWNABLE
@@ -41,10 +41,10 @@ from app.services.tenant.ownership import OWNABLE
 #: What ``sort_by`` accepts on a cross-guild tool list.
 #:
 #: Shorter than :data:`tool_listing.TOOL_SORT_FIELDS` by one: a guild-wide list
-#: orders in SQL and can join the initiative to order by its name, while a
-#: cross-guild list is merged and ordered in Python over the summaries
-#: themselves — and an initiative's name is not something a tool summary
-#: carries. The page's initiative column therefore does not sort.
+#: can join the initiative to order by its name, while a cross-guild list
+#: merges each guild's rows by a key the tool's own row carries — and an
+#: initiative's name is not one. The page's initiative column therefore does
+#: not sort.
 MY_TOOL_SORT_FIELDS = ("name", "updated_at", "created_at")
 
 
@@ -98,14 +98,9 @@ def scope_conditions(
     # the model rather than named per kind.
     conditions.append(archive_service.archive_filter_clause(model, archived=None))
 
-    if tool is Tool.project:
-        # A template is the project list's own second state, and not work.
-        conditions.append(Project.is_template.is_(False))
-
-    if tool is Tool.post:
-        # A scheduled notice has not gone up: it reaches only the people who
-        # could edit it, here as on its own board.
-        conditions.append(posts_service.visibility_clause(user_id, context=context))
+    if "is_template" in model.model_fields:
+        # A template is a blueprint for new work, and not work itself.
+        conditions.append(model.is_template.is_(False))
 
     conditions.append(
         permissions_service.granted_scope_clause(
@@ -126,32 +121,32 @@ def scope_conditions(
     return conditions
 
 
-def sort_merged(
-    items: list,
+def name_key(model: Any) -> ColumnElement[Any]:
+    """A row's name as it sorts: lower-cased and compared bytewise, so every
+    guild orders names alike and their merge agrees with each guild's order."""
+    return func.lower(model.name).collate("C")
+
+
+def sort_key(
+    model: Any,
     sort_by: Optional[str],
     sort_dir: Optional[str],
     *,
-    default: Callable[[Any], Any],
+    default: Callable[[Any], ColumnElement[Any]],
     default_desc: bool = True,
-) -> list:
-    """Order a merged cross-guild list of tool summaries.
+) -> tuple[ColumnElement[Any], bool]:
+    """The expression a cross-guild list orders by, and whether descending.
 
-    ``id`` is always the descending tiebreak, applied as a separate stable
-    pass so it holds whichever way the primary sort runs. A request that names
-    none of :data:`MY_TOOL_SORT_FIELDS` is left in the tool's own default
-    order, which each caller states.
+    A request that names none of :data:`MY_TOOL_SORT_FIELDS` is left in the
+    tool's own default order, which each caller states. The row id is the
+    descending tiebreak either way (:func:`cross_guild.page_across_guilds`).
     """
-    items.sort(key=lambda row: row.id, reverse=True)
-    reverse = sort_dir == "desc"
+    descending = sort_dir == "desc"
     if sort_by == "name":
-        items.sort(key=lambda row: (row.name or "").lower(), reverse=reverse)
-    elif sort_by == "updated_at":
-        items.sort(key=lambda row: row.updated_at, reverse=reverse)
-    elif sort_by == "created_at":
-        items.sort(key=lambda row: row.created_at, reverse=reverse)
-    else:
-        items.sort(key=default, reverse=default_desc)
-    return items
+        return name_key(model), descending
+    if sort_by in ("updated_at", "created_at"):
+        return getattr(model, sort_by), descending
+    return default(model), default_desc
 
 
 async def count_across_guilds(

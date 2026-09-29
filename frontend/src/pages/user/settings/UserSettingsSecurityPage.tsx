@@ -2,6 +2,7 @@ import { type FormEvent, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ApiKeyMetadata } from "@/api/generated/initiativeAPI.schemas";
+import { MessagesDeviceSection } from "@/components/settings/MessagesDeviceSection";
 import { PasskeysSection } from "@/components/settings/PasskeysSection";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { SignedInSection } from "@/components/settings/SignedInSection";
@@ -130,6 +131,8 @@ export const UserSettingsSecurityPage = () => {
       </SettingsSection>
 
       <SignedInSection />
+
+      <MessagesDeviceSection />
 
       {generatedSecret ? (
         <SettingsSection

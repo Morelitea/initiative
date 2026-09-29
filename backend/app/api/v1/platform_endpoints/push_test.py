@@ -8,20 +8,20 @@ endpoints ran as the de-granted bare login role and failed with
 
 from __future__ import annotations
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.services.platform import push_tokens as push_tokens_service
+from app.testing import signed_in_headers
 from app.testing.factories import create_user, get_auth_headers
 
 
-@pytest.mark.integration
 async def test_register_and_unregister_push_token(
     client: AsyncClient, session: AsyncSession
 ):
+    """The device is recorded against the session that registered it."""
     user = await create_user(session)
-    headers = get_auth_headers(user)
+    headers = await signed_in_headers(session, user)
 
     register = await client.post(
         "/api/v1/push/register",
@@ -30,6 +30,11 @@ async def test_register_and_unregister_push_token(
     )
     assert register.status_code == 200
     assert register.json() == {"status": "registered"}
+    (row,) = await push_tokens_service.get_push_tokens_for_user(
+        session, user_id=user.id
+    )
+    await session.refresh(row)
+    assert row.session_id is not None
 
     unregister = await client.request(
         "DELETE",
@@ -41,7 +46,6 @@ async def test_register_and_unregister_push_token(
     assert unregister.json() == {"status": "unregistered"}
 
 
-@pytest.mark.integration
 async def test_unregister_cannot_delete_other_users_token(
     client: AsyncClient, session: AsyncSession
 ):

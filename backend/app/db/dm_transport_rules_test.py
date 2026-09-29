@@ -9,9 +9,12 @@ import uuid
 from datetime import datetime, timezone
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import delete, text
+from sqlalchemy.exc import DBAPIError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.request_context import Platform
+from app.db.session import set_rls_context
 from app.models.platform.contact_grant import (
     ContactGrant,
     ContactGrantKind,
@@ -26,12 +29,10 @@ from app.models.platform.dm_conversation import (
 )
 from app.models.platform.dm_device import DmDevice
 from app.models.platform.dm_one_time_key import DmOneTimeKey
-from app.models.platform.user import User
+from app.models.platform.user import User, UserRole
 from app.models.platform.user_dm_settings import DmPolicy, UserDmSettings
 from app.models.platform.user_ignore import UserIgnore
 from app.testing import create_user
-
-pytestmark = pytest.mark.asyncio
 
 
 async def _policy(session: AsyncSession, user: User, policy: DmPolicy) -> None:
@@ -336,6 +337,148 @@ class TestPendingMembership:
         await session.flush()
 
         assert await _in_conversation(session, alice, conversation) is True
+
+    async def test_an_invitation_is_answered_once_by_its_owner(
+        self, session: AsyncSession
+    ) -> None:
+        alice = await create_user(session)
+        bob = await create_user(session)
+        conversation = await _conversation(session, alice, bob, accepted=False)
+        answer = text(
+            "UPDATE public.dm_conversation_members SET accepted_at = now() "
+            "WHERE conversation_id = :c AND user_id = :u"
+        )
+
+        await _route(session, alice)
+        other = await session.exec(answer.bindparams(c=conversation.id, u=bob.id))
+        assert other.rowcount == 0
+        first = await session.exec(answer.bindparams(c=conversation.id, u=alice.id))
+        assert first.rowcount == 1
+        again = await session.exec(answer.bindparams(c=conversation.id, u=alice.id))
+        assert again.rowcount == 0
+
+
+async def _route(session: AsyncSession, user: User) -> None:
+    """Act as ``user`` on the platform path, where the table policies apply."""
+    await set_rls_context(
+        session, Platform(user_id=user.id, tier=UserRole.member.value)
+    )
+
+
+async def _add_member(
+    session: AsyncSession,
+    conversation: DmConversation,
+    user: User,
+    *,
+    accepted: bool,
+) -> None:
+    await session.exec(
+        text(
+            "INSERT INTO public.dm_conversation_members "
+            "(conversation_id, user_id, joined_at, accepted_at) "
+            "VALUES (:c, :u, now(), :at)"
+        ).bindparams(
+            c=conversation.id,
+            u=user.id,
+            at=datetime.now(timezone.utc) if accepted else None,
+        )
+    )
+
+
+async def _refused(session: AsyncSession, write) -> None:
+    with pytest.raises(DBAPIError, match="row-level security"):
+        async with session.begin_nested():
+            await write()
+
+
+class TestWritingAMembership:
+    """What the request path may write into a roster: its own row only while
+    nobody on the conversation has accepted, somebody else's as an invitation,
+    and somebody else's already accepted only on a pair — and only on a
+    conversation whose roster names both of them."""
+
+    async def test_nobody_is_written_onto_a_roster_that_does_not_name_them(
+        self, session: AsyncSession
+    ) -> None:
+        alice = await create_user(session)
+        bob = await create_user(session)
+        carol = await create_user(session)
+        dave = await create_user(session)
+        for user in (carol, dave):
+            await _policy(session, user, DmPolicy.public)
+        await _open_channel(session, carol, dave)
+        conversation = await _conversation(session, alice, bob)
+
+        await _route(session, carol)
+        await _refused(
+            session, lambda: _add_member(session, conversation, dave, accepted=True)
+        )
+        await _refused(
+            session, lambda: _add_member(session, conversation, dave, accepted=False)
+        )
+
+    async def test_a_member_only_releases_the_roster(
+        self, session: AsyncSession
+    ) -> None:
+        alice = await create_user(session)
+        bob = await create_user(session)
+        carol = await create_user(session)
+        conversation = await _conversation(session, alice, bob)
+        rename = text(
+            "UPDATE public.dm_conversations SET roster_key = :key WHERE id = :c"
+        )
+
+        await _route(session, alice)
+        await _refused(
+            session,
+            lambda: session.exec(
+                rename.bindparams(
+                    key=roster_key([alice.id, bob.id, carol.id]), c=conversation.id
+                )
+            ),
+        )
+        released = await session.exec(rename.bindparams(key=None, c=conversation.id))
+        assert released.rowcount == 1
+
+    async def test_nobody_joins_a_conversation_somebody_has_accepted(
+        self, session: AsyncSession
+    ) -> None:
+        alice = await create_user(session)
+        bob = await create_user(session)
+        carol = await create_user(session)
+        conversation = await _conversation(session, alice, bob)
+
+        await _route(session, carol)
+        await _refused(
+            session,
+            lambda: _add_member(session, conversation, carol, accepted=True),
+        )
+
+    async def test_a_group_member_is_invited_not_added(
+        self, session: AsyncSession
+    ) -> None:
+        alice = await create_user(session)
+        bob = await create_user(session)
+        carol = await create_user(session)
+        dave = await create_user(session)
+        for user in (alice, carol):
+            await _policy(session, user, DmPolicy.public)
+        await _open_channel(session, alice, carol)
+        conversation = await _conversation(session, alice, bob, carol, dave)
+        # Carol declined, and is asked again.
+        await session.exec(
+            delete(DmConversationMember).where(
+                DmConversationMember.conversation_id == conversation.id,
+                DmConversationMember.user_id == carol.id,
+            )
+        )
+
+        await _route(session, alice)
+        await _refused(
+            session,
+            lambda: _add_member(session, conversation, carol, accepted=True),
+        )
+        await _add_member(session, conversation, carol, accepted=False)
 
 
 class TestClaimingAPrekey:

@@ -3,6 +3,7 @@ import hmac
 import logging
 import re
 from collections.abc import Sequence
+from enum import Enum
 from functools import lru_cache
 from urllib.parse import urlsplit
 
@@ -47,12 +48,28 @@ CSP_EMBED_FRAME_ORIGINS = [
     "https://airtable.com",
 ]
 
+
+class CaptchaProvider(str, Enum):
+    """The registration captcha vendors ``CAPTCHA_PROVIDER`` may name."""
+
+    hcaptcha = "hcaptcha"
+    turnstile = "turnstile"
+    recaptcha = "recaptcha"
+
+
+class StorageBackendKind(str, Enum):
+    """Where uploads are kept: ``STORAGE_BACKEND``."""
+
+    local = "local"
+    s3 = "s3"
+
+
 # Captcha providers → the extra origins each needs (script/frame/style/connect).
 # Only the configured provider's origins are added; the gate is off by default.
-CSP_CAPTCHA_ORIGINS = {
-    "hcaptcha": ["https://hcaptcha.com", "https://*.hcaptcha.com"],
-    "turnstile": ["https://challenges.cloudflare.com"],
-    "recaptcha": ["https://www.google.com", "https://www.gstatic.com"],
+CSP_CAPTCHA_ORIGINS: dict[str, list[str]] = {
+    CaptchaProvider.hcaptcha: ["https://hcaptcha.com", "https://*.hcaptcha.com"],
+    CaptchaProvider.turnstile: ["https://challenges.cloudflare.com"],
+    CaptchaProvider.recaptcha: ["https://www.google.com", "https://www.gstatic.com"],
 }
 
 # Origins the SPA fetches non-script assets from via fetch()/XHR, used to build
@@ -270,6 +287,12 @@ class Settings(BaseSettings):
     # where the app reaches Postgres through something that pools per
     # transaction, which cannot hold a subscription open.
     DATABASE_URL_LISTEN: str | None = None
+    # Where reads that may trail the primary by a moment go: dashboard widgets'
+    # SQL and export renders. Point it at a read replica. It connects as the
+    # same login as DATABASE_URL_APP; when DATABASE_URL names the owner, give
+    # only the host and database and the app fills in that login. Unset, those
+    # reads use DATABASE_URL_APP.
+    DATABASE_URL_QUERY: str | None = None
     # How long a pooled connection may live before it is retired and replaced.
     #
     # A backend permanently caches catalog entries for every table it touches
@@ -280,6 +303,21 @@ class Settings(BaseSettings):
     # again long before it has been idle long enough to trip one, so age is
     # the only bound that actually applies. 0 disables recycling.
     DB_POOL_RECYCLE_SECONDS: int = 1800
+    # Connections each request and system pool keeps open, and how many more it
+    # may open under load. With DB_COHORTS above 1 these size every cohort's
+    # request pool, not their total.
+    DB_POOL_SIZE: int = 5
+    DB_MAX_OVERFLOW: int = 10
+    # How many groups ("cohorts") communities are divided into. Each cohort has
+    # a request pool of its own, and a connection only ever serves its own
+    # cohort's communities, so the catalog each database connection caches is
+    # a K-th of the whole. 1 is one shared pool.
+    DB_COHORTS: int = 1
+    # The database name each cohort's connections ask for, with ``{cohort}``
+    # standing for its number: ``initiative_c{cohort}`` behind a pooler that
+    # gives each cohort an alias of its own. Unset, every cohort connects to
+    # the database DATABASE_URL_APP names.
+    DB_COHORT_DATABASE: str | None = None
 
     SECRET_KEY: str
     # Optional: the *previous* SECRET_KEY, set only while rotating the encryption
@@ -311,6 +349,38 @@ class Settings(BaseSettings):
     # gone.
     AUTH_ACCESS_TTL_MINUTES: int = 15
     AUTH_REFRESH_TTL_DAYS: int = 30
+
+    @field_validator("DB_COHORTS", "DB_POOL_SIZE")
+    @classmethod
+    def _at_least_one(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("must be at least 1")
+        return value
+
+    @field_validator("DB_MAX_OVERFLOW")
+    @classmethod
+    def _not_negative(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("must not be negative")
+        return value
+
+    @field_validator("DB_COHORT_DATABASE")
+    @classmethod
+    def _names_the_cohort(cls, value: str | None) -> str | None:
+        if not value:
+            return None
+        if "{cohort}" not in value:
+            raise ValueError(
+                "DB_COHORT_DATABASE must contain {cohort}, which stands for the "
+                "cohort's number"
+            )
+        try:
+            value.format(cohort=0)
+        except (KeyError, IndexError, ValueError) as exc:
+            raise ValueError(
+                "DB_COHORT_DATABASE may contain {cohort} and nothing else in braces"
+            ) from exc
+        return value
 
     @field_validator("SECRET_KEY")
     @classmethod
@@ -368,6 +438,7 @@ class Settings(BaseSettings):
                 f"makes them."
             )
         if has_app:
+            self._check_query_login()
             return self
         if self.DATABASE_URL_BOOTSTRAP:
             raise ValueError(
@@ -386,8 +457,28 @@ class Settings(BaseSettings):
                 password=derive_database_password(self.SECRET_KEY, role),
             )
             setattr(self, setting, login.render_as_string(hide_password=False))
+        if self.DATABASE_URL_QUERY:
+            request_login = make_url(self.DATABASE_URL_APP)
+            self.DATABASE_URL_QUERY = (
+                make_url(self.DATABASE_URL_QUERY)
+                .set(username=request_login.username, password=request_login.password)
+                .render_as_string(hide_password=False)
+            )
         self._database_logins_derived = True
         return self
+
+    def _check_query_login(self) -> None:
+        """DATABASE_URL_QUERY connects as DATABASE_URL_APP's login, the one
+        the query roles are granted to."""
+        if not self.DATABASE_URL_QUERY:
+            return
+        query_login = make_url(self.DATABASE_URL_QUERY).username
+        request_login = make_url(self.DATABASE_URL_APP).username
+        if query_login != request_login:
+            raise ValueError(
+                f"DATABASE_URL_QUERY connects as {query_login!r}, but it must use "
+                f"the same login as DATABASE_URL_APP ({request_login!r})."
+            )
 
     @property
     def database_logins_derived(self) -> bool:
@@ -462,15 +553,6 @@ class Settings(BaseSettings):
             if origin and origin not in origins:
                 origins.append(origin)
         return origins
-
-    @property
-    def content_security_policy(self) -> str:
-        """Enforced CSP for the served SPA (pentest MED-001), with the env's
-        captcha provider -- what a process that has not read its settings row
-        yet serves."""
-        return self.content_security_policy_with_frames(
-            (), captcha_provider=self.CAPTCHA_PROVIDER
-        )
 
     def content_security_policy_with_frames(
         self, app_frame_origins: Sequence[str], *, captcha_provider: str | None
@@ -794,31 +876,26 @@ class Settings(BaseSettings):
     # Path to a mounted file of app service registrations, reconciled into the
     # database at startup so a chart can wire approved apps with no owner
     # clicks. JSON (or a JSON array in a .json file):
-    #   [{"public_id": "acme.shopify", "base_url": "http://shopify:9100",
+    #   [{"public_id": "acme.shopify", "listing_uid": "<14-character uid>",
+    #     "base_url": "http://shopify:9100",
     #     "embed_origin": "https://shopify.example.com",
-    #     "secret_env": "SHOPIFY_APP_SECRET", "allowed_origins": ["…"],
-    #     "grants": [], "mandatory": false}]
+    #     "jwks": {"keys": […]}, "scope_ceiling": ["projects:read"],
+    #     "allowed_origins": ["…"], "mandatory": false}]
     # ``base_url`` is where this deployment's server calls the app, so it may be
     # an address only the cluster resolves; ``embed_origin`` is where a browser
     # loads its iframes and connection pages, and is omitted when the app
     # answers both at one address.
-    # The secret is named, never inlined, so the file can be a plain ConfigMap.
+    # It holds only public keys, so the file can be a plain ConfigMap.
     # Unset (the default) ⇒ no reconciliation runs. Reconciliation never
     # re-enables a registration an operator disabled, and never blocks boot.
     APP_SERVICES_CONFIG: str | None = None
-    # How often enabled registrations are re-verified in the background, so an
-    # app that went away (or changed what it claims) is marked rather than
-    # discovered by a member clicking it. 0 turns the sweep off; it also does
-    # not run at all without the signing keypair, since the app platform is
-    # inert without one.
-    APP_SERVICE_VERIFY_INTERVAL_SECONDS: int = Field(default=3600, ge=0)
 
     # --- Billing (hosted deployments only; default OFF) -------------------
     # Billing is an optional EXTERNAL service. Every BILLING_* setting below
     # is unset on a self-hosted install, and with them unset the app behaves
     # exactly as if billing did not exist: the /billing endpoints answer 503,
     # the membership ping is a no-op, and guild caps/status are governed
-    # solely by what the operator sets (PATCH /settings/guilds/{id}).
+    # solely by what the operator sets (PATCH /settings/communities/{id}).
     #
     # Inbound calls from the billing service (initiative-billing). Requests
     # carry an RS256 service JWT (verified against this public key) plus an
@@ -840,9 +917,8 @@ class Settings(BaseSettings):
     # a guild is unrelated to another's and only this deployment holds both. A
     # bundled service that has to reconcile two of them asks here.
     #
-    # Named rather than inferred from a grant: ``delegation`` says an app may
-    # act for a member, which is a different question. Either value unset ⇒ the
-    # channel answers 503 and nothing on it is reachable.
+    # Either value unset ⇒ the channel answers 503 and nothing on it is
+    # reachable.
     BUNDLED_SERVICE_PUBLIC_ID: str | None = None
     BUNDLED_SERVICE_SHARED_SECRET: str | None = None
 
@@ -872,39 +948,27 @@ class Settings(BaseSettings):
     BILLING_OPERATOR_HANDOFF_SECRET: str | None = None
     BILLING_OPERATOR_HANDOFF_KID: str | None = None
 
-    # --- Marketplace registry (optional; default OFF) ---------------------
-    # A registry is not a service: it is a signed JSON index plus the manifest
-    # and artwork files it names by digest, on any static host. Only the client
-    # below runs. Both the URL and the key set are operator-supplied, so a
-    # self-hoster or a community can publish their own index with their own key
-    # and point a deployment at it.
+    # --- Marketplace registry --------------------------------------------
+    # The registry is a TUF repository of listings on a static host, verified
+    # against a trusted root that ships in the image
+    # (``app/marketplace/root.json``). Whether this deployment follows it is the
+    # platform setting ``marketplace_registry_enabled`` (on by default), not an
+    # environment variable.
     #
-    # ``MARKETPLACE_REGISTRY_URL`` is the index document's URL; its detached
-    # signature is read from the same URL with ``.sig`` appended, and every
-    # artifact the index names resolves relative to it and must stay on the
-    # same origin.
+    # ``MARKETPLACE_REGISTRY_URL`` is the repository's base: its metadata is
+    # read from ``<url>metadata/`` and its target files from ``<url>targets/``.
+    # Point it at a mirror or a curated repository signed under the same root.
     #
-    # ``MARKETPLACE_REGISTRY_PUBLIC_KEYS`` is a JWKS-shaped JSON document of the
-    # keys this deployment trusts — ``{"keys": [{"kty": "OKP", "crv":
-    # "Ed25519", "kid": "...", "x": "<base64url>", "publisher_prefixes":
-    # ["acme"]}]}``. Several keys may be listed at once so a registry can
-    # rotate: add the new key in one release, sign with it, drop the old one
-    # later. ``publisher_prefixes`` states which listing namespaces that key may
-    # publish under (``["*"]`` for any); ``core.*`` is reserved for listings
-    # shipped in this repo and is never accepted from a registry.
-    #
-    # URL and keys are BOTH required, or the remote provider is simply absent:
-    # no background refresh starts, the refresh endpoints answer 503, and the
-    # catalog holds only what this build ships.
-    MARKETPLACE_REGISTRY_URL: str | None = None
-    MARKETPLACE_REGISTRY_PUBLIC_KEYS: str | None = None
-    # How often the background refresh re-fetches the index. ~15 minutes keeps a
-    # withdrawal reaching deployments promptly without polling a static host.
+    # ``MARKETPLACE_REGISTRY_ROOT`` is a path to a different trusted root, for a
+    # repository signed under somebody else's keys. Listings and apps from it
+    # land as usual; reference sectors are honoured only under the shipped root.
+    MARKETPLACE_REGISTRY_URL: str = (
+        "https://morelitea.github.io/initiative-developer/public/"
+    )
+    MARKETPLACE_REGISTRY_ROOT: str | None = None
+    # How often the background refresh asks for new metadata. ~15 minutes keeps
+    # a withdrawal reaching deployments promptly without polling a static host.
     MARKETPLACE_REGISTRY_TTL_SECONDS: int = Field(default=900, ge=60)
-    # Operator kill switch. False stops the background refresh and the
-    # "refresh now" endpoint without unsetting the URL or the keys, so a
-    # deployment can pause ingestion and resume with its trust settings intact.
-    MARKETPLACE_REGISTRY_ENABLED: bool = True
 
     # Local-dev only: when true, outbound webhook / custom-AI targets may
     # use http and resolve to private/loopback addresses, for round-tripping

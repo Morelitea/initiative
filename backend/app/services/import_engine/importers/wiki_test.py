@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
 
 from app.services.import_engine.importers.wiki import WikiImporter, _place_references
-
-pytestmark = pytest.mark.unit
 
 
 def _doc(*inline):

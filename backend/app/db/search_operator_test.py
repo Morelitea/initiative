@@ -13,7 +13,6 @@ same module for the suite.
 
 from __future__ import annotations
 
-import pytest
 from sqlalchemy import func, select, text
 from sqlalchemy.dialects import postgresql
 
@@ -22,8 +21,6 @@ from app.db.schema_provisioning import SEARCH_MATCH_FUNCTION, SEARCH_OPCLASS
 from app.models.platform.guild import GuildRole
 from app.models.tenant.search_entry import SearchEntry
 from app.services.tenant.search import search_match_clause
-
-pytestmark = pytest.mark.integration
 
 
 async def test_the_match_function_is_installed_and_marked(session):
@@ -88,7 +85,6 @@ async def test_readiness_is_detected(session):
     assert schema_provisioning.search_operator_available() is True
 
 
-@pytest.mark.unit
 def test_the_query_layer_picks_the_installed_operator(monkeypatch):
     """And falls back to the stock one rather than failing when it is absent."""
     query = func.websearch_to_tsquery("simple", "vendor")

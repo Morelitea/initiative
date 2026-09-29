@@ -2,6 +2,7 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { ownerCan, readerCan } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 
@@ -12,12 +13,11 @@ const buildEntity = (overrides: Partial<ToolSettingsEntity> = {}): ToolSettingsE
   name: "Q3 Roadmap",
   description: "A description",
   initiative_id: 3,
-  my_permission_level: "owner",
+  can: ownerCan(),
   tags: [],
   grants: [],
   comments_enabled: true,
   archived_at: null,
-  can_unarchive: false,
   ...overrides,
 });
 
@@ -88,7 +88,7 @@ describe("ToolSettingsLayout", () => {
   });
 
   it("keeps the access tab out of the bar for a reader who may not share", async () => {
-    renderLayout({ entity: buildEntity({ my_permission_level: "read" }) });
+    renderLayout({ entity: buildEntity({ can: readerCan() }) });
 
     expect(await screen.findByRole("tab", { name: "Details" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Access" })).not.toBeInTheDocument();
@@ -97,7 +97,7 @@ describe("ToolSettingsLayout", () => {
   it("keeps the advanced tab out of the bar when it would hold nothing", async () => {
     // Advanced is a tool's extra operations plus deletion. A reader of a tool
     // that declares neither has no advanced section to visit.
-    renderLayout({ entity: buildEntity({ my_permission_level: "read" }) });
+    renderLayout({ entity: buildEntity({ can: readerCan() }) });
 
     expect(await screen.findByRole("tab", { name: "Details" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Advanced" })).not.toBeInTheDocument();

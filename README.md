@@ -208,32 +208,32 @@ The surface is curated and **default-deny** — only the following are exposed. 
 
 | Tool | Endpoint |
 |---|---|
-| List / read initiatives (+ members, roles, your permissions) | `GET /g/{guild}/initiatives…` |
-| List / read projects (+ activity, favorites, task statuses) | `GET /g/{guild}/projects…` |
-| List / read tasks | `GET /g/{guild}/tasks…` |
-| List / read documents (+ versions, backlinks) | `GET /g/{guild}/documents…` |
-| List / read queues and their items | `GET /g/{guild}/queues…` |
-| List / read counter groups and counters | `GET /g/{guild}/counter-groups…` |
-| List / read calendars and their events | `GET /g/{guild}/calendars…`, `GET /g/{guild}/calendar-events…` |
-| List / read notices | `GET /g/{guild}/posts…` |
-| List / read dashboards, and what a tile currently shows | `GET /g/{guild}/dashboards…` |
-| Read a comment thread, or one comment | `GET /g/{guild}/comments…` |
+| List / read initiatives (+ members, roles, your permissions) | `GET /c/{guild}/initiatives…` |
+| List / read projects (+ activity, favorites, task statuses) | `GET /c/{guild}/projects…` |
+| List / read tasks | `GET /c/{guild}/tasks…` |
+| List / read documents (+ versions, backlinks) | `GET /c/{guild}/documents…` |
+| List / read queues and their items | `GET /c/{guild}/queues…` |
+| List / read counter groups and counters | `GET /c/{guild}/counter-groups…` |
+| List / read calendars and their events | `GET /c/{guild}/calendars…`, `GET /c/{guild}/calendar-events…` |
+| List / read notices | `GET /c/{guild}/posts…` |
+| List / read dashboards, and what a tile currently shows | `GET /c/{guild}/dashboards…` |
+| Read a comment thread, or one comment | `GET /c/{guild}/comments…` |
 | Your projects / tasks / documents / calendars across all guilds | `GET /me/projects`, `GET /me/tasks`, … |
 
 **Writes** (full-access key only — a read-only key is rejected with `403`; each is confirmed in the client) — create and edit each of the same things:
 
 | Tool | Endpoint |
 |---|---|
-| Create / edit a project | `POST /g/{guild}/projects/`, `PATCH …/projects/{id}` |
-| Create / edit / move a task | `POST /g/{guild}/tasks/`, `PATCH …/tasks/{id}`, `POST …/tasks/{id}/move` |
-| Create / edit a document | `POST /g/{guild}/documents/`, `PATCH …/documents/{id}` |
-| Create / edit a queue, and its items | `POST /g/{guild}/queues/`, `PATCH …/queues/{id}`, `POST …/queues/{id}/items`, `PATCH …/items/{id}` |
-| Create / edit a counter group, and its counters | `POST /g/{guild}/counter-groups/`, `PATCH …/{id}`, `POST …/counters`, `PATCH …/counters/{id}` |
+| Create / edit a project | `POST /c/{guild}/projects/`, `PATCH …/projects/{id}` |
+| Create / edit / move a task | `POST /c/{guild}/tasks/`, `PATCH …/tasks/{id}`, `POST …/tasks/{id}/move` |
+| Create / edit a document | `POST /c/{guild}/documents/`, `PATCH …/documents/{id}` |
+| Create / edit a queue, and its items | `POST /c/{guild}/queues/`, `PATCH …/queues/{id}`, `POST …/queues/{id}/items`, `PATCH …/items/{id}` |
+| Create / edit a counter group, and its counters | `POST /c/{guild}/counter-groups/`, `PATCH …/{id}`, `POST …/counters`, `PATCH …/counters/{id}` |
 | Move a counter's count | `POST …/counters/{id}/set`, `/increment`, `/decrement` |
-| Create / edit a calendar, and its events | `POST /g/{guild}/calendars/`, `PATCH …/{id}`, `POST /g/{guild}/calendar-events/`, `PATCH …/{id}` |
-| Create / edit a notice | `POST /g/{guild}/posts/`, `PATCH …/posts/{id}` |
-| Create / edit a dashboard | `POST /g/{guild}/dashboards/`, `PATCH …/dashboards/{id}` |
-| Add / edit a comment | `POST /g/{guild}/comments/`, `PATCH …/comments/{id}` |
+| Create / edit a calendar, and its events | `POST /c/{guild}/calendars/`, `PATCH …/{id}`, `POST /c/{guild}/calendar-events/`, `PATCH …/{id}` |
+| Create / edit a notice | `POST /c/{guild}/posts/`, `PATCH …/posts/{id}` |
+| Create / edit a dashboard | `POST /c/{guild}/dashboards/`, `PATCH …/dashboards/{id}` |
+| Add / edit a comment | `POST /c/{guild}/comments/`, `PATCH …/comments/{id}` |
 
 ### Security notes
 

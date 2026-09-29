@@ -34,6 +34,7 @@ import logging
 import httpx
 from fastapi import HTTPException, status
 
+from app.core.config import CaptchaProvider
 from app.core.messages import AuthMessages
 from app.services import captcha_config
 from app.services.captcha_config import ResolvedCaptchaConfig
@@ -45,9 +46,9 @@ logger = logging.getLogger(__name__)
 # env value so operators can read the var and immediately know what's
 # being called.
 _VERIFY_URLS: dict[str, str] = {
-    "hcaptcha": "https://hcaptcha.com/siteverify",
-    "turnstile": "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-    "recaptcha": "https://www.google.com/recaptcha/api/siteverify",
+    CaptchaProvider.hcaptcha: "https://hcaptcha.com/siteverify",
+    CaptchaProvider.turnstile: "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+    CaptchaProvider.recaptcha: "https://www.google.com/recaptcha/api/siteverify",
 }
 
 

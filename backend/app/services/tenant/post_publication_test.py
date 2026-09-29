@@ -17,10 +17,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.post import Post
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
-from app.services import notifications as notifications_service
+from app.models.tenant.resource_grant import ResourceGrant
 from app.services.tenant.post_publication import publish_due_posts
 from app.testing import (
+    create_resource_grant,
     guild_of,
     create_guild,
     create_guild_membership,
@@ -30,8 +30,6 @@ from app.testing import (
     create_user,
     route_session_to_guild,
 )
-
-pytestmark = pytest.mark.integration
 
 
 async def _board(session: AsyncSession):
@@ -169,16 +167,8 @@ async def test_the_announcement_follows_the_sharing_not_the_roster(
     ).all()
     for grant in grants:
         await session.delete(grant)
-    session.add(
-        ResourceGrant(
-            resource_type="post",
-            resource_id=post_id,
-            user_id=named.id,
-            level=ResourceAccessLevel.read,
-            initiative_id=initiative.id,
-        )
-    )
-    await session.commit()
+    post = (await session.exec(select(Post).where(Post.id == post_id))).one()
+    await create_resource_grant(session, post, user=named)
 
     await publish_due_posts(session, now=datetime.now(timezone.utc))
     await session.commit()
@@ -237,11 +227,11 @@ async def _explode(*_args, **_kwargs):
     raise RuntimeError("the network went away mid-announcement")
 
 
-async def test_one_bad_recipient_does_not_cost_the_rest(session: AsyncSession):
-    """The publication is committed by the time the fan-out runs, so an
-    exception escaping it would leave the notice up, unclaimable, and the rest
-    of the board never told."""
-    import app.services.tenant.post_publication as publication
+async def test_one_failed_push_does_not_cost_the_rest(session: AsyncSession):
+    """The publication is committed by the time the fan-out runs, so a push
+    that fails for one reader is logged and the rest of the board is still
+    told."""
+    from app.services.platform import push_notifications
 
     author, reader, initiative, guild = await _board(session)
     reader_id = reader.id
@@ -251,22 +241,19 @@ async def test_one_bad_recipient_does_not_cost_the_rest(session: AsyncSession):
     await create_initiative_member(session, initiative, second)
     await _draft(session, initiative, author, due_in=timedelta(minutes=-1))
 
-    real = notifications_service.notify_post_published
-    seen: list[int] = []
+    pushed: list[int] = []
 
-    async def _flaky(session_, *, recipient, **kw):
-        seen.append(recipient.id)
-        if recipient.id == min(reader_id, second_id):
-            raise RuntimeError("that address bounced")
-        return await real(session_, recipient=recipient, **kw)
+    async def _flaky(*, user_id, **_kw):
+        pushed.append(user_id)
+        if user_id == min(reader_id, second_id):
+            raise RuntimeError("that device went away")
+        return 1
 
-    with patch.object(
-        publication.notifications_service, "notify_post_published", _flaky
-    ):
+    with patch.object(push_notifications, "send_push_to_user", _flaky):
         await route_session_to_guild(session, guild_of(initiative))
         await publish_due_posts(session, now=datetime.now(timezone.utc))
     await session.commit()
 
-    # Both were attempted, and the one that worked still got told.
-    assert sorted(seen) == sorted([reader_id, second_id])
-    assert len(await _notifications(session, max(reader_id, second_id))) == 1
+    assert sorted(pushed) == sorted([reader_id, second_id])
+    for user_id in (reader_id, second_id):
+        assert len(await _notifications(session, user_id)) == 1

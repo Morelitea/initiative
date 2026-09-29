@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCollaboration } from "@/hooks/useCollaboration";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useCreateWikiPage, useUpdateWikiPage, useWiki, useWikiPage } from "@/hooks/useWikis";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -59,6 +60,17 @@ export const WikiPageView = () => {
   const initiativeId = Number(initiativeIdParam);
   const validIds = Number.isFinite(wikiId) && Number.isFinite(pageId);
 
+  // The newest body regardless of whether it has been sent, which is what the
+  // reading view is shown the moment somebody stops writing. The server hears
+  // about a body on a pause and, in a live room, writes it on a sweep of its
+  // own — both of which finish long after the eye does.
+  const latestBody = useRef<{ pageId: number; state: SerializedEditorState } | null>(null);
+  // What this tab last rendered, for the room to save as the page leaves.
+  const finalContent = useCallback(() => {
+    const latest = latestBody.current;
+    return latest && latest.pageId === pageId ? latest.state : undefined;
+  }, [pageId]);
+
   // Live co-editing, over the same room documents use — a page is just
   // another body the server keeps a Yjs document for. The path names the page
   // through its wiki, the way every other address for it does.
@@ -67,6 +79,7 @@ export const WikiPageView = () => {
     // Only while somebody is writing. A wiki is read far more than it is
     // written, so a reader opens no room and costs the server nothing.
     enabled: validIds && editWanted,
+    finalContent,
     onError: (error) => {
       toast.error(t("error"), { description: error.message });
     },
@@ -78,9 +91,7 @@ export const WikiPageView = () => {
   // re-running every render the way the mutation object would make them.
   const { mutate: savePage } = useUpdateWikiPage(wikiId, pageId);
 
-  const canWrite =
-    wikiQuery.data?.my_permission_level === "write" ||
-    wikiQuery.data?.my_permission_level === "owner";
+  const canWrite = Boolean(wikiQuery.data?.can.edit);
   // Editing needs both the right and the intent — somebody who may write is
   // still reading until they say otherwise.
   const isEditing = canWrite && editWanted;
@@ -98,6 +109,7 @@ export const WikiPageView = () => {
   // do not both send the same rename. Cleared when the page changes.
   const sentTitle = useRef<string | null>(null);
   const loadedPageId = pageQuery.data?.id;
+  useReadOnOpen("wiki_page", loadedPageId);
   const loadedTitle = pageQuery.data?.title;
   useEffect(() => {
     sentTitle.current = null;
@@ -147,11 +159,6 @@ export const WikiPageView = () => {
   // only ever meant for the page they were typed into.
   const pendingBody = useRef<{ pageId: number; state: SerializedEditorState } | null>(null);
   const [bodyRevision, setBodyRevision] = useState(0);
-  // The newest body regardless of whether it has been sent, which is what the
-  // reading view is shown the moment somebody stops writing. The server hears
-  // about a body on a pause and, in a live room, writes it on a sweep of its
-  // own — both of which finish long after the eye does.
-  const latestBody = useRef<{ pageId: number; state: SerializedEditorState } | null>(null);
   const [writtenBody, setWrittenBody] = useState<{
     pageId: number;
     state: SerializedEditorState;

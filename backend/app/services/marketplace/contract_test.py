@@ -24,6 +24,7 @@ and every handler having a term — lives in :mod:`contract_coverage_test`.
 import pytest
 from jsonschema import Draft202012Validator
 
+from app.core.app_scopes import ALL_SCOPES
 from app.services.marketplace import contract
 from app.services.marketplace.manifest_values import (
     MAX_IDENTIFIER_LENGTH,
@@ -40,7 +41,6 @@ from app.services.marketplace.service_apps import (
     EMBED_CAPABILITIES,
     FEATURES,
     FIELD_TYPES,
-    GUILD_WIDE_VISIBILITIES,
     MAX_CONNECTIONS,
     MAX_ENDPOINTS,
     MAX_RETURNS_PER_ENDPOINT,
@@ -49,7 +49,6 @@ from app.services.marketplace.service_apps import (
     PARAM_TYPES,
     RETURN_TYPES,
     SURFACE_SCOPES,
-    VISIBILITIES,
 )
 
 
@@ -86,12 +85,10 @@ def _manifest(**overrides):
 # --- the schema is a schema -------------------------------------------------
 
 
-@pytest.mark.unit
 def test_the_schema_is_a_valid_2020_12_document():
     Draft202012Validator.check_schema(contract.manifest_schema())
 
 
-@pytest.mark.unit
 def test_every_ref_resolves():
     """A `$ref` naming a definition that isn't there fails at use rather than at
     load, so it would survive a test that only validated the happy path."""
@@ -113,7 +110,6 @@ def test_every_ref_resolves():
     walk(schema)
 
 
-@pytest.mark.unit
 def test_the_vendored_pair_came_from_one_contract():
     """The schema is generated from the contract, so the two are vendored as a
     pair. Refreshing one without the other leaves this build enforcing a
@@ -133,7 +129,6 @@ def test_the_vendored_pair_came_from_one_contract():
 # --- derived, not restated --------------------------------------------------
 
 
-@pytest.mark.unit
 def test_vocabularies_come_from_the_validator():
     schema = contract.manifest_schema()
     props = schema["properties"]
@@ -149,17 +144,17 @@ def test_vocabularies_come_from_the_validator():
     assert set(defs["endpointReturn"]["properties"]["type"]["enum"]) == RETURN_TYPES
     assert set(defs["endpoint"]["properties"]["direction"]["enum"]) == DIRECTIONS
     assert set(defs["endpoint"]["properties"]["actors"]["items"]["enum"]) == ACTOR_KINDS
-    assert set(defs["endpoint"]["properties"]["visibility"]["enum"]) == (
-        GUILD_WIDE_VISIBILITIES
-    )
-    assert set(defs["embed"]["properties"]["visibility"]["enum"]) == VISIBILITIES
+    scope_items = props["service"]["properties"]["scopes"]["items"]["anyOf"]
+    assert set(scope_items[0]["enum"]) == set(ALL_SCOPES)
+    assert scope_items[1] == {"$ref": "#/$defs/appScope"}
+    assert defs["embed"]["properties"]["admin_only"]["type"] == "boolean"
+    assert defs["endpoint"]["properties"]["admin_only"]["type"] == "boolean"
     assert set(defs["embed"]["properties"]["scopes"]["items"]["enum"]) == SURFACE_SCOPES
     assert set(defs["embed"]["properties"]["capabilities"]["items"]["enum"]) == (
         EMBED_CAPABILITIES
     )
 
 
-@pytest.mark.unit
 def test_caps_come_from_the_validator():
     props = contract.manifest_schema()["properties"]
     assert props["connections"]["maxItems"] == MAX_CONNECTIONS
@@ -174,7 +169,6 @@ def test_caps_come_from_the_validator():
     assert props["embeds"]["maxItems"] == MAX_EMBEDS
 
 
-@pytest.mark.unit
 def test_a_secret_is_not_a_query_parameter():
     """`secret` is a connection field type and deliberately not a param type;
     the schema must not blur the two by sharing one field definition."""
@@ -186,7 +180,6 @@ def test_a_secret_is_not_a_query_parameter():
     assert "managed" not in defs["endpointParam"]["properties"]
 
 
-@pytest.mark.unit
 def test_lengths_come_from_the_validator():
     defs = contract.manifest_schema()["$defs"]
     assert defs["identifier"]["maxLength"] == MAX_IDENTIFIER_LENGTH
@@ -199,7 +192,6 @@ def test_lengths_come_from_the_validator():
     )
 
 
-@pytest.mark.unit
 def test_the_schema_names_itself_stably():
     """An author points a `$schema` at this and a generator keys a cache on it,
     so a drifting `$id` invalidates both."""
@@ -213,6 +205,40 @@ def test_the_schema_names_itself_stably():
 
 ACCEPTED = [
     pytest.param(_manifest(), id="minimal"),
+    pytest.param(
+        _manifest(
+            service={
+                "public_id": "acme.tracker",
+                "protocol": 1,
+                "scopes": ["projects:write", "comments:read"],
+            }
+        ),
+        id="requested-scopes",
+    ),
+    pytest.param(
+        _manifest(
+            service={
+                "public_id": "acme.tracker",
+                "protocol": 1,
+                "scopes": ["projects:read", "apps:acme.github"],
+            }
+        ),
+        id="requested-app-scope",
+    ),
+    pytest.param(
+        _manifest(
+            features=["endpoints"],
+            endpoints=[
+                {
+                    "id": "app.acme.tracker.open",
+                    "direction": "write",
+                    "public": True,
+                    "actors": ["member"],
+                }
+            ],
+        ),
+        id="public-write-endpoint",
+    ),
     pytest.param(
         _manifest(
             features=["endpoints"],
@@ -231,7 +257,6 @@ ACCEPTED = [
                 {
                     "id": "app.acme.tracker.issues",
                     "direction": "read",
-                    "visibility": "member",
                     "cache_ttl_seconds": 300,
                     "params": [
                         {
@@ -250,13 +275,23 @@ ACCEPTED = [
     pytest.param(
         _manifest(
             features=["embeds"],
+            vendor={
+                "fields": [
+                    {"key": "client_id", "type": "string", "label": {"en": "Id"}}
+                ]
+            },
             connections=[
                 {
                     "id": "account",
                     "scope": "interactive",
                     "label": {"en": "Your account"},
                     "fields": [],
-                    "connect_path": "/connect/start",
+                    "flow": {
+                        "type": "oauth2",
+                        "authorize_url": "https://vendor.test/authorize",
+                        "token_url": "https://vendor.test/token",
+                        "client_id": "{vendor.client_id}",
+                    },
                 }
             ],
             embeds=[
@@ -265,7 +300,7 @@ ACCEPTED = [
                     "path": "/embed/board",
                     "name": {"en": "Board"},
                     "scopes": ["guild", "initiative"],
-                    "visibility": "initiative_manager",
+                    "admin_only": True,
                     "capabilities": ["clipboard-write", "fullscreen"],
                     "requires": {"any_of": ["account"]},
                 }
@@ -422,7 +457,6 @@ ACCEPTED = [
 ]
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize("manifest", ACCEPTED)
 def test_what_the_platform_accepts_satisfies_the_schema(manifest, validator):
     """The direction that matters most: an author whose manifest installs must
@@ -444,6 +478,53 @@ REFUSED_BY_BOTH = [
     pytest.param(
         _manifest(service={"public_id": "acme.x", "protocol": 99}),
         id="unspoken-protocol",
+    ),
+    pytest.param(
+        _manifest(service={"public_id": "acme.x", "scopes": ["everything:write"]}),
+        id="scope-outside-the-vocabulary",
+    ),
+    pytest.param(
+        _manifest(
+            service={"public_id": "acme.x", "scopes": ["tags:read", "tags:read"]}
+        ),
+        id="scope-named-twice",
+    ),
+    pytest.param(
+        _manifest(service={"public_id": "acme.x", "scopes": ["members:write"]}),
+        id="write-on-a-read-only-resource",
+    ),
+    pytest.param(
+        _manifest(service={"public_id": "acme.x", "scopes": ["apps:github"]}),
+        id="app-scope-without-a-public-id",
+    ),
+    pytest.param(
+        _manifest(service={"public_id": "acme.x", "scopes": ["apps:Acme.github"]}),
+        id="app-scope-out-of-charset",
+    ),
+    pytest.param(
+        _manifest(
+            features=["endpoints"],
+            endpoints=[{"id": "app.acme.tracker.s", "direction": "read", "public": 1}],
+        ),
+        id="endpoint-public-not-a-boolean",
+    ),
+    pytest.param(
+        _manifest(
+            features=["embeds"],
+            embeds=[
+                {"id": "e", "path": "/e", "name": {"en": "E"}, "admin_only": "yes"}
+            ],
+        ),
+        id="admin-only-not-a-boolean",
+    ),
+    pytest.param(
+        _manifest(
+            features=["endpoints"],
+            endpoints=[
+                {"id": "app.acme.tracker.s", "direction": "read", "admin_only": 1}
+            ],
+        ),
+        id="endpoint-admin-only-not-a-boolean",
     ),
     pytest.param(
         _manifest(
@@ -506,7 +587,6 @@ REFUSED_BY_BOTH = [
 ]
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize("manifest", REFUSED_BY_BOTH)
 def test_what_the_schema_refuses_the_platform_refuses_too(manifest, validator):
     """The other direction, for the rules a schema *can* express: the schema
@@ -516,7 +596,6 @@ def test_what_the_schema_refuses_the_platform_refuses_too(manifest, validator):
         platform_accepts(manifest)
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "name,why",
     [
@@ -540,7 +619,6 @@ def test_a_localized_entry_the_platform_ignores_is_not_an_error(name, why, valid
     assert list(validator.iter_errors(manifest)) == [], why
 
 
-@pytest.mark.unit
 def test_a_localized_object_with_nothing_usable_is_refused(validator):
     """The one thing that does fail, and the only rule left on the type."""
     manifest = _manifest(
@@ -555,13 +633,39 @@ def test_a_localized_object_with_nothing_usable_is_refused(validator):
 # --- where the schema stops -------------------------------------------------
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "manifest,why",
     [
         (
             _manifest(features=["endpoints"]),
             "a declared feature with no block behind it",
+        ),
+        (
+            _manifest(
+                features=["embeds"],
+                embeds=[
+                    {
+                        "id": "e",
+                        "path": "/e",
+                        "name": {"en": "E"},
+                        "visibility": "guild_admin",
+                    }
+                ],
+            ),
+            "a surface naming the audience term an earlier contract used",
+        ),
+        (
+            _manifest(
+                features=["endpoints"],
+                endpoints=[
+                    {
+                        "id": "app.acme.tracker.s",
+                        "direction": "read",
+                        "visibility": "member",
+                    }
+                ],
+            ),
+            "an endpoint naming the audience term an earlier contract used",
         ),
         (
             _manifest(
@@ -611,7 +715,6 @@ def test_the_platform_enforces_what_the_schema_cannot(manifest, why, validator):
         platform_accepts(manifest)
 
 
-@pytest.mark.unit
 def test_a_return_is_not_a_control():
     """A select is a control, and the value behind one is a string — so it is a
     param type and never a return type. The schema must not blur the two."""
@@ -621,7 +724,6 @@ def test_a_return_is_not_a_control():
     assert "secret" not in defs["endpointReturn"]["properties"]["type"]["enum"]
 
 
-@pytest.mark.unit
 def test_every_direction_may_describe_itself_and_its_answer():
     """``label`` and ``returns`` sit on the endpoint rather than beside the
     caller-side keys, because an emission has neither caller nor response and
@@ -636,7 +738,6 @@ def test_every_direction_may_describe_itself_and_its_answer():
     }
 
 
-@pytest.mark.unit
 def test_a_param_says_what_it_takes_and_not_what_to_draw_for_it():
     """A manifest describes the API. The control a consumer draws is the
     consumer's, written in its own words — so nothing here names one."""
@@ -647,3 +748,166 @@ def test_a_param_says_what_it_takes_and_not_what_to_draw_for_it():
         assert drawn not in param, drawn
     # A credential is typed once; there is no list of them.
     assert "list" not in defs["connectionField"]["properties"]
+
+
+# --- scopes and surfaces ----------------------------------------------------
+
+
+def test_requested_scopes_are_stored_sorted_and_absent_when_none():
+    """Canonical, so re-publishing the same manifest stores the same document;
+    and left out when empty, so "does this app ask for anything?" has one
+    shape."""
+    from app.services.marketplace.service_apps import normalize_service_app_definition
+
+    cleaned = normalize_service_app_definition(
+        _manifest(
+            service={
+                "public_id": "acme.tracker",
+                "scopes": ["tags:write", "comments:read", "projects:read"],
+            }
+        )
+    )
+    assert cleaned["service"]["scopes"] == [
+        "comments:read",
+        "projects:read",
+        "tags:write",
+    ]
+    bare = normalize_service_app_definition(_manifest())
+    assert "scopes" not in bare["service"]
+
+
+def test_app_scopes_are_stored_with_the_rest_and_bounded():
+    from app.services.marketplace.service_apps import (
+        MAX_APP_SCOPES,
+        normalize_service_app_definition,
+    )
+
+    cleaned = normalize_service_app_definition(
+        _manifest(
+            service={
+                "public_id": "acme.tracker",
+                "scopes": ["projects:read", "apps:acme.github"],
+            }
+        )
+    )
+    assert cleaned["service"]["scopes"] == ["apps:acme.github", "projects:read"]
+
+    too_many = [f"apps:acme.app{index}" for index in range(MAX_APP_SCOPES + 1)]
+    with pytest.raises(ValueError):
+        normalize_service_app_definition(
+            _manifest(service={"public_id": "acme.tracker", "scopes": too_many})
+        )
+
+
+def test_public_is_stored_only_when_set_and_refused_on_an_emission():
+    from app.services.marketplace.service_apps import normalize_service_app_definition
+
+    def endpoint(**extra):
+        return normalize_service_app_definition(
+            _manifest(
+                features=["endpoints"],
+                endpoints=[{"id": "app.acme.tracker.s", **extra}],
+            )
+        )["endpoints"][0]
+
+    assert endpoint(direction="write", public=True)["public"] is True
+    assert "public" not in endpoint(direction="read")
+    assert "public" not in endpoint(direction="read", public=False)
+    with pytest.raises(ValueError):
+        endpoint(direction="emit", public=True)
+
+
+def test_admin_only_defaults_to_false_and_is_always_stored():
+    from app.services.marketplace.service_apps import normalize_service_app_definition
+
+    def embed(**extra):
+        body = _manifest(
+            features=["embeds"],
+            embeds=[{"id": "e", "path": "/e", "name": {"en": "E"}, **extra}],
+        )
+        return normalize_service_app_definition(body)["embeds"][0]
+
+    assert embed()["admin_only"] is False
+    assert embed(admin_only=True)["admin_only"] is True
+    assert "visibility" not in embed()
+
+
+@pytest.mark.parametrize("where", ["embed", "endpoint"])
+def test_the_retired_audience_term_is_refused_by_name(where):
+    """Every other unknown term is dropped and reported; this one narrowed who
+    reached something, so it is refused and the author is told why."""
+    from app.services.marketplace.manifest_values import ListingDefinitionError
+
+    if where == "embed":
+        body = _manifest(
+            features=["embeds"],
+            embeds=[
+                {"id": "e", "path": "/e", "name": {"en": "E"}, "visibility": "member"}
+            ],
+        )
+    else:
+        body = _manifest(
+            features=["endpoints"],
+            endpoints=[
+                {
+                    "id": "app.acme.tracker.s",
+                    "direction": "read",
+                    "visibility": "guild_admin",
+                }
+            ],
+        )
+    with pytest.raises(ListingDefinitionError, match="visibility"):
+        platform_accepts(body)
+
+
+def test_an_endpoint_admin_only_defaults_to_false_and_is_always_stored():
+    from app.services.marketplace.service_apps import normalize_service_app_definition
+
+    def endpoint(**extra):
+        body = _manifest(
+            features=["endpoints"],
+            endpoints=[{"id": "app.acme.tracker.s", "direction": "read", **extra}],
+        )
+        return normalize_service_app_definition(body)["endpoints"][0]
+
+    assert endpoint()["admin_only"] is False
+    assert endpoint(admin_only=True)["admin_only"] is True
+
+
+def test_an_emission_is_not_admin_only():
+    """Nobody reads or calls an emission, so there is nobody to narrow."""
+    from app.services.marketplace.manifest_values import ListingDefinitionError
+
+    with pytest.raises(ListingDefinitionError, match="admin_only"):
+        platform_accepts(
+            _manifest(
+                features=["endpoints"],
+                endpoints=[
+                    {
+                        "id": "app.acme.tracker.told",
+                        "direction": "emit",
+                        "admin_only": False,
+                    }
+                ],
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    "declared,expected",
+    [
+        ({}, False),
+        ({"admin_only": False}, False),
+        ({"admin_only": True}, True),
+        # Pinned under the earlier contract: the same meaning, until the
+        # install moves to a version published under this one.
+        ({"visibility": "guild_admin"}, True),
+        ({"visibility": "member"}, False),
+        ({"visibility": "initiative_manager"}, False),
+        (None, False),
+    ],
+)
+def test_is_admin_only_reads_both_contracts(declared, expected):
+    from app.services.marketplace.service_apps import is_admin_only
+
+    assert is_admin_only(declared) is expected

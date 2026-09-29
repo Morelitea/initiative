@@ -47,11 +47,12 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
-from app.db import session as db_session
+from app.db import cohorts
 from app.db.guild_standing import GuildContext
-from app.db.session import SYSTEM_SATISFIED, set_rls_context
+from app.db.session import set_rls_context
 from app.models.platform.user import User, UserStatus
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.db.request_context import Unattributed
 
 
 async def published_by(session: Any, dashboard_id: int) -> list[ResourceGrant]:
@@ -104,7 +105,7 @@ async def _standing(
     """
     from app.api.deps import GuildAccessError, establish_guild_access
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     author = await session.get(User, author_id)
     # Suspension takes every guild away, which is exactly what a published view
     # rests on. Anything but an active account publishes nothing.
@@ -116,7 +117,7 @@ async def _standing(
     session.add(author)
     try:
         context = await establish_guild_access(
-            session, author, guild_id, satisfied_providers=SYSTEM_SATISFIED
+            session, author, guild_id, on_behalf=True
         )
     except GuildAccessError:
         return None
@@ -145,9 +146,9 @@ async def author_still_reaches(grants: Sequence[ResourceGrant], guild_id: int) -
         author_id = grant.created_by
         if author_id is None:
             return False
-        # Looked up on the module rather than bound at import: which database
-        # the request login points at is decided after this module is read.
-        async with db_session.AsyncSessionLocal() as session:
+        # From the guild's own cohort, which resolves the request pool when it
+        # is called rather than when this module is read.
+        async with cohorts.request_sessionmaker(guild_id)() as session:
             standing = await _standing(session, author_id, guild_id)
             if standing is None:
                 return False

@@ -23,6 +23,7 @@ import type {
   IntakeSettingsRead,
   IntakeStream,
 } from "@/api/generated/initiativeAPI.schemas";
+import { AsyncCombobox } from "@/components/ui/async-combobox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -75,7 +76,14 @@ export const SettingsIntakePage = () => {
     isError: optionsFailed,
     refetch: refetchOptions,
   } = useIntakeOptions({ enabled: isOwner });
-  const { data: guilds } = usePlatformGuilds({ enabled: isOwner });
+  // Searched on the server while the picker is open, rather than every
+  // community on the deployment loaded up front.
+  const [guildSearch, setGuildSearch] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const guildsQuery = usePlatformGuilds(
+    { search: guildSearch || undefined, sort_by: "name", page_size: 25 },
+    { enabled: isOwner && pickerOpen }
+  );
 
   // The two reads describe one community between them — where each stream
   // lands, and what it could land in — so the page acts on both or neither.
@@ -129,9 +137,25 @@ export const SettingsIntakePage = () => {
           <CardDescription>{t("guild.description")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <Label htmlFor="operations-guild">{t("guild.label")}</Label>
-          <Select
+          <Label>{t("guild.label")}</Label>
+          <AsyncCombobox
+            className="max-w-md"
+            aria-label={t("guild.label")}
             value={boundGuildId === null ? NONE : String(boundGuildId)}
+            selectedLabel={
+              boundGuildId === null ? t("guild.none") : (settings?.operations_guild_name ?? null)
+            }
+            items={[
+              { value: NONE, label: t("guild.none") },
+              ...(guildsQuery.data?.items ?? []).map((guild) => ({
+                value: String(guild.id),
+                label: guild.name,
+              })),
+            ]}
+            onSearchChange={setGuildSearch}
+            onOpenChange={setPickerOpen}
+            loading={guildsQuery.isFetching}
+            placeholder={t("guild.placeholder")}
             disabled={isLoading || !settled || updateGuild.isPending}
             onValueChange={(value) => {
               // Clearing it stops every stream at once, so it is confirmed;
@@ -142,19 +166,7 @@ export const SettingsIntakePage = () => {
               }
               updateGuild.mutate({ guild_id: Number(value) });
             }}
-          >
-            <SelectTrigger id="operations-guild" className="max-w-md">
-              <SelectValue placeholder={t("guild.placeholder")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NONE}>{t("guild.none")}</SelectItem>
-              {(guilds ?? []).map((guild) => (
-                <SelectItem key={guild.id} value={String(guild.id)}>
-                  {guild.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          />
           <p className="text-muted-foreground text-sm">{t("guild.helpText")}</p>
         </CardContent>
       </Card>

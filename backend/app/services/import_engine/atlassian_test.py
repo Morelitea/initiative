@@ -16,8 +16,6 @@ from app.core.messages import ImportEngineMessages
 from app.services.import_engine import atlassian
 from app.services.import_engine.contract import ImportEngineError
 
-pytestmark = pytest.mark.unit
-
 
 CREDENTIAL = atlassian.AtlassianCredential(
     site_url="https://acme.atlassian.net",

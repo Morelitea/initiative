@@ -1,14 +1,14 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import {
-  getListCalendarEntriesApiV1GGuildIdCalendarEntriesGetQueryKey,
+  getListCalendarEntriesApiV1CGuildIdCalendarEntriesGetQueryKey,
   getListMyCalendarEntriesApiV1MeCalendarEntriesGetQueryKey,
-  listCalendarEntriesApiV1GGuildIdCalendarEntriesGet,
+  listCalendarEntriesApiV1CGuildIdCalendarEntriesGet,
   listMyCalendarEntriesApiV1MeCalendarEntriesGet,
 } from "@/api/generated/calendar-entries/calendar-entries";
 import type {
   CalendarEntriesResponse,
-  ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams,
+  ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams,
   ListMyCalendarEntriesApiV1MeCalendarEntriesGetParams,
 } from "@/api/generated/initiativeAPI.schemas";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -20,13 +20,13 @@ import type { QueryOpts } from "@/types/query";
  * page used to fire; the client still merges the union into calendar entries.
  */
 export const useCalendarEntries = (
-  params: ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams,
+  params: ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams,
   options?: QueryOpts<CalendarEntriesResponse>
 ) => {
   const guildId = useActiveGuildId();
   return useQuery<CalendarEntriesResponse>({
-    queryKey: getListCalendarEntriesApiV1GGuildIdCalendarEntriesGetQueryKey(guildId, params),
-    queryFn: () => listCalendarEntriesApiV1GGuildIdCalendarEntriesGet(guildId, params),
+    queryKey: getListCalendarEntriesApiV1CGuildIdCalendarEntriesGetQueryKey(guildId, params),
+    queryFn: () => listCalendarEntriesApiV1CGuildIdCalendarEntriesGet(guildId, params),
     placeholderData: keepPreviousData,
     ...options,
   });

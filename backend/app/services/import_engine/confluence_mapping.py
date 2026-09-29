@@ -29,7 +29,7 @@ from app.services.import_engine.confluence_storage import (
     storage_to_lexical,
 )
 from app.services.import_engine.jira_attachments import StoredImage
-from app.services.tenant.wikis import slugify_page_title
+from app.services.tenant.names import slugify, unique_slug
 
 #: A title the wiki cannot hold is cut to what it can.
 MAX_TITLE_LENGTH = 255
@@ -267,13 +267,8 @@ def build_wiki_envelope(
     slugs: dict[str, str] = {}
     taken: set[str] = set()
     for page in ordered:
-        base = slugify_page_title(page.title)
-        slug, n = base, 2
-        while slug in taken:
-            slug = f"{base}-{n}"
-            n += 1
-        taken.add(slug)
-        slugs[page.id] = slug
+        slugs[page.id] = unique_slug(slugify(page.title, fallback="page"), taken)
+        taken.add(slugs[page.id])
     slug_by_title = {page.title.casefold(): slugs[page.id] for page in ordered}
 
     def resolve_page(title: str, key: Optional[str]) -> Optional[PageTarget]:

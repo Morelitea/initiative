@@ -9,7 +9,7 @@ from sqlmodel import Enum as SQLEnum, Field, Relationship
 from app.core.tools import Tool
 from app.models.tenant._mixins import (
     ArchiveMixin,
-    attach_access_level,
+    attach_actions,
     CommentsToggleMixin,
     CreatedByMixin,
     ListingProvenanceMixin,
@@ -50,7 +50,6 @@ class CounterGroup(
         default=None,
         sa_column=Column(Text, nullable=True),
     )
-    created_by: int = Field(foreign_key="users.id", nullable=False)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -146,4 +145,4 @@ class Counter(CreatedByMixin, SoftDeleteMixin, table=True):
     group: Optional[CounterGroup] = Relationship(back_populates="counters")
 
 
-attach_access_level(CounterGroup, Tool.counter_group)
+attach_actions(CounterGroup, Tool.counter_group)

@@ -26,8 +26,6 @@ from app.services.auth.assurance import (
     session_amr,
 )
 
-pytestmark = [pytest.mark.unit, pytest.mark.auth]
-
 
 def test_an_idp_that_describes_its_authentication_is_taken_at_its_word():
     assurance = read_assurance(

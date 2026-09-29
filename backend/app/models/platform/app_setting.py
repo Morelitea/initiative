@@ -101,6 +101,12 @@ class AppSetting(SQLModel, table=True):
     previous_version: Optional[str] = Field(
         default=None, sa_column=Column(String(32), nullable=True)
     )
+    # When this deployment first booted with each change in
+    # ``app.core.transitions``, by name, as an ISO timestamp.
+    transitions: dict[str, str] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default=text("'{}'::jsonb")),
+    )
 
     # Which ways in this deployment permits. A Postgres enum array: adding a
     # method later is a value on the type, not a column per method, and the
@@ -275,6 +281,15 @@ class AppSetting(SQLModel, table=True):
     marketplace_members_publish_directly: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+
+    # Whether this deployment follows the marketplace registry: listings,
+    # publishers and app registrations from the TUF repository whose root
+    # ships in the image (or the one ``MARKETPLACE_REGISTRY_ROOT`` names). On
+    # by default. Off stops the background refresh; what already arrived stays.
+    marketplace_registry_enabled: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
 
     # The direct-message policy a newly created account starts on. Read once,

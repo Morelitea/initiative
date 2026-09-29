@@ -40,6 +40,7 @@ from collections.abc import Callable, Iterator
 from datetime import date, datetime, timedelta
 from typing import Any
 
+from app.core.references import REFERENCE_NODES, reference_as_text, text_node
 from app.core.tools import Tool, tool_export_source
 
 __all__ = [
@@ -67,25 +68,13 @@ _MENTION_NODES = frozenset({"mention", "custom-mention"})
 #: Editor nodes that name something else in the community by id. A wikilink is
 #: not among them: it names a page by title, and a link between two pages of
 #: the same wiki is part of the wiki.
-_REFERENCE_NODES = frozenset({"entity-mention", "smart-chip"})
+_REFERENCE_NODES = REFERENCE_NODES.keys() - {"wikilink"}
 
 #: Editor nodes that carry a picture.
 _IMAGE_NODES = frozenset({"image"})
 
 
 # --- editor bodies ----------------------------------------------------------
-
-
-def _text_node(text: str, node: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "type": "text",
-        "version": 1,
-        "text": text,
-        "format": node.get("format") or 0,
-        "style": "",
-        "mode": "normal",
-        "detail": 0,
-    }
 
 
 def _mention_text(node: dict[str, Any]) -> str:
@@ -111,9 +100,9 @@ def _clean_editor_state(content: Any) -> Any:
             return node
         kind = node.get("type")
         if kind in _MENTION_NODES:
-            return _text_node(_mention_text(node), node)
+            return text_node(_mention_text(node), node.get("format") or 0)
         if kind in _REFERENCE_NODES:
-            return _text_node(str(node.get("text") or ""), node)
+            return reference_as_text(node)
         children = node.get("children")
         if isinstance(children, list):
             return {

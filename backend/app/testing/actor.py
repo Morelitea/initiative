@@ -11,7 +11,7 @@ The two role dimensions are orthogonal (platform-roles design §7):
   and defaulting low makes the suite prove that continuously.
 * **Guild role** — when ``guild_role`` (or ``guild``) is given, the actor gets
   a provisioned guild (or joins the one passed) with that ``GuildRole``;
-  requests route through ``/g/{guild_id}`` and assume ``guild_<id>``.
+  requests route through ``/c/{guild_id}`` and assume ``guild_<id>``.
 
 Usage (via the ``acting_user`` fixture):
 
@@ -48,6 +48,12 @@ from app.testing.factories import (
 API = "/api/v1"
 
 
+def guild_url(guild_id: int, path: str = "/") -> str:
+    """Guild-scoped API URL: ``guild_url(7, "/projects/")`` →
+    ``/api/v1/c/7/projects/``."""
+    return f"{API}/c/{guild_id}{path}"
+
+
 @dataclass
 class Actor:
     """An authenticated test identity and the workspace it acts in."""
@@ -60,11 +66,10 @@ class Actor:
     project: Project | None = None
 
     def g(self, path: str = "/") -> str:
-        """Guild-scoped API URL: ``a.g("/projects/")`` →
-        ``/api/v1/g/<guild_id>/projects/``."""
+        """``guild_url`` for this actor's guild."""
         if self.guild is None:
             raise ValueError("actor has no guild; pass guild_role=")
-        return f"{API}/g/{self.guild.id}{path}"
+        return guild_url(self.guild.id, path)
 
 
 async def make_actor(

@@ -1,7 +1,8 @@
 """Request-scoped satisfied-auth-provider context.
 
-The credential validators (``get_current_user``, ``get_upload_user``, the
-WebSocket ``authenticate_ws_token``) record here which login providers the
+The credential validator (``app.services.auth.credentials``, which
+``get_current_user``, ``get_upload_user`` and the WebSocket
+``authenticate_ws_token`` all go through) records here which login providers the
 current session credential has satisfied — its token's ``sat`` claim. The
 guild-access gate and every session-routing seam (``establish_guild_access``,
 ``get_guild_session``, ``gather_across_guilds``) read it to feed the guild
@@ -14,11 +15,11 @@ community narrows it by — its token's ``satd`` claim — which the same gate
 gives to ``app.satisfied_claims``. The session carries the fact; the
 connection carries the rule, and the two meet in the gate.
 
-The value is either the frozenset of provider ids the session proved, or the
-``SYSTEM_SATISFIED`` sentinel string (see ``app.db.session``) that
-user-attributed system work sets explicitly. The default is the empty set —
-credentials that carry no ``sat`` (legacy tokens, API keys, device tokens,
-delegation JWTs) fail closed against policy-gated guilds.
+The value is the frozenset of provider ids the session proved. Work a job does
+on somebody's behalf is routed with ``on_behalf`` instead
+(``app.api.deps.establish_guild_access``). The default is the empty set —
+credentials that carry no ``sat`` (legacy tokens, API keys, device tokens)
+fail closed against policy-gated guilds.
 """
 
 from __future__ import annotations
@@ -29,27 +30,20 @@ from dataclasses import dataclass
 
 from app.core.login_methods import SecondFactorRequirement
 
-_satisfied_providers: contextvars.ContextVar[frozenset[int] | str] = (
-    contextvars.ContextVar("auth_satisfied_providers", default=frozenset())
+_satisfied_providers: contextvars.ContextVar[frozenset[int]] = contextvars.ContextVar(
+    "auth_satisfied_providers", default=frozenset()
 )
 
 
-def set_satisfied_providers(value: frozenset[int] | str | None) -> None:
-    """Record the current credential's satisfied-provider set (or the system
-    sentinel). ``None`` clears to the fail-closed empty set."""
+def set_satisfied_providers(value: frozenset[int] | None) -> None:
+    """Record the current credential's satisfied-provider set. ``None`` clears
+    to the fail-closed empty set."""
     _satisfied_providers.set(frozenset() if value is None else value)
 
 
-def satisfied_providers() -> frozenset[int] | str:
+def satisfied_providers() -> frozenset[int]:
     """The satisfied-provider set recorded for this request/task."""
     return _satisfied_providers.get()
-
-
-def satisfied_provider_ids() -> frozenset[int]:
-    """The recorded set as provider ids only — the system sentinel (which no
-    live-session path records) reads as the empty, fail-closed set."""
-    value = _satisfied_providers.get()
-    return value if isinstance(value, frozenset) else frozenset()
 
 
 _satisfied_claims: contextvars.ContextVar[dict[str, dict[str, list[str]]]] = (
@@ -66,8 +60,8 @@ def satisfied_claims() -> dict[str, dict[str, list[str]]]:
     """Those assertions, for this request/task.
 
     Empty for every credential that records nothing about how its owner signed
-    in — device tokens, API keys, delegation JWTs — which is the fail-closed
-    answer against a community that narrows the way in.
+    in — device tokens, API keys — which is the fail-closed answer against a
+    community that narrows the way in.
     """
     return _satisfied_claims.get()
 
@@ -113,8 +107,8 @@ def claims_from_provider_auth(
 #: wrote, and a boolean each meant every seam between the validator and the
 #: gate grew a parameter every time a method was added.
 #:
-#: Empty for every credential that is not a session — an API key, a delegation
-#: JWT — which is the fail-closed answer to any community that asks.
+#: Empty for every credential that is not a session — an API key, a device
+#: token — which is the fail-closed answer to any community that asks.
 _session_amr: contextvars.ContextVar[frozenset[str]] = contextvars.ContextVar(
     "auth_session_amr", default=frozenset()
 )
@@ -171,10 +165,10 @@ def asked_of_account() -> SecondFactorRequirement | None:
 
 
 #: Whether a personal API key is what authenticated this request. Recorded by
-#: the two validators that accept one, and read where a community's refusal of
-#: them is applied: the guild-access gate and the cross-guild aggregates.
-#: ``False`` for every other credential, which is the answer that reaches the
-#: guild.
+#: the credential validator (``app.services.auth.credentials``), and read where
+#: a community's refusal of them is applied: the guild-access gate and the
+#: cross-guild aggregates. ``False`` for every other credential, which is the
+#: answer that reaches the guild.
 _api_key_credential: contextvars.ContextVar[bool] = contextvars.ContextVar(
     "auth_api_key_credential", default=False
 )
@@ -186,6 +180,24 @@ def set_api_key_credential(value: bool) -> None:
 
 def api_key_credential() -> bool:
     return _api_key_credential.get()
+
+
+#: The one guild a personal API key is limited to, when it is limited to one.
+#: Recorded beside :data:`_api_key_credential` and read by the same two places:
+#: the guild-access gate refuses every other guild, and the cross-guild
+#: aggregates visit only this one. ``None`` for a key limited to no guild and
+#: for every other credential.
+_api_key_guild_id: contextvars.ContextVar[int | None] = contextvars.ContextVar(
+    "auth_api_key_guild_id", default=None
+)
+
+
+def set_api_key_guild_id(value: int | None) -> None:
+    _api_key_guild_id.set(value)
+
+
+def api_key_guild_id() -> int | None:
+    return _api_key_guild_id.get()
 
 
 #: The ``user_tokens`` row that authenticated this request, when the credential
@@ -218,9 +230,9 @@ class SessionCredential:
     that say whether it still stands: the ``auth_sessions`` row its ``sid``
     names, and the ``users.token_version`` it was minted at.
 
-    Recorded by the WebSocket authenticator so a stream registered on the
-    socket can ask again later, after the request that opened it is long gone.
-    ``None`` for every other credential.
+    Recorded by the credential validator for every session JWT. A stream
+    registered on a socket reads it, so it can ask again later, after the
+    request that opened it is long gone. ``None`` for every other credential.
     """
 
     session_id: uuid.UUID

@@ -2,12 +2,13 @@ import { type ChangeEvent, type FormEvent, useEffect, useMemo, useRef, useState 
 import { useTranslation } from "react-i18next";
 
 import {
-  useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete,
-  useConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost,
-  useImportEnvelopeApiV1GGuildIdImportsEnvelopePost,
-  useImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost,
+  useCancelImportJobApiV1CGuildIdImportsJobsJobIdDelete,
+  useConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPost,
+  useImportEnvelopeApiV1CGuildIdImportsEnvelopePost,
+  useImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost,
 } from "@/api/generated/imports/imports";
 import type { ImportJobRead, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { invalidate, q } from "@/api/query-keys";
 import { ImportPeopleStep, type PlanPerson } from "@/components/imports/ImportPeopleStep";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,11 +29,10 @@ import {
 } from "@/components/ui/select";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAppConfig } from "@/hooks/useAppConfig";
-import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
+import { liveInitiatives } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { queryClient } from "@/lib/queryClient";
 import { toolEnvelopeType, toolForEnvelopeType } from "@/lib/tools";
 
 // The real upload cap is server-owned and arrives via /api/v1/config
@@ -97,7 +97,6 @@ export function EnvelopeImportDialog({
   const guildId = useActiveGuildId();
   const { maxUploadBytes } = useAppConfig();
   const initiativesQuery = useInitiatives();
-  const { filterVisible, permissionsFor } = useInitiativeAccess();
 
   const [envelope, setEnvelope] = useState<ParsedEnvelope | null>(null);
   // A zipped export, sent as it is rather than read here.
@@ -117,10 +116,10 @@ export function EnvelopeImportDialog({
   // started must not stamp its (stale) result onto the input.
   const readGeneration = useRef(0);
 
-  const importMutation = useImportEnvelopeApiV1GGuildIdImportsEnvelopePost();
-  const archiveMutation = useImportEnvelopeArchiveApiV1GGuildIdImportsEnvelopeArchivePost();
-  const confirmMutation = useConfirmImportApiV1GGuildIdImportsJobsJobIdConfirmPost();
-  const cancelMutation = useCancelImportJobApiV1GGuildIdImportsJobsJobIdDelete();
+  const importMutation = useImportEnvelopeApiV1CGuildIdImportsEnvelopePost();
+  const archiveMutation = useImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost();
+  const confirmMutation = useConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPost();
+  const cancelMutation = useCancelImportJobApiV1CGuildIdImportsJobsJobIdDelete();
 
   const people = useMemo(
     () => ((stagedJob?.plan as { people?: PlanPerson[] } | null)?.people ?? []) as PlanPerson[],
@@ -131,10 +130,10 @@ export function EnvelopeImportDialog({
     if (fixedInitiativeId != null || !initiativesQuery.data) {
       return [];
     }
-    return filterVisible(initiativesQuery.data).filter(
-      (initiative) => permissionsFor(initiative)[tool].create
+    return liveInitiatives(initiativesQuery.data).filter((initiative) =>
+      initiative.can.create.includes(tool)
     );
-  }, [fixedInitiativeId, initiativesQuery.data, filterVisible, permissionsFor, tool]);
+  }, [fixedInitiativeId, initiativesQuery.data, tool]);
 
   useEffect(() => {
     if (open) {
@@ -285,10 +284,10 @@ export function EnvelopeImportDialog({
     }
   };
 
-  /** Close out a finished (or started) import: refresh the tool's list and
-   * let the page know. Prefix invalidation catches every consumer of it. */
+  /** Close out a finished (or started) import: refresh the tool's lists and
+   * let the page know. */
   const finish = () => {
-    void queryClient.invalidateQueries({ queryKey: [tool] });
+    void invalidate(q.toolList(tool));
     onOpenChange(false);
     onImported?.();
   };

@@ -31,7 +31,6 @@ from app.db.system_grants import GRANTABLE_SHARED_TABLES
 # --- unit ---------------------------------------------------------------------
 
 
-@pytest.mark.unit
 def test_registry_covers_exactly_the_shared_tables():
     """Every shared table has a row-security decision, and only shared tables
     do. A new ``public`` table with no entry fails here (the strictest state,
@@ -46,14 +45,12 @@ def test_registry_covers_exactly_the_shared_tables():
     assert not phantom, f"registry names non-shared tables {sorted(phantom)}"
 
 
-@pytest.mark.unit
 def test_policy_names_are_unique_per_table():
     for table, rls in PUBLIC_RLS.items():
         names = [p.name for p in rls.policies]
         assert len(names) == len(set(names)), f"{table}: duplicate policy names"
 
 
-@pytest.mark.unit
 def test_every_policy_is_well_formed():
     """A command takes the clauses Postgres gives it: SELECT and DELETE have a
     USING and no WITH CHECK, INSERT the reverse, UPDATE and ALL at least a
@@ -76,7 +73,6 @@ def test_every_policy_is_well_formed():
                 )
 
 
-@pytest.mark.unit
 def test_a_table_without_policies_is_forced_or_off():
     """No policies and row security on means forced: the strictest state is
     stated, never a half-state where the owner reads everything."""
@@ -85,7 +81,6 @@ def test_a_table_without_policies_is_forced_or_off():
             assert rls.forced, f"{table}: enabled with no policy must be forced"
 
 
-@pytest.mark.unit
 def test_render_is_stable():
     assert render_public_rls_ddl() == render_public_rls_ddl()
     assert len(public_rls_digest()) == 16
@@ -130,8 +125,6 @@ async def _catalog(conn) -> dict:
     }
 
 
-@pytest.mark.integration
-@pytest.mark.database
 async def test_the_catalog_is_what_the_registry_renders(engine):
     """Applying the registry to the worker's database changes nothing.
 
@@ -159,8 +152,6 @@ async def test_the_catalog_is_what_the_registry_renders(engine):
     assert before["flags"] == after["flags"]
 
 
-@pytest.mark.integration
-@pytest.mark.database
 async def test_the_catalog_holds_no_policy_the_registry_does_not_name(engine):
     async with engine.connect() as conn:
         stray = await unregistered_policies(conn)
@@ -169,8 +160,6 @@ async def test_the_catalog_holds_no_policy_the_registry_does_not_name(engine):
     )
 
 
-@pytest.mark.integration
-@pytest.mark.database
 async def test_row_security_flags_match_the_registry(engine):
     async with engine.connect() as conn:
         flags = (await _catalog(conn))["flags"]

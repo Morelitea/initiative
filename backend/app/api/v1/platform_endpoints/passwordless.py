@@ -18,11 +18,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import (
     CREDENTIAL_DEVICE_TOKEN,
-    get_current_active_user,
     require_first_party_session,
+    SystemSessionDep,
+    CurrentUser,
 )
 from app.api.v1.platform_endpoints.password_recheck import require_password
 from app.api.v1.platform_endpoints.session_opening import (
+    count_wrong_answer,
+    refuse_if_locked,
     replace_session,
     require_login_method,
 )
@@ -30,9 +33,13 @@ from app.core.audit_events import AuditEventType
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages
 from app.core.password_policy import enforce_password_policy
-from app.core.rate_limit import limiter
+from app.core.rate_limit import (
+    count_sign_in_failure,
+    limiter,
+    sign_in_allowance_left,
+)
 from app.core.security import get_password_hash, has_usable_password
-from app.db.session import get_system_session, get_session
+from app.db.session import get_session
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.user import User, UserStatus
 from app.schemas.platform.auth import VerificationSendResponse
@@ -44,15 +51,13 @@ from app.services.auth import addresses
 from app.services.auth import identity as identity_service
 from app.services.auth import totp as totp_service
 from app.services.platform import user_tokens
-from app.services.stream_authz import authority as stream_authority
+from app.services.content_sockets import sockets as content_sockets
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
-CurrentUser = Annotated[User, Depends(get_current_active_user)]
 #: Giving up a way in is done by the person in a session of their own rather
 #: than through a standing credential.
 FirstPartyOnly = Depends(require_first_party_session)
@@ -214,7 +219,7 @@ async def remove_password(
 
     # Open connections stand on the credentials retired above, this device's
     # included; its replacement session reconnects them.
-    await stream_authority.revoke_user_everywhere(current_user.id)
+    await content_sockets.revoke_user_everywhere(current_user.id)
     await email_service.announce_password_removed(system_session, account)
     return RecoveryCodes(codes=codes)
 
@@ -240,16 +245,29 @@ async def recover_with_code(
     # would not take must not cost the account one of its codes.
     await enforce_password_policy(payload.password)
 
+    # Counted by the address typed in as well as by the account, the same way
+    # a password is, so an address nobody holds runs out like one somebody does.
+    address = payload.email.lower().strip()
+    if not await sign_in_allowance_left(address):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=AuthMessages.SIGN_IN_LOCKED,
+        )
     user = await addresses.find_user_by_address(system_session, payload.email)
     if user is None:
+        await count_sign_in_failure(address)
         raise _recovery_code_invalid()
+    await refuse_if_locked(system_session, user.id)
     if user.status != UserStatus.active or has_usable_password(user.hashed_password):
+        await count_sign_in_failure(address)
         await _record_recovery_refusal(system_session, user_id=user.id)
         raise _recovery_code_invalid()
     if not await totp_service.consume_recovery_code(
         system_session, user_id=user.id, code=payload.recovery_code
     ):
+        await count_sign_in_failure(address)
         await _record_recovery_refusal(system_session, user_id=user.id)
+        await count_wrong_answer(system_session, user.id)
         raise _recovery_code_invalid()
 
     user.hashed_password = get_password_hash(payload.password)
@@ -294,5 +312,6 @@ async def recover_with_code(
             detail=AuthMessages.SESSION_STORE_UNAVAILABLE,
         ) from exc
     # Open connections stand on credentials the recovery has just ended.
-    await stream_authority.revoke_user_everywhere(user_id)
+    await content_sockets.revoke_user_everywhere(user_id)
+    await email_service.announce_password_changed(system_session, user)
     return VerificationSendResponse(status="reset")

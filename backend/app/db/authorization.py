@@ -49,9 +49,17 @@ at call time is still the caller's route, which is the same schema.
 
 from __future__ import annotations
 from collections.abc import Iterable
-from app.models.platform.access_grant import AccessGrantPurpose, SettingsLevel
+from app.db import gucs
+from app.core.app_scopes import AppScopeResource, tool_resource
+from app.core.tools import Tool
+from app.models.platform.access_grant import (
+    AccessGrantPurpose,
+    AccessGrantStatus,
+    SettingsLevel,
+)
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserRole
+from app.models.tenant.initiative import DEFAULT_PERMISSION_VALUES, PermissionKey
 from app.models.tenant.resource_grant import (
     RESOURCE_LEVEL_LADDER,
     WRITE_LEVELS,
@@ -82,6 +90,9 @@ __all__ = [
     "RETIRED_GUILD_FUNCTION_SIGNATURES",
     "GUILD_SUPERADMIN",
     "DropReport",
+    "app_narrowed",
+    "app_refused",
+    "app_scope",
     "apply_authorization_functions",
     "authorization_functions_digest",
     "drop_public_copies",
@@ -161,7 +172,7 @@ $function$
 
 #: Gate 0b: the same question for the current request, off the GUCs the
 #: session context sets. This is what the policy legs call.
-GUILD_CONNECTION_SATISFIED = """\
+GUILD_CONNECTION_SATISFIED = f"""\
 CREATE OR REPLACE FUNCTION public.guild_connection_satisfied(p_guild_id integer, p_provider_id integer DEFAULT NULL::integer)
  RETURNS boolean
  LANGUAGE sql
@@ -174,17 +185,14 @@ AS $function$
         -- the table.
         COALESCE(
             string_to_array(
-                NULLIF(
-                    NULLIF(current_setting('app.satisfied_providers', true), ''),
-                    'system'
-                ),
+                NULLIF({gucs.SATISFIED_PROVIDERS.text}, 'system'::text),
                 ','
             )::integer[],
             ARRAY[]::integer[]
         ),
         COALESCE(
-            NULLIF(current_setting('app.satisfied_claims', true), '')::jsonb,
-            '{}'::jsonb
+            {gucs.SATISFIED_CLAIMS},
+            '{{}}'::jsonb
         ),
         p_provider_id
     )
@@ -202,19 +210,13 @@ $function$
 #: ``string_to_array`` of an unset setting is NULL, and the empty array is what
 #: the legs below are written against, so an absent setting reads as a session
 #: that recorded nothing.
-SESSION_AMR = """\
+SESSION_AMR = f"""\
 CREATE OR REPLACE FUNCTION public.session_amr()
  RETURNS text[]
  LANGUAGE sql
  STABLE
 AS $function$
-    SELECT COALESCE(
-        string_to_array(
-            NULLIF(current_setting('app.session_amr', true), ''),
-            ','
-        ),
-        ARRAY[]::text[]
-    )
+    SELECT {gucs.SESSION_AMR}
 $function$
 
 """
@@ -245,11 +247,9 @@ AS $function$
           AND s.second_factor_requirement <> 'nobody'
           AND (
               s.second_factor_requirement = 'everyone'
-              OR COALESCE(current_setting('app.platform_role', true), '') <> '{UserRole.member.value}'
+              OR {gucs.PLATFORM_ROLE} IS DISTINCT FROM '{UserRole.member.value}'
           )
-          AND COALESCE(
-                current_setting('app.platform_factor', true), 'false'
-              ) <> 'true'
+          AND ({gucs.PLATFORM_FACTOR}) IS NOT TRUE
     )
 $function$
 
@@ -257,7 +257,7 @@ $function$
 
 
 #: Gate 0: the guild's sign-in policy, satisfied by this session.
-GUILD_AUTH_SATISFIED = """\
+GUILD_AUTH_SATISFIED = f"""\
 CREATE OR REPLACE FUNCTION public.guild_auth_satisfied()
  RETURNS boolean
  LANGUAGE sql
@@ -266,17 +266,15 @@ AS $function$
     SELECT
         -- Pure system routing (no user context) and the explicit sentinel a
         -- user-attributed job sets are not sessions to gate.
-        NULLIF(current_setting('app.current_user_id', true), '') IS NULL
-        OR current_setting('app.satisfied_providers', true) = 'system'
+        {gucs.USER_ID.text} IS NULL
+        OR {gucs.SATISFIED_PROVIDERS.raw} = 'system'::text
         OR (
         -- What the deployment asks of the account, before what the community
         -- asks of the session. Both have to hold.
         public.platform_factor_satisfied()
         AND NOT EXISTS (
             SELECT 1 FROM public.guild_auth_policies p
-            WHERE p.guild_id = NULLIF(
-                    current_setting('app.current_guild_id', true), ''
-                  )::int
+            WHERE p.guild_id = {gucs.ROUTED_GUILD_ID}
               AND p.policy <> 'open'
               AND (
                   -- The provider this guild names, if it names one: the
@@ -320,9 +318,7 @@ AS $function$
             -- like the leg above it.
             SELECT 1
             FROM public.guilds g
-            WHERE g.id = NULLIF(
-                    current_setting('app.current_guild_id', true), ''
-                  )::int
+            WHERE g.id = {gucs.ROUTED_GUILD_ID}
               AND g.require_second_factor
               AND NOT ('mfa' = ANY(public.session_amr()))
         ))
@@ -359,82 +355,35 @@ SYSTEM_SESSION = (
 #: ``app.current_guild_id``, a content grantee with ``app.pam_guild_id`` and a
 #: settings grantee with ``app.settings_guild_id``. Whichever names one is the
 #: one community the session is in.
-ROUTED_COMMUNITY = (
-    "COALESCE("
-    "NULLIF(current_setting('app.current_guild_id'::text, true), ''::text),"
-    " NULLIF(current_setting('app.pam_guild_id'::text, true), ''::text),"
-    " NULLIF(current_setting('app.settings_guild_id'::text, true), ''::text))"
-)
+ROUTED_COMMUNITY = gucs.ROUTED_COMMUNITY
 
 #: The standing on this session was computed for the community it is routed
 #: into. A standing means nothing outside the community it came from —
 #: initiative 5 is a different row in every schema — so every leg that reads
 #: one says which community it belongs to first.
 STANDING_IS_THIS_GUILD = (
-    "NULLIF(current_setting('app.standing_guild_id'::text, true), ''::text)"
-    f" IS NOT DISTINCT FROM {ROUTED_COMMUNITY}"
+    f"{gucs.STANDING_GUILD_ID.text} IS NOT DISTINCT FROM {ROUTED_COMMUNITY}"
 )
 
 #: The reader administers this community: the membership row's own answer, as
 #: the standing statement read it, written where a policy can read it.
-GUILD_ADMIN = (
-    f"({STANDING_IS_THIS_GUILD}"
-    " AND current_setting('app.guild_admin'::text, true) = 'true'::text)"
-)
+GUILD_ADMIN = f"({STANDING_IS_THIS_GUILD} AND {gucs.GUILD_ADMIN})"
 
 #: This request administers the community's configuration: a live settings
 #: grant, at either rung, as the standing statement read it from the rows.
 #: Its own axis — what a grant reaches of the community's settings — beside
 #: :data:`GUILD_ADMIN`, which only a membership row answers.
-SETTINGS_ADMIN = (
-    f"({STANDING_IS_THIS_GUILD}"
-    " AND current_setting('app.settings_rung'::text, true) <> ''::text)"
-)
+SETTINGS_ADMIN = f"({STANDING_IS_THIS_GUILD} AND {gucs.SETTINGS_RUNG.raw} <> ''::text)"
 
 #: This request holds the community's seat: the membership row's superadmin,
 #: or a live superadmin settings grant, as the standing statement read it
 #: through ``guild_superadmin()``.
-GUILD_SEAT = (
-    f"({STANDING_IS_THIS_GUILD}"
-    " AND current_setting('app.guild_seat'::text, true) = 'true'::text)"
-)
+GUILD_SEAT = f"({STANDING_IS_THIS_GUILD} AND {gucs.GUILD_SEAT})"
 
-#: A live grant covers this request, at whichever level the command asks for.
-#: A live content grant, read one level at a time: the level a grant confers
-#: is the one its standing value names.
-PAM_READ = "current_setting('app.pam_read'::text, true) = 'true'::text"
-PAM_WRITE = "current_setting('app.pam_write'::text, true) = 'true'::text"
-PAM_AT_LEVEL = (
-    f"(CASE WHEN p_need_write THEN {PAM_WRITE} ELSE {PAM_READ} OR {PAM_WRITE} END)"
-)
-
-#: A live grant at either level, where the question is what the community has
-#: switched on rather than what one person may reach.
-PAM_ANY = f"{PAM_READ} OR {PAM_WRITE}"
-
-
-def standing_ids(key: str) -> str:
-    """The integer set the standing carries under ``key``.
-
-    Empty rather than NULL when nothing is recorded: ``x = ANY(NULL)`` is NULL,
-    and a leg that answers neither yes nor no turns the whole chain around it
-    into one, which reads as no in a policy and as nothing at all to anybody
-    asking the function directly.
-    """
-    return (
-        "COALESCE(string_to_array("
-        f"NULLIF(current_setting('{key}'::text, true), ''::text), ','::text"
-        ")::integer[], ARRAY[]::integer[])"
-    )
-
-
-def standing_pairs(key: str) -> str:
-    """The ``"<id>:<name>"`` set the standing carries under ``key``."""
-    return (
-        "COALESCE(string_to_array("
-        f"NULLIF(current_setting('{key}'::text, true), ''::text), ','::text"
-        "), ARRAY[]::text[])"
-    )
+#: A grant that is in force right now: approved and unexpired. Written over the
+#: ``access_grants`` alias ``g``; the standing statement and
+#: ``guild_superadmin()`` both read grants through it.
+LIVE_GRANT = f"g.status = '{AccessGrantStatus.approved.value}' AND g.expires_at > now()"
 
 
 def sql_values(values: Iterable[str]) -> str:
@@ -458,37 +407,40 @@ def sql_values(values: Iterable[str]) -> str:
 # type is shared; the function is rendered into each guild schema with the
 # gates, so a schema's policies still call only that schema's functions.
 
+
 #: ``public.standing``'s attributes, in order: the name a gate reads, its type,
 #: and the leg it is read from. The type is created by a migration, and
 #: ``authorization_test`` holds the live type to this list.
+def _read(guc: gucs.Guc) -> tuple[str, str, str]:
+    """A standing attribute that is one variable, read under its own name."""
+    return (guc.bind, guc.kind.value, guc.sql)
+
+
 STANDING_FIELDS: tuple[tuple[str, str, str], ...] = (
     ("system_session", "boolean", SYSTEM_SESSION),
     ("this_guild", "boolean", STANDING_IS_THIS_GUILD),
     ("guild_admin", "boolean", GUILD_ADMIN),
-    (
-        "guild_auth_ok",
-        "boolean",
-        "current_setting('app.guild_auth_ok'::text, true) = 'true'::text",
-    ),
-    (
-        "scope_initiative_id",
-        "integer",
-        "NULLIF(current_setting('app.scope_initiative_id'::text, true), ''::text)::integer",
-    ),
-    ("pam_read", "boolean", PAM_READ),
-    ("pam_write", "boolean", PAM_WRITE),
-    ("member_initiatives", "integer[]", standing_ids("app.member_initiatives")),
-    ("manager_initiatives", "integer[]", standing_ids("app.manager_initiatives")),
-    ("override_initiatives", "integer[]", standing_ids("app.override_initiatives")),
-    ("member_role_ids", "integer[]", standing_ids("app.member_role_ids")),
-    ("role_grants", "text[]", standing_pairs("app.role_grants")),
-    ("role_denies", "text[]", standing_pairs("app.role_denies")),
-    ("enabled_tools", "text[]", standing_pairs("app.enabled_tools")),
-    (
-        "via_dashboard_id",
-        "integer",
-        "NULLIF(current_setting('app.via_dashboard_id'::text, true), ''::text)::integer",
-    ),
+    _read(gucs.GUILD_AUTH_OK),
+    _read(gucs.SCOPE_INITIATIVE_ID),
+    _read(gucs.PAM_READ),
+    _read(gucs.PAM_WRITE),
+    _read(gucs.MEMBER_INITIATIVES),
+    _read(gucs.MANAGER_INITIATIVES),
+    _read(gucs.OVERRIDE_INITIATIVES),
+    _read(gucs.MEMBER_ROLE_IDS),
+    _read(gucs.ROLE_GRANTS),
+    _read(gucs.ROLE_DENIES),
+    _read(gucs.ENABLED_TOOLS),
+    _read(gucs.VIA_DASHBOARD_ID),
+    # An installed app acting in the community: which install, and the
+    # resources its scopes let it read and write. Unset on every request a
+    # person makes.
+    ("install_id", "integer", gucs.INSTALL_ID.sql),
+    _read(gucs.INSTALL_READ),
+    _read(gucs.INSTALL_WRITE),
+    # The community's content is on hold (``read_only``) for this reader: no
+    # change to any of it, whatever their rung. A grant is not held.
+    _read(gucs.CONTENT_HOLD),
 )
 _STANDING_NAMES = frozenset(name for name, _type, _expr in STANDING_FIELDS)
 
@@ -569,6 +521,14 @@ class Legs:
         return self.field("pam_write")
 
     @property
+    def install_id(self) -> str:
+        return self.field("install_id")
+
+    @property
+    def content_hold(self) -> str:
+        return self.field("content_hold")
+
+    @property
     def pam_any(self) -> str:
         return f"({self.pam_read} OR {self.pam_write})"
 
@@ -576,6 +536,28 @@ class Legs:
         return (
             f"(CASE WHEN {need_write} THEN {self.pam_write}"
             f" ELSE {self.pam_read} OR {self.pam_write} END)"
+        )
+
+    @property
+    def system_or_admin(self) -> str:
+        return f"({self.system} OR {self.admin})"
+
+    @property
+    def unnarrowed_install(self) -> str:
+        """An installed app acting in this community on a token that is not
+        narrowed to one initiative."""
+        return (
+            f"({self.install_id} IS NOT NULL AND {self.scope} IS NULL"
+            f" AND {self.this_guild} AND {self.auth_ok})"
+        )
+
+    @property
+    def guild_row_writer(self) -> str:
+        """Who changes a row that belongs to the whole community rather than
+        one initiative: the guild admin or the system, a live write grant, or
+        an installed app on a token not narrowed to one initiative."""
+        return (
+            f"({self.system_or_admin} OR {self.pam_write} OR {self.unnarrowed_install})"
         )
 
 
@@ -594,6 +576,44 @@ def standing_arg():
 IN_BODY = Legs("p_st")
 #: Inside a policy, the standing is this statement's.
 IN_POLICY = Legs(STANDING, per_field=True)
+
+#: The settings rung and the seat, as a policy reads them: once per statement.
+#: ``public.standing`` carries neither, so a policy reads them beside it.
+POLICY_SETTINGS_ADMIN = (
+    f"({IN_POLICY.this_guild} AND {gucs.SETTINGS_RUNG.once} <> ''::text)"
+)
+POLICY_SEAT = f"({IN_POLICY.this_guild} AND {gucs.GUILD_SEAT.once})"
+
+
+# --- An installed app's scopes ----------------------------------------------
+#
+# A person's request carries no install, so each of these answers for it with
+# its first comparison. Every field is read off the standing, once per
+# statement: a sub-select naming no row in a policy, a field of the parameter
+# in a gate.
+
+
+def app_scope(resource: str, write: bool, legs: Legs) -> str:
+    """An installed app holds ``resource``'s read scope, or its write scope
+    when ``write``. ``resource`` is an ``AppScopeResource`` value."""
+    name = AppScopeResource(getattr(resource, "value", resource)).value
+    held = legs.field("install_write" if write else "install_read")
+    return f"({legs.install_id} IS NULL OR '{name}' = ANY ({held}))"
+
+
+def app_narrowed(initiative_expr: str, legs: Legs) -> str:
+    """A token narrowed to one initiative reaches rows that belong to an
+    initiative, and none that belong to the community as a whole.
+    ``initiative_access`` already keeps it to the one it names."""
+    return (
+        f"({legs.install_id} IS NULL OR {legs.scope} IS NULL"
+        f" OR {initiative_expr} IS NOT NULL)"
+    )
+
+
+def app_refused(legs: Legs) -> str:
+    """No installed app reaches the row."""
+    return f"({legs.install_id} IS NULL)"
 
 
 def in_body(sql: str) -> str:
@@ -742,8 +762,9 @@ p_tool IS NULL
 #: The grant rows on ``(p_tool, p_resource_id)`` that reach this reader: one
 #: naming them, one on an initiative role they hold, one shared with every
 #: member of an initiative they are in (or of the community, on a row that
-#: belongs to no initiative), or the dashboard a published view is read
-#: through. Written over the row alias ``g``.
+#: belongs to no initiative), the dashboard a published view is read through,
+#: or one naming the installed app the request is for. Written over the row
+#: alias ``g``.
 GRANT_REACHES_READER = f"""\
 g.resource_type = p_tool
               AND g.resource_id = p_resource_id
@@ -757,6 +778,8 @@ g.resource_type = p_tool
                          OR g.initiative_id = ANY ({_B.field("member_initiatives")})))
                 OR (g.dashboard_id IS NOT NULL
                     AND g.dashboard_id = {_B.field("via_dashboard_id")})
+                OR (g.app_install_id IS NOT NULL
+                    AND g.app_install_id = {_B.install_id})
               )"""
 
 
@@ -830,6 +853,289 @@ $function$
 
 """
 
+_WRITE_RUNGS = sql_values(level.value for level in WRITE_LEVELS)
+_OWNER = ResourceAccessLevel.owner.value
+
+#: The row can be changed at all: it is not archived or in the trash, and the
+#: community is not read-only. (Archiving or trashing an initiative stamps
+#: its tools too, so the row's own columns are enough.)
+_MAY_CHANGE = f"""(p_archived_at IS NULL AND p_deleted_at IS NULL
+        AND NOT {_B.content_hold})"""
+
+#: The request may change the row itself, as the table's write policy answers
+#: it for a row naming no initiative (``initiative_rls.direct_or_guild``).
+_WRITES_ROW = f"""(p_initiative_id IS NOT NULL
+               OR {_B.guild_row_writer})"""
+
+#: The request may change who the resource is shared with: it is the owner,
+#: in its own right rather than through an access grant, it may change the row
+#: itself, and — if it is an installed app — it holds ``sharing:write`` and
+#: the tool's write scope.
+_SHARES = f"""(v_level = '{_OWNER}'
+        AND NOT {_B.pam_any}
+        AND {_WRITES_ROW}
+        AND ({_B.install_id} IS NULL
+             OR ('{AppScopeResource.sharing.value}' = ANY ({_B.field("install_write")})
+                 AND COALESCE((CASE p_tool
+                   {" ".join(f"WHEN '{t.value}' THEN '{tool_resource(t).value}'" for t in Tool)}
+                   END) = ANY ({_B.field("install_write")}), false))))"""
+
+#: The actions the request may take on one tool row. The routes check this
+#: list before doing anything, and the row's ``can`` reports it to the client,
+#: so the two always agree.
+#:
+#: - ``contribute``: write or owner access, and the row can be changed: the
+#:   request may write what the row holds (a calendar's events, a project's
+#:   tasks).
+#: - ``edit``: as contribute, and the request may change the row itself. A row
+#:   that belongs to the whole community rather than one initiative is changed
+#:   by the writer its policy names (``Legs.guild_row_writer``).
+#: - ``delete``: owner, the row can be changed, and the request may change
+#:   the row itself (as ``edit``).
+#: - ``share``: as delete, and see ``_SHARES`` above.
+#: - ``configure`` (projects): owner or a manager of the initiative, and the
+#:   row can be changed.
+#: - ``export``: owner. Allowed even when archived, since exporting changes
+#:   nothing.
+#: - ``unarchive``: as edit, for a row that was archived on its own. A row
+#:   archived because its initiative was archived comes back with the
+#:   initiative instead.
+RESOURCE_ACTIONS = f"""\
+CREATE OR REPLACE FUNCTION resource_actions(p_tool text, p_resource_id integer, p_user_id integer, p_initiative_id integer, p_archived_at timestamp with time zone, p_deleted_at timestamp with time zone, p_st standing)
+ RETURNS text[]
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+DECLARE
+    v_level text := resource_level(p_tool, p_resource_id, p_user_id, p_initiative_id, p_st);
+    v_actions text[] := ARRAY[]::text[];
+BEGIN
+    IF v_level IS NULL THEN
+        RETURN v_actions;
+    END IF;
+    IF v_level = '{_OWNER}' THEN
+        v_actions := v_actions || 'export'::text;
+    END IF;
+    IF {_MAY_CHANGE} THEN
+        IF v_level IN ({_WRITE_RUNGS}) THEN
+            v_actions := v_actions || 'contribute'::text;
+            IF {_WRITES_ROW} THEN
+                v_actions := v_actions || 'edit'::text;
+            END IF;
+        END IF;
+        IF v_level = '{_OWNER}' AND {_WRITES_ROW} THEN
+            v_actions := v_actions || 'delete'::text;
+        END IF;
+        IF {_SHARES} THEN
+            v_actions := v_actions || 'share'::text;
+        END IF;
+        IF v_level = '{_OWNER}'
+           OR ({_B.this_guild}
+               AND p_initiative_id = ANY ({_B.field("manager_initiatives")})) THEN
+            v_actions := v_actions || 'configure'::text;
+        END IF;
+    ELSIF p_archived_at IS NOT NULL
+          AND NOT {_B.content_hold}
+          AND v_level IN ({_WRITE_RUNGS})
+          AND {_WRITES_ROW}
+          AND (p_initiative_id IS NULL
+               OR NOT resource_frozen('initiatives', p_initiative_id)) THEN
+        v_actions := v_actions || 'unarchive'::text;
+    END IF;
+    RETURN v_actions;
+END
+$function$
+
+"""
+
+#: Whether the request may change who a resource is shared with. The same
+#: rule as ``share`` in :data:`RESOURCE_ACTIONS`, for the policies on
+#: ``resource_grants``. It skips the archived/trashed check, which those rows
+#: already get from ``app.db.frozen``.
+RESOURCE_SHARES = f"""\
+CREATE OR REPLACE FUNCTION resource_shares(p_tool text, p_resource_id integer, p_user_id integer, p_initiative_id integer, p_st standing)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+DECLARE
+    v_level text := resource_level(p_tool, p_resource_id, p_user_id, p_initiative_id, p_st);
+BEGIN
+    RETURN NOT {_B.content_hold} AND {_SHARES};
+END
+$function$
+
+"""
+
+
+def _author_arms() -> str:
+    return "\n".join(
+        f"      WHEN '{tool.value}' THEN\n"
+        f"        SELECT created_by INTO v_author FROM {tool.plural} WHERE id = p_resource_id;"
+        for tool in Tool
+    )
+
+
+#: Whether ``p_user_id`` wrote this resource and nobody owns it now. Lets an
+#: owner row be written that gives unowned content back to its author (trash
+#: restore does this), by someone who is not its owner.
+RESOURCE_RECLAIMABLE = f"""\
+CREATE OR REPLACE FUNCTION resource_reclaimable(p_tool text, p_resource_id integer, p_user_id integer)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+DECLARE
+    v_author integer;
+BEGIN
+    CASE p_tool
+{_author_arms()}
+      ELSE
+        RETURN false;
+    END CASE;
+    RETURN v_author IS NOT NULL
+       AND v_author = p_user_id
+       AND NOT EXISTS (
+           SELECT 1 FROM resource_grants g
+           WHERE g.resource_type = p_tool
+             AND g.resource_id = p_resource_id
+             AND g.level = '{_OWNER}'
+       );
+END
+$function$
+
+"""
+
+#: The people each resource in ``p_resource_ids`` is shared with, as
+#: ``(resource_id, user_id)`` rows: used to decide who gets a notification and
+#: who a post counts as its readers.
+#:
+#: Someone is included when a grant names them, names a role they hold, or is
+#: shared with everyone in the initiative — and only while they are still a
+#: member of it. For a resource in no initiative, "everyone" means the
+#: community's members (``p_guild_id``). Community admins and access-grant
+#: holders are not included unless a grant names them.
+RESOURCE_AUDIENCE = """\
+CREATE OR REPLACE FUNCTION resource_audience(p_tool text, p_resource_ids integer[], p_guild_id integer)
+ RETURNS TABLE(resource_id integer, user_id integer)
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+BEGIN
+    RETURN QUERY
+    SELECT DISTINCT g.resource_id, im.user_id
+      FROM resource_grants g
+      JOIN initiative_members im
+        ON im.initiative_id = g.initiative_id
+       AND (g.user_id = im.user_id
+            OR g.role_id = im.role_id
+            OR g.all_initiative_members)
+     WHERE g.resource_type = p_tool
+       AND g.resource_id = ANY (p_resource_ids)
+       AND g.initiative_id IS NOT NULL
+    UNION
+    SELECT DISTINCT g.resource_id, m.user_id
+      FROM resource_grants g
+      JOIN public.guild_memberships m
+        ON m.guild_id = p_guild_id
+       AND (g.user_id = m.user_id OR g.all_initiative_members)
+     WHERE g.resource_type = p_tool
+       AND g.resource_id = ANY (p_resource_ids)
+       AND g.initiative_id IS NULL;
+END
+$function$
+
+"""
+
+#: Whether a grant row gives the request access to the resource — grants
+#: only, ignoring admin, "Full access" and access grants. Lists that span
+#: initiatives show only what was shared with the reader
+#: (``permissions.granted_scope_clause``). With ``p_need_write`` the grant must
+#: allow editing.
+RESOURCE_GRANTED = f"""\
+CREATE OR REPLACE FUNCTION resource_granted(p_tool text, p_resource_id integer, p_user_id integer, p_need_write boolean, p_st standing)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM resource_grants g
+        WHERE {GRANT_REACHES_READER}
+          AND (NOT p_need_write OR g.level IN ({_WRITE_RUNGS}))
+    );
+END
+$function$
+
+"""
+
+
+def _initiative_tool_actions() -> str:
+    """Two checks per tool, only when the initiative has the tool switched on:
+    ``view:<tool>`` if the reader's role allows viewing it, and
+    ``create:<tool>`` if the role allows creating it, the community is not
+    read-only, and the reader is not here through an access grant (those can
+    edit existing things but not create new ones)."""
+    arms = []
+    for tool in Tool:
+        switch = f"v_initiative.{tool.view_permission}"
+        view_default = str(
+            DEFAULT_PERMISSION_VALUES[PermissionKey(tool.view_permission)]
+        ).lower()
+        create_default = str(
+            DEFAULT_PERMISSION_VALUES[PermissionKey(tool.create_permission)]
+        ).lower()
+        arms.append(
+            f"""    IF {switch} THEN
+        IF initiative_role_permits(p_initiative_id, p_user_id, '{tool.view_permission}', {view_default}, p_st) THEN
+            v_actions := v_actions || 'view:{tool.value}'::text;
+        END IF;
+        IF NOT {_B.content_hold} AND NOT {_B.pam_any}
+           AND initiative_role_permits(p_initiative_id, p_user_id, '{tool.create_permission}', {create_default}, p_st) THEN
+            v_actions := v_actions || 'create:{tool.value}'::text;
+        END IF;
+    END IF;"""
+        )
+    return "\n".join(arms)
+
+
+#: The actions the request may take in one initiative, for the initiative's
+#: ``can``:
+#:
+#: - ``manage``: change its settings, members and roles — a community admin
+#:   or one of its managers.
+#: - ``moderate``: act on its moderation reports — "Full access" or a
+#:   community admin (:data:`INITIATIVE_FULL_ACCESS`).
+#: - ``view:<tool>`` and ``create:<tool>`` per tool.
+INITIATIVE_ACTIONS = f"""\
+CREATE OR REPLACE FUNCTION initiative_actions(p_initiative_id integer, p_user_id integer, p_st standing)
+ RETURNS text[]
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+DECLARE
+    v_initiative initiatives%ROWTYPE;
+    v_actions text[] := ARRAY[]::text[];
+BEGIN
+    SELECT * INTO v_initiative FROM initiatives WHERE id = p_initiative_id;
+    IF NOT FOUND THEN
+        RETURN v_actions;
+    END IF;
+    IF {_B.system} OR {_B.admin}
+       OR ({_B.this_guild}
+           AND p_initiative_id = ANY ({_B.field("manager_initiatives")})) THEN
+        v_actions := v_actions || 'manage'::text;
+    END IF;
+    IF initiative_full_access(p_initiative_id, true, p_st) THEN
+        v_actions := v_actions || 'moderate'::text;
+    END IF;
+{_initiative_tool_actions()}
+    RETURN v_actions;
+END
+$function$
+
+"""
+
 #: Who holds a guild's top seat — its sign-in configuration and its billing.
 #:
 #: Named ``public.guild_memberships`` in full, unlike its neighbours: this one
@@ -870,8 +1176,7 @@ AS $function$
           AND g.user_id = p_user_id
           AND g.purpose = '{AccessGrantPurpose.settings.value}'
           AND g.access_level = '{SettingsLevel.superadmin.value}'
-          AND g.status = 'approved'
-          AND g.expires_at > now()
+          AND {LIVE_GRANT}
     )
 $function$
 
@@ -905,6 +1210,12 @@ GUILD_AUTHORIZATION_FUNCTIONS: tuple[tuple[str, str], ...] = (
     ("initiative_role_permits", INITIATIVE_ROLE_PERMITS),
     ("resource_level", RESOURCE_LEVEL),
     ("resource_access", RESOURCE_ACCESS),
+    ("resource_actions", RESOURCE_ACTIONS),
+    ("resource_shares", RESOURCE_SHARES),
+    ("resource_granted", RESOURCE_GRANTED),
+    ("resource_reclaimable", RESOURCE_RECLAIMABLE),
+    ("resource_audience", RESOURCE_AUDIENCE),
+    ("initiative_actions", INITIATIVE_ACTIONS),
 )
 
 #: Argument types of every function that lives in a guild schema — the five
@@ -917,6 +1228,12 @@ GUILD_FUNCTION_SIGNATURES: dict[str, str] = {
     "initiative_role_permits": "(integer, integer, text, boolean, public.standing)",
     "resource_level": "(text, integer, integer, integer, public.standing)",
     "resource_access": "(text, integer, integer, integer, boolean, public.standing)",
+    "resource_actions": "(text, integer, integer, integer, timestamp with time zone, timestamp with time zone, public.standing)",
+    "resource_shares": "(text, integer, integer, integer, public.standing)",
+    "resource_granted": "(text, integer, integer, boolean, public.standing)",
+    "resource_reclaimable": "(text, integer, integer)",
+    "resource_audience": "(text, integer[], integer)",
+    "initiative_actions": "(integer, integer, public.standing)",
     "resource_frozen": "(text, bigint, boolean)",
     "resource_frozen_for_grant": "(text, bigint, boolean)",
     "entity_access": "(text, integer, boolean, boolean, public.standing)",

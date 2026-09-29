@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from datetime import datetime, time, timedelta, timezone
 from enum import Enum
 from typing import Any, Mapping, Optional
-from zoneinfo import ZoneInfo
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -29,6 +28,7 @@ from app.models.platform.user_notification_prefs import (
     UserNotificationPrefs,
 )
 from app.services.platform.presence import IDLE_AFTER_SECONDS
+from app.core.user_input_validators import resolve_zone
 
 #: An account with no row and no keys — every default, nothing overridden.
 EMPTY: dict[str, Any] = {}
@@ -139,13 +139,6 @@ def quiet_hours(prefs: Mapping[str, Any] | None) -> Optional[tuple[time, time]]:
     return start, end
 
 
-def _resolve_timezone(value: str | None) -> ZoneInfo:
-    try:
-        return ZoneInfo(value or "UTC")
-    except Exception:
-        return ZoneInfo("UTC")
-
-
 def in_quiet_hours(
     prefs: Mapping[str, Any] | None,
     *,
@@ -161,7 +154,7 @@ def in_quiet_hours(
     if window is None:
         return False
     start, end = window
-    moment = (now or datetime.now(timezone.utc)).astimezone(_resolve_timezone(tz_name))
+    moment = (now or datetime.now(timezone.utc)).astimezone(resolve_zone(tz_name))
     current = moment.time()
     if start < end:
         return start <= current < end
@@ -196,7 +189,7 @@ def last_window_close(
     if window is None:
         return None
     start, end = window
-    tz = _resolve_timezone(tz_name)
+    tz = resolve_zone(tz_name)
     moment = (now or datetime.now(timezone.utc)).astimezone(tz)
     if in_quiet_hours(prefs, tz_name=tz_name, now=moment):
         return None
@@ -346,7 +339,7 @@ def quiet_hours_close(
     if window is None:
         return None
     _start, end = window
-    tz = _resolve_timezone(tz_name)
+    tz = resolve_zone(tz_name)
     moment = (now or datetime.now(timezone.utc)).astimezone(tz)
     if not in_quiet_hours(prefs, tz_name=tz_name, now=moment):
         return None
@@ -500,7 +493,7 @@ def _next_slot(
         # without reading when the last went out.
         return now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
 
-    tz = _resolve_timezone(tz_name)
+    tz = resolve_zone(tz_name)
     local = now.astimezone(tz)
     clock = _parse_clock(schedule.at) or time(hour=21)
     slot = local.replace(hour=clock.hour, minute=clock.minute, second=0, microsecond=0)
@@ -571,6 +564,17 @@ async def load_prefs_for_delivery(user_id: int) -> dict[str, Any]:
 
     async with SystemSessionLocal() as system_session:
         return await load_prefs(system_session, user_id)
+
+
+async def load_prefs_for_delivery_many(
+    user_ids: list[int],
+) -> dict[int, dict[str, Any]]:
+    """The settings of everybody one notice goes to, in one system-engine read
+    (see :func:`load_prefs_for_delivery`). Absent accounts read as defaults."""
+    from app.db.session import SystemSessionLocal
+
+    async with SystemSessionLocal() as system_session:
+        return await load_prefs_for(system_session, user_ids)
 
 
 async def load_prefs(session: AsyncSession, user_id: int) -> dict[str, Any]:

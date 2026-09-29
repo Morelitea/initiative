@@ -25,6 +25,12 @@ import { buildRouterContext, renderPage } from "./helpers/render";
 
 const MESSAGES_ROUTE_ID = "/_serverRequired/_authenticated/messages";
 
+/** A device's keys, real enough to draw its code from. */
+const KEYS = {
+  fingerprint: "C35J1oMcLovDN1JgJEHVuok+7W313W52YY6oaGnw2m8=",
+  identityKey: "zuFDxA+kaChnPNa1QI59q0xuKG+kAI21A/AGDod1RPM=",
+};
+
 const mocks = vi.hoisted(() => ({
   ensureDevice: vi.fn(),
   registeredDevice: vi.fn(),
@@ -47,9 +53,9 @@ const mocks = vi.hoisted(() => ({
   removeMessageRequest: vi.fn(),
   userProfile: vi.fn(),
   dmSettings: vi.fn(),
-  historyRequest: vi.fn(),
+  ownDevice: vi.fn(),
   historyAsk: vi.fn(),
-  answerHistoryRequest: vi.fn(),
+  thisDevice: vi.fn(),
 }));
 
 // The ratchet is exercised for real in src/crypto/ratchet.test.ts. Here it is
@@ -86,12 +92,11 @@ vi.mock("@/crypto/messaging", async (importOriginal) => ({
   // same local log the thread does.
   unreadIn: (id: string) => mocks.unreadIn(id),
   markRead: (id: string) => mocks.markRead(id),
-  // Both sides of a history transfer read this device's own store, not an
-  // endpoint: the request arrived as an encrypted envelope and the server
-  // never saw what it was.
-  historyRequestToAnswer: () => mocks.historyRequest(),
+  // Both sides of confirming a new device read this device's own store, not
+  // an endpoint.
+  ownDeviceWaiting: () => mocks.ownDevice(),
   historyAskWaiting: () => mocks.historyAsk(),
-  answerHistoryRequest: (approve: boolean) => mocks.answerHistoryRequest(approve),
+  thisDevice: () => mocks.thisDevice(),
 }));
 
 vi.mock("@/api/generated/direct-messages/direct-messages", async (importOriginal) => ({
@@ -198,9 +203,9 @@ beforeEach(() => {
   });
   mocks.acceptInvitation.mockResolvedValue(undefined);
   mocks.leaveConversation.mockResolvedValue(undefined);
-  mocks.historyRequest.mockResolvedValue(undefined);
+  mocks.ownDevice.mockResolvedValue(null);
   mocks.historyAsk.mockResolvedValue(undefined);
-  mocks.answerHistoryRequest.mockResolvedValue(undefined);
+  mocks.thisDevice.mockResolvedValue(null);
 });
 
 /** The person a `?with=` handle resolves to. */
@@ -219,6 +224,14 @@ const profile = (userId: number, username: string) => ({
   isLoading: false,
 });
 
+/** The pair every thread here is on, as the server lists it. */
+const conversation = {
+  id: "conv-1",
+  other_user_id: 7,
+  member_ids: [7],
+  created_at: "2026-09-01T00:00:00Z",
+};
+
 describe("My Messages", () => {
   it("is reachable at /messages", async () => {
     await renderMessages();
@@ -231,7 +244,7 @@ describe("My Messages", () => {
     // to offer the conversations itself or there is no way to pick one without
     // opening the menu again.
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -253,7 +266,7 @@ describe("My Messages", () => {
 
   it("renders a thread out of this device's own store", async () => {
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -274,7 +287,7 @@ describe("My Messages", () => {
     // apart are two occasions, and the second must not wear the first's time.
     const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -300,7 +313,7 @@ describe("My Messages", () => {
 
   it("heads each day the thread has messages on", async () => {
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -327,7 +340,7 @@ describe("My Messages", () => {
     // A tick apiece: delivered means a device of theirs holds it, read means
     // somebody looked, and nothing back yet draws neither.
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -349,7 +362,7 @@ describe("My Messages", () => {
 
   it("answers one message with another, and says which", async () => {
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -369,7 +382,7 @@ describe("My Messages", () => {
 
   it("quotes who it is answering, and goes back to them when picked", async () => {
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -405,7 +418,7 @@ describe("My Messages", () => {
     // them on a touch screen is not focusable -- so hiding them that way
     // leaves a keyboard no way to reply, edit or remove anything.
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -434,7 +447,7 @@ describe("My Messages", () => {
     // The log refuses anything else, so offering it would be a button that
     // does nothing -- and the reason is not the interface's to invent.
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -452,7 +465,7 @@ describe("My Messages", () => {
 
   it("rewrites one of your own in the composer, not in the bubble", async () => {
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -480,7 +493,7 @@ describe("My Messages", () => {
     // the edit resolves `false` rather than throwing. Losing the correction
     // either way is the same loss to whoever typed it.
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -503,7 +516,7 @@ describe("My Messages", () => {
 
   it("takes one back only once it has been confirmed", async () => {
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -526,7 +539,7 @@ describe("My Messages", () => {
 
   it("leaves a line where a removed message was, and nothing to do about it", async () => {
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -550,7 +563,7 @@ describe("My Messages", () => {
 
   it("turns a reaction off by pressing the one already there", async () => {
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -583,20 +596,21 @@ describe("My Messages", () => {
     await waitFor(() => expect(mocks.collect).toHaveBeenCalledTimes(2));
   });
 
-  it("puts a device's request on screen as soon as a collection finds it", async () => {
-    // The request is written to this device's store *by* the collection, and
-    // the frame that started the collection invalidated the panel a round trip
-    // earlier. Nothing else would look again, so without the collection saying
-    // so the dialog waits for a reload -- which is the one thing somebody who
-    // has just signed in on another device is not about to do.
+  it("puts a new device of the account on screen as soon as a collection finds it", async () => {
+    // The new device is found by the collection's own read of the device list,
+    // and the frame that started the collection invalidated the prompt a round
+    // trip earlier. Nothing else would look again, so without the collection
+    // saying so the prompt waits for a reload -- which is the one thing
+    // somebody who has just signed in on another device is not about to do.
     mocks.collect.mockImplementation(async () => {
       await Promise.resolve();
-      mocks.historyRequest.mockResolvedValue({
-        requestId: "r1",
+      mocks.ownDevice.mockResolvedValue({
+        userId: 1,
         deviceId: "device-2",
         label: "A laptop",
-        fingerprint: "C35J1oMcLovDN1JgJEHVuok+7W313W52YY6oaGnw2m8=",
+        now: KEYS,
         at: "2026-09-06T00:00:00Z",
+        asked: true,
       });
       return [];
     });
@@ -604,24 +618,30 @@ describe("My Messages", () => {
     await renderMessages();
 
     expect(
-      await screen.findByRole("heading", { name: /asking for your messages/i })
+      await screen.findByRole("heading", { name: /new device signed in/i })
     ).toBeInTheDocument();
-    // And what it asks somebody to compare is pictures, not a line of base64.
+    // What it asks somebody to compare is pictures, not a line of base64, and
+    // the history the device asked for is offered already ticked.
     expect(await screen.findByRole("list", { name: /device code/i })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /message history/i })).toBeChecked();
   });
 
   it("shows the waiting device the code it will be asked about", async () => {
-    // The other half of the comparison: two screens each drawing the same key,
-    // rather than one screen showing a code nobody can check it against.
-    mocks.historyAsk.mockResolvedValue({
-      fingerprint: "C35J1oMcLovDN1JgJEHVuok+7W313W52YY6oaGnw2m8=",
+    // The other half of the comparison: two screens each drawing the same
+    // device, rather than one screen showing a code nobody can check.
+    mocks.historyAsk.mockResolvedValue({ expiresAt: Date.now() + 60_000 });
+    mocks.thisDevice.mockResolvedValue({
+      userId: 1,
+      fingerprintKey: KEYS.fingerprint,
+      identityKey: KEYS.identityKey,
     });
 
     await renderMessages();
 
     expect(
-      await screen.findByRole("heading", { name: /waiting for your messages/i })
+      await screen.findByRole("heading", { name: /confirm this device/i })
     ).toBeInTheDocument();
+    expect(await screen.findByRole("list", { name: /device code/i })).toBeInTheDocument();
   });
 
   it("does not carry a half-written message into another conversation", async () => {
@@ -629,7 +649,7 @@ describe("My Messages", () => {
     // the draft follows the switch, and the next Send addresses somebody else.
     mocks.conversations.mockResolvedValue({
       conversations: [
-        { id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" },
+        conversation,
         { id: "conv-2", other_user_id: 8, created_at: "2026-09-01T00:00:00Z" },
       ],
     });
@@ -651,7 +671,7 @@ describe("My Messages", () => {
 
   it("says an account has no device rather than reporting a plain failure", async () => {
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -671,7 +691,7 @@ describe("My Messages", () => {
     // A contacts row links straight here. Landing on the page is not enough —
     // it has to land on that person's thread.
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
@@ -819,7 +839,7 @@ describe("My Messages", () => {
 
   it("sends through the ratchet rather than posting a body", async () => {
     mocks.conversations.mockResolvedValue({
-      conversations: [{ id: "conv-1", other_user_id: 7, created_at: "2026-09-01T00:00:00Z" }],
+      conversations: [conversation],
     });
     mocks.messageRequests.mockReturnValue({
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },

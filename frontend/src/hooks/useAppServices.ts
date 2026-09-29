@@ -6,13 +6,11 @@ import {
   getListAppServicesApiV1AppServicesGetQueryKey,
   listAppServicesApiV1AppServicesGet,
   updateAppServiceApiV1AppServicesRegistrationIdPatch,
-  verifyAppServiceApiV1AppServicesRegistrationIdVerifyPost,
 } from "@/api/generated/app-services/app-services";
 import type {
   AppServiceRegistrationCreate,
   AppServiceRegistrationRead,
   AppServiceRegistrationUpdate,
-  AppServiceVerifyRequest,
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { useApiMutation } from "@/hooks/useApiMutation";
@@ -64,36 +62,3 @@ export const useDeleteAppService = (options?: MutationOpts<void, number>) =>
     },
     options
   );
-
-export interface VerifyAppServiceVariables {
-  registrationId: number;
-  data?: AppServiceVerifyRequest;
-}
-
-/**
- * Re-run the handshake.
- *
- * The row records the attempt's outcome before any refusal is raised, so a
- * failed verify still moved `status` — the list is invalidated on error as
- * well as on success, or the badge would keep showing the previous state.
- */
-export const useVerifyAppService = (
-  options?: MutationOpts<AppServiceRegistrationRead, VerifyAppServiceVariables>
-) => {
-  const { onError, ...rest } = options ?? {};
-
-  return useApiMutation<AppServiceRegistrationRead, VerifyAppServiceVariables>(
-    {
-      mutationFn: ({ registrationId, data }) =>
-        verifyAppServiceApiV1AppServicesRegistrationIdVerifyPost(registrationId, data ?? null),
-      invalidate: () => invalidate(q.appServices()),
-    },
-    {
-      ...rest,
-      onError: (...args) => {
-        void invalidate(q.appServices());
-        onError?.(...args);
-      },
-    }
-  );
-};

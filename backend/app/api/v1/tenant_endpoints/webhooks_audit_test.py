@@ -12,14 +12,12 @@ import socket
 from contextlib import contextmanager
 from unittest.mock import patch
 
-import pytest
 from httpx import AsyncClient
 
 from app.core.audit_events import AuditEventType
 from app.models.platform.guild import GuildRole
 from app.testing import emitted
 
-pytestmark = pytest.mark.integration
 
 _WEBHOOK_HOST = "hooks.example.com"
 _TARGET_URL = f"https://{_WEBHOOK_HOST}/in/secret-path"
@@ -50,7 +48,7 @@ def _mock_public_dns():
 
 
 def _url(guild_id: int, suffix: str = "") -> str:
-    return f"/api/v1/g/{guild_id}/webhooks/subscriptions{suffix}"
+    return f"/api/v1/c/{guild_id}/webhooks/subscriptions{suffix}"
 
 
 def _body(**overrides) -> dict:

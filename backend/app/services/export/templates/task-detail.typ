@@ -5,6 +5,13 @@
 // in the payload's `labels` map (the adapter translates to the export
 // creator's locale), so this file is pure layout.
 #let payload = json(bytes(sys.inputs.at("data", default: "{}")))
+
+// Who exported the file and when: document metadata, not printed on the page.
+#let exported = payload.at("exported", default: (:))
+#set document(
+  author: exported.at("by", default: ()),
+  date: if "date" in exported { datetime(..exported.date) } else { auto },
+)
 #let tasks = payload.at("tasks", default: ())
 #let labels = payload.at("labels", default: (:))
 

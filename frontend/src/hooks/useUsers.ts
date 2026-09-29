@@ -1,34 +1,33 @@
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { updateGuildMembershipApiV1GuildsGuildIdMembersUserIdPatch } from "@/api/generated/guilds/guilds";
+import { updateGuildMembershipApiV1CommunitiesGuildIdMembersUserIdPatch } from "@/api/generated/communities/communities";
 import type {
   AccountDeletionRequest,
   AccountDeletionResponse,
-  ExportUsersCsvApiV1GGuildIdUsersExportCsvGetParams,
+  ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams,
   GuildRole,
-  UserGuildMember,
-  UserGuildRead,
+  ListUsersApiV1CGuildIdUsersGetParams,
+  Tool,
+  UserGuildMemberListResponse,
   UserRead,
   UserSummary,
 } from "@/api/generated/initiativeAPI.schemas";
-import { useSearchInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersSearchGet } from "@/api/generated/initiatives/initiatives";
-import { useSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet } from "@/api/generated/projects/projects";
+import { useSearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGet } from "@/api/generated/initiatives/initiatives";
 import {
-  approveUserApiV1GGuildIdUsersUserIdApprovePost,
   deleteOwnAccountApiV1UsersMeDeleteAccountPost,
-  exportUsersCsvApiV1GGuildIdUsersExportCsvGet,
+  exportUsersCsvApiV1CGuildIdUsersExportCsvGet,
   getListDecorationPacksApiV1UsersMeDecorationPacksGetQueryKey,
   getListMyDecorationsApiV1UsersMeDecorationsGetQueryKey,
-  getListUsersApiV1GGuildIdUsersGetQueryKey,
+  getListUsersApiV1CGuildIdUsersGetQueryKey,
   installDecorationPackApiV1UsersMeDecorationPacksUidPost,
-  listUsersApiV1GGuildIdUsersGet,
+  listUsersApiV1CGuildIdUsersGet,
   removeDecorationPackApiV1UsersMeDecorationPacksUidDelete,
   updateUsersMeApiV1UsersMePatch,
   useListDecorationPacksApiV1UsersMeDecorationPacksGet,
   useListMyDecorationsApiV1UsersMeDecorationsGet,
   useReadUserCommunitiesApiV1UsersHandleCommunitiesGet,
   useReadUserProfileApiV1UsersHandleProfileGet,
-  useSearchUsersApiV1GGuildIdUsersSearchGet,
+  useSearchUsersApiV1CGuildIdUsersSearchGet,
 } from "@/api/generated/users/users";
 import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -40,16 +39,20 @@ import type { QueryOpts } from "@/types/query";
 // ── Queries ─────────────────────────────────────────────────────────────────
 
 /**
- * Members of a guild. Defaults to the active guild; pass `guildIdOverride` to
- * read a specific guild's members from a cross-guild surface (e.g. the personal
- * trash view reassigning an item that lives in another guild).
+ * One page of the active guild's roster, searched and ordered on the server —
+ * the members table in guild settings. A picker wants {@link useUserSearch}
+ * instead: the same people, as the slimmer {@link UserSummary}.
  */
-export const useUsers = (options?: QueryOpts<UserGuildMember[]>, guildIdOverride?: number) => {
-  const activeGuildId = useActiveGuildId();
-  const guildId = guildIdOverride ?? activeGuildId;
-  return useQuery<UserGuildMember[]>({
-    queryKey: getListUsersApiV1GGuildIdUsersGetQueryKey(guildId),
-    queryFn: () => listUsersApiV1GGuildIdUsersGet(guildId),
+export const useUsers = (
+  params: ListUsersApiV1CGuildIdUsersGetParams,
+  options?: QueryOpts<UserGuildMemberListResponse>
+) => {
+  const guildId = useActiveGuildId();
+  return useQuery<UserGuildMemberListResponse>({
+    queryKey: getListUsersApiV1CGuildIdUsersGetQueryKey(guildId, params),
+    queryFn: () => listUsersApiV1CGuildIdUsersGet(guildId, params),
+    // Keep the page on screen while the next one (or the next search) loads.
+    placeholderData: keepPreviousData,
     ...options,
   });
 };
@@ -75,6 +78,9 @@ export interface UserSearchOptions {
   userIds?: number[];
   /** Bounded page size (server caps at 100). */
   pageSize?: number;
+  /** Only the people who can open this row: who may be named on what it
+   *  holds (assignees, attendees, person properties, queue items). */
+  canOpen?: { tool: Tool; id: number | null | undefined };
   /** Gate the request — pass the picker's `open` state so we don't fetch until
    *  the dropdown is shown. */
   enabled?: boolean;
@@ -182,9 +188,9 @@ export const useMyDecorations = () =>
 
 /**
  * Slim, server-side member typeahead for the active guild. Returns
- * {@link UserSummary} rows (id, name, avatar, status) for a bounded page —
- * the replacement for loading the whole roster via {@link useUsers} and
- * filtering client-side. Debounce the `search` value at the call site.
+ * {@link UserSummary} rows (id, name, avatar, status, guild role) for a bounded
+ * page, so a picker never loads the whole roster to filter it client-side.
+ * Debounce the `search` value at the call site.
  */
 export const useUserSearch = ({
   search,
@@ -193,19 +199,21 @@ export const useUserSearch = ({
   pageSize = USER_SEARCH_PAGE_SIZE,
   enabled = true,
   guildIdOverride,
+  canOpen,
 }: UserSearchOptions = {}) => {
   const activeGuildId = useActiveGuildId();
   const guildId = guildIdOverride ?? activeGuildId;
-  return useSearchUsersApiV1GGuildIdUsersSearchGet(
+  return useSearchUsersApiV1CGuildIdUsersSearchGet(
     guildId,
     {
       ...memberSearchParams(search, userIds),
       page_size: pageSize,
       ...(page != null ? { page } : {}),
+      ...(canOpen ? { tool: canOpen.tool, resource_id: canOpen.id } : {}),
     },
     {
       query: {
-        enabled: enabled && guildId != null,
+        enabled: enabled && guildId != null && (!canOpen || canOpen.id != null),
         staleTime: 30_000,
         // Keep the prior page visible while the next keystroke's request is in
         // flight so the dropdown doesn't flash empty on every character.
@@ -232,7 +240,7 @@ export const useInitiativeMemberSearch = (
 ) => {
   const activeGuildId = useActiveGuildId();
   const guildId = guildIdOverride ?? activeGuildId;
-  return useSearchInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersSearchGet(
+  return useSearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGet(
     guildId,
     initiativeId as number,
     {
@@ -250,56 +258,22 @@ export const useInitiativeMemberSearch = (
 };
 
 /**
- * Slim, server-side typeahead over the users **assignable to a project's
- * tasks** — the project's write/owner DAC set, computed server-side. Replaces
- * the client-side `project.grants` filtering the assignee pickers used to run
- * over the full guild roster.
- */
-export const useProjectMemberSearch = (
-  projectId: number | null | undefined,
-  {
-    search,
-    userIds,
-    pageSize = USER_SEARCH_PAGE_SIZE,
-    enabled = true,
-    guildIdOverride,
-  }: UserSearchOptions = {}
-) => {
-  const activeGuildId = useActiveGuildId();
-  const guildId = guildIdOverride ?? activeGuildId;
-  return useSearchProjectMembersApiV1GGuildIdProjectsProjectIdMembersSearchGet(
-    guildId,
-    projectId as number,
-    {
-      ...memberSearchParams(search, userIds),
-      page_size: pageSize,
-    },
-    {
-      query: {
-        enabled: enabled && guildId != null && projectId != null,
-        staleTime: 30_000,
-        placeholderData: keepPreviousData,
-      },
-    }
-  );
-};
-
-/**
- * Which RLS-scoped roster a member picker searches.
- * - `guild`: every guild member (e.g. a user-reference property).
- * - `initiative`: one initiative's members (linked-member / event pickers).
- * - `project`: users assignable to a project's tasks (write/owner DAC set).
+ * Which roster a member picker searches.
+ * - `guild`: every guild member.
+ * - `initiative`: one initiative's members (mentions, linked members).
+ * - `canOpen`: the people who can open one row, who are the ones that may be
+ *   named on what it holds (task assignees, event attendees, person
+ *   properties, queue items).
  */
 export type MemberSearchScope =
   | { type: "guild"; guildIdOverride?: number }
   | { type: "initiative"; initiativeId: number | null | undefined }
-  | { type: "project"; projectId: number | null | undefined };
+  | { type: "canOpen"; tool: Tool; id: number | null | undefined };
 
 /**
- * One entry point for the three slim member typeaheads, selected by `scope`.
- * All three underlying queries are declared (rules of hooks) but only the
- * scope-matching one is enabled, so exactly one request fires. Returns the
- * active query result (`{ data, isLoading, ... }`).
+ * One entry point for the member typeaheads, selected by `scope`. Both
+ * underlying queries are declared (rules of hooks) but only the scope-matching
+ * one is enabled, so exactly one request fires.
  */
 export const useMemberSearch = (
   scope: MemberSearchScope,
@@ -308,27 +282,22 @@ export const useMemberSearch = (
     userIds,
     pageSize = USER_SEARCH_PAGE_SIZE,
     enabled = true,
-  }: Omit<UserSearchOptions, "guildIdOverride"> = {}
+  }: Omit<UserSearchOptions, "guildIdOverride" | "canOpen"> = {}
 ) => {
   const guildQuery = useUserSearch({
     search,
     userIds,
     pageSize,
-    enabled: enabled && scope.type === "guild",
+    enabled: enabled && scope.type !== "initiative",
     guildIdOverride: scope.type === "guild" ? scope.guildIdOverride : undefined,
+    canOpen: scope.type === "canOpen" ? { tool: scope.tool, id: scope.id } : undefined,
   });
   const initiativeQuery = useInitiativeMemberSearch(
     scope.type === "initiative" ? scope.initiativeId : undefined,
     { search, userIds, pageSize, enabled: enabled && scope.type === "initiative" }
   );
-  const projectQuery = useProjectMemberSearch(
-    scope.type === "project" ? scope.projectId : undefined,
-    { search, userIds, pageSize, enabled: enabled && scope.type === "project" }
-  );
 
-  if (scope.type === "guild") return guildQuery;
-  if (scope.type === "initiative") return initiativeQuery;
-  return projectQuery;
+  return scope.type === "initiative" ? initiativeQuery : guildQuery;
 };
 
 export type { UserSummary };
@@ -356,32 +325,22 @@ export const useDeleteOwnAccount = (
     options
   );
 
-export const useApproveUser = (options?: MutationOpts<UserGuildRead, number>) =>
-  useGuildMutation<UserGuildRead, number>(
-    {
-      mutationFn: (guildId, userId) =>
-        approveUserApiV1GGuildIdUsersUserIdApprovePost(guildId, userId),
-      invalidate: () => invalidate(q.guildMembers()),
-    },
-    options
-  );
-
 type UpdateGuildMembershipVars = { guildId: number; userId: number; role: GuildRole };
 
 export const useUpdateGuildMembership = (options?: MutationOpts<void, UpdateGuildMembershipVars>) =>
   useApiMutation<void, UpdateGuildMembershipVars>(
     {
       mutationFn: (data) =>
-        updateGuildMembershipApiV1GuildsGuildIdMembersUserIdPatch(data.guildId, data.userId, {
+        updateGuildMembershipApiV1CommunitiesGuildIdMembersUserIdPatch(data.guildId, data.userId, {
           role: data.role,
-        } as Parameters<typeof updateGuildMembershipApiV1GuildsGuildIdMembersUserIdPatch>[2]),
+        } as Parameters<typeof updateGuildMembershipApiV1CommunitiesGuildIdMembersUserIdPatch>[2]),
       invalidate: () => invalidate(q.guildMembers()),
     },
     options
   );
 
 type ExportGuildUsersVars = {
-  params: ExportUsersCsvApiV1GGuildIdUsersExportCsvGetParams;
+  params: ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams;
   filename: string;
 };
 
@@ -390,7 +349,7 @@ export const useExportGuildUsersCsv = (options?: MutationOpts<void, ExportGuildU
   useGuildMutation<void, ExportGuildUsersVars>(
     {
       mutationFn: async (guildId, { params, filename }) => {
-        const blob = (await exportUsersCsvApiV1GGuildIdUsersExportCsvGet(guildId, params, {
+        const blob = (await exportUsersCsvApiV1CGuildIdUsersExportCsvGet(guildId, params, {
           responseType: "blob",
           // FastAPI expects ?user_id=1&user_id=2; axios's default `[]` suffix gets ignored.
           paramsSerializer: { indexes: null },

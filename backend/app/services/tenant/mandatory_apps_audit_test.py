@@ -26,7 +26,6 @@ from app.testing import (
     marketplace_uid,
 )
 
-pytestmark = pytest.mark.integration
 
 PROVIDED_ID = "platform.auditprovided"
 PROVIDED_UID = marketplace_uid("auditprovided")
@@ -66,7 +65,9 @@ async def test_a_new_guild_records_its_provided_app_against_the_owner(
     capfd.readouterr()
 
     response = await client.post(
-        "/api/v1/guilds/", headers=get_auth_headers(user), json={"name": "Fresh guild"}
+        "/api/v1/communities/",
+        headers=get_auth_headers(user),
+        json={"name": "Fresh guild"},
     )
     assert response.status_code == 201, response.text
     guild_id = response.json()["id"]
@@ -80,6 +81,7 @@ async def test_a_new_guild_records_its_provided_app_against_the_owner(
         "listing_uid": PROVIDED_UID,
         "version": "1.0.0",
         "via": "mandatory",
+        "granted_scopes": [],
     }
 
 
@@ -106,4 +108,5 @@ async def test_the_boot_sweep_records_an_install_nobody_made(
         "listing_uid": PROVIDED_UID,
         "version": "1.0.0",
         "via": "mandatory",
+        "granted_scopes": [],
     }

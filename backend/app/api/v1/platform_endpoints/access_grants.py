@@ -17,11 +17,15 @@ from typing import Annotated, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from webauthn.helpers import bytes_to_base64url
 
-from app.api.deps import UserSessionDep, get_current_active_user, require_capability
-from app.core.capabilities import Capability, user_has_capability
+from app.api.deps import (
+    UserSessionDep,
+    get_current_active_user,
+    require_capability,
+    SystemSessionDep,
+)
+from app.core.capabilities import Capability
 from app.core.audit_events import AuditEventType
 from app.core.messages import AccessGrantMessages, AuthMessages
-from app.db.session import get_system_session
 from app.models.platform.user import User
 from app.models.platform.access_grant import (
     AccessGrantPurpose,
@@ -43,12 +47,11 @@ from app.services.auth import challenges as challenge_service
 from app.services.auth import passkeys as passkey_service
 from app.services.auth import totp as totp_service
 from app.services.platform import access_grants as service
-from app.services.stream_authz import authority as stream_authority
+from app.services.content_sockets import sockets as content_sockets
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 router = APIRouter()
 
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 AccessRequestDep = Annotated[
     User, Depends(require_capability(Capability.ACCESS_REQUEST))
 ]
@@ -72,6 +75,7 @@ _ERROR_STATUS: dict[str, int] = {
     "CANNOT_APPROVE_OWN": status.HTTP_400_BAD_REQUEST,
     "CANNOT_CANCEL_OTHERS": status.HTTP_403_FORBIDDEN,
     "ALREADY_LIVE": status.HTTP_409_CONFLICT,
+    "GRANTEE_INELIGIBLE": status.HTTP_409_CONFLICT,
 }
 _ERROR_DETAIL: dict[str, str] = {
     "GUILD_NOT_FOUND": AccessGrantMessages.GUILD_NOT_FOUND,
@@ -83,6 +87,7 @@ _ERROR_DETAIL: dict[str, str] = {
     "CANNOT_APPROVE_OWN": AccessGrantMessages.CANNOT_APPROVE_OWN,
     "CANNOT_CANCEL_OTHERS": AccessGrantMessages.CANNOT_CANCEL_OTHERS,
     "ALREADY_LIVE": AccessGrantMessages.ALREADY_LIVE,
+    "GRANTEE_INELIGIBLE": AccessGrantMessages.GRANTEE_INELIGIBLE,
 }
 
 
@@ -429,28 +434,6 @@ async def read_access_grant_limits(
     )
 
 
-@router.get("/{grant_id}", response_model=AccessGrantRead)
-async def get_access_grant(
-    grant_id: int,
-    session: UserSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-) -> AccessGrantRead:
-    grant = await service.get_grant(session, grant_id)
-    if grant is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AccessGrantMessages.NOT_FOUND
-        )
-    # Owners of the request, or approvers, may view it.
-    if grant.user_id != current_user.id and not user_has_capability(
-        current_user, Capability.ACCESS_APPROVE
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=AuthMessages.INSUFFICIENT_PRIVILEGES,
-        )
-    return await _one(grant)
-
-
 @router.post("/{grant_id}/approve", response_model=AccessGrantRead)
 async def approve_access_grant(
     grant_id: int,
@@ -555,7 +538,7 @@ async def revoke_access_grant(
     await session.commit()
     # PAM access revoked — drop the grantee's live content streams in that guild
     # immediately, don't wait for the bounded re-auth tick.
-    await stream_authority.revoke_user(grant.guild_id, grant.user_id)
+    await content_sockets.revoke_user(grant.guild_id, grant.user_id)
     return read
 
 

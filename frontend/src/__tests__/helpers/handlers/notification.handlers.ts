@@ -73,6 +73,9 @@ export const notificationHandlers = [
     HttpResponse.json(buildNotificationPreferences())
   ),
   http.get("/api/v1/notifications/unread", () => HttpResponse.json({ places: [] })),
+  http.post("/api/v1/notifications/read-subject", () =>
+    HttpResponse.json({ comment_ids: [], since: null })
+  ),
   http.get("/api/v1/notifications/", () =>
     HttpResponse.json({ notifications: [], unread_count: 0, next_cursor: null })
   ),

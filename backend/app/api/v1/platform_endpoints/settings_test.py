@@ -35,8 +35,9 @@ from app.testing import (
     guild_administration,
 )
 from sqlmodel import select
+from app.db.request_context import SystemGuild, Unattributed
 
-GUILDS = "/api/v1/settings/guilds"
+GUILDS = "/api/v1/settings/communities"
 
 
 @pytest.fixture
@@ -52,7 +53,6 @@ async def operator(acting_user):
     return await acting_user("operator")
 
 
-@pytest.mark.integration
 async def test_a_failed_test_email_answers_with_a_code_and_logs_the_cause(
     client: AsyncClient,
     owner,
@@ -104,7 +104,6 @@ _GUILD_DIALS = [
 ]
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("dial,value,untouched,_refused", _GUILD_DIALS)
 async def test_the_guilds_tab_lists_every_guild_with_its_dials(
     client: AsyncClient,
@@ -128,7 +127,7 @@ async def test_the_guilds_tab_lists_every_guild_with_its_dials(
 
     resp = await client.get(GUILDS, headers=operator.headers)
     assert resp.status_code == 200
-    rows = {row["name"]: row for row in resp.json()}
+    rows = {row["name"]: row for row in resp.json()["items"]}
 
     assert rows["Dialled Guild"]["id"] == theirs.id
     assert rows["Dialled Guild"][dial] == value
@@ -139,7 +138,6 @@ async def test_the_guilds_tab_lists_every_guild_with_its_dials(
     assert rows["Untouched Guild"]["status_changed_at"] is None
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("dial,value,untouched,_refused", _GUILD_DIALS)
 async def test_an_operator_sets_each_dial_and_puts_it_back(
     client: AsyncClient,
@@ -167,7 +165,6 @@ async def test_an_operator_sets_each_dial_and_puts_it_back(
     assert back.json()[dial] == untouched
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("dial,value,_untouched,_refused", _GUILD_DIALS)
 async def test_each_dial_moves_on_its_own(
     client: AsyncClient,
@@ -198,7 +195,6 @@ async def test_each_dial_moves_on_its_own(
             assert resp.json()[other] == unchanged, other
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("dial,_value,_untouched,refused", _GUILD_DIALS)
 async def test_a_dial_refuses_a_value_outside_its_range(
     client: AsyncClient,
@@ -221,7 +217,6 @@ async def test_a_dial_refuses_a_value_outside_its_range(
     assert resp.status_code == 422
 
 
-@pytest.mark.integration
 async def test_a_real_status_transition_is_stamped(
     client: AsyncClient, session: AsyncSession, operator
 ) -> None:
@@ -239,7 +234,6 @@ async def test_a_real_status_transition_is_stamped(
     assert resp.json()["status_changed_at"] is not None
 
 
-@pytest.mark.integration
 async def test_a_status_change_nudges_billing_and_a_hold_tells_the_seat(
     client: AsyncClient, session: AsyncSession, operator, monkeypatch
 ) -> None:
@@ -282,7 +276,6 @@ async def test_a_status_change_nudges_billing_and_a_hold_tells_the_seat(
     assert notices[0].data["community"] == guild_name
 
 
-@pytest.mark.integration
 async def test_operator_grants_and_withdraws_guild_auth_options(
     client: AsyncClient, session: AsyncSession, operator
 ) -> None:
@@ -293,7 +286,9 @@ async def test_operator_grants_and_withdraws_guild_auth_options(
 
     listed = await client.get(GUILDS, headers=operator.headers)
     assert listed.status_code == 200
-    assert {r["name"]: r for r in listed.json()}[guild.name]["auth_options"] == []
+    assert {r["name"]: r for r in listed.json()["items"]}[guild.name][
+        "auth_options"
+    ] == []
 
     # One switch without the other: neither needs the other to count.
     for sent in (["providers"], ["providers", "restrictions"], []):
@@ -306,7 +301,6 @@ async def test_operator_grants_and_withdraws_guild_auth_options(
         assert resp.json()["auth_options"] == sent
 
 
-@pytest.mark.integration
 async def test_guild_auth_options_null_is_noop(
     client: AsyncClient, session: AsyncSession, operator
 ) -> None:
@@ -328,7 +322,6 @@ async def test_guild_auth_options_null_is_noop(
     assert resp.json()["max_users"] == 5
 
 
-@pytest.mark.integration
 async def test_guild_auth_options_are_operator_only(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
@@ -340,7 +333,7 @@ async def test_guild_auth_options_are_operator_only(
     guild_id = guild.id
 
     resp = await client.patch(
-        f"/api/v1/guilds/{guild_id}",
+        f"/api/v1/communities/{guild_id}",
         json={"auth_options": ["providers"]},
         headers=a.headers,
     )
@@ -352,7 +345,6 @@ async def test_guild_auth_options_are_operator_only(
     assert (await guild_administration(session, guild)).auth_options == []
 
 
-@pytest.mark.integration
 async def test_lowering_the_cap_below_the_headcount_keeps_the_members(
     client: AsyncClient, session: AsyncSession, operator
 ) -> None:
@@ -375,7 +367,6 @@ async def test_lowering_the_cap_below_the_headcount_keeps_the_members(
     assert resp.json()["member_count"] == 2
 
 
-@pytest.mark.integration
 async def test_raising_cap_reopens_joins(
     client: AsyncClient, session: AsyncSession, acting_user, operator
 ) -> None:
@@ -397,7 +388,7 @@ async def test_raising_cap_reopens_joins(
     # Full (1/1) — the invite is refused, and it is NOT consumed (the cap check
     # runs before the invite's use count is incremented).
     blocked = await client.post(
-        "/api/v1/guilds/invite/accept",
+        "/api/v1/communities/invite/accept",
         headers=invitee.headers,
         json={"code": invite.code},
     )
@@ -410,7 +401,7 @@ async def test_raising_cap_reopens_joins(
     assert patched.status_code == 200
 
     accepted = await client.post(
-        "/api/v1/guilds/invite/accept",
+        "/api/v1/communities/invite/accept",
         headers=invitee.headers,
         json={"code": invite.code},
     )
@@ -424,10 +415,31 @@ async def test_raising_cap_reopens_joins(
     # And it reads back as 5 for somebody entitled to see it.
     listed = await client.get(GUILDS, headers=operator.headers)
     assert listed.status_code == 200
-    assert {row["id"]: row for row in listed.json()}[guild.id]["max_users"] == 5
+    assert {row["id"]: row for row in listed.json()["items"]}[guild.id][
+        "max_users"
+    ] == 5
 
 
-@pytest.mark.integration
+async def test_the_guilds_tab_is_paged_and_searched(
+    client: AsyncClient, session: AsyncSession, operator
+) -> None:
+    alpha = await create_guild(session, name="Alpha Lodge")
+    await create_guild(session, name="Beta Lodge")
+    await create_guild(session, name="Gamma Hall")
+
+    resp = await client.get(
+        GUILDS,
+        params={"search": "lodge", "page_size": 1},
+        headers=operator.headers,
+    )
+
+    assert resp.status_code == 200, resp.text
+    page = resp.json()
+    assert page["total_count"] == 2
+    assert page["has_next"] is True
+    assert [row["id"] for row in page["items"]] == [alpha.id]
+
+
 async def test_guild_list_exposes_tier_name(
     client: AsyncClient, session: AsyncSession, operator
 ) -> None:
@@ -438,7 +450,7 @@ async def test_guild_list_exposes_tier_name(
     resp = await client.get(GUILDS, headers=operator.headers)
 
     assert resp.status_code == 200
-    row = next(g for g in resp.json() if g["id"] == guild.id)
+    row = next(g for g in resp.json()["items"] if g["id"] == guild.id)
     assert row["tier_name"] == "Bespoke Plan"
 
 
@@ -470,7 +482,6 @@ _S3_PAYLOAD = {
 }
 
 
-@pytest.mark.integration
 async def test_storage_settings_round_trip_never_returns_secret(
     client: AsyncClient,
     session: AsyncSession,
@@ -513,7 +524,6 @@ async def test_storage_settings_round_trip_never_returns_secret(
     )
 
 
-@pytest.mark.integration
 async def test_email_password_is_stored_apart_and_reported_as_set(
     client: AsyncClient,
     session: AsyncSession,
@@ -571,7 +581,6 @@ async def test_email_password_is_stored_apart_and_reported_as_set(
     assert cleared.json()["has_password"] is False
 
 
-@pytest.mark.integration
 async def test_storage_update_keeps_secret_when_omitted(
     client: AsyncClient,
     session: AsyncSession,
@@ -606,7 +615,6 @@ async def test_storage_update_keeps_secret_when_omitted(
     )
 
 
-@pytest.mark.integration
 async def test_storage_clearing_a_field_does_not_revert_to_env(
     client: AsyncClient,
     owner,
@@ -637,7 +645,6 @@ async def test_storage_clearing_a_field_does_not_revert_to_env(
     assert get.json()["s3_bucket"] is None
 
 
-@pytest.mark.integration
 async def test_storage_update_refreshes_process_config(
     client: AsyncClient, owner, reset_storage_cache: None
 ) -> None:
@@ -657,7 +664,6 @@ async def test_storage_update_refreshes_process_config(
     assert cfg.use_path_style is True
 
 
-@pytest.mark.integration
 async def test_storage_backfill_requires_bucket(
     client: AsyncClient, owner, reset_storage_cache: None
 ) -> None:
@@ -668,7 +674,6 @@ async def test_storage_backfill_requires_bucket(
     assert resp.json()["detail"] == "SETTINGS_STORAGE_BACKFILL_NOT_CONFIGURED"
 
 
-@pytest.mark.integration
 async def test_storage_backfill_status_reads_shared_row(
     client: AsyncClient, session: AsyncSession, owner
 ) -> None:
@@ -708,7 +713,6 @@ def _handoff(guild_id: int) -> str:
     return f"{GUILDS}/{guild_id}/billing/service-handoff"
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "unset,expected,detail",
     [
@@ -747,7 +751,6 @@ async def test_the_billing_button_says_what_the_deployment_is_missing(
     assert resp.json()["detail"] == detail
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "method,path",
     [
@@ -768,7 +771,6 @@ async def test_a_guild_that_is_not_there_is_a_404(
     assert resp.json()["detail"] == "GUILD_NOT_FOUND"
 
 
-@pytest.mark.integration
 async def test_billing_handoff_self_issues_a_grant_and_names_it(
     client: AsyncClient, session: AsyncSession, owner, monkeypatch
 ):
@@ -826,7 +828,6 @@ async def test_billing_handoff_self_issues_a_grant_and_names_it(
     assert grant.status == "approved"
 
 
-@pytest.mark.integration
 async def test_billing_handoff_reuses_a_live_grant(
     client: AsyncClient, session: AsyncSession, owner, monkeypatch
 ):
@@ -863,7 +864,6 @@ async def test_billing_handoff_reuses_a_live_grant(
     assert len(grants) == 1
 
 
-@pytest.mark.integration
 async def test_billing_handoff_breaks_glass_even_for_a_member(
     client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
 ):
@@ -894,7 +894,6 @@ async def test_billing_handoff_breaks_glass_even_for_a_member(
     assert grant.access_level == "read"
 
 
-@pytest.mark.integration
 async def test_billing_grant_confers_no_access_to_the_guild(
     client: AsyncClient, session: AsyncSession, owner, monkeypatch
 ):
@@ -904,7 +903,7 @@ async def test_billing_grant_confers_no_access_to_the_guild(
     guild = await create_guild(session)  # the owner is not a member
 
     before = await client.get(
-        f"/api/v1/g/{guild.id}/initiatives/", headers=owner.headers
+        f"/api/v1/c/{guild.id}/initiatives/", headers=owner.headers
     )
     assert before.status_code == 403
 
@@ -914,12 +913,11 @@ async def test_billing_grant_confers_no_access_to_the_guild(
     # Still refused: the live grant is a billing one, so the guild resolver
     # does not accept it.
     after = await client.get(
-        f"/api/v1/g/{guild.id}/initiatives/", headers=owner.headers
+        f"/api/v1/c/{guild.id}/initiatives/", headers=owner.headers
     )
     assert after.status_code == 403
 
 
-@pytest.mark.integration
 async def test_billing_grant_does_not_block_a_content_break_glass(
     session: AsyncSession, owner
 ):
@@ -961,7 +959,6 @@ async def test_billing_grant_does_not_block_a_content_break_glass(
     ).id == billing.id
 
 
-@pytest.mark.integration
 async def test_billing_grant_does_not_block_a_content_request(
     session: AsyncSession, acting_user
 ):
@@ -1002,7 +999,6 @@ async def test_billing_grant_does_not_block_a_content_request(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_owner_switches_the_community_directory_on_and_off(
     client: AsyncClient, owner
 ) -> None:
@@ -1030,7 +1026,6 @@ async def test_owner_switches_the_community_directory_on_and_off(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_the_session_limit_starts_unset(client: AsyncClient, owner):
     """A self-hosted deployment is not answering to anybody, so it asks for no
     limit until somebody sets one."""
@@ -1040,7 +1035,6 @@ async def test_the_session_limit_starts_unset(client: AsyncClient, owner):
     assert response.json()["session_max_hours"] is None
 
 
-@pytest.mark.integration
 async def test_an_owner_sets_and_clears_the_session_limit(client: AsyncClient, owner):
     set_it = await client.put(
         "/api/v1/settings/auth/session-lifetime",
@@ -1058,7 +1052,6 @@ async def test_an_owner_sets_and_clears_the_session_limit(client: AsyncClient, o
     assert cleared.json()["session_max_hours"] is None
 
 
-@pytest.mark.integration
 async def test_a_zero_hour_limit_is_refused(client: AsyncClient, owner):
     response = await client.put(
         "/api/v1/settings/auth/session-lifetime",
@@ -1118,7 +1111,6 @@ _BELOW_THE_BAR: dict[str, list[UserRole]] = {
 }
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "capability,tier",
     [
@@ -1151,7 +1143,6 @@ async def test_a_tier_below_the_bar_reaches_none_of_its_routes(
         assert resp.json()["detail"] == "INSUFFICIENT_PRIVILEGES"
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "method,path,body",
     [
@@ -1188,7 +1179,7 @@ async def _bind_support_stream(session: AsyncSession) -> None:
     initiative = await create_initiative(session, staff, staff_user)
     project = await create_project(session, initiative, staff_user)
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     row = (await session.exec(select(AppSetting).where(AppSetting.id == 1))).first()
     if row is None:
         row = AppSetting(id=1)
@@ -1196,13 +1187,12 @@ async def _bind_support_stream(session: AsyncSession) -> None:
     session.add(row)
     await session.commit()
 
-    await set_rls_context(session, guild_id=staff.id)
+    await set_rls_context(session, SystemGuild(staff.id))
     session.add(IntakeBinding(stream=IntakeStream.support, project_id=project.id))
     await session.commit()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
 
 
-@pytest.mark.integration
 async def test_help_requests_need_somewhere_to_go(client, session, owner):
     """Switching the entitlement on offers a form. Refused while the deployment
     has bound no support stream: the form would have nowhere to send what
@@ -1220,7 +1210,6 @@ async def test_help_requests_need_somewhere_to_go(client, session, owner):
     assert (await guild_administration(session, guild)).support_enabled is False
 
 
-@pytest.mark.integration
 async def test_help_requests_switch_on_once_a_stream_is_bound(client, session, owner):
     """With somewhere to receive them, the same call goes through."""
     guild = await create_guild(session)
@@ -1236,7 +1225,6 @@ async def test_help_requests_switch_on_once_a_stream_is_bound(client, session, o
     assert (await guild_administration(session, guild)).support_enabled is True
 
 
-@pytest.mark.integration
 async def test_help_requests_can_always_be_switched_off(client, session, owner):
     """A deployment that has stopped staffing help stops offering it, whatever
     became of the binding in the meantime."""
@@ -1258,7 +1246,6 @@ INTERFACE = "/api/v1/settings/interface"
 _COLOURS = {"light_accent_color": "#123456", "dark_accent_color": "#abcdef"}
 
 
-@pytest.mark.integration
 async def test_cookie_consent_starts_off(client, owner):
     """A deployment nobody arrives at uninvited is not asked to explain itself
     to arrivals. An owner running a public front door turns it on."""
@@ -1268,7 +1255,6 @@ async def test_cookie_consent_starts_off(client, owner):
     assert response.json()["cookie_consent_enabled"] is False
 
 
-@pytest.mark.integration
 async def test_an_owner_turns_cookie_consent_on_and_off(client, owner):
     on = await client.put(
         INTERFACE,
@@ -1287,7 +1273,6 @@ async def test_an_owner_turns_cookie_consent_on_and_off(client, owner):
     assert off.json()["cookie_consent_enabled"] is False
 
 
-@pytest.mark.integration
 async def test_saving_a_colour_leaves_cookie_consent_alone(client, owner):
     """The two live on one page and one payload; they are still two decisions,
     so the colour form must not answer the other one by omission."""
@@ -1303,7 +1288,6 @@ async def test_saving_a_colour_leaves_cookie_consent_alone(client, owner):
     assert response.json()["cookie_consent_enabled"] is True
 
 
-@pytest.mark.integration
 async def test_cookie_consent_is_owner_only(client, operator):
     response = await client.put(
         INTERFACE,

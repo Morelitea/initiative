@@ -63,7 +63,7 @@ def calendar_loader_options() -> list:
     return [
         selectinload(Calendar.grants).selectinload(ResourceGrant.role),
         selectinload(Calendar.initiative),
-        undefer(Calendar.access_level),
+        undefer(Calendar.actions),
     ]
 
 

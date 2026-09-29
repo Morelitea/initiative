@@ -11,8 +11,8 @@ thing. Saving one does two things with those:
   mention that was already there when the description was last saved is not
   news, so editing a sentence around it does not notify again.
 
-Only members of the task's initiative are told — the mention picker offers
-nobody else, and a notice names the task to whoever gets it.
+Only people who can open the task are told — a notice names the task to
+whoever gets it.
 """
 
 from __future__ import annotations
@@ -22,12 +22,11 @@ from typing import cast
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.search import SearchEntityType
+from app.models.platform.notification import NotificationType
 from app.models.platform.user import User
 from app.models.tenant.task import Task
 from app.services import notifications as notifications_service
-from app.services.platform import accounts as accounts_service
 from app.services.tenant import content_references
-from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant.mention_parser import extract_mentioned_user_ids
 from app.services.tenant.relationships import Endpoint
 
@@ -60,38 +59,35 @@ async def description_saved(
     task: Task,
     *,
     previous: str | None,
-    author: User,
-    guild_id: int,
-    initiative_id: int,
+    author: User | None,
 ) -> None:
     """Record what the description now points at, and tell whoever it newly
     names.
 
     ``previous`` is the description as it stood before this save — ``None`` for
-    a task that is new. Rides the caller's transaction; the caller commits.
+    a task that is new. ``author`` is ``None`` for an installed app, whose
+    save records references and tells nobody: a mention names a person by
+    their row id, which an app does not hold. Rides the caller's transaction;
+    the caller commits.
     """
-    await record_references(session, task, author_id=author.id)
-
-    added = newly_mentioned(task.description, previous)
-    added.discard(author.id)
-    if not added:
+    await record_references(
+        session, task, author_id=author.id if author is not None else None
+    )
+    if author is None:
         return
 
-    roster = await initiatives_service.initiative_roster(session, initiative_id)
-    member_ids = {membership.user_id for membership in roster if membership.user_id}
-    # Who to tell is a question about their account, so it is asked where an
-    # account may be read.
-    recipients = await accounts_service.load(
-        (user_id for user_id in added if user_id in member_ids),
-        excluding_ignorers_of=author.id,
+    name = notifications_service.actor_name(author)
+    await notifications_service.notify(
+        session,
+        NotificationType.mention,
+        sorted(newly_mentioned(task.description, previous)),
+        about=("task", cast(int, task.id)),
+        key="mention.taskDescription",
+        values={"actor": name, "task": task.title},
+        data={
+            "task_id": task.id,
+            "mentioned_by_name": name,
+            "mentioned_by_id": author.id,
+        },
+        actor=author,
     )
-    for user_id in sorted(recipients):
-        await notifications_service.notify_task_description_mention(
-            session,
-            mentioned_user=recipients[user_id],
-            mentioned_by=author,
-            task_id=cast(int, task.id),
-            task_title=task.title,
-            guild_id=guild_id,
-            initiative_id=initiative_id,
-        )

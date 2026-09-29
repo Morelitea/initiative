@@ -91,34 +91,33 @@ export const MyTasksPage = () => {
     return next;
   }, [columnVisibility]);
 
-  const columns = useMemo(() => {
-    const base = globalTaskColumns({
-      activeGuildId: table.activeGuildId,
-      isUpdatingTask: table.isUpdatingTask,
-      changeTaskStatus: table.changeTaskStatus,
-      changeTaskStatusById: table.changeTaskStatusById,
-      fetchProjectStatuses: table.fetchProjectStatuses,
-      projectStatusCache: table.projectStatusCache,
-      t: t as TranslateFn,
-      isPinned: focus.isPinned,
-      togglePin: focus.togglePin,
-    });
-    if (propertyColumns.length === 0) return base;
-    const tagsIdx = base.findIndex((c) => (c as { id?: string }).id === "tags");
-    if (tagsIdx === -1) return [...base, ...propertyColumns];
-    return [...base.slice(0, tagsIdx + 1), ...propertyColumns, ...base.slice(tagsIdx + 1)];
-  }, [
-    table.activeGuildId,
-    table.isUpdatingTask,
-    table.changeTaskStatus,
-    table.changeTaskStatusById,
-    table.fetchProjectStatuses,
-    table.projectStatusCache,
-    t,
-    propertyColumns,
-    focus.isPinned,
-    focus.togglePin,
-  ]);
+  const columns = useMemo(
+    () =>
+      globalTaskColumns({
+        activeGuildId: table.activeGuildId,
+        isUpdatingTask: table.isUpdatingTask,
+        changeTaskStatus: table.changeTaskStatus,
+        changeTaskStatusById: table.changeTaskStatusById,
+        fetchProjectStatuses: table.fetchProjectStatuses,
+        projectStatusCache: table.projectStatusCache,
+        t: t as TranslateFn,
+        isPinned: focus.isPinned,
+        togglePin: focus.togglePin,
+        propertyColumns,
+      }),
+    [
+      table.activeGuildId,
+      table.isUpdatingTask,
+      table.changeTaskStatus,
+      table.changeTaskStatusById,
+      table.fetchProjectStatuses,
+      table.projectStatusCache,
+      t,
+      propertyColumns,
+      focus.isPinned,
+      focus.togglePin,
+    ]
+  );
 
   const groupingOptions = useMemo(
     () => [

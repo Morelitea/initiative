@@ -13,8 +13,6 @@ from app.core.logging_config import (
     logging_config,
 )
 
-pytestmark = pytest.mark.unit
-
 
 @pytest.fixture(autouse=True)
 def _served_wiring():

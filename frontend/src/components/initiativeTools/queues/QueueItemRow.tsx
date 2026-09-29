@@ -3,7 +3,7 @@ import type { KeyboardEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { QueueItemRead } from "@/api/generated/initiativeAPI.schemas";
-import { TagBadge } from "@/components/tags/TagBadge";
+import { TagBadgeList } from "@/components/tags/TagBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
@@ -103,16 +103,7 @@ export const QueueItemRow = ({
         )}
 
         {/* Tags */}
-        {item.tags.length > 0 && (
-          <div className="mt-1 flex flex-wrap gap-1">
-            {item.tags.slice(0, 4).map((tag) => (
-              <TagBadge key={tag.id} tag={tag} size="sm" />
-            ))}
-            {item.tags.length > 4 && (
-              <span className="text-muted-foreground text-xs">+{item.tags.length - 4}</span>
-            )}
-          </div>
-        )}
+        <TagBadgeList tags={item.tags} limit={4} className="mt-1" />
 
         {/* Notes preview */}
         {item.notes && (

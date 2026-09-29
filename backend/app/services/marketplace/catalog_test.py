@@ -53,8 +53,24 @@ class TestIdentity:
             await service.upsert_listing(
                 session,
                 _manifest(public_id="another.publisher"),
-                source="registry",
+                source="builtin",
             )
+
+    @pytest.mark.parametrize("held_by", ["builtin", "local", "operator"])
+    async def test_a_registry_never_replaces_another_sources_listing(
+        self, session, held_by
+    ):
+        """The registry adds listings beside this deployment's own. The same
+        uid arriving from it is refused, whoever published it first."""
+        await service.upsert_listing(session, _manifest(), source=held_by)
+        with pytest.raises(service.CatalogSourceConflict):
+            await service.upsert_listing(
+                session, _manifest(name="From the registry"), source="registry"
+            )
+        listing = await service.get_listing_by_uid(session, _manifest()["uid"])
+        assert listing is not None
+        assert listing.source == held_by
+        assert listing.name == "Example"
 
     async def test_a_public_id_cannot_be_republished_under_a_new_uid(self, session):
         await service.upsert_listing(session, _manifest(), source="builtin")

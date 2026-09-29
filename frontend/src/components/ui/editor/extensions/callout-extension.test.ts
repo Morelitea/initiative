@@ -10,6 +10,7 @@ import {
   INSERT_PARAGRAPH_COMMAND,
   KEY_BACKSPACE_COMMAND,
   type LexicalEditor,
+  type ParagraphNode,
   type SerializedLexicalNode,
 } from "lexical";
 import { describe, expect, it } from "vitest";
@@ -133,6 +134,84 @@ describe("callouts", () => {
   });
 });
 
+describe("folding a callout", () => {
+  const twoLines = () =>
+    $createCalloutNode("tip").append(
+      $createParagraphNode().append($createTextNode("Spoilers")),
+      $createParagraphNode().append($createTextNode("The butler did it."))
+    );
+
+  it("is saved with the page, and a page from before it reads as open", () => {
+    const editor = makeEditor();
+    update(editor, () => {
+      const callout = twoLines();
+      $getRoot().clear().append(callout);
+      callout.setCollapsed(true);
+    });
+    expect(rootJSON(editor)[0]).toMatchObject({ type: "callout", collapsed: true });
+
+    const older = makeEditor();
+    const state = editor.getEditorState().toJSON();
+    delete (state.root.children[0] as { collapsed?: boolean }).collapsed;
+    older.setEditorState(older.parseEditorState(state));
+    older.getEditorState().read(() => {
+      const callout = $getRoot().getFirstChild();
+      expect($isCalloutNode(callout) && callout.getCollapsed()).toBe(false);
+    });
+  });
+
+  it("is what its button does, for somebody who can edit", () => {
+    const editor = makeEditor();
+    const root = document.createElement("div");
+    root.contentEditable = "true";
+    document.body.append(root);
+    editor.setRootElement(root);
+    update(editor, () => {
+      $getRoot().clear().append(twoLines());
+    });
+
+    const element = root.querySelector<HTMLElement>("[data-callout]");
+    const toggle = element?.querySelector<HTMLButtonElement>(".callout-toggle");
+    expect(toggle?.getAttribute("aria-expanded")).toBe("true");
+    toggle?.click();
+    editor.update(() => {}, { discrete: true });
+
+    editor.getEditorState().read(() => {
+      const callout = $getRoot().getFirstChild();
+      expect($isCalloutNode(callout) && callout.getCollapsed()).toBe(true);
+    });
+    expect(element?.hasAttribute("data-collapsed")).toBe(true);
+    expect(toggle?.getAttribute("aria-expanded")).toBe("false");
+    editor.setRootElement(null);
+    root.remove();
+  });
+
+  it("opens when the caret lands in a line it hides", () => {
+    const editor = makeEditor();
+    update(editor, () => {
+      const callout = twoLines();
+      $getRoot().clear().append(callout);
+      callout.setCollapsed(true);
+      // Its first line shows, so writing there leaves it folded.
+      callout.getFirstChildOrThrow<ParagraphNode>().selectEnd();
+    });
+    editor.getEditorState().read(() => {
+      const callout = $getRoot().getFirstChild();
+      expect($isCalloutNode(callout) && callout.getCollapsed()).toBe(true);
+    });
+
+    update(editor, () => {
+      const callout = $getRoot().getFirstChild();
+      if ($isCalloutNode(callout)) callout.getLastChildOrThrow<ParagraphNode>().selectEnd();
+    });
+    editor.update(() => {}, { discrete: true });
+    editor.getEditorState().read(() => {
+      const callout = $getRoot().getFirstChild();
+      expect($isCalloutNode(callout) && callout.getCollapsed()).toBe(false);
+    });
+  });
+});
+
 describe("callouts in markdown", () => {
   it("are Obsidian's syntax, both ways, with lists inside them intact", () => {
     const editor = makeEditor();
@@ -151,6 +230,25 @@ describe("callouts in markdown", () => {
     expect(exported.split("\n")[0]).toBe("> [!warning]");
     expect(exported).toContain("> **Careful**");
     expect(exported).toContain("> - one");
+  });
+
+  it("carry Obsidian's fold marker, both ways", () => {
+    const editor = makeEditor();
+    let exported = "";
+    update(editor, () => {
+      $convertFromMarkdownString(
+        ["> [!tip]- Spoilers", "> The butler did it.", "", "> [!note]+ Open", "> Seen."].join("\n"),
+        MARKDOWN_TRANSFORMERS
+      );
+    });
+    editor.getEditorState().read(() => {
+      const [folded, open] = $getRoot().getChildren().filter($isCalloutNode);
+      expect(folded.getCollapsed()).toBe(true);
+      expect(open.getCollapsed()).toBe(false);
+      exported = $convertToMarkdownString(MARKDOWN_TRANSFORMERS);
+    });
+    expect(exported).toContain("> [!tip]-\n");
+    expect(exported).toContain("> [!note]\n");
   });
 
   it("leave an ordinary quote a quote", () => {

@@ -85,4 +85,18 @@ describe("tables in markdown", () => {
     ]);
     expect(exported.split("\n")).toEqual(plain);
   });
+
+  it("keep a pipe inside a cell, written the way GFM escapes it", () => {
+    const editor = makeEditor();
+    const piped = ["| either \\| or | b |", "| --- | --- |"];
+    let exported = "";
+    editor.update(() => $convertFromMarkdownString(piped.join("\n"), [TABLE]), {
+      discrete: true,
+    });
+    editor.getEditorState().read(() => {
+      exported = $convertToMarkdownString([TABLE]);
+    });
+    expect(cellsOf(editor)).toEqual([["either | or:1:1", "b:1:1"]]);
+    expect(exported.split("\n")).toEqual(piped);
+  });
 });

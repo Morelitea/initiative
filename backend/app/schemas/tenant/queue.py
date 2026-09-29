@@ -1,20 +1,22 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Mapping, Optional, Sequence, TYPE_CHECKING
+from typing import Any, List, Mapping, Optional, Sequence, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
+from app.core.identity_boundary import PersonId
 from app.core.relationships import Related
 from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
-from app.schemas.tenant.archive import ArchiveState
+from app.schemas.query import PageMeta
 
-from app.schemas.tenant.resource_grant import ResourceGrantSchema
+from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.tenant.tag import TagSummary, annotated_tags
+from app.schemas.tenant.tool import ToolSummaryBase, serialize_tool
 from app.schemas.platform.user import UserPublic
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.db.guild_standing import GuildContext
+    from app.db.guild_standing import ActorContext
     from app.models.tenant.queue import Queue, QueueItem
 
 
@@ -54,7 +56,7 @@ class QueueItemBase(SanitizedBaseModel):
 
 class QueueItemCreate(QueueItemBase):
     label: TitleStr = Field(..., min_length=1, max_length=255)
-    user_id: Optional[int] = None
+    user_id: Optional[PersonId] = None
     tag_ids: Optional[List[int]] = None
     document_ids: Optional[List[int]] = None
     task_ids: Optional[List[int]] = None
@@ -63,7 +65,7 @@ class QueueItemCreate(QueueItemBase):
 class QueueItemUpdate(SanitizedBaseModel):
     label: Optional[TitleStr] = None
     position: Optional[float] = None
-    user_id: Optional[int] = None
+    user_id: Optional[PersonId] = None
     color: Optional[str] = None
     notes: Optional[RichTextStr] = None
     is_visible: Optional[bool] = None
@@ -76,7 +78,7 @@ class QueueItemRead(QueueItemBase):
 
     id: int
     queue_id: int
-    user_id: Optional[int] = None
+    user_id: Optional[PersonId] = None
     user: Optional[UserPublic] = None
     tags: List[TagSummary] = Field(default_factory=list)
     documents: List[QueueItemDocumentRead] = Field(default_factory=list)
@@ -127,11 +129,7 @@ class QueueCreate(QueueBase):
     initiative_id: int
     # Initial sharing — the same grant list the PUT /grants endpoint takes.
     # Defaults to Viewer for all initiative members.
-    grants: List[ResourceGrantSchema] = Field(
-        default_factory=lambda: [
-            ResourceGrantSchema(all_initiative_members=True, level="read")
-        ]
-    )
+    grants: List[ResourceGrantSchema] = Field(default_factory=initiative_readable)
 
 
 class QueueUpdate(SanitizedBaseModel):
@@ -139,40 +137,20 @@ class QueueUpdate(SanitizedBaseModel):
     description: Optional[str] = None
 
 
-class QueueSummary(QueueBase, ArchiveState):
-    model_config = ConfigDict(
-        from_attributes=True, json_schema_serialization_defaults_required=True
-    )
-
-    id: int
-    initiative_id: int
-    guild_id: int
-    created_by: int
+class QueueSummary(QueueBase, ToolSummaryBase):
     current_round: int
     is_active: bool
     item_count: int = 0
-    created_at: datetime
-    updated_at: datetime
-    my_permission_level: Optional[str] = None
-    # When false this entity's comment thread is off — the UI renders none
-    # and the API refuses to read or post one. Tasks are unaffected; their
-    # thread belongs to the task, not to the tool.
-    comments_enabled: bool = True
-    tags: List[TagSummary] = Field(default_factory=list)
-    # The full sharing state — every resource_grants row for this queue. Exposed on
-    # the summary (not just the detail read) so list views can manage sharing in
-    # bulk without a per-item detail fetch.
-    grants: List[ResourceGrantSchema] = Field(default_factory=list)
+
+    @classmethod
+    def derived_fields(
+        cls, row: Any, *, context: ActorContext, user_id: Optional[int]
+    ) -> dict[str, Any]:
+        return {"item_count": len(getattr(row, "items", None) or [])}
 
 
-class QueueListResponse(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
+class QueueListResponse(PageMeta):
     items: List[QueueSummary]
-    total_count: int
-    page: int
-    page_size: int
-    has_next: bool
 
 
 class QueueRead(QueueSummary):
@@ -242,40 +220,10 @@ def serialize_queue_item(
     )
 
 
-def serialize_queue_summary(
-    queue: "Queue",
-    *,
-    context: GuildContext,
-    user_id: Optional[int] = None,
-) -> QueueSummary:
-    items = getattr(queue, "items", None) or []
-    # Local import avoids a schema -> service import cycle.
-    from app.services.permissions import client_access, serialize_grants
-
-    return QueueSummary(
-        id=queue.id,
-        name=queue.name,
-        description=queue.description,
-        initiative_id=queue.initiative_id,
-        guild_id=context.guild_id,
-        created_by=queue.created_by,
-        current_round=queue.current_round,
-        is_active=queue.is_active,
-        item_count=len(items),
-        created_at=queue.created_at,
-        updated_at=queue.updated_at,
-        archived_at=queue.archived_at,
-        **client_access(queue, user_id, context=context),
-        comments_enabled=queue.comments_enabled,
-        tags=annotated_tags(queue),
-        grants=serialize_grants(queue),
-    )
-
-
 def serialize_queue(
     queue: "Queue",
     *,
-    context: GuildContext,
+    context: ActorContext,
     user_id: Optional[int] = None,
     documents: Optional[Mapping[int, Sequence[Related]]] = None,
     tasks: Optional[Mapping[int, Sequence[Related]]] = None,
@@ -304,9 +252,11 @@ def serialize_queue(
             if item.id == queue.current_item_id:
                 current_item = item
                 break
-    summary = serialize_queue_summary(queue, context=context, user_id=user_id)
-    return QueueRead(
-        **summary.model_dump(),
+    return serialize_tool(
+        QueueRead,
+        queue,
+        context=context,
+        user_id=user_id,
         items=serialized_items,
         current_item=current_item,
     )

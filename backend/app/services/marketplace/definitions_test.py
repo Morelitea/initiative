@@ -35,11 +35,34 @@ from app.services.marketplace.definitions import (
 from app.services.marketplace.manifest_values import IDENTIFIER_CHARS
 from app.services.marketplace.service_apps import EMBED_CAPABILITIES
 
-pytestmark = pytest.mark.unit
-
 
 def _label(text: str = "A label") -> dict[str, str]:
     return {"en": text}
+
+
+#: What an operator supplies for the vendor client, as a manifest declares it.
+VENDOR = {
+    "label": {"en": "Widget vendor"},
+    "fields": [
+        {"key": "client_id", "type": "string", "required": True, "label": {"en": "Id"}},
+        {"key": "client_secret", "type": "secret", "label": {"en": "Secret"}},
+        {"key": "app_slug", "type": "string", "label": {"en": "Slug"}},
+    ],
+}
+
+#: A flow Initiative runs, naming the vendor's client.
+FLOW = {
+    "type": "oauth2",
+    "authorize_url": "https://vendor.test/oauth/authorize",
+    "token_url": "https://vendor.test/oauth/token",
+    "client_id": "{vendor.client_id}",
+    "client_secret": "{vendor.client_secret}",
+    "after_connect": True,
+}
+
+
+def _managed(key: str = "owner") -> dict:
+    return {"key": key, "type": "string", "label": _label(), "managed": True}
 
 
 def _service(**overrides) -> dict:
@@ -231,13 +254,50 @@ class TestConnections:
                 connections=[{"id": "shop", "scope": "global", "label": _label()}]
             )
 
-    def test_an_interactive_connection_declares_where_to_start(self):
-        with pytest.raises(ListingDefinitionError, match="connect_path"):
+    def test_an_interactive_connection_declares_a_flow(self):
+        with pytest.raises(ListingDefinitionError, match="declares a flow"):
             _normalize(
                 connections=[
                     {"id": "account", "scope": "interactive", "label": _label()}
                 ]
             )
+
+    def test_the_retired_connect_path_is_no_way_in(self):
+        """The app no longer runs a flow of its own: a connection naming only
+        where the app's page was has no flow, and is refused as one."""
+        with pytest.raises(ListingDefinitionError, match="declares a flow"):
+            _normalize(
+                connections=[
+                    {
+                        "id": "account",
+                        "scope": "interactive",
+                        "label": _label(),
+                        "connect_path": "/connect",
+                    }
+                ]
+            )
+
+    def test_a_member_flow_is_kept_as_declared(self):
+        [connection] = _normalize(
+            vendor=VENDOR,
+            connections=[
+                {
+                    "id": "account",
+                    "scope": "interactive",
+                    "label": _label(),
+                    "fields": [_managed("login")],
+                    "flow": {**FLOW, "revoke": "hook", "scopes": ["read"]},
+                }
+            ],
+        )["connections"]
+        assert connection["flow"] == {
+            **FLOW,
+            "revoke": "hook",
+            "scopes": ["read"],
+            "pkce": True,
+            "authorize_params": {},
+        }
+        assert "connect_path" not in connection
 
     def test_a_guild_credential_may_come_from_a_vendor_flow(self):
         """An admin runs the vendor's install once, for the whole guild.
@@ -245,69 +305,240 @@ class TestConnections:
         The alternative this replaces is an admin retyping an organization's
         name into a text box and hoping it names the same organization somebody
         installed at the vendor. Nothing about that is per-member, so the scope
-        stays ``static``; the ``connect_path`` is how the value arrives.
+        stays ``static``; the ``flow`` is how the value arrives.
         """
         [connection] = _normalize(
+            vendor=VENDOR,
             connections=[
                 {
                     "id": "workspace",
                     "scope": "static",
                     "label": _label(),
-                    "connect_path": "/install/github",
-                    "fields": [
-                        {
-                            "key": "owner",
-                            "type": "string",
-                            "label": _label(),
-                            "managed": True,
-                        }
-                    ],
+                    "flow": {
+                        **FLOW,
+                        "install_url": (
+                            "https://vendor.test/apps/{vendor.app_slug}/install"
+                        ),
+                    },
+                    "fields": [_managed()],
                 }
-            ]
+            ],
         )["connections"]
-        assert connection["connect_path"] == "/install/github"
+        assert connection["flow"]["install_url"].endswith("/{vendor.app_slug}/install")
         assert connection["fields"][0]["managed"] is True
 
-    def test_a_guild_flow_needs_somewhere_to_put_its_result(self):
-        """Every field typed means the app can never write the answer back.
-
-        A static connection is satisfied by the values it holds, and only a
-        ``managed`` field is one the app may write. So a flow with none can run
-        to completion and leave the install exactly as unconfigured as it was.
-        """
-        with pytest.raises(ListingDefinitionError, match="managed field"):
+    def test_a_flow_holds_only_managed_values(self):
+        """Its values come from the app's after_connect hook; a typed field
+        would be one nobody fills in."""
+        with pytest.raises(ListingDefinitionError, match="only managed values"):
             _normalize(
+                vendor=VENDOR,
                 connections=[
                     {
                         "id": "shop",
                         "scope": "static",
                         "label": _label(),
-                        "connect_path": "/connect",
+                        "flow": FLOW,
                         "fields": [
                             {"key": "token", "type": "secret", "label": _label()}
                         ],
                     }
-                ]
+                ],
             )
 
-    def test_a_connect_path_is_a_path_and_not_an_address(self):
-        for value in (
-            "https://widget.test/connect",
-            "//widget.test/connect",
-            "/connect/../../admin",
-            "connect",
-        ):
-            with pytest.raises(ListingDefinitionError, match="connect_path"):
-                _normalize(
-                    connections=[
-                        {
-                            "id": "account",
-                            "scope": "interactive",
-                            "label": _label(),
-                            "connect_path": value,
-                        }
-                    ]
-                )
+    def test_managed_values_need_the_hook_that_returns_them(self):
+        with pytest.raises(ListingDefinitionError, match="after_connect"):
+            _normalize(
+                vendor=VENDOR,
+                connections=[
+                    {
+                        "id": "account",
+                        "scope": "interactive",
+                        "label": _label(),
+                        "flow": {**FLOW, "after_connect": False},
+                        "fields": [_managed("login")],
+                    }
+                ],
+            )
+
+    @pytest.mark.parametrize(
+        ("change", "problem"),
+        [
+            ({"authorize_url": "http://vendor.test/oauth"}, "https address"),
+            ({"client_id": "{vendor.nope}"}, "vendor block does not declare"),
+            (
+                {"token_url": "https://vendor.test/{tenant}/token"},
+                "not a field of this connection",
+            ),
+            ({"revoke": "rfc7009"}, "revoke_url"),
+            ({"revoke": "telegram"}, "unknown revoke"),
+            ({"type": "saml"}, "unknown type"),
+        ],
+        ids=[
+            "plain http",
+            "an undeclared vendor value",
+            "an undeclared field",
+            "rfc7009 with nowhere to post",
+            "an unknown revocation",
+            "an unknown flow",
+        ],
+    )
+    def test_a_flow_that_cannot_run_is_refused(self, change, problem):
+        with pytest.raises(ListingDefinitionError, match=problem):
+            _normalize(
+                vendor=VENDOR,
+                connections=[
+                    {
+                        "id": "account",
+                        "scope": "interactive",
+                        "label": _label(),
+                        "flow": {**FLOW, **change},
+                        "fields": [_managed("login")],
+                    }
+                ],
+            )
+
+    def test_an_install_page_is_a_guild_connection_s(self):
+        with pytest.raises(ListingDefinitionError, match="install page"):
+            _normalize(
+                vendor=VENDOR,
+                connections=[
+                    {
+                        "id": "account",
+                        "scope": "interactive",
+                        "label": _label(),
+                        "flow": {**FLOW, "install_url": "https://vendor.test/i"},
+                        "fields": [_managed("login")],
+                    }
+                ],
+            )
+
+    def test_a_minted_token_belongs_to_a_guild_connection(self):
+        token = {
+            "type": "jwt_bearer",
+            "exchange_url": "https://vendor.test/{owner}/token",
+            "iss": "{vendor.client_id}",
+            "key": "{vendor.client_secret}",
+        }
+        [connection] = _normalize(
+            vendor=VENDOR,
+            connections=[
+                {
+                    "id": "workspace",
+                    "scope": "static",
+                    "label": _label(),
+                    "flow": FLOW,
+                    "fields": [_managed()],
+                    "token": token,
+                }
+            ],
+        )["connections"]
+        assert connection["token"] == {**token, "alg": "RS256", "lifetime": 540}
+
+        with pytest.raises(ListingDefinitionError, match="static connection"):
+            _normalize(
+                vendor=VENDOR,
+                connections=[
+                    {
+                        "id": "account",
+                        "scope": "interactive",
+                        "label": _label(),
+                        "flow": FLOW,
+                        "fields": [_managed()],
+                        "token": token,
+                    }
+                ],
+            )
+
+    @pytest.mark.parametrize(
+        ("verify", "route", "problem"),
+        [
+            ({"secret": "{vendor.nope}"}, {}, "verify.secret"),
+            ({"secret": "x{vendor.client_secret}"}, {}, "verify.secret"),
+            ({}, {"connection": "account"}, "not a static connection"),
+            ({}, {"field": "login"}, "not a field of the connection"),
+            ({"header": "X-Sig nature"}, {}, "not allowed"),
+        ],
+        ids=[
+            "an undeclared vendor value",
+            "more than one vendor value",
+            "a member's connection",
+            "an undeclared field",
+            "a header name with a space",
+        ],
+    )
+    def test_webhooks_route_by_a_static_field_under_a_vendor_secret(
+        self, verify, route, problem
+    ):
+        webhooks = {
+            "verify": {
+                "scheme": "hmac_sha256",
+                "header": "X-Hub-Signature-256",
+                "prefix": "sha256=",
+                "encoding": "hex",
+                "secret": "{vendor.client_secret}",
+            },
+            "dedup": "X-GitHub-Delivery",
+            "route": {
+                "path": "installation.id",
+                "connection": "workspace",
+                "field": "owner",
+            },
+        }
+        connections = [
+            {
+                "id": "workspace",
+                "scope": "static",
+                "label": _label(),
+                "flow": FLOW,
+                "fields": [_managed()],
+            },
+            {
+                "id": "account",
+                "scope": "interactive",
+                "label": _label(),
+                "flow": FLOW,
+                "fields": [_managed("login")],
+            },
+        ]
+        kept = _normalize(vendor=VENDOR, connections=connections, webhooks=webhooks)
+        assert kept["webhooks"] == webhooks
+
+        webhooks["verify"].update(verify)
+        webhooks["route"].update(route)
+        with pytest.raises(ListingDefinitionError, match=problem):
+            _normalize(vendor=VENDOR, connections=connections, webhooks=webhooks)
+
+    def test_a_field_may_not_take_a_token_key(self):
+        with pytest.raises(ListingDefinitionError, match="keeps its tokens"):
+            _normalize(
+                vendor=VENDOR,
+                connections=[
+                    {
+                        "id": "account",
+                        "scope": "interactive",
+                        "label": _label(),
+                        "flow": FLOW,
+                        "fields": [_managed("access_token")],
+                    }
+                ],
+            )
+
+    def test_a_vendor_block_declares_its_fields(self):
+        definition = _normalize(vendor=VENDOR)
+        assert definition["vendor"] == {
+            "fields": [
+                {**field, "required": field.get("required") is True}
+                for field in VENDOR["fields"]
+            ],
+            "label": VENDOR["label"],
+        }
+        with pytest.raises(ListingDefinitionError, match="vendor field"):
+            _normalize(
+                vendor={
+                    "fields": [{"key": "n", "type": "int", "label": _label()}],
+                }
+            )
 
     @pytest.mark.parametrize(
         ("field", "problem"),
@@ -413,6 +644,36 @@ def _with_source(**endpoint_overrides) -> dict:
     )
 
 
+class TestSchedules:
+    def test_intervals_from_five_minutes_to_a_day_are_kept(self):
+        schedules = [
+            {"id": "fast", "every": "5m"},
+            {"id": "daily", "every": "24h"},
+            {"id": "minutes", "every": "1440m"},
+        ]
+        assert _normalize(schedules=schedules)["schedules"] == schedules
+
+    @pytest.mark.parametrize(
+        ("every", "problem"),
+        [
+            ("4m", "at least 5m"),
+            ("25h", "at most 24h"),
+            ("15", "whole number"),
+            ("1.5h", "whole number"),
+            ("١٥m", "whole number"),
+        ],
+    )
+    def test_an_interval_out_of_bounds_or_shape_is_refused(self, every, problem):
+        with pytest.raises(ListingDefinitionError, match=problem):
+            _normalize(schedules=[{"id": "sync", "every": every}])
+
+    def test_two_schedules_may_not_share_an_id(self):
+        with pytest.raises(ListingDefinitionError, match="share the id"):
+            _normalize(
+                schedules=[{"id": "sync", "every": "5m"}, {"id": "sync", "every": "1h"}]
+            )
+
+
 class TestRequires:
     def test_an_item_may_only_require_a_connection_that_exists(self):
         with pytest.raises(ListingDefinitionError, match="unknown connection"):
@@ -453,26 +714,28 @@ class TestEndpoints:
         with pytest.raises(ListingDefinitionError, match="direction"):
             _with_source(direction="sideways")
 
-    def test_an_unknown_visibility_is_refused(self):
-        with pytest.raises(ListingDefinitionError, match="unknown visibility"):
-            _with_source(visibility="everyone")
+    def test_the_retired_audience_term_is_refused(self):
+        with pytest.raises(ListingDefinitionError, match="visibility"):
+            _with_source(visibility="member")
 
-    def test_visibility_defaults_to_members_of_the_installing_guild(self):
-        assert _with_source()["endpoints"][0]["visibility"] == "member"
+    def test_a_read_endpoint_stores_no_audience(self):
+        endpoint = _with_source()["endpoints"][0]
+        assert "visibility" not in endpoint
+        assert endpoint["admin_only"] is False
+
+    def test_a_write_endpoint_may_be_admin_only(self):
+        endpoint = _with_source(direction="write", admin_only=True)["endpoints"][0]
+        assert endpoint["admin_only"] is True
 
     def test_a_cache_window_is_clamped_rather_than_refused(self):
         definition = _with_source(cache_ttl_seconds=10_000_000)
         ttl = definition["endpoints"][0]["cache_ttl_seconds"]
         assert ttl == service_apps.MAX_CACHE_TTL_SECONDS
 
-    def test_only_a_read_is_cached_or_gated(self):
-        # A write is authorized by the token that carried it and answers once,
-        # so neither a rung nor a window means anything on one.
-        for absent in ("cache_ttl_seconds", "visibility"):
-            with pytest.raises(ListingDefinitionError, match="only a read"):
-                _with_source(
-                    direction="write", **{absent: 60 if "cache" in absent else "member"}
-                )
+    def test_only_a_read_is_cached(self):
+        # A write answers once, so a window means nothing on one.
+        with pytest.raises(ListingDefinitionError, match="only a read"):
+            _with_source(direction="write", cache_ttl_seconds=60)
 
     def test_an_emission_carries_nothing_a_caller_would_send(self):
         # Nobody calls it, so there is nothing to send, nothing to cache and
@@ -647,7 +910,7 @@ class TestEmbeds:
         embed = {
             "id": "orders",
             "path": "/embed/orders",
-            "visibility": "guild_admin",
+            "admin_only": True,
             "name": _label("Orders"),
         }
         embed.update(overrides)
@@ -668,7 +931,7 @@ class TestEmbeds:
                 "id": "orders",
                 "path": "/embed/orders",
                 "scopes": ["guild"],
-                "visibility": "guild_admin",
+                "admin_only": True,
                 "name": {"en": "Orders"},
             }
         ]
@@ -763,12 +1026,11 @@ class TestWhereASurfaceRenders:
         assert self._embed(scopes=["guild", "guild"])["scopes"] == ["guild"]
 
 
-class TestVisibilityIsALadder:
-    """A rung names the floor an audience clears, read against where it opens.
+class TestAdminOnlySurfaces:
+    """``admin_only`` is the one audience a manifest may still name.
 
-    The ordering is declared once so a manifest and a request cannot come to
-    mean different things by the same word, and every rung is exercised here so
-    adding one forces a decision rather than defaulting to "refused".
+    Who else opens a surface is the community's to choose, per initiative and
+    role, so the manifest says only whether a surface is for admins alone.
     """
 
     def _embed(self, **overrides) -> dict:
@@ -781,67 +1043,27 @@ class TestVisibilityIsALadder:
         embed.update(overrides)
         return _normalize(features=["embeds"], embeds=[embed])["embeds"][0]
 
-    def test_the_ladder_and_the_vocabulary_are_the_same_values(self):
-        assert set(service_apps.VISIBILITY_LADDER) == service_apps.VISIBILITIES
-        assert len(service_apps.VISIBILITY_LADDER) == len(service_apps.VISIBILITIES)
+    def test_saying_nothing_is_not_admin_only(self):
+        assert self._embed()["admin_only"] is False
 
-    @pytest.mark.parametrize("rung", service_apps.VISIBILITY_LADDER)
-    def test_a_guild_admin_clears_every_rung(self, rung):
-        assert service_apps.clears_visibility(rung, is_guild_admin=True)
+    @pytest.mark.parametrize(
+        "scopes", [["guild"], ["initiative"], ["guild", "initiative"]]
+    )
+    def test_any_surface_may_be_admin_only(self, scopes):
+        assert self._embed(scopes=scopes, admin_only=True)["admin_only"] is True
 
-    def test_a_member_clears_only_the_bottom_rung(self):
-        assert service_apps.clears_visibility("member", is_guild_admin=False)
-        assert not service_apps.clears_visibility(
-            "initiative_manager", is_guild_admin=False
-        )
-        assert not service_apps.clears_visibility("guild_admin", is_guild_admin=False)
+    @pytest.mark.parametrize("value", ["true", 1, None, []])
+    def test_anything_but_a_boolean_is_refused(self, value):
+        if value is None:
+            # Absent and null read the same: the default.
+            assert self._embed(admin_only=value)["admin_only"] is False
+            return
+        with pytest.raises(ListingDefinitionError, match="admin_only"):
+            self._embed(admin_only=value)
 
-    def test_a_manager_clears_the_rung_named_for_them(self):
-        assert service_apps.clears_visibility(
-            "initiative_manager", is_guild_admin=False, is_initiative_manager=True
-        )
-
-    def test_managing_one_initiative_does_not_open_the_admin_rung(self):
-        assert not service_apps.clears_visibility(
-            "guild_admin", is_guild_admin=False, is_initiative_manager=True
-        )
-
-    def test_a_caller_with_no_initiative_in_hand_is_measured_without_it(self):
-        # The guild-wide route: nobody is a manager of nothing, so the rung
-        # falls through to the admins.
-        assert not service_apps.clears_visibility(
-            "initiative_manager", is_guild_admin=False
-        )
-        assert service_apps.clears_visibility("initiative_manager", is_guild_admin=True)
-
-    @pytest.mark.parametrize("required", [None, "member"])
-    def test_saying_nothing_admits_everyone_who_got_this_far(self, required):
-        assert service_apps.clears_visibility(required, is_guild_admin=False)
-
-    def test_a_value_this_build_does_not_know_is_refused(self):
-        # Nothing stores one today; the predicate fails closed anyway, so a
-        # rung added to the vocabulary and forgotten here denies rather than
-        # admits.
-        assert not service_apps.clears_visibility("everyone", is_guild_admin=False)
-
-    def test_an_unknown_visibility_is_refused(self):
-        with pytest.raises(ListingDefinitionError, match="unknown visibility"):
-            self._embed(visibility="everyone")
-
-    def test_an_initiative_surface_may_name_an_initiative_audience(self):
-        assert self._embed(visibility="initiative_manager")["visibility"] == (
-            "initiative_manager"
-        )
-
-    def test_a_guild_wide_surface_may_not(self):
-        # There is nothing to manage out here, so the value would be stored as
-        # a claim nothing could evaluate.
-        with pytest.raises(ListingDefinitionError, match="initiative audience"):
-            self._embed(scopes=["guild"], visibility="initiative_manager")
-
-    def test_a_read_endpoint_may_not_either(self):
-        with pytest.raises(ListingDefinitionError, match="initiative audience"):
-            _with_source(visibility="initiative_manager")
+    def test_the_retired_audience_term_is_refused(self):
+        with pytest.raises(ListingDefinitionError, match="visibility"):
+            self._embed(visibility="initiative_manager")
 
 
 class TestEmissions:
@@ -892,9 +1114,10 @@ class TestCanonicalShape:
             "default_name",
         }
 
-    def test_a_definition_holds_no_address_anywhere(self):
+    def test_a_definition_holds_no_address_of_the_app(self):
         """The governing rule, asserted on a manifest that tries: an app says
-        which route, and the deployment's registration says where."""
+        which route, and the deployment's registration says where. The one kind
+        of address it may hold is its vendor's, in a flow Initiative runs."""
         definition = _normalize(
             features=["endpoints", "embeds"],
             service={
@@ -907,9 +1130,10 @@ class TestCanonicalShape:
                     "id": "shop",
                     "scope": "interactive",
                     "label": _label(),
-                    "connect_path": "/connect/shop",
+                    "flow": {**FLOW, "after_connect": False},
                 }
             ],
+            vendor=VENDOR,
             endpoints=[
                 {"id": READ_ID, "direction": "read", "base_url": "http://x.test"}
             ],
@@ -924,7 +1148,8 @@ class TestCanonicalShape:
         )
         rendered = repr(definition)
         assert "http://" not in rendered
-        assert "https://" not in rendered
+        assert "widget.test" not in rendered
+        assert "x.test" not in rendered
         assert "default_url" not in definition["service"]
 
     def test_the_whole_document_is_size_capped(self):
@@ -1216,7 +1441,6 @@ class TestWhereAParametersValuesComeFrom:
             )
 
 
-@pytest.mark.unit
 class TestListingAudience:
     """Who a listing installs to, and what follows from it."""
 

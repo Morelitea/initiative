@@ -13,11 +13,11 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
-import type {
-  LoginProviderEntry,
-  LoginProvidersResponse,
-} from "@/api/generated/initiativeAPI.schemas";
+import {
+  bootstrapStatusApiV1AuthBootstrapGet,
+  listLoginProvidersApiV1AuthProvidersGet,
+} from "@/api/generated/auth/auth";
+import type { LoginProviderEntry } from "@/api/generated/initiativeAPI.schemas";
 import { EmailOtpCard } from "@/components/auth/EmailOtpCard";
 import { PasskeyRelayCard } from "@/components/auth/PasskeyRelayCard";
 import { ProviderMark } from "@/components/auth/ProviderMark";
@@ -35,10 +35,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { SecondFactorRequiredError, useAuth } from "@/hooks/useAuth";
-import { useGuilds } from "@/hooks/useGuilds";
+import { useResumeAfterSignIn } from "@/hooks/useResumeAfterSignIn";
 import { useServer } from "@/hooks/useServer";
 import { getErrorCode } from "@/lib/errorMessage";
-import { guildIdFromPath } from "@/lib/guildUrl";
+import { beginNativeSignIn } from "@/lib/nativeSignIn";
 import { passkeyFailureMessage } from "@/lib/passkeyFailure";
 import {
   browserOffersPasskeyAutofill,
@@ -95,16 +95,16 @@ export const LoginPage = () => {
     passkey?: string | number;
     mobile?: string | boolean;
     device_name?: string;
+    code_challenge?: string;
   };
   const { login, completeSecondFactor, applyPasskeySignIn } = useAuth();
-  const { refreshGuilds } = useGuilds();
+  const resumeAfterSignIn = useResumeAfterSignIn();
   const {
     isNativePlatform,
     isServerConfigured,
     getServerHostname,
     getServerOrigin,
     clearServerUrl,
-    serverUrl,
   } = useServer();
   const { passwordLoginEnabled, passkeyLoginEnabled, emailOtpLoginEnabled } = useAppConfig();
   const [email, setEmail] = useState("");
@@ -134,6 +134,8 @@ export const LoginPage = () => {
   const relayMode = flag(searchParams.passkey) === "1" && flag(searchParams.mobile) === "true";
   const relayDeviceName =
     typeof searchParams.device_name === "string" ? searchParams.device_name : "";
+  const relayChallenge =
+    typeof searchParams.code_challenge === "string" ? searchParams.code_challenge : "";
 
   // A phone's Add-a-passkey equivalent: the browser decides which site it is
   // on, so on native the button opens one rather than prompting in the webview.
@@ -145,8 +147,8 @@ export const LoginPage = () => {
   useEffect(() => {
     const fetchProviders = async () => {
       try {
-        const response = await apiClient.get<LoginProvidersResponse>("/auth/providers");
-        setProviders(response.data.providers);
+        const response = await listLoginProvidersApiV1AuthProvidersGet();
+        setProviders(response.providers);
       } catch {
         setProviders([]);
       }
@@ -165,12 +167,16 @@ export const LoginPage = () => {
   };
 
   const handleProviderLogin = async (provider: LoginProviderEntry) => {
-    if (isNativePlatform && serverUrl) {
-      // On mobile, open in system browser with mobile flag and device name
-      const baseUrl = getServerOrigin() ?? serverUrl;
-      const deviceName = await resolveDeviceName();
-      const mobileLoginUrl = `${baseUrl}${provider.login_url}?mobile=true&device_name=${encodeURIComponent(deviceName)}`;
-      await Browser.open({ url: mobileLoginUrl });
+    const origin = getServerOrigin();
+    if (isNativePlatform && origin) {
+      // The phone's browser runs the provider's sign-in and hands back a code
+      // for this app to redeem.
+      const params = new URLSearchParams({
+        mobile: "true",
+        device_name: await resolveDeviceName(),
+        code_challenge: await beginNativeSignIn(origin),
+      });
+      await Browser.open({ url: `${origin}${provider.login_url}?${params}` });
     } else {
       // On web, redirect directly — carrying where they were headed, so an
       // account that only signs in through a provider finishes the trip it
@@ -186,8 +192,8 @@ export const LoginPage = () => {
   useEffect(() => {
     const fetchBootstrapStatus = async () => {
       try {
-        const response = await apiClient.get<{ has_users: boolean }>("/auth/bootstrap");
-        setBootstrapStatus(response.data.has_users ? "ready" : "required");
+        const response = await bootstrapStatusApiV1AuthBootstrapGet();
+        setBootstrapStatus(response.has_users ? "ready" : "required");
       } catch {
         setBootstrapStatus("ready");
       }
@@ -199,9 +205,7 @@ export const LoginPage = () => {
   // from an effect, and a handler that is a new function every render would
   // have that effect chasing its own tail.
   const goWhereTheySignedInFor = useCallback(async () => {
-    // The page they were headed for before they were asked to sign in, if it
-    // is a path in this app. An invite still wins: it is why they are here.
-    const returnTo = returnPath(searchParams.next) ?? "/";
+    // An invite wins over the page they were headed for: it is why they are here.
     if (inviteCodeParam) {
       router.navigate({
         to: "/invite/$code",
@@ -210,22 +214,8 @@ export const LoginPage = () => {
       });
       return;
     }
-    // ``next`` says where somebody was interrupted, and it is carried by a
-    // browser rather than by an account: the session that expired here, or the
-    // one a step-up ended, may not be the account now signing in. A path inside
-    // a community is only theirs to resume if they are in that community, so
-    // ask the list before going there and start them at home if they are not.
-    const wanted = guildIdFromPath(returnTo);
-    if (wanted === null) {
-      router.navigate({ to: returnTo, replace: true });
-      return;
-    }
-    const reachable = await refreshGuilds();
-    router.navigate({
-      to: reachable.some((guild) => guild.id === wanted) ? returnTo : "/",
-      replace: true,
-    });
-  }, [inviteCodeParam, refreshGuilds, router, searchParams.next]);
+    await resumeAfterSignIn(searchParams.next);
+  }, [inviteCodeParam, resumeAfterSignIn, router, searchParams.next]);
 
   /** What to put on the card when a passkey sign-in the person asked for did
    *  not finish. Nothing is said for a prompt this page stood down itself. */
@@ -294,12 +284,13 @@ export const LoginPage = () => {
   /** Send a phone to a browser, which is what knows the site the passkey
    *  belongs to. The app takes over again at the callback link. */
   const openPasskeyRelay = async () => {
-    const baseUrl = getServerOrigin() ?? serverUrl;
-    if (!baseUrl) return;
-    const deviceName = await resolveDeviceName();
-    await Browser.open({
-      url: `${baseUrl}${RELAY_PATH}&device_name=${encodeURIComponent(deviceName)}`,
+    const origin = getServerOrigin();
+    if (!origin) return;
+    const params = new URLSearchParams({
+      device_name: await resolveDeviceName(),
+      code_challenge: await beginNativeSignIn(origin),
     });
+    await Browser.open({ url: `${origin}${RELAY_PATH}&${params}` });
   };
 
   const handlePasskeyLogin = async () => {
@@ -383,7 +374,10 @@ export const LoginPage = () => {
   if (relayMode) {
     return (
       <SignInFrame>
-        <PasskeyRelayCard deviceName={relayDeviceName || FALLBACK_DEVICE_NAME} />
+        <PasskeyRelayCard
+          deviceName={relayDeviceName || FALLBACK_DEVICE_NAME}
+          codeChallenge={relayChallenge}
+        />
       </SignInFrame>
     );
   }

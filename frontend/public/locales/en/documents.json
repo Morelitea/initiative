@@ -130,7 +130,6 @@
     "noInitiatives": "No initiatives here you can add documents to."
   },
   "detail": {
-    "invalidId": "Invalid document id.",
     "loading": "Loading document…",
     "notFound": "Document not found",
     "notFoundDescription": "This document may have been deleted or you may have followed a broken link.",
@@ -209,6 +208,7 @@
     "cancelDrawing": "Cancel",
     "checklist": "Checklist",
     "clearFormatting": "Clear Formatting",
+    "collapseCallout": "Collapse callout",
     "colorBlack": "Black",
     "colorBlue": "Blue",
     "colorDefault": "Default",
@@ -232,6 +232,7 @@
     "editStatus": "Change status",
     "embed": "Embed",
     "embedContent": "Embed {{contentName}}",
+    "expandCallout": "Expand callout",
     "fontSize": "Font size",
     "format": "Format",
     "horizontalRule": "Horizontal rule",
@@ -281,6 +282,13 @@
     "undo": "Undo",
     "unmergeCells": "Unmerge cells",
     "youtubeVideo": "YouTube Video"
+  },
+  "embeds": {
+    "insert": "Embed",
+    "showAsEmbed": "Show in full",
+    "showAsLink": "Show as a link",
+    "expand": "Expand",
+    "collapse": "Collapse"
   },
   "outline": {
     "title": "Contents",
@@ -377,6 +385,7 @@
   "smartChips": {
     "aspects": {
       "assignee": "Assignee",
+      "checklist": "Done",
       "due": "Due date",
       "priority": "Priority",
       "progress": "Progress",
@@ -398,6 +407,7 @@
     "searchPlaceholder": "Search for something to show",
     "searching": "Searching…",
     "taskAssignee": "Task assignee",
+    "taskChecklist": "Task checkbox",
     "taskDue": "Task due date",
     "taskPriority": "Task priority",
     "taskStatus": "Task status",

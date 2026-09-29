@@ -18,10 +18,10 @@ import httpx
 import pytest
 
 from app.core.messages import AppDataMessages
-from app.models.platform.app_service_registration import AppServiceRegistration
+from app.services.marketplace.registration_lookup import RegistrationSnapshot
 from app.services.marketplace import app_data as service
+from app.services.marketplace.registration_lookup import service_public_id
 
-pytestmark = pytest.mark.unit
 
 URL = "http://127.0.0.1:9100/v1/endpoints"
 
@@ -30,7 +30,6 @@ ORDERS = "app.acme.shop.orders"
 SOURCE = {
     "id": ORDERS,
     "direction": "read",
-    "visibility": "member",
     "cache_ttl_seconds": 60,
     "params": [
         {"key": "range", "type": "select", "options": ["7d", "30d"], "label": {}},
@@ -369,10 +368,16 @@ class TestDefinitionReading:
         """A registration may carry two addresses. This one is Initiative's own
         server calling the app, so it uses the address meant for that — the
         browser address is for what a browser opens."""
-        registration = AppServiceRegistration(
+        registration = RegistrationSnapshot(
             public_id="acme.shop",
+            listing_uid=None,
             base_url="http://acme-shop:8200",
             embed_origin="https://shop.example.com",
+            allowed_origins=(),
+            keys={},
+            mandatory=False,
+            enabled=True,
+            live=True,
         )
 
         assert service._endpoints_url(registration) == (
@@ -381,14 +386,14 @@ class TestDefinitionReading:
 
     def test_only_a_service_app_has_a_backing_service(self):
         assert (
-            service.service_public_id(
+            service_public_id(
                 {"app_kind": "service", "service": {"public_id": "acme.shop"}}
             )
             == "acme.shop"
         )
-        assert service.service_public_id({"app_kind": "tool_instance"}) is None
-        assert service.service_public_id({"app_kind": "service"}) is None
-        assert service.service_public_id(None) is None
+        assert service_public_id({"app_kind": "tool_instance"}) is None
+        assert service_public_id({"app_kind": "service"}) is None
+        assert service_public_id(None) is None
 
     def test_the_deployments_ceiling_outranks_the_manifests_request(self):
         """A listing asks for freshness; it does not get to decide it."""

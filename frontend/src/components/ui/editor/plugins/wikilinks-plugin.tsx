@@ -18,12 +18,18 @@ import { createPortal } from "react-dom";
 import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { $createEntityMentionNode } from "@/components/ui/editor/nodes/entity-mention-node";
+import {
+  $createReferenceEmbedNode,
+  $placeEmbed,
+} from "@/components/ui/editor/nodes/reference-embed-node";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useGuildPickerSuggestions } from "@/hooks/useSearch";
+import { MENTIONABLE_TYPES } from "@/lib/mentions";
 import { linkableToolTypes } from "@/lib/references";
 
-// Regex to match [[ followed by any characters (for partial wikilinks)
-const WIKILINK_TRIGGER_REGEX = /(?:^|\s)\[\[([^\]]{0,75})$/;
+// Regex to match [[ followed by any characters (for partial wikilinks). A `!`
+// in front asks for the thing in full — an embed, as Obsidian writes one.
+const WIKILINK_TRIGGER_REGEX = /(?:^|\s)(!?)\[\[([^\]]{0,75})$/;
 
 // Regex to match complete wikilinks [[...]]
 const COMPLETE_WIKILINK_REGEX = /\[\[([^\]]{1,75})\]\]/;
@@ -31,10 +37,14 @@ const COMPLETE_WIKILINK_REGEX = /\[\[([^\]]{1,75})\]\]/;
 // Store trailing text to clean up after selection (text after cursor including ]])
 let pendingTrailingCleanup: string | null = null;
 
+// Whether the trigger being typed is `![[` — an embed rather than a link.
+let pendingEmbed = false;
+
 function checkForWikilinkTrigger(text: string, editor: LexicalEditor): MenuTextMatch | null {
   const match = WIKILINK_TRIGGER_REGEX.exec(text);
   if (match !== null) {
-    let matchingString = match[1];
+    pendingEmbed = match[1] === "!";
+    let matchingString = match[2];
     const replaceableString = match[0].trim();
     const leadOffset = match.index + (match[0].startsWith(" ") ? 1 : 0);
 
@@ -110,7 +120,8 @@ const SUGGESTION_LIST_LENGTH_LIMIT = 10;
 function useWikilinkSearch(
   queryString: string | null,
   initiativeId: number | null,
-  subject?: string | null
+  subject?: string | null,
+  embed = false
 ): { options: WikilinkTypeaheadOption[]; isLoading: boolean } {
   // The shared lookup, narrowed to this initiative's live documents. A
   // wikilink points at a document to read, not at a blueprint.
@@ -124,7 +135,9 @@ function useWikilinkSearch(
   // A bare `[[ ]]` names nothing yet, so the menu opens on this initiative's
   // most recent linkable things rather than waiting for a first letter.
   const { items: results, isFetching: isLoading } = useGuildPickerSuggestions(queryString ?? "", {
-    types: linkable,
+    // An embed shows a thing in full, and a task is what most want shown, so
+    // `![[` reaches everything `#` does rather than only the tools.
+    types: embed ? MENTIONABLE_TYPES : linkable,
     initiative_id: initiativeId ?? undefined,
     template: false,
     // A page does not link to itself: the page the link opens is the one the
@@ -178,7 +191,8 @@ export function WikilinksPlugin({
   const [editor] = useLexicalComposerContext();
   const [queryString, setQueryString] = useState<string | null>(null);
 
-  const { options, isLoading } = useWikilinkSearch(queryString, initiativeId, subject);
+  const embed = queryString !== null && pendingEmbed;
+  const { options, isLoading } = useWikilinkSearch(queryString, initiativeId, subject, embed);
 
   const onSelectOption = useCallback(
     (
@@ -189,6 +203,24 @@ export function WikilinksPlugin({
       // Capture the trailing text to clean up before the editor update
       const trailingToCleanup = pendingTrailingCleanup;
       pendingTrailingCleanup = null;
+      const asEmbed = pendingEmbed;
+
+      /** What the trigger turns into: a link in the sentence, or an embed
+       *  on a line of its own. */
+      const $place = (
+        entityType: SearchEntityType,
+        entityId: number,
+        name: string,
+        target: TextNode | null
+      ) => {
+        if (asEmbed && target) {
+          $placeEmbed(target, $createReferenceEmbedNode(entityType, entityId, name));
+          return;
+        }
+        const link = $createEntityMentionNode(entityType, entityId, name);
+        if (target) target.replace(link);
+        link.selectNext();
+      };
 
       // Nothing matched, and `[[ ]]` is the trigger that can make one. The
       // dialog owns which kind and whether this writer may; the reference
@@ -196,28 +228,15 @@ export function WikilinksPlugin({
       if (selectedOption.isCreateNew) {
         closeMenu();
         onCreateThing?.(selectedOption.title, (entityType, entityId, name) => {
-          editor.update(() => {
-            const made = $createEntityMentionNode(entityType, entityId, name);
-            if (nodeToReplace) nodeToReplace.replace(made);
-            made.selectNext();
-          });
+          editor.update(() => $place(entityType, entityId, name, nodeToReplace));
         });
         return;
       }
 
       editor.update(() => {
-        const wikilinkNode = $createEntityMentionNode(
-          selectedOption.entityType,
-          selectedOption.documentId ?? 0,
-          selectedOption.title
-        );
-        if (nodeToReplace) {
-          nodeToReplace.replace(wikilinkNode);
-        }
-
         // Clean up trailing text (e.g., " world]]" when cursor was in middle of [[hello world]])
         if (trailingToCleanup) {
-          const nextSibling = wikilinkNode.getNextSibling();
+          const nextSibling = nodeToReplace?.getNextSibling();
           if ($isTextNode(nextSibling)) {
             const siblingText = nextSibling.getTextContent();
             if (siblingText.startsWith(trailingToCleanup)) {
@@ -231,7 +250,12 @@ export function WikilinksPlugin({
           }
         }
 
-        wikilinkNode.selectNext();
+        $place(
+          selectedOption.entityType,
+          selectedOption.documentId ?? 0,
+          selectedOption.title,
+          nodeToReplace
+        );
         closeMenu();
       });
     },

@@ -4,8 +4,6 @@ import pytest
 
 from app.services.import_engine import jira_fields as jf
 
-pytestmark = pytest.mark.unit
-
 
 def _issue(key, **fields):
     return {"key": key, "fields": {"summary": key, **fields}}

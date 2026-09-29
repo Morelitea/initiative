@@ -8,13 +8,15 @@ import {
   type ProjectRead,
   Tool,
 } from "@/api/generated/initiativeAPI.schemas";
+import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { FavoriteProjectButton } from "@/components/projects/FavoriteProjectButton";
 import { PinProjectButton } from "@/components/projects/PinProjectButton";
-import { TagBadge } from "@/components/tags/TagBadge";
+import { TagBadgeList } from "@/components/tags/TagBadge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ProgressCircle } from "@/components/ui/progress-circle";
+import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot, resolveInitiativeColor } from "@/lib/initiativeColors";
 import { initiativeRoute, toolDetailRoute } from "@/lib/tools";
@@ -23,7 +25,6 @@ import { cn } from "@/lib/utils";
 interface ProjectLinkProps {
   project: ProjectRead;
   dragHandleProps?: HTMLAttributes<HTMLButtonElement>;
-  userId?: number;
   /** Extra controls for the card's top-right cluster — rendered outside the
    *  wrapping link so they stay valid (and clickable) inside a card-as-anchor.
    *  Used by the Templates and Archive lists for their per-project action. */
@@ -34,36 +35,19 @@ interface ProjectLinkProps {
   showInitiative?: boolean;
 }
 
-/**
- * Check if the user can pin/unpin a project.
- * Only guild admins and initiative managers can pin projects.
- */
-export const canPinProject = (project: ProjectRead, userId?: number): boolean => {
-  if (!userId) return false;
-
-  // An archived project takes no edits at all, pinning included — the server
-  // refuses the update. A project pinned before it was archived still shows
-  // the read-only indicator.
-  if (project.archived_at !== null) return false;
-
-  // Whether the reader may configure the project is the server's answer: the
-  // same one the pinning route asks.
-  return project.can_configure;
-};
-
 export const ProjectCardLink = ({
   project,
   dragHandleProps,
-  userId,
   actions,
   showInitiative = true,
 }: ProjectLinkProps) => {
   const { t } = useTranslation("projects");
   const gp = useGuildPath();
+  const unread = useUnreadTree();
   const initiative = project.initiative;
   const initiativeColor = initiative ? resolveInitiativeColor(initiative.color) : null;
   const isPinned = Boolean(project.pinned_at);
-  const canPin = canPinProject(project, userId);
+  const canPin = project.can.configure;
 
   return (
     <div className="relative">
@@ -107,6 +91,9 @@ export const ProjectCardLink = ({
             <CardTitle className="flex flex-wrap items-center gap-2 text-xl">
               {project.icon ? <span className="text-2xl leading-none">{project.icon}</span> : null}
               <span>{project.name}</span>
+              {unread.hasResource(project.guild_id, Tool.project, project.id) ? (
+                <UnreadDot />
+              ) : null}
               <ProjectStateBadge project={project} />
             </CardTitle>
           </CardHeader>
@@ -131,16 +118,13 @@ export const ProjectCardLink = ({
                 <ProjectProgress summary={project.task_summary} />
               </div>
             </div>
-            {project.tags && project.tags.length > 0 ? (
-              <div className="flex w-full flex-wrap gap-1">
-                {project.tags.slice(0, 4).map((tag) => (
-                  <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} nested />
-                ))}
-                {project.tags.length > 4 && (
-                  <span className="text-muted-foreground text-xs">+{project.tags.length - 4}</span>
-                )}
-              </div>
-            ) : null}
+            <TagBadgeList
+              tags={project.tags}
+              limit={4}
+              tagHref={(tag) => gp(`/tags/${tag.id}`)}
+              nested
+              className="w-full"
+            />
           </CardFooter>
         </Card>
       </Link>
@@ -151,17 +135,17 @@ export const ProjectCardLink = ({
 export const ProjectRowLink = ({
   project,
   dragHandleProps,
-  userId,
   actions,
   showInitiative = true,
 }: ProjectLinkProps) => {
   const { t } = useTranslation("projects");
   const gp = useGuildPath();
+  const unread = useUnreadTree();
   const initiativeColor = project.initiative
     ? resolveInitiativeColor(project.initiative.color)
     : null;
   const isPinned = Boolean(project.pinned_at);
-  const canPin = canPinProject(project, userId);
+  const canPin = project.can.configure;
   return (
     <div className="relative">
       {dragHandleProps ? (
@@ -205,6 +189,9 @@ export const ProjectRowLink = ({
             <div className="min-w-[200px] flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="font-semibold">{project.name}</p>
+                {unread.hasResource(project.guild_id, Tool.project, project.id) ? (
+                  <UnreadDot />
+                ) : null}
                 <ProjectStateBadge project={project} />
               </div>
               <div className="flex flex-wrap gap-6">
@@ -226,24 +213,13 @@ export const ProjectRowLink = ({
                       <InitiativeLabel initiative={project.initiative} nested />
                     ) : null}
                   </div>
-                  {project.tags && project.tags.length > 0 ? (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {project.tags.slice(0, 4).map((tag) => (
-                        <TagBadge
-                          key={tag.id}
-                          tag={tag}
-                          size="sm"
-                          to={gp(`/tags/${tag.id}`)}
-                          nested
-                        />
-                      ))}
-                      {project.tags.length > 4 && (
-                        <span className="text-muted-foreground text-xs">
-                          +{project.tags.length - 4}
-                        </span>
-                      )}
-                    </div>
-                  ) : null}
+                  <TagBadgeList
+                    tags={project.tags}
+                    limit={4}
+                    tagHref={(tag) => gp(`/tags/${tag.id}`)}
+                    nested
+                    className="mt-2"
+                  />
                 </div>
                 <div className="flex-1">
                   <ProjectProgress summary={project.task_summary} />

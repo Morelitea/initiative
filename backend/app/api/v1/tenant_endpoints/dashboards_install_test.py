@@ -89,7 +89,7 @@ class TestInstall:
         assert body["listing_uid"] == INSTALL_UID
         assert body["listing_version"] == "1.0.0"
         assert body["definition"]["widgets"][0]["type"] == "stat"
-        assert body["my_permission_level"] == "owner"
+        assert body["can"]["delete"] is True
 
     async def test_the_body_comes_from_the_catalog_not_the_request(
         self, client: AsyncClient, acting_user, session, listing

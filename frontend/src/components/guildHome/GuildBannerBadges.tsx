@@ -17,7 +17,8 @@ import { Link } from "@tanstack/react-router";
 import { Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { readableTextShadow, withAlpha } from "@/lib/contrastColor";
+import { readableTextShadow } from "@/lib/contrastColor";
+import { withAlpha } from "@/lib/cssColor";
 
 export type GuildBannerBadgesProps = {
   /** The community whose roster the member count leads to. */

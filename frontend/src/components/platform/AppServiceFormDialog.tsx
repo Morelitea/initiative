@@ -15,46 +15,49 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { hasGrant, parseAllowedOrigins } from "@/lib/appServices";
+import { parseAllowedOrigins } from "@/lib/appServices";
+import { localized } from "@/lib/widgets/widgetMeta";
 
 /** What the operator stated, before it is shaped into a create or a patch. */
 export interface AppServiceFormValues {
   publicId: string;
+  /** The catalog uid of the listing this app speaks for. */
+  listingUid: string;
   baseUrl: string;
   /** Where a browser loads the app, or "" when that is the base URL too. */
   embedOrigin: string;
   allowedOrigins: string[];
-  /** The new shared secret, or null to leave the stored one alone. */
-  secret: string | null;
-  delegation: boolean;
   /** Parsed JWKS, or null to leave the stored key set untouched. */
-  delegationJwks: Record<string, unknown> | null;
-  appDirectory: boolean;
+  jwks: Record<string, unknown> | null;
+  /** Where the app publishes its key set, or "" for none. */
+  jwksUri: string;
   mandatory: boolean;
+  /** Vendor values that were typed, by key. "" clears one; a key left out is kept. */
+  vendorValues: Record<string, string>;
 }
 
 interface FormState {
   publicId: string;
+  listingUid: string;
   baseUrl: string;
   embedOrigin: string;
   allowedOrigins: string;
-  secret: string;
-  delegation: boolean;
-  delegationJwks: string;
-  appDirectory: boolean;
+  jwks: string;
+  jwksUri: string;
   mandatory: boolean;
+  vendorValues: Record<string, string>;
 }
 
 const EMPTY_FORM: FormState = {
   publicId: "",
+  listingUid: "",
   baseUrl: "",
   embedOrigin: "",
   allowedOrigins: "",
-  secret: "",
-  delegation: false,
-  delegationJwks: "",
-  appDirectory: false,
+  jwks: "",
+  jwksUri: "",
   mandatory: false,
+  vendorValues: {},
 };
 
 export interface AppServiceFormDialogProps {
@@ -69,9 +72,10 @@ export interface AppServiceFormDialogProps {
 /**
  * Register or edit one app service.
  *
- * The shared secret is write-only end to end: the API reports only whether one
- * is stored, so this form can say that it exists and offer to replace it, and
- * has nothing to reveal.
+ * Its keys are public keys, either pasted as a key set or fetched from the
+ * address the app publishes them at. The one secret a registration holds is
+ * what the operator supplies for the app's vendor client, as the app's listing
+ * asks for it: a secret value is written here and never shown again.
  */
 export const AppServiceFormDialog = ({
   open,
@@ -80,40 +84,32 @@ export const AppServiceFormDialog = ({
   saving,
   onSubmit,
 }: AppServiceFormDialogProps) => {
-  const { t } = useTranslation("settings");
+  const { t, i18n } = useTranslation("settings");
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
-  const [replaceSecret, setReplaceSecret] = useState(false);
   // Only whether the paste is JSON at all. Whether it is a key set we could
   // verify against is the server's answer, and it gives a message code.
   const [jwksError, setJwksError] = useState<string | null>(null);
 
   // Re-seed whenever the dialog opens, so a reopened form never shows the
-  // previous row's values (and never carries a typed secret forward).
+  // previous row's values.
   useEffect(() => {
     if (!open) return;
     if (editing) {
       setForm({
         publicId: editing.public_id,
-        baseUrl: editing.base_url,
+        listingUid: editing.listing_uid ?? "",
+        baseUrl: editing.base_url ?? "",
         embedOrigin: editing.embed_origin ?? "",
         allowedOrigins: editing.allowed_origins.join("\n"),
-        secret: "",
-        delegation: hasGrant(editing, "delegation"),
-        delegationJwks: editing.delegation_jwks
-          ? JSON.stringify(editing.delegation_jwks, null, 2)
-          : "",
-        appDirectory: hasGrant(editing, "app_directory"),
+        jwks: editing.jwks ? JSON.stringify(editing.jwks, null, 2) : "",
+        jwksUri: editing.jwks_uri ?? "",
         mandatory: editing.mandatory,
+        vendorValues: {},
       });
-      setJwksError(null);
-      // A registration with no secret cannot complete a handshake, so go
-      // straight to the input rather than hiding it behind an opt-in.
-      setReplaceSecret(!editing.has_secret);
     } else {
       setForm(EMPTY_FORM);
-      setReplaceSecret(true);
-      setJwksError(null);
     }
+    setJwksError(null);
   }, [open, editing]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -121,35 +117,37 @@ export const AppServiceFormDialog = ({
 
     // An emptied box clears the stored set; an untouched one on a row that
     // never had a key leaves it alone. Both arrive as {} vs null respectively,
-    // which is the distinction the PATCH reads. Switching delegation off
-    // clears it too — the box is hidden then, and a key set the form no longer
-    // shows is not one it should keep sending.
-    const typed = form.delegation ? form.delegationJwks.trim() : "";
-    let delegationJwks: Record<string, unknown> | null = null;
+    // which is the distinction the PATCH reads.
+    const typed = form.jwks.trim();
+    let jwks: Record<string, unknown> | null = null;
     if (typed) {
       try {
-        delegationJwks = JSON.parse(typed) as Record<string, unknown>;
+        jwks = JSON.parse(typed) as Record<string, unknown>;
       } catch {
-        setJwksError(t("appServices.delegationJwksInvalid"));
+        setJwksError(t("appServices.jwksInvalid"));
         return;
       }
-    } else if (editing?.delegation_jwks) {
-      delegationJwks = {};
+    } else if (editing?.jwks) {
+      jwks = {};
     }
     setJwksError(null);
 
     onSubmit({
-      delegationJwks,
+      jwks,
       publicId: form.publicId.trim(),
+      listingUid: form.listingUid.trim(),
       baseUrl: form.baseUrl.trim(),
       embedOrigin: form.embedOrigin.trim(),
       allowedOrigins: parseAllowedOrigins(form.allowedOrigins),
-      secret: replaceSecret && form.secret ? form.secret : null,
-      delegation: form.delegation,
-      appDirectory: form.appDirectory,
+      jwksUri: form.jwksUri.trim(),
       mandatory: form.mandatory,
+      vendorValues: Object.fromEntries(
+        Object.entries(form.vendorValues).map(([key, value]) => [key, value.trim()])
+      ),
     });
   };
+
+  const vendorFields = editing?.vendor_fields ?? [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -173,11 +171,28 @@ export const AppServiceFormDialog = ({
               placeholder={t("appServices.publicIdPlaceholder")}
               maxLength={120}
               disabled={Boolean(editing)}
+              required={!editing}
               autoComplete="off"
             />
             <p className="text-muted-foreground text-xs">
               {editing ? t("appServices.publicIdHelpEdit") : t("appServices.publicIdHelp")}
             </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="app-service-listing-uid">{t("appServices.listingUidLabel")}</Label>
+            <Input
+              id="app-service-listing-uid"
+              value={form.listingUid}
+              onChange={(event) => setForm((prev) => ({ ...prev, listingUid: event.target.value }))}
+              placeholder={t("appServices.listingUidPlaceholder")}
+              maxLength={14}
+              className="font-mono"
+              required
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <p className="text-muted-foreground text-xs">{t("appServices.listingUidHelp")}</p>
           </div>
 
           <div className="space-y-2">
@@ -225,102 +240,138 @@ export const AppServiceFormDialog = ({
             </p>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="app-service-secret">{t("appServices.secretLabel")}</Label>
-            {editing && (
-              <p className="text-muted-foreground text-xs">
-                {editing.has_secret
-                  ? t("appServices.secretStored")
-                  : t("appServices.secretMissing")}
-              </p>
-            )}
-            {editing?.has_secret && (
-              <label className="flex items-center gap-2 text-muted-foreground text-xs">
-                <input
-                  type="checkbox"
-                  checked={replaceSecret}
-                  onChange={(event) => {
-                    setReplaceSecret(event.target.checked);
-                    if (!event.target.checked) setForm((prev) => ({ ...prev, secret: "" }));
-                  }}
-                />
-                {t("appServices.replaceSecret")}
-              </label>
-            )}
-            {replaceSecret && (
-              <>
-                <Input
-                  id="app-service-secret"
-                  type="password"
-                  value={form.secret}
-                  onChange={(event) => setForm((prev) => ({ ...prev, secret: event.target.value }))}
-                  placeholder={t("appServices.secretPlaceholder")}
-                  autoComplete="new-password"
-                  required={!editing}
-                />
-                <p className="text-muted-foreground text-xs">{t("appServices.secretHelp")}</p>
-              </>
-            )}
-          </div>
+          <fieldset className="rounded-md border p-3">
+            {/* Floated so the legend sits inside the border like the other headings. */}
+            <legend className="float-left w-full font-medium text-sm">
+              {t("appServices.keysTitle")}
+            </legend>
+            <div className="clear-both space-y-3">
+              <p className="text-muted-foreground text-xs">{t("appServices.keysHelp")}</p>
 
-          <div className="space-y-2 rounded-md border border-amber-500/50 p-3">
-            <div>
-              <p className="font-medium text-sm">{t("appServices.grantsTitle")}</p>
-              <p className="text-muted-foreground text-xs">{t("appServices.grantsHelp")}</p>
-            </div>
-            <div className="flex items-start justify-between gap-3 pt-1">
-              <div>
-                <Label htmlFor="app-service-delegation" className="font-medium">
-                  {t("appServices.delegationLabel")}
-                </Label>
-                <p className="text-muted-foreground text-xs">{t("appServices.delegationHelp")}</p>
-              </div>
-              <Switch
-                id="app-service-delegation"
-                checked={form.delegation}
-                onCheckedChange={(checked) =>
-                  setForm((prev) => ({ ...prev, delegation: Boolean(checked) }))
-                }
-              />
-            </div>
-            {form.delegation && (
-              <div className="space-y-2 pt-1">
-                <Label htmlFor="app-service-delegation-jwks">
-                  {t("appServices.delegationJwksLabel")}
-                </Label>
+              <div className="space-y-2">
+                <Label htmlFor="app-service-jwks">{t("appServices.jwksLabel")}</Label>
                 <Textarea
-                  id="app-service-delegation-jwks"
-                  value={form.delegationJwks}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, delegationJwks: event.target.value }))
-                  }
+                  id="app-service-jwks"
+                  value={form.jwks}
+                  onChange={(event) => setForm((prev) => ({ ...prev, jwks: event.target.value }))}
                   rows={6}
                   className="font-mono text-xs"
                   placeholder={'{\n  "keys": [ … ]\n}'}
                 />
-                <p className="text-muted-foreground text-xs">
-                  {t("appServices.delegationJwksHelp")}
-                </p>
+                <p className="text-muted-foreground text-xs">{t("appServices.jwksHelp")}</p>
                 {jwksError && <p className="text-destructive text-xs">{jwksError}</p>}
               </div>
-            )}
-            <div className="flex items-start justify-between gap-3 pt-1">
-              <div>
-                <Label htmlFor="app-service-app-directory" className="font-medium">
-                  {t("appServices.appDirectoryLabel")}
-                </Label>
-                <p className="text-muted-foreground text-xs">{t("appServices.appDirectoryHelp")}</p>
-              </div>
-              <Switch
-                id="app-service-app-directory"
-                checked={form.appDirectory}
-                onCheckedChange={(checked) =>
-                  setForm((prev) => ({ ...prev, appDirectory: Boolean(checked) }))
-                }
-              />
-            </div>
 
-            <div className="flex items-start justify-between gap-3 pt-1">
+              <div className="space-y-2">
+                <Label htmlFor="app-service-jwks-uri">{t("appServices.jwksUriLabel")}</Label>
+                <Input
+                  id="app-service-jwks-uri"
+                  value={form.jwksUri}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, jwksUri: event.target.value }))
+                  }
+                  placeholder={t("appServices.jwksUriPlaceholder")}
+                  maxLength={1000}
+                  autoComplete="off"
+                />
+                <p className="text-muted-foreground text-xs">{t("appServices.jwksUriHelp")}</p>
+              </div>
+            </div>
+          </fieldset>
+
+          {editing && vendorFields.length > 0 && (
+            <fieldset className="rounded-md border p-3">
+              <legend className="float-left w-full font-medium text-sm">
+                {t("appServices.vendorTitle")}
+              </legend>
+              <div className="clear-both space-y-3">
+                <p className="text-muted-foreground text-xs">{t("appServices.vendorHelp")}</p>
+
+                {vendorFields.map((field) => {
+                  const id = `app-service-vendor-${field.key}`;
+                  const isSecret = field.type === "secret";
+                  const isSet = editing.vendor_set.includes(field.key);
+                  const typed = form.vendorValues[field.key];
+                  const value = typed ?? (isSecret ? "" : (editing.vendor_values[field.key] ?? ""));
+                  return (
+                    <div key={field.key} className="space-y-2">
+                      <Label htmlFor={id}>
+                        {localized(field.label, i18n.language) ?? field.key}
+                        {field.required && <span aria-hidden> *</span>}
+                      </Label>
+                      {/* A secret may be a PEM key, which spans lines. */}
+                      {isSecret ? (
+                        <Textarea
+                          id={id}
+                          value={value}
+                          onChange={(event) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              vendorValues: {
+                                ...prev.vendorValues,
+                                [field.key]: event.target.value,
+                              },
+                            }))
+                          }
+                          rows={3}
+                          className="font-mono text-xs"
+                          placeholder={
+                            isSet ? t("appServices.vendorSecretSet") : t("appServices.vendorEmpty")
+                          }
+                          autoComplete="off"
+                          spellCheck={false}
+                        />
+                      ) : (
+                        <Input
+                          id={id}
+                          type={field.type === "url" ? "url" : "text"}
+                          value={value}
+                          onChange={(event) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              vendorValues: {
+                                ...prev.vendorValues,
+                                [field.key]: event.target.value,
+                              },
+                            }))
+                          }
+                          placeholder={t("appServices.vendorEmpty")}
+                          autoComplete="off"
+                          spellCheck={false}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+
+                <div className="space-y-2">
+                  <p className="font-medium text-sm">{t("appServices.redirectTitle")}</p>
+                  <p className="text-muted-foreground text-xs">{t("appServices.redirectHelp")}</p>
+                  <Label htmlFor="app-service-callback-url">
+                    {t("appServices.callbackUrlLabel")}
+                  </Label>
+                  <Input
+                    id="app-service-callback-url"
+                    value={editing.connection_callback_url}
+                    readOnly
+                    className="font-mono text-xs"
+                    onFocus={(event) => event.target.select()}
+                  />
+                  <Label htmlFor="app-service-setup-url">{t("appServices.setupUrlLabel")}</Label>
+                  <Input
+                    id="app-service-setup-url"
+                    value={editing.connection_setup_url}
+                    readOnly
+                    className="font-mono text-xs"
+                    onFocus={(event) => event.target.select()}
+                  />
+                </div>
+              </div>
+            </fieldset>
+          )}
+
+          <div className="space-y-2 rounded-md border border-amber-500/50 p-3">
+            <div className="flex items-start justify-between gap-3">
               <div>
                 <Label htmlFor="app-service-mandatory" className="font-medium">
                   {t("appServices.mandatoryLabel")}

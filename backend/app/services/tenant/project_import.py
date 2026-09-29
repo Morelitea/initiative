@@ -31,7 +31,7 @@ from app.core.search import SearchEntityType
 from app.models.tenant.comment import Comment
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+
 from app.models.tenant.property import (
     PropertyType,
     TaskPropertyValue,
@@ -53,6 +53,7 @@ from app.schemas.tenant.project_export import (
 )
 from app.schemas.tenant.task import mint_checklist_item_id
 from app.services.import_engine.context import ImportContext
+from app.services.import_engine.importers._base import grant_ownership
 from app.services.import_engine.links import links_to_pages
 from app.services.import_engine.references import (
     has_source_references,
@@ -62,6 +63,7 @@ from app.services.import_engine.people import (
     PeopleMap,
     initiative_member_id,
     quoted_account,
+    bring_in_named,
 )
 from app.services.tenant import task_completion
 from app.services.tenant.task_statuses import defaults_for_category
@@ -71,8 +73,11 @@ from app.services.import_engine.common import (
     load_initiative_member_handles,
     handle_key,
     resolve_property_definitions,
+    unique_name,
 )
+from app.core.tools import Tool
 from app.services.tenant import tags as tags_service
+from app.services.tenant.named_people import Governing
 
 
 async def import_project(
@@ -115,14 +120,12 @@ async def import_project(
     # The same roster read the other way round. Assignment is gated on
     # membership however the handle was resolved, and a mapped account is
     # known by its id rather than by a handle to look up.
-    initiative_member_ids = frozenset(initiative_member_handles.values())
 
     # 1. Project row (rename on collision)
-    project_name = await _unique_project_name(
-        session,
-        initiative_id=target_initiative.id,
-        desired_name=envelope.project.name,
+    taken = await session.exec(
+        select(Project.name).where(Project.initiative_id == target_initiative.id)
     )
+    project_name = unique_name(set(taken.all()), envelope.project.name)
     project = Project(
         name=project_name,
         icon=envelope.project.icon,
@@ -136,16 +139,12 @@ async def import_project(
     session.add(project)
     await session.flush()  # populate project.id
 
-    # Owner permission row (matches the `create_project` flow's invariant)
-    session.add(
-        ResourceGrant(
-            resource_type="project",
-            resource_id=project.id,
-            user_id=importer.id,
-            role_id=None,
-            level=ResourceAccessLevel.owner,
-            initiative_id=project.initiative_id,
-        )
+    await grant_ownership(
+        session,
+        tool=Tool.project,
+        entity_id=project.id,
+        target_initiative=target_initiative,
+        importer=importer,
     )
 
     # 2. Task statuses → name → id map
@@ -222,6 +221,7 @@ async def import_project(
     assignee_match_count = 0
     comment_count = 0
     unmatched_handles: set[str] = set()
+    named_handles: dict[int, str] = {}
     for t in envelope.tasks:
         matched, comments_made = await _import_task(
             session,
@@ -234,14 +234,20 @@ async def import_project(
             tag_name_to_id=tag_name_to_id,
             prop_key_to_id=prop_key_to_id,
             initiative_member_handles=initiative_member_handles,
-            initiative_member_ids=initiative_member_ids,
             unmatched_handle_sink=unmatched_handles,
+            named_handle_sink=named_handles,
             context=context,
         )
         assignee_match_count += matched
         comment_count += comments_made
 
     await session.flush()
+    gone = await bring_in_named(
+        session,
+        Governing.of(Tool.project, project),
+        initiative_id=target_initiative.id,
+    )
+    unmatched_handles.update(named_handles[user_id] for user_id in gone)
 
     return ProjectImportResult(
         project_id=project.id,
@@ -263,23 +269,6 @@ async def import_project(
 # ---------------------------------------------------------------------------
 
 
-async def _unique_project_name(
-    session: AsyncSession, *, initiative_id: int, desired_name: str
-) -> str:
-    """Append ' (imported)' / ' (imported 2)' until the name is free in
-    the target initiative. Soft, non-fatal collision handling."""
-    stmt = select(Project.name).where(Project.initiative_id == initiative_id)
-    existing = {row for row in (await session.exec(stmt)).all()}
-    if desired_name not in existing:
-        return desired_name
-    candidate = f"{desired_name} (imported)"
-    n = 2
-    while candidate in existing:
-        candidate = f"{desired_name} (imported {n})"
-        n += 1
-    return candidate
-
-
 async def _import_task(
     session: AsyncSession,
     *,
@@ -292,8 +281,8 @@ async def _import_task(
     tag_name_to_id: dict[str, int],
     prop_key_to_id: dict[tuple[str, PropertyType], int],
     initiative_member_handles: dict[str, int],
-    initiative_member_ids: frozenset[int],
     unmatched_handle_sink: set[str],
+    named_handle_sink: dict[int, str],
     context: ImportContext | None = None,
 ) -> tuple[int, int]:
     """Insert one task, its checklist, tags, assignees, property values and
@@ -370,16 +359,15 @@ async def _import_task(
         session.add(tags_service.tag_edge(tags_service.TAG_LINKS["task"], task.id, tid))
 
     # Assignees: the account a person mapped the handle to, else a member
-    # whose handle is the same string — and a member of this initiative
-    # either way (see ``people.initiative_member_id``). Misses are dropped
-    # and counted.
+    # whose handle is the same string (see ``people.initiative_member_id``).
+    # Misses are dropped and counted; who is named is settled once the project
+    # is written (``people.bring_in_named``).
     seen_user_ids: set[int] = set()
     for handle in envelope_task.assignee_handles:
         uid = initiative_member_id(
             handle,
             people=context.people if context is not None else PeopleMap(),
             member_handles=initiative_member_handles,
-            member_ids=initiative_member_ids,
         )
         if uid is None:
             unmatched_handle_sink.add(handle)
@@ -387,6 +375,7 @@ async def _import_task(
         if uid in seen_user_ids:
             continue
         seen_user_ids.add(uid)
+        named_handle_sink.setdefault(uid, handle)
         session.add(
             TaskAssignee(
                 task_id=task.id,
@@ -406,7 +395,13 @@ async def _import_task(
             people=context.people if context is not None else None,
         )
         if column_kwargs is None:
-            continue  # user_reference with no matching handle — skip silently
+            if pv.value_handle:
+                unmatched_handle_sink.add(pv.value_handle)
+            continue
+        if column_kwargs.get("value_user_id") is not None and pv.value_handle:
+            named_handle_sink.setdefault(
+                column_kwargs["value_user_id"], pv.value_handle
+            )
         session.add(
             TaskPropertyValue(task_id=task.id, property_id=prop_id, **column_kwargs)
         )

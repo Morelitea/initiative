@@ -15,18 +15,15 @@ import {
 } from "@tanstack/react-query";
 
 import {
-  joinCommunityGuildApiV1GuildsCommunitiesGuildIdJoinPost,
-  listCommunityGuildsApiV1GuildsCommunitiesGet,
-} from "@/api/generated/guilds/guilds";
+  getListCommunityGuildsApiV1CommunitiesDirectoryGetQueryKey,
+  joinCommunityGuildApiV1CommunitiesDirectoryGuildIdJoinPost,
+  listCommunityGuildsApiV1CommunitiesDirectoryGet,
+} from "@/api/generated/communities/communities";
 import type {
   CommunityGuildPage,
   GuildRead,
-  ListCommunityGuildsApiV1GuildsCommunitiesGetParams,
+  ListCommunityGuildsApiV1CommunitiesDirectoryGetParams,
 } from "@/api/generated/initiativeAPI.schemas";
-
-/** Shared prefix, so joining can invalidate every filter combination at once
- *  (a card that was `already_member: false` no longer is, on any page). */
-export const COMMUNITIES_QUERY_KEY = ["communities"] as const;
 
 /** The directory turns over when a guild opts in or out, not while someone
  *  scrolls it. */
@@ -39,7 +36,7 @@ export const COMMUNITIES_PAGE_SIZE = 24;
 
 /** Everything except the page number, which the query owns. */
 export type CommunityFilters = Omit<
-  ListCommunityGuildsApiV1GuildsCommunitiesGetParams,
+  ListCommunityGuildsApiV1CommunitiesDirectoryGetParams,
   "page" | "page_size"
 >;
 
@@ -48,9 +45,9 @@ export type CommunityFilters = Omit<
  *  worth rendering. */
 export const useCommunityGuilds = (filters: CommunityFilters, options?: { enabled?: boolean }) =>
   useInfiniteQuery<CommunityGuildPage>({
-    queryKey: [...COMMUNITIES_QUERY_KEY, filters],
+    queryKey: getListCommunityGuildsApiV1CommunitiesDirectoryGetQueryKey(filters),
     queryFn: ({ pageParam, signal }) =>
-      listCommunityGuildsApiV1GuildsCommunitiesGet(
+      listCommunityGuildsApiV1CommunitiesDirectoryGet(
         { ...filters, page: pageParam as number, page_size: COMMUNITIES_PAGE_SIZE },
         undefined,
         signal
@@ -73,9 +70,13 @@ export const useJoinCommunityGuild = () => {
   const queryClient = useQueryClient();
   return useMutation<GuildRead, unknown, number>({
     mutationFn: (guildId: number) =>
-      joinCommunityGuildApiV1GuildsCommunitiesGuildIdJoinPost(guildId),
+      joinCommunityGuildApiV1CommunitiesDirectoryGuildIdJoinPost(guildId),
+    // The bare path is a prefix of every filter combination: a card that was
+    // `already_member: false` no longer is, on any page.
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: COMMUNITIES_QUERY_KEY });
+      void queryClient.invalidateQueries({
+        queryKey: getListCommunityGuildsApiV1CommunitiesDirectoryGetQueryKey(),
+      });
     },
   });
 };

@@ -1,10 +1,7 @@
-"""Endpoint tests for the app service registry.
+"""Endpoint tests for the app service registry and its publishers.
 
-Two things this surface must never get wrong, and both are asserted here: only
-the owner tier reaches it, and the shared secret is echoed as a boolean rather
-than a value. The network-bound handshake paths are covered at the service
-layer (``app/services/marketplace/registrations_test.py``); every case here
-either stops before the handshake or operates on a seeded row.
+Only the owner tier reaches this surface; a registration is what the operator
+states about an app, and is shown whole, since none of it is secret.
 """
 
 import pytest
@@ -12,20 +9,22 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
-from app.core.encryption import SALT_APP_SERVICE_SECRET, encrypt_field
 from app.core.messages import AppServiceMessages, AuthMessages
-from app.models.platform.app_service_registration import (
-    AppServiceRegistration,
-    AppServiceStatus,
-)
+from app.models.platform.app_service_registration import AppServiceRegistration
 from app.models.platform.user import UserRole
-from app.testing.factories import create_user, get_auth_headers
+from app.testing.factories import (
+    create_app_service_registration,
+    create_marketplace_listing,
+    create_user,
+    get_auth_headers,
+)
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 BASE = "/api/v1/app-services/"
-SECRET = "shared-secret-value"
+PUBLISHERS = "/api/v1/app-publishers/"
 APP_URL = "http://127.0.0.1:9100"
+LISTING_UID = "K7M2QX8N4TVB9C"
+NEW = {"public_id": "acme.widgets", "listing_uid": LISTING_UID, "base_url": APP_URL}
 
 
 @pytest.fixture(autouse=True)
@@ -41,18 +40,22 @@ async def _owner_headers(session: AsyncSession) -> dict[str, str]:
 
 
 async def _seed(session: AsyncSession, **overrides) -> AppServiceRegistration:
-    row = AppServiceRegistration(
+    return await create_app_service_registration(
+        session,
         public_id=overrides.pop("public_id", "acme.widgets"),
         base_url=overrides.pop("base_url", APP_URL),
         allowed_origins=overrides.pop("allowed_origins", [APP_URL]),
-        secret_encrypted=encrypt_field(SECRET, SALT_APP_SERVICE_SECRET),
-        status=overrides.pop("status", AppServiceStatus.UNVERIFIED),
+        listing_uid=overrides.pop("listing_uid", LISTING_UID),
         **overrides,
     )
-    session.add(row)
-    await session.commit()
-    await session.refresh(row)
-    return row
+
+
+async def _listed(client: AsyncClient, headers: dict[str, str], row_id: int) -> dict:
+    """One registration as the operator's list shows it."""
+    response = await client.get(BASE, headers=headers)
+    assert response.status_code == 200, response.text
+    (entry,) = [entry for entry in response.json() if entry["id"] == row_id]
+    return entry
 
 
 # --- capability gating -------------------------------------------------------
@@ -71,33 +74,58 @@ async def test_non_owner_tiers_are_refused(
     row = await _seed(session)
 
     assert (await client.get(BASE, headers=headers)).status_code == 403
-    create = await client.post(
-        BASE, headers=headers, json={"base_url": APP_URL, "secret": SECRET}
-    )
+    create = await client.post(BASE, headers=headers, json=NEW)
     assert create.status_code == 403
     assert create.json()["detail"] == AuthMessages.INSUFFICIENT_PRIVILEGES
-    assert (await client.get(f"{BASE}{row.id}", headers=headers)).status_code == 403
     assert (
         await client.patch(f"{BASE}{row.id}", headers=headers, json={"enabled": False})
     ).status_code == 403
-    assert (
-        await client.post(f"{BASE}{row.id}/verify", headers=headers, json={})
-    ).status_code == 403
     assert (await client.delete(f"{BASE}{row.id}", headers=headers)).status_code == 403
+
+    assert (await client.get(PUBLISHERS, headers=headers)).status_code == 403
+    assert (
+        await client.post(
+            PUBLISHERS, headers=headers, json={"prefix": "x", "display_name": "X"}
+        )
+    ).status_code == 403
+    assert (
+        await client.patch(
+            f"{PUBLISHERS}{row.publisher_id}", headers=headers, json={"enabled": False}
+        )
+    ).status_code == 403
 
 
 async def test_anonymous_is_refused(client: AsyncClient):
     assert (await client.get(BASE)).status_code == 401
 
 
-# --- the secret never leaves --------------------------------------------------
+# --- what a registration is ---------------------------------------------------
 
 
-async def test_owner_lists_registrations_without_the_secret(
+async def test_owner_creates_a_registration_as_stated(
     client: AsyncClient, session: AsyncSession
 ):
     headers = await _owner_headers(session)
-    await _seed(session, grants=["delegation"], mandatory=True)
+
+    response = await client.post(BASE, headers=headers, json=NEW)
+
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["public_id"] == "acme.widgets"
+    assert body["listing_uid"] == LISTING_UID
+    assert body["publisher_prefix"] == "acme"
+    assert body["publisher_enabled"] is True
+    # No key set yet, so it is not live.
+    assert body["live"] is False
+    for gone in ("status", "has_secret", "manifest_hash", "last_verified_at"):
+        assert gone not in body
+
+
+async def test_owner_lists_registrations_with_their_publisher(
+    client: AsyncClient, session: AsyncSession
+):
+    headers = await _owner_headers(session)
+    await _seed(session, mandatory=True)
 
     response = await client.get(BASE, headers=headers)
 
@@ -106,52 +134,47 @@ async def test_owner_lists_registrations_without_the_secret(
     assert len(body) == 1
     entry = body[0]
     assert entry["public_id"] == "acme.widgets"
-    assert entry["has_secret"] is True
-    assert entry["grants"] == ["delegation"]
+    assert "grants" not in entry
     assert entry["mandatory"] is True
-    assert entry["status"] == AppServiceStatus.UNVERIFIED
-    # Neither the value nor its ciphertext appears anywhere in the payload.
-    assert "secret" not in entry
-    assert "secret_encrypted" not in entry
-    assert SECRET not in response.text
+    assert entry["publisher_prefix"] == "acme"
+    assert entry["live"] is True
+    assert entry["jwks"]["keys"]
 
 
-async def test_read_and_patch_never_echo_the_secret(
-    client: AsyncClient, session: AsyncSession
-):
+async def test_create_needs_a_listing(client: AsyncClient, session: AsyncSession):
     headers = await _owner_headers(session)
-    row = await _seed(session)
 
-    read = await client.get(f"{BASE}{row.id}", headers=headers)
-    assert read.status_code == 200
-    assert SECRET not in read.text
-    assert read.json()["has_secret"] is True
-
-    rotated = await client.patch(
-        f"{BASE}{row.id}", headers=headers, json={"secret": "a-rotated-secret"}
+    response = await client.post(
+        BASE, headers=headers, json={**NEW, "listing_uid": "nope"}
     )
-    assert rotated.status_code == 200, rotated.text
-    assert "a-rotated-secret" not in rotated.text
-    assert rotated.json()["has_secret"] is True
-    # Rotating discards what the previous target's handshake established.
-    assert rotated.json()["status"] == AppServiceStatus.UNVERIFIED
+
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"] == AppServiceMessages.INVALID_LISTING_UID
 
 
-async def test_registration_without_a_secret_reports_it(
+async def test_the_key_set_address_round_trips(
     client: AsyncClient, session: AsyncSession
 ):
     headers = await _owner_headers(session)
-    row = await _seed(session)
-    row.secret_encrypted = None
-    session.add(row)
-    await session.commit()
+    row = await _seed(session, base_url="https://app.example.com", jwks={})
 
-    read = await client.get(f"{BASE}{row.id}", headers=headers)
-    assert read.json()["has_secret"] is False
+    set_it = await client.patch(
+        f"{BASE}{row.id}",
+        headers=headers,
+        json={"jwks_uri": "https://app.example.com/jwks.json", "jwks": {}},
+    )
+    assert set_it.status_code == 200, set_it.text
+    assert set_it.json()["jwks_uri"] == "https://app.example.com/jwks.json"
+    assert set_it.json()["jwks"] is None
+    assert set_it.json()["live"] is True
 
-    verify = await client.post(f"{BASE}{row.id}/verify", headers=headers, json={})
-    assert verify.status_code == 409
-    assert verify.json()["detail"] == AppServiceMessages.SECRET_REQUIRED
+    elsewhere = await client.patch(
+        f"{BASE}{row.id}",
+        headers=headers,
+        json={"jwks_uri": "https://keys.example.net/jwks.json"},
+    )
+    assert elsewhere.status_code == 400
+    assert elsewhere.json()["detail"] == AppServiceMessages.INVALID_JWKS_URI
 
 
 # --- operator-conferred fields ------------------------------------------------
@@ -166,14 +189,46 @@ async def test_patch_sets_the_operator_only_fields(
     response = await client.patch(
         f"{BASE}{row.id}",
         headers=headers,
-        json={"grants": ["delegation"], "mandatory": True, "enabled": False},
+        json={"mandatory": True, "enabled": False},
     )
 
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["grants"] == ["delegation"]
     assert body["mandatory"] is True
     assert body["enabled"] is False
+
+
+async def test_the_scope_ceiling_round_trips(
+    client: AsyncClient, session: AsyncSession
+):
+    headers = await _owner_headers(session)
+    row = await _seed(session)
+    assert (await _listed(client, headers, row.id))["scope_ceiling"] == []
+
+    response = await client.patch(
+        f"{BASE}{row.id}",
+        headers=headers,
+        json={"scope_ceiling": ["projects:write", "comments:read"]},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["scope_ceiling"] == ["comments:read", "projects:write"]
+
+
+async def test_patch_refuses_a_scope_outside_the_vocabulary(
+    client: AsyncClient, session: AsyncSession
+):
+    headers = await _owner_headers(session)
+    row = await _seed(session, scope_ceiling=["projects:read"])
+
+    response = await client.patch(
+        f"{BASE}{row.id}", headers=headers, json={"scope_ceiling": ["root:write"]}
+    )
+
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"] == AppServiceMessages.UNKNOWN_SCOPE
+    await session.refresh(row)
+    assert row.scope_ceiling == ["projects:read"]
 
 
 async def test_the_browser_address_round_trips_and_clears(
@@ -200,36 +255,26 @@ async def test_the_browser_address_round_trips_and_clears(
 @pytest.mark.parametrize(
     ("case", "body", "detail"),
     [
-        # A power no code resolves would read in the owner's settings as something this
-        # deployment had conferred.
         (
-            "a grant outside the vocabulary",
-            {"base_url": APP_URL, "secret": SECRET, "grants": ["superuser"]},
-            AppServiceMessages.UNKNOWN_GRANT,
+            "a scope outside the vocabulary",
+            {**NEW, "scope_ceiling": ["root:write"]},
+            AppServiceMessages.UNKNOWN_SCOPE,
         ),
         (
             "a malformed base url",
-            {"base_url": "ftp://app.example.com", "secret": "s"},
+            {**NEW, "base_url": "ftp://app.example.com"},
             AppServiceMessages.INVALID_BASE_URL,
         ),
         # Its own code, so an operator is told which of the two addresses the
         # registry would not take.
         (
             "a malformed embed origin",
-            {
-                "base_url": APP_URL,
-                "secret": SECRET,
-                "embed_origin": "ftp://app.example.com",
-            },
+            {**NEW, "embed_origin": "ftp://app.example.com"},
             AppServiceMessages.INVALID_EMBED_ORIGIN,
         ),
         (
             "an origin carrying a path",
-            {
-                "base_url": APP_URL,
-                "secret": SECRET,
-                "allowed_origins": ["https://app.example.com/embed"],
-            },
+            {**NEW, "allowed_origins": ["https://app.example.com/embed"]},
             AppServiceMessages.INVALID_ORIGIN,
         ),
     ],
@@ -258,9 +303,7 @@ async def test_create_fails_closed_without_a_signing_key(
     monkeypatch.setattr(settings, "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM", None)
     headers = await _owner_headers(session)
 
-    response = await client.post(
-        BASE, headers=headers, json={"base_url": APP_URL, "secret": SECRET}
-    )
+    response = await client.post(BASE, headers=headers, json=NEW)
 
     assert response.status_code == 503
     assert response.json()["detail"] == AppServiceMessages.SIGNING_NOT_CONFIGURED
@@ -274,7 +317,7 @@ async def test_owner_deletes_a_registration(client: AsyncClient, session: AsyncS
     row = await _seed(session)
 
     assert (await client.delete(f"{BASE}{row.id}", headers=headers)).status_code == 204
-    assert (await client.get(f"{BASE}{row.id}", headers=headers)).status_code == 404
+    assert (await client.get(BASE, headers=headers)).json() == []
 
 
 async def test_missing_registration_is_a_404(
@@ -282,7 +325,239 @@ async def test_missing_registration_is_a_404(
 ):
     headers = await _owner_headers(session)
 
-    response = await client.get(f"{BASE}999999", headers=headers)
+    response = await client.patch(
+        f"{BASE}999999", headers=headers, json={"enabled": False}
+    )
 
     assert response.status_code == 404
     assert response.json()["detail"] == AppServiceMessages.NOT_FOUND
+
+
+# --- publishers ---------------------------------------------------------------
+
+
+async def test_owner_adds_and_lists_a_publisher(
+    client: AsyncClient, session: AsyncSession
+):
+    headers = await _owner_headers(session)
+
+    created = await client.post(
+        PUBLISHERS,
+        headers=headers,
+        json={"prefix": "Private-Apps", "display_name": "Our own apps"},
+    )
+
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert body["prefix"] == "private-apps"
+    assert body["display_name"] == "Our own apps"
+    assert body["verified"] is False
+    assert body["enabled"] is True
+
+    listed = await client.get(PUBLISHERS, headers=headers)
+    assert "private-apps" in {entry["prefix"] for entry in listed.json()}
+
+    again = await client.post(
+        PUBLISHERS,
+        headers=headers,
+        json={"prefix": "private-apps", "display_name": "Twice"},
+    )
+    assert again.status_code == 409
+    assert again.json()["detail"] == AppServiceMessages.DUPLICATE_PUBLISHER
+
+
+@pytest.mark.parametrize("prefix", ["", "has.dot", "has space", "x" * 121])
+async def test_a_prefix_is_one_segment_of_an_app_id(
+    client: AsyncClient, session: AsyncSession, prefix: str
+):
+    headers = await _owner_headers(session)
+
+    response = await client.post(
+        PUBLISHERS, headers=headers, json={"prefix": prefix, "display_name": "X"}
+    )
+
+    assert response.status_code in (400, 422), response.text
+
+
+async def test_switching_a_publisher_off_takes_its_apps_out_of_service(
+    client: AsyncClient, session: AsyncSession
+):
+    headers = await _owner_headers(session)
+    row = await _seed(session)
+    assert (await _listed(client, headers, row.id))["live"]
+
+    off = await client.patch(
+        f"{PUBLISHERS}{row.publisher_id}",
+        headers=headers,
+        json={"enabled": False, "display_name": "Acme, paused"},
+    )
+
+    assert off.status_code == 200, off.text
+    assert off.json()["enabled"] is False
+    assert off.json()["display_name"] == "Acme, paused"
+    read = await _listed(client, headers, row.id)
+    assert read["enabled"] is True
+    assert read["publisher_enabled"] is False
+    assert read["live"] is False
+
+
+async def test_a_missing_publisher_is_a_404(client: AsyncClient, session: AsyncSession):
+    headers = await _owner_headers(session)
+
+    response = await client.patch(
+        f"{PUBLISHERS}999999", headers=headers, json={"enabled": False}
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == AppServiceMessages.PUBLISHER_NOT_FOUND
+
+
+# --- vendor values -------------------------------------------------------------
+
+
+VENDOR_DEFINITION = {
+    "app_kind": "service",
+    "service": {"public_id": "acme.widgets", "protocol": 1},
+    "features": [],
+    "vendor": {
+        "label": {"en": "Widget client"},
+        "fields": [
+            {
+                "key": "client_id",
+                "type": "string",
+                "required": True,
+                "label": {"en": "Client id"},
+            },
+            {
+                "key": "client_secret",
+                "type": "secret",
+                "required": True,
+                "label": {"en": "Client secret"},
+            },
+        ],
+    },
+}
+
+
+async def _vendor_listing(session: AsyncSession) -> None:
+    await create_marketplace_listing(
+        session,
+        uid=LISTING_UID,
+        public_id="acme.widgets",
+        kind="app",
+        definition=VENDOR_DEFINITION,
+    )
+
+
+async def test_the_form_shows_the_fields_the_listing_asks_for(
+    client: AsyncClient, session: AsyncSession
+):
+    await _vendor_listing(session)
+    headers = await _owner_headers(session)
+    row = await _seed(session)
+
+    body = await _listed(client, headers, row.id)
+
+    assert [field["key"] for field in body["vendor_fields"]] == [
+        "client_id",
+        "client_secret",
+    ]
+    assert body["vendor_fields"][1]["type"] == "secret"
+    assert body["vendor_set"] == []
+    assert body["connection_callback_url"] == (
+        f"{settings.APP_URL.rstrip('/')}/api/v1/app-connections/callback"
+    )
+    assert body["connection_setup_url"] == (
+        f"{settings.APP_URL.rstrip('/')}/api/v1/app-connections/setup"
+    )
+
+
+async def test_a_secret_is_written_and_shown_only_as_set(
+    client: AsyncClient, session: AsyncSession
+):
+    await _vendor_listing(session)
+    headers = await _owner_headers(session)
+    row = await _seed(session)
+
+    response = await client.patch(
+        f"{BASE}{row.id}",
+        headers=headers,
+        json={"vendor_values": {"client_id": "widget-app", "client_secret": "s3cr3t"}},
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["vendor_values"] == {"client_id": "widget-app"}
+    assert body["vendor_set"] == ["client_id", "client_secret"]
+    assert body["vendor_ready"] is True
+    assert body["live"] is True
+    assert "s3cr3t" not in response.text
+
+    # Left out, a secret is kept; sent empty, it is cleared.
+    kept = await client.patch(
+        f"{BASE}{row.id}",
+        headers=headers,
+        json={"vendor_values": {"client_id": "widget-app-2"}},
+    )
+    assert kept.json()["vendor_set"] == ["client_id", "client_secret"]
+    cleared = await client.patch(
+        f"{BASE}{row.id}",
+        headers=headers,
+        json={"vendor_values": {"client_secret": ""}},
+    )
+    assert cleared.json()["vendor_set"] == ["client_id"]
+
+
+async def test_a_registration_is_not_live_until_its_required_values_are_set(
+    client: AsyncClient, session: AsyncSession
+):
+    await _vendor_listing(session)
+    headers = await _owner_headers(session)
+    row = await _seed(session)
+
+    body = (
+        await client.patch(
+            f"{BASE}{row.id}",
+            headers=headers,
+            json={"vendor_values": {"client_id": "widget-app"}},
+        )
+    ).json()
+
+    assert body["vendor_ready"] is False
+    assert body["live"] is False
+
+
+async def test_a_value_the_listing_does_not_ask_for_is_refused(
+    client: AsyncClient, session: AsyncSession
+):
+    await _vendor_listing(session)
+    headers = await _owner_headers(session)
+    row = await _seed(session)
+
+    response = await client.patch(
+        f"{BASE}{row.id}",
+        headers=headers,
+        json={"vendor_values": {"webhook_secret": "x"}},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == AppServiceMessages.UNKNOWN_VENDOR_FIELD
+
+
+async def test_a_registry_registration_takes_its_vendor_values(
+    client: AsyncClient, session: AsyncSession
+):
+    """The registry states what an app is; the vendor client it uses here is
+    this deployment's, like its address."""
+    await _vendor_listing(session)
+    headers = await _owner_headers(session)
+    row = await _seed(session, source="registry")
+
+    response = await client.patch(
+        f"{BASE}{row.id}",
+        headers=headers,
+        json={"vendor_values": {"client_id": "a", "client_secret": "b"}},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["vendor_ready"] is True

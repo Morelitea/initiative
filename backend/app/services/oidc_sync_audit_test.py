@@ -8,7 +8,6 @@ the session carries no account while it is inside a guild's schema.
 
 from __future__ import annotations
 
-import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -21,7 +20,7 @@ from app.models.platform.oidc_claim_mapping import (
 )
 from app.models.tenant.initiative import InitiativeRoleModel
 from app.services.oidc_sync import sync_oidc_assignments
-from app.services.tenant.initiatives import get_pm_role
+from app.services.tenant.initiatives import get_role_by_name
 from app.testing import emitted, route_session_to_guild
 from app.testing.factories import (
     NARROWED_CLAIM,
@@ -32,8 +31,7 @@ from app.testing.factories import (
     create_initiative,
     create_user,
 )
-
-pytestmark = pytest.mark.integration
+from app.db.request_context import Unattributed
 
 
 def _where(row) -> tuple:
@@ -50,7 +48,7 @@ def _of_type(written: list[dict], event_type: AuditEventType) -> list[dict]:
 
 
 async def _sync(session: AsyncSession, *, user_id: int, provider_id: int, claims):
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     result = await sync_oidc_assignments(
         session,
         user_id=user_id,
@@ -73,7 +71,9 @@ async def test_a_first_arrival_records_the_guild_and_the_initiative(
     await create_guild_provider_connection(session, guild=guild, provider=provider)
     initiative = await create_initiative(session, guild, owner, name="Ops")
     initiative_id = initiative.id
-    pm_role = await get_pm_role(session, initiative_id=initiative_id)
+    pm_role = await get_role_by_name(
+        session, initiative_id=initiative_id, role_name="project_manager"
+    )
     pm_role_id, pm_role_name = pm_role.id, pm_role.name
 
     newcomer = await create_user(session)
@@ -141,7 +141,9 @@ async def test_a_moved_role_and_a_withdrawn_claim_are_both_recorded(
     await create_guild_provider_connection(session, guild=guild, provider=provider)
     initiative = await create_initiative(session, guild, owner, name="Moving")
     initiative_id = initiative.id
-    pm_role = await get_pm_role(session, initiative_id=initiative_id)
+    pm_role = await get_role_by_name(
+        session, initiative_id=initiative_id, role_name="project_manager"
+    )
     pm_role_id, pm_role_name = pm_role.id, pm_role.name
 
     await route_session_to_guild(session, guild_id)

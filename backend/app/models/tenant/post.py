@@ -8,7 +8,7 @@ from sqlmodel import Field, Relationship
 from app.core.tools import Tool
 from app.models.tenant._mixins import (
     ArchiveMixin,
-    attach_access_level,
+    attach_actions,
     CommentsToggleMixin,
     CreatedByMixin,
     ListingProvenanceMixin,
@@ -122,7 +122,6 @@ class Post(
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True, index=True),
     )
-    created_by: int = Field(foreign_key="users.id", nullable=False)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -214,4 +213,4 @@ def board_time():
     return func.coalesce(Post.published_at, Post.scheduled_for, Post.created_at)
 
 
-attach_access_level(Post, Tool.post)
+attach_actions(Post, Tool.post)

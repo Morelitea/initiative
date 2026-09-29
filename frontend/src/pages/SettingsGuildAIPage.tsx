@@ -18,7 +18,6 @@ import {
 } from "@/hooks/useAISettings";
 import { useGuilds } from "@/hooks/useGuilds";
 import { getProvidersForScope } from "@/lib/ai-providers";
-import { holdsGuildSeat } from "@/lib/permissions";
 
 /**
  * Guild-ADMIN AI surface: manage the guild's own AI connections (destinations)
@@ -31,7 +30,7 @@ export const SettingsGuildAIPage = () => {
   const guildId = useActiveGuildId();
   // The seat, not admin-or-above: connecting a provider says what leaves
   // the community. The tab is gated the same way; this is the direct-URL half.
-  const holdsTheSeat = holdsGuildSeat(activeGuild) && !activeGuildReadOnly;
+  const holdsTheSeat = Boolean(activeGuild?.can.seat) && !activeGuildReadOnly;
 
   // The member view is the readable-by-anyone source of the global AI mode.
   const modeQuery = useMemberAI(guildId, { enabled: holdsTheSeat });

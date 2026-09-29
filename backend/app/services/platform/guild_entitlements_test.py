@@ -5,11 +5,7 @@ function, so this is where it is pinned: every gate and the community's own
 settings page read their answer from it.
 """
 
-import pytest
-
 from app.core.guild_auth_options import GuildAuthOption, effective_options
-
-pytestmark = pytest.mark.unit
 
 
 def test_a_guild_granted_nothing_holds_nothing():

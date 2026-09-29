@@ -51,7 +51,7 @@ describe("NotificationBell export notifications", () => {
     ]);
     server.use(
       http.get(
-        "/api/v1/g/1/exports/42/download",
+        "/api/v1/c/1/exports/42/download",
         () =>
           new HttpResponse(PDF, {
             status: 200,

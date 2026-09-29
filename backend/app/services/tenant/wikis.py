@@ -42,15 +42,7 @@ from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.wiki import Wiki, WikiPage, WikiPageOrder
 from app.services.tenant import tags as tags_service
-
-#: Slugs are addresses, so they are bounded by what stays readable in a URL
-#: rather than by the column, which is wider.
-MAX_SLUG_LENGTH = 120
-
-#: The slug alphabet. Stated as the set of characters that survive rather than
-#: as a pattern of ones that do not, so what a slug may contain is readable
-#: here instead of inferred from a negation.
-_SLUG_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789")
+from app.services.tenant.names import slugify, unique_slug
 
 
 def list_loader_options() -> list:
@@ -59,7 +51,7 @@ def list_loader_options() -> list:
     return [
         selectinload(Wiki.grants).selectinload(ResourceGrant.role),
         selectinload(Wiki.initiative),
-        undefer(Wiki.access_level),
+        undefer(Wiki.actions),
         selectinload(Wiki.home_page),
     ]
 
@@ -99,24 +91,6 @@ async def get_page(
     return (await session.exec(statement)).one_or_none()
 
 
-def slugify_page_title(title: str, *, fallback: str = "page") -> str:
-    """Kebab-case a page title down to the slug alphabet.
-
-    Anything outside the alphabet becomes a separator, runs of separators
-    collapse, and the result is trimmed to length. A title made entirely of
-    characters that do not survive — a page called "???" — yields ``fallback``
-    rather than an empty address.
-    """
-    out: list[str] = []
-    for char in title.strip().lower():
-        if char in _SLUG_CHARS:
-            out.append(char)
-        elif out and out[-1] != "-":
-            out.append("-")
-    slug = "".join(out).strip("-")[:MAX_SLUG_LENGTH].strip("-")
-    return slug or fallback
-
-
 async def unique_page_slug(
     session: AsyncSession,
     wiki_id: int,
@@ -131,20 +105,11 @@ async def unique_page_slug(
     page can take the name of one that was thrown away, and restoring that one
     is where the conflict surfaces.
     """
-    base = slugify_page_title(title)
     statement = select(WikiPage.slug).where(WikiPage.wiki_id == wiki_id)
     if exclude_page_id is not None:
         statement = statement.where(WikiPage.id != exclude_page_id)
     taken = set((await session.exec(statement)).all())
-
-    if base not in taken:
-        return base
-    for suffix in range(2, len(taken) + 3):
-        trimmed = base[: MAX_SLUG_LENGTH - len(str(suffix)) - 1].strip("-") or "page"
-        candidate = f"{trimmed}-{suffix}"
-        if candidate not in taken:
-            return candidate
-    raise ValueError("could not derive a unique wiki page slug")
+    return unique_slug(slugify(title, fallback="page"), taken)
 
 
 async def next_position(
@@ -189,18 +154,11 @@ async def load_pages(
     wiki_id: int,
     *,
     page_order: WikiPageOrder = WikiPageOrder.manual,
-    include_drafts: bool = True,
 ) -> list[WikiPage]:
-    """Every live page of a wiki, in the order the navigation draws them.
-
-    ``include_drafts`` is the caller's answer to "may this person write here":
-    a draft is a page somebody is still working on, so it is part of the wiki
-    for the people who write it and not part of the wiki for the people who
-    read it.
-    """
+    """Every live page of a wiki the reader can see, in the order the
+    navigation draws them. A draft is part of the wiki for the people who write
+    it and not for the people who read it (the ``wiki_pages`` read policy)."""
     statement = select(WikiPage).where(WikiPage.wiki_id == wiki_id)
-    if not include_drafts:
-        statement = statement.where(WikiPage.is_draft.is_(False))
     return list(
         (await session.exec(statement.order_by(*_ORDERINGS[page_order]()))).all()
     )
@@ -320,8 +278,6 @@ def _parent_of(item: Any, known: set[int]) -> int | None:
 async def load_list(
     session: AsyncSession,
     wiki: Wiki,
-    *,
-    include_drafts: bool = True,
 ) -> list[Any]:
     """A wiki's whole tree — its pages and its documents — in reading order.
 
@@ -330,9 +286,7 @@ async def load_list(
     here rather than in SQL because it spans two tables and a wiki's list is
     the size of a table of contents, not of a table.
     """
-    pages = await load_pages(
-        session, wiki.id, page_order=wiki.page_order, include_drafts=include_drafts
-    )
+    pages = await load_pages(session, wiki.id, page_order=wiki.page_order)
     documents = await linked_documents(session, wiki.id)
     known = {page.id for page in pages}
 
@@ -662,9 +616,14 @@ async def linked_documents(session: AsyncSession, wiki_id: int) -> list[Any]:
         return []
 
     # RLS is the gate, as everywhere else: a document the reader may not see
-    # simply does not come back, and the wiki is shorter by one row.
+    # simply does not come back, and the wiki is shorter by one row. The body
+    # comes along for the headings the navigation draws.
     rows = (
-        await session.exec(select(Document).where(Document.id.in_(document_ids)))
+        await session.exec(
+            select(Document)
+            .where(Document.id.in_(document_ids))
+            .options(undefer(Document.content), undefer(Document.smart_link_url))
+        )
     ).all()
     return list(rows)
 

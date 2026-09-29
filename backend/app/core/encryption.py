@@ -25,13 +25,28 @@ SALT_CAPTCHA_SECRET_KEY = b"captcha-secret-key"
 SALT_FCM_SERVICE_ACCOUNT = b"fcm-service-account"
 SALT_EMAIL = b"email"
 SALT_EVENT_PUBLISHER_PAYLOAD = b"event-publisher-payload"
-SALT_APP_SERVICE_SECRET = b"app-service-secret"
 # Values a guild (or one of its members) supplies to an installed app's
 # connection form. Held per key inside a JSONB map rather than in a column of
 # its own, because one install can hold several.
 SALT_APP_CONFIG = b"app-config"
+# What an operator supplies for an app's vendor client (its secret, its
+# signing key), one ciphertext per field on the app's registration.
+SALT_APP_VENDOR = b"app-vendor"
+# The state an app connection's vendor flow carries through the vendor and
+# back. Transient: it lives ten minutes and is never stored.
+SALT_APP_CONNECTION_FLOW = b"app-connection-flow"
 # The base32 seed behind an account's authenticator-app factor.
 SALT_TOTP_SECRET = b"totp-secret"
+# The access tokens the app platform's token endpoint issues. Transient: a
+# token lives ten minutes and is never stored, so a key rotation ends the ones
+# in flight and their apps ask again.
+SALT_APP_ACCESS_TOKEN = b"app-access-token"
+# Where a page of an app's installs ends, handed to the app to ask for the next
+# one. Transient: never stored.
+SALT_APP_INSTALLS_CURSOR = b"app-installs-cursor"
+# A sign-in finished in the phone's browser, on its way back to the app that
+# began it. Transient: it lives two minutes and is spent once.
+SALT_NATIVE_HANDOFF = b"native-handoff"
 # The value a job needs to read a foreign site. Kept under its original
 # name so values written before the job carried it still decrypt.
 SALT_IMPORT_CREDENTIAL = b"import-credential"

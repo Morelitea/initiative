@@ -17,47 +17,27 @@ from sqlalchemy.exc import DBAPIError
 
 from app.core.capabilities import Capability, roles_with_capability
 from app.core.config import settings
-from app.db.public_rls import FORCED_NO_POLICY, PUBLIC_RLS
-from app.db.schema_provisioning import platform_role_name
-from app.db.system_grants import (
-    SHARED_TABLE_APP_GUILD_BASE_GRANTS,
-    SHARED_TABLE_APP_SUPERADMIN_GRANTS,
-    SHARED_TABLE_APP_USER_GRANTS,
-    SHARED_TABLE_PLATFORM_BASE_GRANTS,
-    SHARED_TABLE_SYSTEM_GRANTS,
-    SHARED_TABLE_TIER_GRANTS,
+from app.db.public_rls import (
+    FORCED_NO_POLICY,
+    INSERT,
+    SELECT,
+    SHARED_TABLE_REGISTRY,
+    UPDATE,
+    Grants,
+    SharedTable,
 )
+from app.db.schema_provisioning import platform_role_name
 from app.db.tenancy import SHARED_TABLES
 from app.models.platform.app_setting import AppSetting
 from app.services.platform.app_settings import GLOBAL_SETTINGS_ID
-from app.testing import create_user
+from app.testing import as_role, create_user
 
-pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 TABLE = "app_setting_secrets"
 MOVED_COLUMNS = ("smtp_password_encrypted", "s3_secret_access_key_encrypted")
 PLATFORM_FLOOR = f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
 REQUEST_FLOORS = ("app_user", "app_guild_base", "app_guild_base_ro", PLATFORM_FLOOR)
 VERBS = ("SELECT", "INSERT", "UPDATE", "DELETE")
-
-
-async def _as(session, role: str, user_id: int) -> None:
-    await session.exec(
-        text(
-            "SELECT set_config('app.current_user_id', :uid, false), "
-            "set_config('role', :role, false)"
-        ),
-        params={"uid": str(user_id), "role": role},
-    )
-
-
-async def _reset(session) -> None:
-    await session.exec(
-        text(
-            "SELECT set_config('role', 'none', false), "
-            "set_config('app.current_user_id', '', false)"
-        )
-    )
 
 
 async def _make_rows(session) -> None:
@@ -83,22 +63,14 @@ def _config_manage_tiers() -> list[str]:
 
 
 def test_registry_records_the_system_engine_alone():
-    """Every request-path matrix names the table ``None``, no tier holds a verb
-    of its own, and the system engine holds what boot, the settings routes and
-    the key rotation use."""
+    """No request-path role holds the table, no tier holds a verb of its own,
+    no policy admits a row, and the system engine holds what boot, the
+    settings routes and the key rotation use."""
     assert TABLE in SHARED_TABLES
-    assert PUBLIC_RLS[TABLE] == FORCED_NO_POLICY
-    assert SHARED_TABLE_SYSTEM_GRANTS[TABLE] == frozenset(
-        {"SELECT", "INSERT", "UPDATE"}
+    assert SHARED_TABLE_REGISTRY[TABLE] == SharedTable(
+        rls=FORCED_NO_POLICY,
+        grants=Grants(app_admin=frozenset({SELECT, INSERT, UPDATE})),
     )
-    for matrix in (
-        SHARED_TABLE_APP_USER_GRANTS,
-        SHARED_TABLE_APP_GUILD_BASE_GRANTS,
-        SHARED_TABLE_PLATFORM_BASE_GRANTS,
-        SHARED_TABLE_APP_SUPERADMIN_GRANTS,
-    ):
-        assert matrix[TABLE] is None
-    assert TABLE not in SHARED_TABLE_TIER_GRANTS
 
 
 def test_app_settings_model_carries_no_credential():
@@ -144,9 +116,14 @@ async def test_table_forces_row_security_with_no_policy(session):
 
 
 async def test_no_request_role_holds_a_verb(session):
-    """The request floors, the seat floor and every tier holding
-    ``config.manage`` hold nothing on the table."""
-    roles = [*REQUEST_FLOORS, "app_superadmin", *_config_manage_tiers()]
+    """The request floors, the seat floor, the install floor and every tier
+    holding ``config.manage`` hold nothing on the table."""
+    roles = [
+        *REQUEST_FLOORS,
+        "app_superadmin",
+        "app_install_base",
+        *_config_manage_tiers(),
+    ]
     for role in roles:
         for verb in VERBS:
             held = (
@@ -167,11 +144,12 @@ async def test_every_request_role_is_refused_select(session):
     assert seen == 1
 
     for role in [*REQUEST_FLOORS, *_config_manage_tiers()]:
-        await _as(session, role, user.id)
-        with pytest.raises(DBAPIError):
-            async with session.begin_nested():
-                await session.exec(text(f"SELECT smtp_password_encrypted FROM {TABLE}"))
-        await _reset(session)
+        async with as_role(session, role, user.id):
+            with pytest.raises(DBAPIError):
+                async with session.begin_nested():
+                    await session.exec(
+                        text(f"SELECT smtp_password_encrypted FROM {TABLE}")
+                    )
 
 
 async def test_the_system_engine_reads_and_writes_it(session):
@@ -180,8 +158,7 @@ async def test_the_system_engine_reads_and_writes_it(session):
     user = await create_user(session)
     await _make_rows(session)
 
-    await _as(session, "app_admin", user.id)
-    try:
+    async with as_role(session, "app_admin", user.id):
         async with session.begin_nested():
             value = (
                 await session.exec(
@@ -195,8 +172,6 @@ async def test_the_system_engine_reads_and_writes_it(session):
                     "WHERE id = 1"
                 )
             )
-    finally:
-        await _reset(session)
     stored = (
         await session.exec(
             text(f"SELECT s3_secret_access_key_encrypted FROM {TABLE} WHERE id = 1")

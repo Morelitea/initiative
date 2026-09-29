@@ -2,8 +2,9 @@
 
 ``resource_level`` is the sharing gate's sibling: the same legs, answering
 which rung of the ladder they reach rather than whether they reach one. The
-policies keep asking ``resource_access``; a serializer reads ``access_level``,
-mapped on every shareable model and answered in the same SELECT as the row.
+policies keep asking ``resource_access``; the routes and the ``can`` a row
+reports read ``actions``, mapped on every shareable model and answered in the
+same SELECT as the row by ``resource_actions``, which reads the rung.
 These tests ask all three on the request login, standing by standing, and
 hold them to one another.
 """
@@ -32,7 +33,13 @@ from app.models.tenant.resource_grant import (
     ResourceAccessLevel,
     ResourceGrant,
 )
-from app.testing import create_access_grant, create_user, route_as, route_system
+from app.testing import (
+    create_access_grant,
+    create_resource_grant,
+    create_user,
+    route_as,
+    route_system,
+)
 from app.testing.schema_harness import route_session_to_guild
 
 OWNER = ResourceAccessLevel.owner.value
@@ -40,7 +47,6 @@ WRITE = ResourceAccessLevel.write.value
 READ = ResourceAccessLevel.read.value
 
 
-@pytest.mark.unit
 def test_the_two_bodies_share_every_leg():
     assert FULL_ACCESS in RESOURCE_LEVEL
     assert FULL_ACCESS in RESOURCE_ACCESS
@@ -48,7 +54,6 @@ def test_the_two_bodies_share_every_leg():
     assert GRANT_REACHES_READER in RESOURCE_ACCESS
 
 
-@pytest.mark.unit
 def test_the_highest_rung_is_spelled_from_the_ladder():
     assert _highest_rung_case() == (
         "WHEN bool_or(g.level = 'owner') THEN 'owner'\n"
@@ -152,21 +157,18 @@ async def _apply_grant(session, a, shape, subject):
             "role_write": WRITE,
             "everyone": READ,
         }[shape]
-        session.add(
-            ResourceGrant(
-                resource_type="project",
-                resource_id=a.project.id,
-                initiative_id=a.initiative.id,
-                user_id=subject.id if shape.startswith("user_") else None,
-                role_id=member_role_id if shape == "role_write" else None,
-                all_initiative_members=shape == "everyone",
-                level=level,
-            )
+        await create_resource_grant(
+            session,
+            a.project,
+            user=subject if shape.startswith("user_") else None,
+            role_id=member_role_id if shape == "role_write" else None,
+            all_initiative_members=shape == "everyone",
+            level=level,
+            commit=False,
         )
     await session.commit()
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("shape", GRANTS)
 @pytest.mark.parametrize("standing", STANDINGS)
 async def test_the_level_the_gate_and_the_column_agree(
@@ -199,15 +201,14 @@ async def test_the_level_the_gate_and_the_column_agree(
         await s.exec(
             select(Project)
             .where(Project.id == a.project.id)
-            .options(undefer(Project.access_level))
+            .options(undefer(Project.actions))
         )
     ).one_or_none()
     assert (row is not None) is reads
     if row is not None:
-        assert row.access_level == level
+        assert ("edit" in (row.actions or ())) is writes
 
 
-@pytest.mark.integration
 async def test_a_reader_outside_the_initiative_is_answered_by_the_policy(
     session, acting_user, role_session
 ):

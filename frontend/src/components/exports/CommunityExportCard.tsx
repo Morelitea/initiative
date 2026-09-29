@@ -3,8 +3,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  getReadGuildExportStatusApiV1GGuildIdExportsGuildStatusGetQueryKey,
-  useReadGuildExportStatusApiV1GGuildIdExportsGuildStatusGet,
+  getReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGetQueryKey,
+  useReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet,
 } from "@/api/generated/exports/exports";
 import type { ExportJobRead } from "@/api/generated/initiativeAPI.schemas";
 import { ExportWizard } from "@/components/exports/ExportWizard";
@@ -15,7 +15,6 @@ import { RelativeTime } from "@/components/ui/relative-time";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuilds } from "@/hooks/useGuilds";
 import { downloadExportArtifact } from "@/lib/exportDownload";
-import { holdsGuildSeat } from "@/lib/permissions";
 import { queryClient } from "@/lib/queryClient";
 
 const ACTIVE = new Set(["queued", "running"]);
@@ -57,9 +56,9 @@ export function CommunityExportCard() {
   // the server checks on request and again when the job renders. The card
   // says the same thing, rather than resting on which tab it happens to sit
   // in.
-  const heldBySeat = holdsGuildSeat(activeGuild);
+  const heldBySeat = Boolean(activeGuild?.can.seat);
 
-  const statusQuery = useReadGuildExportStatusApiV1GGuildIdExportsGuildStatusGet(guildId, {
+  const statusQuery = useReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet(guildId, {
     query: {
       refetchInterval: (query) =>
         ACTIVE.has(query.state.data?.latest?.status ?? "") ? POLL_MS : false,
@@ -78,7 +77,7 @@ export function CommunityExportCard() {
     setWizardOpen(open);
     if (!open) {
       void queryClient.invalidateQueries({
-        queryKey: getReadGuildExportStatusApiV1GGuildIdExportsGuildStatusGetQueryKey(guildId),
+        queryKey: getReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGetQueryKey(guildId),
       });
     }
   };

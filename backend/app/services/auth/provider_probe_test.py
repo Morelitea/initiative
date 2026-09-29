@@ -1,14 +1,11 @@
 """What a look at a provider reports, and what it keeps to itself."""
 
 import httpx
-import pytest
 
 from app.core.messages import AuthProviderMessages
 from app.services.auth import provider_probe
 from app.services.auth.oidc.discovery import OidcDiscovery
 from app.testing.oidc import ISSUER, FakeIdp
-
-pytestmark = [pytest.mark.unit, pytest.mark.auth]
 
 
 def _discovery(idp: FakeIdp) -> OidcDiscovery:

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { CaptchaConfig } from "@/api/generated/initiativeAPI.schemas";
 import { captchaProvider } from "@/lib/captchaProviders";
@@ -84,9 +85,10 @@ const loadScript = (url: string): Promise<void> =>
   });
 
 export const CaptchaWidget = ({ config, onToken }: CaptchaWidgetProps) => {
+  const { t } = useTranslation("auth");
   const containerRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<string | number | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<"loadFailed" | "timeout" | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -94,7 +96,8 @@ export const CaptchaWidget = ({ config, onToken }: CaptchaWidgetProps) => {
     if (!scriptUrl) {
       // Unknown provider name — should be impossible because the
       // backend filters to the supported list, but bail out cleanly.
-      setError(`Unknown captcha provider: ${config.provider}`);
+      console.error(`Unknown captcha provider: ${config.provider}`);
+      setError("loadFailed");
       return;
     }
 
@@ -121,12 +124,13 @@ export const CaptchaWidget = ({ config, onToken }: CaptchaWidgetProps) => {
                 "error-callback": () => onToken(""),
               });
             } catch (renderErr) {
-              setError(renderErr instanceof Error ? renderErr.message : "Captcha render failed");
+              console.error(renderErr);
+              setError("loadFailed");
             }
             return;
           }
           if (Date.now() - start > 5000) {
-            setError("Captcha SDK didn't load in time. Refresh the page.");
+            setError("timeout");
             return;
           }
           window.setTimeout(poll, 50);
@@ -135,7 +139,8 @@ export const CaptchaWidget = ({ config, onToken }: CaptchaWidgetProps) => {
       })
       .catch((scriptErr: Error) => {
         if (cancelled) return;
-        setError(scriptErr.message);
+        console.error(scriptErr);
+        setError("loadFailed");
       });
 
     return () => {
@@ -154,7 +159,7 @@ export const CaptchaWidget = ({ config, onToken }: CaptchaWidgetProps) => {
   }, [config.provider, config.site_key, onToken]);
 
   if (error) {
-    return <p className="text-destructive text-sm">{error}</p>;
+    return <p className="text-destructive text-sm">{t(`captcha.${error}`)}</p>;
   }
 
   return <div ref={containerRef} />;

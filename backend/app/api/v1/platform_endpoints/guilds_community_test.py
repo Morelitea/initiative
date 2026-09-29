@@ -1,8 +1,8 @@
 """Integration tests for the community directory.
 
 Covers the two endpoints a guild's opt-in unlocks —
-``GET /api/v1/guilds/communities`` (browse) and
-``POST /api/v1/guilds/communities/{guild_id}/join`` (join without an invite) —
+``GET /api/v1/communities/directory`` (browse) and
+``POST /api/v1/communities/directory/{guild_id}/join`` (join without an invite) —
 plus the guild-admin PATCH that sets the opt-in and its categories.
 """
 
@@ -21,7 +21,6 @@ from app.models.platform.guild import (
 )
 from app.models.platform.user import UserRole
 from app.models.tenant.initiative import InitiativeMember
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import guilds as guilds_service
 from app.testing.factories import (
@@ -29,10 +28,10 @@ from app.testing.factories import (
     create_guild_membership,
     create_initiative,
     create_project,
+    create_resource_grant,
     create_user,
     guild_administration,
 )
-from app.core.usernames import url_handle
 from app.testing.schema_harness import route_session_to_guild
 
 
@@ -100,7 +99,6 @@ async def _membership_of(
     ).one_or_none()
 
 
-@pytest.mark.integration
 async def test_directory_lists_only_opted_in_guilds(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -109,7 +107,9 @@ async def test_directory_lists_only_opted_in_guilds(
     await _a_listed_guild(session, name="Open Table")
     await create_guild(session, name="Private Office")
 
-    response = await client.get("/api/v1/guilds/communities", headers=browser.headers)
+    response = await client.get(
+        "/api/v1/communities/directory", headers=browser.headers
+    )
 
     assert response.status_code == 200
     data = response.json()
@@ -117,7 +117,6 @@ async def test_directory_lists_only_opted_in_guilds(
     assert [item["name"] for item in data["items"]] == ["Open Table"]
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "condition",
     ["suspended", "frozen", "one seat"],
@@ -141,13 +140,14 @@ async def test_the_directory_re_checks_a_listed_guild_before_offering_it(
         session.add(guild)
         await session.commit()
 
-    response = await client.get("/api/v1/guilds/communities", headers=browser.headers)
+    response = await client.get(
+        "/api/v1/communities/directory", headers=browser.headers
+    )
 
     assert response.status_code == 200
     assert response.json() == {"items": [], "total": 0}
 
 
-@pytest.mark.integration
 async def test_directory_card_carries_only_published_fields(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -159,7 +159,9 @@ async def test_directory_card_carries_only_published_fields(
     await acting_user(guild_role=GuildRole.member, guild=guild)
     await _list_as_community(session, guild, categories=["art", "writing"])
 
-    response = await client.get("/api/v1/guilds/communities", headers=browser.headers)
+    response = await client.get(
+        "/api/v1/communities/directory", headers=browser.headers
+    )
 
     card = response.json()["items"][0]
     assert card["name"] == "Riverside Players"
@@ -174,7 +176,6 @@ async def test_directory_card_carries_only_published_fields(
     assert "role" not in card
 
 
-@pytest.mark.integration
 async def test_directory_flags_guilds_the_caller_is_already_in(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -182,7 +183,9 @@ async def test_directory_flags_guilds_the_caller_is_already_in(
     browser = await acting_user(guild_role=GuildRole.member, guild=joined)
     await _a_listed_guild(session, name="Somewhere Else")
 
-    response = await client.get("/api/v1/guilds/communities", headers=browser.headers)
+    response = await client.get(
+        "/api/v1/communities/directory", headers=browser.headers
+    )
 
     assert {
         item["name"]: item["already_member"] for item in response.json()["items"]
@@ -192,7 +195,6 @@ async def test_directory_flags_guilds_the_caller_is_already_in(
     }
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "query,expected_status,expected_names",
     [
@@ -232,7 +234,7 @@ async def test_the_directory_narrows_to_what_was_asked_for(
     )
 
     response = await client.get(
-        f"/api/v1/guilds/communities{query}", headers=browser.headers
+        f"/api/v1/communities/directory{query}", headers=browser.headers
     )
 
     assert response.status_code == expected_status
@@ -242,7 +244,6 @@ async def test_the_directory_narrows_to_what_was_asked_for(
         )
 
 
-@pytest.mark.integration
 async def test_directory_lists_the_busiest_guilds_first(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -255,14 +256,15 @@ async def test_directory_lists_the_busiest_guilds_first(
     for _ in range(3):
         await acting_user(guild_role=GuildRole.member, guild=busy)
 
-    response = await client.get("/api/v1/guilds/communities", headers=browser.headers)
+    response = await client.get(
+        "/api/v1/communities/directory", headers=browser.headers
+    )
 
     items = response.json()["items"]
     assert [item["name"] for item in items] == ["Zebra Hall", "Aardvark Club"]
     assert [item["member_count"] for item in items] == [3, 0]
 
 
-@pytest.mark.integration
 async def test_directory_searches_every_guild_not_only_a_loaded_page(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -278,7 +280,7 @@ async def test_directory_searches_every_guild_not_only_a_loaded_page(
     await _a_listed_guild(session, name="Dice Goblins")
 
     response = await client.get(
-        "/api/v1/guilds/communities?q=goblins&page_size=1",
+        "/api/v1/communities/directory?q=goblins&page_size=1",
         headers=browser.headers,
     )
 
@@ -287,7 +289,6 @@ async def test_directory_searches_every_guild_not_only_a_loaded_page(
     assert body["total"] == 1
 
 
-@pytest.mark.integration
 async def test_directory_paginates(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -296,10 +297,10 @@ async def test_directory_paginates(
         await _a_listed_guild(session, name=f"Guild {index}")
 
     first = await client.get(
-        "/api/v1/guilds/communities?page=1&page_size=2", headers=browser.headers
+        "/api/v1/communities/directory?page=1&page_size=2", headers=browser.headers
     )
     second = await client.get(
-        "/api/v1/guilds/communities?page=2&page_size=2", headers=browser.headers
+        "/api/v1/communities/directory?page=2&page_size=2", headers=browser.headers
     )
 
     # The total counts everything that matched, not just this page.
@@ -308,14 +309,12 @@ async def test_directory_paginates(
     assert len(second.json()["items"]) == 1
 
 
-@pytest.mark.integration
 async def test_directory_requires_authentication(client: AsyncClient):
-    response = await client.get("/api/v1/guilds/communities")
+    response = await client.get("/api/v1/communities/directory")
 
     assert response.status_code == 401
 
 
-@pytest.mark.integration
 async def test_joining_a_listed_guild_needs_no_invite_and_repeats_harmlessly(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -323,7 +322,7 @@ async def test_joining_a_listed_guild_needs_no_invite_and_repeats_harmlessly(
     rather than erroring or seating the same person twice."""
     joiner = await acting_user("member")
     guild = await _a_listed_guild(session, name="Open Table")
-    url = f"/api/v1/guilds/communities/{guild.id}/join"
+    url = f"/api/v1/communities/directory/{guild.id}/join"
 
     first = await client.post(url, headers=joiner.headers)
     second = await client.post(url, headers=joiner.headers)
@@ -343,7 +342,6 @@ async def test_joining_a_listed_guild_needs_no_invite_and_repeats_harmlessly(
     assert [m.role for m in memberships] == [GuildRole.member]
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "condition,expected_detail",
     [
@@ -377,7 +375,7 @@ async def test_a_guild_the_directory_would_not_show_cannot_be_joined(
 
     guild_id = 999999 if condition == "no such guild" else guild.id
     response = await client.post(
-        f"/api/v1/guilds/communities/{guild_id}/join", headers=joiner.headers
+        f"/api/v1/communities/directory/{guild_id}/join", headers=joiner.headers
     )
 
     assert response.status_code == 404
@@ -388,7 +386,6 @@ async def test_a_guild_the_directory_would_not_show_cannot_be_joined(
         )
 
 
-@pytest.mark.integration
 async def test_join_respects_the_member_cap(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -404,14 +401,13 @@ async def test_join_respects_the_member_cap(
     await guild_administration(session, guild, max_users=2)
 
     response = await client.post(
-        f"/api/v1/guilds/communities/{guild.id}/join", headers=joiner.headers
+        f"/api/v1/communities/directory/{guild.id}/join", headers=joiner.headers
     )
 
     assert response.status_code == 403
     assert response.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
 
 
-@pytest.mark.integration
 async def test_a_member_cannot_opt_the_guild_in(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -419,7 +415,7 @@ async def test_a_member_cannot_opt_the_guild_in(
     member = await acting_user(guild_role=GuildRole.member, guild=guild)
 
     response = await client.patch(
-        f"/api/v1/guilds/{guild.id}",
+        f"/api/v1/communities/{guild.id}",
         json={"is_community": True},
         headers=member.headers,
     )
@@ -429,14 +425,13 @@ async def test_a_member_cannot_opt_the_guild_in(
     assert guild.is_community is False
 
 
-@pytest.mark.integration
 async def test_an_unknown_category_is_rejected(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     guild, headers = await _admin_of(session, acting_user, name="Open Table")
 
     response = await client.patch(
-        f"/api/v1/guilds/{guild.id}",
+        f"/api/v1/communities/{guild.id}",
         json={"categories": ["underwater-basket-weaving"]},
         headers=headers,
     )
@@ -449,7 +444,6 @@ async def test_an_unknown_category_is_rejected(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_the_adult_content_declaration_starts_unanswered(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -457,7 +451,7 @@ async def test_the_adult_content_declaration_starts_unanswered(
     answer on file rather than a default one."""
     guild, headers = await _admin_of(session, acting_user)
 
-    response = await client.get("/api/v1/guilds/", headers=headers)
+    response = await client.get("/api/v1/communities/", headers=headers)
 
     assert response.status_code == 200
     entry = next(item for item in response.json() if item["id"] == guild.id)
@@ -514,7 +508,6 @@ REFUSED_LISTINGS = (
 )
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "guild_fields,listed_with,body,expected_detail", REFUSED_LISTINGS
 )
@@ -537,7 +530,7 @@ async def test_a_listing_that_breaks_a_rule_is_refused_and_changes_nothing(
     before = (guild.is_community, guild.categories, guild.has_adult_content)
 
     response = await client.patch(
-        f"/api/v1/guilds/{guild.id}", json=body, headers=headers
+        f"/api/v1/communities/{guild.id}", json=body, headers=headers
     )
 
     assert response.status_code == 400
@@ -602,7 +595,6 @@ ACCEPTED_LISTINGS = (
 )
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("guild_fields,listed_with,body,expected", ACCEPTED_LISTINGS)
 async def test_an_accepted_listing_patch_is_stored_as_it_reads_back(
     client: AsyncClient,
@@ -623,7 +615,7 @@ async def test_an_accepted_listing_patch_is_stored_as_it_reads_back(
         await _list_as_community(session, guild, categories=listed_with)
 
     response = await client.patch(
-        f"/api/v1/guilds/{guild.id}", json=body, headers=headers
+        f"/api/v1/communities/{guild.id}", json=body, headers=headers
     )
 
     assert response.status_code == 200, response.text
@@ -645,7 +637,6 @@ async def _switch_directory_off(session: AsyncSession) -> None:
     )
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("surface", ["browsing", "joining", "listing itself"])
 async def test_every_directory_surface_is_refused_where_it_is_switched_off(
     client: AsyncClient, session: AsyncSession, acting_user, surface: str
@@ -663,15 +654,15 @@ async def test_every_directory_surface_is_refused_where_it_is_switched_off(
 
     if surface == "browsing":
         response = await client.get(
-            "/api/v1/guilds/communities", headers=caller.headers
+            "/api/v1/communities/directory", headers=caller.headers
         )
     elif surface == "joining":
         response = await client.post(
-            f"/api/v1/guilds/communities/{guild.id}/join", headers=caller.headers
+            f"/api/v1/communities/directory/{guild.id}/join", headers=caller.headers
         )
     else:
         response = await client.patch(
-            f"/api/v1/guilds/{guild.id}",
+            f"/api/v1/communities/{guild.id}",
             json={
                 "is_community": True,
                 "categories": ["gaming"],
@@ -687,7 +678,6 @@ async def test_every_directory_surface_is_refused_where_it_is_switched_off(
     assert guild.is_community is listed
 
 
-@pytest.mark.integration
 async def test_a_listed_guild_can_still_unlist_where_the_directory_is_off(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -698,7 +688,7 @@ async def test_a_listed_guild_can_still_unlist_where_the_directory_is_off(
     await _switch_directory_off(session)
 
     response = await client.patch(
-        f"/api/v1/guilds/{guild.id}",
+        f"/api/v1/communities/{guild.id}",
         json={"is_community": False},
         headers=headers,
     )
@@ -707,7 +697,6 @@ async def test_a_listed_guild_can_still_unlist_where_the_directory_is_off(
     assert response.json()["is_community"] is False
 
 
-@pytest.mark.integration
 async def test_switching_the_directory_off_keeps_the_guilds_opt_in(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -720,7 +709,9 @@ async def test_switching_the_directory_off_keeps_the_guilds_opt_in(
         session, community_directory_enabled=True
     )
 
-    response = await client.get("/api/v1/guilds/communities", headers=browser.headers)
+    response = await client.get(
+        "/api/v1/communities/directory", headers=browser.headers
+    )
 
     assert response.status_code == 200
     assert [item["name"] for item in response.json()["items"]] == ["Open Table"]
@@ -743,21 +734,10 @@ async def _initiative_with_shared_project(
         session, guild, owner, name=name, join_policy="open", auto_join=auto_join
     )
     project = await create_project(session, initiative, owner, name=f"{name} work")
-    await route_session_to_guild(session, guild.id)
-    session.add(
-        ResourceGrant(
-            resource_type="project",
-            resource_id=project.id,
-            all_initiative_members=True,
-            level=ResourceAccessLevel.read,
-            initiative_id=initiative.id,
-        )
-    )
-    await session.commit()
+    await create_resource_grant(session, project, all_initiative_members=True)
     return initiative, project
 
 
-@pytest.mark.integration
 async def test_community_join_enrols_in_auto_join_initiatives(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -782,17 +762,17 @@ async def test_community_join_enrols_in_auto_join_initiatives(
 
     # Not in the guild yet: the guild gate refuses before RLS is ever consulted.
     before = await client.get(
-        f"/api/v1/g/{guild.id}/projects/{welcome_project.id}", headers=joiner.headers
+        f"/api/v1/c/{guild.id}/projects/{welcome_project.id}", headers=joiner.headers
     )
     assert before.status_code == 403
 
     response = await client.post(
-        f"/api/v1/guilds/communities/{guild.id}/join", headers=joiner.headers
+        f"/api/v1/communities/directory/{guild.id}/join", headers=joiner.headers
     )
     assert response.status_code == 200
 
     after = await client.get(
-        f"/api/v1/g/{guild.id}/projects/{welcome_project.id}", headers=joiner.headers
+        f"/api/v1/c/{guild.id}/projects/{welcome_project.id}", headers=joiner.headers
     )
     assert after.status_code == 200
     assert after.json()["name"] == "Welcome work"
@@ -800,7 +780,7 @@ async def test_community_join_enrols_in_auto_join_initiatives(
     # The initiative that did not ask for arrivals is still hidden — so the
     # enrolment, not plain guild membership, is what opened the first one.
     sibling = await client.get(
-        f"/api/v1/g/{guild.id}/projects/{optin_project.id}", headers=joiner.headers
+        f"/api/v1/c/{guild.id}/projects/{optin_project.id}", headers=joiner.headers
     )
     assert sibling.status_code == 404
 
@@ -814,7 +794,6 @@ async def test_community_join_enrols_in_auto_join_initiatives(
     assert rows[0].oidc_provider_id is None
 
 
-@pytest.mark.integration
 async def test_a_profile_names_only_the_listed_communities(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -830,7 +809,7 @@ async def test_a_profile_names_only_the_listed_communities(
     reader = await acting_user(guild_role=GuildRole.member, guild=listed)
 
     response = await client.get(
-        f"/api/v1/users/{url_handle(subject.user.username, subject.user.discriminator)}/communities",
+        f"/api/v1/users/{subject.user.username}{subject.user.discriminator:04d}/communities",
         headers=reader.headers,
     )
 
@@ -840,7 +819,6 @@ async def test_a_profile_names_only_the_listed_communities(
     assert response.json()[0]["member_count"] >= 2
 
 
-@pytest.mark.integration
 async def test_a_profile_names_no_communities_where_the_directory_is_off(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -853,7 +831,7 @@ async def test_a_profile_names_no_communities_where_the_directory_is_off(
     await _switch_directory_off(session)
 
     response = await client.get(
-        f"/api/v1/users/{url_handle(subject.user.username, subject.user.discriminator)}/communities",
+        f"/api/v1/users/{subject.user.username}{subject.user.discriminator:04d}/communities",
         headers=reader.headers,
     )
 
@@ -992,7 +970,7 @@ async def test_join_refuses_an_account_that_has_not_confirmed_its_age(
         )
 
     response = await client.post(
-        f"/api/v1/guilds/communities/{guild.id}/join", headers=a.headers
+        f"/api/v1/communities/directory/{guild.id}/join", headers=a.headers
     )
 
     assert response.status_code == 403
@@ -1008,7 +986,7 @@ async def test_confirming_age_lets_the_same_account_join(
     guild = await _a_listed_guild(session, name="Open Table")
 
     refused = await client.post(
-        f"/api/v1/guilds/communities/{guild.id}/join", headers=a.headers
+        f"/api/v1/communities/directory/{guild.id}/join", headers=a.headers
     )
     assert refused.status_code == 403
 
@@ -1021,7 +999,7 @@ async def test_confirming_age_lets_the_same_account_join(
     assert confirmed.json()["age_confirmed_at"] is not None
 
     joined = await client.post(
-        f"/api/v1/guilds/communities/{guild.id}/join", headers=a.headers
+        f"/api/v1/communities/directory/{guild.id}/join", headers=a.headers
     )
     assert joined.status_code == 200
     assert joined.json()["id"] == guild.id
@@ -1038,7 +1016,7 @@ async def test_join_allows_an_unconfirmed_account_when_the_gate_is_off(
     guild = await _a_listed_guild(session, name="Open Table")
 
     response = await client.post(
-        f"/api/v1/guilds/communities/{guild.id}/join", headers=a.headers
+        f"/api/v1/communities/directory/{guild.id}/join", headers=a.headers
     )
 
     assert response.status_code == 200
@@ -1100,7 +1078,7 @@ async def test_an_account_that_answered_under_age_keeps_its_communities(
         headers=a.headers,
     )
 
-    still_theirs = await client.get("/api/v1/guilds/", headers=a.headers)
+    still_theirs = await client.get("/api/v1/communities/", headers=a.headers)
 
     assert still_theirs.status_code == 200
     assert [g["id"] for g in still_theirs.json()] == [invited.id]
@@ -1113,7 +1091,7 @@ async def test_an_account_that_answered_under_age_keeps_its_communities(
 
 async def _invite_code(client: AsyncClient, guild: Guild, admin_headers) -> str:
     response = await client.post(
-        f"/api/v1/guilds/{guild.id}/invites", headers=admin_headers, json={}
+        f"/api/v1/communities/{guild.id}/invites", headers=admin_headers, json={}
     )
     assert response.status_code == 201, response.text
     return response.json()["code"]
@@ -1143,7 +1121,9 @@ async def test_an_invite_asks_the_age_question_only_where_the_guild_is_listed(
     invitee = await acting_user("member", age_confirmed_at=None)
 
     response = await client.post(
-        "/api/v1/guilds/invite/accept", headers=invitee.headers, json={"code": code}
+        "/api/v1/communities/invite/accept",
+        headers=invitee.headers,
+        json={"code": code},
     )
 
     assert response.status_code == expected_status, response.text
@@ -1191,7 +1171,7 @@ async def test_a_guild_holding_an_under_age_member_cannot_be_listed(
     )
 
     response = await client.patch(
-        f"/api/v1/guilds/{guild.id}",
+        f"/api/v1/communities/{guild.id}",
         headers=admin_headers,
         json={
             "is_community": True,
@@ -1219,7 +1199,7 @@ async def test_an_unanswered_member_does_not_stop_a_guild_being_listed(
     await acting_user(guild_role=GuildRole.member, guild=guild, age_confirmed_at=None)
 
     response = await client.patch(
-        f"/api/v1/guilds/{guild.id}",
+        f"/api/v1/communities/{guild.id}",
         headers=admin_headers,
         json={
             "is_community": True,
@@ -1253,7 +1233,7 @@ async def test_an_already_listed_guild_is_not_re_checked_on_an_unrelated_edit(
     )
 
     response = await client.patch(
-        f"/api/v1/guilds/{guild.id}",
+        f"/api/v1/communities/{guild.id}",
         headers=admin_headers,
         json={"description": "Now with a description"},
     )
@@ -1344,7 +1324,7 @@ async def test_being_asked_by_one_community_does_not_close_another(
 
     refused = await client.get(a.g("/initiatives/"), headers=a.headers)
     still_open = await client.get(
-        f"/api/v1/g/{private.id}/initiatives/", headers=a.headers
+        f"/api/v1/c/{private.id}/initiatives/", headers=a.headers
     )
 
     assert refused.status_code == 403

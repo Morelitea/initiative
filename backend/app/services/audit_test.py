@@ -15,8 +15,6 @@ from app.core.logging_config import configure_logging
 from app.services import audit as audit_service
 from app.testing import create_user
 
-pytestmark = [pytest.mark.integration, pytest.mark.database]
-
 
 @pytest.fixture(autouse=True)
 def _served_logging():

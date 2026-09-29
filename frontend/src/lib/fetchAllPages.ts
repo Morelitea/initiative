@@ -9,7 +9,7 @@
  * Works with any Orval-generated list fetcher — pass it inline as the
  * queryFn, no per-resource wrapper needed:
  *
- *   queryFn: () => fetchAllPages(listTasksApiV1GGuildIdTasksGet, guildId, params)
+ *   queryFn: () => fetchAllPages(listTasksApiV1CGuildIdTasksGet, guildId, params)
  *
  * A positive `page_size` passes straight through as a single request, so the
  * same line serves paginated and fetch-all callers alike; only
@@ -71,5 +71,5 @@ export const fetchAllPages = async <
     console.warn(`fetchAllPages: stopped after ${MAX_PAGES} pages with has_next still true`);
   }
 
-  return { ...response, items: merged, has_next: false, page: 1 } as TResponse;
+  return { ...response, items: merged, has_next: false, has_prev: false, page: 1 } as TResponse;
 };

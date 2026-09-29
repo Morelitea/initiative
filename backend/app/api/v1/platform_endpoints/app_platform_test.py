@@ -1,22 +1,12 @@
-"""Publishing the keys an app verifies calls with.
+"""Publishing the key an app verifies calls with.
 
-Two documents, one per kind of caller: the platform's own signing key, and the
-delegates' provisioned keys. Both are **public** — an app fetching the key it
-will check a credential with cannot be asked for a credential first — and the
-two differ on what an empty answer means. An unconfigured platform key answers
-**503 rather than an empty key set**: the two look similar and mean opposite
-things, and an app that cached `{"keys": []}` would refuse every later token
-from a platform that had simply not been wired up yet.
-
-Delegates are addressed **one document per delegate**, and that is the property
-most worth holding here. A `kid` is an opaque label its owner picks, unique
-only within the registration that published it — Initiative's own verification
-copes with a collision by trying every candidate key, which is not what a JWKS
-consumer does. A merged document would hand out two entries under one `kid` and
-get valid calls rejected.
+The platform's own signing key, as a JWKS document. It is **public** — an app
+fetching the key it will check a credential with cannot be asked for a
+credential first. An unconfigured platform key answers **503 rather than an
+empty key set**: the two look similar and mean opposite things, and an app that
+cached `{"keys": []}` would refuse every later token from a platform that had
+simply not been wired up yet.
 """
-
-import base64
 
 import pytest
 from cryptography.hazmat.primitives import serialization
@@ -76,27 +66,3 @@ async def test_an_unconfigured_deployment_says_so_rather_than_publishing_nothing
     response = await client.get(JWKS_URL)
     assert response.status_code == 503
     assert response.json()["detail"] == AppServiceMessages.SIGNING_NOT_CONFIGURED
-
-
-# --- the delegates' keys ----------------------------------------------------
-
-
-def _b64u_int(value: int) -> str:
-    raw = value.to_bytes((value.bit_length() + 7) // 8, "big")
-    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
-
-
-def _jwk_from(key: rsa.RSAPrivateKey, kid: str) -> dict:
-    numbers = key.public_key().public_numbers()
-    return {
-        "kty": "RSA",
-        "use": "sig",
-        "alg": "RS256",
-        "kid": kid,
-        "n": _b64u_int(numbers.n),
-        "e": _b64u_int(numbers.e),
-    }
-
-
-def _delegate_jwk(kid: str) -> dict:
-    return _jwk_from(_keypair, kid)

@@ -26,8 +26,7 @@ from app.testing import (
     route_session_to_guild,
 )
 from app.models.platform.guild import Guild, GuildRole
-
-pytestmark = pytest.mark.integration
+from app.db.request_context import SystemGuild, Unattributed
 
 
 @pytest.fixture
@@ -49,7 +48,7 @@ async def owner(session, acting_user):
         "initiative_id": initiative.id,
         "guild_owner_id": guild_owner.id,
     }
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     return ids
 
 
@@ -72,7 +71,7 @@ async def test_a_member_cannot_read_or_change_the_settings(client, acting_user):
     ).status_code == 403
     assert (
         await client.put(
-            "/api/v1/settings/intake/guild",
+            "/api/v1/settings/intake/community",
             json={"guild_id": 1},
             headers=actor.headers,
         )
@@ -81,7 +80,7 @@ async def test_a_member_cannot_read_or_change_the_settings(client, acting_user):
 
 async def test_pointing_at_a_guild_that_does_not_exist_is_refused(client, owner):
     response = await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": 99_999},
         headers=owner["actor"].headers,
     )
@@ -111,7 +110,7 @@ async def test_an_unknown_stream_is_not_a_stream(client, owner):
 
 async def test_setting_a_stream_up_from_its_blueprint(client, session, owner):
     await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
@@ -132,14 +131,14 @@ async def test_setting_a_stream_up_from_its_blueprint(client, session, owner):
         IntakeStream.security, title="Refused sign-ins", body="Ten in fifteen minutes."
     )
     assert outcome is not None
-    await set_rls_context(session, guild_id=owner["guild_id"])
+    await set_rls_context(session, SystemGuild(owner["guild_id"]))
     task = (await session.exec(select(Task).where(Task.id == outcome.task_id))).one()
     assert task.project_id == body["project_id"]
 
 
 async def test_clearing_the_pointer_stops_every_stream(client, session, owner):
     await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
@@ -153,7 +152,7 @@ async def test_clearing_the_pointer_stops_every_stream(client, session, owner):
     )
 
     response = await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": None},
         headers=owner["actor"].headers,
     )
@@ -162,7 +161,7 @@ async def test_clearing_the_pointer_stops_every_stream(client, session, owner):
 
     # The binding is untouched: pointing back restores what was there.
     await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
@@ -173,7 +172,7 @@ async def test_clearing_the_pointer_stops_every_stream(client, session, owner):
 
 async def test_unbinding_keeps_the_project(client, session, owner):
     await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
@@ -190,7 +189,7 @@ async def test_unbinding_keeps_the_project(client, session, owner):
     assert response.status_code == 204
     assert await intake_service.open_case(IntakeStream.feedback, title="Idea") is None
 
-    await set_rls_context(session, guild_id=owner["guild_id"])
+    await set_rls_context(session, SystemGuild(owner["guild_id"]))
     assert (
         await session.exec(select(Project).where(Project.id == project_id))
     ).one_or_none() is not None
@@ -201,7 +200,7 @@ async def test_a_guild_member_outside_the_initiative_cannot_read_a_case(
 ):
     """Gate 2, unchanged: the bound project's initiative is who reads its cases."""
     await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
@@ -211,7 +210,7 @@ async def test_a_guild_member_outside_the_initiative_cannot_read_a_case(
         headers=owner["actor"].headers,
     )
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     outsider = await create_user(session)
     guild = (
         await session.exec(select(Guild).where(Guild.id == owner["guild_id"]))
@@ -226,7 +225,7 @@ async def test_a_guild_member_outside_the_initiative_cannot_read_a_case(
     assert outcome is not None
 
     response = await client.get(
-        f"/api/v1/g/{owner['guild_id']}/tasks/{outcome.task_id}",
+        f"/api/v1/c/{owner['guild_id']}/tasks/{outcome.task_id}",
         headers=get_auth_headers(outsider),
     )
     assert response.status_code == 404
@@ -234,7 +233,7 @@ async def test_a_guild_member_outside_the_initiative_cannot_read_a_case(
 
 async def test_a_status_from_another_project_is_refused(client, session, owner):
     await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
@@ -264,7 +263,7 @@ async def test_a_status_from_another_project_is_refused(client, session, owner):
             select(TaskStatus).where(TaskStatus.project_id == elsewhere.id)
         )
     ).first()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
 
     response = await client.put(
         "/api/v1/settings/intake/support",
@@ -281,11 +280,11 @@ async def test_a_status_from_another_project_is_refused(client, session, owner):
 async def test_the_pointer_is_cleared_when_the_guild_goes(client, session, owner):
     """``ON DELETE SET NULL``: nothing is left naming a guild that is gone."""
     await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await session.exec(
         text("DELETE FROM public.guilds WHERE id = :gid").bindparams(
             gid=owner["guild_id"]
@@ -302,7 +301,7 @@ async def test_repointing_a_stream_starts_fresh_in_the_new_project(
 ):
     """Cases are keyed by project, so a repeat follows the binding."""
     await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
@@ -327,7 +326,7 @@ async def test_repointing_a_stream_starts_fresh_in_the_new_project(
     ).one()
     elsewhere = await create_project(session, initiative, guild_owner)
     elsewhere_id = elsewhere.id
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
 
     repointed = await client.put(
         "/api/v1/settings/intake/support",
@@ -344,7 +343,7 @@ async def test_repointing_a_stream_starts_fresh_in_the_new_project(
     assert again.opened is True
     assert again.task_id != opened.task_id
 
-    await set_rls_context(session, guild_id=owner["guild_id"])
+    await set_rls_context(session, SystemGuild(owner["guild_id"]))
     landed = (await session.exec(select(Task).where(Task.id == again.task_id))).one()
     assert landed.project_id == elsewhere_id
     assert first.json()["project_id"] != elsewhere_id
@@ -353,7 +352,7 @@ async def test_repointing_a_stream_starts_fresh_in_the_new_project(
 async def test_rebinding_the_same_project_finds_the_open_case(client, session, owner):
     """Unbinding keeps the history, so a repeat does not open a second case."""
     await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
@@ -389,7 +388,7 @@ async def test_rebinding_the_same_project_finds_the_open_case(client, session, o
 async def test_the_last_case_time_ignores_ordinary_tasks(client, owner):
     """A blueprint's seed task is not a case, and must not read as one."""
     await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
@@ -416,7 +415,7 @@ async def test_options_are_empty_before_a_guild_is_named(client, owner):
 
 async def test_options_offer_the_operations_guilds_projects(client, owner):
     await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
@@ -455,7 +454,7 @@ async def test_a_member_cannot_read_the_options(client, acting_user):
 async def test_a_stream_cannot_be_bound_to_an_archived_project(client, session, owner):
     """Archived content takes no writes, so a case could never land there."""
     await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
@@ -472,7 +471,7 @@ async def test_a_stream_cannot_be_bound_to_an_archived_project(client, session, 
         session, initiative, guild_owner, archived_at=datetime.now(timezone.utc)
     )
     shelved_id = shelved.id
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
 
     response = await client.put(
         "/api/v1/settings/intake/support",
@@ -488,7 +487,7 @@ async def test_a_binding_says_when_its_project_has_been_archived(
 ):
     """Archiving the destination later is a state the page has to show."""
     await client.put(
-        "/api/v1/settings/intake/guild",
+        "/api/v1/settings/intake/community",
         json={"guild_id": owner["guild_id"]},
         headers=owner["actor"].headers,
     )
@@ -500,14 +499,14 @@ async def test_a_binding_says_when_its_project_has_been_archived(
     assert created.json()["project_archived"] is False
     project_id = created.json()["project_id"]
 
-    await set_rls_context(session, guild_id=owner["guild_id"])
+    await set_rls_context(session, SystemGuild(owner["guild_id"]))
     project = (
         await session.exec(select(Project).where(Project.id == project_id))
     ).one()
     project.archived_at = datetime.now(timezone.utc)
     session.add(project)
     await session.commit()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
 
     listed = await client.get("/api/v1/settings/intake", headers=owner["actor"].headers)
     support = next(b for b in listed.json()["bindings"] if b["stream"] == "support")
@@ -594,7 +593,7 @@ async def test_a_stream_falls_back_to_the_general_contact_and_never_to_another(
     client, session, owner
 ):
     headers = owner["actor"].headers
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     assert await intake_service.contact_for(session, IntakeStream.moderation) is None
 
     await client.put(
@@ -602,7 +601,7 @@ async def test_a_stream_falls_back_to_the_general_contact_and_never_to_another(
         headers=headers,
         json={"email": "help@example.com"},
     )
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     session.expire_all()
     assert await intake_service.contact_for(session, IntakeStream.moderation) is None
     assert (
@@ -615,7 +614,7 @@ async def test_a_stream_falls_back_to_the_general_contact_and_never_to_another(
         headers=headers,
         json={"email": "ops@example.com"},
     )
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     session.expire_all()
     assert (
         await intake_service.contact_for(session, IntakeStream.moderation)

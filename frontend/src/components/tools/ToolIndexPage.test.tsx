@@ -2,17 +2,18 @@
  * The shelf every card-grid tool is browsed from, asked once for all of them.
  *
  * Each tool used to carry its own copy of this page, so each would have needed
- * its own copy of these tests. The cases come from {@link TOOL_INDEX} itself:
+ * its own copy of these tests. The cases come from the page's own `TOOL_INDEX`:
  * add a tool with an entry and it is covered here the moment it exists.
  *
  * What is tool-specific stays where it belongs — the queue's status select and
  * the wiki's tag picker are tested with their tools, not here.
  */
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse } from "msw";
+import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 
+import { buildNotificationPlace, ownerCan } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import i18n from "@/__tests__/helpers/i18n-test";
 import { server } from "@/__tests__/helpers/msw-server";
@@ -64,8 +65,7 @@ const row = (tool: Tool, fields: { id: number; name: string; archived_at?: strin
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
   archived_at: null,
-  can_unarchive: false,
-  my_permission_level: "owner",
+  can: ownerCan(),
   comments_enabled: false,
   comment_count: 0,
   tags: [],
@@ -166,6 +166,32 @@ describe("the tool index page", () => {
     expect(screen.queryByText(copy(entry, "emptyTitle"))).not.toBeInTheDocument();
   });
 
+  it.each(CASES)("$tool is created from the shared dialog", async ({ tool, entry }) => {
+    stubList(tool, []);
+    let sent: unknown;
+    server.use(
+      guildHttp.post(`/${toolRouteSegment(tool)}/`, async ({ request }) => {
+        sent = await request.json();
+        return HttpResponse.json(row(tool, { id: 9, name: "Fresh" }));
+      })
+    );
+
+    renderIndex(tool);
+    await userEvent.click(await screen.findByRole("button", { name: copy(entry, "create") }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(copy(entry, "createDescription"))).toBeInTheDocument();
+    await userEvent.type(
+      within(dialog).getByLabelText(translate("name", { ns: entry.text.ns })),
+      "Fresh"
+    );
+    await userEvent.click(within(dialog).getByRole("button", { name: copy(entry, "create") }));
+
+    await waitFor(() =>
+      expect(sent).toMatchObject({ name: "Fresh", initiative_id: INITIATIVE_ID })
+    );
+  });
+
   it.each(CASES)("$tool opens a row at its own address", async ({ tool }) => {
     stubList(tool, [row(tool, { id: 7, name: "Openable" })]);
 
@@ -173,5 +199,24 @@ describe("the tool index page", () => {
 
     const link = (await screen.findByText("Openable")).closest("a");
     expect(link).toHaveAttribute("href", `/c/1/i/${INITIATIVE_ID}/${toolRouteSegment(tool)}/7`);
+  });
+
+  it.each(CASES)("$tool marks the row with something unread", async ({ tool }) => {
+    stubList(tool, [
+      row(tool, { id: 7, name: "Talked about" }),
+      row(tool, { id: 8, name: "Quiet" }),
+    ]);
+    server.use(
+      http.get("/api/v1/notifications/unread", () =>
+        HttpResponse.json({ places: [buildNotificationPlace({ tool, resource_id: 7 })] })
+      )
+    );
+
+    renderIndex(tool);
+
+    await screen.findByText("Quiet");
+    const dot = await screen.findByRole("img", { name: translate("guilds:unreadHere") });
+    expect(screen.getAllByRole("img", { name: translate("guilds:unreadHere") })).toHaveLength(1);
+    expect(dot.parentElement).toHaveTextContent("Talked about");
   });
 });

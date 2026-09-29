@@ -5,8 +5,6 @@ import pytest
 from app.core import usernames
 from app.core.usernames import UsernameError
 
-pytestmark = pytest.mark.unit
-
 
 class TestValidate:
     @pytest.mark.parametrize(

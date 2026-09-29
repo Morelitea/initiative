@@ -90,7 +90,15 @@ async def create_token(
     purpose: UserTokenPurpose,
     expires_minutes: int = DEFAULT_TOKEN_TTL_MINUTES,
     user_email_id: int | None = None,
+    invite_id: int | None = None,
+    commit: bool = True,
 ) -> str:
+    """Issue a token of ``purpose``, replacing the outstanding one it supersedes.
+
+    ``commit=False`` stages the swap instead, for a caller that commits only
+    once the token has been delivered, so the one it replaces stays good if
+    delivery fails.
+    """
     await _delete_existing_tokens(session, user_id, purpose, user_email_id)
     token_value = secrets.token_urlsafe(48)
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=expires_minutes)
@@ -99,10 +107,12 @@ async def create_token(
         token=_hash_token(token_value),
         purpose=purpose,
         user_email_id=user_email_id,
+        invite_id=invite_id,
         expires_at=expires_at,
     )
     session.add(token)
-    await session.commit()
+    if commit:
+        await session.commit()
     # Return the raw token exactly once; only its hash is persisted.
     return token_value
 
@@ -134,14 +144,29 @@ async def consume_token(
     token: str,
     purpose: UserTokenPurpose,
 ) -> Optional[UserToken]:
-    record = await get_valid_token(session, token=token, purpose=purpose)
-    if not record:
+    """Spend a live token and return it, or ``None``.
+
+    One conditional update claims it, so a token is spent once however many
+    requests present it at the same moment.
+    """
+    now = datetime.now(timezone.utc)
+    claimed = (
+        await session.exec(
+            sql_update(UserToken)
+            .where(
+                col(UserToken.token) == _hash_token(token),
+                col(UserToken.purpose) == purpose,
+                col(UserToken.consumed_at).is_(None),
+                col(UserToken.expires_at) > now,
+            )
+            .values(consumed_at=now)
+            .returning(col(UserToken.id))
+        )
+    ).first()
+    if claimed is None:
         return None
-    record.consumed_at = datetime.now(timezone.utc)
-    session.add(record)
     await session.commit()
-    await session.refresh(record)
-    return record
+    return await session.get(UserToken, claimed[0], populate_existing=True)
 
 
 async def purge_expired_tokens(session: AsyncSession) -> None:

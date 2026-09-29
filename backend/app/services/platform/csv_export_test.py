@@ -25,7 +25,6 @@ def _parse(body: bytes) -> list[list[str]]:
     return list(csv.reader(io.StringIO(text)))
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize("trigger", ["=", "+", "-", "@", "\t", "\r"])
 def test_build_csv_neutralizes_formula_triggers(trigger: str) -> None:
     """A cell starting with any trigger character is prefixed with a quote."""
@@ -38,7 +37,6 @@ def test_build_csv_neutralizes_formula_triggers(trigger: str) -> None:
     assert rows[1][0] != payload
 
 
-@pytest.mark.unit
 def test_build_csv_neutralizes_classic_cmd_payload() -> None:
     """The canonical command-injection payload is neutralized."""
     payload = "=cmd|'/c calc'!A1"
@@ -48,7 +46,6 @@ def test_build_csv_neutralizes_classic_cmd_payload() -> None:
     assert rows[1][0] == "'" + payload
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "benign",
     [
@@ -68,7 +65,6 @@ def test_build_csv_leaves_benign_values_untouched(benign: str) -> None:
     assert rows[1][0] == benign
 
 
-@pytest.mark.unit
 def test_build_csv_neutralizes_header_cells() -> None:
     """Headers flow through the same neutralization as data cells."""
     body = csv_export.build_csv(["=evil"], [["safe"]])
@@ -78,7 +74,6 @@ def test_build_csv_neutralizes_header_cells() -> None:
     assert rows[1][0] == "safe"
 
 
-@pytest.mark.unit
 def test_build_csv_stringifies_non_string_values() -> None:
     """Non-string cells (ints, bools) are preserved without spurious quoting."""
     body = csv_export.build_csv(
@@ -90,7 +85,6 @@ def test_build_csv_stringifies_non_string_values() -> None:
     assert rows[1] == ["42", "True"]
 
 
-@pytest.mark.unit
 def test_build_csv_treats_none_as_empty() -> None:
     """``None`` is rendered as an empty cell, not the string 'None'."""
     body = csv_export.build_csv(["full_name"], [[None]])
@@ -99,7 +93,6 @@ def test_build_csv_treats_none_as_empty() -> None:
     assert rows[1][0] == ""
 
 
-@pytest.mark.unit
 def testneutralize_cell_only_targets_leading_trigger() -> None:
     """A trigger character in the middle of a value is not escaped."""
     assert csv_export.neutralize_cell("Foo=Bar") == "Foo=Bar"

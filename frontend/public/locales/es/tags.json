@@ -12,9 +12,8 @@
     "deleted": "Etiqueta eliminada",
     "saving": "Guardando…",
     "save": "Guardar",
-    "tasksTab": "Tareas ({{count}})",
-    "projectsTab": "Proyectos ({{count}})",
-    "documentsTab": "Documentos ({{count}})"
+    "toolTab": "{{tool}} ({{count}})",
+    "empty": "Todavía nada lleva esta etiqueta."
   },
   "manage": {
     "edit": "Editar etiquetas",
@@ -54,7 +53,8 @@
     "expand": "Expandir"
   },
   "badge": {
-    "remove": "Quitar etiqueta {{name}}"
+    "remove": "Quitar etiqueta {{name}}",
+    "more": "+{{count}}"
   },
   "updated": "Etiqueta actualizada.",
   "deleted": "Etiqueta eliminada.",

@@ -19,7 +19,7 @@
 import { useRouter, useSearch } from "@tanstack/react-router";
 import type { FlatNamespace } from "i18next";
 import { Plus } from "lucide-react";
-import { type ComponentType, type ReactNode, useCallback, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
@@ -30,13 +30,10 @@ import type { BulkAccessItem } from "@/components/access/BulkEditAccessDialog";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
 import { ToolImportAction, useToolImportAction } from "@/components/imports/ToolImportAction";
 import { CounterGroupCard } from "@/components/initiativeTools/counters/CounterGroupCard";
-import { CreateCounterGroupDialog } from "@/components/initiativeTools/counters/CreateCounterGroupDialog";
-import { CreateDashboardDialog } from "@/components/initiativeTools/dashboards/CreateDashboardDialog";
 import { DashboardCard } from "@/components/initiativeTools/dashboards/DashboardCard";
-import { CreateGalleryDialog } from "@/components/initiativeTools/galleries/CreateGalleryDialog";
 import { GalleryCard } from "@/components/initiativeTools/galleries/GalleryCard";
-import { CreateQueueDialog } from "@/components/initiativeTools/queues/CreateQueueDialog";
 import { QueueCard } from "@/components/initiativeTools/queues/QueueCard";
+import { CreateToolDialog } from "@/components/initiativeTools/shared/CreateToolDialog";
 import {
   archivedParam,
   ToolArchiveFilter,
@@ -44,10 +41,10 @@ import {
 } from "@/components/initiativeTools/shared/ToolArchiveFilter";
 import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterPanel";
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
-import { CreateWikiDialog } from "@/components/initiativeTools/wikis/CreateWikiDialog";
 import { WikiCard } from "@/components/initiativeTools/wikis/WikiCard";
 import { BrowseMarketplaceButton } from "@/components/marketplace/BrowseMarketplaceButton";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
+import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { PaginationBar } from "@/components/PaginationBar";
 import { CardGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { TagPicker } from "@/components/tags/TagPicker";
@@ -62,6 +59,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useCounterGroupsList } from "@/hooks/useCounters";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import { useDashboardsList } from "@/hooks/useDashboards";
@@ -70,6 +68,7 @@ import { useGalleriesList } from "@/hooks/useGalleries";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useQueuesList } from "@/hooks/useQueues";
+import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useWikisList } from "@/hooks/useWikis";
 import { useGuildPath } from "@/lib/guildUrl";
 import { toolDetailRoute, toolKebabSingular } from "@/lib/tools";
@@ -88,7 +87,6 @@ import type { TranslateFn } from "@/types/i18n";
  */
 export type ToolIndexRow = BulkAccessItem & {
   name: string;
-  my_permission_level?: string | null;
   card: ReactNode;
 };
 
@@ -129,33 +127,22 @@ export type ToolIndexList = {
   extraFilter?: { field: ReactNode; active: boolean; clear: () => void };
 };
 
-/**
- * A tool's create dialog as this page uses it. Every tool's dialog resolves a
- * richer entity than `{ id }`; naming only the id here keeps this file free of
- * nine schemas, and a dialog that returns more still satisfies it.
- */
-type ToolCreateDialog = ComponentType<{
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  initiativeId?: number;
-  onSuccess?: (created: { id: number }) => void;
-}>;
-
 /** Everything one tool adds to the shared page. */
 export type ToolIndexEntry = {
   /** Reads this tool's list and draws its cards. */
   useList: (initiativeId: number, filters: ToolIndexFilters) => ToolIndexList;
-  CreateDialog: ToolCreateDialog;
   /**
-   * The keys this tool spells its own way. Kept per tool rather than folded
-   * into one generic string: "No counter groups match your filters" is written
-   * in four locales already, and a shared wording would be a fifth thing to
-   * translate that says less.
+   * The keys this tool spells its own way — the page's and its create
+   * dialog's. Kept per tool rather than folded into one generic string: "No
+   * counter groups match your filters" is written in four locales already, and
+   * a shared wording would be a fifth thing to translate that says less.
    */
   text: {
     ns: FlatNamespace;
     /** Title of the create button, the bottom-nav action, and the dialog. */
     create: string;
+    /** The line under the create dialog's title. */
+    createDescription: string;
     searchPlaceholder: string;
     noMatches: string;
     emptyTitle: string;
@@ -165,8 +152,6 @@ export type ToolIndexEntry = {
   tagFilter?: boolean;
   /** Its list arrives a page at a time, and the page is carried in the URL. */
   paginated?: boolean;
-  /** Makes this tool's lists stale after a bulk sharing change. */
-  invalidate: () => void;
 };
 
 /** A tool that is not browsed as a grid of cards, and what it is instead. */
@@ -363,7 +348,7 @@ const useDashboardRows = (initiativeId: number, filters: ToolIndexFilters): Tool
  * a page of its own names it here rather than being left out, so a new tool has
  * to state which of the two it is.
  */
-export const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
+const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
   [Tool.project]: { ownPage: "ProjectsPage — board and table views, and its own status filters" },
   [Tool.document]: { ownPage: "DocumentsPage — folders, and a tree beside the list" },
   [Tool.calendar]: { ownPage: "CalendarsPage — a month grid, not a shelf of cards" },
@@ -372,77 +357,72 @@ export const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
   [Tool.queue]: {
     useList: useQueueRows,
     tagFilter: true,
-    CreateDialog: CreateQueueDialog,
     text: {
       ns: "queues",
       create: "createQueue",
+      createDescription: "noQueuesDescription",
       searchPlaceholder: "filters.searchQueues",
       noMatches: "filters.noMatchingQueues",
       emptyTitle: "noQueues",
       emptyBody: "noQueuesDescription",
     },
     paginated: true,
-    invalidate: () => invalidate(q.allQueues()),
   },
 
   [Tool.counter_group]: {
     useList: useCounterGroupRows,
     tagFilter: true,
-    CreateDialog: CreateCounterGroupDialog,
     text: {
       ns: "counterGroups",
       create: "createGroup",
+      createDescription: "noGroupsDescription",
       searchPlaceholder: "filters.searchGroups",
       noMatches: "filters.noMatchingGroups",
       emptyTitle: "noGroups",
       emptyBody: "noGroupsDescription",
     },
-    invalidate: () => invalidate(q.allCounterGroups()),
   },
 
   [Tool.dashboard]: {
     useList: useDashboardRows,
     tagFilter: true,
-    CreateDialog: CreateDashboardDialog,
     text: {
       ns: "dashboards",
       create: "createDashboard",
+      createDescription: "noDashboardsDescription",
       searchPlaceholder: "filters.searchDashboards",
       noMatches: "filters.noMatchingDashboards",
       emptyTitle: "noDashboards",
       emptyBody: "noDashboardsDescription",
     },
-    invalidate: () => invalidate(q.allDashboards()),
   },
 
   [Tool.gallery]: {
     useList: useGalleryRows,
     tagFilter: true,
-    CreateDialog: CreateGalleryDialog,
     text: {
       ns: "galleries",
       create: "createGallery",
+      createDescription: "createGalleryDescription",
       searchPlaceholder: "filters.searchGalleries",
       noMatches: "filters.noMatchingGalleries",
       emptyTitle: "noGalleries",
       emptyBody: "noGalleriesDescription",
     },
-    invalidate: () => invalidate(q.allGalleries()),
   },
 
   [Tool.wiki]: {
     useList: useWikiRows,
-    CreateDialog: CreateWikiDialog,
     text: {
       ns: "wikis",
       create: "createWiki",
+      createDescription: "createWikiDescription",
       searchPlaceholder: "filters.searchWikis",
       noMatches: "filters.noMatchingWikis",
       emptyTitle: "noWikis",
       emptyBody: "noWikisDescription",
     },
     tagFilter: true,
-    invalidate: () => invalidate(q.allWikis()),
   },
 };
 
@@ -502,6 +482,8 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
   const t = translate as TranslateFn;
   const router = useRouter();
   const gp = useGuildPath();
+  const guildId = useActiveGuildId();
+  const unread = useUnreadTree();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [tagFilters, setTagFilters] = useState<TagSummary[]>([]);
@@ -564,7 +546,6 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
     list.extraFilter?.clear();
   };
 
-  const CreateDialog = entry.CreateDialog;
   const searchId = `${toolKebabSingular(tool)}-search`;
   const tagsId = `${toolKebabSingular(tool)}-tags`;
 
@@ -649,7 +630,11 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
         <p className="text-destructive text-sm">{t("loadError")}</p>
       ) : list.rows.length > 0 ? (
         <>
-          <BulkAccessSection selection={selection} tool={tool} invalidate={entry.invalidate} />
+          <BulkAccessSection
+            selection={selection}
+            tool={tool}
+            invalidate={() => invalidate(q.toolList(tool))}
+          />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {list.rows.map((row) => (
               <SelectableGridItem
@@ -659,7 +644,12 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
                 onToggle={(options) => selection.toggle(row, options)}
                 label={row.name}
               >
-                {row.card}
+                <div className="relative">
+                  {row.card}
+                  {unread.hasResource(guildId, tool, row.id) ? (
+                    <UnreadDot className="absolute top-3 right-3" />
+                  ) : null}
+                </div>
               </SelectableGridItem>
             ))}
           </div>
@@ -705,9 +695,11 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
         </Card>
       )}
 
-      <CreateDialog
+      <CreateToolDialog
         open={createOpen}
         onOpenChange={handleCreateOpenChange}
+        tool={tool}
+        text={entry.text}
         initiativeId={fixedInitiativeId}
         onSuccess={(created) => {
           void router.navigate({

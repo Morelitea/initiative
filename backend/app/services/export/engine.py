@@ -10,8 +10,10 @@ adapter queried, and the download endpoint re-gates on the ExportJob row.
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Protocol
 
 from sqlalchemy import func, text
@@ -21,6 +23,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.models.platform.user import User
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
+from app.services import guild_work
 from app.services.export.contract import (
     RenderBackend,
     RenderedArtifact,
@@ -29,10 +32,18 @@ from app.services.export.contract import (
 from app.services.export.local_backend import LocalRenderBackend
 from app.services.storage import get_guild_storage
 from app.services.export import limits as export_limits
+from app.core.user_input_validators import resolve_zone
 
 
 # Advisory-lock namespace (arbitrary constant) for the per-user job-cap check.
 _JOB_CAP_LOCK_NS = 0x455850  # "EXP"
+
+#: Called once per rendered artifact, so a job can show it is still going.
+Heartbeat = Callable[[], Awaitable[None]]
+
+
+async def _no_heartbeat() -> None:
+    return None
 
 
 class SourceAdapter(Protocol):
@@ -43,7 +54,9 @@ class SourceAdapter(Protocol):
 
     source: str
     template_id: str
-    formats: frozenset[str]
+
+    @property
+    def formats(self) -> tuple[str, ...]: ...
 
     async def count(
         self,
@@ -143,13 +156,16 @@ async def start_export(
     always_job = getattr(adapter, "always_job", False)
     if not always_job and row_count <= export_limits.EXPORT_INLINE_MAX_ROWS:
         from app.services.export.branding import apply_brand
+        from app.services.export.stamp import stamp_export
 
         request = await adapter.build(
             session, user=user, guild_id=guild_id, params=params, format=format
         )
         request = await apply_brand(request, session)
+        request = stamp_export(request, user)
         artifacts = await get_backend().render(request)
-        artifact = _bundle(
+        artifact = await asyncio.to_thread(
+            _bundle,
             artifacts,
             format=format,
             stem=_bundle_stem(source, params.get("tz")),
@@ -191,6 +207,7 @@ async def start_export(
         params=params,
     )
     session.add(job)
+    guild_work.wake(session, guild_work.DATA_JOBS, guild_id)
     await session.commit()
     await session.refresh(job)
     return job
@@ -210,27 +227,44 @@ class ArtifactLocation:
 
 
 async def render_to_storage(
-    request: RenderRequest, *, job_id: int, source: str, tz: str | None = None
+    request: RenderRequest,
+    *,
+    job_id: int,
+    source: str,
+    tz: str | None = None,
+    heartbeat: Heartbeat | None = None,
 ) -> ArtifactLocation:
     """Render a job's request and put the artifact where it belongs: behind
     the guild's storage backend for the app to serve, or — for an archive past
     the download bound — in the operator's destination.
 
+    ``heartbeat`` is awaited after each artifact is rendered. Compressing,
+    writing and delivering run in threads, off the event loop.
+
     Idempotent by job id: a re-render overwrites the same key or the same
     destination filename."""
     from app.services.export.adapters import ADAPTERS
 
+    beat = heartbeat or _no_heartbeat
     stem = _bundle_stem(source, tz)
     if getattr(ADAPTERS.get(source), "force_zip", False):
         # The aggregate sources assemble on disk: a whole community's archive
         # is not something to hold in memory twice (once as rendered
         # artifacts, once as the zip) just to hand it to storage.
         return await _stream_zip_to_storage(
-            request, job_id=job_id, stem=stem, guild_id=request.guild_id
+            request,
+            job_id=job_id,
+            stem=stem,
+            guild_id=request.guild_id,
+            heartbeat=beat,
         )
 
-    artifacts = await get_backend().render(request)
-    artifact = _bundle(
+    artifacts: list[RenderedArtifact] = []
+    async for rendered in render_artifacts(request):
+        artifacts.append(rendered)
+        await beat()
+    artifact = await asyncio.to_thread(
+        _bundle,
         artifacts,
         format=request.format,
         stem=stem,
@@ -246,8 +280,9 @@ async def render_to_storage(
         key = f"exports/{job_id}-{artifact.filename}"
     else:
         key = f"exports/{job_id}.{request.format}"
-    get_guild_storage(request.guild_id).write(
-        key, artifact.content, content_type=artifact.content_type
+    storage = get_guild_storage(request.guild_id)
+    await asyncio.to_thread(
+        storage.write, key, artifact.content, content_type=artifact.content_type
     )
     return ArtifactLocation(artifact_ref=key)
 
@@ -271,7 +306,12 @@ async def render_artifacts(request: RenderRequest):
 
 
 async def _stream_zip_to_storage(
-    request: RenderRequest, *, job_id: int, stem: str, guild_id: int
+    request: RenderRequest,
+    *,
+    job_id: int,
+    stem: str,
+    guild_id: int,
+    heartbeat: Heartbeat,
 ) -> ArtifactLocation:
     """Build the archive on disk, then put the file where it belongs.
 
@@ -298,36 +338,46 @@ async def _stream_zip_to_storage(
     tmp_path = Path(handle.name)
     try:
         taken: set[str] = set()
-        with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as archive:
+        # Each entry is compressed in a thread, one at a time, so the event
+        # loop keeps serving while a large archive is built.
+        archive = await asyncio.to_thread(
+            zipfile.ZipFile, tmp_path, "w", zipfile.ZIP_DEFLATED
+        )
+        try:
             async for artifact in render_artifacts(request):
                 name = artifact.filename or f"{artifact.key}.{request.format}"
                 name = _dedupe_name(name, taken)
                 taken.add(name)
-                archive.writestr(name, artifact.content)
+                await asyncio.to_thread(archive.writestr, name, artifact.content)
+                await heartbeat()
+        finally:
+            await asyncio.to_thread(archive.close)
         size = tmp_path.stat().st_size
         if size > settings.EXPORT_MAX_DOWNLOAD_BYTES:
             if not delivery.is_configured():
                 from app.core.messages import ExportMessages
 
                 raise ExportError(ExportMessages.EXPORT_DESTINATION_REQUIRED)
-            destination_ref = delivery.deliver(
-                tmp_path, guild_id=guild_id, filename=f"{stem}-{job_id}.zip"
+            destination_ref = await asyncio.to_thread(
+                delivery.deliver,
+                tmp_path,
+                guild_id=guild_id,
+                filename=f"{stem}-{job_id}.zip",
             )
             return ArtifactLocation(destination_ref=destination_ref)
-        get_guild_storage(request.guild_id).write_file(
-            key, tmp_path, content_type="application/zip"
+        storage = get_guild_storage(request.guild_id)
+        await asyncio.to_thread(
+            storage.write_file, key, tmp_path, content_type="application/zip"
         )
     finally:
-        tmp_path.unlink(missing_ok=True)
+        await asyncio.to_thread(tmp_path.unlink, missing_ok=True)
     return ArtifactLocation(artifact_ref=key)
 
 
 def _bundle_stem(source: str, tz: str | None) -> str:
     """The zip's name shares the caller's timezone with the entry names the
     adapters produce — near-midnight exports must not disagree on the date."""
-    from app.services.export.i18n import localize_now
-
-    date = localize_now(datetime.now(timezone.utc), tz).strftime("%Y-%m-%d")
+    date = datetime.now(resolve_zone(tz)).strftime("%Y-%m-%d")
     return f"{source}-{date}"
 
 

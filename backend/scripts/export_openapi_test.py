@@ -15,13 +15,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 SCRIPT = BACKEND_DIR / "scripts" / "export_openapi.py"
 
 
-@pytest.mark.unit
 def test_export_runs_without_app_env(tmp_path):
     out = tmp_path / "openapi.json"
     env = {

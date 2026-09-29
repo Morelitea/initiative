@@ -13,8 +13,6 @@ from app.models.platform.guild import GuildRole
 from app.testing import create_guild, create_guild_membership, create_user
 from app.testing.factories import get_auth_headers
 
-pytestmark = pytest.mark.integration
-
 
 REGISTRATION = {
     "email": "handle-new@example.com",
@@ -170,21 +168,21 @@ class TestWhatAGuildPayloadSays:
         admin, _member, guild = guild_with_member
 
         response = await client.get(
-            f"/api/v1/g/{guild.id}/users/", headers=get_auth_headers(admin)
+            f"/api/v1/c/{guild.id}/users/", headers=get_auth_headers(admin)
         )
 
         assert response.status_code == 200
-        for row in response.json():
+        for row in response.json()["items"]:
             assert "email" not in row
 
     async def test_handles_are_always_there(self, client, guild_with_member):
         admin, member, guild = guild_with_member
 
         response = await client.get(
-            f"/api/v1/g/{guild.id}/users/", headers=get_auth_headers(admin)
+            f"/api/v1/c/{guild.id}/users/", headers=get_auth_headers(admin)
         )
 
-        row = next(r for r in response.json() if r["id"] == member.id)
+        row = next(r for r in response.json()["items"] if r["id"] == member.id)
         assert row["username"] == "member"
         assert row["discriminator"] == 77
 
@@ -192,10 +190,10 @@ class TestWhatAGuildPayloadSays:
         admin, member, guild = guild_with_member
 
         response = await client.get(
-            f"/api/v1/g/{guild.id}/users/", headers=get_auth_headers(admin)
+            f"/api/v1/c/{guild.id}/users/", headers=get_auth_headers(admin)
         )
 
-        row = next(r for r in response.json() if r["id"] == member.id)
+        row = next(r for r in response.json()["items"] if r["id"] == member.id)
         assert row["full_name"] == "Mem Ber"
 
     async def test_a_guild_that_turned_them_off_sends_none(
@@ -207,10 +205,10 @@ class TestWhatAGuildPayloadSays:
         await session.commit()
 
         response = await client.get(
-            f"/api/v1/g/{guild.id}/users/", headers=get_auth_headers(admin)
+            f"/api/v1/c/{guild.id}/users/", headers=get_auth_headers(admin)
         )
 
-        row = next(r for r in response.json() if r["id"] == member.id)
+        row = next(r for r in response.json()["items"] if r["id"] == member.id)
         assert row["full_name"] is None
 
     async def test_a_listed_guild_shows_none_without_being_asked(
@@ -226,10 +224,10 @@ class TestWhatAGuildPayloadSays:
         await session.commit()
 
         response = await client.get(
-            f"/api/v1/g/{guild.id}/users/", headers=get_auth_headers(admin)
+            f"/api/v1/c/{guild.id}/users/", headers=get_auth_headers(admin)
         )
 
-        row = next(r for r in response.json() if r["id"] == member.id)
+        row = next(r for r in response.json()["items"] if r["id"] == member.id)
         assert row["full_name"] is None
 
 
@@ -265,7 +263,7 @@ class TestFindingSomeone:
 
     async def _search(self, client, admin, guild, term):
         response = await client.get(
-            f"/api/v1/g/{guild.id}/users/search",
+            f"/api/v1/c/{guild.id}/users/search",
             headers=get_auth_headers(admin),
             params={"search": term},
         )

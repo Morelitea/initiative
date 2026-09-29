@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildGuild } from "@/__tests__/factories";
+import { buildGuild, guildCan } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { GuildEntry } from "@/hooks/useGuilds";
 
@@ -71,8 +71,15 @@ describe("a suspended community is closed to its own administrators", () => {
     return syncGuildFromUrl;
   };
 
+  // A suspended community as its administrator's list serves it.
+  const closedToItsAdmin: Partial<GuildEntry> = {
+    role: "admin",
+    status: "suspended",
+    can: guildCan("admin", { enter: false }),
+  };
+
   it("shows the closed page and never adopts the community", async () => {
-    const sync = show(guildEntry(7, "Beta", { role: "admin", status: "suspended" }));
+    const sync = show(guildEntry(7, "Beta", closedToItsAdmin));
     expect(await screen.findByText("This community is suspended")).toBeInTheDocument();
     expect(screen.queryByTestId("guild-outlet")).not.toBeInTheDocument();
     expect(sync).not.toHaveBeenCalled();
@@ -81,8 +88,7 @@ describe("a suspended community is closed to its own administrators", () => {
   it("names who to contact when the deployment has said", async () => {
     show(
       guildEntry(7, "Beta", {
-        role: "admin",
-        status: "suspended",
+        ...closedToItsAdmin,
         contact_email: "trust@example.com",
       })
     );
@@ -90,7 +96,7 @@ describe("a suspended community is closed to its own administrators", () => {
   });
 
   it("says to contact whoever runs the server when nobody is named", async () => {
-    show(guildEntry(7, "Beta", { role: "admin", status: "suspended" }));
+    show(guildEntry(7, "Beta", closedToItsAdmin));
     expect(await screen.findByText(/Contact whoever runs this server\./)).toBeInTheDocument();
   });
 

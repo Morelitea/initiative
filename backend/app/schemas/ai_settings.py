@@ -162,6 +162,7 @@ class ResolvedAISettings(SanitizedBaseModel):
     enabled: bool = False
     provider: Optional[AIProvider] = None
     api_key: Optional[RawTextStr] = None
+    has_api_key: bool = False
     base_url: Optional[str] = None
     model: Optional[str] = None
     # ``allow_private`` is server-computed as (provider == ollama and the chosen
@@ -190,7 +191,8 @@ class AIConnectionTestResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     success: bool
-    message: str
+    #: The failure's message code; none on success.
+    message: Optional[str] = None
     available_models: Optional[list[str]] = None
 
 

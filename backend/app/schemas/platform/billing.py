@@ -24,7 +24,7 @@ _ACTOR_REQUIRED_SOURCES = frozenset(
 
 
 class BillingGuildTierApply(SanitizedBaseModel):
-    """Body of ``POST /billing/guild-tier``.
+    """Body of ``POST /billing/community-tier``.
 
     Tier *definitions* live in the billing service's own database; what
     crosses this boundary is only the display label (``tier_name``) and the
@@ -112,7 +112,7 @@ class BillingUsageRead(SanitizedBaseModel):
 
 
 class BillingGuildNameRequest(SanitizedBaseModel):
-    """Body of ``POST /billing/guild-name``.
+    """Body of ``POST /billing/community-name``.
 
     The guild rides the signed body rather than a query string, so the
     envelope's HMAC covers it — like every other verb on this boundary.
@@ -134,7 +134,7 @@ class BillingGuildNameRead(SanitizedBaseModel):
 
 
 class BillingGuildStatusRequest(SanitizedBaseModel):
-    """Body of ``POST /billing/guild-status``.
+    """Body of ``POST /billing/community-status``.
 
     The guild rides the signed body rather than a query string, so the
     envelope's HMAC covers it — like every other verb on this boundary.

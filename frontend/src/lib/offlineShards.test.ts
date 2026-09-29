@@ -39,7 +39,7 @@ const client = (keys: string[], buster = "v1"): PersistedClientLike =>
 const shardOf = (queryKey: readonly unknown[]) => {
   const first = queryKey[0];
   if (typeof first !== "string") return "platform";
-  const match = first.match(/^\/api\/v1\/g\/(\d+)/);
+  const match = first.match(/^\/api\/v1\/c\/(\d+)/);
   return match ? `g${match[1]}` : "platform";
 };
 
@@ -56,7 +56,7 @@ beforeEach(() => {
 describe("splitting the cache by community", () => {
   it("writes one blob per community plus one for everything else", async () => {
     const p = build(store, () => ["platform"]);
-    await p.persistClient(client(["/api/v1/g/3/tasks", "/api/v1/g/5/tasks", "/api/v1/users/me"]));
+    await p.persistClient(client(["/api/v1/c/3/tasks", "/api/v1/c/5/tasks", "/api/v1/users/me"]));
 
     expect([...store.data.keys()].sort()).toEqual([
       "react-query:g3",
@@ -69,35 +69,35 @@ describe("splitting the cache by community", () => {
   it("restores only the shards this launch asked for", async () => {
     const writer = build(store, () => ["platform"]);
     await writer.persistClient(
-      client(["/api/v1/g/3/tasks", "/api/v1/g/5/tasks", "/api/v1/users/me"])
+      client(["/api/v1/c/3/tasks", "/api/v1/c/5/tasks", "/api/v1/users/me"])
     );
 
     const reader = build(store, () => ["platform", "g3"]);
     const restored = await reader.restoreClient();
 
     const keys = restored?.clientState.queries.map((q) => q.queryKey[0]).sort();
-    expect(keys).toEqual(["/api/v1/g/3/tasks", "/api/v1/users/me"]);
+    expect(keys).toEqual(["/api/v1/c/3/tasks", "/api/v1/users/me"]);
     // g5 is untouched on disk — not wanted is not the same as not kept.
     expect(store.data.has("react-query:g5")).toBe(true);
   });
 
   it("brings a community in when it is opened later", async () => {
     const writer = build(store, () => ["platform"]);
-    await writer.persistClient(client(["/api/v1/g/5/tasks"]));
+    await writer.persistClient(client(["/api/v1/c/5/tasks"]));
 
     const reader = build(store, () => ["platform"]);
     await reader.restoreClient();
     const later = await reader.readShard("g5");
 
-    expect(later?.map((q) => q.queryKey[0])).toEqual(["/api/v1/g/5/tasks"]);
+    expect(later?.map((q) => q.queryKey[0])).toEqual(["/api/v1/c/5/tasks"]);
   });
 
   it("does not rewrite a shard whose content has not changed", async () => {
     const p = build(store, () => ["platform"]);
-    await p.persistClient(client(["/api/v1/g/3/tasks"]));
+    await p.persistClient(client(["/api/v1/c/3/tasks"]));
     const first = store.data.get("react-query:g3");
 
-    await p.persistClient(client(["/api/v1/g/3/tasks"]));
+    await p.persistClient(client(["/api/v1/c/3/tasks"]));
 
     expect(store.data.get("react-query:g3")).toBe(first);
   });
@@ -106,7 +106,7 @@ describe("splitting the cache by community", () => {
 describe("cleaning up after itself", () => {
   it("deletes a shard that was restored and is now empty", async () => {
     const writer = build(store, () => ["platform"]);
-    await writer.persistClient(client(["/api/v1/g/3/tasks", "/api/v1/users/me"]));
+    await writer.persistClient(client(["/api/v1/c/3/tasks", "/api/v1/users/me"]));
 
     const p = build(store, () => ["platform", "g3"]);
     await p.restoreClient();
@@ -118,7 +118,7 @@ describe("cleaning up after itself", () => {
 
   it("leaves a shard alone when this session never restored it", async () => {
     const writer = build(store, () => ["platform"]);
-    await writer.persistClient(client(["/api/v1/g/3/tasks", "/api/v1/users/me"]));
+    await writer.persistClient(client(["/api/v1/c/3/tasks", "/api/v1/users/me"]));
 
     // A launch that only wants the platform shard must not read g3's absence
     // from the client as "g3 was emptied".
@@ -132,7 +132,7 @@ describe("cleaning up after itself", () => {
   it("sweeps a shard past the window even though nothing opened it", async () => {
     vi.useFakeTimers();
     const writer = build(store, () => ["platform"]);
-    await writer.persistClient(client(["/api/v1/g/3/tasks", "/api/v1/users/me"]));
+    await writer.persistClient(client(["/api/v1/c/3/tasks", "/api/v1/users/me"]));
 
     vi.advanceTimersByTime(MAX_AGE + 1000);
 
@@ -145,7 +145,7 @@ describe("cleaning up after itself", () => {
 
   it("refuses a shard left behind by a different buster", async () => {
     const writer = build(store, () => ["platform"]);
-    await writer.persistClient(client(["/api/v1/g/3/tasks"], "v1"));
+    await writer.persistClient(client(["/api/v1/c/3/tasks"], "v1"));
     // Simulate a shard written under an older buster than the index.
     store.data.set(
       "react-query:g3",
@@ -161,7 +161,7 @@ describe("cleaning up after itself", () => {
 
   it("forgets one community without touching another", async () => {
     const p = build(store, () => ["platform"]);
-    await p.persistClient(client(["/api/v1/g/3/tasks", "/api/v1/g/5/tasks"]));
+    await p.persistClient(client(["/api/v1/c/3/tasks", "/api/v1/c/5/tasks"]));
 
     await p.forgetShard("g3");
 
@@ -171,7 +171,7 @@ describe("cleaning up after itself", () => {
 
   it("removes every shard and the index when the cache is purged", async () => {
     const p = build(store, () => ["platform"]);
-    await p.persistClient(client(["/api/v1/g/3/tasks", "/api/v1/g/5/tasks", "/api/v1/users/me"]));
+    await p.persistClient(client(["/api/v1/c/3/tasks", "/api/v1/c/5/tasks", "/api/v1/users/me"]));
 
     await p.removeClient();
 
@@ -180,7 +180,7 @@ describe("cleaning up after itself", () => {
 
   it("purges shards it never loaded, reading the index to find them", async () => {
     const writer = build(store, () => ["platform"]);
-    await writer.persistClient(client(["/api/v1/g/3/tasks", "/api/v1/g/5/tasks"]));
+    await writer.persistClient(client(["/api/v1/c/3/tasks", "/api/v1/c/5/tasks"]));
 
     // A fresh persister that has restored nothing — startup discarding a cache
     // with no session snapshot beside it.
@@ -192,7 +192,7 @@ describe("cleaning up after itself", () => {
 
   it("prunes communities the membership list no longer names", async () => {
     const p = build(store, () => ["platform"]);
-    await p.persistClient(client(["/api/v1/g/3/tasks", "/api/v1/g/5/tasks", "/api/v1/users/me"]));
+    await p.persistClient(client(["/api/v1/c/3/tasks", "/api/v1/c/5/tasks", "/api/v1/users/me"]));
 
     // The server says the user is only in g3 now.
     await p.retainShards((shard) => shard === "platform" || shard === "g3");
@@ -204,7 +204,7 @@ describe("cleaning up after itself", () => {
 
   it("prunes a community it never loaded, reading the index to find it", async () => {
     const writer = build(store, () => ["platform"]);
-    await writer.persistClient(client(["/api/v1/g/3/tasks", "/api/v1/g/5/tasks"]));
+    await writer.persistClient(client(["/api/v1/c/3/tasks", "/api/v1/c/5/tasks"]));
 
     // A departed community is exactly one nothing has opened this session.
     const fresh = build(store, () => ["platform"]);
@@ -216,13 +216,13 @@ describe("cleaning up after itself", () => {
 
   it("keeps the index honest after a prune", async () => {
     const p = build(store, () => ["platform", "g3", "g5"]);
-    await p.persistClient(client(["/api/v1/g/3/tasks", "/api/v1/g/5/tasks"]));
+    await p.persistClient(client(["/api/v1/c/3/tasks", "/api/v1/c/5/tasks"]));
     await p.retainShards((shard) => shard !== "g5");
 
     // A later launch must not believe g5 is still there.
     const next = build(store, () => ["platform", "g3", "g5"]);
     const restored = await next.restoreClient();
-    expect(restored?.clientState.queries.map((q) => q.queryKey[0])).toEqual(["/api/v1/g/3/tasks"]);
+    expect(restored?.clientState.queries.map((q) => q.queryKey[0])).toEqual(["/api/v1/c/3/tasks"]);
   });
 
   it("has nothing to restore before anything was written", async () => {

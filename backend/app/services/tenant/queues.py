@@ -56,7 +56,7 @@ def list_loader_options() -> list:
         selectinload(Queue.items),
         selectinload(Queue.grants).selectinload(ResourceGrant.role),
         selectinload(Queue.initiative),
-        undefer(Queue.access_level),
+        undefer(Queue.actions),
     ]
 
 
@@ -74,7 +74,7 @@ async def get_queue(
             selectinload(Queue.items).selectinload(QueueItem.user),
             selectinload(Queue.grants).selectinload(ResourceGrant.role),
             selectinload(Queue.initiative),
-            undefer(Queue.access_level),
+            undefer(Queue.actions),
         )
     )
     if populate_existing:

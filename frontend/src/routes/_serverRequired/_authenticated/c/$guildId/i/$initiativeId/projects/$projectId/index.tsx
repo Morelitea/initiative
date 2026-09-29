@@ -1,8 +1,8 @@
 import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
 import {
-  getListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGetQueryKey,
-  listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet,
+  getListFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGetQueryKey,
+  listFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet,
 } from "@/api/generated/filter-presets/filter-presets";
 import type {
   FilterPresetListResponse,
@@ -10,19 +10,15 @@ import type {
   UserViewPreferencesMap,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey,
-  readProjectApiV1GGuildIdProjectsProjectIdGet,
+  getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey,
+  readProjectApiV1CGuildIdProjectsProjectIdGet,
 } from "@/api/generated/projects/projects";
 import {
-  getListTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGetQueryKey,
-  listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet,
+  getListTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGetQueryKey,
+  listTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGet,
 } from "@/api/generated/task-statuses/task-statuses";
-import {
-  getListTasksApiV1GGuildIdTasksGetQueryKey,
-  listTasksApiV1GGuildIdTasksGet,
-} from "@/api/generated/tasks/tasks";
+import { tasksQuery } from "@/hooks/useTasks";
 import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
-import { fetchAllPages } from "@/lib/fetchAllPages";
 import { resolvePresetState } from "@/lib/filters/presets";
 import {
   buildTaskListParams,
@@ -77,26 +73,26 @@ export const Route = createFileRoute(
       try {
         const [project, presets] = await Promise.all([
           queryClient.ensureQueryData<ProjectRead>({
-            queryKey: getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey(guildId, projectId),
-            queryFn: () => readProjectApiV1GGuildIdProjectsProjectIdGet(guildId, projectId),
+            queryKey: getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey(guildId, projectId),
+            queryFn: () => readProjectApiV1CGuildIdProjectsProjectIdGet(guildId, projectId),
             staleTime: 30_000,
           }),
           queryClient.ensureQueryData<FilterPresetListResponse>({
-            queryKey: getListFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGetQueryKey(
+            queryKey: getListFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGetQueryKey(
               guildId,
               projectId
             ),
             queryFn: () =>
-              listFilterPresetsApiV1GGuildIdProjectsProjectIdFilterPresetsGet(guildId, projectId),
+              listFilterPresetsApiV1CGuildIdProjectsProjectIdFilterPresetsGet(guildId, projectId),
             staleTime: 60_000,
           }),
           queryClient.ensureQueryData({
-            queryKey: getListTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGetQueryKey(
+            queryKey: getListTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGetQueryKey(
               guildId,
               projectId
             ),
             queryFn: () =>
-              listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet(guildId, projectId),
+              listTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGet(guildId, projectId),
             staleTime: 60_000,
           }),
         ]);
@@ -122,13 +118,7 @@ export const Route = createFileRoute(
 
         // Deliberately not awaited: re-running the loader on a preset change must
         // not block the navigation on a task refetch.
-        void queryClient.ensureQueryData({
-          queryKey: getListTasksApiV1GGuildIdTasksGetQueryKey(guildId, taskParams),
-          // page_size=0 walks the server's fetch-all windows for the full set
-          // (same queryFn shape as useTasks, which shares this cache key).
-          queryFn: () => fetchAllPages(listTasksApiV1GGuildIdTasksGet, guildId, taskParams),
-          staleTime: 30_000,
-        });
+        void queryClient.ensureQueryData({ ...tasksQuery(guildId, taskParams), staleTime: 30_000 });
       } catch {
         // Silently fail - component will fetch its own data
       }

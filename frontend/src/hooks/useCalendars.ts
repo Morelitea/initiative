@@ -16,7 +16,6 @@ const calendars = TOOL_HOOKS[Tool.calendar];
 
 export const useCalendarsList = calendars.useList;
 export const useCalendar = calendars.useDetail;
-export const useCreateCalendar = calendars.useCreate;
 export const useUpdateCalendar = calendars.useUpdate;
 export const useDeleteCalendar = calendars.useDelete;
 export const useSetCalendarGrants = calendars.useSetGrants;

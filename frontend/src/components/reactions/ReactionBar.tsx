@@ -1,6 +1,6 @@
 /**
- * The row of reaction chips under a piece of content, plus the button to add
- * one.
+ * The row of reaction chips under a piece of content, plus the buttons to add
+ * one: a one-tap thumbs up, and the picker for everything else.
  *
  * Generic over the target: it takes a `ReactionTarget` and an id, so anything
  * the backend registry makes reactable renders the same bar without a second
@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 
 import type { ReactionGroup, ReactionTarget } from "@/api/generated/initiativeAPI.schemas";
 import { ReactionPicker } from "@/components/reactions/ReactionPicker";
+import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToggleReaction } from "@/hooks/useReactions";
 import { getUserDisplayName } from "@/lib/userDisplay";
@@ -20,6 +21,10 @@ import { cn } from "@/lib/utils";
 /** Shared empty list, so "no reactions" keeps a stable identity across renders
  *  and does not read as fresh server data below. */
 const NO_REACTIONS: ReactionGroup[] = [];
+
+/** The one reaction worth a button of its own: agreeing is what most people
+ *  come to a reaction bar to do. */
+const QUICK_REACTION = "👍";
 
 interface ReactionBarProps {
   targetType: ReactionTarget;
@@ -79,6 +84,10 @@ export const ReactionBar = ({
 
   if (shown.length === 0 && !canReact) return null;
 
+  // Once somebody has given a thumbs up its chip is the one-tap toggle, and a
+  // second button doing the same thing would only ask which to press.
+  const offerQuick = canReact && !shown.some((group) => group.emoji === QUICK_REACTION);
+
   return (
     // The bar carries its own tooltip provider: it drops into pages that have
     // one and pages that do not, and it should not need either to know.
@@ -114,6 +123,24 @@ export const ReactionBar = ({
             <TooltipContent>{reactorList(group)}</TooltipContent>
           </Tooltip>
         ))}
+        {offerQuick && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={toggle.isPending}
+                onClick={() => react(QUICK_REACTION)}
+                aria-label={t("reactions.quick", { emoji: QUICK_REACTION })}
+                className="h-7 w-7 p-0 text-sm grayscale hover:grayscale-0 focus-visible:grayscale-0"
+              >
+                <span aria-hidden="true">{QUICK_REACTION}</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t("reactions.quick", { emoji: QUICK_REACTION })}</TooltipContent>
+          </Tooltip>
+        )}
         {canReact && <ReactionPicker onSelect={react} mine={mine} disabled={toggle.isPending} />}
       </div>
     </TooltipProvider>

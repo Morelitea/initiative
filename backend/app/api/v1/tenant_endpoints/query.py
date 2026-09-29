@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.deps import GuildContext, RLSSessionDep, get_guild_membership
 from app.core.messages import QueryMessages
-from app.db.session import rls_context_params
+from app.db.session import routed_context
 from app.schemas.sql_query import (
     QueryBuildRequest,
     QueryFilterGroupSpec,
@@ -46,6 +46,7 @@ router = APIRouter()
 REFUSAL_STATUS = {
     QueryMessages.BUSY: status.HTTP_429_TOO_MANY_REQUESTS,
     QueryMessages.TIMED_OUT: status.HTTP_504_GATEWAY_TIMEOUT,
+    QueryMessages.INTERRUPTED: status.HTTP_503_SERVICE_UNAVAILABLE,
 }
 
 
@@ -62,7 +63,7 @@ async def describe_query(
     try:
         columns, relations = await query_service.describe(
             payload.sql,
-            context=rls_context_params(session),
+            context=routed_context(session),
             initiative_id=payload.initiative_id,
         )
     except query_service.QueryError as refused:
@@ -92,7 +93,7 @@ async def run_query(
     try:
         result = await query_service.run(
             payload.sql,
-            context=rls_context_params(session),
+            context=routed_context(session),
             initiative_id=payload.initiative_id,
         )
     except query_service.QueryError as refused:
@@ -124,7 +125,7 @@ async def build_query(
         sql = query_builder.build(_spec(payload))
         columns, relations = await query_service.describe(
             sql,
-            context=rls_context_params(session),
+            context=routed_context(session),
             initiative_id=payload.initiative_id,
         )
     except query_service.QueryError as refused:

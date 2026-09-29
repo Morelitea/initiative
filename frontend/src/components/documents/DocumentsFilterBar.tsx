@@ -37,7 +37,6 @@ export interface DocumentsFilterBarProps {
   viewMode: "grid" | "list" | "tags";
   tagFilters: TagSummary[];
   onTagFiltersChange: (tags: TagSummary[]) => void;
-  fixedTagIds?: number[];
   documentTypeFilter: DocumentTypeFilter;
   onDocumentTypeFilterChange: (value: DocumentTypeFilter) => void;
   propertyFilters: PropertyFilterCondition[];
@@ -58,7 +57,6 @@ export const DocumentsFilterBar = ({
   viewMode,
   tagFilters,
   onTagFiltersChange,
-  fixedTagIds,
   documentTypeFilter,
   onDocumentTypeFilterChange,
   propertyFilters,
@@ -92,7 +90,7 @@ export const DocumentsFilterBar = ({
             onChange={(event) => onSearchQueryChange(event.target.value)}
           />
         </div>
-        {viewMode !== "tags" && !fixedTagIds && (
+        {viewMode !== "tags" && (
           <div className="w-full space-y-2 sm:w-48">
             <Label
               htmlFor="document-tag-filter"

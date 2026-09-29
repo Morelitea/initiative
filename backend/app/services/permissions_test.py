@@ -12,37 +12,60 @@ adds, and the audience a notice reaches.
 
 from __future__ import annotations
 
-import pathlib
 from datetime import datetime, timezone
 
 import pytest
 from fastapi import HTTPException
 from sqlalchemy import ColumnElement, delete
+from sqlalchemy.exc import DBAPIError
 from sqlmodel import select
 
 from app.api import resource_access
 from app.core.tools import Tool
 from app.db import session as db_session
 from app.db.guild_standing import GuildContext
-from app.db.session import _RLS_PARAMS_INFO_KEY
+from app.db.request_context import Member
+from app.db.session import _RLS_CONTEXT_INFO_KEY
 from app.models.platform.guild import Guild, GuildRole, GuildStatus
 from app.models.platform.user import UserRole
+from app.models.tenant.calendar_event import CalendarEventAttendee
 from app.models.tenant.document import Document
 from app.models.tenant.initiative import InitiativeMember
 from app.models.tenant.project import Project
-from app.models.tenant.resource_grant import ResourceGrant
+from app.models.tenant.property import DocumentPropertyValue, PropertyType
+from app.models.tenant.queue import QueueItem
+from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.models.tenant.task import TaskAssignee
 from app.services.permissions import (
     DAC_RESOURCES,
-    audience_user_ids,
-    compute_permission,
+    audience,
+    TOOL_CAN,
+    Action,
+    actions_of,
+    client_access,
     granted_scope_clause,
     listing_scope_clause,
     require_access,
     writable_scope_clause,
 )
-from app.services.tenant import posts as posts_service
-from app.services.tenant import project_grants
-from app.testing import create_access_grant, create_user, route_as
+from app.services.tenant import named_people
+from app.services.tenant.archive import archive_entity
+from app.services.tenant.initiatives import remove_user_from_guild_initiatives
+from app.testing import (
+    create_access_grant,
+    create_calendar,
+    create_calendar_event,
+    create_document,
+    create_document_property_value,
+    create_project,
+    create_property_definition,
+    create_queue,
+    create_queue_item,
+    create_resource_grant,
+    create_task,
+    create_user,
+    route_as,
+)
 from app.testing.factories import TOOL_FACTORIES
 
 ALL_TOOLS = list(DAC_RESOURCES)
@@ -78,8 +101,8 @@ class World:
         self.guild = guild
         self.initiative = initiative
         self.model = type(row)
+        self.row = row
         self.row_id = row.id
-        self.initiative_id = getattr(row, "initiative_id", None)
         self.owner = owner
         self.co_member = co_member
         self.admin = admin
@@ -103,16 +126,14 @@ class World:
             )
         )
         if level is not None:
-            self.session.add(
-                ResourceGrant(
-                    initiative_id=self.initiative_id,
-                    resource_type=self.tool,
-                    resource_id=self.row_id,
-                    user_id=user.id if user is not None else None,
-                    role_id=role_id,
-                    all_initiative_members=everyone,
-                    level=level,
-                )
+            await create_resource_grant(
+                self.session,
+                self.row,
+                user=user,
+                role_id=role_id,
+                all_initiative_members=everyone,
+                level=ResourceAccessLevel(level),
+                commit=False,
             )
         await self.session.commit()
 
@@ -163,7 +184,7 @@ def standing(
         guild_id=guild_id,
         guild_role=GuildRole.admin.value if admin else GuildRole.member.value,
         standing_guild_id=guild_id,
-        admin=admin,
+        guild_admin=admin,
         pam_read=grant is not None,
         pam_write=grant == "read_write",
         content_read_only=read_only,
@@ -212,7 +233,6 @@ async def _freeze(session, guild) -> None:
 # ── Every tool resolves sharing through the same engine ──────────────────────
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("tool", ALL_TOOLS, ids=lambda t: t.value)
 async def test_every_tool_resolves_sharing_through_one_engine(
     session, role_session, acting_user, tool: Tool
@@ -231,7 +251,10 @@ async def test_every_tool_resolves_sharing_through_one_engine(
     await w.grant("owner", user=w.owner.user)
     row, context = await w.as_reader(w.owner.user)
     require_access(resource, row, context=context, access="write")
-    assert compute_permission(row, context=context) == "owner"
+    assert client_access(row, context.user_id, context=context) == {
+        **{action.value: True for action in TOOL_CAN},
+        "unarchive": False,
+    }
 
     # An initiative co-member with no grant on this resource: the table's own
     # policy admits nothing, so there is no row to refuse.
@@ -241,8 +264,11 @@ async def test_every_tool_resolves_sharing_through_one_engine(
     # A guild admin needs no grant at all.
     row, context = await w.as_reader(w.admin.user)
     require_access(resource, row, context=context, access="write")
-    require_access(resource, row, context=context, require_owner=True)
-    assert compute_permission(row, context=context) == "owner"
+    require_access(resource, row, context=context, action=Action.delete)
+    assert client_access(row, context.user_id, context=context) == {
+        **{action.value: True for action in TOOL_CAN},
+        "unarchive": False,
+    }
 
     # A PAM read grant opens the guild for reading only. The grantee holds the
     # rung the grant lends, so the write stops at the level check and names
@@ -265,15 +291,27 @@ async def test_every_tool_resolves_sharing_through_one_engine(
         == resource.write_msg
     )
     assert (
-        refused(resource, row, context=context, require_owner=True).detail
+        refused(resource, row, context=context, action=Action.delete).detail
         == resource.owner_msg
     )
+
+    # A writer edits it; deleting it and changing who it is shared with are
+    # the owner's.
+    await w.grant("write", user=w.co_member.user)
+    row, context = await w.as_reader(w.co_member.user)
+    assert client_access(row, context.user_id, context=context) == {
+        "contribute": True,
+        "edit": True,
+        "delete": False,
+        "share": False,
+        "export": False,
+        "unarchive": False,
+    }
 
 
 # ── How a grant resolves ─────────────────────────────────────────────────────
 
 
-@pytest.mark.integration
 async def test_a_role_grant_elevates_over_a_users_own(
     session, role_session, acting_user
 ):
@@ -284,23 +322,15 @@ async def test_a_role_grant_elevates_over_a_users_own(
     role_id = await _role_id_of(session, w.initiative, w.co_member.user)
     await w.grant("read", user=w.co_member.user)
     row, context = await w.as_reader(w.co_member.user)
-    assert compute_permission(row, context=context) == "read"
+    assert actions_of(row) == frozenset()
 
-    session.add(
-        ResourceGrant(
-            initiative_id=w.initiative_id,
-            resource_type=Tool.project,
-            resource_id=w.row_id,
-            role_id=role_id,
-            level="write",
-        )
+    await create_resource_grant(
+        session, w.row, role_id=role_id, level=ResourceAccessLevel.write
     )
-    await session.commit()
-    row, context = await w.as_reader(w.co_member.user)
-    assert compute_permission(row, context=context) == "write"
+    row, _ = await w.as_reader(w.co_member.user)
+    assert actions_of(row) == {"contribute", "edit"}
 
 
-@pytest.mark.integration
 async def test_general_access_covers_the_initiatives_members_only(
     session, role_session, acting_user
 ):
@@ -311,14 +341,13 @@ async def test_general_access_covers_the_initiatives_members_only(
 
     await w.grant("write", everyone=True)
     row, context = await w.as_reader(w.co_member.user)
-    assert compute_permission(row, context=context) == "write"
+    assert actions_of(row) == {"contribute", "edit"}
     require_access(w.resource, row, context=context, access="write")
 
     row, _ = await w.as_reader(outsider.user)
     assert row is None
 
 
-@pytest.mark.integration
 async def test_membership_alone_grants_nothing(session, role_session, acting_user):
     """The gate is an AND-layer: being in the initiative is not access to its
     resources."""
@@ -328,7 +357,6 @@ async def test_membership_alone_grants_nothing(session, role_session, acting_use
     assert row is None
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("tool", ALL_TOOLS, ids=lambda t: t.value)
 async def test_a_grant_left_behind_after_removal_reaches_nothing(
     session, role_session, acting_user, reading_as, tool: Tool
@@ -361,35 +389,48 @@ async def test_a_grant_left_behind_after_removal_reaches_nothing(
     )
 
 
-@pytest.mark.integration
-async def test_write_holders_follow_the_level(session, role_session, acting_user):
-    """Who may be assigned a project's tasks is who holds write on it, asked of
-    the roster and the grant rows together."""
-    w = await build_world(session, role_session, acting_user, Tool.project)
-    s = await role_session("app_user")
-    await route_as(s, user_id=w.owner.user.id, guild_id=w.guild.id)
-    project = await project_grants.get_project(s, w.row_id)
-    assert project is not None
+@pytest.mark.parametrize("tool", ALL_TOOLS, ids=lambda t: t.value)
+async def test_who_may_be_named_is_who_can_open_it(
+    session, role_session, acting_user, reading_as, tool: Tool
+):
+    """``named_people`` answers for a person what the database answers when
+    that person opens the row themselves, grant by grant."""
+    w = await build_world(session, role_session, acting_user, tool)
+    asker = await role_session("app_user")
+    await route_as(asker, user_id=w.owner.user.id, guild_id=w.guild.id)
+    governing = named_people.Governing(tool, w.row_id, w.initiative.id)
+    people = [w.co_member.user, w.admin.user]
 
-    co = w.co_member.user.id
-    for level, expected in (("owner", {co}), ("write", {co}), ("read", set())):
-        await w.grant(level, user=w.co_member.user)
-        assert await project_grants.write_holder_ids(s, project) == expected
-    await w.grant(None)
-    assert await project_grants.write_holder_ids(s, project) == set()
+    async def agree() -> None:
+        named = await named_people.readers(asker, governing, [u.id for u in people])
+        await asker.rollback()
+        for user in people:
+            reader = await reading_as(user.id, w.guild.id)
+            opens = bool(
+                (
+                    await reader.exec(select(w.model.id).where(w.model.id == w.row_id))
+                ).all()
+            )
+            await reader.rollback()
+            assert (user.id in named) == opens, (user.username, opens)
 
     role_id = await _role_id_of(session, w.initiative, w.co_member.user)
-    await w.grant("write", role_id=role_id)
-    assert await project_grants.write_holder_ids(s, project) == {co}
-
-    await w.grant("write", everyone=True)
-    assert await project_grants.write_holder_ids(s, project) == {co, w.owner.user.id}
+    for grant in (
+        {"level": None},
+        {"level": "read", "user": w.owner.user},
+        {"level": "read", "user": w.co_member.user},
+        {"level": "read", "role_id": role_id},
+        {"level": "read", "everyone": True},
+    ):
+        await w.grant(**grant)
+        await agree()
+    await _remove_from_initiative(session, w.initiative, w.co_member.user)
+    await agree()
 
 
 # ── The overrides that sit above sharing ─────────────────────────────────────
 
 
-@pytest.mark.integration
 async def test_a_guild_admin_bypasses_the_scope_gate(
     session, role_session, acting_user
 ):
@@ -399,7 +440,7 @@ async def test_a_guild_admin_bypasses_the_scope_gate(
     await w.grant(None)
     row, context = await w.as_reader(w.admin.user)
     require_access(w.resource, row, context=context, access="write")
-    require_access(w.resource, row, context=context, require_owner=True)
+    require_access(w.resource, row, context=context, action=Action.delete)
 
 
 def test_a_standing_for_another_community_is_never_read_back():
@@ -411,15 +452,18 @@ def test_a_standing_for_another_community_is_never_read_back():
     """
 
     class _Session:
-        def __init__(self, params):
-            self.info = {_RLS_PARAMS_INFO_KEY: params}
+        def __init__(self, guild_id):
+            self.info = {
+                _RLS_CONTEXT_INFO_KEY: Member(
+                    guild_id=guild_id, user_id=0, standing=held
+                )
+            }
 
     held = standing(7, admin=True)
-    assert db_session.guild_context(_Session({"guild_id": 7, "context": held})) is held
-    assert db_session.guild_context(_Session({"guild_id": 9, "context": held})) is None
+    assert db_session.guild_context(_Session(7)) is held
+    assert db_session.guild_context(_Session(9)) is None
 
 
-@pytest.mark.integration
 async def test_a_platform_owner_holds_no_standing_bypass(
     session, role_session, acting_user
 ):
@@ -434,10 +478,10 @@ async def test_a_platform_owner_holds_no_standing_bypass(
     assert row is None
 
 
-@pytest.mark.integration
 async def test_a_frozen_guild_caps_everyone_at_read(session, role_session, acting_user):
-    """A read_only guild caps the level the client sees and refuses every write
-    — before the level is read, so full authority does not clear the hold.
+    """A read_only guild refuses every change — before the level is read, so
+    full authority does not clear the hold — and still lets its owner export,
+    which changes nothing.
 
     ``guild_suspension_test`` covers the same hold end-to-end through an
     endpoint; this pins where in the engine the cap sits.
@@ -448,16 +492,23 @@ async def test_a_frozen_guild_caps_everyone_at_read(session, role_session, actin
 
     row, context = await w.as_reader(w.owner.user)
     assert context.content_read_only
-    assert compute_permission(row, context=context) == "read"
+    assert client_access(row, context.user_id, context=context) == {
+        "contribute": False,
+        "edit": False,
+        "delete": False,
+        "share": False,
+        "export": True,
+        "unarchive": False,
+    }
     require_access(w.resource, row, context=context, access="read")
     assert (
         refused(w.resource, row, context=context, access="write").detail
         == w.resource.write_msg
     )
-    refused(w.resource, row, context=context, require_owner=True)
+    refused(w.resource, row, context=context, action=Action.delete)
 
     row, context = await w.as_reader(w.admin.user)
-    assert compute_permission(row, context=context) == "read"
+    assert not client_access(row, context.user_id, context=context)["edit"]
     refused(w.resource, row, context=context, access="write")
 
 
@@ -502,7 +553,7 @@ def test_a_listing_across_initiatives_still_narrows_a_guild_admin():
         )
     )
     assert sql != "true"
-    assert "resource_grants" in sql
+    assert "resource_granted(" in sql
 
 
 def test_a_pam_window_is_a_no_op_across_initiatives():
@@ -572,10 +623,10 @@ def test_the_writable_clause_asks_the_gate_when_confined():
     assert ", true, (SELECT current_standing()" in sql
 
 
-def test_the_writable_clause_spanning_initiatives_filters_the_grant_rows():
+def test_the_writable_clause_spanning_initiatives_asks_the_grants_at_write():
     sql = _compiled(writable_scope_clause(Tool.project, Project.id, 1, context=None))
-    assert "resource_grants" in sql
-    assert "'write'" in sql and "'owner'" in sql
+    assert "resource_granted(" in sql
+    assert ", true, (SELECT current_standing()" in sql
 
 
 @pytest.mark.parametrize("tool", list(Tool))
@@ -583,24 +634,8 @@ def test_every_tool_can_be_scoped(tool):
     """Every tool in the registry resolves through the clause, so a tool added
     later inherits the same listing rule."""
     sql = _compiled(granted_scope_clause(tool, Project.id, 1, context=standing(7)))
-    assert "resource_grants" in sql
+    assert "resource_granted(" in sql
     assert tool.value in sql
-
-
-def test_the_grants_subquery_has_one_home():
-    """``_granted_resource_ids`` is private so the composition happens in one
-    place — the clause builders in ``permissions.py`` and nowhere else."""
-    root = pathlib.Path(__file__).resolve().parents[1]
-    offenders = [
-        str(path.relative_to(root))
-        for path in root.rglob("*.py")
-        if path.name not in {"permissions.py", "permissions_test.py"}
-        and "_granted_resource_ids" in path.read_text()
-    ]
-    assert offenders == [], (
-        "these modules reach for the grants subquery directly instead of the "
-        f"clause builders in permissions.py: {offenders}"
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -608,44 +643,15 @@ def test_the_grants_subquery_has_one_home():
 # ---------------------------------------------------------------------------
 
 
-class _Grant:
-    def __init__(self, *, level="read", user_id=None, role_id=None, all_members=False):
-        self.level = level
-        self.user_id = user_id
-        self.role_id = role_id
-        self.all_initiative_members = all_members
-
-
-class _Membership:
-    def __init__(self, user_id, role_id=None):
-        self.user_id = user_id
-        self.role_id = role_id
-
-
-class _Initiative:
-    def __init__(self, memberships):
-        self.memberships = memberships
-
-
-class _Row:
-    """The two collections the audience reads."""
-
-    def __init__(self, grants, memberships, initiative_id=1):
-        self.grants = grants
-        self.initiative = _Initiative(memberships)
-        self.initiative_id = initiative_id
-
-
-@pytest.mark.integration
 async def test_the_audience_is_exactly_who_the_database_admits(
     session, role_session, acting_user
 ):
     """The invariant the post notifier hangs on.
 
-    ``audience_user_ids`` reads the roster and the grant rows; the database
-    reads the same rows when a member asks for the notice. A notifier built
-    on the first must not address anyone the second would turn away, and must
-    not miss anyone it would admit.
+    ``resource_audience`` reads the roster and the grant rows; the policies
+    read the same rows when a member asks for the notice. A notifier built on
+    the first must not address anyone the second would turn away, and must not
+    miss anyone it would admit.
     """
     w = await build_world(session, role_session, acting_user, Tool.post)
     named = w.co_member
@@ -659,64 +665,166 @@ async def test_the_audience_is_exactly_who_the_database_admits(
     departed = await acting_user(guild_role=GuildRole.member, guild=w.guild)
 
     await w.grant("owner", user=named.user)
-    session.add_all(
-        [
-            ResourceGrant(
-                initiative_id=w.initiative_id,
-                resource_type=Tool.post,
-                resource_id=w.row_id,
-                role_id=await _role_id_of(session, w.initiative, by_role.user),
-                level="write",
-            ),
-            # Named, but not a member of the initiative.
-            ResourceGrant(
-                initiative_id=w.initiative_id,
-                resource_type=Tool.post,
-                resource_id=w.row_id,
-                user_id=departed.user.id,
-                level="read",
-            ),
-        ]
+    await create_resource_grant(
+        session,
+        w.row,
+        role_id=await _role_id_of(session, w.initiative, by_role.user),
+        level=ResourceAccessLevel.write,
     )
-    await session.commit()
+    # Named, but not a member of the initiative.
+    await create_resource_grant(session, w.row, user=departed.user)
 
-    post = await posts_service.get_post(session, w.row_id)
-    assert post is not None
-    audience = audience_user_ids(post)
-    assert audience == {named.user.id, by_role.user.id}
+    s = await role_session("app_user")
+    await route_as(s, user_id=w.owner.user.id, guild_id=w.guild.id)
+    shared = (await audience(s, Tool.post, [w.row_id]))[w.row_id]
+    assert shared == {named.user.id, by_role.user.id}
 
     for actor in (named, by_role, unnamed, departed):
         row, _ = await w.as_reader(actor.user)
-        assert (row is not None) is (actor.user.id in audience), actor.user.id
+        assert (row is not None) is (actor.user.id in shared), actor.user.id
 
 
-def test_an_all_members_grant_reaches_every_member():
-    everyone = [_Membership(1), _Membership(2), _Membership(3)]
-    row = _Row(grants=[_Grant(all_members=True)], memberships=everyone)
-    assert audience_user_ids(row) == {1, 2, 3}
+async def test_everyone_is_the_roster_as_it_is_now_and_nobody_is_nobody(
+    session, role_session, acting_user
+):
+    """An all-members grant reaches the initiative's members; a resource
+    shared with nobody has no audience rather than falling back to them."""
+    w = await build_world(session, role_session, acting_user, Tool.project)
+    s = await role_session("app_user")
+    await route_as(s, user_id=w.owner.user.id, guild_id=w.guild.id)
+
+    await w.grant(None)
+    assert await audience(s, Tool.project, [w.row_id]) == {}
+
+    await w.grant("read", everyone=True)
+    assert (await audience(s, Tool.project, [w.row_id]))[w.row_id] == {
+        w.owner.user.id,
+        w.co_member.user.id,
+    }
 
 
-def test_a_resource_shared_with_nobody_has_no_audience():
-    """Posting to a board nobody can read interrupts nobody, rather than
-    falling back to the roster."""
-    row = _Row(grants=[], memberships=[_Membership(1), _Membership(2)])
-    assert audience_user_ids(row) == set()
+# ---------------------------------------------------------------------------
+# Sharing and departure, as the database holds them
+# ---------------------------------------------------------------------------
 
 
-def test_a_named_grant_does_not_outlive_the_membership():
-    """A grant survives the membership it was written for — leaving an
-    initiative sweeps no grants — and RLS answers the leftover with 404. An
-    audience built on the grant alone would carry a headline and an excerpt to
-    somebody who can no longer open the thing they name.
-    """
-    row = _Row(
-        grants=[_Grant(user_id=1), _Grant(user_id=2)],
-        memberships=[_Membership(1)],
+@pytest.mark.parametrize("tool", ALL_TOOLS, ids=lambda t: t.value)
+async def test_only_the_owner_changes_who_it_is_shared_with(
+    session, role_session, acting_user, tool: Tool
+):
+    """Sharing is the owner's in the database itself: a writer's own
+    ``INSERT`` into ``resource_grants`` is refused by its policy, whatever the
+    API would have said."""
+    w = await build_world(session, role_session, acting_user, tool)
+    await w.grant("write", user=w.co_member.user)
+    s = await w.role_session("app_user")
+    await route_as(s, user_id=w.co_member.user.id, guild_id=w.guild.id)
+    s.add(
+        ResourceGrant(
+            resource_type=tool.value,
+            resource_id=w.row_id,
+            initiative_id=w.initiative.id,
+            all_initiative_members=True,
+            level=ResourceAccessLevel.write,
+        )
     )
+    with pytest.raises(DBAPIError, match="row-level security"):
+        await s.flush()
 
-    assert audience_user_ids(row) == {1}
+
+async def _named_on(session, initiative, owner, person, **calendar) -> dict:
+    """``person`` named on a task, an event, a person field and a queue item
+    of ``initiative`` (the event on a calendar of the community itself with
+    ``initiative_id=None``)."""
+    project = await create_project(session, initiative, owner)
+    task = await create_task(session, project, assignees=[person])
+    calendar_ = await create_calendar(session, initiative, owner, **calendar)
+    event = await create_calendar_event(session, calendar_, owner)
+    session.add(CalendarEventAttendee(calendar_event_id=event.id, user_id=person.id))
+    document = await create_document(session, initiative, owner)
+    field = await create_property_definition(
+        session, initiative, type=PropertyType.user_reference
+    )
+    await create_document_property_value(
+        session, document, field, value_user_id=person.id
+    )
+    queue = await create_queue(session, initiative, owner)
+    item = await create_queue_item(session, queue, user_id=person.id)
+    await session.commit()
+    return {
+        "project": project,
+        "calendar": calendar_,
+        "task": task.id,
+        "event": event.id,
+        "item": item.id,
+    }
 
 
-def test_an_all_members_grant_names_the_roster_as_it_is_now():
-    row = _Row(grants=[_Grant(all_members=True)], memberships=[_Membership(4)])
-    assert audience_user_ids(row) == {4}
+async def _still_named(session, person_id: int, named: dict) -> list[str]:
+    session.expire_all()
+    checks = {
+        "assignee": select(TaskAssignee).where(
+            TaskAssignee.task_id == named["task"],
+            TaskAssignee.user_id == person_id,
+        ),
+        "attendee": select(CalendarEventAttendee).where(
+            CalendarEventAttendee.calendar_event_id == named["event"],
+            CalendarEventAttendee.user_id == person_id,
+        ),
+        "field": select(DocumentPropertyValue).where(
+            DocumentPropertyValue.value_user_id == person_id
+        ),
+        "queue item": select(QueueItem).where(
+            QueueItem.id == named["item"], QueueItem.user_id == person_id
+        ),
+        "grant": select(ResourceGrant).where(ResourceGrant.user_id == person_id),
+    }
+    return [name for name, q in checks.items() if (await session.exec(q)).first()]
+
+
+async def test_leaving_an_initiative_takes_you_off_its_content(
+    session, role_session, acting_user
+):
+    """Every grant naming someone in an initiative goes with their membership
+    of it, owner rows included, and they are taken off its content: archived
+    content, and content the manager removing them cannot reach, included."""
+    w = await build_world(session, role_session, acting_user, Tool.project)
+    member = w.co_member.user
+    member_id = member.id
+    await w.grant("owner", user=member)
+    named = await _named_on(session, w.initiative, w.owner.user, member)
+    await archive_entity(session, named["project"])
+    await session.commit()
+
+    s = await w.role_session("app_user")
+    await route_as(s, user_id=w.owner.user.id, guild_id=w.guild.id)
+    await s.exec(
+        delete(InitiativeMember).where(
+            InitiativeMember.initiative_id == w.initiative.id,
+            InitiativeMember.user_id == member_id,
+        )
+    )
+    await s.commit()
+
+    assert await _still_named(session, member_id, named) == []
+
+
+async def test_leaving_the_community_takes_you_off_its_own_content(
+    session, role_session, acting_user
+):
+    """The community's own tools, such as a calendar in no initiative, are
+    left the same way when someone leaves the community."""
+    w = await build_world(session, role_session, acting_user, Tool.project)
+    member = w.co_member.user
+    member_id = member.id
+    named = await _named_on(
+        session, w.initiative, w.owner.user, member, initiative_id=None
+    )
+    await create_resource_grant(session, named["calendar"], user=member)
+
+    s = await w.role_session("app_user")
+    await route_as(s, user_id=w.admin.user.id, guild_id=w.guild.id)
+    await remove_user_from_guild_initiatives(s, guild_id=w.guild.id, user_id=member_id)
+    await s.commit()
+
+    assert await _still_named(session, member_id, named) == []

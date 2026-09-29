@@ -20,10 +20,9 @@ import pytest
 from sqlalchemy import text
 
 from app.core.config import settings
-from app.db.schema_provisioning import guild_query_role_name
+from app.db.schema_provisioning import GuildRoleKind, guild_role_name
 from app.testing import create_guild, create_guild_membership, create_user
 
-pytestmark = pytest.mark.database
 
 _COUNT = "SELECT count(*) FROM public.current_guild_members"
 _IDS = "SELECT id FROM public.current_guild_members ORDER BY id"
@@ -37,14 +36,17 @@ def _platform_floor() -> str:
 
 
 async def _as_query_role(conn, guild_id: int):
-    """Become the role a query runs as. Everything below reads through it.
+    """Become the role a query runs as, once the request is routed. Everything
+    below reads through it.
 
     Named through the provisioner's own helper rather than spelled out: every
     test run gets its own prefixed roles, and roles are cluster-global — so a
     hand-written ``guild_1_q`` finds whatever another database left lying
     around, or nothing at all.
     """
-    await conn.execute(text(f'SET LOCAL ROLE "{guild_query_role_name(guild_id)}"'))
+    await conn.execute(
+        text(f'SET LOCAL ROLE "{guild_role_name(guild_id, GuildRoleKind.query)}"')
+    )
 
 
 async def _routed(conn, guild_id: int | None, *, pam: bool = False):
@@ -68,12 +70,12 @@ class TestItAnswersForTheRoutedGuild:
 
         async with engine.connect() as conn:
             async with conn.begin():
-                await _as_query_role(conn, one.id)
                 await _routed(conn, one.id)
+                await _as_query_role(conn, one.id)
                 here = set((await conn.execute(text(_IDS))).scalars().all())
             async with conn.begin():
-                await _as_query_role(conn, two.id)
                 await _routed(conn, two.id)
+                await _as_query_role(conn, two.id)
                 there = set((await conn.execute(text(_IDS))).scalars().all())
 
         assert mine.id in here and theirs.id not in here
@@ -89,8 +91,8 @@ class TestItAnswersForTheRoutedGuild:
         async with engine.connect() as conn:
             for guild in (one, two):
                 async with conn.begin():
-                    await _as_query_role(conn, guild.id)
                     await _routed(conn, guild.id)
+                    await _as_query_role(conn, guild.id)
                     found = (await conn.execute(text(_IDS))).scalars().all()
                     assert person.id in found
 
@@ -100,8 +102,8 @@ class TestItAnswersForTheRoutedGuild:
         await create_guild_membership(session, user=person, guild=guild)
         async with engine.connect() as conn:
             async with conn.begin():
-                await _as_query_role(conn, guild.id)
                 await _routed(conn, None)
+                await _as_query_role(conn, guild.id)
                 assert await conn.scalar(text(_COUNT)) == 0
 
     async def test_a_grantee_is_routed_by_the_grant(self, session, engine):
@@ -117,9 +119,9 @@ class TestItAnswersForTheRoutedGuild:
 
         async with engine.connect() as conn:
             async with conn.begin():
-                await _as_query_role(conn, guild.id)
                 await _routed(conn, None)
                 await _routed(conn, guild.id, pam=True)
+                await _as_query_role(conn, guild.id)
                 assert person.id in (await conn.execute(text(_IDS))).scalars().all()
 
     async def test_it_never_widens_past_the_account_projection(self, session, engine):
@@ -131,18 +133,22 @@ class TestItAnswersForTheRoutedGuild:
 
         async with engine.connect() as conn:
             async with conn.begin():
-                await _as_query_role(conn, guild.id)
                 await _routed(conn, guild.id)
+                await _as_query_role(conn, guild.id)
+                here = await conn.scalar(text(_COUNT))
+                # The query role reads nothing else in ``public``, so the
+                # projection is read as the guild's read-only role.
+                read_only = guild_role_name(guild.id, GuildRoleKind.read_only)
+                await conn.execute(text(f'SET LOCAL ROLE "{read_only}"'))
                 everywhere = await conn.scalar(
                     text("SELECT count(*) FROM public.guild_member_profiles")
                 )
-                here = await conn.scalar(text(_COUNT))
         assert here <= everywhere
 
 
 class TestTheRolesThatReadIt:
-    """The shared floors are kept as one set, and the query role reads through
-    the read-only one."""
+    """The shared floors are kept as one set. The query role holds neither, and
+    is granted this view on its own (``query_role_test``)."""
 
     @pytest.mark.parametrize("role", ["app_guild_base", "app_guild_base_ro"])
     async def test_both_floors_read_it(self, engine, role):

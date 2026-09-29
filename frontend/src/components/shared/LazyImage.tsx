@@ -40,7 +40,7 @@ export const LazyImage = ({
   style,
   ...imgProps
 }: LazyImageProps) => {
-  const boxRef = useRef<HTMLDivElement | null>(null);
+  const boxRef = useRef<HTMLSpanElement | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const [near, setNear] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -78,10 +78,11 @@ export const LazyImage = ({
     setLoaded(false);
   }, [src]);
 
+  // A span, so the picture can sit in a paragraph of rendered prose.
   return (
-    <div
+    <span
       ref={boxRef}
-      className={cn("relative overflow-hidden bg-muted", className)}
+      className={cn("relative block overflow-hidden bg-muted", className)}
       style={{
         ...(aspectRatio ? { aspectRatio: String(aspectRatio) } : {}),
         ...style,
@@ -108,6 +109,6 @@ export const LazyImage = ({
           {...imgProps}
         />
       ) : null}
-    </div>
+    </span>
   );
 };

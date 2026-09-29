@@ -22,10 +22,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sqlmodel import select
 
-from app.api.v1.tenant_endpoints.tasks import _advance_recurrence_if_needed
+from app.services.tenant.task_creation import advance_recurrence_if_needed
 from app.models.platform.guild import GuildRole
 from app.models.tenant.task import Task, TaskStatusCategory
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.testing.schema_harness import route_session_to_guild
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.core.relationships import RelationshipType
@@ -44,7 +44,7 @@ from app.testing.factories import (
     create_task_status,
     create_user,
 )
-from app.testing import route_as
+from app.testing import create_resource_grant, route_as
 
 LOS_ANGELES = ZoneInfo("America/Los_Angeles")
 
@@ -70,7 +70,6 @@ async def _create_task(session, project, title="Test Task", checklist=None):
     return task
 
 
-@pytest.mark.integration
 async def test_list_tasks_in_project(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -93,7 +92,6 @@ async def test_list_tasks_in_project(
     assert task2.id in task_ids
 
 
-@pytest.mark.integration
 async def test_list_tasks_hides_a_project_the_member_holds_no_grant_on(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -130,7 +128,6 @@ async def test_list_tasks_hides_a_project_the_member_holds_no_grant_on(
     assert task.id not in {t["id"] for t in response.json()["items"]}
 
 
-@pytest.mark.integration
 async def test_list_tasks_guild_admin_sees_unjoined_project(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -165,7 +162,6 @@ async def test_list_tasks_guild_admin_sees_unjoined_project(
     assert task2.id in task_ids
 
 
-@pytest.mark.integration
 async def test_a_project_filter_that_narrows_nothing_does_not_widen_access(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -211,7 +207,46 @@ async def test_a_project_filter_that_narrows_nothing_does_not_widen_access(
     assert hidden.id not in {t["id"] for t in response.json()["items"]}
 
 
-@pytest.mark.integration
+async def test_an_archived_project_still_lists_its_tasks(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Archiving a project stamps its tasks with the project's own
+    ``archived_at``; opened on its own, the project still shows them.
+
+    A task archived earlier, on its own, carries a different stamp and stays
+    behind the "show archived" toggle, as it does in a live project.
+    """
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    earlier = await create_task(session, a.project, title="Archived earlier")
+    await client.post(a.g(f"/archive/task/{earlier.id}"), headers=a.headers)
+    task = await create_task(session, a.project, title="Archived with project")
+    archived = await client.post(
+        a.g(f"/archive/project/{a.project.id}"), headers=a.headers
+    )
+    assert archived.status_code == 200
+
+    conditions = json.dumps(
+        [{"field": "project_id", "op": "eq", "value": a.project.id}]
+    )
+    response = await client.get(
+        a.g(f"/tasks/?conditions={conditions}"), headers=a.headers
+    )
+    assert response.status_code == 200
+    assert {t["id"] for t in response.json()["items"]} == {task.id}
+
+    response = await client.get(
+        a.g(f"/tasks/?conditions={conditions}&include_archived=true"),
+        headers=a.headers,
+    )
+    assert response.status_code == 200
+    assert {t["id"] for t in response.json()["items"]} == {task.id, earlier.id}
+
+    # Spanning every project, an archived one stays out.
+    response = await client.get(a.g("/tasks/"), headers=a.headers)
+    assert response.status_code == 200
+    assert task.id not in {t["id"] for t in response.json()["items"]}
+
+
 async def test_create_task(client: AsyncClient, session: AsyncSession, acting_user):
     """Test creating a new task."""
     from app.services.tenant import task_statuses as task_statuses_service
@@ -240,7 +275,6 @@ async def test_create_task(client: AsyncClient, session: AsyncSession, acting_us
     assert data["priority"] == "high"
 
 
-@pytest.mark.integration
 async def test_create_task_with_status(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -270,7 +304,6 @@ async def test_create_task_with_status(
     assert response.json()["task_status_id"] == non_default.id
 
 
-@pytest.mark.integration
 async def test_create_task_with_tags(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -296,7 +329,6 @@ async def test_create_task_with_tags(
     assert returned_tag_ids == {tag1.id, tag2.id}
 
 
-@pytest.mark.integration
 async def test_create_task_with_properties(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -336,7 +368,6 @@ async def _a_property_from_another_initiative(session, a) -> dict:
     return {"property_values": [{"property_id": foreign_defn.id, "value": "x"}]}
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("title", "unreachable"),
     [
@@ -372,7 +403,6 @@ async def test_a_create_naming_something_it_cannot_reach_persists_no_task(
     assert count == 0
 
 
-@pytest.mark.integration
 async def test_update_task_with_tags_and_properties(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -424,7 +454,6 @@ async def test_update_task_with_tags_and_properties(
     assert body["properties"] == []
 
 
-@pytest.mark.integration
 async def test_create_task_requires_project_access(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -456,7 +485,6 @@ async def test_create_task_requires_project_access(
     )  # RLS hides the content resource from a non-initiative-member (404, not 403)
 
 
-@pytest.mark.integration
 async def test_get_task_by_id(client: AsyncClient, session: AsyncSession, acting_user):
     """Test getting a task by ID."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
@@ -470,7 +498,6 @@ async def test_get_task_by_id(client: AsyncClient, session: AsyncSession, acting
     assert data["title"] == task.title
 
 
-@pytest.mark.integration
 async def test_get_task_not_found(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -482,7 +509,6 @@ async def test_get_task_not_found(
     assert response.status_code == 404
 
 
-@pytest.mark.integration
 async def test_update_task(client: AsyncClient, session: AsyncSession, acting_user):
     """Test updating a task."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
@@ -500,7 +526,6 @@ async def test_update_task(client: AsyncClient, session: AsyncSession, acting_us
     assert data["description"] == "Updated description"
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("method", "payload"),
     [("PATCH", {"title": "Hacked Title"}), ("DELETE", None)],
@@ -532,7 +557,6 @@ async def test_a_task_of_an_initiative_the_member_is_not_in_is_not_found(
     assert response.status_code == 404
 
 
-@pytest.mark.integration
 async def test_delete_task(client: AsyncClient, session: AsyncSession, acting_user):
     """Test deleting a task."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
@@ -543,24 +567,28 @@ async def test_delete_task(client: AsyncClient, session: AsyncSession, acting_us
     assert response.status_code == 204
 
 
-@pytest.mark.integration
 async def test_assign_user_to_task(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """Test assigning a user to a task."""
+    """Anyone who can open the project can be assigned; someone it is not
+    shared with cannot."""
     user = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    # Add assignee to the initiative as a member.
     assignee = await acting_user(
         guild_role=GuildRole.member,
         guild=user.guild,
         initiative=user.initiative,
         initiative_role="member",
     )
-
     task = await _create_task(session, user.project)
-
     payload = {"assignee_ids": [assignee.user.id]}
 
+    refused = await client.patch(
+        user.g(f"/tasks/{task.id}"), headers=user.headers, json=payload
+    )
+    assert refused.status_code == 422
+    assert refused.json()["detail"] == "PERSON_CANNOT_READ"
+
+    await create_resource_grant(session, user.project, user=assignee.user)
     response = await client.patch(
         user.g(f"/tasks/{task.id}"), headers=user.headers, json=payload
     )
@@ -571,7 +599,6 @@ async def test_assign_user_to_task(
     assert assignee.user.id in assignee_ids
 
 
-@pytest.mark.integration
 async def test_unassigning_withdraws_the_pending_digest_item(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -583,6 +610,13 @@ async def test_unassigning_withdraws_the_pending_digest_item(
         guild=user.guild,
         initiative=user.initiative,
         initiative_role="member",
+    )
+    # The assignment notice names the task, so the assignee has to reach it.
+    await create_resource_grant(
+        session,
+        user.project,
+        all_initiative_members=True,
+        level=ResourceAccessLevel.write,
     )
     task = await _create_task(session, user.project)
 
@@ -622,16 +656,23 @@ async def test_unassigning_withdraws_the_pending_digest_item(
     assert pending == []
 
 
-@pytest.mark.integration
 async def test_move_task_to_different_project(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """Test moving a task to a different project."""
+    """Moving a task keeps the assignees who can open the destination and
+    drops the rest."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     project1 = a.project
     project2 = await create_project(session, a.initiative, a.user, name="Project 2")
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    await create_resource_grant(session, project1, user=member.user)
 
-    task = await _create_task(session, project1)
+    task = await create_task(session, project1, assignees=[a.user, member.user])
 
     from app.services.tenant import task_statuses as task_statuses_service
 
@@ -651,9 +692,9 @@ async def test_move_task_to_different_project(
     assert response.status_code == 200
     data = response.json()
     assert data["project_id"] == project2.id
+    assert [assignee["id"] for assignee in data["assignees"]] == [a.user.id]
 
 
-@pytest.mark.integration
 async def test_duplicate_task(client: AsyncClient, session: AsyncSession, acting_user):
     """Test duplicating a task."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
@@ -670,7 +711,6 @@ async def test_duplicate_task(client: AsyncClient, session: AsyncSession, acting
     assert data["id"] != task.id
 
 
-@pytest.mark.integration
 async def test_create_task_with_checklist(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -702,7 +742,6 @@ async def test_create_task_with_checklist(
     assert data["checklist_progress"] == {"completed": 1, "total": 2}
 
 
-@pytest.mark.integration
 async def test_checklist_replaced_by_task_patch(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -740,7 +779,6 @@ async def test_checklist_replaced_by_task_patch(
     ]
 
 
-@pytest.mark.integration
 async def test_checklist_edit_does_not_carry_completion(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -785,7 +823,6 @@ async def test_checklist_edit_does_not_carry_completion(
     ]
 
 
-@pytest.mark.integration
 async def test_checklist_new_item_keeps_the_state_it_arrived_with(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -804,7 +841,6 @@ async def test_checklist_new_item_keeps_the_state_it_arrived_with(
     assert response.json()["checklist"][0]["done"] is True
 
 
-@pytest.mark.integration
 async def test_an_over_long_checklist_can_still_be_shortened(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -837,7 +873,6 @@ async def test_an_over_long_checklist_can_still_be_shortened(
     assert longer.json()["detail"] == "CHECKLIST_TOO_LONG"
 
 
-@pytest.mark.integration
 async def test_checklist_capped_on_a_task_that_has_none(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -860,7 +895,6 @@ async def test_checklist_capped_on_a_task_that_has_none(
     assert response.json()["detail"] == "CHECKLIST_TOO_LONG"
 
 
-@pytest.mark.integration
 async def test_checklist_patch_omitted_leaves_it_alone(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -881,7 +915,6 @@ async def test_checklist_patch_omitted_leaves_it_alone(
     assert [i["id"] for i in response.json()["checklist"]] == ["one"]
 
 
-@pytest.mark.integration
 async def test_toggle_checklist_item(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -918,7 +951,6 @@ async def test_toggle_checklist_item(
     assert untick.json()[1]["done"] is False
 
 
-@pytest.mark.integration
 async def test_toggling_two_items_keeps_both(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -947,7 +979,6 @@ async def test_toggling_two_items_keeps_both(
     assert all(item["done"] for item in response.json())
 
 
-@pytest.mark.integration
 async def test_toggle_unknown_checklist_item(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -965,7 +996,6 @@ async def test_toggle_unknown_checklist_item(
     assert response.json()["detail"] == "CHECKLIST_ITEM_NOT_FOUND"
 
 
-@pytest.mark.integration
 async def test_checklist_progress_on_task_list(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -995,7 +1025,6 @@ async def test_checklist_progress_on_task_list(
     assert listed["checklist_progress"] == {"completed": 1, "total": 2}
 
 
-@pytest.mark.integration
 async def test_duplicate_task_copies_checklist_unticked(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1020,7 +1049,6 @@ async def test_duplicate_task_copies_checklist_unticked(
     assert copied[0]["id"] != "one"
 
 
-@pytest.mark.integration
 async def test_reorder_tasks(client: AsyncClient, session: AsyncSession, acting_user):
     """Test reordering tasks within a project."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
@@ -1045,7 +1073,6 @@ async def test_reorder_tasks(client: AsyncClient, session: AsyncSession, acting_
     assert ordered_ids == [task3.id, task1.id, task2.id]
 
 
-@pytest.mark.unit
 def test_reorder_item_takes_only_a_finite_position():
     """A position is a finite number, positive or negative; the schema holds
     the boundary to that."""
@@ -1064,7 +1091,6 @@ def test_reorder_item_takes_only_a_finite_position():
     assert TaskReorderItem(id=1, task_status_id=1, position=-0.5).position == -0.5
 
 
-@pytest.mark.integration
 async def test_reorder_single_task_returns_only_affected(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1097,7 +1123,6 @@ async def test_reorder_single_task_returns_only_affected(
     assert data[0]["position"] == 1.5
 
 
-@pytest.mark.integration
 async def test_reorder_rebalances_on_precision_exhaustion(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1150,7 +1175,6 @@ async def test_reorder_rebalances_on_precision_exhaustion(
     assert _parse(data[task3.id]["updated_at"]) > task2_updated_before
 
 
-@pytest.mark.integration
 async def test_task_guild_isolation(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1168,13 +1192,12 @@ async def test_task_guild_isolation(
 
     # Cannot access guild1 task with guild2 context
     response2 = await client.get(
-        f"/api/v1/g/{guild2.id}/tasks/{task1.id}", headers=a.headers
+        f"/api/v1/c/{guild2.id}/tasks/{task1.id}", headers=a.headers
     )
 
     assert response2.status_code == 404
 
 
-@pytest.mark.integration
 async def test_list_my_tasks(client: AsyncClient, session: AsyncSession, acting_user):
     """Test listing tasks assigned to current user."""
     from app.models.tenant.task import TaskAssignee
@@ -1204,7 +1227,6 @@ async def test_list_my_tasks(client: AsyncClient, session: AsyncSession, acting_
     assert other_task.id not in task_ids
 
 
-@pytest.mark.integration
 async def test_filter_tasks_by_status(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1281,7 +1303,6 @@ async def recurring_task_env(session: AsyncSession, acting_user):
     return _env
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("strategy", "due", "recurrence", "next_time", "next_date"),
     [
@@ -1373,7 +1394,6 @@ async def test_completing_a_recurring_task_opens_the_next_occurrence(
         assert next_due.date() == next_date
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     ("due", "recurrence", "completed_at", "next_local"),
     [
@@ -1431,7 +1451,7 @@ async def test_rolling_recurrence_counts_from_the_users_own_calendar_day(
     task.task_status_id = done.id
     task.task_status = done
 
-    advanced = await _advance_recurrence_if_needed(
+    advanced = await advance_recurrence_if_needed(
         session,
         task,
         previous_status_category=TaskStatusCategory.todo,
@@ -1451,7 +1471,6 @@ async def test_rolling_recurrence_counts_from_the_users_own_calendar_day(
     assert successor.due_date.astimezone(LOS_ANGELES) == next_local
 
 
-@pytest.mark.integration
 async def test_completing_a_tagged_recurring_task_copies_tags_to_next_occurrence(
     session: AsyncSession,
     recurring_task_env,
@@ -1494,7 +1513,7 @@ async def test_completing_a_tagged_recurring_task_copies_tags_to_next_occurrence
     tag_id = tag.id
     session.expunge(tag)
 
-    advanced = await _advance_recurrence_if_needed(
+    advanced = await advance_recurrence_if_needed(
         session,
         task,
         previous_status_category=TaskStatusCategory.todo,
@@ -1516,7 +1535,6 @@ async def test_completing_a_tagged_recurring_task_copies_tags_to_next_occurrence
     assert copied == [tag_id]
 
 
-@pytest.mark.integration
 async def test_filter_tasks_by_date_window_group(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1591,7 +1609,6 @@ async def test_filter_tasks_by_date_window_group(
     assert undated.id not in returned
 
 
-@pytest.mark.integration
 async def test_list_tasks_rejects_conditions_nested_too_deeply(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1614,7 +1631,6 @@ async def test_list_tasks_rejects_conditions_nested_too_deeply(
     assert response.json()["detail"] == "QUERY_INVALID_CONDITIONS"
 
 
-@pytest.mark.integration
 async def test_read_task_includes_creator_summary(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1657,7 +1673,6 @@ async def _assignment_fixture(session, actor):
     return assigned, unassigned
 
 
-@pytest.mark.integration
 async def test_filter_tasks_with_no_assignee(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1675,7 +1690,6 @@ async def test_filter_tasks_with_no_assignee(
     assert assigned.id not in task_ids
 
 
-@pytest.mark.integration
 async def test_filter_tasks_with_any_assignee(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1696,7 +1710,6 @@ async def test_filter_tasks_with_any_assignee(
     assert unassigned.id not in task_ids
 
 
-@pytest.mark.integration
 async def test_unassigned_or_mine_returns_the_union(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1732,7 +1745,6 @@ async def test_unassigned_or_mine_returns_the_union(
     assert theirs.id not in task_ids
 
 
-@pytest.mark.integration
 async def test_my_tasks_unassigned_is_vacuous_not_an_error(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -1920,17 +1932,7 @@ async def test_a_blocker_the_reader_cannot_open_is_not_counted(
 
     # The project is shared with the whole initiative, so the reader can open
     # the task itself: what is being tested is the far end of its blocker.
-    await route_session_to_guild(session, owner.guild.id)
-    session.add(
-        ResourceGrant(
-            resource_type="project",
-            resource_id=owner.project.id,
-            all_initiative_members=True,
-            level=ResourceAccessLevel.read,
-            initiative_id=owner.initiative.id,
-        )
-    )
-    await session.commit()
+    await create_resource_grant(session, owner.project, all_initiative_members=True)
 
     reader = await acting_user(
         guild_role=GuildRole.member,

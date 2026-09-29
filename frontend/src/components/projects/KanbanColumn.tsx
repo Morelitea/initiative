@@ -21,6 +21,7 @@ import type {
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Markdown } from "@/components/Markdown";
+import { UnreadDot } from "@/components/notifications/UnreadDot";
 import type { KanbanCardFields } from "@/components/projects/kanbanFields";
 import type { PriorityBadgeVariant } from "@/components/projects/projectTasksConfig";
 import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
@@ -31,6 +32,7 @@ import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress"
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon-picker";
+import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { formatDateTime } from "@/lib/formatDate";
 import { useGuildPath } from "@/lib/guildUrl";
 import { summarizeRecurrence } from "@/lib/recurrence";
@@ -48,7 +50,6 @@ interface KanbanColumnProps {
   canWrite: boolean;
   priorityVariant: Record<TaskPriority, PriorityBadgeVariant>;
   taskHref: (taskId: number) => string;
-  canOpenTask: boolean;
   collapsed: boolean;
   onToggleCollapse: (statusId: number) => void;
   taskCount: number;
@@ -64,7 +65,6 @@ export const KanbanColumn = ({
   canWrite,
   priorityVariant,
   taskHref,
-  canOpenTask,
   collapsed,
   onToggleCollapse,
   taskCount,
@@ -158,7 +158,6 @@ export const KanbanColumn = ({
                       task={task}
                       priorityVariant={priorityVariant}
                       taskHref={taskHref}
-                      canOpenTask={canOpenTask}
                       visibleFields={visibleFields}
                     />
                   ) : (
@@ -169,7 +168,6 @@ export const KanbanColumn = ({
                       task={task}
                       priorityVariant={priorityVariant}
                       taskHref={taskHref}
-                      canOpenTask={canOpenTask}
                       visibleFields={visibleFields}
                     />
                   );
@@ -184,7 +182,6 @@ export const KanbanColumn = ({
                   canWrite={canWrite}
                   priorityVariant={priorityVariant}
                   taskHref={taskHref}
-                  canOpenTask={canOpenTask}
                   visibleFields={visibleFields}
                 />
               ))
@@ -293,7 +290,6 @@ interface KanbanCardContentProps {
   task: TaskListRead;
   priorityVariant: Record<TaskPriority, PriorityBadgeVariant>;
   taskHref: (taskId: number) => string;
-  canOpenTask: boolean;
   visibleFields: KanbanCardFields;
 }
 
@@ -302,12 +298,14 @@ const KanbanCardContent = memo(
     task,
     priorityVariant,
     taskHref,
-    canOpenTask,
     visibleFields,
   }: KanbanCardContentProps) {
     const { t } = useTranslation(["projects", "dates"]);
     const { t: tRelations } = useTranslation("relations");
     const gp = useGuildPath();
+    const unreadDot = useUnreadTree().hasSubject(task.guild_id, "task", task.id) ? (
+      <UnreadDot className="ml-2 inline-block align-middle" />
+    ) : null;
 
     const { shows, showsProperty } = visibleFields;
 
@@ -337,25 +335,23 @@ const KanbanCardContent = memo(
     return (
       <>
         <div className="flex w-full min-w-0 flex-col items-start gap-1 text-left">
-          {canOpenTask ? (
-            // Only the title opens the task: the rest of the card is the card,
-            // and a real link means middle-click and "open in new tab" work.
-            <Link
-              to={taskHref(task.id)}
-              draggable={false}
-              className="wrap-break-word w-full min-w-0 rounded-sm font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-1 focus-visible:ring-ring"
-            >
-              {task.title}
-            </Link>
-          ) : (
-            <p className="wrap-break-word w-full min-w-0 font-medium opacity-70">{task.title}</p>
-          )}
+          {/* Only the title opens the task: the rest of the card is the card,
+              and a real link means middle-click and "open in new tab" work. */}
+          <Link
+            to={taskHref(task.id)}
+            draggable={false}
+            className="wrap-break-word w-full min-w-0 rounded-sm font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            {task.title}
+            {unreadDot}
+          </Link>
           {shows("description") && task.description ? (
             <Markdown
               content={task.description}
               // Two lines of words, not a picture that fills the card.
               className="line-clamp-2 w-full min-w-0 [&_img]:hidden"
               mentions
+              zoomImages={false}
             />
           ) : null}
           <div className="wrap-break-word w-full min-w-0 space-y-1 text-muted-foreground text-xs">
@@ -412,10 +408,7 @@ const KanbanCardContent = memo(
       </>
     );
   },
-  (prev, next) =>
-    prev.task === next.task &&
-    prev.canOpenTask === next.canOpenTask &&
-    prev.visibleFields === next.visibleFields
+  (prev, next) => prev.task === next.task && prev.visibleFields === next.visibleFields
 );
 
 // --- Sortable card (with DnD, used in virtualized mode) ---
@@ -424,7 +417,6 @@ interface KanbanTaskCardVirtualProps {
   task: TaskListRead;
   priorityVariant: Record<TaskPriority, PriorityBadgeVariant>;
   taskHref: (taskId: number) => string;
-  canOpenTask: boolean;
   visibleFields: KanbanCardFields;
   "data-index": number;
 }
@@ -434,7 +426,6 @@ const KanbanTaskCardSortable = memo(
     task,
     priorityVariant,
     taskHref,
-    canOpenTask,
     visibleFields,
     "data-index": dataIndex,
     ref,
@@ -479,16 +470,12 @@ const KanbanTaskCardSortable = memo(
           task={task}
           priorityVariant={priorityVariant}
           taskHref={taskHref}
-          canOpenTask={canOpenTask}
           visibleFields={visibleFields}
         />
       </div>
     );
   },
-  (prev, next) =>
-    prev.task === next.task &&
-    prev.canOpenTask === next.canOpenTask &&
-    prev.visibleFields === next.visibleFields
+  (prev, next) => prev.task === next.task && prev.visibleFields === next.visibleFields
 );
 
 // --- Plain card (no DnD hooks, used in virtualized mode when !canWrite) ---
@@ -498,7 +485,6 @@ const KanbanTaskCardPlain = memo(
     task,
     priorityVariant,
     taskHref,
-    canOpenTask,
     visibleFields,
     "data-index": dataIndex,
     ref,
@@ -517,16 +503,12 @@ const KanbanTaskCardPlain = memo(
           task={task}
           priorityVariant={priorityVariant}
           taskHref={taskHref}
-          canOpenTask={canOpenTask}
           visibleFields={visibleFields}
         />
       </div>
     );
   },
-  (prev, next) =>
-    prev.task === next.task &&
-    prev.canOpenTask === next.canOpenTask &&
-    prev.visibleFields === next.visibleFields
+  (prev, next) => prev.task === next.task && prev.visibleFields === next.visibleFields
 );
 
 // --- Original non-virtualized card (used for small lists) ---
@@ -536,7 +518,6 @@ interface KanbanTaskCardProps {
   canWrite: boolean;
   priorityVariant: Record<TaskPriority, PriorityBadgeVariant>;
   taskHref: (taskId: number) => string;
-  canOpenTask: boolean;
   visibleFields: KanbanCardFields;
 }
 
@@ -545,7 +526,6 @@ const KanbanTaskCard = ({
   canWrite,
   priorityVariant,
   taskHref,
-  canOpenTask,
   visibleFields,
 }: KanbanTaskCardProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -576,7 +556,6 @@ const KanbanTaskCard = ({
         task={task}
         priorityVariant={priorityVariant}
         taskHref={taskHref}
-        canOpenTask={canOpenTask}
         visibleFields={visibleFields}
       />
     </div>

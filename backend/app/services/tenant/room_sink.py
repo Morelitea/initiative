@@ -61,12 +61,13 @@ from typing import Any
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db import session as db_session
+from app.db import cohorts
 from app.db.event_capture import OUTBOX_CHANNEL
 from app.db.session import set_rls_context
 from app.models.tenant.event_outbox import EventOutbox
 from app.models.tenant.initiative import InitiativeMember
-from app.services.realtime import manager
+from app.services.content_sockets import guild_room, initiative_room, sockets
+from app.db.request_context import SystemGuild
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +132,7 @@ async def on_bus_connected() -> None:
 _delivered: dict[int, set[int]] = {}
 
 
-def _guild_id(schema: str) -> int | None:
+def schema_guild_id(schema: str) -> int | None:
     """The guild a schema name addresses, or None if it addresses none."""
     if not schema.startswith(_SCHEMA_PREFIX):
         return None
@@ -140,10 +141,12 @@ def _guild_id(schema: str) -> int | None:
 
 
 def _change(row: EventOutbox) -> dict[str, Any]:
-    """One log row as the client reads it: what moved, and what it sits in."""
+    """One log row as the client reads it: what moved, what it sits in, and
+    the initiative it belongs to (``None`` for the guild's own)."""
     return {
         "resource": {"type": row.resource_type, "id": row.resource_id},
         "parents": list(row.parents),
+        "initiative_id": row.initiative_id,
         "action": row.action,
     }
 
@@ -166,15 +169,13 @@ def _frame(rows: list[EventOutbox]) -> dict[str, Any]:
 async def _open_new_rooms(
     session: AsyncSession, guild_id: int, rows: list[EventOutbox]
 ) -> None:
-    """Put anybody newly in an initiative into its room, without a reconnect.
+    """Re-seat anybody newly in an initiative, without a reconnect.
 
-    Rooms are resolved once, when a socket connects, so a tab that was already
-    open when its person joined an initiative hears nothing from it. Nothing
-    about that person's own session changed, so nothing prompts the reconnect
-    that would fix it — but the roster moving is in the log like everything
-    else, and every worker reads the log.
-
-    Additive only, for the reason on ``manager.join``.
+    A tab that was already open when its person joined an initiative is in no
+    room for it, and nothing about that person's own session changed to prompt
+    a reconnect — but the roster moving is in the log like everything else, and
+    every worker reads the log. Their sockets are re-checked, which recomputes
+    their rooms from the same rule that seated them.
     """
     moved = {
         row.resource_id
@@ -183,19 +184,17 @@ async def _open_new_rooms(
     }
     if not moved:
         return
-    watching = manager.users_in_guild(guild_id)
+    watching = sockets.users_in_guild(guild_id)
     if not watching:
         return
-    for initiative_id in moved:
-        members = set(
-            await session.exec(
-                select(InitiativeMember.user_id).where(
-                    InitiativeMember.initiative_id == initiative_id
-                )
+    members = set(
+        await session.exec(
+            select(InitiativeMember.user_id).where(
+                InitiativeMember.initiative_id.in_(moved)  # type: ignore[attr-defined]
             )
         )
-        for user_id in watching & members:
-            await manager.join(guild_id, user_id, initiative_id)
+    )
+    await sockets.refresh_users(guild_id, watching & members)
 
 
 async def _fan_out(guild_id: int, rows: list[EventOutbox]) -> None:
@@ -213,9 +212,9 @@ async def _fan_out(guild_id: int, rows: list[EventOutbox]) -> None:
     for initiative_id, batch in by_room.items():
         message = _frame(batch)
         if initiative_id is None:
-            await manager.broadcast_guild(guild_id, message)
+            sockets.emit_json(guild_room(guild_id), message)
         else:
-            await manager.broadcast(guild_id, initiative_id, message)
+            sockets.emit_json(initiative_room(guild_id, initiative_id), message)
     _delivered.setdefault(guild_id, set()).update(_ids(rows))
 
 
@@ -271,15 +270,15 @@ async def deliver(payload: str) -> None:
     visible, whatever ids they were given while in flight.
     """
     schema, _, txn = payload.partition(":")
-    guild_id = _guild_id(schema)
+    guild_id = schema_guild_id(schema)
     if guild_id is None or not txn.isdigit():
         logger.warning("room sink: unreadable hint on %s", CHANNEL)
         return
-    if guild_id not in set(manager.guild_ids()):
+    if guild_id not in set(sockets.guild_ids()):
         return
     try:
-        async with db_session.SystemSessionLocal() as session:
-            await set_rls_context(session, guild_id=guild_id)
+        async with cohorts.system_session(guild_id) as session:
+            await set_rls_context(session, SystemGuild(guild_id))
             rows = await _rows_of_transaction(session, int(txn))
             if guild_id not in _delivered:
                 # First read of this guild here. Everything else already in the
@@ -304,19 +303,16 @@ async def process_room_sweep() -> None:
     global _missed_hints
     deaf, _missed_hints = _missed_hints, False
 
-    watched = manager.guild_ids()
+    watched = sockets.guild_ids()
     for guild_id in set(_delivered) - set(watched):
         # Nobody here is watching it any more. Dropping the mark means the next
         # socket to arrive is brought up to the log's current end rather than
         # told everything that happened while nobody was looking.
         _delivered.pop(guild_id, None)
-    if not watched:
-        return
-    async with db_session.SystemSessionLocal() as session:
-        for guild_id in watched:
-            session.expunge_all()
+    for guild_id in watched:
+        async with cohorts.system_session(guild_id) as session:
             try:
-                await set_rls_context(session, guild_id=guild_id)
+                await set_rls_context(session, SystemGuild(guild_id))
                 rows = await _rows_in_window(session)
                 await _open_new_rooms(session, guild_id, rows)
                 sent = _delivered.get(guild_id)
@@ -330,7 +326,7 @@ async def process_room_sweep() -> None:
                     # reached nobody, and a transaction that began before this
                     # window cannot be found by reading it. What was missed is
                     # not knowable, so the room is told that much.
-                    await manager.broadcast_guild(guild_id, dict(EVERYTHING))
+                    sockets.emit_json(guild_room(guild_id), EVERYTHING)
                 else:
                     await _fan_out(guild_id, [r for r in rows if r.id not in sent])
                 # Everything in the window has now been sent, and anything that
@@ -339,4 +335,3 @@ async def process_room_sweep() -> None:
                 _delivered[guild_id] = _ids(rows)
             except Exception:
                 logger.exception("room sink: sweep failed for guild %s", guild_id)
-                await session.rollback()

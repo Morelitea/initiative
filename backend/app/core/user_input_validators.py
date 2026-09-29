@@ -8,31 +8,38 @@ reaching across to a sibling endpoint's underscore-prefixed symbol.
 
 from __future__ import annotations
 
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 
-from app.core.messages import UserMessages
+from app.core.messages import CommonMessages, UserMessages
+
+
+def resolve_zone(value: str | None) -> ZoneInfo:
+    """The zone a stored IANA name refers to, or UTC when it is missing or
+    names no zone. For values already saved, where a drifted profile field
+    must not fail the work that reads it."""
+    try:
+        return ZoneInfo(value or "UTC")
+    except (KeyError, ValueError, OSError):
+        return ZoneInfo("UTC")
 
 
 def normalize_timezone(value: str | None) -> str | None:
-    """Validate an IANA timezone name (e.g. ``"America/Los_Angeles"``).
+    """Validate an IANA timezone name (e.g. ``"America/Los_Angeles"``) sent
+    in a request.
 
     Returns the trimmed value when valid, ``None`` for missing/blank
-    input, and raises ``400 USER_INVALID_TIMEZONE`` for anything
-    Python's ``zoneinfo`` doesn't recognise.
+    input, and raises ``400 UNKNOWN_TIMEZONE`` for anything that names no
+    zone.
     """
-    if value is None:
-        return None
-    cleaned = value.strip()
+    cleaned = (value or "").strip()
     if not cleaned:
         return None
-    try:
-        ZoneInfo(cleaned)
-    except ZoneInfoNotFoundError:
+    if resolve_zone(cleaned).key != cleaned:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=UserMessages.INVALID_TIMEZONE,
+            detail=CommonMessages.UNKNOWN_TIMEZONE,
         )
     return cleaned
 

@@ -25,7 +25,7 @@ export interface ExportFormatOption {
 }
 
 export interface ExportButtonProps {
-  /** Source create route, e.g. "/exports/tasks" — relative to /g/{guildId}. */
+  /** Source create route, e.g. "/exports/tasks" — relative to /c/{guildId}. */
   endpoint: string;
   /** The selector for the snapshot (filters, ids, project id, …). */
   params: Record<string, unknown>;

@@ -36,17 +36,17 @@ beforeEach(() => {
 
 describe("retainOnlyGuilds", () => {
   it("drops a departed community's queries out of the client", async () => {
-    seed("/api/v1/g/3/tasks");
-    seed("/api/v1/g/5/tasks");
+    seed("/api/v1/c/3/tasks");
+    seed("/api/v1/c/5/tasks");
 
     await retainOnlyGuilds([3], [3]);
 
-    expect(held("/api/v1/g/3/tasks")).toBe(true);
-    expect(held("/api/v1/g/5/tasks")).toBe(false);
+    expect(held("/api/v1/c/3/tasks")).toBe(true);
+    expect(held("/api/v1/c/5/tasks")).toBe(false);
   });
 
   it("leaves the departed community with nothing a later save could write back", async () => {
-    seed("/api/v1/g/5/tasks");
+    seed("/api/v1/c/5/tasks");
     await retainOnlyGuilds([3], [3]);
 
     // Whatever the persister is asked to write next, the queries that would
@@ -55,19 +55,19 @@ describe("retainOnlyGuilds", () => {
       .getQueryCache()
       .getAll()
       .filter((query) => shouldPersistQuery(query));
-    expect(remaining.map((query) => query.queryKey[0])).not.toContain("/api/v1/g/5/tasks");
+    expect(remaining.map((query) => query.queryKey[0])).not.toContain("/api/v1/c/5/tasks");
   });
 
   it("keeps a community reached by a live grant usable, while refusing it disk", async () => {
-    seed("/api/v1/g/9/tasks");
+    seed("/api/v1/c/9/tasks");
     setGrantOnlyGuildIds([9]);
 
     // Reachable (the grant is live) but not cacheable (it can end while away).
     await retainOnlyGuilds([3, 9], [3]);
 
-    expect(held("/api/v1/g/9/tasks")).toBe(true);
+    expect(held("/api/v1/c/9/tasks")).toBe(true);
     // Still barred from disk by the grant exclusion, which the prune leaves be.
-    const query = queryClient.getQueryCache().find({ queryKey: ["/api/v1/g/9/tasks"] });
+    const query = queryClient.getQueryCache().find({ queryKey: ["/api/v1/c/9/tasks"] });
     expect(query && shouldPersistQuery(query)).toBe(false);
   });
 

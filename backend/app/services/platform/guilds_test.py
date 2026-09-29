@@ -16,7 +16,7 @@ from sqlalchemy import text
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.session import _RLS_PARAMS_INFO_KEY
+from app.db import cohorts
 from app.models.platform.guild import GuildInvite, GuildRole
 from app.models.tenant.initiative import InitiativeMember, InitiativeRoleModel
 from app.services.platform import guilds as guild_service
@@ -26,11 +26,10 @@ from app.testing.factories import (
     create_initiative,
     create_user,
 )
+from app.testing.routing import platform_session
 from app.testing.schema_harness import route_session_to_guild
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_get_primary_guild_creates_if_missing(session: AsyncSession):
     """Test that primary guild is created if none exists."""
     # Clear any migration-seeded guilds so we test the creation path
@@ -50,8 +49,6 @@ async def test_get_primary_guild_creates_if_missing(session: AsyncSession):
     assert administration.auth_options == []
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_get_primary_guild_seed_warns_when_users_exist(
     session: AsyncSession, caplog
 ):
@@ -72,8 +69,6 @@ async def test_get_primary_guild_seed_warns_when_users_exist(
     )
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_get_primary_guild_seed_warns_when_guild_schemas_survive(
     session: AsyncSession, caplog
 ):
@@ -102,8 +97,6 @@ async def test_get_primary_guild_seed_warns_when_guild_schemas_survive(
             await drop_guild_schema(conn, gid)
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_get_primary_guild_returns_existing(session: AsyncSession):
     """Test that existing guild is returned as primary."""
     # Create a guild first
@@ -116,8 +109,6 @@ async def test_get_primary_guild_returns_existing(session: AsyncSession):
     assert primary.name == "First Guild"
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_get_guild_by_id(session: AsyncSession):
     """Test retrieving a guild by ID."""
     guild = await create_guild(session, name="Test Guild")
@@ -128,16 +119,12 @@ async def test_get_guild_by_id(session: AsyncSession):
     assert retrieved.name == "Test Guild"
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_get_guild_not_found(session: AsyncSession):
     """Test that getting nonexistent guild raises error."""
     with pytest.raises(ValueError, match="GUILD_NOT_FOUND"):
         await guild_service.get_guild(session, guild_id=99999)
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_create_guild(session: AsyncSession):
     """Test creating a new guild."""
     creator = await create_user(session, email="creator@example.com")
@@ -155,8 +142,6 @@ async def test_create_guild(session: AsyncSession):
     assert guild.created_by == creator.id
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_create_guild_creates_superadmin_membership(session: AsyncSession):
     """Creating a guild gives its creator the community's top seat."""
     creator = await create_user(session, email="creator@example.com")
@@ -178,8 +163,6 @@ async def test_create_guild_creates_superadmin_membership(session: AsyncSession)
     assert membership.role == GuildRole.superadmin
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_ensure_membership_creates_new(session: AsyncSession):
     """Test that ensure_membership creates a new membership if none exists."""
     user = await create_user(session)
@@ -197,8 +180,6 @@ async def test_ensure_membership_creates_new(session: AsyncSession):
     assert membership.role == GuildRole.member
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_ensure_membership_returns_existing(session: AsyncSession):
     """Test that ensure_membership returns existing membership."""
     user = await create_user(session)
@@ -225,8 +206,6 @@ async def test_ensure_membership_returns_existing(session: AsyncSession):
     assert second.role == GuildRole.member  # Should still be member
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_ensure_membership_enforces_max_users(session: AsyncSession):
     """A guild at its ``max_users`` cap rejects a new member."""
     guild = await create_guild(session, max_users=1)
@@ -244,8 +223,6 @@ async def test_ensure_membership_enforces_max_users(session: AsyncSession):
         )
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_ensure_membership_allows_up_to_max_users(session: AsyncSession):
     """Members join freely until the cap is reached; existing members re-joining
     (idempotent no-op) never trip the check."""
@@ -268,8 +245,6 @@ async def test_ensure_membership_allows_up_to_max_users(session: AsyncSession):
     assert await guild_service.count_members(session, guild_id=guild.id) == 2
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_ensure_membership_unlimited_by_default(session: AsyncSession):
     """With no cap (NULL = the default) membership growth is unbounded."""
     guild = await create_guild(session)  # max_users defaults to None
@@ -282,8 +257,6 @@ async def test_ensure_membership_unlimited_by_default(session: AsyncSession):
     assert await guild_service.count_members(session, guild_id=guild.id) == 3
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_redeem_invite_blocked_when_full(session: AsyncSession):
     """Invite redemption honours the cap: a full guild raises GuildCapacityError
     (which the endpoint surfaces as 403)."""
@@ -307,8 +280,6 @@ async def test_redeem_invite_blocked_when_full(session: AsyncSession):
         )
 
 
-@pytest.mark.integration
-@pytest.mark.service
 async def test_concurrent_joins_cannot_exceed_user_cap(session: AsyncSession, engine):
     """Concurrent joins racing for the last seat can't overshoot the cap.
 
@@ -355,8 +326,6 @@ async def test_concurrent_joins_cannot_exceed_user_cap(session: AsyncSession, en
     assert await guild_service.count_members(session, guild_id=guild.id) == 1
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_ensure_membership_force_role_updates(session: AsyncSession):
     """Test that force_role updates an existing membership's role."""
     user = await create_user(session)
@@ -382,8 +351,6 @@ async def test_ensure_membership_force_role_updates(session: AsyncSession):
     assert membership.role == GuildRole.admin
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_list_memberships(session: AsyncSession):
     """Test listing all memberships for a user."""
     user = await create_user(session)
@@ -403,8 +370,6 @@ async def test_list_memberships(session: AsyncSession):
     assert "Guild 2" in guild_names
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_reorder_memberships(session: AsyncSession):
     """Test reordering user's guild memberships."""
     user = await create_user(session)
@@ -432,8 +397,6 @@ async def test_reorder_memberships(session: AsyncSession):
     assert ordered_ids == [guild3.id, guild1.id, guild2.id]
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_create_guild_invite(session: AsyncSession):
     """Test creating a guild invite."""
     creator = await create_user(session, email="creator@example.com")
@@ -457,8 +420,6 @@ async def test_create_guild_invite(session: AsyncSession):
     assert len(invite.code) == 22  # 16 bytes as base64url
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_invite_code_is_unique(session: AsyncSession):
     """Test that invite codes are unique."""
     guild = await create_guild(session)
@@ -478,8 +439,6 @@ async def test_invite_code_is_unique(session: AsyncSession):
     assert invite1.code != invite2.code
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_invite_is_active_valid(session: AsyncSession):
     """Test that invite_is_active returns True for valid invite."""
     guild = await create_guild(session)
@@ -496,8 +455,6 @@ async def test_invite_is_active_valid(session: AsyncSession):
     assert guild_service.invite_is_active(invite) is True
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_invite_is_active_expired(session: AsyncSession):
     """Test that invite_is_active returns False for expired invite."""
     guild = await create_guild(session)
@@ -513,8 +470,6 @@ async def test_invite_is_active_expired(session: AsyncSession):
     assert guild_service.invite_is_active(invite) is False
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_invite_is_active_max_uses_exceeded(session: AsyncSession):
     """Test that invite_is_active returns False when max uses exceeded."""
     guild = await create_guild(session)
@@ -535,8 +490,6 @@ async def test_invite_is_active_max_uses_exceeded(session: AsyncSession):
     assert guild_service.invite_is_active(invite) is False
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_redeem_invite_for_user(session: AsyncSession):
     """Test redeeming an invite code for a user."""
     guild = await create_guild(session, name="Test Guild")
@@ -576,8 +529,6 @@ async def test_redeem_invite_for_user(session: AsyncSession):
     assert updated_invite.uses == 1
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_redeem_invite_expired_raises_error(session: AsyncSession):
     """Test that redeeming expired invite raises error."""
     guild = await create_guild(session)
@@ -599,8 +550,6 @@ async def test_redeem_invite_expired_raises_error(session: AsyncSession):
         )
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_an_invite_reaches_the_address_it_was_sent_to(session: AsyncSession):
     """An invite sent to somebody's work address is for them, whichever of
     their addresses the account was created with."""
@@ -633,8 +582,6 @@ async def test_an_invite_reaches_the_address_it_was_sent_to(session: AsyncSessio
     assert joined.id == guild.id
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_an_invite_does_not_reach_an_unproven_claim(session: AsyncSession):
     """A claim in progress is not holding the address, so an invite bound to
     it is not yet for that account."""
@@ -667,8 +614,6 @@ async def test_an_invite_does_not_reach_an_unproven_claim(session: AsyncSession)
         )
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_redeem_email_bound_invite_wrong_user_rejected(session: AsyncSession):
     """An email-bound invite must reject a user whose email differs (SEC-15)."""
     guild = await create_guild(session)
@@ -701,8 +646,6 @@ async def test_redeem_email_bound_invite_wrong_user_rejected(session: AsyncSessi
     assert result.one().uses == 0
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_redeem_email_bound_invite_matching_user_succeeds(
     session: AsyncSession,
 ):
@@ -740,8 +683,6 @@ async def test_redeem_email_bound_invite_matching_user_succeeds(
     assert result.one().uses == 1
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_redeem_unbound_invite_any_user_succeeds(session: AsyncSession):
     """An invite with no bound email stays a shareable link (unchanged behavior)."""
     guild = await create_guild(session)
@@ -771,8 +712,6 @@ async def test_redeem_unbound_invite_any_user_succeeds(session: AsyncSession):
     assert membership.role == GuildRole.member
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_delete_guild_invite(session: AsyncSession):
     """Test deleting a guild invite."""
     guild = await create_guild(session)
@@ -798,8 +737,6 @@ async def test_delete_guild_invite(session: AsyncSession):
     assert deleted_invite is None
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_get_guild_retention_days_distinguishes_never_from_missing(
     session: AsyncSession,
 ):
@@ -817,34 +754,29 @@ async def test_get_guild_retention_days_distinguishes_never_from_missing(
     from app.testing import route_session_to_guild
 
     # 1. No guild_settings row at all -> default 90.
-    user = await create_user(session)
-    guild = await create_guild(session)  # bare factory, no settings row
+    guild = await create_guild(session)
     # guild_settings is guild-scoped: its rows live only in guild_<id> post-squash,
     # so route the session there before reading it (production callers route too).
     await route_session_to_guild(session, guild.id)
-    await session.exec(
-        # double-check no setting row exists (factory shouldn't create one)
-        select(GuildSetting).limit(1)
-    )
-    assert (await guild_service.get_guild_retention_days(session, guild.id)) == 90
+    setting = (await session.exec(select(GuildSetting))).one()
+    await session.delete(setting)
+    await session.commit()
+    await route_session_to_guild(session, guild.id)
+    assert (await guild_service.get_guild_retention_days(session)) == 90
 
     # 2. Row exists with retention_days = 30 -> 30.
     setting = GuildSetting(retention_days=30)
     session.add(setting)
     await session.commit()
     await route_session_to_guild(session, guild.id)
-    assert (await guild_service.get_guild_retention_days(session, guild.id)) == 30
+    assert (await guild_service.get_guild_retention_days(session)) == 30
 
     # 3. Row exists with retention_days = NULL -> None ("never").
     setting.retention_days = None
     session.add(setting)
     await session.commit()
     await route_session_to_guild(session, guild.id)
-    assert (await guild_service.get_guild_retention_days(session, guild.id)) is None
-
-    # Suppress unused-name warning if linters complain about the user
-    # we created for symmetry with other tests in this module.
-    _ = user
+    assert (await guild_service.get_guild_retention_days(session)) is None
 
 
 async def test_list_memberships_reads_retention_per_guild(session: AsyncSession):
@@ -860,28 +792,29 @@ async def test_list_memberships_reads_retention_per_guild(session: AsyncSession)
         session, user=user, guild=guild_30, role=GuildRole.admin
     )
     await route_session_to_guild(session, guild_30.id)
-    session.add(GuildSetting(retention_days=30))
+    setting = (await session.exec(select(GuildSetting))).one()
+    setting.retention_days = 30
+    session.add(setting)
     await session.commit()
 
-    # A guild with no settings row should fall back to the 90-day default.
+    # A guild with the seeded settings row keeps the 90-day default.
     guild_default = await create_guild(session, creator=user)
     await create_guild_membership(
         session, user=user, guild=guild_default, role=GuildRole.admin
     )
     await session.commit()
 
-    memberships = await guild_service.list_memberships(session, user_id=user.id)
+    async with platform_session(user) as caller:
+        memberships = await guild_service.list_memberships(caller, user_id=user.id)
     by_guild = {
         guild.id: retention
         for guild, _membership, retention, _count, _admin in memberships
     }
 
     assert by_guild[guild_30.id] == 30  # read from the guild's own schema
-    assert by_guild[guild_default.id] == 90  # default when no settings row
+    assert by_guild[guild_default.id] == 90  # the seeded default
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_list_memberships_includes_member_count(session: AsyncSession):
     """The guild list reports each guild's total member count, not just the
     requesting user's membership (the guild_memberships_select RLS policy only
@@ -928,8 +861,6 @@ async def _initiative_role_names(
     return {member.initiative_id: role.name for member, role in rows}
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_new_member_is_enrolled_in_auto_join_initiatives(session: AsyncSession):
     """Arriving in a guild lands the new member in its auto-join initiatives —
     with the built-in member role, and not managed by OIDC."""
@@ -950,6 +881,7 @@ async def test_new_member_is_enrolled_in_auto_join_initiatives(session: AsyncSes
     joiner = await create_user(session, email="joiner@example.com")
     await guild_service.ensure_membership(session, guild_id=guild.id, user_id=joiner.id)
     await session.commit()
+    await cohorts.settle(session)
 
     roles = await _initiative_role_names(session, guild_id=guild.id, user_id=joiner.id)
     assert roles == {welcome.id: "member", lounge.id: "member"}
@@ -967,8 +899,6 @@ async def test_new_member_is_enrolled_in_auto_join_initiatives(session: AsyncSes
     assert member_row.oidc_provider_id is None
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_archived_and_deleted_auto_join_initiatives_are_skipped(
     session: AsyncSession,
 ):
@@ -1002,6 +932,7 @@ async def test_archived_and_deleted_auto_join_initiatives_are_skipped(
     joiner = await create_user(session, email="joiner@example.com")
     await guild_service.ensure_membership(session, guild_id=guild.id, user_id=joiner.id)
     await session.commit()
+    await cohorts.settle(session)
 
     roles = await _initiative_role_names(session, guild_id=guild.id, user_id=joiner.id)
     assert set(roles) == {live.id}
@@ -1009,8 +940,6 @@ async def test_archived_and_deleted_auto_join_initiatives_are_skipped(
     assert deleted.id not in roles
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_returning_member_is_not_re_enrolled(session: AsyncSession):
     """Enrolment is onboarding, not a sweep: someone already in the guild is
     returned early and picks up nothing, even if auto-join was switched on
@@ -1025,13 +954,12 @@ async def test_returning_member_is_not_re_enrolled(session: AsyncSession):
 
     await guild_service.ensure_membership(session, guild_id=guild.id, user_id=member.id)
     await session.commit()
+    await cohorts.settle(session)
 
     roles = await _initiative_role_names(session, guild_id=guild.id, user_id=member.id)
     assert later.id not in roles
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_guild_admin_is_not_enrolled_as_a_member(session: AsyncSession):
     """A guild admin already reaches every initiative in their guild, and the
     built-in member role is one they must never hold."""
@@ -1046,6 +974,7 @@ async def test_guild_admin_is_not_enrolled_as_a_member(session: AsyncSession):
         session, guild_id=guild.id, user_id=second_admin.id, role=GuildRole.admin
     )
     await session.commit()
+    await cohorts.settle(session)
 
     roles = await _initiative_role_names(
         session, guild_id=guild.id, user_id=second_admin.id
@@ -1053,8 +982,6 @@ async def test_guild_admin_is_not_enrolled_as_a_member(session: AsyncSession):
     assert welcome.id not in roles
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_guild_without_auto_join_initiatives_admits_normally(
     session: AsyncSession,
 ):
@@ -1068,6 +995,7 @@ async def test_guild_without_auto_join_initiatives_admits_normally(
         session, guild_id=guild.id, user_id=joiner.id
     )
     await session.commit()
+    await cohorts.settle(session)
 
     assert membership.role == GuildRole.member
     assert (
@@ -1076,8 +1004,6 @@ async def test_guild_without_auto_join_initiatives_admits_normally(
     )
 
 
-@pytest.mark.unit
-@pytest.mark.service
 async def test_enrolment_failure_does_not_fail_the_join(session: AsyncSession, caplog):
     """An initiative that cannot take a member is logged and skipped; the guild
     join stands and the other initiatives still enrol."""
@@ -1104,38 +1030,13 @@ async def test_enrolment_failure_does_not_fail_the_join(session: AsyncSession, c
         membership = await guild_service.ensure_membership(
             session, guild_id=guild.id, user_id=joiner.id
         )
-    await session.commit()
+        await session.commit()
+        await cohorts.settle(session)
 
     assert membership.role == GuildRole.member
     roles = await _initiative_role_names(session, guild_id=guild.id, user_id=joiner.id)
     assert set(roles) == {healthy.id}
     assert any("auto-join" in record.message for record in caplog.records)
-
-
-@pytest.mark.unit
-@pytest.mark.service
-async def test_enrolment_hands_the_session_back_unrouted(session: AsyncSession):
-    """The excursion into the guild schema is invisible to the caller, which
-    keeps using the session afterwards."""
-    admin = await create_user(session)
-    guild = await create_guild(session, creator=admin)
-    await create_initiative(
-        session, guild, admin, name="Welcome", join_policy="open", auto_join=True
-    )
-    joiner = await create_user(session, email="joiner@example.com")
-
-    assert _RLS_PARAMS_INFO_KEY not in session.info
-    await guild_service.ensure_membership(session, guild_id=guild.id, user_id=joiner.id)
-
-    assert _RLS_PARAMS_INFO_KEY not in session.info
-    # ... and a shared-table read still works on the caller's own terms.
-    await session.commit()
-    assert (
-        await guild_service.get_membership(
-            session, guild_id=guild.id, user_id=joiner.id
-        )
-        is not None
-    )
 
 
 # --- The lock that orders seat and sign-in-requirement changes ---------------
@@ -1152,7 +1053,6 @@ async def _try_lock(probe, guild_id: int) -> bool:
     return bool(row.taken if hasattr(row, "taken") else row)
 
 
-@pytest.mark.integration
 async def test_the_seat_lock_excludes_another_connection(session, role_session):
     """The paths that could leave a sign-in requirement unliftable do not all
     write on the connection that asks the question, so what orders them has to

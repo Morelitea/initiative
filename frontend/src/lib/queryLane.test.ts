@@ -162,6 +162,11 @@ describe("retryWhileBusy", () => {
     expect(retryWhileBusy(4, apiError(429, "QUERY_BUSY"))).toBe(false);
   });
 
+  it("asks once more when the database interrupted the read", () => {
+    expect(retryWhileBusy(0, apiError(503, "QUERY_INTERRUPTED"))).toBe(true);
+    expect(retryWhileBusy(1, apiError(503, "QUERY_INTERRUPTED"))).toBe(false);
+  });
+
   it("does not retry a statement that was refused on its own terms", () => {
     expect(retryWhileBusy(0, apiError(400, "QUERY_TOO_EXPENSIVE"))).toBe(false);
     expect(retryWhileBusy(0, apiError(504, "QUERY_TIMED_OUT"))).toBe(false);

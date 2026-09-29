@@ -8,9 +8,11 @@ from pydantic import ConfigDict, Field
 
 from app.models.tenant.wiki import WikiPageOrder, WikiReadingWidth
 from app.schemas.base import SanitizedBaseModel, TitleStr
-from app.schemas.tenant.archive import ArchiveState
-from app.schemas.tenant.resource_grant import ResourceGrantSchema
-from app.schemas.tenant.tag import TagSummary
+from app.schemas.query import PageMeta
+from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
+from app.schemas.tenant.document import smart_link_url
+from app.schemas.tenant.tag import TagSummary, annotated_tags
+from app.schemas.tenant.tool import ToolSummaryBase, from_row
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.db.guild_standing import GuildContext
@@ -28,11 +30,7 @@ class WikiCreate(WikiBase):
     # Initial sharing — the same grant list the PUT /grants endpoint takes. A
     # wiki defaults to readable by the whole initiative: it is written to be
     # read.
-    grants: List[ResourceGrantSchema] = Field(
-        default_factory=lambda: [
-            ResourceGrantSchema(all_initiative_members=True, level="read")
-        ]
-    )
+    grants: List[ResourceGrantSchema] = Field(default_factory=initiative_readable)
 
 
 class WikiSettings(SanitizedBaseModel):
@@ -67,17 +65,7 @@ class WikiUpdate(WikiSettings):
     home_page_id: Optional[int] = None
 
 
-class WikiSummary(WikiBase, ArchiveState):
-    model_config = ConfigDict(
-        from_attributes=True, json_schema_serialization_defaults_required=True
-    )
-
-    id: int
-    initiative_id: int
-    guild_id: int
-    created_by: int
-    created_at: datetime
-    updated_at: datetime
+class WikiSummary(WikiBase, ToolSummaryBase):
     #: How many pages it holds. Served with the row so a list of wikis can say
     #: so without a request per card.
     page_count: int = 0
@@ -91,13 +79,7 @@ class WikiSummary(WikiBase, ArchiveState):
     reading_width: WikiReadingWidth = WikiReadingWidth.wide
     accent_color: Optional[str] = None
     template_page_id: Optional[int] = None
-    my_permission_level: Optional[str] = None
-    # When false this entity's comment thread is off — the UI renders none
-    # and the API refuses to read or post one.
-    comments_enabled: bool = True
     comment_count: int = 0
-    tags: List[TagSummary] = Field(default_factory=list)
-    grants: List[ResourceGrantSchema] = Field(default_factory=list)
 
 
 class WikiRead(WikiSummary):
@@ -106,14 +88,8 @@ class WikiRead(WikiSummary):
     read end to end."""
 
 
-class WikiListResponse(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
+class WikiListResponse(PageMeta):
     items: List[WikiSummary]
-    total_count: int
-    page: int
-    page_size: int
-    has_next: bool
 
 
 class WikiPageCreate(SanitizedBaseModel):
@@ -221,7 +197,7 @@ class WikiPageSummary(SanitizedBaseModel):
     is_draft: bool = False
     title: str
     slug: str
-    created_by: int
+    created_by: int | None = None
     created_at: datetime
     updated_at: datetime
     #: What is written on the page, so the navigation can nest it without
@@ -297,67 +273,15 @@ class WikiPageLinks(SanitizedBaseModel):
     incoming: List[WikiPageLink] = Field(default_factory=list)
 
 
-def serialize_wiki_summary(
-    wiki: "Any", *, context: GuildContext, user_id: Optional[int] = None
-) -> WikiSummary:
-    # Local import avoids a schema -> service import cycle.
-    from app.schemas.tenant.tag import annotated_tags
-    from app.services.permissions import client_access, serialize_grants
-
-    return WikiSummary(
-        id=wiki.id,
-        name=wiki.name,
-        description=wiki.description,
-        initiative_id=wiki.initiative_id,
-        guild_id=context.guild_id,
-        created_by=wiki.created_by,
-        created_at=wiki.created_at,
-        updated_at=wiki.updated_at,
-        page_count=int(getattr(wiki, "page_count", 0)),
-        home_page_id=wiki.home_page_id,
-        page_order=wiki.page_order,
-        contents_depth=wiki.contents_depth,
-        show_connections=wiki.show_connections,
-        show_updated_at=wiki.show_updated_at,
-        reading_width=wiki.reading_width,
-        accent_color=wiki.accent_color,
-        template_page_id=wiki.template_page_id,
-        archived_at=wiki.archived_at,
-        **client_access(wiki, user_id, context=context),
-        comments_enabled=wiki.comments_enabled,
-        comment_count=getattr(wiki, "comment_count", 0),
-        tags=annotated_tags(wiki),
-        grants=serialize_grants(wiki),
-    )
-
-
-def serialize_wiki(
-    wiki: "Any", *, context: GuildContext, user_id: Optional[int] = None
-) -> WikiRead:
-    return WikiRead(
-        **serialize_wiki_summary(wiki, context=context, user_id=user_id).model_dump()
-    )
-
-
 def serialize_wiki_page_summary(
     page: "Any", *, context: GuildContext
 ) -> WikiPageSummary:
-    from app.schemas.tenant.tag import annotated_tags
     from app.services.tenant.wikis import page_headings
 
-    return WikiPageSummary(
-        id=page.id,
-        wiki_id=page.wiki_id,
+    return from_row(
+        WikiPageSummary,
+        page,
         guild_id=context.guild_id,
-        kind=WikiPageKind.page,
-        parent_page_id=page.parent_page_id,
-        position=page.position,
-        is_draft=page.is_draft,
-        title=page.title,
-        slug=page.slug,
-        created_by=page.created_by,
-        created_at=page.created_at,
-        updated_at=page.updated_at,
         headings=[WikiPageHeading(**h) for h in page_headings(page.content)],
         tags=annotated_tags(page),
     )
@@ -377,7 +301,8 @@ def serialize_document_as_page(
     headings, so a document in a wiki opens in the sidebar exactly as a page
     written here does.
     """
-    from app.services.tenant.wikis import page_headings, slugify_page_title
+    from app.services.tenant.names import slugify
+    from app.services.tenant.wikis import page_headings
 
     return WikiPageSummary(
         id=document.id,
@@ -388,7 +313,7 @@ def serialize_document_as_page(
         position=position,
         is_draft=False,
         title=document.name,
-        slug=slugify_page_title(document.name, fallback=f"document-{document.id}"),
+        slug=slugify(document.name, fallback=f"document-{document.id}"),
         created_by=document.created_by,
         created_at=document.created_at,
         updated_at=document.updated_at,
@@ -396,17 +321,8 @@ def serialize_document_as_page(
         document_type=getattr(document.document_type, "value", document.document_type),
         file_content_type=document.file_content_type,
         original_filename=document.original_filename,
-        smart_link_url=_smart_link_url(document),
+        smart_link_url=smart_link_url(document),
     )
-
-
-def _smart_link_url(document: "Any") -> Optional[str]:
-    """The address a link document points at, for its provider's mark."""
-    if getattr(document.document_type, "value", document.document_type) != "smart_link":
-        return None
-    content = document.content if isinstance(document.content, dict) else {}
-    url = content.get("url")
-    return url if isinstance(url, str) and url else None
 
 
 def serialize_wiki_page(page: "Any", *, context: GuildContext) -> WikiPageRead:

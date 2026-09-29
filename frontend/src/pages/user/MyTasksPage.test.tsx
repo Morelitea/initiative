@@ -154,10 +154,10 @@ describe("MyTasksPage status changes", () => {
           has_next: false,
         });
       }),
-      http.get("/api/v1/g/:guildId/projects/:projectId/task-statuses", () =>
+      http.get("/api/v1/c/:guildId/projects/:projectId/task-statuses", () =>
         HttpResponse.json([todo, done])
       ),
-      http.patch("/api/v1/g/:guildId/tasks/:taskId", async () => {
+      http.patch("/api/v1/c/:guildId/tasks/:taskId", async () => {
         patched += 1;
         if (patchDelayMs > 0) await delay(patchDelayMs);
         return HttpResponse.json({
@@ -212,5 +212,35 @@ describe("MyTasksPage status changes", () => {
     await waitFor(() => expect(doneBoxes()[0]).toBeDisabled());
     expect(doneBoxes()[1]).toBeEnabled();
     await rowTitle("Read the thing");
+  });
+});
+
+describe("MyTasksPage priority", () => {
+  it("saves a priority change to the task's own community", async () => {
+    const user = userEvent.setup();
+    const task = buildTask({ id: 101, title: "Write the thing", guild_id: 3, priority: "low" });
+    const patched: string[] = [];
+    server.use(
+      http.get("/api/v1/me/tasks", ({ request }) => {
+        const forTable = new URL(request.url).searchParams.get("page_size") === "20";
+        return HttpResponse.json({
+          items: forTable ? [task] : [],
+          total_count: forTable ? 1 : 0,
+          page: 1,
+          page_size: 20,
+          has_next: false,
+        });
+      }),
+      http.patch("/api/v1/c/:guildId/tasks/:taskId", ({ params }) => {
+        patched.push(`${params.guildId}/${params.taskId}`);
+        return HttpResponse.json({ ...task, priority: "high" });
+      })
+    );
+    renderMyTasks();
+
+    await user.click(await screen.findByRole("button", { name: /priority: low/i }));
+    await user.click(await screen.findByRole("menuitemradio", { name: "High" }));
+
+    await waitFor(() => expect(patched).toEqual(["3/101"]));
   });
 });

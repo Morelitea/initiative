@@ -9,7 +9,6 @@ and disappear the moment the tag is trashed.
 
 from datetime import datetime, timezone
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -20,7 +19,7 @@ from app.models.platform.guild import GuildRole
 from app.models.tenant.relationship import EntityRelationship
 from app.db.session import set_rls_context
 from app.services.tenant import tags as tags_service
-from app.services.tenant.trash_purge import hard_purge_entity
+from app.services.tenant.soft_delete import hard_purge_entity
 from app.testing.factories import (
     assign_tag,
     create_document,
@@ -29,11 +28,9 @@ from app.testing.factories import (
 )
 from app.testing.schema_harness import route_session_to_guild
 from app.testing import create_guild_membership, route_as
+from app.db.request_context import SystemGuild
 
-pytestmark = pytest.mark.integration
 
-
-@pytest.mark.unit
 def test_every_taggable_kind_can_sit_on_an_edge():
     """The registry is one list now: a spec names a model and the kind an edge
     addresses it by, and a kind no edge may name would be a tag surface with
@@ -136,7 +133,7 @@ async def test_purging_a_tag_takes_its_assignments(session: AsyncSession, acting
     session.add(tag)
     await session.commit()
 
-    await set_rls_context(session, guild_id=a.guild.id)
+    await set_rls_context(session, SystemGuild(a.guild.id))
     await hard_purge_entity(session, tag)
     await session.commit()
 
@@ -187,7 +184,7 @@ async def test_a_tag_assignment_is_invisible_to_a_reader_outside_the_initiative(
         outsider.g(f"/tags/{tag.id}/entities"), headers=outsider.headers
     )
     assert response.status_code == 200, response.text
-    assert response.json()["documents"] == []
+    assert response.json()["items"] == []
 
 
 async def test_the_endpoint_gate_answers_in_the_schema_the_request_is_routed_to(

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from typing import Any
 
-import pytest
 from sqlmodel import select
 
 from app.core.references import references_in_body, references_in_text
@@ -68,10 +67,16 @@ def test_a_reference_to_something_that_is_not_a_document_counts_too():
     }
 
 
-def test_a_chip_is_a_reading_not_a_reference():
-    """A chip shows what something is doing; it does not point at a page."""
+def test_a_chip_refers_to_the_thing_it_reads():
+    """A page showing a task's status is about that task, so "what links here"
+    finds it."""
     content = _doc({"type": "smart-chip", "chipKind": "task:status", "entityId": 9})
-    assert references_in_body(content) == set()
+    assert references_in_body(content) == {(TASK, 9)}
+
+
+def test_an_embed_refers_to_the_thing_it_shows():
+    content = _doc({"type": "reference-embed", "entityType": "queue", "entityId": 4})
+    assert references_in_body(content) == {(SearchEntityType.queue, 4)}
 
 
 def test_references_are_found_however_deep_they_sit():
@@ -145,7 +150,6 @@ async def _references(session, entity: Endpoint) -> set[tuple[str, int]]:
     return set(rows.all())
 
 
-@pytest.mark.integration
 async def test_a_document_does_not_reference_itself(session, acting_user):
     """The page a self-link opens is the page it was written on, and the row
     would list the document among the ones that point at it."""
@@ -164,7 +168,28 @@ async def test_a_document_does_not_reference_itself(session, acting_user):
     assert await _references(session, anchor) == {("document", other.id)}
 
 
-@pytest.mark.integration
+async def test_a_task_showing_its_own_status_does_not_reference_itself(
+    session, acting_user
+):
+    """A chip or an embed of the task a description is on is the same loop a
+    self-link is, whatever shape it is written in."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    task = await create_task(session, a.project)
+    anchor = Endpoint(TASK, task.id)
+
+    await content_references.sync_for_entity(
+        session,
+        anchor,
+        body=_doc(
+            {"type": "smart-chip", "chipKind": "task:status", "entityId": task.id},
+            {"type": "reference-embed", "entityType": "task", "entityId": task.id},
+        ),
+        author_id=a.user.id,
+    )
+
+    assert await _references(session, anchor) == set()
+
+
 async def test_a_body_naming_a_task_records_it(session, acting_user):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     doc = await create_document(session, a.initiative, a.user)
@@ -178,7 +203,6 @@ async def test_a_body_naming_a_task_records_it(session, acting_user):
     assert await _references(session, anchor) == {("task", task.id)}
 
 
-@pytest.mark.integration
 async def test_a_reference_to_something_that_is_not_there_is_not_recorded(
     session, acting_user
 ):
@@ -195,7 +219,6 @@ async def test_a_reference_to_something_that_is_not_there_is_not_recorded(
     assert await _references(session, anchor) == set()
 
 
-@pytest.mark.integration
 async def test_editing_the_sentence_out_takes_the_edge_with_it(session, acting_user):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     doc = await create_document(session, a.initiative, a.user)
@@ -222,7 +245,6 @@ async def test_editing_the_sentence_out_takes_the_edge_with_it(session, acting_u
     )
 
 
-@pytest.mark.integration
 async def test_fixing_content_unresolves_a_link_to_itself(session, acting_user):
     """Asked to repair the content too, it leaves the words and drops the
     pointer — the same treatment a link to a deleted document gets."""
@@ -246,7 +268,6 @@ async def test_fixing_content_unresolves_a_link_to_itself(session, acting_user):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_a_comment_records_its_reference_against_its_parent(session, acting_user):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     doc = await create_document(session, a.initiative, a.user)
@@ -260,7 +281,6 @@ async def test_a_comment_records_its_reference_against_its_parent(session, actin
     assert await _references(session, Endpoint(DOCUMENT, doc.id)) == {("task", task.id)}
 
 
-@pytest.mark.integration
 async def test_one_comment_going_does_not_drop_what_another_still_says(
     session, acting_user
 ):
@@ -289,7 +309,6 @@ async def test_one_comment_going_does_not_drop_what_another_still_says(
     }, "the other comment still says it"
 
 
-@pytest.mark.integration
 async def test_the_body_and_the_comments_are_read_together(session, acting_user):
     """A save recomputes from both, so writing a document does not wipe what
     its conversation refers to."""
@@ -314,7 +333,6 @@ async def test_the_body_and_the_comments_are_read_together(session, acting_user)
     }
 
 
-@pytest.mark.integration
 async def test_an_edge_a_body_makes_is_marked_as_nobody_s_assertion(
     session, acting_user
 ):
@@ -344,7 +362,6 @@ async def test_an_edge_a_body_makes_is_marked_as_nobody_s_assertion(
     )
 
 
-@pytest.mark.integration
 async def test_saving_the_same_body_twice_changes_nothing(session, acting_user):
     """Two saves racing on the same new mention each read no edge and each go
     on to write it, and the second arriving is the answer being already
@@ -365,7 +382,6 @@ async def test_saving_the_same_body_twice_changes_nothing(session, acting_user):
     assert await _references(session, anchor) == {("document", other.id)}
 
 
-@pytest.mark.integration
 async def test_an_archived_thing_takes_no_new_reference(session, acting_user):
     """Archiving says the work is finished with, and a link shows on both ends
     — so a mention of one records nothing rather than failing the save."""
@@ -384,7 +400,6 @@ async def test_an_archived_thing_takes_no_new_reference(session, acting_user):
     assert await _references(session, anchor) == set()
 
 
-@pytest.mark.integration
 async def test_archiving_the_far_end_leaves_a_reference_standing(session, acting_user):
     """The mention is still in the body, so the edge is still what the body
     says. A later save does not quietly drop it."""
@@ -414,7 +429,6 @@ async def test_archiving_the_far_end_leaves_a_reference_standing(session, acting
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_a_task_description_is_read_as_the_task_s_body(session, acting_user):
     """A description is markdown rather than an editor state, and names things
     with the same `#` a comment does."""
@@ -437,7 +451,6 @@ async def test_a_task_description_is_read_as_the_task_s_body(session, acting_use
     assert await _references(session, Endpoint(TASK, task.id)) == {("document", doc.id)}
 
 
-@pytest.mark.integration
 async def test_a_comment_on_a_task_keeps_what_its_description_says(
     session, acting_user
 ):

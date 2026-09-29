@@ -1,5 +1,4 @@
 import uuid
-from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from typing import Any, Iterable, Sequence
@@ -530,9 +529,6 @@ APP_PLATFORM_ISSUER = "initiative"
 #: ``aud`` is this prefix plus the registration's public_id, so a token minted
 #: for one app is not accepted by another.
 APP_PLATFORM_AUDIENCE_PREFIX = "initiative-app:"
-#: The envelope an app's delegation token is checked against.
-AUTO_DELEGATION_AUDIENCE = "initiative:auto-delegation"
-AUTO_DELEGATION_ISSUER = "initiative-auto"
 
 
 def app_platform_audience(public_id: str) -> str:
@@ -630,128 +626,3 @@ def create_billing_support_handoff_token(
         payload["approver"] = approver_ref
     token = jwt.encode(payload, secret, algorithm="HS256", headers={"kid": kid})
     return token, int(lifetime.total_seconds())
-
-
-# ──────────────────────────────────────────────────────────────────────────
-# Inbound delegation from initiative-auto
-#
-# When an app calls our API on behalf of a user, it presents a JWT signed
-# with its private key (RS256). We verify here using the public half its
-# registration publishes, and resolve the JWT to a user_id that the auth
-# dependency then loads as a User. From that
-# point on the request runs through our normal RLS + role-permission
-# stack — the delegation just answers "who is acting", not "what can
-# they do".
-# ──────────────────────────────────────────────────────────────────────────
-
-
-@dataclass(frozen=True)
-class AutoDelegationClaims:
-    """Validated payload of a delegation JWT minted by initiative-auto."""
-
-    jti: str
-    #: The pairwise subject the app knows this member by, NOT a user id. The
-    #: caller resolves it inside the guild the token names — an app that never
-    #: learns who somebody is can still act as them.
-    subject: str
-    #: The reference the app knows this guild by, NOT a guild id. Resolved by
-    #: the caller, like ``subject``.
-    guild_ref: str
-    initiative_id: int | None
-
-
-class AutoDelegationVerificationError(Exception):
-    """Raised when the inbound delegation JWT fails any check."""
-
-
-def delegation_possible() -> bool:
-    """True when this deployment could have a delegate at all.
-
-    A delegate is an app service holding the ``delegation`` grant, so the
-    machinery is present exactly when the app platform has its signing key.
-    Whether an app *actually* holds the grant is
-    :func:`app.services.marketplace.registration_lookup.any_delegate_registered`,
-    which reads the registrations; this is the settings-only answer, for the
-    callers that only need to know whether the table could have rows.
-    """
-    return bool(settings.APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM)
-
-
-def delegation_token_kid(token: str) -> str | None:
-    """The ``kid`` a delegation token names, read before any verification.
-
-    Selecting a key is what a header is for, and nothing is trusted on the
-    strength of it: the key it resolves to is what decides the token.
-    """
-    try:
-        return jwt.get_unverified_header(token).get("kid")
-    except jwt.PyJWTError:
-        return None
-
-
-def verify_auto_delegation_token(
-    token: str, *, keys: Sequence[Any]
-) -> AutoDelegationClaims:
-    """Verify a delegation JWT and return what it claims.
-
-    The token names its member by a **pairwise subject** rather than a user id
-    (OIDC Core §8.1) — the same value the app was given, opaque to it and
-    unrelated to what any other install derives for the same person. Resolving
-    it to a member is the caller's step, because that needs the guild.
-
-    ``keys`` is the verification material the caller resolved — the key set on
-    the registration of the app that signed this token. More than one is
-    accepted for two reasons: a rotation publishes the replacement alongside
-    the current key, and a ``kid`` is an opaque label two apps may both pick,
-    so the token belongs to whichever key verifies it.
-
-    An empty sequence raises rather than returning, so a caller that resolved
-    nothing gets the same "not a delegation token" answer as a bad signature.
-    """
-    if not keys:
-        raise AutoDelegationVerificationError("no verification key for this token")
-
-    payload = None
-    first_error: jwt.PyJWTError | None = None
-    for key in keys:
-        try:
-            payload = jwt.decode(
-                token,
-                key,
-                algorithms=["RS256"],
-                audience=AUTO_DELEGATION_AUDIENCE,
-                issuer=AUTO_DELEGATION_ISSUER,
-                options={"require": ["exp", "iat", "iss", "aud", "sub", "jti"]},
-            )
-            break
-        except jwt.PyJWTError as e:
-            # Keep the first failure. A later key's message would describe a key
-            # the token was never signed with, which reads as a signature
-            # problem even when the real fault is expiry or a wrong audience.
-            if first_error is None:
-                first_error = e
-    if payload is None:
-        raise AutoDelegationVerificationError(
-            f"jwt verification failed: {first_error}"
-        ) from first_error
-
-    subject = payload.get("sub")
-    if not isinstance(subject, str) or not subject:
-        raise AutoDelegationVerificationError("sub must be a pairwise subject")
-
-    guild_ref = payload.get("guild_ref")
-    if not isinstance(guild_ref, str) or not guild_ref:
-        raise AutoDelegationVerificationError("guild_ref must be a reference")
-
-    initiative_id = payload.get("initiative_id")
-    if initiative_id is not None and not isinstance(initiative_id, int):
-        raise AutoDelegationVerificationError(
-            "initiative_id must be an int when present"
-        )
-
-    return AutoDelegationClaims(
-        jti=str(payload["jti"]),
-        subject=subject,
-        guild_ref=guild_ref,
-        initiative_id=initiative_id,
-    )

@@ -28,7 +28,6 @@ from app.db import base  # noqa: F401  # populates SQLModel.metadata with every 
 from app.db.tenancy import CREATED_BY_EXEMPT_TABLES, GUILD_SCOPED_TABLES, SHARED_TABLES
 from app.models.tenant._mixins import created_by_models
 
-pytestmark = pytest.mark.unit
 
 #: Spellings this mixin replaced. A table may not reintroduce one.
 RETIRED_SPELLINGS = (

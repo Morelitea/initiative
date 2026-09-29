@@ -53,7 +53,6 @@ def webp(width: int, height: int) -> bytes:
     return b"RIFF" + struct.pack("<I", len(body) + 4) + b"WEBP" + body
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "builder,expected",
     [(png, "image/png"), (jpeg, "image/jpeg"), (webp, "image/webp")],
@@ -65,14 +64,12 @@ def test_accepts_each_supported_format(builder, expected) -> None:
     assert (validated.width, validated.height) == (256, 256)
 
 
-@pytest.mark.unit
 def test_content_type_comes_from_the_header_not_the_caller() -> None:
     """The recorded type is served back in a Content-Type, so it is the one the
     bytes prove rather than anything a client asserted."""
     assert service.validate_avatar(webp(64, 64)).content_type == "image/webp"
 
 
-@pytest.mark.unit
 def test_digest_is_of_these_exact_bytes() -> None:
     import hashlib
 
@@ -81,7 +78,6 @@ def test_digest_is_of_these_exact_bytes() -> None:
     assert service.validate_avatar(data).sha256 == hashlib.sha256(data).hexdigest()
 
 
-@pytest.mark.unit
 def test_refuses_svg() -> None:
     """An avatar is rendered rather than downloaded, so a scriptable document
     format has no safe way to be served."""
@@ -93,7 +89,6 @@ def test_refuses_svg() -> None:
     assert excinfo.value.code == UserMessages.AVATAR_INVALID_IMAGE
 
 
-@pytest.mark.unit
 def test_refuses_a_gif_even_though_it_is_a_raster() -> None:
     gif = b"GIF89a" + struct.pack("<HH", 256, 256) + b"\x00" * 20
 
@@ -101,7 +96,6 @@ def test_refuses_a_gif_even_though_it_is_a_raster() -> None:
         service.validate_avatar(gif)
 
 
-@pytest.mark.unit
 def test_refuses_oversized_dimensions() -> None:
     with pytest.raises(service.AvatarRejected) as excinfo:
         service.validate_avatar(png(512, 512))
@@ -109,7 +103,6 @@ def test_refuses_oversized_dimensions() -> None:
     assert excinfo.value.code == UserMessages.AVATAR_TOO_LARGE_DIMENSIONS
 
 
-@pytest.mark.unit
 def test_refuses_a_non_square_image() -> None:
     with pytest.raises(service.AvatarRejected) as excinfo:
         service.validate_avatar(png(256, 100))
@@ -117,14 +110,12 @@ def test_refuses_a_non_square_image() -> None:
     assert excinfo.value.code == UserMessages.AVATAR_NOT_SQUARE
 
 
-@pytest.mark.unit
 def test_allows_a_pixel_of_rounding_off_square() -> None:
     """A canvas resize lands on 1:1; the tolerance is for images prepared
     elsewhere, so one pixel out is not a refusal."""
     assert service.validate_avatar(png(256, 255)).width == 256
 
 
-@pytest.mark.unit
 def test_refuses_bytes_over_the_cap() -> None:
     with pytest.raises(service.AvatarRejected) as excinfo:
         service.validate_avatar(png(256, 256, pad=AVATAR_MAX_BYTES))
@@ -132,24 +123,20 @@ def test_refuses_bytes_over_the_cap() -> None:
     assert excinfo.value.code == GuildMessages.IMAGE_TOO_LARGE
 
 
-@pytest.mark.unit
 def test_refuses_an_empty_body() -> None:
     with pytest.raises(service.AvatarRejected):
         service.validate_avatar(b"")
 
 
-@pytest.mark.unit
 def test_refuses_a_truncated_header() -> None:
     with pytest.raises(service.AvatarRejected):
         service.validate_avatar(png(256, 256)[:12])
 
 
-@pytest.mark.unit
 def test_riff_that_is_not_webp_is_not_an_image() -> None:
     assert read_image_header(b"RIFF" + b"\x00" * 4 + b"AVI " + b"\x00" * 20) is None
 
 
-@pytest.mark.unit
 def test_serving_url_carries_the_digest() -> None:
     url = service.avatar_url(7, "ab" * 32)
 
@@ -157,12 +144,10 @@ def test_serving_url_carries_the_digest() -> None:
     assert service.is_avatar_url(url)
 
 
-@pytest.mark.unit
 def test_an_external_url_is_not_one_of_ours() -> None:
     assert not service.is_avatar_url("https://idp.example/pic.png")
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize("value", ["", "xyz", "AB" * 32, "ab" * 31, "ab" * 33])
 def test_rejects_a_malformed_digest(value: str) -> None:
     assert not service.is_valid_digest(value)

@@ -22,10 +22,10 @@ import logging
 from dataclasses import dataclass
 from collections.abc import Sequence
 from datetime import datetime, timezone
-from typing import Any, Optional, Set, cast
+from typing import TYPE_CHECKING, Any, Optional, cast
 
-from sqlalchemy import ColumnElement, func
-from sqlalchemy.orm import selectinload, undefer
+from sqlalchemy import ColumnElement, and_, func, or_
+from sqlalchemy.orm import selectinload
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -39,9 +39,11 @@ from app.db.initiative_rls import (
     COMMENT_PARENTS,
     COMMENT_PARENT_COLUMNS as RLS_COMMENT_PARENT_COLUMNS,
 )
+from app.db.session import install_context
 from app.models.tenant._mixins import tool_models
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.comment import Comment
+from app.models.platform.notification import NotificationType
 from app.models.tenant.counter import CounterGroup
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.post import Post
@@ -52,20 +54,20 @@ from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue
 from app.models.tenant.wiki import Wiki, WikiPage
-from app.models.tenant.task import Task
+from app.models.tenant.task import Task, TaskAssignee
 from app.models.platform.user import User
-from app.models.platform.user_profile_view import MemberProfile
 from app.services import rls as rls_service
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import content_references
 from app.services import notifications
-from app.services import permissions as permissions_service
 from app.services import reachability
-from app.services.platform import accounts as accounts_service
 from app.services.tenant.mention_parser import (
     extract_mentioned_user_ids,
     extract_mentioned_task_ids,
 )
+
+if TYPE_CHECKING:
+    from app.schemas.tenant.comment import RecentActivityEntry
 
 logger = logging.getLogger(__name__)
 
@@ -264,28 +266,11 @@ class _ParentContext:
     @property
     def ref_type(self) -> Optional[str]:
         """What a notification about this thread is ABOUT — the extra's own
-        kind where there is one, else the tool. This names the thread, which is
-        not always the same as where a link to it goes."""
+        kind where there is one, else the tool. Every one of them opens by its
+        own id, so this is also where a link to the thread goes."""
         if self.extra is not None:
             return self.extra.kind
         return self.tool.value if self.tool is not None else None
-
-    @property
-    def address(self) -> Optional[tuple[str, int]]:
-        """Where a link about this thread should land, as (ref type, id).
-
-        Not every thread's parent has a page of its own: a wiki page is read
-        inside its wiki and has no address taking only its own id, so a link
-        about one opens the wiki. The tool it anchors to is always addressable,
-        which is why that is the fallback rather than nothing.
-        """
-        if self.extra is not None:
-            if self.tool is None or self.resource is None:
-                return None
-            return self.tool.value, cast(int, self.resource.id)
-        if self.tool is None:
-            return None
-        return self.tool.value, self.entity_id
 
 
 def _single_target(ids: dict[str, Optional[int]]) -> tuple[str, int]:
@@ -387,11 +372,6 @@ async def _get_tool_context(
         .where(target.model.id == entity_id)  # type: ignore[attr-defined]
         .options(selectinload(target.model.initiative))  # type: ignore[attr-defined]
     )
-    if target.tool in permissions_service.READ_VISIBLE:
-        # This tool has something between "shared with me" and "I can see it",
-        # and answering it asks whether the caller could edit the row. Loaded
-        # only for the tools that ask, so the other six pay nothing.
-        stmt = stmt.options(undefer(target.model.access_level))  # type: ignore[attr-defined]
     row = (await session.exec(stmt)).one_or_none()
     if row is None:
         return None
@@ -452,7 +432,7 @@ async def _ensure_parent_access(
     session: AsyncSession,
     ctx: _ParentContext,
     *,
-    user: User,
+    user: Optional[User],
     access: str = "read",
 ) -> None:
     """Ensure the user can reach the comment's parent at ``access`` level.
@@ -486,12 +466,6 @@ async def _ensure_parent_access(
         if not getattr(ctx.resource, "comments_enabled", True):
             raise CommentPermissionError(CommentMessages.COMMENTS_DISABLED)
         anchor_model, anchor_row = target.model, ctx.resource
-        # A parent that has not gone up yet has no thread to join: a scheduled
-        # post is a draft, and reading or writing its comments would say it
-        # exists. Asked before the sharing decision below, because the answer
-        # for anyone who could edit it is the ordinary one.
-        if permissions_service.hidden_from_reader(target.tool, ctx.resource):
-            raise CommentNotFoundError(target.not_found)
 
     if await _shares_resource(
         session,
@@ -535,7 +509,8 @@ async def attach_reactions(session: AsyncSession, *comments: Comment) -> None:
     from app.core.reactions import ReactionTarget
 
     rows = [c for c in comments if c.id is not None]
-    if not rows:
+    if not rows or install_context(session) is not None:
+        # An installed app reads no reactions: each is one person's gesture.
         return
     grouped = await reactions_service.load_reactions(
         session,
@@ -569,10 +544,14 @@ async def _resolved_parent(
     column: str,
     entity_id: int,
     guild_id: int,
-    user: User,
+    user: Optional[User],
     access: str,
 ) -> _ParentContext:
-    """Load + authorize one comment parent, raising the comment-shaped errors."""
+    """Load + authorize one comment parent, raising the comment-shaped errors.
+
+    ``user`` is ``None`` for an installed app, which is in no initiative as a
+    member: a parent its policies hid is simply not found.
+    """
     ctx = await _load_parent(
         session, column=column, entity_id=entity_id, guild_id=guild_id
     )
@@ -580,7 +559,7 @@ async def _resolved_parent(
         # The policies took the parent out before this ran. In the initiative
         # it is the reader's to know about, so sharing is what refused it.
         table = COMMENT_PARENTS[column].table
-        if await reachability.reader_is_in_the_initiative(
+        if user is not None and await reachability.reader_is_in_the_initiative(
             table, entity_id, cast(int, user.id), guild_id
         ):
             raise CommentPermissionError(CommentMessages.PERMISSION_DENIED)
@@ -603,7 +582,7 @@ async def get_comment_with_parent(
     session: AsyncSession,
     *,
     comment_id: int,
-    user: User,
+    user: Optional[User],
     guild_id: int,
     access: str = "read",
 ) -> tuple[Comment, _ParentContext]:
@@ -623,7 +602,7 @@ async def get_comment_with_parent(
     if not comment:
         # The policies took it out before this ran. In the initiative it is
         # theirs to know about, so a later gate is what refused it.
-        if await reachability.reader_is_in_the_initiative(
+        if user is not None and await reachability.reader_is_in_the_initiative(
             "comments", comment_id, cast(int, user.id), guild_id
         ):
             raise CommentPermissionError(CommentMessages.PERMISSION_DENIED)
@@ -647,7 +626,7 @@ async def get_comment(
     session: AsyncSession,
     *,
     comment_id: int,
-    user: User,
+    user: Optional[User],
     guild_id: int,
 ) -> Comment:
     """One comment, gated exactly like listing its parent's thread.
@@ -662,29 +641,10 @@ async def get_comment(
     return comment
 
 
-def comment_target_path(comment: Comment, ctx: _ParentContext) -> str:
-    """Where a notification about ``comment`` should land.
-
-    The comment has no page of its own — it lives on its parent's — so the
-    address is the parent's, built with the same helpers the comment
-    notifications use so both point at the same place.
-    """
-    from app.services import notifications
-
-    if comment.task_id is not None:
-        return notifications.reference_path("task", comment.task_id)
-    if comment.document_id is not None:
-        return notifications.reference_path(Tool.document, comment.document_id)
-    address = ctx.address
-    if address is None:  # pragma: no cover - every parent resolves to one
-        return "/"
-    return notifications.reference_path(*address)
-
-
 async def create_comment(
     session: AsyncSession,
     *,
-    author: User,
+    author: User | notifications.AppAuthor,
     guild_id: int,
     content: str,
     task_id: Optional[int] = None,
@@ -700,6 +660,12 @@ async def create_comment(
     wiki_page_id: Optional[int] = None,
     parent_comment_id: Optional[int] = None,
 ) -> Comment:
+    """Post one comment on one parent, and tell whoever it concerns.
+
+    ``author`` is the person posting, or the installed app posting as itself:
+    its comment names no author, and the notices name the app.
+    """
+    person = author if isinstance(author, User) else None
     parent_comment = None
     if parent_comment_id is not None:
         parent_comment = await _get_comment(session, comment_id=parent_comment_id)
@@ -726,7 +692,7 @@ async def create_comment(
         column=column,
         entity_id=entity_id,
         guild_id=guild_id,
-        user=author,
+        user=person,
         # Answering a thread is not editing what it hangs off — reaching the
         # parent is the gate, and its comment switch is the other half.
         access="read",
@@ -736,7 +702,7 @@ async def create_comment(
 
     comment = Comment(
         content=content,
-        created_by=cast(int, author.id),
+        created_by=author.id,
         parent_comment_id=parent_comment_id,
         **{column: ctx.entity_id},
     )
@@ -744,15 +710,13 @@ async def create_comment(
     await session.flush()
     await session.refresh(comment, attribute_names=["author"])
     _stamp_task_project(ctx, comment)
-    await content_references.sync_for_comment(
-        session, comment, author_id=cast(int, author.id)
-    )
+    await content_references.sync_for_comment(session, comment, author_id=author.id)
+    await attachments_service.claim_uploads(session, comment)
 
     await _process_comment_notifications(
         session,
         comment=comment,
         author=author,
-        guild_id=guild_id,
         ctx=ctx,
         parent_comment=parent_comment,
     )
@@ -760,222 +724,156 @@ async def create_comment(
     return comment
 
 
-async def _notify_target(
-    user_id: int | None, *, actor_id: int | None = None
-) -> User | None:
-    """Who to tell, with the preferences and address a notice needs.
-
-    On the system engine: an account's notification settings and address are
-    not a guild's to read. ``actor_id`` drops anybody who ignores whoever is
-    doing this, so they are simply not a recipient."""
-    return await accounts_service.load_one(user_id, excluding_ignorers_of=actor_id)
-
-
-async def _notify_targets(
-    user_ids: list[int], *, actor_id: int | None = None
-) -> list[User]:
-    """The same, for the several people one comment can reach."""
-    return await accounts_service.load_all(user_ids, excluding_ignorers_of=actor_id)
-
-
-async def _load_task_with_assignees(
-    session: AsyncSession, task_id: int, guild_id: int
-) -> tuple[Task, list[MemberProfile], str] | None:
-    """Load a task with its assignees and project name."""
-    stmt = (
-        select(Task, Project, Initiative)
-        .join(Project, Project.id == Task.project_id)
-        .join(Initiative, Initiative.id == Project.initiative_id)
-        .where(Task.id == task_id)
-        .options(selectinload(Task.assignees))
+async def _task_assignee_ids(session: AsyncSession, task_id: int) -> list[int]:
+    """Who a task is assigned to, in assignment order."""
+    return list(
+        (
+            await session.exec(
+                select(TaskAssignee.user_id)
+                .where(TaskAssignee.task_id == task_id)
+                .order_by(TaskAssignee.user_id)
+            )
+        ).all()
     )
-    result = await session.exec(stmt)
-    row = result.one_or_none()
-    if not row:
-        return None
-    task, project, _ = row
-    return task, list(task.assignees), project.name
 
 
 async def _process_comment_notifications(
     session: AsyncSession,
     *,
     comment: Comment,
-    author: User,
-    guild_id: int,
+    author: User | notifications.AppAuthor,
     ctx: _ParentContext,
     parent_comment: Comment | None,
 ) -> None:
-    """Process all notifications for a new comment.
+    """Tell the people a new comment concerns, each once, in priority order:
+    the author of the comment it replies to, the people it @mentions, the
+    assignees of a task it #mentions, the assignees of the task it is on, and
+    whoever wrote the tool entity or page it is on.
 
-    Notification priority (deduplicated):
-    1. Reply to comment → notify parent comment author
-    2. @user mentions
-    3. #task mentions → notify assignees
-    4. Task comment → notify assignees
-    5. Tool comment → notify the entity's creator
+    Every notice is about the thread, so ``notifications.notify`` sends each
+    only to people who can open it; a ``#task`` notice names the mentioned task
+    too, so its assignees must also reach that one.
     """
-    notified_user_ids: Set[int] = set()
-    content = comment.content
-    context_title = ctx.title
-    # Which sidebar row this comment belongs under. A tool comment names its
-    # own tool; a task comment belongs to the Projects list the task lives in.
-    comment_tool = (
-        ctx.tool.value
-        if ctx.tool is not None
-        else Tool.project.value
-        if ctx.task is not None
-        else None
+    thread: notifications.Ref = (cast(str, ctx.ref_type), ctx.entity_id)
+    name = notifications.actor_name(author)
+    told: set[int] = {author.id} if author.id is not None else set()
+
+    def first_time(user_ids: Sequence[int | None]) -> list[int]:
+        fresh = [u for u in dict.fromkeys(user_ids) if u is not None and u not in told]
+        told.update(fresh)
+        return fresh
+
+    # The thread's own fields, the way every comment notice has named it: a
+    # task and a document by their columns, any other parent as an entity.
+    where = {
+        "comment_id": comment.id,
+        "task_id": comment.task_id,
+        "document_id": comment.document_id,
+    }
+    if ctx.tool is not None and ctx.tool is not Tool.document:
+        where |= {"entity_type": ctx.ref_type, "entity_id": ctx.entity_id}
+
+    if parent_comment is not None:
+        await notifications.notify(
+            session,
+            NotificationType.comment_reply,
+            first_time([parent_comment.created_by]),
+            about=thread,
+            key="comment.reply",
+            values={"actor": name, "context": ctx.title},
+            data={**where, "replier_name": name, "replier_id": author.id},
+            actor=author,
+        )
+
+    await notifications.notify(
+        session,
+        NotificationType.mention,
+        first_time(sorted(extract_mentioned_user_ids(comment.content))),
+        about=thread,
+        key="mention.comment",
+        values={"actor": name, "context": ctx.title},
+        data={**where, "mentioned_by_name": name, "mentioned_by_id": author.id},
+        actor=author,
     )
 
-    # Parents beyond task/document link through the entity reference the
-    # resolver understands; the original pair keeps its dedicated fields. An
-    # extra names ITSELF here — a note on a page opens the page, not the wiki.
-    extra_entity_type: str | None = None
-    extra_entity_id: int | None = None
-    if ctx.tool is not None and ctx.tool is not Tool.document:
-        extra_entity_type = ctx.ref_type
-        extra_entity_id = ctx.entity_id
-
-    # 1. Reply to comment → notify parent comment author
-    if parent_comment and parent_comment.created_by != author.id:
-        parent_author = await _notify_target(
-            parent_comment.created_by, actor_id=author.id
-        )
-        if parent_author:
-            await notifications.notify_comment_reply(
-                session,
-                parent_author=parent_author,
-                replier=author,
-                comment_id=cast(int, comment.id),
-                task_id=comment.task_id,
-                document_id=comment.document_id,
-                entity_type=extra_entity_type,
-                entity_id=extra_entity_id,
-                context_title=context_title,
-                guild_id=guild_id,
-                initiative_id=ctx.initiative_id,
-                tool=comment_tool,
-            )
-            notified_user_ids.add(parent_comment.created_by)
-
-    # 2. Process @user mentions
-    mentioned_user_ids = extract_mentioned_user_ids(content)
-    for user_id in mentioned_user_ids:
-        if user_id == author.id:
+    for task_id in extract_mentioned_task_ids(comment.content):
+        mentioned = (
+            await session.exec(select(Task.title).where(Task.id == task_id))
+        ).first()
+        subject = await notifications.resolve_subject(session, ("task", task_id))
+        if mentioned is None or subject is None:
             continue
-        if user_id in notified_user_ids:
-            continue
-        mentioned_user = await _notify_target(user_id, actor_id=author.id)
-        if not mentioned_user:
-            continue
-        await notifications.notify_comment_mention(
-            session,
-            mentioned_user=mentioned_user,
-            mentioned_by=author,
-            comment_id=cast(int, comment.id),
-            task_id=comment.task_id,
-            document_id=comment.document_id,
-            entity_type=extra_entity_type,
-            entity_id=extra_entity_id,
-            context_title=context_title,
-            guild_id=guild_id,
-            initiative_id=ctx.initiative_id,
-            tool=comment_tool,
-        )
-        notified_user_ids.add(user_id)
-
-    # 3. Process #task mentions → notify assignees
-    mentioned_task_ids = extract_mentioned_task_ids(content)
-    for mentioned_task_id in mentioned_task_ids:
-        task_data = await _load_task_with_assignees(
-            session, mentioned_task_id, guild_id
-        )
-        if not task_data:
-            continue
-        mentioned_task, assignees, _ = task_data
-        wanted = [
-            assignee.id
-            for assignee in assignees
-            if assignee.id != author.id and assignee.id not in notified_user_ids
+        assignees = [
+            user_id
+            for user_id in await _task_assignee_ids(session, task_id)
+            if user_id in subject.readers
         ]
-        for assignee in await _notify_targets(wanted, actor_id=author.id):
-            await notifications.notify_task_mentioned_in_comment(
-                session,
-                assignee=assignee,
-                mentioned_by=author,
-                comment_id=cast(int, comment.id),
-                mentioned_task_id=mentioned_task_id,
-                mentioned_task_title=mentioned_task.title,
-                context_task_id=comment.task_id,
-                context_document_id=comment.document_id,
-                context_entity_type=extra_entity_type,
-                context_entity_id=extra_entity_id,
-                context_title=context_title,
-                guild_id=guild_id,
-                initiative_id=ctx.initiative_id,
-                tool=comment_tool,
-            )
-            notified_user_ids.add(assignee.id)
-
-    # 4. Task comment → notify assignees (who haven't been notified yet)
-    if ctx.task is not None:
-        task_with_assignees = await _load_task_with_assignees(
-            session, cast(int, ctx.task.id), guild_id
+        await notifications.notify(
+            session,
+            NotificationType.mention,
+            first_time(assignees),
+            about=thread,
+            key="mention.task",
+            values={"actor": name, "task": mentioned, "context": ctx.title},
+            data={
+                "comment_id": comment.id,
+                "mentioned_task_id": task_id,
+                "context_task_id": comment.task_id,
+                "context_document_id": comment.document_id,
+                "context_entity_type": where.get("entity_type"),
+                "context_entity_id": where.get("entity_id"),
+                "mentioned_by_name": name,
+                "mentioned_by_id": author.id,
+            },
+            actor=author,
         )
-        if task_with_assignees:
-            task, assignees, project_name = task_with_assignees
-            wanted = [
-                assignee.id
-                for assignee in assignees
-                if assignee.id != author.id and assignee.id not in notified_user_ids
-            ]
-            for assignee in await _notify_targets(wanted, actor_id=author.id):
-                await notifications.notify_comment_on_task(
-                    session,
-                    assignee=assignee,
-                    commenter=author,
-                    comment_id=cast(int, comment.id),
-                    task_id=task.id,
-                    task_title=task.title,
-                    project_name=project_name,
-                    project_id=task.project_id,
-                    guild_id=guild_id,
-                    initiative_id=ctx.initiative_id,
-                    tool=comment_tool,
-                )
-                notified_user_ids.add(assignee.id)
 
-    # 5. Comment on a tool entity, or on an extra that tells its author →
-    #    notify whoever wrote it (if not already notified). The row is the one
-    #    the thread hangs off, so a note on a page reaches the page's author
-    #    rather than whoever started the wiki.
+    if ctx.task is not None:
+        await notifications.notify(
+            session,
+            NotificationType.comment_on_task,
+            first_time(await _task_assignee_ids(session, cast(int, ctx.task.id))),
+            about=thread,
+            key="comment.onTask",
+            values={"actor": name, "task": ctx.task.title},
+            data={
+                "comment_id": comment.id,
+                "task_id": ctx.task.id,
+                "project_id": ctx.task.project_id,
+                "commenter_name": name,
+                "commenter_id": author.id,
+            },
+            actor=author,
+            rollup_key=f"task:{ctx.task.id}",
+        )
+
+    # The row the thread hangs off, so a note on a page reaches the page's
+    # author rather than whoever started the wiki.
     owner_row = ctx.extra_row if ctx.extra is not None else ctx.resource
     if owner_row is not None and (ctx.extra is None or ctx.extra.notifies_author):
-        owner = await _notify_target(owner_row.created_by, actor_id=author.id)
-        if owner and owner.id != author.id and owner.id not in notified_user_ids:
-            await notifications.notify_comment_on_resource(
-                session,
-                owner=owner,
-                commenter=author,
-                comment_id=cast(int, comment.id),
-                entity_type=cast(str, ctx.ref_type),
-                entity_id=ctx.entity_id,
-                entity_name=ctx.title,
-                guild_id=guild_id,
-                initiative_id=ctx.initiative_id,
-                tool=comment_tool,
-                # The notice is ABOUT the page; it OPENS the wiki, because that
-                # is what has an address. Rolled up per thread all the same.
-                target=ctx.address,
-            )
-            notified_user_ids.add(cast(int, owner.id))
+        await notifications.notify(
+            session,
+            NotificationType.comment_on_resource,
+            first_time([getattr(owner_row, "created_by", None)]),
+            about=thread,
+            key="comment.onResource",
+            values={"actor": name, "context": ctx.title},
+            data={
+                "comment_id": comment.id,
+                "entity_type": ctx.ref_type,
+                "entity_id": ctx.entity_id,
+                "commenter_name": name,
+                "commenter_id": author.id,
+            },
+            actor=author,
+            rollup_key=f"{ctx.ref_type}:{ctx.entity_id}",
+        )
 
 
 async def list_comments(
     session: AsyncSession,
     *,
-    user: User,
+    user: Optional[User],
     guild_id: int,
     task_id: Optional[int] = None,
     document_id: Optional[int] = None,
@@ -1058,15 +956,12 @@ async def delete_comment(
     if not (is_author or is_guild_admin or is_initiative_manager):
         raise CommentPermissionError(CommentMessages.AUTHOR_ONLY_DELETE)
 
-    from app.services.platform import guilds as guilds_service
-    from app.services.tenant.soft_delete import soft_delete_entity
+    from app.services.tenant.soft_delete import trash
 
-    retention_days = await guilds_service.get_guild_retention_days(session, guild_id)
-    await soft_delete_entity(
+    await trash(
         session,
         comment,
         deleted_by_user_id=user.id,
-        retention_days=retention_days,
     )
     # A trashed comment is out of the conversation, so what it alone pointed at
     # is no longer something this thing references.
@@ -1086,8 +981,8 @@ async def update_comment(
 ) -> tuple[Comment, set[str]]:
     """Update a comment's content. Only the original author can edit.
 
-    Also returns the pasted pictures the edit took out that nothing else shows,
-    now released; their files are the caller's to delete once it has committed.
+    Also returns the addresses of the pictures the edit took out, for the
+    caller to release once it has committed (``release_unshown``).
     """
     comment = await _get_comment(session, comment_id=comment_id)
     if not comment:
@@ -1112,18 +1007,231 @@ async def update_comment(
     comment.updated_at = datetime.now(timezone.utc)
     session.add(comment)
     await session.flush()
-    released = await attachments_service.release_pasted_images(
-        session,
-        attachments_service.upload_urls_in_markdown(previous_content)
-        - attachments_service.upload_urls_in_markdown(content),
-        leaving={Comment: {cast(int, comment.id)}},
-    )
+    let_go = attachments_service.upload_urls_in_markdown(
+        previous_content
+    ) - attachments_service.upload_urls_in_markdown(content)
     await content_references.sync_for_comment(
         session, comment, author_id=cast(int, user.id)
     )
+    await attachments_service.claim_uploads(session, comment)
     await session.refresh(comment, attribute_names=["author"])
     # The edit reply is what the client writes back into its cache, so it must
     # carry the reactions the comment still has — serializing without them
     # would blank the chips until the next refetch.
     await attach_reactions(session, comment)
-    return comment, released
+    return comment, let_go
+
+
+async def recent_activity(
+    session: AsyncSession, *, viewer_id: int, limit: int
+) -> list[RecentActivityEntry]:
+    """The community's most recent top-level comments, newest first.
+
+    Only comments on parents the reader can open: the parent tables' own
+    policies and the soft-delete filter decide which rows each leg reaches, and
+    a thread whose comments or whose tool is switched off is left out.
+    """
+    from app.schemas.tenant.comment import CommentAuthor, RecentActivityEntry
+    from app.services.tenant import reactions as reactions_service
+    from app.core.reactions import ReactionTarget
+
+    conditions = [
+        Comment.parent_comment_id.is_(None),
+    ]
+    # A comment is reached through its parent — the task's project, or the
+    # tool entity itself — so the sharing gate is applied per kind, each leg a
+    # subquery over the parent table (which also drops trashed parents via the
+    # session's soft-delete filter). Each clause is a no-op for a request that
+    # reaches the whole guild, leaving only "attached to some parent".
+    legs = []
+    reachable_by_tool = {}
+    for tool, target in TOOL_COMMENT_TARGETS.items():
+        model = target.model
+        fk = getattr(Comment, target.column)
+        # The entity's own comment switch gates its thread, so it gates the
+        # feed too.
+        parent_ids = select(model.id).where(model.comments_enabled.is_(True))
+        if target.feature_disabled is not None:
+            # The tool's master switch gates the thread, so it gates the feed
+            # too. A parent that names no initiative (a guild calendar) has no
+            # switch to answer to.
+            parent_ids = parent_ids.where(
+                or_(
+                    model.initiative_id.is_(None),
+                    model.initiative_id.in_(
+                        select(Initiative.id).where(
+                            getattr(Initiative, tool.view_permission).is_(True)
+                        )
+                    ),
+                )
+            )
+        reachable_by_tool[tool] = parent_ids
+        legs.append(and_(fk.isnot(None), fk.in_(parent_ids)))
+    # The extras — a thread on something that is not a tool. Each is reached
+    # through the tool that owns it, and takes that tool's switches only where
+    # its registry entry says they answer for it.
+    for column, extra in EXTRA_COMMENT_TARGETS.items():
+        parent = COMMENT_PARENTS[column]
+        fk = getattr(Comment, column)
+        rows = select(extra.model.id)
+        if extra.anchor_switch:
+            rows = rows.where(
+                getattr(extra.model, parent.tool_fk).in_(
+                    reachable_by_tool[parent.governed_by]
+                )
+            )
+        legs.append(and_(fk.isnot(None), fk.in_(rows)))
+    conditions.append(or_(*legs))
+
+    stmt = (
+        select(Comment)
+        .where(*conditions)
+        .options(selectinload(Comment.author))
+        .order_by(Comment.created_at.desc(), Comment.id.desc())
+        .limit(limit)
+    )
+    result = await session.exec(stmt)
+    comments = result.all()
+
+    # Batch-load the parents the rows point at
+    task_ids = {c.task_id for c in comments if c.task_id}
+    tasks_by_id: dict[int, Task] = {}
+    projects_by_id: dict[int, Project] = {}
+    if task_ids:
+        task_result = await session.exec(select(Task).where(Task.id.in_(task_ids)))
+        for task in task_result.all():
+            tasks_by_id[task.id] = task  # ty: ignore[invalid-assignment] — persisted row, id is set
+
+        project_ids = {t.project_id for t in tasks_by_id.values()}
+        if project_ids:
+            proj_result = await session.exec(
+                select(Project).where(Project.id.in_(project_ids))
+            )
+            for proj in proj_result.all():
+                projects_by_id[proj.id] = proj  # ty: ignore[invalid-assignment] — persisted row, id is set
+
+    # The extras' rows, and the tool row each belongs to — the feed shows the
+    # thread's own name and links at its real address, and the initiative is
+    # the tool's. The task is loaded above instead: its entry carries the
+    # project as well, which no other extra has.
+    extra_rows: dict[str, dict[int, object]] = {}
+    extra_anchors: dict[str, dict[int, object]] = {}
+    for column, extra in EXTRA_COMMENT_TARGETS.items():
+        if column == "task_id":
+            continue
+        parent = COMMENT_PARENTS[column]
+        ids = {value for c in comments if (value := getattr(c, column)) is not None}
+        rows: dict[int, object] = {}
+        anchors: dict[int, object] = {}
+        if ids:
+            loaded = (
+                await session.exec(select(extra.model).where(extra.model.id.in_(ids)))
+            ).all()
+            rows = {row.id: row for row in loaded}
+            anchor_model = TOOL_COMMENT_TARGETS[parent.governed_by].model
+            anchor_ids = {getattr(row, parent.tool_fk) for row in loaded}
+            if anchor_ids:
+                anchors = {
+                    anchor.id: anchor
+                    for anchor in (
+                        await session.exec(
+                            select(anchor_model).where(anchor_model.id.in_(anchor_ids))
+                        )
+                    ).all()
+                }
+        extra_rows[column] = rows
+        extra_anchors[column] = anchors
+
+    rows_by_tool: dict[Tool, dict] = {}
+    for tool, target in TOOL_COMMENT_TARGETS.items():
+        ids = {
+            value for c in comments if (value := getattr(c, target.column)) is not None
+        }
+        if not ids:
+            rows_by_tool[tool] = {}
+            continue
+        loaded = await session.exec(
+            select(target.model).where(target.model.id.in_(ids))
+        )
+        rows_by_tool[tool] = {row.id: row for row in loaded.all()}
+
+    # The feed's chips, in one query for the whole page rather than one per row.
+    reactions_by_comment = await reactions_service.load_reactions(
+        session,
+        target=ReactionTarget.comment,
+        target_ids=[c.id for c in comments],
+    )
+
+    entries: list[RecentActivityEntry] = []
+    for comment in comments:
+        author = comment.author
+        author_payload = CommentAuthor.model_validate(author) if author else None
+        fields: dict = {
+            "comment_id": comment.id,
+            "content": comment.content,
+            "created_at": comment.created_at,
+            "author": author_payload,
+            "reactions": reactions_service.summarize(
+                reactions_by_comment.get(comment.id, []), viewer_id=viewer_id
+            ),
+        }
+        if comment.task_id:
+            task = tasks_by_id.get(comment.task_id)
+            project = projects_by_id.get(task.project_id) if task else None
+            fields.update(
+                task_id=task.id if task else None,
+                task_title=task.title if task else None,
+                project_id=project.id if project else None,
+                project_name=project.name if project else None,
+                entity_type="task",
+                entity_id=comment.task_id,
+                entity_name=task.title if task else None,
+                initiative_id=project.initiative_id if project else None,
+            )
+        elif hit := next(
+            (
+                (column, value)
+                for column in extra_rows
+                if (value := getattr(comment, column)) is not None
+            ),
+            None,
+        ):
+            column, value = hit
+            extra = EXTRA_COMMENT_TARGETS[column]
+            row = extra_rows[column].get(value)
+            anchor = (
+                extra_anchors[column].get(getattr(row, COMMENT_PARENTS[column].tool_fk))
+                if row is not None
+                else None
+            )
+            fields.update(
+                entity_type=extra.kind,
+                entity_id=value,
+                entity_name=getattr(row, extra.title_field) if row else None,
+                initiative_id=anchor.initiative_id if anchor else None,
+            )
+        else:
+            for tool, target in TOOL_COMMENT_TARGETS.items():
+                value = getattr(comment, target.column)
+                if value is None:
+                    continue
+                row = rows_by_tool[tool].get(value)
+                fields.update(
+                    entity_type=tool.value,
+                    entity_id=value,
+                    entity_name=row.name if row else None,
+                    initiative_id=row.initiative_id if row else None,
+                )
+                if tool is Tool.document:
+                    fields.update(
+                        document_id=value,
+                        document_name=row.name if row else None,
+                    )
+                elif tool is Tool.project:
+                    fields.update(
+                        project_id=value,
+                        project_name=row.name if row else None,
+                    )
+                break
+        entries.append(RecentActivityEntry(**fields))
+    return entries

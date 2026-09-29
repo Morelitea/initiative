@@ -13,11 +13,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-from app.services.export.lexical import _markdown_text, blocks_from_editor_state
-
-#: No guild's uploads are this one's, so every picture keeps its own address
-#: rather than being rewritten as a file inside an export archive.
-_NO_ARCHIVE = -1
+from app.services.export.lexical import editor_markdown
 
 
 def comment_markdown(content: Any) -> str:
@@ -29,10 +25,7 @@ def comment_markdown(content: Any) -> str:
     if not isinstance(root, dict):
         return ""
     state["root"] = _inline_references(root)
-    blocks, _assets = blocks_from_editor_state(state, guild_id=_NO_ARCHIVE)
-    if not blocks:
-        return ""
-    return _markdown_text({"blocks": blocks}).strip()
+    return editor_markdown(state)
 
 
 def _text(text: str, node: dict[str, Any]) -> dict[str, Any]:

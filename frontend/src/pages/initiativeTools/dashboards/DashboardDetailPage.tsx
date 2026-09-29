@@ -1,5 +1,5 @@
 import { Link, useParams } from "@tanstack/react-router";
-import { SearchX, Settings, ShieldAlert } from "lucide-react";
+import { Settings } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -11,17 +11,16 @@ import { DashboardUpdateBadge } from "@/components/initiativeTools/dashboards/Da
 import { PublishedViewNotice } from "@/components/initiativeTools/dashboards/PublishedViewNotice";
 import { WidgetConfigDialog } from "@/components/initiativeTools/dashboards/WidgetConfigDialog";
 import { WidgetPicker } from "@/components/initiativeTools/dashboards/WidgetPicker";
-import { StatusMessage } from "@/components/StatusMessage";
+import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useDashboardEditor } from "@/hooks/useDashboardEditor";
 import { useDashboard, useWidgetCatalog } from "@/hooks/useDashboards";
+import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useRecordRecentView } from "@/hooks/useRecents";
-import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
-import { hasWriteAccess } from "@/lib/permissions";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 export function DashboardDetailPage() {
@@ -44,6 +43,7 @@ export function DashboardDetailPage() {
   // once the read succeeds (access checks passed).
   const recordViewMutation = useRecordRecentView("dashboard", Number(guildId));
   const viewedDashboardId = dashboard?.id;
+  useReadOnOpen(Tool.dashboard, viewedDashboardId);
   useEffect(() => {
     if (!viewedDashboardId) return;
     recordViewMutation.mutate(viewedDashboardId);
@@ -52,39 +52,19 @@ export function DashboardDetailPage() {
   const catalogQuery = useWidgetCatalog();
   // Arranging and binding are authoring — they write the dashboard's own row —
   // so the canvas is static without DAC write rather than merely looking it.
-  const canEdit = hasWriteAccess(dashboard?.my_permission_level);
+  const canEdit = Boolean(dashboard?.can.edit);
   const editor = useDashboardEditor(dashboard, catalogQuery.data, canEdit);
   const [configuringId, setConfiguringId] = useState<string | null>(null);
   const configuring =
     editor.definition.widgets.find((widget) => widget.id === configuringId) ?? null;
 
-  if (!Number.isFinite(parsedId)) {
-    return <p className="text-destructive">{t("notFound")}</p>;
-  }
-
-  if (dashboardQuery.isError) {
-    const status = getHttpStatus(dashboardQuery.error);
-    const backTo = gp(toolListRoute(Tool.dashboard, initiativeId));
-    const backLabel = t("backToDashboards");
-
-    if (status === 403) {
-      return (
-        <StatusMessage
-          icon={<ShieldAlert />}
-          title={t("noAccess")}
-          description={t("noAccessDescription")}
-          backTo={backTo}
-          backLabel={backLabel}
-        />
-      );
-    }
+  if (!Number.isFinite(parsedId) || dashboardQuery.isError) {
     return (
-      <StatusMessage
-        icon={<SearchX />}
-        title={t("notFound")}
-        description={t("notFoundDescription")}
-        backTo={backTo}
-        backLabel={backLabel}
+      <ToolAccessStatus
+        error={dashboardQuery.error}
+        keys="dashboards:"
+        backTo={gp(toolListRoute(Tool.dashboard, initiativeId))}
+        backLabel={t("backToDashboards")}
       />
     );
   }

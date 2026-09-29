@@ -1,8 +1,8 @@
 #!/bin/bash
-# Run tests only for files that have changed relative to main (or staged files).
+# Run tests only for files that have changed relative to dev (or staged files).
 #
 # Usage:
-#   ./scripts/test-changed.sh            # changed vs main
+#   ./scripts/test-changed.sh            # changed vs dev
 #   ./scripts/test-changed.sh --staged   # staged files only
 
 set -e
@@ -12,13 +12,14 @@ cd "$(dirname "$0")/.."
 MODE="diff"
 if [[ "$1" == "--staged" ]]; then
     MODE="staged"
+    shift
 fi
 
 # Get list of changed Python files
 if [[ "$MODE" == "staged" ]]; then
     CHANGED=$(git diff --cached --name-only --diff-filter=ACMR -- '*.py' | grep '^backend/' | sed 's|^backend/||' || true)
 else
-    CHANGED=$(git diff --name-only main...HEAD -- '*.py' 2>/dev/null | grep '^backend/' | sed 's|^backend/||' || true)
+    CHANGED=$(git diff --name-only origin/dev...HEAD -- '*.py' 2>/dev/null | grep '^backend/' | sed 's|^backend/||' || true)
     # Also include uncommitted changes
     UNCOMMITTED=$(git diff --name-only -- '*.py' | grep '^backend/' | sed 's|^backend/||' || true)
     UNTRACKED=$(git ls-files --others --exclude-standard -- '*.py' | grep '^backend/' | sed 's|^backend/||' || true)

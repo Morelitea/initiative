@@ -7,13 +7,14 @@
  * at dashboards. The error route is the one that got missed first, which is why
  * it is pinned here alongside the ordinary one.
  *
- * A member reads the same page as an admin. What changes is the ending: they
- * cannot install, so the page names who can instead of offering a button that
- * would be refused.
+ * Everyone reads the same page. What changes is the ending: only the
+ * superadmin adds an app, so anyone else is told who can instead of being
+ * offered a button that would be refused.
  */
 import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { guildCan } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { MarketplaceListingDetail } from "@/api/generated/initiativeAPI.schemas";
 
@@ -21,7 +22,7 @@ import { MarketplaceListingPage } from "./MarketplaceListingPage";
 
 let listing: Partial<MarketplaceListingDetail> | undefined;
 let failed = false;
-let guildRole = "admin";
+let guildRole = "superadmin";
 let installedUids: string[] = [];
 let installsState: "ready" | "loading" | "error" = "ready";
 
@@ -31,7 +32,7 @@ vi.mock("@/hooks/useMarketplace", () => ({
 vi.mock("@/hooks/useDashboards", () => ({ useWidgetCatalog: () => ({ data: undefined }) }));
 vi.mock("@/hooks/useGuilds", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useGuilds")>()),
-  useGuilds: () => ({ activeGuild: { role: guildRole } }),
+  useGuilds: () => ({ activeGuild: { role: guildRole, can: guildCan(guildRole) } }),
 }));
 vi.mock("@/hooks/useGuildApps", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useGuildApps")>()),
@@ -73,7 +74,7 @@ const backHref = () =>
 beforeEach(() => {
   listing = appListing();
   failed = false;
-  guildRole = "admin";
+  guildRole = "superadmin";
   installedUids = [];
   installsState = "ready";
 });
@@ -133,9 +134,21 @@ describe("MarketplaceListingPage", () => {
     guildRole = "member";
     renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
 
-    expect(await screen.findByText("Ask a community admin to add this app.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Ask your community's superadmin to add this app.")
+    ).toBeInTheDocument();
     // The button is present but refuses, rather than being hidden: seeing what
     // the app offers is the point of letting them in here.
+    expect(screen.getByRole("button", { name: /Add to community/ })).toBeDisabled();
+  });
+
+  it("tells an ordinary admin that the superadmin adds apps", async () => {
+    guildRole = "admin";
+    renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
+
+    expect(
+      await screen.findByText("Ask your community's superadmin to add this app.")
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Add to community/ })).toBeDisabled();
   });
 
@@ -153,7 +166,7 @@ describe("MarketplaceListingPage", () => {
     renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });
 
     expect(await screen.findByText("Installed")).toBeInTheDocument();
-    expect(screen.queryByText("Ask a community admin to add this app.")).toBeNull();
+    expect(screen.queryByText("Ask your community's superadmin to add this app.")).toBeNull();
   });
 
   it("does not guess at installed state while it is still loading", async () => {
@@ -165,7 +178,7 @@ describe("MarketplaceListingPage", () => {
     await screen.findByRole("heading", { name: "Community calendar" });
     expect(screen.queryByText("Installed")).toBeNull();
     expect(screen.getByRole("button", { name: /Add to community/ })).toBeDisabled();
-    expect(screen.queryByText("Ask a community admin to add this app.")).toBeNull();
+    expect(screen.queryByText("Ask your community's superadmin to add this app.")).toBeNull();
   });
 
   it("says so when it could not check, rather than implying not installed", async () => {
@@ -178,11 +191,11 @@ describe("MarketplaceListingPage", () => {
     ).toBeInTheDocument();
     // The "go ask an admin" line asserts the guild does not have it, which is
     // exactly what failed to load.
-    expect(screen.queryByText("Ask a community admin to add this app.")).toBeNull();
+    expect(screen.queryByText("Ask your community's superadmin to add this app.")).toBeNull();
   });
 
-  it("does not offer an admin an install it cannot rule out as a duplicate", async () => {
-    // An admin *may* install, so only the unknown state holds the button back
+  it("does not offer the superadmin an install it cannot rule out as a duplicate", async () => {
+    // The superadmin *may* install, so only the unknown state holds the button back
     // here — the guild may already have this, and the server would refuse.
     installsState = "error";
     renderPage(MarketplaceListingPage, { routerSearch: { kind: "app" } });

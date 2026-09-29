@@ -5,11 +5,7 @@ guild-wide table, the board's own cards — shows the excerpt, so what counts as
 a word and where the line is cut is the whole of it.
 """
 
-import pytest
-
 from app.schemas.tenant.post import post_excerpt
-
-pytestmark = pytest.mark.unit
 
 
 def test_excerpt_reads_every_kind_of_text_node():

@@ -10,7 +10,7 @@ import type {
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "@/lib/chesterToast";
-import { getErrorMessage } from "@/lib/errorMessage";
+import { getErrorMessage, messageForCode } from "@/lib/errorMessage";
 
 import { AIConnectionDialog } from "./AIConnectionDialog";
 import { AIConnectionRow } from "./AIConnectionRow";
@@ -60,9 +60,9 @@ export const AIConnectionManager = ({
     mutations.test.mutate(connection.id, {
       onSuccess: (data) => {
         if (data.success) {
-          toast.success(data.message || t("ai.testSuccess"));
+          toast.success(t("ai.testSuccess"));
         } else {
-          toast.error(data.message || t("ai.testError"));
+          toast.error(messageForCode(data.message, "settings:ai.testError"));
         }
       },
       onError: (error) => toast.error(getErrorMessage(error, "settings:ai.testError")),

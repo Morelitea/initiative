@@ -43,6 +43,8 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.core.config import DATABASE_LOGINS, settings
+from app.db.guild_migrations import GUILD_OR_TEMPLATE_SCHEMA_REGEX
+from app.db.public_rls import SHARED_ROLES, role_name
 from app.db.system_grants import GRANTABLE_SHARED_TABLES
 
 logger = logging.getLogger(__name__)
@@ -63,23 +65,6 @@ _BOOTSTRAP_LOCK_KEY = 0x1417B007
 #: Tried in order for the cluster-wide lock. Both are conventionally present;
 #: a provider that exposes neither falls back to the per-database lock.
 _MAINTENANCE_DATABASES = ("postgres", "template1")
-
-#: Roles the provisioner administers but does not create: the shared floors,
-#: the platform ladder and the two reader roles come from migrations, and
-#: per-guild roles from guild provisioning. Granting them ``WITH ADMIN OPTION``
-#: where they already exist is what lets the provisioner maintain them
-#: afterwards — a cluster-global role is created once, by whichever login got
-#: there first, and a ``CREATEROLE`` login holds ADMIN only on the roles it
-#: created itself.
-ADMINISTERED_ROLE_PATTERN = (
-    "rolname IN ('app_guild_base', 'app_guild_base_ro', 'app_superadmin', "
-    "'app_profile_reader', 'app_dm_reader', 'platform_base', "
-    "'platform_base_ro', 'platform_suspended', "
-    "'platform_member', 'platform_support', 'platform_moderator', "
-    "'platform_operator', 'platform_owner') "
-    "OR rolname ~ '^guild_[0-9]+(_ro|_support|_q|_superadmin)?$'"
-)
-
 
 #: Clauses that take a privilege away from a role that already holds it. The
 #: bootstrap creates the logins the app needs; a role the deployment already
@@ -234,21 +219,42 @@ DO $$ BEGIN
 END $$;
 """
 
-# Roles the provisioner creates from now on carry implicit ADMIN (PG16+
-# CREATEROLE); ones that already exist are granted here.
-ADMINISTER_EXISTING_ROLES = f"""
+
+def _administer_existing_roles() -> str:
+    """Grant the provisioner ADMIN on the roles it administers but did not
+    create: the shared floors, the platform ladder and the two reader roles
+    come from migrations, and per-guild roles from guild provisioning. A
+    cluster-global role is created once, by whichever login got there first,
+    and a ``CREATEROLE`` login holds ADMIN only on the roles it created itself
+    (implicitly, PG16+), so the ones that already exist are granted here.
+    Rendered at call time, under the configured role prefixes.
+    """
+    from app.db.schema_provisioning import (
+        PLATFORM_ROUTES,
+        guild_role_regex,
+        platform_role_name,
+    )
+
+    names = sorted(
+        {role_name(r) for r in SHARED_ROLES}
+        | {platform_role_name(r) for r in PLATFORM_ROUTES}
+    )
+    listed = ", ".join(f"'{n}'" for n in names)
+    return f"""
 DO $$
 DECLARE
     provisioner text := current_setting('app._bootstrap_role');
     r record;
 BEGIN
-    FOR r IN SELECT rolname FROM pg_roles WHERE {ADMINISTERED_ROLE_PATTERN}
+    FOR r IN SELECT rolname FROM pg_roles
+              WHERE rolname IN ({listed}) OR rolname ~ '{guild_role_regex()}'
     LOOP
         EXECUTE format('GRANT %I TO %I WITH ADMIN OPTION', r.rolname, provisioner);
     END LOOP;
 END
 $$;
 """
+
 
 _ADMINISTER_LOGIN_ROLE = """
 DO $$ BEGIN
@@ -278,7 +284,7 @@ BOOTSTRAP_OWNED_FUNCTIONS = (SEARCH_MATCH_FUNCTION,)
 # registry, the guild schemas and everything in them, the enums those tables
 # use, and the functions in ``public`` the outgoing login created. Extension
 # members and the bootstrap's own functions are never taken.
-_TRANSFER_STATEMENTS = """
+_TRANSFER_STATEMENTS = f"""
 WITH app_tables AS (
     SELECT unnest(string_to_array(current_setting('app._bootstrap_tables'), ',')) AS name
 ), target AS (
@@ -293,7 +299,7 @@ SELECT format('table %I.%I', n.nspname, c.relname) AS label,
  WHERE c.relkind IN ('r', 'v', 'm', 'p')
    AND pg_get_userbyid(c.relowner) <> target.role
    AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = c.oid AND d.deptype = 'e')
-   AND (n.nspname ~ '^guild_([0-9]+|template)$'
+   AND (n.nspname ~ '{GUILD_OR_TEMPLATE_SCHEMA_REGEX}'
         OR (n.nspname = 'public' AND c.relname IN (SELECT name FROM app_tables)))
 UNION ALL
 SELECT format('sequence %I.%I', n.nspname, c.relname),
@@ -302,7 +308,7 @@ SELECT format('sequence %I.%I', n.nspname, c.relname),
   JOIN pg_namespace n ON n.oid = c.relnamespace, target
  WHERE c.relkind = 'S'
    AND pg_get_userbyid(c.relowner) <> target.role
-   AND n.nspname ~ '^guild_([0-9]+|template)$'
+   AND n.nspname ~ '{GUILD_OR_TEMPLATE_SCHEMA_REGEX}'
    AND NOT EXISTS (
        SELECT 1 FROM pg_depend d
         WHERE d.objid = c.oid AND d.deptype IN ('a', 'e'))
@@ -318,7 +324,7 @@ SELECT format('type public.%I', t.typname),
          JOIN pg_class c2 ON c2.oid = a.attrelid
          JOIN pg_namespace n2 ON n2.oid = c2.relnamespace
         WHERE a.atttypid = t.oid AND NOT a.attisdropped
-          AND (n2.nspname ~ '^guild_([0-9]+|template)$'
+          AND (n2.nspname ~ '{GUILD_OR_TEMPLATE_SCHEMA_REGEX}'
                OR (n2.nspname = 'public'
                    AND c2.relname IN (SELECT name FROM app_tables))))
 UNION ALL
@@ -339,7 +345,7 @@ UNION ALL
 SELECT format('schema %I', n.nspname),
        format('ALTER SCHEMA %I OWNER TO %I', n.nspname, target.role)
   FROM pg_namespace n, target
- WHERE n.nspname ~ '^guild_([0-9]+|template)$'
+ WHERE n.nspname ~ '{GUILD_OR_TEMPLATE_SCHEMA_REGEX}'
    AND pg_get_userbyid(n.nspowner) <> target.role
 """
 
@@ -378,7 +384,8 @@ $$;
 # read floor should have it; guild_base_ro_parity_test is what asks. Nor does
 # app_superadmin, the seat floor: it holds the community's sign-in
 # configuration and nothing else until the registry in system_grants.py says
-# otherwise.
+# otherwise. Nor does app_install_base, the floor an installed app's routed
+# role inherits.
 _DEFAULT_PRIVILEGES = """
 DO $$
 DECLARE
@@ -483,11 +490,6 @@ _SEARCH_OPERATOR_STEPS = (
 )
 
 
-def search_operator_sql() -> tuple[str, ...]:
-    """The statements that install the guild-search match operator, in order."""
-    return tuple(statement for _label, statement in _SEARCH_OPERATOR_STEPS)
-
-
 _SEARCH_OPERATOR_PRESENT = text(
     "SELECT "
     "  coalesce((SELECT p.proleakproof FROM pg_proc p"
@@ -540,7 +542,7 @@ async def _apply_roles(conn, roles: tuple[LoginRole, ...]) -> None:
         await _set_local(conn, "app._bootstrap_grantee", role.name)
         await conn.execute(text(_ADMINISTER_LOGIN_ROLE))
         await conn.execute(text(_REVOKE_LOGIN_DEFAULT_PRIVILEGES))
-    await conn.execute(text(ADMINISTER_EXISTING_ROLES))
+    await conn.execute(text(_administer_existing_roles()))
     await _transfer_ownership(conn)
     await conn.execute(text(_DEFAULT_PRIVILEGES))
 
@@ -638,9 +640,9 @@ _FOREIGN_OWNERS = text(
     "  FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
     " WHERE c.relkind IN ('r', 'p', 'v', 'm', 'S') "
     "   AND c.relowner <> CAST(:owner AS regrole) "
-    "   AND (n.nspname ~ '^guild_([0-9]+|template)$' "
+    "   AND (n.nspname ~ :schemas "
     "        OR (n.nspname = 'public' AND c.relname = ANY(:tables)))"
-)
+).bindparams(schemas=GUILD_OR_TEMPLATE_SCHEMA_REGEX)
 
 
 async def warn_if_ownership_was_never_handed_over() -> None:
@@ -794,7 +796,7 @@ def bootstrap_sql() -> str:
             _REVOKE_LOGIN_DEFAULT_PRIVILEGES.strip(),
         ]
     out += [
-        ADMINISTER_EXISTING_ROLES.strip(),
+        _administer_existing_roles().strip(),
         "-- Ownership handover, for a database already running under another",
         "-- login. Nothing to do on a fresh install.",
         setting("app._bootstrap_tables", ",".join(sorted(GRANTABLE_SHARED_TABLES))),
@@ -906,6 +908,87 @@ async def ensure_database_bootstrap(
         "present" if search_ready else "NOT installed",
     )
     return result
+
+
+#: The function every routing and standing statement writes through. The
+#: logins and every shared floor a routed role inherits hold it; ``PUBLIC``
+#: does not, so a role that inherits no floor — the query surface's
+#: ``guild_<id>_q``, which runs statements a reader wrote — cannot call it.
+SET_CONFIG_FUNCTION = "pg_catalog.set_config(text, text, boolean)"
+
+_SET_CONFIG_OPEN = text(
+    "SELECT has_function_privilege('public', CAST(:function AS text), 'EXECUTE')"
+).bindparams(function=SET_CONFIG_FUNCTION)
+
+_ROLES_PRESENT = text("SELECT count(*) FROM pg_roles WHERE rolname = ANY(:names)")
+
+
+def set_config_holders() -> tuple[str, ...]:
+    """Who holds ``set_config``: the three logins, the shared floors, and the
+    billing role, which inherits none."""
+    return (
+        *(role.name for role in login_roles()),
+        *sorted(role_name(role) for role in SHARED_ROLES),
+        role_name("initiative_billing"),
+    )
+
+
+def set_config_sql() -> tuple[str, str]:
+    """The grant to its holders, then the revoke from ``PUBLIC``."""
+    holders = ", ".join(
+        '"' + name.replace('"', '""') + '"' for name in set_config_holders()
+    )
+    return (
+        f"GRANT EXECUTE ON FUNCTION {SET_CONFIG_FUNCTION} TO {holders}",
+        f"REVOKE EXECUTE ON FUNCTION {SET_CONFIG_FUNCTION} FROM PUBLIC",
+    )
+
+
+async def set_config_narrowed(conn) -> bool:
+    """Whether ``PUBLIC`` no longer holds ``set_config`` on this database."""
+    return not await conn.scalar(_SET_CONFIG_OPEN)
+
+
+async def ensure_set_config_narrowed(bootstrap_url: str | None = None) -> bool:
+    """Take ``set_config`` from ``PUBLIC`` once every holder exists.
+
+    Called after migrations, which create the shared floors. Only the
+    function's owner can change who may call it, so it is applied from the
+    owner connection when that connection is a superuser, and otherwise said,
+    with the SQL, for the operator to run. Returns whether it is in place.
+    """
+    url = bootstrap_url or settings.DATABASE_URL_BOOTSTRAP
+    holders = set_config_holders()
+    if url:
+        engine = create_async_engine(url, poolclass=NullPool, echo=False)
+        try:
+            async with _bootstrap_lock(url), engine.begin() as conn:
+                if await conn.scalar(_IS_SUPERUSER) and await conn.scalar(
+                    _ROLES_PRESENT, {"names": list(holders)}
+                ) == len(holders):
+                    for statement in set_config_sql():
+                        await conn.execute(text(statement))
+                narrowed = await set_config_narrowed(conn)
+        finally:
+            await engine.dispose()
+    else:
+        from app.db import session as db_session
+
+        async with db_session.provisioning_engine.connect() as conn:
+            narrowed = await set_config_narrowed(conn)
+    if not narrowed:
+        logger.warning(
+            "\n%s\n"
+            "Any database role may still call set_config on this database.\n"
+            "The app takes it from the query surface's role once %s is a\n"
+            "superuser connection. To apply it by hand instead, as a superuser:\n"
+            "\n  %s;\n  %s;\n%s",
+            "=" * 70,
+            owner_setting(),
+            *set_config_sql(),
+            "=" * 70,
+        )
+    return narrowed
 
 
 async def _main() -> int:

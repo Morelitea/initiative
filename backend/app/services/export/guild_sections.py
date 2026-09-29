@@ -17,7 +17,7 @@ Two rules the builders hold to:
 
 * **Secrets never leave.** A row that holds a credential is exempt, and a
   section over a table that holds one selects columns rather than dumping the
-  row (``guild_apps.config_secrets`` is the live example).
+  row (``guild_apps.connection_refs`` is the live example).
 * **People are named the way the rest of the app names them.** The roster goes
   through ``GuildMember``/``handle_of``, the same shape every other
   server-generated text uses, so a name reads here exactly as it does
@@ -183,8 +183,9 @@ async def _build_apps(ctx: SectionContext) -> tuple[dict[str, Any], int] | None:
     installs are recorded in the manifest's ``skipped`` list instead, so the
     archive says they existed.
 
-    Secrets are selected out rather than filtered: ``config_secrets`` and
-    ``connection_refs`` never appear.
+    Columns are selected rather than dumped: ``secret_fields`` and
+    ``connection_refs`` never appear, and the secret values are in
+    ``guild_app_secrets``, which is exempt.
     """
     from sqlmodel import select
 
@@ -215,9 +216,12 @@ async def _build_apps(ctx: SectionContext) -> tuple[dict[str, Any], int] | None:
             )
     if not kept:
         return None
+    from app.services.tenant.guild_apps import placements_by_install
+
+    placements = await placements_by_install(ctx.session, [row.id for row in kept])
     payload = {
         "type": "guild-apps",
-        "schema_version": 1,
+        "schema_version": 2,
         "apps": [
             {
                 "listing_uid": row.listing_uid,
@@ -227,7 +231,13 @@ async def _build_apps(ctx: SectionContext) -> tuple[dict[str, Any], int] | None:
                 "enabled": row.enabled,
                 "auto_update": row.auto_update,
                 "config": dict(row.config or {}),
-                "placement": dict(row.placement or {}),
+                "placements": [
+                    {
+                        "initiative_id": placement.initiative_id,
+                        "role_ids": list(placement.role_ids or []),
+                    }
+                    for placement in placements.get(row.id, [])
+                ],
             }
             for row in kept
         ],
@@ -272,16 +282,14 @@ SECTION_TABLES: dict[str, str] = {
     "guild_settings": "settings",
     "tags": "tags",
     "guild_apps": "apps",
+    # Each install's placements ride inside its entry in the apps section.
+    "app_placements": "apps",
     # Carried per-initiative rather than at the guild root: an initiative's
     # roster and role set belong beside its content, not in one flat file.
     "initiatives": "initiatives",
     "initiative_members": "initiatives",
     "initiative_roles": "initiatives",
     "initiative_role_permissions": "initiatives",
-    # The blob store. Referenced blobs ride with their document; a guild-scope
-    # backup with uploads on takes the rest too, which is the only way a file
-    # nothing currently points at survives.
-    "uploads": "uploads",
 }
 
 # Guild-level tables deliberately NOT exported, and why. A reason is required:
@@ -290,9 +298,11 @@ SECTION_TABLES: dict[str, str] = {
 EXEMPT: dict[str, str] = {
     # Credentials. An archive is a file that leaves the deployment.
     "guild_ai_connections": "credentials",
+    "guild_ai_connection_keys": "credentials",
     "guild_ai_member_keys": "credentials",
+    "guild_app_secrets": "credentials",
     "guild_app_user_connections": "credentials",
-    "guild_app_user_delegations": "credentials",
+    "app_member_consents": "credentials",
     # Per-member personal preference, not community property — it belongs to
     # the member, and follows them rather than the guild.
     "guild_ai_member_prefs": "personal",
@@ -301,6 +311,8 @@ EXEMPT: dict[str, str] = {
     "export_jobs": "operational",
     "import_jobs": "operational",
     "webhook_deliveries": "operational",
+    "app_hook_deliveries": "operational",
+    "app_schedule_runs": "operational",
     # In-flight workflow rather than owned content: a request to join is a
     # question waiting on somebody in THIS instance.
     "initiative_join_requests": "in_flight",

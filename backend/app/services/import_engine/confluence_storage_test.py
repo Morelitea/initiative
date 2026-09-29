@@ -16,8 +16,6 @@ from app.services.import_engine.confluence_storage import (
     storage_to_lexical,
 )
 
-pytestmark = pytest.mark.unit
-
 
 def blocks(xhtml: str, **kw):
     return storage_to_lexical(xhtml, **kw).content["root"]["children"]

@@ -15,13 +15,18 @@ Two custody rules run through everything here:
   is written by the app itself when it completes a vendor flow, so this path
   refuses one rather than letting a form overwrite it.
 
-A guild-wide connection is not always typed. One that declares a
-``connect_path`` is filled by the app instead: a guild admin runs the vendor's
-own flow once — an organization-wide install, on the vendor's page, where
-somebody who owns the account grants what it may see — and the app writes what
-came back into that connection's managed fields. The scope is unchanged, since
-the credential is still the guild's; what changes is who fills it and how, and
-:func:`guild_connection_ref` is the handle the two ends are joined by.
+A guild-wide connection is not always typed. One that declares a ``flow`` is
+established by Initiative instead
+(:mod:`app.services.tenant.app_connection_flows`): a guild admin runs the
+vendor's own flow once — an organization-wide install, on the vendor's page,
+where somebody who owns the account grants what it may see — and the app's
+``after_connect`` hook says what goes into that connection's managed fields.
+The scope is unchanged, since the credential is still the guild's; what
+changes is who fills it and how, and :func:`guild_connection_ref` is the
+handle the app asks for its token by.
+
+A flow's tokens are held beside the declared fields under reserved keys
+(:data:`RESERVED_TOKEN_KEYS`), which no manifest declares and no form writes.
 
 Satisfaction is computed from presence alone — which fields have values. This
 build never inspects a credential, calls a vendor, or learns a scope; whether a
@@ -31,14 +36,16 @@ separately as ``config_state``.
 
 from __future__ import annotations
 
+import secrets
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Optional
 
 from app.core.encryption import SALT_APP_CONFIG, decrypt_field, encrypt_field
 from app.core.messages import GuildAppMessages
-from app.services.tenant.app_connections import mint_connection_ref
 
 __all__ = [
+    "RESERVED_TOKEN_KEYS",
     "AppConfigError",
     "ConfigState",
     "MAX_CONFIG_VALUE_LENGTH",
@@ -53,10 +60,12 @@ __all__ = [
     "guild_connection_ref",
     "has_value_map",
     "is_satisfied",
-    "member_connection_ids",
+    "mint_connection_ref",
     "needs_configuration",
     "prune_to_definition",
     "runs_vendor_flow",
+    "token_of",
+    "without_tokens",
 ]
 
 #: What a plain field may hold. Generous for a hostname or an account name,
@@ -68,6 +77,27 @@ MAX_SECRET_VALUE_LENGTH = 16_000
 
 #: What an app may report back about the configuration it was handed.
 CONFIG_STATES: frozenset[str] = frozenset({"unverified", "ok", "invalid"})
+
+#: Where a connection's flow keeps its tokens, beside its declared fields: the
+#: two tokens sealed in the secrets map, the two expiry times (epoch seconds)
+#: in the plain map.
+RESERVED_TOKEN_KEYS: frozenset[str] = frozenset(
+    {"access_token", "refresh_token", "expires_at", "refresh_expires_at"}
+)
+
+#: Long enough that a handle is never guessed, short enough to sit in a URL the
+#: app builds. ``token_urlsafe(24)`` renders as 32 characters, which is the
+#: column width.
+_REF_ENTROPY_BYTES = 24
+
+
+def mint_connection_ref() -> str:
+    return secrets.token_urlsafe(_REF_ENTROPY_BYTES)
+
+
+def without_tokens(values: Mapping[str, Any] | None) -> dict[str, Any]:
+    """A stored map with the reserved token keys taken out."""
+    return {k: v for k, v in (values or {}).items() if k not in RESERVED_TOKEN_KEYS}
 
 
 class AppConfigError(Exception):
@@ -103,26 +133,6 @@ def definition_connections(definition: dict[str, Any] | None) -> list[dict[str, 
     return [entry for entry in declared if isinstance(entry, dict)]
 
 
-def member_connection_ids(definition: dict[str, Any] | None) -> list[str]:
-    """The ids of the connections each member holds their own credential for.
-
-    ``interactive`` is the manifest's word for that half — one credential per
-    person, obtained through the app's own vendor flow — as against ``static``,
-    the single value a guild admin types for everybody.
-
-    Read from the *declaration* rather than from the rows that happen to exist,
-    so what an install is means the same thing before and after any particular
-    member connects.
-    """
-    return [
-        connection_id
-        for connection in definition_connections(definition)
-        if connection.get("scope") == "interactive"
-        for connection_id in (connection.get("id"),)
-        if isinstance(connection_id, str) and connection_id
-    ]
-
-
 def connection_by_id(
     definition: dict[str, Any] | None, connection_id: str
 ) -> Optional[dict[str, Any]]:
@@ -132,15 +142,22 @@ def connection_by_id(
     return None
 
 
-def runs_vendor_flow(connection: dict[str, Any] | None) -> bool:
-    """Whether this connection is filled by the app rather than by typing.
+def token_of(connection: Mapping[str, Any] | None) -> Optional[dict[str, Any]]:
+    """The connection's ``token``, when it declares one."""
+    token = (connection or {}).get("token")
+    return token if isinstance(token, dict) else None
 
-    The question a ``connect_path`` answers, asked of either scope. The scope
-    answers a different one — whose credential comes back — and the two are
-    independent: a member authorizing their own account and an admin installing
-    for the whole guild are the same flow run by different people.
+
+def runs_vendor_flow(connection: dict[str, Any] | None) -> bool:
+    """Whether this connection is established by a vendor flow rather than by
+    typing.
+
+    The question a ``flow`` answers, asked of either scope. The scope answers a
+    different one — whose credential comes back — and the two are independent:
+    a member authorizing their own account and an admin installing for the
+    whole guild are the same flow run by different people.
     """
-    return bool(connection) and bool(connection.get("connect_path"))
+    return bool(connection) and isinstance(connection.get("flow"), dict)
 
 
 # --- the handle a guild-wide flow is joined by -------------------------------
@@ -341,10 +358,12 @@ def prune_to_definition(
     entirely, which the caller revokes — the app is still holding whatever
     those values bought it.
     """
+    # A connection with a flow keeps its tokens too, under the reserved keys.
     declared: dict[str, set[str]] = {
         connection["id"]: {
             field["key"] for field in _fields(connection) if "key" in field
         }
+        | (RESERVED_TOKEN_KEYS if runs_vendor_flow(connection) else set())
         for connection in definition_connections(definition)
         if isinstance(connection.get("id"), str)
     }
@@ -396,12 +415,17 @@ def is_satisfied(
 ) -> bool:
     """Whether this connection has everything it declared it needs.
 
-    A connection with no required fields is satisfied once anything is set,
-    which is what "connected" means for a flow whose result is one managed
-    token. A connection with no fields at all is never satisfied by presence —
-    only an interactive one can be, and it becomes so when the app writes back.
+    A connection with no required fields is satisfied once anything is set. A
+    flow connection holding the token its flow stored is satisfied once its
+    required managed values are there too.
     """
     present = has_value_map(connection, config, secrets)
+    if runs_vendor_flow(connection) and "access_token" in (secrets or {}):
+        return all(
+            present.get(field["key"], False)
+            for field in _fields(connection)
+            if field.get("required") is True and "key" in field
+        )
     if not present:
         return False
     required = [
@@ -445,9 +469,7 @@ def needs_configuration(
 def config_state(app: Any) -> ConfigState:
     """The combined answer the settings page shows for an install."""
     return ConfigState(
-        needs_config=needs_configuration(
-            app.definition, app.config, app.config_secrets
-        ),
+        needs_config=needs_configuration(app.definition, app.config, app.secret_fields),
         state=app.config_state if app.config_state in CONFIG_STATES else "unverified",
         detail=app.config_state_detail,
     )

@@ -1,5 +1,7 @@
 import type { PollOptionRead, PollRead, PostRead } from "@/api/generated/initiativeAPI.schemas";
 
+import { ownerCan } from "./can";
+
 let counter = 0;
 let optionCounter = 100;
 
@@ -86,8 +88,7 @@ export function buildPost(overrides: Partial<PostRead> = {}): PostRead {
     is_read: false,
     read_count: 0,
     archived_at: null,
-    can_unarchive: false,
-    my_permission_level: "owner",
+    can: ownerCan(),
     comments_enabled: true,
     reactions_enabled: true,
     comment_count: 0,

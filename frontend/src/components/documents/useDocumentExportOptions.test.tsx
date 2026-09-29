@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
-import type { DocumentReadDocumentType } from "@/api/generated/initiativeAPI.schemas";
+import type { DocumentType } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import type { WhiteboardScene } from "@/components/documents/WhiteboardDocumentEditor";
 import { ToolExportCard } from "@/components/tools/settings/ToolExportCard";
@@ -28,6 +28,7 @@ vi.mock("@excalidraw/excalidraw", () => ({
 
 import { exportToBlob } from "@excalidraw/excalidraw";
 
+import { ownerCan } from "@/__tests__/factories";
 import { downloadBlob } from "@/lib/csv";
 
 const noopMutation = () => ({ mutate: vi.fn(), isPending: false });
@@ -40,7 +41,7 @@ function DocumentExportCard({
   whiteboardScene,
 }: {
   documentId: number;
-  documentType: DocumentReadDocumentType;
+  documentType: DocumentType;
   title: string;
   whiteboardScene?: WhiteboardScene;
 }) {
@@ -53,15 +54,12 @@ function DocumentExportCard({
           id: documentId,
           name: title,
           initiative_id: 1,
-          my_permission_level: "owner",
+          can: ownerCan(),
           tags: [],
           grants: [],
           comments_enabled: true,
           archived_at: null,
-          can_unarchive: false,
         },
-        canManage: true,
-        isOwner: true,
         setGrants: noopMutation(),
         remove: noopMutation(),
         exportOptions,

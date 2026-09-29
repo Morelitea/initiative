@@ -20,7 +20,6 @@ import json
 import secrets
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
@@ -38,6 +37,7 @@ from webauthn.helpers.structs import (
 
 from app.models.platform.user import User
 from app.models.platform.user_passkey import UserPasskey
+from app.core.clock import utcnow
 
 #: How long a ceremony's challenge stands. The browser prompt is a few seconds
 #: of work; a minute is the library's own default and plenty.
@@ -58,10 +58,6 @@ _LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
 class PasskeyLimitReached(Exception):
     """The account already has the maximum number of credentials."""
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 def relying_party_id() -> str:
@@ -426,7 +422,7 @@ async def finish_authentication(
         return AssertionRefusal(reason="invalid", passkey=row)
 
     row.sign_count = int(verified.new_sign_count)
-    row.last_used_at = _now()
+    row.last_used_at = utcnow()
     row.backed_up = bool(verified.credential_backed_up)
     session.add(row)
     await session.flush()

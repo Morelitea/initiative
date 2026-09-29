@@ -250,7 +250,7 @@ async def wake_own_devices(*, user_id: int, except_device_token_id: int | None) 
             user = await session.get(User, user_id)
             if user is None:
                 return
-            prefs = await notification_prefs.load_prefs_for_delivery(user_id)
+            prefs = await notification_prefs.load_prefs(session, user_id)
             if not notification_prefs.wants(
                 prefs,
                 notification_type=NotificationType.direct_message,
@@ -308,6 +308,7 @@ async def _roll_up(
         # listed them back to themselves would be naming the one person who
         # already knows they are there.
         line["member_names"] = others
+    prefs = await notification_prefs.load_prefs_for_delivery(recipient.id)
     written = existing
     if existing is None:
         written = await user_notifications.create_notification(
@@ -315,11 +316,10 @@ async def _roll_up(
             user_id=recipient.id,
             notification_type=NotificationType.direct_message,
             data=line,
+            prefs=prefs,
         )
     else:
         await user_notifications.refresh_notification(session, existing, data=line)
-
-    prefs = await notification_prefs.load_prefs_for_delivery(recipient.id)
 
     def _wanted(channel: Channel) -> bool:
         return notification_prefs.reachable(

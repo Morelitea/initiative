@@ -1,4 +1,13 @@
-import { CalendarClock, Download, Mail, Trash2, UserCheck } from "lucide-react";
+import type { PaginationState, SortingState } from "@tanstack/react-table";
+import {
+  CalendarClock,
+  Download,
+  LockOpen,
+  Mail,
+  MailCheck,
+  Trash2,
+  UserCheck,
+} from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -9,7 +18,7 @@ import {
   canManageUser,
   UserOperatorSettingsSheet,
 } from "@/components/platform/UserOperatorSettingsSheet";
-import { SortIcon } from "@/components/SortIcon";
+import { SortHeader } from "@/components/SortIcon";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { UserHandle } from "@/components/UserHandle";
 import { Badge } from "@/components/ui/badge";
@@ -20,51 +29,31 @@ import { DataTable } from "@/components/ui/data-table";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { useAuth } from "@/hooks/useAuth";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
   useExportPlatformUsersCsv,
   useOperatorClearAgeBlock,
+  useOperatorLiftSignInLock,
   useOperatorReactivateUser,
+  useOperatorResendVerification,
   useOperatorRestoreUser,
   useOperatorTriggerPasswordReset,
   usePlatformUsers,
 } from "@/hooks/useOperatorUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { formatDateTime } from "@/lib/formatDate";
 import { Capability, hasCapability } from "@/lib/permissions";
-import type { AppColumn, AppColumnDef } from "@/lib/table";
+import type { AppColumnDef } from "@/lib/table";
 import { getUserHandle } from "@/lib/userDisplay";
 
-/**
- * The header of a sortable column: the label, and the arrow that says which
- * way it is pointing. Every sortable column on this table uses it, so they
- * click alike and none of them is the odd one out that looks like plain text.
- */
-const sortableHeader =
-  (label: string) =>
-  ({ column }: { column: AppColumn<OperatorUserRead> }) => {
-    const isSorted = column.getIsSorted();
-    return (
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-          {label}
-          <SortIcon isSorted={isSorted} />
-        </Button>
-      </div>
-    );
-  };
+/** How long typing settles before the roster is asked again. */
+const SEARCH_SETTLES_MS = 250;
 
-// Accounts ordered by how much of the app is left to them, rather than
-// alphabetically — "anonymized, active, deactivated, suspended" is an order
-// no one is looking for. Sorting brings the accounts needing attention
-// together at one end.
-const STATUS_ORDER: Record<string, number> = {
-  active: 0,
-  suspended: 1,
-  deactivated: 2,
-  // On its way out, and the one an operator is most likely to be looking for.
-  deleted: 3,
-  anonymized: 4,
-};
+/** The columns the server sorts the roster by. Status sorts by how much of the
+ *  app is left to an account, which brings the ones needing attention together
+ *  at one end. */
+const SORT_FIELDS = new Set(["id", "username", "status"]);
 
 export const SettingsPlatformUsersPage = () => {
   const { t, i18n } = useTranslation(["settings", "common"]);
@@ -96,15 +85,38 @@ export const SettingsPlatformUsersPage = () => {
     canManageRoles: hasCapability(user, Capability.rolesAssign),
   };
 
-  const usersQuery = usePlatformUsers({ enabled: canView });
+  // Searched, sorted and paged on the server: the roster is every account on
+  // the deployment, so the table only ever holds the page on screen.
+  const [draft, setDraft] = useState("");
+  const search = useDebouncedValue(draft, SEARCH_SETTLES_MS);
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const sort = sorting[0];
+  const usersQuery = usePlatformUsers(
+    {
+      search: search.trim() || undefined,
+      page,
+      page_size: pageSize,
+      ...(sort && SORT_FIELDS.has(sort.id)
+        ? {
+            sort_by: sort.id as "id" | "username" | "status",
+            sort_dir: sort.desc ? ("desc" as const) : ("asc" as const),
+          }
+        : {}),
+    },
+    { enabled: canView }
+  );
+  const rows = usersQuery.data?.items ?? [];
+  const totalCount = usersQuery.data?.total_count ?? 0;
 
   // Read the row back out of the query, so a save re-renders the sheet with
   // what was actually persisted.
-  const managing = usersQuery.data?.find((row) => row.id === managingId) ?? null;
+  const managing = rows.find((row) => row.id === managingId) ?? null;
 
   const resetPassword = useOperatorTriggerPasswordReset({
     onSuccess: (_data, userId) => {
-      const handle = usersQuery.data?.find((u) => u.id === userId)?.username ?? "account";
+      const handle = rows.find((u) => u.id === userId)?.username ?? "account";
       toast.success(t("platformUsers.resetSuccess", { handle }));
       setResettingUserId(null);
     },
@@ -114,14 +126,29 @@ export const SettingsPlatformUsersPage = () => {
     },
   });
 
+  const resendVerification = useOperatorResendVerification({
+    onSuccess: (_data, userId) => {
+      const handle = rows.find((u) => u.id === userId)?.username ?? "account";
+      toast.success(t("platformUsers.resendVerificationSuccess", { handle }));
+    },
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, "settings:platformUsers.resendVerificationError"));
+    },
+  });
+
   const clearAgeBlock = useOperatorClearAgeBlock({
     onSuccess: () => toast.success(t("settings:platformUsers.ageBlockCleared")),
     onError: (err) => toast.error(getErrorMessage(err, "settings:platformUsers.actionError")),
   });
 
+  const liftSignInLock = useOperatorLiftSignInLock({
+    onSuccess: () => toast.success(t("settings:platformUsers.signInLockLifted")),
+    onError: (err) => toast.error(getErrorMessage(err, "settings:platformUsers.actionError")),
+  });
+
   const reactivateUser = useOperatorReactivateUser({
     onSuccess: (_data, userId) => {
-      const handle = usersQuery.data?.find((u) => u.id === userId)?.username ?? "account";
+      const handle = rows.find((u) => u.id === userId)?.username ?? "account";
       toast.success(t("platformUsers.reactivateSuccess", { handle }));
     },
     onError: (error: unknown) => {
@@ -131,7 +158,7 @@ export const SettingsPlatformUsersPage = () => {
 
   const restoreUser = useOperatorRestoreUser({
     onSuccess: (_data, userId) => {
-      const handle = usersQuery.data?.find((u) => u.id === userId)?.username ?? "account";
+      const handle = rows.find((u) => u.id === userId)?.username ?? "account";
       toast.success(t("platformUsers.restoreSuccess", { handle }));
     },
     onError: (error: unknown) => {
@@ -195,7 +222,7 @@ export const SettingsPlatformUsersPage = () => {
   const userColumns: AppColumnDef<OperatorUserRead>[] = [
     {
       accessorKey: "id",
-      header: sortableHeader(t("platformUsers.columnId")),
+      header: ({ column }) => <SortHeader column={column} label={t("platformUsers.columnId")} />,
       cell: ({ row }) => (
         <p className="font-mono text-muted-foreground text-sm">{row.original.id}</p>
       ),
@@ -205,25 +232,23 @@ export const SettingsPlatformUsersPage = () => {
     },
     {
       id: "username",
-      // The whole handle, number included — what the cell draws and what
-      // somebody pastes in from a ticket. Accessing the bare name would leave
-      // the filter box unable to match the thing it is labelled for.
       accessorFn: (row) => getUserHandle(row),
-      header: sortableHeader(t("platformUsers.columnHandle")),
+      header: ({ column }) => (
+        <SortHeader column={column} label={t("platformUsers.columnHandle")} />
+      ),
       // The handle is the whole of the identification here. An account's real
       // name is its own to give out, and an operator does not need it to do
       // any of this.
       cell: ({ row }) => <UserHandle user={row.original} className="text-sm" />,
       enableSorting: true,
-      sortFn: "alphanumeric",
     },
     {
       id: "status",
       accessorFn: (row) => row.status,
-      header: sortableHeader(t("platformUsers.columnStatus")),
+      header: ({ column }) => (
+        <SortHeader column={column} label={t("platformUsers.columnStatus")} />
+      ),
       enableSorting: true,
-      sortFn: (rowA, rowB) =>
-        (STATUS_ORDER[rowA.original.status] ?? 99) - (STATUS_ORDER[rowB.original.status] ?? 99),
       cell: ({ row }) => {
         const platformUser = row.original;
         // A deleted account is the one status with a date attached and a way
@@ -260,7 +285,21 @@ export const SettingsPlatformUsersPage = () => {
           platformUser.status === "active"
             ? "text-sm text-green-600 dark:text-green-400"
             : "text-muted-foreground text-sm";
-        return <span className={className}>{t(labelKey)}</span>;
+        return (
+          <div className="space-y-0.5">
+            <span className={className}>{t(labelKey)}</span>
+            {platformUser.sign_in_locked_until && (
+              <div>
+                <Badge variant="outline">{t("platformUsers.signInLocked")}</Badge>
+                <p className="text-muted-foreground text-xs">
+                  {t("platformUsers.signInLockedUntil", {
+                    time: formatDateTime(platformUser.sign_in_locked_until),
+                  })}
+                </p>
+              </div>
+            )}
+          </div>
+        );
       },
     },
     {
@@ -326,6 +365,24 @@ export const SettingsPlatformUsersPage = () => {
                 {isResetting ? t("common:submitting") : t("platformUsers.resetPassword")}
               </DropdownMenuItem>
             )}
+            {canReactivate && platformUser.status === "active" && !platformUser.email_verified && (
+              <DropdownMenuItem
+                onSelect={() => resendVerification.mutate(platformUser.id)}
+                disabled={resendVerification.isPending}
+              >
+                <MailCheck className="h-4 w-4" />
+                {t("platformUsers.resendVerification")}
+              </DropdownMenuItem>
+            )}
+            {abilities.canManageUsers && platformUser.sign_in_locked_until && (
+              <DropdownMenuItem
+                onSelect={() => liftSignInLock.mutate(platformUser.id)}
+                disabled={liftSignInLock.isPending}
+              >
+                <LockOpen className="h-4 w-4" />
+                {t("platformUsers.liftSignInLock")}
+              </DropdownMenuItem>
+            )}
             {canUnblockAge && platformUser.age_below_minimum_at && (
               <DropdownMenuItem
                 onSelect={() => clearAgeBlock.mutate(platformUser.id)}
@@ -372,7 +429,7 @@ export const SettingsPlatformUsersPage = () => {
             variant="outline"
             size="sm"
             onClick={exportAllUsersCsv}
-            disabled={!usersQuery.data?.length}
+            disabled={!totalCount}
           >
             <Download className="h-4 w-4" />
             {t("platformUsers.exportAll")}
@@ -381,13 +438,35 @@ export const SettingsPlatformUsersPage = () => {
         <CardContent className="space-y-4">
           <DataTable
             columns={userColumns}
-            data={usersQuery.data}
+            data={rows}
             getRowId={(row) => String(row.id)}
             enableFilterInput
-            filterInputColumnKey="username"
             filterInputPlaceholder={t("platformUsers.filterPlaceholder")}
+            filterValue={draft}
+            onFilterValueChange={(value) => {
+              setDraft(value);
+              setPage(1);
+            }}
+            manualSorting
+            sorting={sorting}
+            onSortingChange={(next) => {
+              setSorting(next);
+              setPage(1);
+            }}
             enableResetSorting
             enablePagination
+            manualPagination
+            pageCount={Math.max(1, Math.ceil(totalCount / pageSize))}
+            rowCount={totalCount}
+            pageIndex={page - 1}
+            onPaginationChange={(next: PaginationState) => {
+              if (next.pageSize !== pageSize) {
+                setPageSize(next.pageSize);
+                setPage(1);
+              } else {
+                setPage(next.pageIndex + 1);
+              }
+            }}
           />
         </CardContent>
 

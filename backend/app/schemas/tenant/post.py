@@ -5,18 +5,18 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field, model_validator
 
+from app.core.identity_boundary import PersonId
 from app.schemas.base import SanitizedBaseModel, TitleStr
-from app.schemas.tenant.archive import ArchiveState
+from app.schemas.query import PageMeta
 from app.schemas.platform.user import ProfileDecorations
 from app.schemas.tenant.comment import CommentAuthor
 from app.schemas.tenant.post_poll import PollRead, PollWrite, serialize_poll
 from app.schemas.tenant.reaction import ReactionGroup
-from app.schemas.tenant.resource_grant import ResourceGrantSchema
-from app.schemas.tenant.tag import TagSummary, annotated_tags
+from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
+from app.schemas.tenant.tool import ToolSummaryBase
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.db.guild_standing import GuildContext
-    from app.models.tenant.post import Post
+    from app.db.guild_standing import ActorContext
 
 
 # How much of a post the one-line surfaces get. Long enough to tell two
@@ -52,11 +52,7 @@ class PostCreate(PostBase):
     # Initial sharing — the same grant list the PUT /grants endpoint takes.
     # A board notice defaults to readable by the whole initiative, which is the
     # point of posting it.
-    grants: List[ResourceGrantSchema] = Field(
-        default_factory=lambda: [
-            ResourceGrantSchema(all_initiative_members=True, level="read")
-        ]
-    )
+    grants: List[ResourceGrantSchema] = Field(default_factory=initiative_readable)
     #: When the notice should go up. Omitted (or in the past) posts it now.
     #: Until then it is a draft: only the people who could edit it see it, and
     #: nobody is notified.
@@ -109,7 +105,7 @@ class PostPinUpdate(SanitizedBaseModel):
         return self
 
 
-class PostSummary(PostBase, ArchiveState):
+class PostSummary(PostBase, ToolSummaryBase):
     """A post without its body — for the surfaces that show one in a line.
 
     The board is not one of them: it renders notices, so its list returns
@@ -117,26 +113,16 @@ class PostSummary(PostBase, ArchiveState):
     anywhere else a post is a row rather than a thing being read.
     """
 
-    model_config = ConfigDict(
-        from_attributes=True, json_schema_serialization_defaults_required=True
-    )
-
-    id: int
-    initiative_id: int
-    guild_id: int
-    created_by: int
     #: Who wrote it, ready to draw: handle, picture, what they wear around it,
     #: and how they are appearing. The same shape a comment's author takes, so
     #: a person looks the same wherever the app shows them.
     author: Optional[CommentAuthor] = None
-    created_at: datetime
-    updated_at: datetime
     #: The first line or so of the body as plain text. Derived on the way out,
     #: never stored — the body is the truth, and a stored copy would go stale
     #: the first time somebody edited it.
     excerpt: str = ""
     pinned_at: Optional[datetime] = None
-    pinned_by: Optional[int] = None
+    pinned_by: Optional[PersonId] = None
     pin_expires_at: Optional[datetime] = None
     #: Whether the pin above is in force *right now*. Served rather than
     #: recomputed client-side so the board and the API agree on the boundary
@@ -161,10 +147,6 @@ class PostSummary(PostBase, ArchiveState):
     #: this — a board is a place things are said out loud, and knowing whether
     #: a notice landed is the point of saying it there.
     read_count: int = 0
-    my_permission_level: Optional[str] = None
-    # When false this entity's comment thread is off — the UI renders none
-    # and the API refuses to read or post one.
-    comments_enabled: bool = True
     #: When false the notice takes no reactions — the board renders no bar and
     #: the API refuses to read or add one. The reactions already on it are kept,
     #: the same way turning a thread off keeps its comments.
@@ -173,11 +155,28 @@ class PostSummary(PostBase, ArchiveState):
     #: see there is a conversation without opening the post to find out — and
     #: so an empty thread can invite the first one.
     comment_count: int = 0
-    tags: List[TagSummary] = Field(default_factory=list)
-    grants: List[ResourceGrantSchema] = Field(default_factory=list)
     #: Reactions ride along with the post rather than costing a request per
     #: row: a board renders its chips from the one list call.
     reactions: List[ReactionGroup] = Field(default_factory=list)
+
+    @classmethod
+    def derived_fields(
+        cls, row: Any, *, context: ActorContext, user_id: Optional[int]
+    ) -> dict[str, Any]:
+        # Local import avoids a schema -> service import cycle.
+        from app.services.tenant import reactions as reactions_service
+
+        reaction_rows = getattr(row, "_reactions", None)
+        return {
+            "author": row.creator,
+            "excerpt": post_excerpt(row.body),
+            "is_pinned": row.is_pinned_now(),
+            "reactions": (
+                reactions_service.summarize(reaction_rows, viewer_id=user_id)
+                if reaction_rows and row.reactions_enabled
+                else []
+            ),
+        }
 
 
 class PostRead(PostSummary):
@@ -191,6 +190,16 @@ class PostRead(PostSummary):
     #: Absent from :class:`PostSummary` on purpose — a one-line surface shows a
     #: notice, not a ballot paper.
     poll: Optional[PollRead] = None
+
+    @classmethod
+    def derived_fields(
+        cls, row: Any, *, context: ActorContext, user_id: Optional[int]
+    ) -> dict[str, Any]:
+        poll = getattr(row, "poll", None)
+        return {
+            **super().derived_fields(row, context=context, user_id=user_id),
+            "poll": serialize_poll(poll) if poll is not None else None,
+        }
 
 
 #: How many notices one "I have seen these" request may carry. A page of the
@@ -264,14 +273,8 @@ def post_reader(profile: Any, *, read_at: Optional[datetime] = None) -> PostRead
     )
 
 
-class PostListResponse(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
+class PostListResponse(PageMeta):
     items: List[PostRead]
-    total_count: int
-    page: int
-    page_size: int
-    has_next: bool
 
 
 def post_text(body: Any) -> str:
@@ -339,62 +342,3 @@ def post_excerpt(body: Any, *, limit: int = EXCERPT_CHARS) -> str:
     if space > limit // 2:
         cut = cut[:space]
     return cut + "…"
-
-
-def serialize_post_summary(
-    post: "Post", *, context: GuildContext, user_id: Optional[int] = None
-) -> PostSummary:
-    # Local import avoids a schema -> service import cycle.
-    from app.services.permissions import client_access, serialize_grants
-    from app.services.tenant import reactions as reactions_service
-
-    reaction_rows = getattr(post, "_reactions", None)
-
-    return PostSummary(
-        id=post.id,
-        name=post.name,
-        initiative_id=post.initiative_id,
-        guild_id=context.guild_id,
-        created_by=post.created_by,
-        author=(
-            CommentAuthor.model_validate(post.creator)
-            if post.creator is not None
-            else None
-        ),
-        created_at=post.created_at,
-        updated_at=post.updated_at,
-        excerpt=post_excerpt(post.body),
-        pinned_at=post.pinned_at,
-        pinned_by=post.pinned_by,
-        pin_expires_at=post.pin_expires_at,
-        is_pinned=post.is_pinned_now(),
-        published_at=post.published_at,
-        scheduled_for=post.scheduled_for,
-        is_published=post.is_published,
-        is_read=bool(getattr(post, "is_read", False)),
-        read_count=int(getattr(post, "read_count", 0)),
-        archived_at=post.archived_at,
-        **client_access(post, user_id, context=context),
-        comments_enabled=post.comments_enabled,
-        reactions_enabled=post.reactions_enabled,
-        comment_count=getattr(post, "comment_count", 0),
-        tags=annotated_tags(post),
-        grants=serialize_grants(post),
-        reactions=(
-            reactions_service.summarize(reaction_rows, viewer_id=user_id)
-            if reaction_rows and post.reactions_enabled
-            else []
-        ),
-    )
-
-
-def serialize_post(
-    post: "Post", *, context: GuildContext, user_id: Optional[int] = None
-) -> PostRead:
-    summary = serialize_post_summary(post, context=context, user_id=user_id)
-    poll = getattr(post, "poll", None)
-    return PostRead(
-        **summary.model_dump(),
-        body=post.body or {},
-        poll=serialize_poll(poll) if poll is not None else None,
-    )

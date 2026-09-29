@@ -11,7 +11,7 @@
  *   admin fills it in; everyone else sees whether it is set, because whether an
  *   app can do its job is not a secret. Some are typed and some are not: where
  *   the vendor authorizes an organization through a page of its own, the admin
- *   is sent there and the app writes down what came back, so the form has
+ *   is sent there and Initiative records what came back, so the form has
  *   nothing in it and a button instead.
  * - A **personal connection** is each member's own account at a vendor that
  *   authorizes people rather than organizations. Every member sees their own
@@ -30,7 +30,7 @@ import { KeyRound, Loader2, Plug, ShieldCheck, TriangleAlert } from "lucide-reac
 import { Fragment, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { AppConfigValue, AppConnection, AppConnectionField } from "@/api/appConnections";
+import type { GuildAppConnectionRead } from "@/api/generated/initiativeAPI.schemas";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,9 +48,25 @@ import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { localized } from "@/lib/widgets/widgetMeta";
 
+/** One typed input in a connection's form, as the pinned definition declares
+ *  it. The read carries fields and the access hint untyped, because their shape
+ *  is the manifest's rather than the API's. */
+interface AppConnectionField {
+  key: string;
+  type: "string" | "secret" | "url" | "bool" | "select" | "int";
+  label: Record<string, string>;
+  required?: boolean;
+  options?: string[];
+  /** Returned by the app when a vendor flow finishes — never typed. */
+  managed?: boolean;
+}
+
+/** A value being set, or `null` to clear it. */
+type AppConfigValue = string | number | boolean | null;
+
 export interface AppConnectionsPanelProps {
   appId: number;
-  connections: AppConnection[];
+  connections: GuildAppConnectionRead[];
   isGuildAdmin: boolean;
 }
 
@@ -90,14 +106,14 @@ function ConnectionShell({
   scopeLabel,
   children,
 }: {
-  connection: AppConnection;
+  connection: GuildAppConnectionRead;
   icon: React.ReactNode;
   scopeLabel: string;
   children: React.ReactNode;
 }) {
   const { t, i18n } = useTranslation(["apps"]);
   const name = localized(connection.label, i18n.language) ?? connection.id;
-  const hint = connection.access_hint;
+  const hint = connection.access_hint as { api?: string; scopes?: string[] } | null;
 
   return (
     <section className="space-y-3 rounded-lg border p-4">
@@ -136,7 +152,7 @@ function GuildConnection({
   canManage,
 }: {
   appId: number;
-  connection: AppConnection;
+  connection: GuildAppConnectionRead;
   canManage: boolean;
 }) {
   const { t, i18n } = useTranslation(["apps", "common"]);
@@ -149,18 +165,19 @@ function GuildConnection({
   // untouched keys would clear the values the admin came here to keep.
   const touched = Object.keys(draft);
 
-  // A field the app writes back itself is never typed here, so a connection
-  // whose every field is managed has no form at all — which is exactly the
-  // case a `connect_path` exists for.
-  const typed = connection.fields.filter((field) => !field.managed);
-  const vendorFlow = Boolean(connection.connect_path);
+  // A managed field is filled when a vendor flow finishes, never typed here,
+  // so a connection whose every field is managed has no form at all — which is
+  // exactly the case a flow exists for.
+  const fields = connection.fields as unknown as AppConnectionField[];
+  const typed = fields.filter((field) => !field.managed);
+  const vendorFlow = connection.runs_flow;
 
-  // What the app wrote back, shown rather than reduced to "Set". Otherwise the
+  // What the flow recorded, shown rather than reduced to "Set". Otherwise the
   // admin who just chose an account at a vendor has no way to see which one
   // they chose — and no way to notice they chose the wrong one. Secrets are
   // absent by construction: `values` carries the non-secret half and the other
   // one is never sent back.
-  const recorded = connection.fields.filter(
+  const recorded = fields.filter(
     (field) => field.managed && connection.values[field.key] !== undefined
   );
 
@@ -168,8 +185,9 @@ function GuildConnection({
     connect.mutate(connection.id, {
       onSuccess: (started) => {
         // A new tab rather than a redirect, so the admin comes back to where
-        // they were; `noopener` keeps the app's page from reaching into this
-        // one. The address is the server's to build — see PersonalConnection.
+        // they were; `noopener` keeps the vendor's page from reaching into
+        // this one. The address is the server's to build — see
+        // PersonalConnection.
         if (started.connect_url) {
           window.open(started.connect_url, "_blank", "noopener,noreferrer");
           toast.success(t("apps:connections.connectOpened"));
@@ -284,7 +302,7 @@ function ConnectionFieldInput({
   onChange,
 }: {
   field: AppConnectionField;
-  connection: AppConnection;
+  connection: GuildAppConnectionRead;
   value: AppConfigValue;
   onChange: (value: AppConfigValue) => void;
 }) {
@@ -366,7 +384,13 @@ function ConnectionFieldInput({
 
 // --- a member's own account --------------------------------------------------
 
-function PersonalConnection({ appId, connection }: { appId: number; connection: AppConnection }) {
+function PersonalConnection({
+  appId,
+  connection,
+}: {
+  appId: number;
+  connection: GuildAppConnectionRead;
+}) {
   const { t } = useTranslation(["apps", "common"]);
   const connect = useConnectApp(appId);
   const disconnect = useDisconnectApp(appId);
@@ -374,19 +398,15 @@ function PersonalConnection({ appId, connection }: { appId: number; connection: 
   const start = () =>
     connect.mutate(connection.id, {
       onSuccess: (started) => {
-        // The vendor's flow runs at the app's own URL, which the server
-        // assembles from the deployment's registration — the client never
-        // builds that address and never needs to know it. A new tab rather
-        // than a redirect, so the member comes back to where they were, and
-        // `noopener` keeps the app's page from reaching into this one.
+        // The server builds the vendor's address; the client never does. A
+        // new tab rather than a redirect, so the member comes back to where
+        // they were, and `noopener` keeps the vendor's page from reaching into
+        // this one.
         if (started.connect_url) {
           window.open(started.connect_url, "_blank", "noopener,noreferrer");
           toast.success(t("apps:connections.connectOpened"));
           return;
         }
-        // Nowhere to send them: this deployment has no live registration for
-        // the app. The connection row and its handle still exist, which is why
-        // this is a message rather than a failure.
         toast.error(t("apps:connections.connectUnavailable"));
       },
       onError: (error) => toast.error(getErrorMessage(error, "apps:error")),
@@ -407,7 +427,14 @@ function PersonalConnection({ appId, connection }: { appId: number; connection: 
         </p>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
-          {connection.status ? (
+          {connection.status === "expired" ? (
+            // The vendor would not renew it: nothing reaches it until the
+            // member connects again.
+            <span className="flex items-center gap-1.5 text-amber-600 text-sm dark:text-amber-400">
+              <TriangleAlert className="h-4 w-4" aria-hidden />
+              {t("apps:connections.expired")}
+            </span>
+          ) : connection.status ? (
             <span className="flex items-center gap-1.5 text-sm">
               <ShieldCheck className="h-4 w-4 text-muted-foreground" aria-hidden />
               {connection.account_label

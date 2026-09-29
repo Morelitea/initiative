@@ -13,14 +13,19 @@ Capability and ownership checks happen at the endpoint as well.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Optional, Sequence
 
 from sqlalchemy import or_, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.capabilities import Capability, roles_with_capability
+from app.core.capabilities import (
+    ROLE_MAX_GRANT_MINUTES,
+    Capability,
+    capabilities_for,
+    roles_with_capability,
+)
 from app.core.login_methods import LoginMethod
 from app.core.email_i18n import translate
 from app.models.platform.access_grant import (
@@ -47,6 +52,7 @@ from app.services.platform import guilds as guilds_service
 from app.services.platform import push_notifications
 from app.services.platform import user_notifications
 from app.core.user_display import display_name
+from app.core.clock import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -58,10 +64,6 @@ class AccessGrantError(Exception):
     def __init__(self, code: str):
         self.code = code
         super().__init__(code)
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 async def _lock_user_guild_grants(
@@ -79,19 +81,6 @@ DEFAULT_DURATION_MINUTES = 240  # 4 hours
 #: The absolute ceiling on any grant.
 MAX_DURATION_MINUTES = 1440  # 24 hours
 
-# Per-role maximum grant duration (least privilege). Each is clamped to the
-# absolute ceiling. The request and break-glass forms read the caller's figure
-# from the server (``max_minutes_for_role``, ``break_glass_max_minutes``).
-_ROLE_MAX_MINUTES: dict[UserRole, int] = {
-    UserRole.support: 240,  # 4 hours
-    UserRole.moderator: 480,  # 8 hours
-    UserRole.operator: 1440,  # 24 hours
-    # Owners/operators reach a guild via the self-approved break-glass path
-    # (``data.bypass``) rather than the request→approve flow; their cap applies
-    # to that self-issued grant.
-    UserRole.owner: 1440,
-}
-
 # Break-glass is self-approved, so its window is short and re-issued to
 # extend. Capped below the role maxima.
 BREAK_GLASS_DEFAULT_MINUTES = 60  # 1 hour
@@ -100,7 +89,7 @@ BREAK_GLASS_MAX_MINUTES = 240  # 4 hours
 
 def max_minutes_for_role(role: UserRole) -> int:
     """The longest grant the given role may hold (clamped to the ceiling)."""
-    role_cap = _ROLE_MAX_MINUTES.get(role, DEFAULT_DURATION_MINUTES)
+    role_cap = ROLE_MAX_GRANT_MINUTES.get(role, DEFAULT_DURATION_MINUTES)
     return min(role_cap, MAX_DURATION_MINUTES)
 
 
@@ -280,7 +269,7 @@ async def request_grants(
         )
         for grant in existing.all():
             if grant.status == AccessGrantStatus.pending.value or grant.is_live(
-                now=_now()
+                now=utcnow()
             ):
                 raise AccessGrantError("OVERLAPPING_GRANT")
 
@@ -438,7 +427,7 @@ async def break_glass(
             ),
         )
     )
-    now = _now()
+    now = utcnow()
     for grant in existing.all():
         if grant.status == AccessGrantStatus.pending.value:
             raise AccessGrantError("OVERLAPPING_GRANT")
@@ -504,7 +493,7 @@ async def reconcile_break_glass_pair(
             ),
         )
     )
-    now = _now()
+    now = utcnow()
     replaced: list[AccessGrant] = []
     for grant in result.all():
         if grant.status == AccessGrantStatus.pending.value:
@@ -545,12 +534,20 @@ async def approve(
 
     # Cap by the GRANTEE's role (an approver shortening/extending can't exceed
     # the recipient's tier).
+    # The grantee is asked about as they stand now, not as they stood when the
+    # request was made.
     grantee = await session.get(User, grant.user_id)
-    grantee_role = grantee.role if grantee else UserRole.support
+    if (
+        grantee is None
+        or grantee.status != UserStatus.active
+        or Capability.ACCESS_REQUEST not in capabilities_for(grantee.role)
+    ):
+        raise AccessGrantError("GRANTEE_INELIGIBLE")
+    grantee_role = grantee.role
     duration = _capped_duration(
         duration_minutes or grant.requested_duration_minutes, grantee_role
     )
-    now = _now()
+    now = utcnow()
     grant.status = AccessGrantStatus.approved.value
     grant.approved_by_id = approver.id
     grant.decided_at = now
@@ -584,7 +581,7 @@ async def deny(
 ) -> AccessGrant:
     if grant.status != AccessGrantStatus.pending.value:
         raise AccessGrantError("NOT_PENDING")
-    now = _now()
+    now = utcnow()
     grant.status = AccessGrantStatus.denied.value
     grant.approved_by_id = approver.id
     grant.decided_at = now
@@ -619,7 +616,7 @@ async def revoke(
     # a pending one should be denied, a terminal one is already over.
     if grant.status != AccessGrantStatus.approved.value:
         raise AccessGrantError("NOT_ACTIVE")
-    now = _now()
+    now = utcnow()
     grant.status = AccessGrantStatus.revoked.value
     grant.revoked_by_id = revoker.id
     grant.revoked_at = now
@@ -659,6 +656,29 @@ async def cancel_own_pending(
     await session.flush()
 
 
+async def get_live_grants(
+    session: AsyncSession, *, user_id: int, guild_id: int
+) -> dict[AccessGrantPurpose, AccessGrant]:
+    """Return the user's currently-live grants for ``guild_id``, one per purpose.
+
+    Used when resolving guild session context so a grantee can act in a guild
+    they aren't a member of, for the grant's window only. Keyed by purpose so a
+    grant issued for one authority is never spent as another.
+    """
+    result = await session.exec(
+        select(AccessGrant)
+        .where(
+            AccessGrant.user_id == user_id,
+            AccessGrant.guild_id == guild_id,
+            AccessGrant.live(utcnow()),
+        )
+        # At most one open grant per (user, guild, purpose) is allowed at
+        # request time; the latest-expiring wins just in case.
+        .order_by(AccessGrant.expires_at)
+    )
+    return {AccessGrantPurpose(grant.purpose): grant for grant in result.all()}
+
+
 async def get_live_grant(
     session: AsyncSession,
     *,
@@ -666,27 +686,10 @@ async def get_live_grant(
     guild_id: int,
     purpose: AccessGrantPurpose = AccessGrantPurpose.content,
 ) -> Optional[AccessGrant]:
-    """Return the user's currently-live grant for ``guild_id``, if any.
-
-    Used when resolving guild session context so a grantee can act in a guild
-    they aren't a member of, for the grant's window only. Scoped to ``purpose``
-    so a grant issued for one authority is never spent as another — the default
-    keeps the content path seeing only content grants.
-    """
-    now = _now()
-    result = await session.exec(
-        select(AccessGrant).where(
-            AccessGrant.user_id == user_id,
-            AccessGrant.guild_id == guild_id,
-            AccessGrant.purpose == purpose.value,
-            AccessGrant.status == AccessGrantStatus.approved.value,
-            AccessGrant.expires_at > now,
-        )
-    )
-    # At most one open grant per (user, guild) is allowed at request time;
-    # pick the latest-expiring just in case.
-    grants = sorted(result.all(), key=lambda g: g.expires_at or now, reverse=True)
-    return grants[0] if grants else None
+    """Return the user's currently-live grant of ``purpose`` for ``guild_id``,
+    if any — content unless another is named."""
+    grants = await get_live_grants(session, user_id=user_id, guild_id=guild_id)
+    return grants.get(purpose)
 
 
 async def list_grants(
@@ -701,8 +704,8 @@ async def list_grants(
     """List grants, optionally filtered to one grantee and/or a set of statuses.
 
     Approvers pass ``user_id=None`` for the full queue; requesters pass their
-    own id for "my requests". ``live_only`` keeps only grants that haven't yet
-    expired (pair with ``statuses=["approved"]`` for the currently-usable set).
+    own id for "my requests". ``live_only`` keeps only grants that are live:
+    approved and unexpired.
     ``limit``/``offset`` page the result (ordered newest-first) so a list that
     grows with users/usage stays bounded.
     """
@@ -712,7 +715,7 @@ async def list_grants(
     if statuses:
         stmt = stmt.where(AccessGrant.status.in_(statuses))
     if live_only:
-        stmt = stmt.where(AccessGrant.expires_at > _now())
+        stmt = stmt.where(AccessGrant.live(utcnow()))
     stmt = stmt.order_by(AccessGrant.requested_at.desc())
     if offset:
         stmt = stmt.offset(offset)
@@ -728,7 +731,7 @@ async def expire_due(session: AsyncSession) -> int:
     Liveness is computed independently, so this is housekeeping, not a
     correctness requirement. Returns the number of rows updated.
     """
-    now = _now()
+    now = utcnow()
     result = await session.exec(
         select(AccessGrant).where(
             AccessGrant.status == AccessGrantStatus.approved.value,
@@ -826,6 +829,7 @@ __all__ = [
     "revoke",
     "cancel_own_pending",
     "get_live_grant",
+    "get_live_grants",
     "list_grants",
     "expire_due",
     "to_read",

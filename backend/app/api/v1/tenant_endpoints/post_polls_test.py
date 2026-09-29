@@ -8,7 +8,6 @@ is shown.
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -42,7 +41,6 @@ def _option_id(body: dict, text: str) -> int:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_create_post_with_a_poll(client: AsyncClient, acting_user, session):
     """A notice and its question are one submission — there is no window where
     the post exists and the poll failed to attach."""
@@ -70,7 +68,6 @@ async def test_create_post_with_a_poll(client: AsyncClient, acting_user, session
     assert poll["is_closed"] is False
 
 
-@pytest.mark.integration
 async def test_a_post_without_a_poll_serializes_none(
     client: AsyncClient, acting_user, session
 ):
@@ -84,7 +81,6 @@ async def test_a_post_without_a_poll_serializes_none(
     assert response.json()["poll"] is None
 
 
-@pytest.mark.integration
 async def test_poll_needs_two_distinct_choices(
     client: AsyncClient, acting_user, session
 ):
@@ -109,7 +105,6 @@ async def test_poll_needs_two_distinct_choices(
     assert duplicate.status_code == 422
 
 
-@pytest.mark.integration
 async def test_poll_cannot_be_born_closed(client: AsyncClient, acting_user, session):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
@@ -126,7 +121,6 @@ async def test_poll_cannot_be_born_closed(client: AsyncClient, acting_user, sess
     assert response.json()["detail"] == "POST_POLL_CLOSES_IN_PAST"
 
 
-@pytest.mark.integration
 async def test_writing_a_poll_needs_write_access(
     client: AsyncClient, acting_user, session
 ):
@@ -148,7 +142,6 @@ async def test_writing_a_poll_needs_write_access(
     assert response.status_code == 403
 
 
-@pytest.mark.integration
 async def test_deleting_the_poll_leaves_the_notice(
     client: AsyncClient, acting_user, session
 ):
@@ -168,7 +161,6 @@ async def test_deleting_the_poll_leaves_the_notice(
     assert remaining == []
 
 
-@pytest.mark.integration
 async def test_deleting_a_poll_that_is_not_there(
     client: AsyncClient, acting_user, session
 ):
@@ -187,7 +179,6 @@ async def test_deleting_a_poll_that_is_not_there(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_rewrite_may_change_everything_but_the_choices(
     client: AsyncClient, acting_user, session
 ):
@@ -239,7 +230,6 @@ async def test_rewrite_may_change_everything_but_the_choices(
     assert next(o for o in body["options"] if o["id"] == tuesday)["vote_count"] == 1
 
 
-@pytest.mark.integration
 async def test_reordering_the_choices_is_a_change(
     client: AsyncClient, acting_user, session
 ):
@@ -262,7 +252,6 @@ async def test_reordering_the_choices_is_a_change(
     assert response.json()["detail"] == "POST_POLL_HAS_VOTES"
 
 
-@pytest.mark.integration
 async def test_anonymity_can_be_turned_on_but_never_off(
     client: AsyncClient, acting_user, session
 ):
@@ -296,7 +285,6 @@ async def test_anonymity_can_be_turned_on_but_never_off(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_a_reader_may_answer(client: AsyncClient, acting_user, session):
     """Answering is a read-level gesture, like reacting — not an edit."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -327,7 +315,6 @@ async def test_a_reader_may_answer(client: AsyncClient, acting_user, session):
     assert [o["voted_by_me"] for o in poll["options"] if o["id"] == thursday] == [True]
 
 
-@pytest.mark.integration
 async def test_answering_again_replaces_the_first_answer(
     client: AsyncClient, acting_user, session
 ):
@@ -358,7 +345,6 @@ async def test_answering_again_replaces_the_first_answer(
     assert counts == {"Tuesday": 0, "Thursday": 1}
 
 
-@pytest.mark.integration
 async def test_single_choice_refuses_two_answers(
     client: AsyncClient, acting_user, session
 ):
@@ -376,7 +362,6 @@ async def test_single_choice_refuses_two_answers(
     assert response.json()["detail"] == "POST_POLL_SINGLE_CHOICE"
 
 
-@pytest.mark.integration
 async def test_multiple_choice_counts_a_voter_once(
     client: AsyncClient, acting_user, session
 ):
@@ -398,7 +383,6 @@ async def test_multiple_choice_counts_a_voter_once(
     assert [option["vote_count"] for option in body["options"]] == [1, 1]
 
 
-@pytest.mark.integration
 async def test_a_ballot_cannot_name_another_polls_choice(
     client: AsyncClient, acting_user, session
 ):
@@ -419,7 +403,6 @@ async def test_a_ballot_cannot_name_another_polls_choice(
     assert response.json()["detail"] == "POST_POLL_OPTION_UNKNOWN"
 
 
-@pytest.mark.integration
 async def test_a_closed_poll_takes_no_more_answers(
     client: AsyncClient, acting_user, session
 ):
@@ -440,7 +423,6 @@ async def test_a_closed_poll_takes_no_more_answers(
     assert response.json()["detail"] == "POST_POLL_CLOSED"
 
 
-@pytest.mark.integration
 async def test_a_draft_collects_no_answers(client: AsyncClient, acting_user, session):
     """A question nobody has been asked yet has no answers to collect — not
     even from the author previewing their own draft."""
@@ -465,7 +447,6 @@ async def test_a_draft_collects_no_answers(client: AsyncClient, acting_user, ses
     assert response.json()["detail"] == "POST_POLL_NOT_PUBLISHED"
 
 
-@pytest.mark.integration
 async def test_retracting_an_answer(client: AsyncClient, acting_user, session):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
@@ -487,7 +468,6 @@ async def test_retracting_an_answer(client: AsyncClient, acting_user, session):
     assert body["total_voters"] == 0
 
 
-@pytest.mark.integration
 async def test_retracting_when_there_was_no_answer(
     client: AsyncClient, acting_user, session
 ):
@@ -504,7 +484,6 @@ async def test_retracting_when_there_was_no_answer(
     assert response.status_code == 200, response.text
 
 
-@pytest.mark.integration
 async def test_answering_a_notice_you_cannot_read(
     client: AsyncClient, acting_user, session
 ):
@@ -530,7 +509,6 @@ async def test_answering_a_notice_you_cannot_read(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_hidden_results_wait_for_this_readers_answer(
     client: AsyncClient, acting_user, session
 ):
@@ -557,7 +535,6 @@ async def test_hidden_results_wait_for_this_readers_answer(
     assert shown["total_voters"] == 1
 
 
-@pytest.mark.integration
 async def test_hidden_results_open_when_the_poll_closes(
     client: AsyncClient, acting_user, session
 ):
@@ -586,7 +563,6 @@ async def test_hidden_results_open_when_the_poll_closes(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_the_roster_names_who_chose_what(
     client: AsyncClient, acting_user, session
 ):
@@ -623,7 +599,6 @@ async def test_the_roster_names_who_chose_what(
     assert [voter["id"] for voter in body["not_voted"]] == [a.user.id]
 
 
-@pytest.mark.integration
 async def test_an_anonymous_poll_has_no_roster(
     client: AsyncClient, acting_user, session
 ):
@@ -647,7 +622,6 @@ async def test_an_anonymous_poll_has_no_roster(
     assert read.json()["poll"]["total_voters"] == 1
 
 
-@pytest.mark.integration
 async def test_the_roster_waits_with_the_results(
     client: AsyncClient, acting_user, session
 ):
@@ -664,7 +638,6 @@ async def test_the_roster_waits_with_the_results(
     assert response.json()["detail"] == "POST_POLL_RESULTS_HIDDEN"
 
 
-@pytest.mark.integration
 async def test_the_board_carries_its_polls(client: AsyncClient, acting_user, session):
     """A board renders its questions, so the list carries them — a page of five
     cards must not be five more requests."""
@@ -693,7 +666,6 @@ async def test_the_board_carries_its_polls(client: AsyncClient, acting_user, ses
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_your_own_notice_is_never_unread_and_never_counted(
     client: AsyncClient, acting_user, session
 ):
@@ -720,7 +692,6 @@ async def test_your_own_notice_is_never_unread_and_never_counted(
     assert roster.json()["read"] == []
 
 
-@pytest.mark.integration
 async def test_the_unread_filter_skips_your_own_notices(
     client: AsyncClient, acting_user, session
 ):
@@ -749,7 +720,6 @@ async def test_the_unread_filter_skips_your_own_notices(
     assert mine.id not in ids
 
 
-@pytest.mark.integration
 async def test_multiple_choice_can_be_turned_on_but_never_off(
     client: AsyncClient, acting_user, session
 ):
@@ -781,7 +751,6 @@ async def test_multiple_choice_can_be_turned_on_but_never_off(
     assert kept.status_code == 200, kept.text
 
 
-@pytest.mark.integration
 async def test_two_choices_that_say_the_same_thing_answer_with_a_code(
     client: AsyncClient, acting_user, session
 ):
@@ -801,7 +770,6 @@ async def test_two_choices_that_say_the_same_thing_answer_with_a_code(
     assert response.json()["detail"] == "POST_POLL_DUPLICATE_CHOICE"
 
 
-@pytest.mark.integration
 async def test_the_lock_is_answered_even_when_the_numbers_are_not(
     client: AsyncClient, acting_user, session
 ):
@@ -834,7 +802,6 @@ async def test_the_lock_is_answered_even_when_the_numbers_are_not(
     assert seen["is_locked"] is True
 
 
-@pytest.mark.integration
 async def test_an_unanswered_poll_is_not_locked(
     client: AsyncClient, acting_user, session
 ):

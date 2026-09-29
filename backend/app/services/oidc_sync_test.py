@@ -20,7 +20,7 @@ from app.models.platform.oidc_claim_mapping import (
 )
 from app.models.tenant.initiative import InitiativeMember
 from app.services.oidc_sync import sync_oidc_assignments
-from app.services.tenant.initiatives import get_pm_role
+from app.services.tenant.initiatives import get_role_by_name
 from app.testing.factories import (
     NARROWED_CLAIM,
     NARROWED_VALUE,
@@ -30,6 +30,7 @@ from app.testing.factories import (
     create_initiative,
     create_user,
 )
+from app.db.request_context import SystemGuild, Unattributed
 
 
 #: What an arrival from the tenant the factory's connections narrow to carries.
@@ -40,7 +41,7 @@ async def _membership(
     session: AsyncSession, *, guild_id: int, initiative_id: int, user_id: int
 ) -> InitiativeMember | None:
     session.expunge_all()
-    await set_rls_context(session, guild_id=guild_id)
+    await set_rls_context(session, SystemGuild(guild_id))
     return (
         await session.exec(
             select(InitiativeMember).where(
@@ -51,7 +52,6 @@ async def _membership(
     ).one_or_none()
 
 
-@pytest.mark.integration
 async def test_claim_mapped_role_survives_auto_join(session: AsyncSession):
     """A mapped role wins over the plain membership auto-join would write.
 
@@ -66,7 +66,9 @@ async def test_claim_mapped_role_survives_auto_join(session: AsyncSession):
     initiative = await create_initiative(
         session, guild, owner, name="Onboarding", join_policy="open", auto_join=True
     )
-    pm_role = await get_pm_role(session, initiative_id=initiative.id)
+    pm_role = await get_role_by_name(
+        session, initiative_id=initiative.id, role_name="project_manager"
+    )
     await create_guild_provider_connection(session, guild=guild, provider=provider)
 
     newcomer = await create_user(session)
@@ -83,7 +85,7 @@ async def test_claim_mapped_role_survives_auto_join(session: AsyncSession):
     )
     await session.commit()
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await sync_oidc_assignments(
         session,
         user_id=newcomer.id,
@@ -116,7 +118,7 @@ async def _guild_rule(session: AsyncSession, *, provider_id: int, guild_id: int)
 
 async def _joined(session: AsyncSession, user_id: int) -> set[int]:
     session.expunge_all()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     return set(
         (
             await session.exec(
@@ -129,7 +131,7 @@ async def _joined(session: AsyncSession, user_id: int) -> set[int]:
 
 
 async def _sync(session: AsyncSession, *, user_id: int, provider_id: int, claims):
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     result = await sync_oidc_assignments(
         session,
         user_id=user_id,
@@ -141,7 +143,6 @@ async def _sync(session: AsyncSession, *, user_id: int, provider_id: int, claims
     return result
 
 
-@pytest.mark.integration
 async def test_a_rule_lands_where_its_community_counts_the_arrival_as_its_own(
     session: AsyncSession,
 ):
@@ -176,7 +177,6 @@ async def test_a_rule_lands_where_its_community_counts_the_arrival_as_its_own(
     assert await _joined(session, newcomer.id) == {home.id}
 
 
-@pytest.mark.integration
 async def test_a_community_that_has_not_connected_follows_the_deployment_default(
     session: AsyncSession,
 ):
@@ -213,7 +213,6 @@ async def test_a_community_that_has_not_connected_follows_the_deployment_default
     assert await _joined(session, newcomer.id) == {inheriting.id}
 
 
-@pytest.mark.integration
 async def test_leaving_the_tenant_hands_back_what_its_rules_granted(
     session: AsyncSession,
 ):
@@ -241,7 +240,6 @@ async def test_leaving_the_tenant_hands_back_what_its_rules_granted(
     assert await _joined(session, person.id) == set()
 
 
-@pytest.mark.integration
 async def test_auto_join_still_covers_what_the_claims_do_not(session: AsyncSession):
     """Enrolment fills the gaps the mapping left, and only those."""
     provider = await create_auth_provider(session)
@@ -251,7 +249,9 @@ async def test_auto_join_still_covers_what_the_claims_do_not(session: AsyncSessi
     unmapped = await create_initiative(
         session, guild, owner, name="Welcome", join_policy="open", auto_join=True
     )
-    mapped_pm = await get_pm_role(session, initiative_id=mapped.id)
+    mapped_pm = await get_role_by_name(
+        session, initiative_id=mapped.id, role_name="project_manager"
+    )
     await create_guild_provider_connection(session, guild=guild, provider=provider)
 
     newcomer = await create_user(session)
@@ -268,7 +268,7 @@ async def test_auto_join_still_covers_what_the_claims_do_not(session: AsyncSessi
     )
     await session.commit()
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await sync_oidc_assignments(
         session,
         user_id=newcomer.id,
@@ -292,7 +292,6 @@ async def test_auto_join_still_covers_what_the_claims_do_not(session: AsyncSessi
     assert enrolled.oidc_provider_id is None
 
 
-@pytest.mark.integration
 async def test_one_providers_sign_in_leaves_anothers_memberships_alone(
     session: AsyncSession,
 ):
@@ -338,7 +337,7 @@ async def test_one_providers_sign_in_leaves_anothers_memberships_alone(
 
     async def _guild_ids() -> set[int]:
         session.expunge_all()
-        await set_rls_context(session)
+        await set_rls_context(session, Unattributed())
         rows = (
             await session.exec(
                 select(GuildMembership.guild_id).where(
@@ -348,7 +347,7 @@ async def test_one_providers_sign_in_leaves_anothers_memberships_alone(
         ).all()
         return set(rows)
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await sync_oidc_assignments(
         session,
         user_id=person.id,
@@ -360,7 +359,7 @@ async def test_one_providers_sign_in_leaves_anothers_memberships_alone(
     assert await _guild_ids() == {corp_guild.id}
 
     # The partner's claims admit them to the partner guild...
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await sync_oidc_assignments(
         session,
         user_id=person.id,
@@ -374,7 +373,7 @@ async def test_one_providers_sign_in_leaves_anothers_memberships_alone(
     # ...and signing in through the corporate provider again keeps both. Its
     # claims say nothing about the partner guild because its rules do not
     # mention it, which is not the same as saying the person does not belong.
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await sync_oidc_assignments(
         session,
         user_id=person.id,
@@ -386,7 +385,6 @@ async def test_one_providers_sign_in_leaves_anothers_memberships_alone(
     assert await _guild_ids() == {corp_guild.id, partner_guild.id}
 
 
-@pytest.mark.integration
 async def test_deleting_the_last_rule_hands_back_what_it_granted(
     session: AsyncSession,
 ):
@@ -410,7 +408,7 @@ async def test_deleting_the_last_rule_hands_back_what_it_granted(
     session.add(rule)
     await session.commit()
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await sync_oidc_assignments(
         session,
         user_id=person.id,
@@ -421,7 +419,7 @@ async def test_deleting_the_last_rule_hands_back_what_it_granted(
     await session.commit()
 
     session.expunge_all()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     assert (
         await session.exec(
             select(GuildMembership).where(GuildMembership.user_id == person.id)
@@ -432,7 +430,7 @@ async def test_deleting_the_last_rule_hands_back_what_it_granted(
     await session.delete(await session.get(OIDCClaimMapping, rule.id))
     await session.commit()
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await sync_oidc_assignments(
         session,
         user_id=person.id,
@@ -443,7 +441,7 @@ async def test_deleting_the_last_rule_hands_back_what_it_granted(
     await session.commit()
 
     session.expunge_all()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     assert not (
         await session.exec(
             select(GuildMembership).where(GuildMembership.user_id == person.id)
@@ -451,7 +449,6 @@ async def test_deleting_the_last_rule_hands_back_what_it_granted(
     ).all()
 
 
-@pytest.mark.integration
 async def test_stale_provider_claim_preserves_a_promoted_superadmin(
     session: AsyncSession,
 ):
@@ -470,7 +467,7 @@ async def test_stale_provider_claim_preserves_a_promoted_superadmin(
     session.add(rule)
     await session.commit()
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await sync_oidc_assignments(
         session,
         user_id=person.id,
@@ -481,7 +478,7 @@ async def test_stale_provider_claim_preserves_a_promoted_superadmin(
     await session.commit()
 
     session.expunge_all()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     membership = (
         await session.exec(
             select(GuildMembership).where(
@@ -495,7 +492,7 @@ async def test_stale_provider_claim_preserves_a_promoted_superadmin(
     await session.delete(await session.get(OIDCClaimMapping, rule.id))
     await session.commit()
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     result = await sync_oidc_assignments(
         session,
         user_id=person.id,
@@ -505,7 +502,7 @@ async def test_stale_provider_claim_preserves_a_promoted_superadmin(
     )
 
     session.expunge_all()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     preserved = (
         await session.exec(
             select(GuildMembership).where(
@@ -519,7 +516,6 @@ async def test_stale_provider_claim_preserves_a_promoted_superadmin(
     assert result.guilds_removed == []
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
     "listed,admitted",
     [
@@ -571,7 +567,7 @@ async def test_claim_sync_keeps_an_under_age_answer_out_of_a_listed_guild(
     )
     await session.commit()
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await sync_oidc_assignments(
         session,
         user_id=newcomer.id,
@@ -581,7 +577,7 @@ async def test_claim_sync_keeps_an_under_age_answer_out_of_a_listed_guild(
     )
 
     session.expunge_all()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     membership = (
         await session.exec(
             select(GuildMembership).where(
@@ -608,7 +604,6 @@ async def _provider_rule(
     )
 
 
-@pytest.mark.integration
 async def test_a_provider_rule_places_where_the_community_accepts_it(
     session: AsyncSession,
 ):
@@ -632,7 +627,6 @@ async def test_a_provider_rule_places_where_the_community_accepts_it(
     assert await _joined(session, newcomer.id) == {accepting.id}
 
 
-@pytest.mark.integration
 async def test_a_provider_rule_places_everywhere_when_the_deployment_says_so(
     session: AsyncSession,
 ):
@@ -653,7 +647,6 @@ async def test_a_provider_rule_places_everywhere_when_the_deployment_says_so(
     assert await _joined(session, newcomer.id) == {unconnected.id}
 
 
-@pytest.mark.integration
 async def test_a_provider_rule_naming_a_directory_places_only_its_arrivals(
     session: AsyncSession,
 ):
@@ -704,7 +697,6 @@ async def test_a_provider_rule_naming_a_directory_places_only_its_arrivals(
     assert await _joined(session, from_elsewhere.id) == set()
 
 
-@pytest.mark.integration
 async def test_a_provider_rule_places_whatever_the_communitys_own_narrowing_says(
     session: AsyncSession,
 ):

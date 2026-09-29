@@ -3,15 +3,14 @@
 import io
 import zipfile
 
-import pytest
 
 from app.services.export.lexical import (
     blocks_from_editor_state,
+    editor_markdown,
     render_docx,
     render_markdown,
 )
 
-pytestmark = pytest.mark.unit
 
 GUILD = 7
 
@@ -468,6 +467,33 @@ def test_a_callout_exports_as_obsidian_markdown():
     assert lines[:4] == ["> [!warning]", "> Careful", ">", "> - one"]
 
 
+def test_a_folded_callout_exports_with_obsidians_fold_marker():
+    folded = _state([{**CALLOUT["root"]["children"][0], "collapsed": True}])
+    blocks, _assets = blocks_from_editor_state(folded, guild_id=GUILD)
+    content, _ctype, _name = render_markdown(
+        {"title": "", "blocks": blocks}, lambda key: b""
+    )
+    assert content.decode().strip().splitlines()[:2] == ["> [!warning]-", "> Careful"]
+
+
+def test_an_embed_exports_as_a_callout_holding_its_name():
+    state = _state(
+        [
+            {
+                "type": "reference-embed",
+                "entityType": "task",
+                "entityId": 12,
+                "text": "Roll call",
+            }
+        ]
+    )
+    blocks, _assets = blocks_from_editor_state(state, guild_id=GUILD)
+    content, _ctype, _name = render_markdown(
+        {"title": "", "blocks": blocks}, lambda key: b""
+    )
+    assert content.decode().strip().splitlines() == ["> [!note]", "> Roll call"]
+
+
 def test_a_callout_in_word_is_its_label_then_its_blocks():
     import docx
 
@@ -594,6 +620,21 @@ def test_a_drawing_is_left_out_of_word():
     out = render_docx({"title": "", "blocks": blocks}, lambda key: b"")
     texts = [p.text for p in docx.Document(io.BytesIO(out)).paragraphs if p.text]
     assert [text.strip() for text in texts] == ["before", "after"]
+
+
+def test_reading_order_keeps_callouts_and_reads_columns_in_line():
+    assert editor_markdown(CALLOUT, reading=True).splitlines() == [
+        "> [!warning]",
+        "> Careful",
+        ">",
+        "> - one",
+        ">",
+        f"> ![pic](</uploads/{GUILD}/in-callout.png>)",
+        "",
+        "after",
+    ]
+    assert editor_markdown(COLUMNS, reading=True) == "narrow\n\nwide\n\nmore"
+    assert editor_markdown(DRAWING, reading=True) == "before \n\n after"
 
 
 def test_a_status_exports_as_its_word_set_apart():

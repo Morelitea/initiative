@@ -21,7 +21,7 @@ vi.mock("@/lib/chesterToast", () => {
 
 // variant="user" -> cross-guild GET /api/v1/me/trash (no guild segment).
 const myTrashEndpoint = "/api/v1/me/trash";
-// variant="guild" -> GET /api/v1/g/:guildId/trash/ (guild-admin view).
+// variant="guild" -> GET /api/v1/c/:guildId/trash/ (guild-admin view).
 const guildTrashEndpoint = "/trash/";
 // restore/purge stay guild-scoped, addressed by each item's guild_id.
 const restoreEndpoint = "/trash/:type/:id/restore";
@@ -55,6 +55,36 @@ describe("TrashTable", () => {
     // entityType labels come from the trash namespace.
     expect(screen.getByText("Project")).toBeInTheDocument();
     expect(screen.getByText("Task")).toBeInTheDocument();
+  });
+
+  it("pages through the trash, asking the server for each page", async () => {
+    const pagesAsked: (string | null)[] = [];
+    server.use(
+      http.get(myTrashEndpoint, ({ request }) => {
+        const page = new URL(request.url).searchParams.get("page");
+        pagesAsked.push(page);
+        return HttpResponse.json(
+          page === "2"
+            ? buildTrashListResponse([buildTrashItem({ name: "Older" })], {
+                page: 2,
+                total_count: 51,
+                has_prev: true,
+              })
+            : buildTrashListResponse([buildTrashItem({ name: "Newest" })], {
+                total_count: 51,
+                has_next: true,
+              })
+        );
+      })
+    );
+
+    renderWithProviders(<TrashTable variant="user" showPurgeAction={false} />);
+
+    await screen.findByText("Newest");
+    await userEvent.click(screen.getByRole("button", { name: /Next/i }));
+
+    expect(await screen.findByText("Older")).toBeInTheDocument();
+    expect(pagesAsked).toEqual(["1", "2"]);
   });
 
   it("hides the Delete now column when showPurgeAction=false", async () => {

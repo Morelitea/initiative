@@ -41,7 +41,6 @@ class _Model(SanitizedBaseModel):
     color: _Color = _Color.red
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
@@ -64,7 +63,6 @@ def test_plain_text_keeps_the_text_and_drops_the_markup(
     assert _Model(name=raw).name == expected
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     ("raw", "absent"),
     [
@@ -86,7 +84,6 @@ def test_encoded_markup_is_not_turned_back_into_markup(
         assert fragment not in cleaned
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize("field", ["rich", "raw", "rich_opt", "raw_opt"])
 def test_opted_out_fields_keep_their_markup(field: str) -> None:
     """The opt-out marker is honoured on the field itself and when it is nested
@@ -95,7 +92,6 @@ def test_opted_out_fields_keep_their_markup(field: str) -> None:
     assert getattr(_Model(name="x", **{field: raw}), field) == raw
 
 
-@pytest.mark.unit
 def test_enum_field_not_modified() -> None:
     # Enums should never be coerced through nh3.clean.
     m = _Model(name="x", color=_Color.blue)
@@ -106,45 +102,38 @@ def test_enum_field_not_modified() -> None:
     assert m2.color is _Color.red
 
 
-@pytest.mark.unit
 def test_non_str_fields_not_modified() -> None:
     m = _Model(name="x", count=42, enabled=True)
     assert m.count == 42
     assert m.enabled is True
 
 
-@pytest.mark.unit
 def test_optional_str_sanitized_when_present() -> None:
     m = _Model(name="x", bio="<script>x</script>safe")
     assert m.bio == "safe"
 
 
-@pytest.mark.unit
 def test_optional_str_none_passes_through() -> None:
     m = _Model(name="x", bio=None)
     assert m.bio is None
 
 
-@pytest.mark.unit
 def test_plain_text_over_max_length_rejected() -> None:
     with pytest.raises(ValidationError):
         _Model(name="x" * (MAX_PLAIN_TEXT_LENGTH + 1))
 
 
-@pytest.mark.unit
 def test_plain_text_at_max_length_allowed() -> None:
     m = _Model(name="x" * MAX_PLAIN_TEXT_LENGTH)
     assert len(m.name) == MAX_PLAIN_TEXT_LENGTH
 
 
-@pytest.mark.unit
 def test_raw_text_field_exempt_from_length_cap() -> None:
     big = "A" * (MAX_PLAIN_TEXT_LENGTH + 5000)
     m = _Model(name="ok", raw=big)
     assert m.raw == big
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize("sigil", sorted(RESERVED_SIGILS))
 def test_title_str_rejects_reserved_sigil(sigil: str) -> None:
     with pytest.raises(ValidationError) as exc:
@@ -152,25 +141,21 @@ def test_title_str_rejects_reserved_sigil(sigil: str) -> None:
     assert "RESERVED_SIGIL_IN_NAME" in str(exc.value)
 
 
-@pytest.mark.unit
 def test_title_str_rejects_sigil_revealed_by_stripping() -> None:
     """The check runs on the stripped value, not the raw one."""
     with pytest.raises(ValidationError):
         _Model(name="x", display="a<b>&#35;</b>b")
 
 
-@pytest.mark.unit
 def test_title_str_allows_ordinary_punctuation() -> None:
     m = _Model(name="x", display="Q3 Report (final) & notes — v2")
     assert m.display == "Q3 Report (final) & notes — v2"
 
 
-@pytest.mark.unit
 def test_title_str_none_passes_through() -> None:
     assert _Model(name="x", display=None).display is None
 
 
-@pytest.mark.unit
 def test_title_str_stops_at_the_bound() -> None:
     at = "a" * MAX_TITLE_LENGTH
     assert _Model(name="x", display=at).display == at
@@ -178,25 +163,21 @@ def test_title_str_stops_at_the_bound() -> None:
         _Model(name="x", display=at + "a")
 
 
-@pytest.mark.unit
 def test_plain_str_field_is_not_held_to_the_title_bound() -> None:
     """A title is a label; a plain str field is bounded by the plain-text cap."""
     long = "a" * (MAX_TITLE_LENGTH + 1)
     assert _Model(name=long).name == long
 
 
-@pytest.mark.unit
 def test_plain_str_field_still_accepts_sigils() -> None:
     """Only TitleStr fields are held to the rule."""
     assert _Model(name="Fix #12 for @alice").name == "Fix #12 for @alice"
 
 
-@pytest.mark.unit
 def test_sigil_free_fields_sees_through_optional() -> None:
     assert sigil_free_fields(_Model) == frozenset({"display"})
 
 
-@pytest.mark.unit
 def test_every_schema_extends_sanitized_base() -> None:
     """Lint: every Pydantic class in app.schemas must extend SanitizedBaseModel.
 
@@ -291,7 +272,6 @@ def _request_body_models() -> set[type[BaseModel]]:
     return found
 
 
-@pytest.mark.unit
 def test_request_body_names_are_sigil_free() -> None:
     """Lint: a name/title/label on a request body carries TitleStr or is exempt.
 
@@ -315,7 +295,6 @@ def test_request_body_names_are_sigil_free() -> None:
     )
 
 
-@pytest.mark.unit
 def test_sigil_exempt_entries_all_exist() -> None:
     """The exemption list decays into fiction if an entry outlives its field."""
     live = {

@@ -2,16 +2,11 @@ import { screen } from "@testing-library/react";
 import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  buildGuild,
-  buildInitiative,
-  buildInitiativeMember,
-  buildUser,
-} from "@/__tests__/factories";
+import { buildGuild, buildInitiative, initiativeCan } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
-import type { InitiativeMemberRead, UserRead } from "@/api/generated/initiativeAPI.schemas";
+import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
 
 vi.mock("@/lib/chesterToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -21,10 +16,13 @@ import { InitiativeSettingsLayout } from "./InitiativeSettingsLayout";
 
 const INITIATIVE_ID = 7;
 
-function stubInitiative(members: InitiativeMemberRead[] = []) {
+/** The initiative, saying whether this reader may run it. */
+function stubInitiative(manage: boolean) {
   server.use(
     guildHttp.get("/initiatives/:id", () =>
-      HttpResponse.json(buildInitiative({ id: INITIATIVE_ID, name: "Apollo", members }))
+      HttpResponse.json(
+        buildInitiative({ id: INITIATIVE_ID, name: "Apollo", can: initiativeCan({ manage }) })
+      )
     )
   );
 }
@@ -55,7 +53,7 @@ describe("InitiativeSettingsLayout", () => {
   it("keeps the export tab out of the bar for someone who may not export", async () => {
     // A plain guild member who manages nothing here: the layout still refuses
     // the whole surface, so no section is offered at all.
-    stubInitiative();
+    stubInitiative(false);
 
     renderLayout({ role: "member" });
 
@@ -64,12 +62,9 @@ describe("InitiativeSettingsLayout", () => {
   });
 
   it("lets an initiative manager who is no guild admin in", async () => {
-    const user = buildUser({ id: 42 });
-    stubInitiative([
-      buildInitiativeMember({ user: { ...user, id: 42 }, is_manager: true, role_name: "manager" }),
-    ]);
+    stubInitiative(true);
 
-    renderLayout({ role: "member", user });
+    renderLayout({ role: "member" });
 
     expect(await screen.findByRole("tab", { name: "Members" })).toBeInTheDocument();
   });

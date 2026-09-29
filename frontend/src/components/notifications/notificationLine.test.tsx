@@ -124,3 +124,46 @@ describe("notificationText — mentions", () => {
     expect(line).toContain("notifications.mentionComment");
   });
 });
+
+describe("an app asking to act as the reader", () => {
+  const request = notice("app_consent_requested", {
+    guild_id: 4,
+    app_id: 7,
+    app_name: "Auto",
+    label: "Comment on the linked issue",
+    target_path: "/?app=7",
+  });
+
+  it("names the app and quotes what it asked", () => {
+    expect(notificationText(request, t)).toBe(
+      `notifications.appConsentRequested(${JSON.stringify({
+        app: "Auto",
+        label: "Comment on the linked issue",
+      })})`
+    );
+  });
+
+  it("opens that app's settings in its community", () => {
+    expect(notificationLink(request)).toBe("/c/4/?app=7");
+  });
+});
+
+describe("an app version waiting for the seat", () => {
+  const waiting = notice("app_update_pending", {
+    guild_id: 4,
+    app_id: 7,
+    app_name: "Auto",
+    version: "1.2.0",
+    target_path: "/settings/integrations",
+  });
+
+  it("names the app and the version", () => {
+    expect(notificationText(waiting, t)).toBe(
+      `notifications.appUpdatePending(${JSON.stringify({ app: "Auto", version: "1.2.0" })})`
+    );
+  });
+
+  it("opens the community's integrations settings", () => {
+    expect(notificationLink(waiting)).toBe("/c/4/settings/integrations");
+  });
+});

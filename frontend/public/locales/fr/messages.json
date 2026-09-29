@@ -99,24 +99,35 @@
     "today": "Aujourd'hui",
     "yesterday": "Hier"
   },
-  "historyRequest": {
-    "title": "Un de tes appareils demande tes messages",
-    "body": "{{device}} vient de se connecter et n'a aucun historique. Lui envoyer les messages de cet appareil ? Vérifie qu'il affiche les mêmes images, dans le même ordre.",
+  "newDevice": {
+    "title": "Nouvel appareil connecté",
+    "body": "{{device}} s'est connecté à ton compte. Est-ce le tien ? Il devrait afficher ces images, dans le même ordre.",
     "unknownDevice": "Un appareil",
-    "codeLabel": "Code de l'appareil",
-    "approve": "Envoyer mes messages",
-    "decline": "Pas maintenant"
+    "sendHistory": "Lui envoyer mon historique de messages",
+    "confirm": "Oui, c'est le mien",
+    "remove": "Non, le retirer",
+    "error": "Impossible d'enregistrer ta réponse. Réessaie."
+  },
+  "deviceCode": {
+    "label": "Code de l'appareil"
   },
   "historyAsk": {
-    "title": "En attente de tes messages",
-    "body": "Cet appareil a demandé à tes autres appareils les messages que tu avais déjà. Ouvre l'un d'eux et approuve-le là-bas — voici les images qu'il t'affichera.",
+    "title": "Confirme cet appareil sur un autre des tiens",
+    "body": "Ouvre Messages sur un appareil que tu utilises déjà et confirme celui-ci là-bas. Il t'affichera ces images. Ton historique de messages arrive dès que c'est fait.",
     "dismiss": "Masquer",
-    "dismissNote": "Masquer ne fait que cacher cet avis. Tes messages arriveront quand même si tu approuves sur ton autre appareil."
+    "dismissNote": "Masquer ne fait que cacher cet avis. Tes messages arriveront quand même dès que tu confirmeras cet appareil sur l'autre."
   },
   "peerKeyChange": {
-    "title": "La clé d'un appareil a changé dans cette conversation",
-    "body": "{{name}} utilise désormais une clé différente sur un appareil auquel vous aviez déjà écrit. Le plus souvent, cela signifie que cette personne a remplacé ou réinstallé un appareil. Cela peut aussi signifier que quelqu'un d'autre a enregistré un appareil en son nom. Vérifiez ces images avec elle par un autre moyen qu'ici avant d'envoyer quoi que ce soit de confidentiel.",
-    "acknowledge": "J'ai vérifié"
+    "title": "Les appareils de {{name}} ont changé",
+    "body": "Le plus souvent, cela signifie que cette personne a ajouté, remplacé ou réinstallé un appareil. Cela peut aussi signifier que quelqu'un d'autre a ajouté un appareil en son nom. Comparez votre numéro de sécurité par un autre moyen qu'ici avant d'envoyer quoi que ce soit de confidentiel.",
+    "compare": "Comparer le numéro de sécurité"
+  },
+  "safetyNumber": {
+    "title": "Numéro de sécurité avec {{name}}",
+    "description": "Lisez ces chiffres avec {{name}} en personne ou lors d'un appel. Si les deux écrans affichent les mêmes chiffres, vos messages n'atteignent que les appareils que vous attendez tous les deux.",
+    "you": "Toi",
+    "matches": "Ils correspondent",
+    "verified": "Tu as comparé ce numéro avec {{name}}."
   },
   "safetyEmoji": {
     "dog": "Chien",

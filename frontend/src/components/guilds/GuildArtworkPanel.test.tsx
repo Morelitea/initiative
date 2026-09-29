@@ -11,7 +11,7 @@ import { GuildArtworkPanel } from "./GuildArtworkPanel";
 
 const entitlements = (bannerImageEnabled: boolean) =>
   server.use(
-    http.get("*/api/v1/guilds/:guildId/entitlements", () =>
+    http.get("*/api/v1/communities/:guildId/entitlements", () =>
       HttpResponse.json({ guild_id: 1, banner_image_enabled: bannerImageEnabled })
     )
   );
@@ -46,13 +46,13 @@ describe("GuildArtworkPanel", () => {
         guild={buildGuild({
           id: 1,
           role: "admin",
-          banner: buildBanner({ image_url: "/api/v1/guilds/1/image/abc" }),
+          banner: buildBanner({ image_url: "/api/v1/communities/1/image/abc" }),
         })}
       />
     );
 
     await waitFor(() =>
-      expect(container.querySelector('img[src="/api/v1/guilds/1/image/abc"]')).not.toBeNull()
+      expect(container.querySelector('img[src="/api/v1/communities/1/image/abc"]')).not.toBeNull()
     );
     expect(screen.getByRole("button", { name: "Remove banner" })).toBeInTheDocument();
   });
@@ -84,7 +84,7 @@ describe("GuildArtworkPanel", () => {
     entitlements(true);
     const patched: unknown[] = [];
     server.use(
-      http.patch("*/api/v1/guilds/:guildId", async ({ request }) => {
+      http.patch("*/api/v1/communities/:guildId", async ({ request }) => {
         const body = await request.json();
         patched.push(body);
         return HttpResponse.json(
@@ -142,7 +142,7 @@ describe("GuildArtworkPanel", () => {
     entitlements(true);
     const patched: Record<string, unknown>[] = [];
     server.use(
-      http.patch("*/api/v1/guilds/:guildId", async ({ request }) => {
+      http.patch("*/api/v1/communities/:guildId", async ({ request }) => {
         patched.push((await request.json()) as Record<string, unknown>);
         return HttpResponse.json(
           buildGuild({
@@ -195,7 +195,7 @@ describe("GuildArtworkPanel", () => {
     entitlements(true);
     const patched: Record<string, unknown>[] = [];
     server.use(
-      http.patch("*/api/v1/guilds/:guildId", async ({ request }) => {
+      http.patch("*/api/v1/communities/:guildId", async ({ request }) => {
         patched.push((await request.json()) as Record<string, unknown>);
         return HttpResponse.json(buildGuild({ id: 1, role: "admin" }));
       })

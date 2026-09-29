@@ -6,9 +6,11 @@ import zipfile
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.orm import undefer
 
 from app.models.platform.guild import GuildRole
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
+from app.services.guild_sweeps import Scope, each_guild
 from app.services.import_engine import worker as import_worker
 from app.services.storage import get_guild_storage
 from app.testing.factories import (
@@ -16,11 +18,15 @@ from app.testing.factories import (
     create_calendar_event,
     create_counter_group,
     create_document,
+    create_import_job,
     create_initiative,
     create_queue,
     create_task,
+    grant_role_permission,
+    route_session_to_guild,
 )
 from app.services.import_engine import limits as import_limits
+from app.db.request_context import SystemGuild
 
 
 # ---------------------------------------------------------------------------
@@ -194,7 +200,11 @@ async def test_envelope_import_roundtrips_document_types(client, acting_user, se
         assert resp.status_code == 201, (doc_type, resp.text)
 
     imported = list(
-        await session.exec(select(Document).where(Document.initiative_id == target.id))
+        await session.exec(
+            select(Document)
+            .where(Document.initiative_id == target.id)
+            .options(undefer(Document.content))
+        )
     )
     by_name = {d.name: d for d in imported}
     assert set(by_name) == {"Notes", "Map", "Spec"}
@@ -381,9 +391,7 @@ async def test_large_envelope_becomes_job_and_worker_applies_it(
     assert "items" not in json.dumps(body)
     assert "payload_ref" not in body
 
-    user_session = await role_session("app_user")
-    monkeypatch.setattr(import_worker, "_open_user_session", lambda: user_session)
-    await import_worker.process_import_jobs()
+    await _run_import_worker(monkeypatch, role_session)
 
     status_resp = await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
     job = status_resp.json()
@@ -444,9 +452,7 @@ async def test_worker_fails_closed_on_revoked_permission(
     )
     await session.commit()
 
-    user_session = await role_session("app_user")
-    monkeypatch.setattr(import_worker, "_open_user_session", lambda: user_session)
-    await import_worker.process_import_jobs()
+    await _run_import_worker(monkeypatch, role_session)
 
     job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
     assert job["status"] == ImportJobStatus.failed.value
@@ -467,12 +473,11 @@ async def test_stale_running_import_fails_closed_not_reapplied(
 
     monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 0)
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    from app.testing import route_session_to_guild
-
-    await route_session_to_guild(session, a.guild.id)
     stale_time = datetime.now(timezone.utc) - timedelta(minutes=30)
-    job = ImportJob(
-        created_by=a.user.id,
+    job = await create_import_job(
+        session,
+        a.guild,
+        a.user,
         source="initiative-queue",
         params={"initiative_id": a.initiative.id},
         payload_ref="imports/gone.json",
@@ -480,13 +485,8 @@ async def test_stale_running_import_fails_closed_not_reapplied(
         created_at=stale_time,
         updated_at=stale_time,
     )
-    session.add(job)
-    await session.commit()
-    await session.refresh(job)
 
-    user_session = await role_session("app_user")
-    monkeypatch.setattr(import_worker, "_open_user_session", lambda: user_session)
-    await import_worker.process_import_jobs()
+    await _run_import_worker(monkeypatch, role_session)
 
     await session.refresh(job)
     assert job.status == ImportJobStatus.failed
@@ -672,6 +672,41 @@ def _queue_entry(initiative_id=1):
     return entry, envelope
 
 
+def _file_entry(key, *, entity_id=1, title="Handout", tags=()):
+    """A manifest entry for a file document whose blob is ``assets/<key>``."""
+    return {
+        "path": f"assets/{key}",
+        "tool": "document",
+        "type": "file",
+        "schema_version": None,
+        "entity_id": entity_id,
+        "title": title,
+        "initiative_id": 1,
+        "tags": list(tags),
+        "properties": [],
+        "asset": f"assets/{key}",
+    }
+
+
+def _asset_record(
+    key,
+    *,
+    size_bytes,
+    content_type="application/pdf",
+    original_filename=None,
+    referenced_by=(),
+):
+    """A manifest's record of one file under ``assets/``."""
+    return {
+        "path": f"assets/{key}",
+        "storage_key": key,
+        "original_filename": original_filename or key,
+        "content_type": content_type,
+        "size_bytes": size_bytes,
+        "referenced_by": list(referenced_by),
+    }
+
+
 async def _upload_backup(client, actor, zip_bytes):
     return await client.post(
         actor.g("/imports/backup"),
@@ -697,7 +732,9 @@ async def _apply_backup(client, actor, zip_bytes, monkeypatch, role_session) -> 
 
 async def _run_import_worker(monkeypatch, role_session):
     user_session = await role_session("app_user")
-    monkeypatch.setattr(import_worker, "_open_user_session", lambda: user_session)
+    monkeypatch.setattr(
+        import_worker, "_open_user_session", lambda _guild_id: user_session
+    )
     await import_worker.process_import_jobs()
 
 
@@ -735,29 +772,16 @@ async def test_backup_import_end_to_end_with_assets(
     )
 
     entry, envelope = _queue_entry()
-    file_entry = {
-        "path": "assets/restore-me.pdf",
-        "tool": "document",
-        "type": "file",
-        "schema_version": None,
-        "entity_id": 2,
-        "title": "Handout",
-        "initiative_id": 1,
-        "tags": ["restored"],
-        "properties": [],
-        "asset": "assets/restore-me.pdf",
-    }
+    file_entry = _file_entry("restore-me.pdf", entity_id=2, tags=["restored"])
     manifest = _minimal_manifest(
         entries=[entry, file_entry],
         assets=[
-            {
-                "path": "assets/restore-me.pdf",
-                "storage_key": "restore-me.pdf",
-                "original_filename": "Handout.pdf",
-                "content_type": "application/pdf",
-                "size_bytes": len(payload),
-                "referenced_by": ["initiatives/1-restored/documents/2-handout"],
-            }
+            _asset_record(
+                "restore-me.pdf",
+                size_bytes=len(payload),
+                original_filename="Handout.pdf",
+                referenced_by=["initiatives/1-restored/documents/2-handout"],
+            )
         ],
     )
     zip_bytes = _make_backup_zip(
@@ -1097,14 +1121,11 @@ async def test_backup_quota_exceeded_fails_job(
 
     manifest = _minimal_manifest(
         assets=[
-            {
-                "path": "assets/huge.bin",
-                "storage_key": "huge.bin",
-                "original_filename": "huge.bin",
-                "content_type": "application/octet-stream",
-                "size_bytes": 1_000_000,
-                "referenced_by": [],
-            }
+            _asset_record(
+                "huge.bin",
+                size_bytes=1_000_000,
+                content_type="application/octet-stream",
+            )
         ]
     )
     zip_bytes = _make_backup_zip(manifest, {"assets/huge.bin": b"x" * 1024})
@@ -1157,7 +1178,7 @@ async def test_backup_staged_expiry_and_cancel(
     assert row.payload_ref is None
 
     # GC stays idempotent over the already-expired row.
-    await import_worker.process_import_gc()
+    await each_guild([(Scope.PROVISIONED, import_worker.expire_payloads)], name="t")
     await session.refresh(row)
     assert row.status == ImportJobStatus.expired
 
@@ -1192,29 +1213,15 @@ async def test_backup_restores_fresh_assets_into_storage(
         guild_role=GuildRole.superadmin, initiative=True, project=True
     )
     payload = b"%PDF-brand-new-blob"
-    file_entry = {
-        "path": "assets/from-elsewhere.pdf",
-        "tool": "document",
-        "type": "file",
-        "schema_version": None,
-        "entity_id": 1,
-        "title": "Foreign Handout",
-        "initiative_id": 1,
-        "tags": [],
-        "properties": [],
-        "asset": "assets/from-elsewhere.pdf",
-    }
+    file_entry = _file_entry("from-elsewhere.pdf", title="Foreign Handout")
     manifest = _minimal_manifest(
         entries=[file_entry],
         assets=[
-            {
-                "path": "assets/from-elsewhere.pdf",
-                "storage_key": "from-elsewhere.pdf",
-                "original_filename": "Foreign Handout.pdf",
-                "content_type": "application/pdf",
-                "size_bytes": len(payload),
-                "referenced_by": [],
-            }
+            _asset_record(
+                "from-elsewhere.pdf",
+                size_bytes=len(payload),
+                original_filename="Foreign Handout.pdf",
+            )
         ],
     )
     zip_bytes = _make_backup_zip(manifest, {"assets/from-elsewhere.pdf": payload})
@@ -1266,14 +1273,11 @@ async def test_backup_quota_uses_zip_sizes_not_manifest_claims(
     big_blob = b"x" * 50_000  # actual bytes far over the quota
     manifest = _minimal_manifest(
         assets=[
-            {
-                "path": "assets/liar.bin",
-                "storage_key": "liar.bin",
-                "original_filename": "liar.bin",
-                "content_type": "application/octet-stream",
-                "size_bytes": 1,  # understated claim
-                "referenced_by": [],
-            }
+            _asset_record(
+                "liar.bin",
+                size_bytes=1,  # understated claim
+                content_type="application/octet-stream",
+            )
         ]
     )
     zip_bytes = _make_backup_zip(manifest, {"assets/liar.bin": big_blob})
@@ -1319,8 +1323,8 @@ async def test_backup_asset_restore_guards_actual_bytes_not_declarations(
             info.file_size = 10
             return info
 
-        def read(self, name):
-            return b"x" * 100_000
+        def open(self, info):
+            return io.BytesIO(b"x" * 100_000)
 
     manifest = BackupManifest(
         type="initiative-backup",
@@ -1352,6 +1356,152 @@ async def test_backup_asset_restore_guards_actual_bytes_not_declarations(
     assert get_guild_storage(a.guild.id).open_readable("unit-liar.bin") is None
 
 
+async def test_backup_assets_are_stored_as_what_their_bytes_are(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """The manifest says what each file is; the bytes decide. A file is
+    stored as the type it turned out to be, a table of text becomes a
+    spreadsheet, and one that is not a file this app holds is left out,
+    reported, and the entry that needed it skipped."""
+    from sqlmodel import select
+
+    from app.models.tenant.document import Document, DocumentType
+    from app.models.tenant.upload import Upload
+    from app.testing import route_session_to_guild
+
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
+    pdf = b"%PDF-1.4 handout"
+    program = b"MZ\x90\x00" + b"\x00" * 60
+    table = b"name,count\nAria,3\n"
+
+    manifest = _minimal_manifest(
+        entries=[
+            _file_entry("typed-handout.pdf"),
+            _file_entry("typed-tool.exe", entity_id=2, title="Tool"),
+            _file_entry("typed-table.csv", entity_id=3, title="Table"),
+        ],
+        assets=[
+            # Claimed as a page; it is a PDF.
+            _asset_record(
+                "typed-handout.pdf", size_bytes=len(pdf), content_type="text/html"
+            ),
+            _asset_record(
+                "typed-tool.exe",
+                size_bytes=len(program),
+                content_type="application/x-msdownload",
+            ),
+            _asset_record(
+                "typed-table.csv", size_bytes=len(table), content_type="text/csv"
+            ),
+        ],
+    )
+    job = await _apply_backup(
+        client,
+        a,
+        _make_backup_zip(
+            manifest,
+            {
+                "assets/typed-handout.pdf": pdf,
+                "assets/typed-tool.exe": program,
+                "assets/typed-table.csv": table,
+            },
+        ),
+        monkeypatch,
+        role_session,
+    )
+    assert job["status"] == ImportJobStatus.done.value, job.get("error")
+    result = job["result"]
+    assert result["assets_restored"] == 1
+    assert "unsupported_file:typed-tool.exe" in result["warnings"]
+    entries = {entry["title"]: entry for entry in result["entries"]}
+    assert entries["Handout"]["status"] == "created"
+    assert (entries["Tool"]["status"], entries["Tool"]["error"]) == (
+        "skipped",
+        "IMPORT_ASSET_MISSING",
+    )
+    assert entries["Table"]["status"] == "created"
+    storage = get_guild_storage(a.guild.id)
+    assert storage.exists("typed-tool.exe") is False
+    assert storage.exists("typed-table.csv") is False
+
+    await route_session_to_guild(session, a.guild.id)
+    upload = (
+        await session.exec(select(Upload).where(Upload.filename == "typed-handout.pdf"))
+    ).one()
+    assert upload.content_type == "application/pdf"
+    sheet = await session.get(
+        Document,
+        entries["Table"]["detail"]["entity_id"],
+        options=[undefer(Document.content)],
+    )
+    assert sheet.document_type == DocumentType.spreadsheet
+    assert sheet.content["sheets"][0]["cells"]
+
+
+async def test_backup_entry_past_the_json_cap_fails_alone(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """Each envelope in a backup is read up to the envelope cap. One past it
+    fails its own entry; the rest of the backup restores."""
+    monkeypatch.setattr(import_limits, "IMPORT_MAX_ENVELOPE_BYTES", 4096)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
+    good_entry, good_envelope = _queue_entry()
+    big_entry = {
+        **good_entry,
+        "path": "initiatives/1-restored/queues/2-big.initiative-queue.json",
+        "title": "Big Queue",
+        "entity_id": 2,
+    }
+    big_envelope = {
+        **good_envelope,
+        "name": "Big Queue",
+        "items": [
+            {"label": f"Member {index}", "position": float(index)}
+            for index in range(400)
+        ],
+    }
+    job = await _apply_backup(
+        client,
+        a,
+        _make_backup_zip(
+            _minimal_manifest(entries=[good_entry, big_entry]),
+            {
+                good_entry["path"]: json.dumps(good_envelope).encode(),
+                big_entry["path"]: json.dumps(big_envelope).encode(),
+            },
+        ),
+        monkeypatch,
+        role_session,
+    )
+    assert job["status"] == ImportJobStatus.done.value, job.get("error")
+    entries = {entry["title"]: entry for entry in job["result"]["entries"]}
+    assert entries["Restored Queue"]["status"] == "created"
+    assert (entries["Big Queue"]["status"], entries["Big Queue"]["error"]) == (
+        "failed",
+        "IMPORT_TOO_LARGE",
+    )
+
+
+async def test_backup_upload_past_the_cap_is_refused_by_the_handler(
+    client, acting_user, session, monkeypatch
+):
+    """The upload is copied to a temporary file up to its cap; one past it is
+    refused with the same answer the transport gives, and nothing is staged."""
+    monkeypatch.setattr(import_limits, "IMPORT_MAX_BACKUP_UPLOAD_BYTES", 64)
+    a = await acting_user(
+        guild_role=GuildRole.superadmin, initiative=True, project=True
+    )
+    resp = await _upload_backup(client, a, _make_backup_zip(_minimal_manifest()))
+    assert resp.status_code == 413
+    assert resp.json()["detail"] == "IMPORT_TOO_LARGE"
+    jobs = (await client.get(a.g("/imports/jobs"), headers=a.headers)).json()
+    assert jobs == []
+
+
 # ---------------------------------------------------------------------------
 # Posts: an import is a write like any other, held to the same limits
 # ---------------------------------------------------------------------------
@@ -1370,7 +1520,6 @@ def _post_envelope(**overrides) -> dict:
     }
 
 
-@pytest.mark.integration
 async def test_importing_a_post_over_the_body_limit_is_refused(
     client, acting_user, session
 ):
@@ -1393,7 +1542,6 @@ async def test_importing_a_post_over_the_body_limit_is_refused(
     assert response.status_code == 400
 
 
-@pytest.mark.integration
 async def test_importing_a_structurally_oversized_body_is_refused(
     client, acting_user, session
 ):
@@ -1419,7 +1567,6 @@ async def test_importing_a_structurally_oversized_body_is_refused(
     assert response.status_code == 400
 
 
-@pytest.mark.integration
 async def test_importing_a_long_headline_trims_rather_than_fails(
     client, acting_user, session
 ):
@@ -1636,16 +1783,7 @@ async def test_backup_attach_to_files_a_document_in_its_wiki(
         "asset": None,
     }
     file_entry = {
-        "path": "assets/field-notes.pdf",
-        "tool": "document",
-        "type": "file",
-        "schema_version": None,
-        "entity_id": 3,
-        "title": "Field notes",
-        "initiative_id": 1,
-        "tags": [],
-        "properties": [],
-        "asset": "assets/field-notes.pdf",
+        **_file_entry("field-notes.pdf", entity_id=3, title="Field notes"),
         "attach_to": {"kind": "wiki", "ref": wiki_path, "page": "rules"},
     }
     manifest = _minimal_manifest(entries=[file_entry, wiki_entry])
@@ -1804,15 +1942,15 @@ async def test_a_stale_fetch_is_re_claimed_not_failed(
 
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     long_ago = datetime.now(timezone.utc) - timedelta(hours=3)
-    job = ImportJob(
-        created_by=a.user.id,
+    job = await create_import_job(
+        session,
+        a.guild,
+        a.user,
         source="atlassian",
         params={"initiative_id": a.initiative.id},
         payload_ref="imports/half-written.json",
         status=ImportJobStatus.fetching,
     )
-    session.add(job)
-    await session.commit()
     # updated_at is stamped on write, so age it afterwards.
     await session.exec(
         ImportJob.__table__.update()
@@ -1905,9 +2043,7 @@ async def test_an_unmatched_author_keeps_their_name_and_no_account(
         a.g(f"/imports/jobs/{job['id']}/confirm"), headers=a.headers, json={}
     )
     assert confirm.status_code == 200, confirm.text
-    user_session = await role_session("app_user")
-    monkeypatch.setattr(import_worker, "_open_user_session", lambda: user_session)
-    await import_worker.process_import_jobs()
+    await _run_import_worker(monkeypatch, role_session)
 
     comment = (
         await session.exec(
@@ -1965,9 +2101,7 @@ async def test_mentions_link_to_whoever_the_people_step_names(
         json={"people_map": {"Alice Chen": b.user.id}},
     )
     assert confirm.status_code == 200, confirm.text
-    user_session = await role_session("app_user")
-    monkeypatch.setattr(import_worker, "_open_user_session", lambda: user_session)
-    await import_worker.process_import_jobs()
+    await _run_import_worker(monkeypatch, role_session)
 
     imported = (
         await session.exec(select(Task).where(Task.title == "Fit the door"))
@@ -2220,15 +2354,67 @@ async def test_only_the_creator_answers_an_envelopes_people_step(
     assert stolen.json()["detail"] == "IMPORT_NOT_CONFIRMABLE"
 
 
-async def test_the_people_map_decides_who_an_envelopes_assignee_is(
-    client, acting_user, session, monkeypatch, role_session
-):
-    """An assignee goes through the map like an author does — but the
-    initiative's roster still has the last word, because being assigned
-    something is a statement about who is working here now."""
+async def _import_with_assignees(client, a, people_map, monkeypatch, role_session):
+    """Import a one-task project assigning ``ghost#1111`` and ``phantom#2222``,
+    with the people step answered by ``people_map``; the job's result."""
+    envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
+    envelope["tasks"][0]["assignee_handles"] = ["ghost#1111", "phantom#2222"]
+    resp = await _import_envelope(client, a, envelope, a.initiative.id)
+    assert resp.status_code == 202, resp.text
+    job_id = resp.json()["id"]
+    confirm = await client.post(
+        a.g(f"/imports/jobs/{job_id}/confirm"),
+        headers=a.headers,
+        json={"people_map": people_map},
+    )
+    assert confirm.status_code == 200, confirm.text
+    await _run_import_worker(monkeypatch, role_session)
+    job = await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)
+    return job.json()["result"]
+
+
+async def _named_on_the_import(session, a):
+    """The imported task's assignees, and who the imported project is shared
+    with at read."""
     from sqlmodel import select
 
+    from app.models.tenant.project import Project
+    from app.models.tenant.resource_grant import ResourceGrant
     from app.models.tenant.task import Task, TaskAssignee
+
+    await route_session_to_guild(session, a.guild.id)
+    task = (await session.exec(select(Task).where(Task.title == "Fit the door"))).one()
+    project = await session.get(Project, task.project_id)
+    assignees = set(
+        (
+            await session.exec(
+                select(TaskAssignee.user_id).where(TaskAssignee.task_id == task.id)
+            )
+        ).all()
+    )
+    readers = set(
+        (
+            await session.exec(
+                select(ResourceGrant.user_id).where(
+                    ResourceGrant.resource_type == "project",
+                    ResourceGrant.resource_id == project.id,
+                    ResourceGrant.level == "read",
+                )
+            )
+        ).all()
+    )
+    return assignees, readers
+
+
+async def test_an_import_brings_in_the_people_it_names(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """Somebody an import assigns is somebody the importer means to work on
+    it. Run by the initiative's manager, it adds the person to the initiative
+    and shares the project with them, and the assignment lands."""
+    from sqlmodel import select
+
+    from app.models.tenant.initiative import InitiativeMember
 
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     inside = await acting_user(
@@ -2237,37 +2423,62 @@ async def test_the_people_map_decides_who_an_envelopes_assignee_is(
         initiative=a.initiative,
         initiative_role="member",
     )
-    # In the community, not in this initiative — so the map may name them and
-    # the assignment still must not land.
     outside = await acting_user(guild_role=GuildRole.member, guild=a.guild)
 
-    envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
-    envelope["tasks"][0]["assignee_handles"] = ["ghost#1111", "phantom#2222"]
-
-    resp = await _import_envelope(client, a, envelope, a.initiative.id)
-    assert resp.status_code == 202, resp.text
-    job_id = resp.json()["id"]
-
-    confirm = await client.post(
-        a.g(f"/imports/jobs/{job_id}/confirm"),
-        headers=a.headers,
-        json={
-            "people_map": {
-                "ghost#1111": inside.user.id,
-                "phantom#2222": outside.user.id,
-            }
-        },
+    await _import_with_assignees(
+        client,
+        a,
+        {"ghost#1111": inside.user.id, "phantom#2222": outside.user.id},
+        monkeypatch,
+        role_session,
     )
-    assert confirm.status_code == 200, confirm.text
-    user_session = await role_session("app_user")
-    monkeypatch.setattr(import_worker, "_open_user_session", lambda: user_session)
-    await import_worker.process_import_jobs()
 
-    task = (await session.exec(select(Task).where(Task.title == "Fit the door"))).one()
-    assignees = (
-        await session.exec(select(TaskAssignee).where(TaskAssignee.task_id == task.id))
-    ).all()
-    assert [row.user_id for row in assignees] == [inside.user.id]
+    assignees, readers = await _named_on_the_import(session, a)
+    assert assignees == readers == {inside.user.id, outside.user.id}
+    joined = (
+        await session.exec(
+            select(InitiativeMember).where(
+                InitiativeMember.initiative_id == a.initiative.id,
+                InitiativeMember.user_id == outside.user.id,
+            )
+        )
+    ).one()
+    assert joined.role_id is not None
+
+
+async def test_an_import_by_a_member_brings_in_nobody(
+    client, acting_user, session, monkeypatch, role_session
+):
+    """Who is in an initiative is its managers' to decide. A member's import
+    shares the project with the people it names who are in the initiative
+    already, and reports the rest rather than adding them."""
+    manager = await acting_user(guild_role=GuildRole.member, initiative=True)
+    await grant_role_permission(session, manager.initiative, "create_projects")
+    a = await acting_user(
+        guild_role=GuildRole.member,
+        guild=manager.guild,
+        initiative=manager.initiative,
+        initiative_role="member",
+    )
+    inside = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    outside = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+
+    result = await _import_with_assignees(
+        client,
+        a,
+        {"ghost#1111": inside.user.id, "phantom#2222": outside.user.id},
+        monkeypatch,
+        role_session,
+    )
+
+    assignees, readers = await _named_on_the_import(session, a)
+    assert assignees == readers == {inside.user.id}
+    assert result["unmatched_handles"] == ["phantom#2222"]
 
 
 async def test_an_exact_handle_match_makes_the_comment_theirs(
@@ -2518,7 +2729,11 @@ async def test_a_restored_mention_links_to_whoever_its_handle_is_here(
     assert comment.content == f"@[{handle}]({c.user.id}) agreed"
 
     document = (
-        await session.exec(select(Document).where(Document.initiative_id == restored))
+        await session.exec(
+            select(Document)
+            .where(Document.initiative_id == restored)
+            .options(undefer(Document.content))
+        )
     ).one()
     post = (
         await session.exec(select(Post).where(Post.initiative_id == restored))
@@ -2567,12 +2782,16 @@ async def test_a_documents_own_export_names_its_mentions_by_handle(
     assert resp.status_code == 201, resp.text
 
     imported = (
-        await session.exec(select(Document).where(Document.initiative_id == target.id))
+        await session.exec(
+            select(Document)
+            .where(Document.initiative_id == target.id)
+            .options(undefer(Document.content))
+        )
     ).one()
     [mention] = _mentions_in(imported.content)
     assert mention["mentionUserId"] == a.user.id
     assert "mentionHandle" not in mention
-    await session.refresh(source)
+    await session.refresh(source, ["content"])
     assert source.content == said
 
 
@@ -2611,7 +2830,11 @@ async def test_a_mention_nobody_places_is_restored_as_a_name(
     await _run_import_worker(monkeypatch, role_session)
 
     document = (
-        await session.exec(select(Document).where(Document.initiative_id == target.id))
+        await session.exec(
+            select(Document)
+            .where(Document.initiative_id == target.id)
+            .options(undefer(Document.content))
+        )
     ).one()
     [mention] = _mentions_in(document.content)
     assert mention["mentionUserId"] is None
@@ -2767,7 +2990,9 @@ async def _restored(session, initiative_id: int) -> dict:
         document.name: document
         for document in (
             await session.exec(
-                select(Document).where(Document.initiative_id == initiative_id)
+                select(Document)
+                .where(Document.initiative_id == initiative_id)
+                .options(undefer(Document.content))
             )
         ).all()
     }
@@ -2875,11 +3100,11 @@ async def test_a_restored_reference_points_at_the_restored_copy(
         )
         return {(row.target_type, row.target_id) for row in rows.all()}
 
-    # A chip is a reading rather than a link, so the document's edges are its
-    # mention and its ``[[ ]]`` link; a task's come from its description and
-    # from what is said on it.
+    # The document's edges are its mention, its chips and its ``[[ ]]`` link;
+    # a task's come from its description and from what is said on it.
     assert await references(Endpoint(SearchEntityType.document, plan.id)) == {
         ("task", fix.id),
+        ("counter", r["counter"].id),
         ("document", spec.id),
     }
     assert await references(Endpoint(SearchEntityType.task, ship.id)) == {
@@ -3196,10 +3421,10 @@ async def test_a_mapping_naming_a_non_member_is_dropped(
 
     from app.models.tenant.comment import Comment
 
+    outsider = await acting_user(guild_role=GuildRole.member)
     a = await acting_user(
         guild_role=GuildRole.superadmin, initiative=True, project=True
     )
-    outsider = await acting_user(guild_role=GuildRole.member)
 
     envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
     entry = {
@@ -3658,7 +3883,7 @@ async def _job_secret(session, guild_id, job_id):
     from app.db.session import set_rls_context
 
     session.expunge_all()
-    await set_rls_context(session, guild_id=guild_id)
+    await set_rls_context(session, SystemGuild(guild_id))
     job = await session.get(ImportJob, job_id)
     return None if job is None else job.secret_encrypted
 
@@ -4333,16 +4558,15 @@ async def test_confirm_refuses_a_malformed_list_of_unticked_properties(
     client, acting_user, session, bad
 ):
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    job = ImportJob(
-        created_by=a.user.id,
+    job = await create_import_job(
+        session,
+        a.guild,
+        a.user,
         source="atlassian",
         params={},
         status=ImportJobStatus.staged,
         payload_ref="imports/x.zip",
     )
-    session.add(job)
-    await session.commit()
-    await session.refresh(job)
 
     resp = await client.post(
         a.g(f"/imports/jobs/{job.id}/confirm"),
@@ -5467,7 +5691,9 @@ async def _status(client, actor, job_id) -> str:
 
 async def _user_sessions(monkeypatch, role_session, count):
     sessions = iter([await role_session("app_user") for _ in range(count)])
-    monkeypatch.setattr(import_worker, "_open_user_session", lambda: next(sessions))
+    monkeypatch.setattr(
+        import_worker, "_open_user_session", lambda _guild_id: next(sessions)
+    )
 
 
 async def test_two_communities_import_side_by_side(
@@ -5483,7 +5709,7 @@ async def test_two_communities_import_side_by_side(
     first, second = await _queued(client, a), await _queued(client, b)
     await _user_sessions(monkeypatch, role_session, 2)
 
-    started = await import_worker.dispatch_import_jobs()
+    started = await import_worker.jobs.dispatch()
 
     assert len(started) == 2
     await asyncio.gather(*started)
@@ -5501,7 +5727,7 @@ async def test_a_community_runs_one_import_at_a_time(
     first, second = await _queued(client, a), await _queued(client, a)
     await _user_sessions(monkeypatch, role_session, 2)
 
-    started = await import_worker.dispatch_import_jobs()
+    started = await import_worker.jobs.dispatch()
 
     assert len(started) == 1
     await asyncio.gather(*started)
@@ -5525,7 +5751,7 @@ async def test_a_process_starts_no_more_than_its_slots(
     await _queued(client, b)
     await _user_sessions(monkeypatch, role_session, 2)
 
-    started = await import_worker.dispatch_import_jobs()
+    started = await import_worker.jobs.dispatch()
 
     assert len(started) == 1
     await asyncio.gather(*started)
@@ -5540,13 +5766,12 @@ async def test_the_sweep_leaves_a_job_this_process_is_running(
     import asyncio
     from datetime import datetime, timedelta, timezone
 
-    from app.testing import route_session_to_guild
-
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    await route_session_to_guild(session, a.guild.id)
     stale_time = datetime.now(timezone.utc) - timedelta(minutes=30)
-    job = ImportJob(
-        created_by=a.user.id,
+    job = await create_import_job(
+        session,
+        a.guild,
+        a.user,
         source="initiative-queue",
         params={"initiative_id": a.initiative.id},
         payload_ref="imports/elsewhere.json",
@@ -5554,14 +5779,13 @@ async def test_the_sweep_leaves_a_job_this_process_is_running(
         created_at=stale_time,
         updated_at=stale_time,
     )
-    session.add(job)
-    await session.commit()
-    await session.refresh(job)
 
     alive = asyncio.create_task(asyncio.sleep(3600))
-    monkeypatch.setitem(import_worker._running, (a.guild.id, job.id), ("apply", alive))
+    monkeypatch.setitem(
+        import_worker.jobs.running, (a.guild.id, job.id), ("apply", alive)
+    )
     try:
-        await import_worker.dispatch_import_jobs()
+        await import_worker.jobs.dispatch()
     finally:
         alive.cancel()
 

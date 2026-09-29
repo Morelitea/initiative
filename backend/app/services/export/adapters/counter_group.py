@@ -35,7 +35,7 @@ from app.services.export.adapters._common import (
 )
 from app.services.export.contract import RenderItem
 from app.services.export.i18n import et, export_locale
-from app.core.user_display import display_name
+from app.services.permissions import EXPORT_ACCESS
 
 # (row key, ``exports`` label key, Typst width hint) — labels resolve to the
 # creator's locale at build time.
@@ -57,15 +57,31 @@ def _columns(locale: str) -> list[dict]:
 
 class CounterGroupAdapter(ToolExportAdapter):
     tool = Tool.counter_group
-    formats = frozenset({"json", "pdf", "csv", "xlsx", "md"})
+    formats = ("json", "pdf", "csv", "xlsx", "md")
 
     async def fetch(
-        self, session: AsyncSession, user: User, guild_id: int, group_id: int, /
+        self,
+        session: AsyncSession,
+        user: User,
+        guild_id: int,
+        group_id: int,
+        /,
+        *,
+        access: str = EXPORT_ACCESS,
     ) -> CounterGroup:
         from app.services.tenant.counters import get_counter_group_for_export
 
         return await get_counter_group_for_export(
-            session, user, guild_id, group_id=group_id
+            session, user, guild_id, group_id=group_id, access=access
+        )
+
+    async def initiative_ids(
+        self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
+    ) -> list[int]:
+        from app.services.tenant.counters import list_counter_group_ids_for_export
+
+        return await list_counter_group_ids_for_export(
+            session, user, guild_id, initiative_ids=[initiative_id]
         )
 
     def rows(self, group: CounterGroup, /) -> int:
@@ -87,7 +103,7 @@ def build_counter_group_item(
             data=_envelope(group),
         )
     return RenderItem(
-        key=export_stem(group.name, date), data=_report_payload(group, user, now)
+        key=export_stem(group.name, date), data=_report_payload(group, user)
     )
 
 
@@ -117,22 +133,13 @@ def _envelope(group: CounterGroup) -> dict[str, Any]:
     }
 
 
-def _report_payload(group: CounterGroup, user: User, now: datetime) -> dict[str, Any]:
+def _report_payload(group: CounterGroup, user: User) -> dict[str, Any]:
     counters = group.counters
     loc = export_locale(user)
-    generated_at = now.strftime("%Y-%m-%d %H:%M %Z")
-    # Both attribution fields can be absent (some OAuth-provisioned accounts
-    # carry neither) — never render the literal "None".
-    author = display_name(user) or et("fallback.unknownAuthor", loc)
     return {
         # The group name is user data — never translated.
         "title": group.name,
-        "subtitle": " · ".join(
-            [
-                et("summary.counters", loc, count=len(counters)),
-                et("generatedBy", loc, date=generated_at, author=author),
-            ]
-        ),
+        "subtitle": et("summary.counters", loc, count=len(counters)),
         "footer": et("footer.counters", loc, name=group.name),
         "page_of": et("pageOf", loc),
         "description": group.description or "",

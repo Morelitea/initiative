@@ -26,7 +26,7 @@ import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { AppConnectionsPanel } from "@/components/apps/AppConnectionsPanel";
-import { AppDelegationPanel } from "@/components/apps/AppDelegationPanel";
+import { AppConsentRequests } from "@/components/apps/AppConsentRequests";
 import { AppMembersPanel } from "@/components/apps/AppMembersPanel";
 import { AppPlacementPanel } from "@/components/apps/AppPlacementPanel";
 import {
@@ -39,11 +39,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { useGuildAppDetail } from "@/hooks/useGuildAppDetail";
 import { useGuilds } from "@/hooks/useGuilds";
-import { appEmbeds } from "@/lib/appSurfaces";
-import { holdsGuildSeat } from "@/lib/permissions";
-
-/** Only an admin reaches the placement control, and an admin clears every rung. */
-const ADMIN = { isGuildAdmin: true };
+import { declaredEmbeds } from "@/lib/appSurfaces";
 
 export interface AppSettingsDialogProps {
   appId: number;
@@ -64,12 +60,17 @@ export function AppSettingsDialog({
   const detail = useGuildAppDetail(appId);
   const app = detail.data;
 
+  // Placement is where the app has a page and where it may reach content, so
+  // an app with either has one to choose.
   const showsPlacement =
-    isGuildAdmin && !!app && appEmbeds(app.definition, "initiative", ADMIN).length > 0;
+    isGuildAdmin &&
+    !!app &&
+    (declaredEmbeds(app.definition, "initiative").length > 0 ||
+      (app.requested_scopes ?? []).length > 0);
   // Install management, which the seat holds — not the manifest's
   // admin-visible surfaces above, which ask whether you administer the
   // community and are a different question.
-  const showsAdminSection = holdsGuildSeat(activeGuild) && !!app;
+  const showsAdminSection = Boolean(activeGuild?.can.seat) && !!app;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -85,11 +86,17 @@ export function AppSettingsDialog({
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Yours first. An app that acts as people asks the question of
-                everybody, admins included — a guild admin's own name is not
-                something their role answers for. */}
-            {app.delegates && (
-              <AppDelegationPanel appId={app.id} appName={app.name} delegation={app.delegation} />
+            {/* Yours first. An app that acts as people asks everybody, admins
+                included — a guild admin's own name is not something their role
+                answers for. */}
+            {(app.consents?.length ?? 0) > 0 && (
+              <section className="rounded-lg border p-4">
+                <AppConsentRequests
+                  appId={app.id}
+                  appName={app.name}
+                  consents={app.consents ?? []}
+                />
+              </section>
             )}
 
             <AppConnectionsPanel

@@ -17,6 +17,7 @@ from __future__ import annotations
 import csv
 import io
 import re
+import zipfile
 from datetime import date, datetime, time
 from typing import Any
 
@@ -63,6 +64,14 @@ MAX_IMPORT_CELLS: int = 500_000
 # take too long never starts.
 MAX_IMPORT_SCAN: int = 2_000_000
 
+# The most a workbook's parts may add up to once decompressed, read from the
+# sizes its zip directory declares before the workbook is opened.
+MAX_IMPORT_XLSX_BYTES: int = 100 * 1024 * 1024
+
+#: A table of text, read as one sheet. Such a file becomes a spreadsheet
+#: rather than a file document, which cannot hold it.
+TEXT_TABLE_SUFFIXES = (".csv", ".tsv")
+
 
 def parse_spreadsheet_file(filename: str, data: bytes) -> list[dict[str, Any]]:
     """The sheets a file holds, in canonical workbook form.
@@ -74,7 +83,7 @@ def parse_spreadsheet_file(filename: str, data: bytes) -> list[dict[str, Any]]:
     lower = name.lower()
     base = name.rsplit("/", 1)[-1].rsplit(".", 1)[0] or "Imported"
 
-    if lower.endswith(".csv") or lower.endswith(".tsv"):
+    if lower.endswith(TEXT_TABLE_SUFFIXES):
         raw = [_parse_csv(data, base, tab=lower.endswith(".tsv"))]
     elif lower.endswith(".xlsx") or lower.endswith(".xlsm"):
         raw = _parse_xlsx(data)
@@ -174,7 +183,21 @@ def _scalar(text: str) -> Any:
 # ── XLSX ─────────────────────────────────────────────────────────────────────
 
 
+def _refuse_oversized_package(data: bytes) -> None:
+    """Refuse a workbook whose parts declare more than one import reads."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as package:
+            declared = sum(info.file_size for info in package.infolist())
+    except zipfile.BadZipFile as exc:
+        raise DocumentContentError(
+            DocumentMessages.SPREADSHEET_UNREADABLE_FILE
+        ) from exc
+    if declared > MAX_IMPORT_XLSX_BYTES:
+        raise DocumentContentError(DocumentMessages.SPREADSHEET_FILE_TOO_LARGE)
+
+
 def _parse_xlsx(data: bytes) -> list[dict[str, Any]]:
+    _refuse_oversized_package(data)
     try:
         # ``data_only=False`` keeps a formula as its ``=`` text, matching how
         # the renderer writes one and how the grid stores it.

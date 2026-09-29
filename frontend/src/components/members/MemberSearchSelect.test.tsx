@@ -6,6 +6,7 @@ import { buildUserSummary } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 
 import { MemberMultiSelect, MemberSelect } from "./MemberSearchSelect";
 
@@ -15,10 +16,10 @@ const GRACE = buildUserSummary({ id: 43, full_name: "Grace Hopper" });
 const ROSTER = [ADA, GRACE];
 const MISSING_ID = 999;
 
-/** The project member typeahead, honouring the `user_id` lookup filter the
- *  pickers use to resolve a selection they were handed as bare ids. */
+/** The member typeahead, honouring the `user_id` lookup filter the pickers
+ *  use to resolve a selection they were handed as bare ids. */
 const memberSearchHandler = (onRequest?: (ids: string[]) => void) =>
-  guildHttp.get("/projects/:projectId/members/search", ({ request }) => {
+  guildHttp.get("/users/search", ({ request }) => {
     const ids = new URL(request.url).searchParams.getAll("user_id");
     onRequest?.(ids);
     const items = ids.length ? ROSTER.filter((user) => ids.includes(String(user.id))) : ROSTER;
@@ -39,7 +40,7 @@ describe("MemberMultiSelect", () => {
     renderWithProviders(
       <MemberMultiSelect
         variant="filter"
-        scope={{ type: "project", projectId: 7 }}
+        scope={{ type: "canOpen", tool: Tool.project, id: 7 }}
         selectedIds={[ADA.id]}
         onChange={() => {}}
         placeholder="All assignees"
@@ -58,7 +59,7 @@ describe("MemberMultiSelect", () => {
     renderWithProviders(
       <MemberMultiSelect
         variant="filter"
-        scope={{ type: "project", projectId: 7 }}
+        scope={{ type: "canOpen", tool: Tool.project, id: 7 }}
         selectedIds={[ADA.id, GRACE.id]}
         selectedUsers={[GRACE]}
         onChange={() => {}}
@@ -77,7 +78,7 @@ describe("MemberMultiSelect", () => {
     renderWithProviders(
       <MemberMultiSelect
         variant="filter"
-        scope={{ type: "project", projectId: 7 }}
+        scope={{ type: "canOpen", tool: Tool.project, id: 7 }}
         selectedIds={[MISSING_ID]}
         onChange={() => {}}
       />
@@ -93,7 +94,7 @@ describe("MemberSelect", () => {
 
     renderWithProviders(
       <MemberSelect
-        scope={{ type: "project", projectId: 7 }}
+        scope={{ type: "canOpen", tool: Tool.project, id: 7 }}
         value={GRACE.id}
         onChange={() => {}}
       />

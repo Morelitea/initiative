@@ -51,7 +51,6 @@ def _install_transport(monkeypatch, handler):
     monkeypatch.setattr(httpx.AsyncClient, "__init__", init_with_transport)
 
 
-@pytest.mark.unit
 class TestIsPasswordBreached:
     async def test_returns_false_when_disabled(self, monkeypatch):
         monkeypatch.setattr(app_settings, "HIBP_CHECK_ENABLED", False)

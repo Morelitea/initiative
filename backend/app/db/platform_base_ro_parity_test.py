@@ -14,10 +14,8 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
 from app.db.schema_provisioning import PLATFORM_SUSPENDED, platform_role_name
-from app.testing import create_user
+from app.testing import as_role, create_user
 from app.models.platform.notification import NotificationType
-
-pytestmark = pytest.mark.database
 
 
 def _writable() -> str:
@@ -98,33 +96,11 @@ async def test_the_read_floor_takes_no_default_privileges(engine):
         assert entries == 0
 
 
-async def _assume_suspended(session, user_id: int) -> None:
-    await session.exec(
-        text(
-            "SELECT set_config('app.current_user_id', :uid, false), "
-            "set_config('role', :role, false)"
-        ),
-        params={"uid": str(user_id), "role": platform_role_name(PLATFORM_SUSPENDED)},
-    )
-
-
-async def _reset(session) -> None:
-    await session.exec(
-        text(
-            "SELECT set_config('role', 'none', false), "
-            "set_config('app.current_user_id', '', false)"
-        )
-    )
-
-
 async def test_a_suspended_account_reads_its_own_rows(session):
     me = await create_user(session)
     other = await create_user(session)
-    await _assume_suspended(session, me.id)
-    try:
+    async with as_role(session, platform_role_name(PLATFORM_SUSPENDED), me.id):
         ids = {r[0] for r in (await session.exec(text("SELECT id FROM users"))).all()}
-    finally:
-        await _reset(session)
     assert me.id in ids
     assert other.id not in ids
 
@@ -140,11 +116,8 @@ async def test_a_suspended_account_reads_its_own_rows(session):
 )
 async def test_a_suspended_account_writes_nothing(session, statement):
     me = await create_user(session)
-    await _assume_suspended(session, me.id)
-    try:
+    async with as_role(session, platform_role_name(PLATFORM_SUSPENDED), me.id):
         with pytest.raises(DBAPIError) as refused:
             await session.exec(text(statement), params={"uid": me.id})
-        assert "permission denied" in str(refused.value)
-    finally:
         await session.rollback()
-        await _reset(session)
+    assert "permission denied" in str(refused.value)

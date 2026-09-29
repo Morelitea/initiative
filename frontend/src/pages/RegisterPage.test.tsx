@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
   register: vi.fn(),
   login: vi.fn(),
   applyPasskeySignIn: vi.fn(),
-  get: vi.fn(),
+  bootstrap: vi.fn(),
   signUpWithPasskey: vi.fn(),
   browserOffersPasskeys: vi.fn(() => true),
   /** Read on every render, so a test can say what the deployment offers. */
@@ -30,9 +30,9 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/api/client", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/api/client")>()),
-  apiClient: { get: (...args: unknown[]) => mocks.get(...args) },
+vi.mock("@/api/generated/auth/auth", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/api/generated/auth/auth")>()),
+  bootstrapStatusApiV1AuthBootstrapGet: () => mocks.bootstrap(),
 }));
 
 vi.mock("@/hooks/useAuth", async (importOriginal) => ({
@@ -63,9 +63,7 @@ const PASSKEY_BUTTON = /create account with a passkey/i;
 beforeEach(() => {
   // The card asks whether this deployment is taking registrations at all
   // before it renders anything.
-  mocks.get.mockResolvedValue({
-    data: { has_users: true, public_registration_enabled: true },
-  });
+  mocks.bootstrap.mockResolvedValue({ has_users: true, public_registration_enabled: true });
   mocks.config = { captcha: null, passwordLoginEnabled: true, passkeyLoginEnabled: true };
   mocks.browserOffersPasskeys.mockReturnValue(true);
   mocks.signUpWithPasskey.mockReset();

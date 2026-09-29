@@ -9,8 +9,6 @@ from app.models.platform.user import User
 from app.services.platform import usernames as username_service
 from app.testing import create_user
 
-pytestmark = [pytest.mark.integration, pytest.mark.database]
-
 
 class TestAllocate:
     async def test_returns_the_name_as_asked_for(self, session):

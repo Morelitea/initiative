@@ -9,9 +9,11 @@ from app.models.platform.app_setting import AppSetting
 from app.models.platform.app_setting_secret import AppSettingSecret
 from app.models.platform.guild import Guild, GuildMembership, GuildInvite
 from app.models.platform.guild_administration import GuildAdministration
+from app.models.tenant.app_member_consent import AppMemberConsent
+from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.guild_app import GuildApp
+from app.models.tenant.guild_app_secret import GuildAppSecret
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
-from app.models.tenant.guild_app_user_delegation import GuildAppUserDelegation
 from app.models.tenant.guild_setting import GuildSetting
 from app.models.tenant.project import Project
 from app.models.tenant.filter_preset import ProjectFilterPreset
@@ -50,6 +52,9 @@ from app.models.tenant.calendar_event import (
     CalendarEventAttendee,
 )
 from app.models.tenant.event_outbox import EventOutbox
+from app.models.tenant.app_event_outbox import AppEventOutbox
+from app.models.tenant.app_hook_delivery import AppHookDelivery
+from app.models.tenant.app_schedule_run import AppScheduleRun
 from app.models.tenant.search_entry import SearchEntry
 from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
 from app.models.tenant.dashboard import Dashboard
@@ -97,13 +102,13 @@ from app.models.platform.platform_provider_default import PlatformProviderDefaul
 from app.models.platform.guild_image import GuildImage
 from app.models.platform.user_email import UserEmail
 from app.models.platform.user_email_assertion import UserEmailAssertion
+from app.models.platform.sign_in_lock import SignInLock
 from app.models.platform.user_totp import UserTotp
 from app.models.platform.user_totp_secret import UserTotpSecret
 from app.models.platform.mfa_recovery_code import MfaRecoveryCode
 from app.models.platform.auth_challenge import AuthChallenge
 from app.models.platform.user_token import UserToken
 from app.models.platform.push_token import PushToken
-from app.models.platform.auto_delegation_jti import AutoDelegationJti
 from app.models.platform.billing import BillingEventLog, BillingJti
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.models.tenant.reaction import Reaction
@@ -118,12 +123,15 @@ from app.models.tenant.export_job import ExportJob
 from app.models.tenant.import_job import ImportJob
 from app.models.platform.marketplace_registry import (
     MarketplaceMedia,
-    MarketplaceRegistryState,
+    MarketplaceRegistryStatus,
+    MarketplaceTufMetadata,
 )
 from app.models.platform.ai_connection import PlatformAIConnection
 from app.models.platform.app_service_registration import AppServiceRegistration
-from app.models.platform.app_service_nonce import AppServiceNonce
-from app.models.tenant.ai_connection import GuildAIConnection
+from app.models.platform.publisher import Publisher
+from app.models.platform.app_assertion_jti import AppAssertionJti
+from app.models.platform.app_install import AppInstall
+from app.models.tenant.ai_connection import GuildAIConnection, GuildAIConnectionKey
 from app.models.tenant.ai_member_key import GuildAIMemberKey
 from app.models.tenant.ai_member_pref import GuildAIMemberPref
 
@@ -140,6 +148,7 @@ __all__ = [
     "AuthSession",
     "UserEmail",
     "UserEmailAssertion",
+    "SignInLock",
     "FederatedIdentity",
     "FederatedIdentitySecret",
     "IdentityRef",
@@ -183,6 +192,9 @@ __all__ = [
     "CalendarEvent",
     "CalendarEventAttendee",
     "EventOutbox",
+    "AppEventOutbox",
+    "AppHookDelivery",
+    "AppScheduleRun",
     "SearchEntry",
     "EventReminderDispatch",
     "Dashboard",
@@ -216,7 +228,6 @@ __all__ = [
     "DmQueueItem",
     "UserToken",
     "PushToken",
-    "AutoDelegationJti",
     "BillingEventLog",
     "BillingJti",
     "TaskAssignmentDigestItem",
@@ -230,16 +241,22 @@ __all__ = [
     "ModerationReport",
     "ModerationReportReporter",
     "AppServiceRegistration",
-    "AppServiceNonce",
+    "Publisher",
+    "AppAssertionJti",
+    "AppInstall",
     "MarketplaceMedia",
-    "MarketplaceRegistryState",
+    "MarketplaceRegistryStatus",
+    "MarketplaceTufMetadata",
     "PlatformAIConnection",
     "GuildAIConnection",
+    "GuildAIConnectionKey",
     "GuildAIMemberKey",
     "GuildAIMemberPref",
+    "AppMemberConsent",
+    "AppPlacement",
     "GuildApp",
+    "GuildAppSecret",
     "GuildAppUserConnection",
-    "GuildAppUserDelegation",
     "UserTotp",
     "UserTotpSecret",
     "MfaRecoveryCode",

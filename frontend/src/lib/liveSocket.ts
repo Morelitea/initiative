@@ -1,17 +1,21 @@
 /**
  * One authenticated WebSocket, kept open.
  *
- * Both push channels — the per-guild events bus and the personal notification
- * stream — need the same connection underneath: authenticate in the first
- * frame, reconnect with backoff, stop for good once the credential has been
- * rejected repeatedly, and notice a socket that has stopped carrying without
- * ever closing. There is no library behind any of that, so it was written
- * twice; this is the one copy.
+ * Every push channel — the per-guild events bus, the personal notification
+ * stream, a queue's or counter group's change signal and a document's Yjs
+ * room — needs the same connection underneath: authenticate in the first
+ * frame, reconnect with jittered backoff, try again at once when the network
+ * comes back, stop for good once the credential has been rejected repeatedly,
+ * and notice a socket that has stopped carrying without ever closing. This is
+ * the one copy.
  *
- * What differs between the two channels sits above it — which address, what
- * else rides in the auth frame, and what a frame means — and that is the whole
- * of the options.
+ * What differs between the channels sits above it — which address, what else
+ * rides in the auth frame, and what a frame means — and that is the whole of
+ * the options. A JSON text frame goes to `onFrame`, a binary one to
+ * `onBytes`; the server's heartbeat is a JSON frame on every channel.
  */
+
+import { reconnectDelay } from "@/lib/reconnectBackoff";
 
 // Must match the backend's MSG_AUTH. The token rides in the first frame rather
 // than the URL, so it never lands in a proxy or server access log.
@@ -37,6 +41,8 @@ const SILENCE_CHECK_INTERVAL_MS = 15_000;
 export type LiveSocket = {
   /** Send on the socket if one is open; a no-op otherwise. */
   send: (data: Uint8Array<ArrayBuffer>) => void;
+  /** Try again now with a fresh backoff, if no socket is open. */
+  resume: () => void;
   /** Stop reconnecting and close. */
   close: () => void;
 };
@@ -52,8 +58,10 @@ export type LiveSocketOptions = {
    * nothing, having fetched as it mounted.
    */
   auth: (awaySeconds: number | null) => Record<string, unknown>;
-  /** One parsed frame. Malformed frames never reach it. */
-  onFrame: (payload: unknown) => void;
+  /** One parsed JSON frame. Malformed frames never reach it. */
+  onFrame?: (payload: unknown) => void;
+  /** One binary frame, as it arrived. */
+  onBytes?: (data: Uint8Array) => void;
   /** True when a socket opens, false when one closes. */
   onStatus?: (connected: boolean) => void;
   /** The credential was rejected repeatedly; nothing further is attempted. */
@@ -64,6 +72,7 @@ export const openLiveSocket = ({
   url,
   auth,
   onFrame,
+  onBytes,
   onStatus,
   onAuthRejected,
 }: LiveSocketOptions): LiveSocket => {
@@ -71,6 +80,8 @@ export const openLiveSocket = ({
   let reconnectTimer: number | null = null;
   let active = true;
   let authFailures = 0;
+  // Attempts since a socket last carried a frame: what widens the backoff.
+  let attempts = 0;
   // The last frame this socket saw, which is what silence is measured against.
   // Reset on open so a fresh socket is not closed for its predecessor's quiet.
   let lastFrameAt = Date.now();
@@ -80,10 +91,12 @@ export const openLiveSocket = ({
   // gap the next attempt reports.
   let carriedUntil: number | null = null;
 
-  const scheduleReconnect = (delayMs = RECONNECT_DELAY_MS) => {
+  const scheduleReconnect = () => {
     if (!active || reconnectTimer !== null) {
       return;
     }
+    const delayMs = reconnectDelay(attempts, RECONNECT_DELAY_MS, MAX_RECONNECT_DELAY_MS);
+    attempts += 1;
     reconnectTimer = window.setTimeout(() => {
       reconnectTimer = null;
       connect();
@@ -121,15 +134,20 @@ export const openLiveSocket = ({
       // clears the count. Opening is not: the auth frame is sent after the
       // socket opens and answered after that, so opening says nothing yet.
       authFailures = 0;
+      attempts = 0;
       lastFrameAt = Date.now();
       carriedUntil = lastFrameAt;
+      if (typeof event.data !== "string") {
+        onBytes?.(new Uint8Array(event.data as ArrayBuffer));
+        return;
+      }
       let payload: unknown;
       try {
-        payload = JSON.parse(event.data as string);
+        payload = JSON.parse(event.data);
       } catch {
         return;
       }
-      onFrame(payload);
+      onFrame?.(payload);
     };
 
     next.onerror = () => {
@@ -148,12 +166,30 @@ export const openLiveSocket = ({
           onAuthRejected?.();
           return;
         }
-        scheduleReconnect(Math.min(MAX_RECONNECT_DELAY_MS, RECONNECT_DELAY_MS * 2 ** authFailures));
-        return;
       }
       scheduleReconnect();
     };
   };
+
+  // Start over: a fresh backoff and an attempt now, unless a socket is
+  // already open or opening. What a network coming back calls, since a retry
+  // schedule can only guess at how long an outage runs.
+  const resume = () => {
+    if (!active) {
+      return;
+    }
+    attempts = 0;
+    authFailures = 0;
+    if (reconnectTimer !== null) {
+      window.clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    if (socket && socket.readyState !== WebSocket.CLOSED) {
+      return;
+    }
+    connect();
+  };
+  window.addEventListener("online", resume);
 
   connect();
 
@@ -175,8 +211,10 @@ export const openLiveSocket = ({
         socket.send(data);
       }
     },
+    resume,
     close: () => {
       active = false;
+      window.removeEventListener("online", resume);
       window.clearInterval(silenceCheck);
       if (reconnectTimer !== null) {
         window.clearTimeout(reconnectTimer);

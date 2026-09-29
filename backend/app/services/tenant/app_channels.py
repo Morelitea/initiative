@@ -1,11 +1,10 @@
 """What an app service may read and write about its own installs.
 
-An app knows its installs by pulling them: which guilds have it, the
-configuration each guild supplied, and which members connected their own
-accounts. This module is the guild-touching half of that channel — the caller
-has already been established from its signature
-(:mod:`app.services.marketplace.app_channel_auth`), and everything here answers
-in terms of *that* registration.
+An app knows its installs by pulling them: the configuration each guild
+supplied, and which members connected their own accounts. This module is the
+guild-touching half of those calls — the caller has already been established
+from its installation token (``/app-platform/installation/*``), and everything
+here answers in terms of *that* registration and install.
 
 Three rules run through all of it:
 
@@ -13,10 +12,12 @@ Three rules run through all of it:
   registration's catalog uid *and* by the pinned definition naming that same
   app, so an install belonging to a different app is indistinguishable from one
   that does not exist.
-* **Plaintext leaves in exactly one place.** :func:`config_payload` is the
-  custody channel: it decrypts what the guild and its members stored and hands
-  it to the app that needs it. The connections view carries status and nothing
-  else, so an app reconciling who is connected never pulls credentials to do it.
+* **Plaintext leaves in two places.** :func:`config_payload` decrypts what the
+  community typed and the managed values each connection's flow produced, and
+  never a flow's tokens; :func:`connection_token` hands out one usable access
+  token by reference, refreshing or minting it first. The connections view
+  carries status and nothing else, so an app reconciling who is connected
+  never pulls credentials to do it.
 * **People are addressed by reference.** Per-member rows are keyed by their
   opaque ``connection_ref``; no user id, email, or name is ever in a payload
   here.
@@ -32,23 +33,27 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Any, Optional, Sequence
+from typing import Any, Optional, Protocol, Sequence
 
+from sqlalchemy import func, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import routed_guild_id
 from app.core.messages import AppChannelMessages
+from app.db.event_capture import OUTBOX_CHANNEL
 from app.db.session import set_rls_context
-from app.models.platform.app_service_registration import AppServiceRegistration
 from app.models.platform.guild import LIVE_STATUS_VALUES, Guild, GuildStatus
+from app.models.tenant.app_event_outbox import AppEventOutbox
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.marketplace.app_refs import ensure_app_guild_ref
+from app.services.marketplace.registration_lookup import service_public_id
 from app.services.marketplace.service_apps import ENDPOINT_ID_PREFIX
 from app.services.tenant import app_config as app_config_service
+from app.services.tenant import app_connection_flows as flows
 from app.services.tenant import guild_apps as guild_apps_service
-from app.services.tenant.webhook_dispatcher import dispatch_event
+from app.db.request_context import SystemGuild, Unattributed
 
 logger = logging.getLogger(__name__)
 
@@ -56,19 +61,17 @@ __all__ = [
     "MAX_EVENT_PAYLOAD_BYTES",
     "AppChannelError",
     "config_payload",
-    "connection_for_member",
     "connection_payload",
+    "connection_token",
     "emit_event",
-    "install_summaries",
     "load_install",
     "report_config_state",
-    "write_connection_values",
 ]
 
 #: What one event body may carry. An event is a notification that something
 #: happened, not a data transfer — an app with more to say serves it from a data
 #: source the platform fetches on demand.
-MAX_EVENT_PAYLOAD_BYTES = 64 * 1024
+MAX_EVENT_PAYLOAD_BYTES = 8 * 1024
 
 #: The states an app may report about the configuration it was handed.
 #: ``unverified`` is this build's resting value and is not something an app
@@ -78,6 +81,14 @@ REPORTABLE_CONFIG_STATES: frozenset[str] = frozenset({"ok", "invalid"})
 #: Bound on the short code an app attaches to an ``invalid`` verdict, matching
 #: the column it lands in.
 MAX_CONFIG_STATE_DETAIL = 120
+
+
+class RegisteredApp(Protocol):
+    """What these calls read of the caller's registration: its id and the
+    listing it speaks for. The registration snapshot carries both."""
+
+    public_id: str
+    listing_uid: Optional[str]
 
 
 class AppChannelError(Exception):
@@ -92,15 +103,7 @@ class AppChannelError(Exception):
 # --- which installs are this app's ------------------------------------------
 
 
-def _definition_service_id(definition: dict[str, Any] | None) -> Optional[str]:
-    service = (definition or {}).get("service")
-    if not isinstance(service, dict):
-        return None
-    public_id = service.get("public_id")
-    return public_id if isinstance(public_id, str) else None
-
-
-def owns_install(app: GuildApp, registration: AppServiceRegistration) -> bool:
+def owns_install(app: GuildApp, registration: RegisteredApp) -> bool:
     """Whether this install is the calling app's.
 
     Two independent statements have to agree: the install was made from the
@@ -113,24 +116,7 @@ def owns_install(app: GuildApp, registration: AppServiceRegistration) -> bool:
         return False
     if not registration.listing_uid or app.listing_uid != registration.listing_uid:
         return False
-    return _definition_service_id(app.definition) == registration.public_id
-
-
-async def _guild_ids(session: AsyncSession) -> list[int]:
-    """Every guild whose content this channel may reach, lowest id first.
-
-    Guilds that are not live are left out: their content is frozen for
-    members and admins alike, and an app pulling for one would be reaching past
-    a hold the operator put there — or past a deletion. It reappears when the
-    guild does.
-    """
-    await set_rls_context(session)
-    rows = await session.exec(
-        select(Guild.id, Guild.status)
-        .where(Guild.status.in_(LIVE_STATUS_VALUES))
-        .order_by(Guild.id.asc())
-    )
-    return [row[0] for row in rows]
+    return service_public_id(app.definition) == registration.public_id
 
 
 async def _route(session: AsyncSession, guild_id: int, *, read_only: bool) -> None:
@@ -139,7 +125,7 @@ async def _route(session: AsyncSession, guild_id: int, *, read_only: bool) -> No
     policies decide from here; a frozen guild is routed to its SELECT-only role
     so no write can land in it whatever the caller asked for."""
     session.expunge_all()
-    await set_rls_context(session, guild_id=guild_id, read_only=read_only)
+    await set_rls_context(session, SystemGuild(guild_id, read_only=read_only))
 
 
 async def _install_guild_ref(session: AsyncSession, app: GuildApp) -> str:
@@ -155,78 +141,21 @@ async def _install_guild_ref(session: AsyncSession, app: GuildApp) -> str:
 
 
 async def _guild_row(session: AsyncSession, guild_id: int) -> Optional[Guild]:
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     return (await session.exec(select(Guild).where(Guild.id == guild_id))).first()
-
-
-async def install_summaries(
-    session: AsyncSession, registration: AppServiceRegistration
-) -> list[dict[str, Any]]:
-    """Every guild that has this app installed, and at which version.
-
-    Installs live in the guild schema that holds them — the catalog records what
-    was published, never who installed it — so this visits each guild in turn.
-    That cost tracks the number of guilds rather than the number of installs,
-    which is the price of the catalog carrying no index of who installed what.
-
-    A registration that has never verified names no listing, so it has no
-    installs to report.
-    """
-    if not registration.listing_uid:
-        return []
-
-    summaries: list[dict[str, Any]] = []
-    for guild_id in await _guild_ids(session):
-        await _route(session, guild_id, read_only=True)
-        rows = (
-            await session.exec(
-                select(GuildApp)
-                .where(GuildApp.listing_uid == registration.listing_uid)
-                .order_by(GuildApp.id.asc())
-            )
-        ).all()
-        summaries.extend(
-            [
-                _summarize(app, await _install_guild_ref(session, app))
-                for app in rows
-                if owns_install(app, registration)
-            ]
-        )
-    return summaries
-
-
-def _summarize(app: GuildApp, guild_ref: str) -> dict[str, Any]:
-    """One install as the app is told about it.
-
-    Names and state only: which guild, which install, which version it is pinned
-    to, and whether it is live. Nothing about who is in the guild, and nothing
-    about what anyone configured — those are the config and connections
-    channels, addressed one guild at a time.
-    """
-    state = app_config_service.config_state(app)
-    return {
-        "install_id": app.id,
-        "guild_ref": guild_ref,
-        "listing_uid": app.listing_uid,
-        "listing_version": app.listing_version,
-        "name": app.name,
-        "enabled": app.enabled,
-        "config_state": state.state,
-        "config_state_detail": state.detail,
-        "needs_config": state.needs_config,
-        "updated_at": app.updated_at,
-    }
 
 
 async def load_install(
     session: AsyncSession,
-    registration: AppServiceRegistration,
+    registration: RegisteredApp,
     guild_id: int,
     *,
     app_install_id: int,
     for_write: bool = False,
 ) -> GuildApp:
     """The calling app's install in one guild, with the session routed to it.
+    ``session`` is a system session from that guild's cohort, as
+    ``get_system_session`` hands one to an installation token's request.
 
     ``app_install_id`` is the install the caller's reference named, and the one
     found here has to be it. A guild that removed this app and added it again
@@ -276,19 +205,17 @@ async def load_install(
 
 
 async def config_payload(session: AsyncSession, app: GuildApp) -> dict[str, Any]:
-    """The decrypted configuration for one install — the custody channel.
+    """The decrypted configuration for one install.
 
-    This is the one place stored plaintext leaves the platform, and it goes only
-    to the app that the values were supplied for. It carries both halves of what
-    an app holds credentials for: the guild-wide values an admin typed, and the
-    per-member values the app itself wrote back after a vendor flow, each keyed
-    by the opaque reference the app knows that member by.
-
-    Reading it here is what keeps custody real — the app caches in memory, and
-    revoking, rotating, or uninstalling on this side means the next pull simply
-    stops returning them.
+    It carries both halves of what an app is configured with: the guild-wide
+    values (typed by an admin, or returned by a flow's ``after_connect``) and
+    each member's managed values, keyed by the opaque reference the app knows
+    that member by. A flow's tokens are never in it: the app asks for one with
+    :func:`connection_token` when it needs it.
     """
     connections: dict[str, dict[str, Any]] = {}
+    connection_refs: dict[str, str] = {}
+    secrets = await guild_apps_service.load_secrets(session, app)
     for connection in app_config_service.definition_connections(app.definition):
         connection_id = connection.get("id")
         if not isinstance(connection_id, str):
@@ -298,14 +225,19 @@ async def config_payload(session: AsyncSession, app: GuildApp) -> dict[str, Any]
             # there is no guild-wide value for a credential a vendor issued to
             # one person.
             continue
-        values = dict((app.config or {}).get(connection_id) or {})
+        values = app_config_service.without_tokens(
+            (app.config or {}).get(connection_id)
+        )
         values.update(
             app_config_service.decrypt_connection_secrets(
-                (app.config_secrets or {}).get(connection_id) or {}
+                app_config_service.without_tokens(secrets.get(connection_id))
             )
         )
         if values:
             connections[connection_id] = values
+        ref = (app.connection_refs or {}).get(connection_id)
+        if isinstance(ref, str) and ref:
+            connection_refs[connection_id] = ref
 
     member_values = [
         {
@@ -313,8 +245,10 @@ async def config_payload(session: AsyncSession, app: GuildApp) -> dict[str, Any]
             "connection_ref": row.connection_ref,
             "status": row.status,
             "values": {
-                **dict(row.config or {}),
-                **app_config_service.decrypt_connection_secrets(row.config_secrets),
+                **app_config_service.without_tokens(row.config),
+                **app_config_service.decrypt_connection_secrets(
+                    app_config_service.without_tokens(row.config_secrets)
+                ),
             },
         }
         for row in await _member_rows(session, app)
@@ -332,8 +266,51 @@ async def config_payload(session: AsyncSession, app: GuildApp) -> dict[str, Any]
         "config_state_detail": state.detail,
         "needs_config": state.needs_config,
         "connections": connections,
+        "connection_refs": connection_refs,
         "member_connections": member_values,
     }
+
+
+async def connection_token(
+    session: AsyncSession,
+    app: GuildApp,
+    registration: RegisteredApp,
+    *,
+    connection_ref: str,
+) -> dict[str, Any]:
+    """One usable access token for a connection of this install, by its ref.
+
+    A member's connection must be connected and not blocked; its token is
+    refreshed when it is close to expiring, once however many ask at once, and
+    a refresh the vendor refuses leaves the connection ``expired``. A guild-wide
+    connection answers its ``jwt_bearer`` token, or its own stored token.
+    """
+    try:
+        guild_connection = app_config_service.connection_id_for_ref(app, connection_ref)
+        if guild_connection is not None:
+            tokens = await flows.community_token(
+                session,
+                app=app,
+                public_id=registration.public_id,
+                connection_id=guild_connection,
+                guild_id=routed_guild_id(session),
+            )
+        else:
+            member = await flows.member_token(
+                session,
+                app=app,
+                public_id=registration.public_id,
+                connection_ref=connection_ref,
+                guild_id=routed_guild_id(session),
+            )
+            if member is None:
+                raise AppChannelError(
+                    AppChannelMessages.CONNECTION_NOT_FOUND, status_code=404
+                )
+            tokens = member
+    except flows.ConnectionFlowError as exc:
+        raise AppChannelError(exc.code, status_code=exc.status_code) from exc
+    return flows.token_response(tokens)
 
 
 # --- who connected ----------------------------------------------------------
@@ -381,81 +358,6 @@ def _connection_read(row: GuildAppUserConnection) -> dict[str, Any]:
     }
 
 
-async def connection_for_member(
-    session: AsyncSession,
-    app: GuildApp,
-    *,
-    user_id: int,
-    connection_id: Optional[str] = None,
-) -> dict[str, Any]:
-    """The handle this app knows one member's connection by.
-
-    The reverse of every other route here: those address a member by the
-    reference and never learn who it is, while this one starts from a member
-    the platform resolved and answers with the reference — still the whole of
-    the app's name for them. It is scoped to the install passed in, so what
-    comes back is the caller's own handle and never another app's.
-
-    Blocked rows are not answers. The block is what ended that member's access
-    and the custody channel already stops serving their values, so a reference
-    to one names nothing the app could act with.
-
-    ``connection_id`` names which of the install's connections is meant. An
-    install declaring one per-member connection needs no such statement; one
-    declaring several is asked to make it.
-
-    Which of those an install *is* comes from the pinned definition, never from
-    how many rows a member happens to have: an app that declares two and gets an
-    answer only because this member has connected one of them would start being
-    refused the day they connect the other. The question a caller has to answer
-    is a property of its own manifest, so it reads the same on every member.
-    """
-    target = connection_id or _sole_member_connection(app)
-    row = (
-        await session.exec(
-            select(GuildAppUserConnection).where(
-                GuildAppUserConnection.app_id == app.id,
-                GuildAppUserConnection.user_id == user_id,
-                GuildAppUserConnection.connection_id == target,
-                GuildAppUserConnection.blocked_at.is_(None),
-            )
-        )
-    ).first()
-    if row is None:
-        raise AppChannelError(AppChannelMessages.CONNECTION_NOT_FOUND, status_code=404)
-    return _connection_read(row)
-
-
-def _sole_member_connection(app: GuildApp) -> str:
-    """The one per-member connection this install declares, or a refusal.
-
-    An install declaring none has nothing a member could have connected, which
-    is the same answer as a member who has not connected: not found.
-    """
-    declared = app_config_service.member_connection_ids(app.definition)
-    if len(declared) == 1:
-        return declared[0]
-    if not declared:
-        raise AppChannelError(AppChannelMessages.CONNECTION_NOT_FOUND, status_code=404)
-    raise AppChannelError(AppChannelMessages.CONNECTION_UNSPECIFIED, status_code=422)
-
-
-async def _row_by_ref(
-    session: AsyncSession, app: GuildApp, connection_ref: str
-) -> GuildAppUserConnection:
-    row = (
-        await session.exec(
-            select(GuildAppUserConnection).where(
-                GuildAppUserConnection.app_id == app.id,
-                GuildAppUserConnection.connection_ref == connection_ref,
-            )
-        )
-    ).first()
-    if row is None:
-        raise AppChannelError(AppChannelMessages.CONNECTION_NOT_FOUND, status_code=404)
-    return row
-
-
 # --- what an app reports back -----------------------------------------------
 
 
@@ -497,190 +399,6 @@ async def report_config_state(
     }
 
 
-async def write_connection_values(
-    session: AsyncSession,
-    app: GuildApp,
-    *,
-    connection_ref: str,
-    values: dict[str, Any],
-    status: Optional[str] = None,
-    account_label: Optional[str] = None,
-) -> dict[str, Any]:
-    """Store what a vendor flow produced.
-
-    The app runs the flow at its own URL and writes the result here, which is
-    what makes Initiative the custodian of a credential the app obtained: the
-    same path serves a refresh, so a token rotated at 03:00 is still revocable
-    at 03:05. Only fields the manifest marked ``managed`` may be written this
-    way — everything else on a connection is typed by a person.
-
-    The handle says which of two things is being written. A ref this install
-    minted for one of its own guild-wide connections is the credential the whole
-    guild uses, and it lives on the install row; anything else is looked up
-    among the per-member rows. An app cannot confuse them, because it never
-    invents a ref: it is handed one, and one nobody minted resolves to neither.
-
-    A connection an admin blocked is refused: the block exists precisely to stop
-    that member's access coming back.
-    """
-    guild_connection = app_config_service.connection_id_for_ref(app, connection_ref)
-    if guild_connection is not None:
-        return await _write_guild_connection(
-            session,
-            app,
-            connection_id=guild_connection,
-            connection_ref=connection_ref,
-            values=values,
-        )
-
-    row = await _row_by_ref(session, app, connection_ref)
-    if row.blocked_at is not None:
-        raise AppChannelError(AppChannelMessages.CONNECTION_BLOCKED, status_code=403)
-
-    connection = app_config_service.connection_by_id(app.definition, row.connection_id)
-    if connection is None:
-        # The install moved to a version that no longer declares this
-        # connection; its values are on their way out with it.
-        raise AppChannelError(AppChannelMessages.CONNECTION_NOT_FOUND, status_code=404)
-
-    try:
-        config, secrets = app_config_service.apply_connection_values(
-            connection,
-            values,
-            current=row.config or {},
-            current_secrets=row.config_secrets or {},
-            allow_managed=True,
-        )
-    except app_config_service.AppConfigError as exc:
-        raise AppChannelError(exc.code) from exc
-
-    row.config = config
-    row.config_secrets = secrets
-    if account_label is not None:
-        label = account_label.strip()
-        row.account_label = label or None
-    row.status = _resolved_status(status, config=config, secrets=secrets)
-    row.updated_at = datetime.now(timezone.utc)
-    session.add(row)
-    await session.commit()
-    await session.refresh(row)
-    return {
-        "connection_id": row.connection_id,
-        "connection_ref": row.connection_ref,
-        "status": row.status,
-        "blocked": row.blocked_at is not None,
-        "account_label": row.account_label,
-        "created_at": row.created_at,
-        "updated_at": row.updated_at,
-    }
-
-
-async def _write_guild_connection(
-    session: AsyncSession,
-    app: GuildApp,
-    *,
-    connection_id: str,
-    connection_ref: str,
-    values: dict[str, Any],
-) -> dict[str, Any]:
-    """Store what an admin's vendor flow produced for the whole guild.
-
-    The same custody as a member's, one row up: the values land on the install
-    beside the ones an admin types, so clearing the connection, uninstalling the
-    app or moving to a version that no longer declares it take this with them.
-
-    Two arguments the member path has are absent here, and their absence is the
-    point rather than an omission. A ``status`` is not one of them, because a
-    guild connection has no row of its own to hold one — what it holds is
-    values, and whether they add up to a working connection is read off them
-    wherever it is asked. And there is no ``account_label``: a member's is the
-    only way an admin can see whose account was connected without being shown
-    the credential, whereas a guild connection's non-secret values are already
-    visible to the admin who governs it, so the vendor account belongs in a
-    field the manifest declares rather than in a label beside one.
-    """
-    # Both configuration maps are rewritten whole below, so the row is taken
-    # first: a second write-back, or an admin saving the settings form, would
-    # otherwise rebuild from a copy read before this one landed and put back
-    # what it never saw.
-    locked = await guild_apps_service.lock_install(session, app.id)
-    if locked is None:
-        raise AppChannelError(AppChannelMessages.CONNECTION_NOT_FOUND, status_code=404)
-    app = locked
-
-    # Asked again now the row is held, because the wait is long enough for the
-    # answer to have changed: an upgrade may have moved the install to a version
-    # that declares no such connection, and an admin may have cleared this one,
-    # which drops the handle. Whatever was true when this request arrived is not
-    # what it gets to act on.
-    if app_config_service.connection_id_for_ref(app, connection_ref) != connection_id:
-        raise AppChannelError(AppChannelMessages.CONNECTION_NOT_FOUND, status_code=404)
-
-    connection = app_config_service.connection_by_id(app.definition, connection_id)
-    if connection is None:
-        # The install moved to a version that no longer declares this
-        # connection; its values are on their way out with it.
-        raise AppChannelError(AppChannelMessages.CONNECTION_NOT_FOUND, status_code=404)
-
-    try:
-        config, secrets = app_config_service.apply_connection_values(
-            connection,
-            values,
-            current=(app.config or {}).get(connection_id) or {},
-            current_secrets=(app.config_secrets or {}).get(connection_id) or {},
-            allow_managed=True,
-        )
-    except app_config_service.AppConfigError as exc:
-        raise AppChannelError(exc.code) from exc
-
-    # An emptied connection is stored as absent rather than as an empty map, so
-    # "has anything been configured here?" has one shape — the same rule the
-    # pruning and the admin's own form already keep.
-    app.config = _stored(app.config, connection_id, config)
-    app.config_secrets = _stored(app.config_secrets, connection_id, secrets)
-    app.updated_at = datetime.now(timezone.utc)
-    session.add(app)
-    await session.commit()
-    await session.refresh(app)
-
-    return {
-        "connection_id": connection_id,
-        "connection_ref": connection_ref,
-        "status": "connected"
-        if app_config_service.is_satisfied(connection, config, secrets)
-        else "pending",
-        "blocked": False,
-        "account_label": None,
-        "created_at": app.created_at,
-        "updated_at": app.updated_at,
-    }
-
-
-def _stored(
-    current: dict[str, Any] | None, connection_id: str, values: dict[str, Any]
-) -> dict[str, Any]:
-    kept = {
-        key: value for key, value in (current or {}).items() if key != connection_id
-    }
-    if values:
-        kept[connection_id] = values
-    return kept
-
-
-def _resolved_status(
-    requested: Optional[str], *, config: dict[str, Any], secrets: dict[str, Any]
-) -> str:
-    """What a connection's status becomes after a write-back.
-
-    An app may say it is still mid-flow; otherwise the stored values decide, so
-    a write that clears everything leaves the row honest rather than claiming a
-    connection it no longer holds.
-    """
-    if requested == "pending":
-        return "pending"
-    return "connected" if (config or secrets) else "pending"
-
-
 # --- events in --------------------------------------------------------------
 
 
@@ -695,26 +413,26 @@ def _payload_size(payload: dict[str, Any]) -> int:
 async def emit_event(
     session: AsyncSession,
     app: GuildApp,
-    registration: AppServiceRegistration,
+    registration: RegisteredApp,
     *,
     event_type: str,
     payload: dict[str, Any],
+    initiative_id: Optional[int],
+    token_initiative_id: Optional[int],
 ) -> None:
-    """Re-emit a third-party event into this guild's own dispatcher.
+    """Keep one event the app emits, for the outbox poller to deliver.
 
-    The app has verified the third party's signature and worked out which of its
-    installs the event belongs to; what this adds is the platform's half —
-    the type is an `emit` endpoint the *pinned* definition declares, namespaced
-    under the calling app, and the guild has that app installed and enabled.
+    The type is an ``emit`` endpoint the *pinned* definition declares,
+    namespaced under the calling app. `emit` and not merely declared: reads
+    and writes share the id space, and an app that could announce under a
+    read's id would be emitting something a subscriber has no way to have
+    asked for.
 
-    `emit` and not merely declared: reads and writes share the id space, and an
-    app that could announce under a read's id would be emitting something a
-    subscriber has no way to have asked for.
-
-    From there it is an ordinary event: the existing dispatcher delivers it to
-    whatever the automation delegate subscribed to. Delivery targets are the
-    delegate's to own, which is why this is one-way — apps emit, and never
-    subscribe.
+    An event about an initiative names one the install is placed in; a token
+    narrowed to an initiative emits in that one. The row is written in the
+    request's transaction, which wakes the outbox drain as a captured change
+    does, and the poller delivers it to the community's subscriptions with the
+    change log, retrying until each accepts it.
     """
     definition = app.definition if isinstance(app.definition, dict) else {}
     declared = definition.get("endpoints")
@@ -734,9 +452,27 @@ async def emit_event(
     if _payload_size(payload) > MAX_EVENT_PAYLOAD_BYTES:
         raise AppChannelError(AppChannelMessages.EVENT_TOO_LARGE, status_code=413)
 
-    await dispatch_event(
-        session,
-        event_type=event_type,
-        guild_id=routed_guild_id(session),
-        payload=payload,
+    if initiative_id is None:
+        initiative_id = token_initiative_id
+    if initiative_id is not None and (
+        token_initiative_id not in (None, initiative_id)
+        or not await guild_apps_service.is_placed(session, app.id, initiative_id)
+    ):
+        raise AppChannelError(AppChannelMessages.INITIATIVE_NOT_PLACED, status_code=403)
+
+    session.add(
+        AppEventOutbox(
+            txn_id=func.txid_current(),
+            install_id=app.id,
+            event_type=event_type,
+            initiative_id=initiative_id,
+            payload=payload,
+        )
     )
+    # The same hint the capture trigger raises, heard once this commits.
+    await session.exec(
+        text(
+            "SELECT pg_notify(:channel, current_schema() || ':' || txid_current())"
+        ).bindparams(channel=OUTBOX_CHANNEL)
+    )
+    await session.commit()

@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
 from prometheus_client import REGISTRY
 
 from app.core import metrics
-
-pytestmark = pytest.mark.unit
 
 
 def test_a_status_nobody_holds_any_more_stops_being_reported():

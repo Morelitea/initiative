@@ -50,17 +50,13 @@ import { useAutoCloseSidebar } from "@/hooks/useAutoCloseSidebar";
 import { compareVersions, useDockerHubVersion } from "@/hooks/useDockerHubVersion";
 import { useGuildApps } from "@/hooks/useGuildApps";
 import { useGuilds } from "@/hooks/useGuilds";
-import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
+import { liveInitiatives } from "@/hooks/useInitiativeAccess";
 import { useInitiativeDirectory, useInitiatives } from "@/hooks/useInitiatives";
 import { useFavoriteProjects, useProjects } from "@/hooks/useProjects";
 import { useTags } from "@/hooks/useTags";
 import { useToolCountsByInitiative } from "@/hooks/useToolCountsByInitiative";
 import { guildPath } from "@/lib/guildUrl";
-import {
-  administersGuild,
-  canAccessOperatorDashboard,
-  canManagePlatformConfig,
-} from "@/lib/permissions";
+import { canAccessOperatorDashboard, canManagePlatformConfig } from "@/lib/permissions";
 import { getItem, setItem } from "@/lib/storage";
 import { TOOLS, toolDetailRoute } from "@/lib/tools";
 
@@ -76,12 +72,11 @@ export const AppSidebar = () => {
   useAutoCloseSidebar();
 
   // Guild admin check is based on guild membership role only (independent from platform role).
-  // Used for guild-settings affordances. Initiative visibility/permissions
-  // (incl. PAM grants + platform data.bypass) come from useInitiativeAccess.
+  // Used for guild-settings affordances; what the reader may do inside each
+  // initiative is that initiative's own `can`.
   // The gear opens the community's own configuration, which a settings
   // grant reaches as well as its admin does.
-  const isGuildAdmin = administersGuild(activeGuild);
-  const { filterVisible, permissionsFor, canManage } = useInitiativeAccess();
+  const isGuildAdmin = Boolean(activeGuild?.can.administer);
   // Two separate platform areas: config (Platform settings) vs operational
   // (Operator dashboard). Each surfaced independently per capability.
   const showPlatformSettings = canManagePlatformConfig(user);
@@ -188,8 +183,8 @@ export const AppSidebar = () => {
   }, [projectsQuery.data]);
 
   const visibleInitiatives = useMemo(
-    () => filterVisible(Array.isArray(initiativesQuery.data) ? initiativesQuery.data : []),
-    [initiativesQuery.data, filterVisible]
+    () => liveInitiatives(Array.isArray(initiativesQuery.data) ? initiativesQuery.data : []),
+    [initiativesQuery.data]
   );
 
   // The same install list the Apps section reads, handed to each initiative so
@@ -201,11 +196,6 @@ export const AppSidebar = () => {
       (guildAppsQuery.data?.items ?? []).filter((app) => app.enabled && app.available !== false),
     [guildAppsQuery.data]
   );
-
-  // Initiative visibility + per-section permissions (membership, PAM grants,
-  // platform data.bypass) are centralized in useInitiativeAccess.
-  const canManageInitiative = canManage;
-  const getUserPermissions = permissionsFor;
 
   // Your own account, so your own name if you set one — and your handle, not
   // your address, when you have not.
@@ -473,12 +463,8 @@ export const AppSidebar = () => {
                                       key={initiative.id}
                                       initiative={initiative}
                                       projects={projects}
-                                      canManageInitiative={canManageInitiative(initiative)}
                                       activeProjectId={activeProjectId}
-                                      userId={user?.id}
-                                      access={getUserPermissions(initiative)}
                                       apps={initiativeApps}
-                                      isGuildAdmin={isGuildAdmin}
                                       counts={countsFor(initiative.id, projects.length)}
                                       activeGuildId={activeGuildId}
                                       collapseKey={initiativeCollapseKey}

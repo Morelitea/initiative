@@ -126,6 +126,20 @@ ROLE_CAPABILITIES: dict[UserRole, FrozenSet[Capability]] = {
 }
 
 
+# Per-role maximum access-grant duration in minutes (least privilege). The
+# service clamps each to its absolute ceiling; the request and break-glass forms
+# read the caller's figure from the server.
+ROLE_MAX_GRANT_MINUTES: dict[UserRole, int] = {
+    UserRole.support: 240,  # 4 hours
+    UserRole.moderator: 480,  # 8 hours
+    UserRole.operator: 1440,  # 24 hours
+    # Owners/operators reach a guild via the self-approved break-glass path
+    # (``data.bypass``) rather than the request→approve flow; their cap applies
+    # to that self-issued grant.
+    UserRole.owner: 1440,
+}
+
+
 def capabilities_for(role: UserRole) -> FrozenSet[Capability]:
     """Return the capability set granted by a standing platform role."""
     return ROLE_CAPABILITIES.get(role, _MEMBER)

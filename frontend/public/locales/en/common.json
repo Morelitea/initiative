@@ -1,5 +1,7 @@
 {
   "deletedUserName": "Deleted user #{{id}}",
+  "user": "User",
+  "userWithId": "User #{{id}}",
   "save": "Save",
   "cancel": "Cancel",
   "delete": "Delete",
@@ -157,6 +159,7 @@
   },
   "reactions": {
     "add": "Add a reaction",
+    "quick": "React with {{emoji}}",
     "chipLabel_one": "{{emoji}}, {{count}} reaction",
     "chipLabel_other": "{{emoji}}, {{count}} reactions",
     "countOnly_one": "{{count}} reaction",
@@ -174,7 +177,9 @@
     "description": "Use the arrow keys or swipe to move between pictures. Pinch, double-tap or scroll with Ctrl to zoom.",
     "position": "{{current}} / {{total}}",
     "zoomIn": "Zoom in",
-    "zoomOut": "Zoom out"
+    "zoomOut": "Zoom out",
+    "open": "View this picture full size",
+    "openNamed": "View {{name}} full size"
   },
   "timeline": {
     "label": "Jump to a month",
@@ -234,5 +239,8 @@
   "notFoundPage": {
     "title": "Page not found",
     "description": "Nothing is at this address. The link may be mistyped, or the page may have moved."
+  },
+  "nativeUpdate": {
+    "unsigned": "This server's update isn't one Initiative published, so the app stays on version {{version}}."
   }
 }

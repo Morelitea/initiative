@@ -8,14 +8,13 @@ serialization on the list summary, and the cross-guild ``/me`` calendar list's
 DAC filter (which now keys off calendar sharing, not per-event grants).
 """
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy import text
 
 from app.db.schema_provisioning import guild_schema_name
-from app.core.messages import CalendarEventMessages
+from app.core.messages import CalendarEventMessages, CommonMessages
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.resource_grant import ResourceGrant
@@ -97,7 +96,6 @@ async def _setup_event(session, acting_user):
     return a, a.guild, a.initiative, calendar, event
 
 
-@pytest.mark.integration
 async def test_list_events_summary_includes_tags(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -128,7 +126,6 @@ async def test_list_events_summary_includes_tags(
     assert tags[0]["name"] == "Priority"
 
 
-@pytest.mark.integration
 async def test_list_events_summary_tags_default_empty(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -144,7 +141,6 @@ async def test_list_events_summary_tags_default_empty(
     assert items[event.id]["tags"] == []
 
 
-@pytest.mark.integration
 async def test_create_event_notifies_attendees_not_creator(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -187,7 +183,6 @@ async def test_create_event_notifies_attendees_not_creator(
     )
 
 
-@pytest.mark.integration
 async def test_create_multi_day_timed_event_is_allowed(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -217,11 +212,11 @@ async def test_create_multi_day_timed_event_is_allowed(
     assert body["end_at"].startswith("2026-07-03")
 
 
-@pytest.mark.integration
 async def test_create_event_rejects_end_before_start(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """end_at before start_at is still rejected."""
+    """end_at before start_at is still rejected, on create and on an update
+    that moves only one end."""
     (
         organizer,
         _attendee,
@@ -243,8 +238,16 @@ async def test_create_event_rejects_end_before_start(
     )
     assert response.status_code == 422
 
+    event = await create_calendar_event(session, calendar, organizer.user)
+    response = await client.patch(
+        organizer.g(f"/calendar-events/{event.id}"),
+        headers=organizer.headers,
+        json={"end_at": "2000-01-01T00:00:00Z"},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == CalendarEventMessages.ENDS_BEFORE_START
 
-@pytest.mark.integration
+
 async def test_create_event_requires_calendar_write(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -274,7 +277,6 @@ async def test_create_event_requires_calendar_write(
     assert response.json()["detail"] == "CALENDAR_WRITE_ACCESS_REQUIRED"
 
 
-@pytest.mark.integration
 async def test_move_event_between_calendars_requires_write_on_both(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -320,7 +322,6 @@ async def test_move_event_between_calendars_requires_write_on_both(
     assert denied.status_code == 403
 
 
-@pytest.mark.integration
 async def test_update_event_time_notifies_attendees_as_rescheduled(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -354,7 +355,6 @@ async def test_update_event_time_notifies_attendees_as_rescheduled(
     assert updates[0].data["time_changed"] is True
 
 
-@pytest.mark.integration
 async def test_delete_event_notifies_attendees(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -385,7 +385,6 @@ async def test_delete_event_notifies_attendees(
     assert len(cancels) == 1
 
 
-@pytest.mark.integration
 async def test_update_event_skips_declined_attendees(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -425,7 +424,6 @@ async def test_update_event_skips_declined_attendees(
     assert updates == []
 
 
-@pytest.mark.integration
 async def test_delete_event_skips_declined_attendees(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -463,7 +461,6 @@ async def test_delete_event_skips_declined_attendees(
     assert cancels == []
 
 
-@pytest.mark.integration
 async def test_rsvp_notifies_organizer(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -495,7 +492,6 @@ async def test_rsvp_notifies_organizer(
     assert rsvps[0].data["rsvp_status"] == "accepted"
 
 
-@pytest.mark.integration
 async def test_global_calendar_events_reads_guild_schema(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -503,15 +499,13 @@ async def test_global_calendar_events_reads_guild_schema(
     (schema-per-guild). The factory writes the event into guild_<id>; /me
     aggregates per guild and must surface it."""
     a, guild, initiative, calendar, event = await _setup_event(session, acting_user)
-    response = await client.get(
-        "/api/v1/me/calendar-events", headers=get_auth_headers(a.user)
-    )
+    headers = get_auth_headers(a.user)
+    response = await client.get("/api/v1/me/calendar-events", headers=headers)
     assert response.status_code == 200
     body = response.json()
     assert event.id in {item["id"] for item in body["items"]}
 
 
-@pytest.mark.integration
 async def test_list_events_filters_events_without_calendar_grant(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -551,7 +545,6 @@ async def test_list_events_filters_events_without_calendar_grant(
     assert event.id in {item["id"] for item in resp.json()["items"]}
 
 
-@pytest.mark.integration
 async def test_my_calendar_events_filters_events_without_calendar_grant(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -588,7 +581,6 @@ async def test_my_calendar_events_filters_events_without_calendar_grant(
     assert event.id in {item["id"] for item in resp.json()["items"]}
 
 
-@pytest.mark.integration
 async def test_my_calendar_events_leaves_out_what_was_never_shared(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -616,7 +608,7 @@ async def test_my_calendar_events_leaves_out_what_was_never_shared(
     # Named directly, the initiative answers in full — this moved navigation,
     # not authority.
     within = await client.get(
-        f"/api/v1/g/{admin.guild.id}/calendar-events/?initiative_id={initiative.id}",
+        f"/api/v1/c/{admin.guild.id}/calendar-events/?initiative_id={initiative.id}",
         headers=get_auth_headers(admin.user),
     )
     assert within.status_code == 200, within.text
@@ -758,8 +750,8 @@ class TestGuildCalendarEvents:
                 "attendee_ids": [stranger.user.id],
             },
         )
-        assert response.status_code == 400
-        assert response.json()["detail"] == CalendarEventMessages.INVALID_ATTENDEE_IDS
+        assert response.status_code == 422
+        assert response.json()["detail"] == CommonMessages.PERSON_CANNOT_READ
 
     async def test_properties_are_refused(
         self, client: AsyncClient, acting_user, session

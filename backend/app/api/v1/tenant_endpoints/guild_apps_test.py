@@ -24,7 +24,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.messages import GuildAppMessages, MarketplaceMessages
+from app.core.messages import GuildAppMessages, GuildMessages, MarketplaceMessages
 from app.models.platform.guild import GuildRole
 from app.models.tenant.calendar import Calendar
 from app.testing import (
@@ -151,7 +151,7 @@ class TestInstall:
             json={"listing_uid": CALENDAR_APP_UID},
         )
         assert response.status_code == 403
-        assert response.json()["detail"] == GuildAppMessages.SUPERADMIN_REQUIRED
+        assert response.json()["detail"] == GuildMessages.GUILD_SUPERADMIN_REQUIRED
 
     async def test_a_listing_that_is_not_an_app_is_a_404(
         self, client: AsyncClient, acting_user, session
@@ -440,12 +440,9 @@ class TestKindsThisBuildCanMount:
     async def test_a_service_app_installs_and_creates_no_artifact(
         self, client: AsyncClient, acting_user, session: AsyncSession, service_listing
     ):
-        # Wired up but not verified yet: the operator has said this deployment
-        # runs the app, and its container has not answered a handshake — which
-        # is the ordinary state of a service that has just been registered.
-        await create_app_service_registration(
-            session, public_id="tests.service-kind", status="unverified"
-        )
+        # Wired up: the operator has said this deployment runs the app. Whether
+        # its container is up yet is not asked.
+        await create_app_service_registration(session, public_id="tests.service-kind")
         a = await acting_user(guild_role=GuildRole.superadmin)
 
         response = await client.post(
@@ -458,9 +455,7 @@ class TestKindsThisBuildCanMount:
         body = response.json()
         assert body["app_kind"] == "service"
         assert body["artifacts"] == []
-        # Registered, but nothing has answered for it yet — the install is
-        # valid and says so rather than pretending.
-        assert body["available"] is False
+        assert body["available"] is True
         assert body["mandatory"] is False
 
     async def test_a_service_nobody_registered_is_not_installable(

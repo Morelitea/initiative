@@ -11,7 +11,6 @@ Covers /api/v1/property-definitions CRUD including:
 - /{id}/entities lookup
 """
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -39,7 +38,6 @@ from app.testing import (
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_list_property_definitions_returns_union_across_initiatives(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -62,7 +60,6 @@ async def test_list_property_definitions_returns_union_across_initiatives(
     assert defn_b.id in ids
 
 
-@pytest.mark.integration
 async def test_list_property_definitions_filtered_by_initiative_id(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -84,7 +81,6 @@ async def test_list_property_definitions_filtered_by_initiative_id(
     assert defn_b.id not in ids
 
 
-@pytest.mark.integration
 async def test_list_property_definitions_scoped_by_initiative_id_query(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -126,7 +122,6 @@ async def test_list_property_definitions_scoped_by_initiative_id_query(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_create_text_property_definition(client: AsyncClient, acting_user):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
@@ -147,7 +142,6 @@ async def test_create_text_property_definition(client: AsyncClient, acting_user)
     assert data["initiative_id"] == a.initiative.id
 
 
-@pytest.mark.integration
 async def test_create_rejected_when_not_initiative_member(
     client: AsyncClient, acting_user
 ):
@@ -170,7 +164,6 @@ async def test_create_rejected_when_not_initiative_member(
     assert response.json()["detail"] == "PROPERTY_NOT_INITIATIVE_MEMBER"
 
 
-@pytest.mark.integration
 async def test_create_allowed_for_initiative_member(client: AsyncClient, acting_user):
     """A plain (non-admin) guild member who belongs to the initiative can
     create a definition on it.
@@ -202,7 +195,6 @@ async def test_create_allowed_for_initiative_member(client: AsyncClient, acting_
     assert data["initiative_id"] == admin.initiative.id
 
 
-@pytest.mark.integration
 async def test_create_rejected_for_guild_member_not_in_initiative(
     client: AsyncClient, acting_user
 ):
@@ -225,7 +217,6 @@ async def test_create_rejected_for_guild_member_not_in_initiative(
     assert response.json()["detail"] == "PROPERTY_NOT_INITIATIVE_MEMBER"
 
 
-@pytest.mark.integration
 async def test_create_allowed_for_guild_admin_not_in_initiative(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -252,7 +243,6 @@ async def test_create_allowed_for_guild_admin_not_in_initiative(
     assert response.json()["initiative_id"] == creator.initiative.id
 
 
-@pytest.mark.integration
 async def test_create_select_requires_options(client: AsyncClient, acting_user):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
@@ -266,7 +256,6 @@ async def test_create_select_requires_options(client: AsyncClient, acting_user):
     assert any("PROPERTY_OPTIONS_REQUIRED" in str(err) for err in detail)
 
 
-@pytest.mark.integration
 async def test_create_duplicate_name_case_insensitive_conflicts(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -283,7 +272,6 @@ async def test_create_duplicate_name_case_insensitive_conflicts(
     assert response.json()["detail"] == "PROPERTY_NAME_ALREADY_EXISTS"
 
 
-@pytest.mark.integration
 async def test_create_same_name_in_different_initiatives_allowed(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -302,7 +290,6 @@ async def test_create_same_name_in_different_initiatives_allowed(
     assert response.status_code == 201
 
 
-@pytest.mark.integration
 async def test_create_select_duplicate_option_values_rejected(
     client: AsyncClient, acting_user
 ):
@@ -331,7 +318,6 @@ async def test_create_select_duplicate_option_values_rejected(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_get_definition_returns_definition(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -347,7 +333,6 @@ async def test_get_definition_returns_definition(
     assert response.json()["id"] == defn.id
 
 
-@pytest.mark.integration
 async def test_get_definition_for_missing_id_returns_404(
     client: AsyncClient, acting_user
 ):
@@ -368,7 +353,6 @@ async def test_get_definition_for_missing_id_returns_404(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_patch_renames_color_and_position(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -392,7 +376,6 @@ async def test_patch_renames_color_and_position(
     assert data["orphaned_value_count"] == 0
 
 
-@pytest.mark.integration
 async def test_patch_ignores_type_change_silently(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -414,7 +397,6 @@ async def test_patch_ignores_type_change_silently(
     assert response.json()["definition"]["name"] == "Renamed"
 
 
-@pytest.mark.integration
 async def test_patch_removing_option_reports_orphaned_values(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -462,7 +444,60 @@ async def test_patch_removing_option_reports_orphaned_values(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
+async def test_a_member_adds_options_and_a_manager_reshapes(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Offering a new value is part of filling a field in; renaming it,
+    changing or dropping its options or removing it is setting the initiative
+    up."""
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
+    )
+    stage = {"value": "todo", "label": "To do"}
+    defn = await create_property_definition(
+        session, admin.initiative, type=PropertyType.select, options=[stage]
+    )
+    route = member.g(f"/property-definitions/{defn.id}")
+    added = [stage, {"value": "done", "label": "Done"}]
+
+    response = await client.patch(
+        route, headers=member.headers, json={"options": added}
+    )
+    assert response.status_code == 200, response.text
+
+    # Sent from a list that was already out of date, the other addition stays.
+    later = {"value": "later", "label": "Later"}
+    response = await client.patch(
+        route, headers=member.headers, json={"options": [later, stage]}
+    )
+    assert response.status_code == 200, response.text
+    options = response.json()["definition"]["options"]
+    assert [opt["value"] for opt in options] == ["todo", "done", "later"]
+
+    # An option already there is left as it is.
+    relabelled = {**stage, "label": "Backlog"}
+    response = await client.patch(
+        route, headers=member.headers, json={"options": [relabelled]}
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["definition"]["options"][0]["label"] == "To do"
+
+    response = await client.patch(route, headers=member.headers, json={"name": "New"})
+    assert response.status_code == 403
+    assert response.json()["detail"] == "INITIATIVE_MANAGER_REQUIRED"
+    response = await client.delete(route, headers=member.headers)
+    assert response.status_code == 403
+
+    response = await client.patch(
+        route, headers=admin.headers, json={"options": [added[1]]}
+    )
+    assert response.status_code == 200, response.text
+
+
 async def test_delete_definition_cascades_to_values(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -507,7 +542,6 @@ async def test_delete_definition_cascades_to_values(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_get_entities_returns_attached_docs_and_tasks(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

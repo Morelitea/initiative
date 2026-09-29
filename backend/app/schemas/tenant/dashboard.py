@@ -1,26 +1,21 @@
 from __future__ import annotations
 
-from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional
 
 from pydantic import ConfigDict, Field
 
 from app.schemas.base import SanitizedBaseModel, TitleStr
-from app.schemas.tenant.archive import ArchiveState
+from app.schemas.query import PageMeta
 
-from app.schemas.tenant.resource_grant import ResourceGrantSchema
+from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.services.fields.spec import FieldType
-from app.schemas.tenant.tag import TagSummary, annotated_tags
+from app.schemas.tenant.tool import ToolSummaryBase
 from app.services.tenant.dashboard_definition import (
     TABULAR_SOURCES,
     WIDGET_PRESETS,
     WIDGET_SPECS,
 )
-
-if TYPE_CHECKING:  # pragma: no cover
-    from app.db.guild_standing import GuildContext
-    from app.models.tenant.dashboard import Dashboard
 
 
 # Derived from the widget registry rather than restated, the way TagTarget
@@ -57,11 +52,7 @@ class DashboardCreate(DashboardBase):
     config: Dict[str, Any] = Field(default_factory=dict)
     # Initial sharing — the same grant list the PUT /grants endpoint takes.
     # Defaults to Viewer for all initiative members.
-    grants: List[ResourceGrantSchema] = Field(
-        default_factory=lambda: [
-            ResourceGrantSchema(all_initiative_members=True, level="read")
-        ]
-    )
+    grants: List[ResourceGrantSchema] = Field(default_factory=initiative_readable)
 
 
 class DashboardInstalledListings(SanitizedBaseModel):
@@ -88,37 +79,14 @@ class DashboardUpdate(SanitizedBaseModel):
     config: Optional[Dict[str, Any]] = None
 
 
-class DashboardSummary(DashboardBase, ArchiveState):
-    model_config = ConfigDict(
-        from_attributes=True, json_schema_serialization_defaults_required=True
-    )
-
-    id: int
-    initiative_id: int
-    guild_id: int
-    created_by: int
-    created_at: datetime
-    updated_at: datetime
+class DashboardSummary(DashboardBase, ToolSummaryBase):
     # Marketplace provenance; both null for a dashboard authored from scratch.
     listing_uid: Optional[str] = None
     listing_version: Optional[str] = None
-    my_permission_level: Optional[str] = None
-    # When false this entity's comment thread is off — the UI renders none
-    # and the API refuses to read or post one. Tasks are unaffected; their
-    # thread belongs to the task, not to the tool.
-    comments_enabled: bool = True
-    tags: List[TagSummary] = Field(default_factory=list)
-    grants: List[ResourceGrantSchema] = Field(default_factory=list)
 
 
-class DashboardListResponse(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
+class DashboardListResponse(PageMeta):
     items: List[DashboardSummary]
-    total_count: int
-    page: int
-    page_size: int
-    has_next: bool
 
 
 class PublishedOver(SanitizedBaseModel):
@@ -167,6 +135,31 @@ class PublishTarget(SanitizedBaseModel):
 
 
 PublishRequest.model_rebuild()
+
+
+class DashboardWidgetData(SanitizedBaseModel):
+    """One widget's answer when its canvas is loaded: its rows, or the code it
+    was refused with. Exactly one of the two is set."""
+
+    result: Optional["QueryResponse"] = None
+    error: Optional[str] = None
+
+
+class DashboardDataResponse(SanitizedBaseModel):
+    """Every query widget on a canvas, answered together, keyed by widget id.
+
+    Widgets bound to anything other than a statement are not here: they fetch
+    their own data."""
+
+    #: The initiative the canvas reads, so a client knows which changes make
+    #: these answers stale.
+    initiative_id: int
+    widgets: Dict[str, DashboardWidgetData]
+
+
+from app.schemas.sql_query import QueryResponse  # noqa: E402
+
+DashboardWidgetData.model_rebuild()
 
 
 # --- widget catalog --------------------------------------------------------
@@ -275,40 +268,4 @@ def build_widget_catalog() -> WidgetCatalog:
             )
             for name, preset in sorted(WIDGET_PRESETS.items())
         ],
-    )
-
-
-def serialize_dashboard_summary(
-    dashboard: "Dashboard", *, context: GuildContext, user_id: Optional[int] = None
-) -> DashboardSummary:
-    # Local import avoids a schema -> service import cycle.
-    from app.services.permissions import client_access, serialize_grants
-
-    return DashboardSummary(
-        id=dashboard.id,
-        name=dashboard.name,
-        description=dashboard.description,
-        initiative_id=dashboard.initiative_id,
-        guild_id=context.guild_id,
-        created_by=dashboard.created_by,
-        created_at=dashboard.created_at,
-        updated_at=dashboard.updated_at,
-        listing_uid=dashboard.listing_uid,
-        listing_version=dashboard.listing_version,
-        archived_at=dashboard.archived_at,
-        **client_access(dashboard, user_id, context=context),
-        comments_enabled=dashboard.comments_enabled,
-        tags=annotated_tags(dashboard),
-        grants=serialize_grants(dashboard),
-    )
-
-
-def serialize_dashboard(
-    dashboard: "Dashboard", *, context: GuildContext, user_id: Optional[int] = None
-) -> DashboardRead:
-    summary = serialize_dashboard_summary(dashboard, context=context, user_id=user_id)
-    return DashboardRead(
-        **summary.model_dump(),
-        definition=dashboard.definition or {},
-        config=dashboard.config or {},
     )

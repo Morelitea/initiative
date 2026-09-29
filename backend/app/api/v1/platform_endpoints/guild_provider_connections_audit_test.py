@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -26,7 +25,6 @@ from app.testing.factories import (
     get_auth_headers,
 )
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 TENANT_CLAIM_VALUE = "morels.me"
 GROUP_CLAIM_VALUE = "eng-team"
@@ -43,11 +41,11 @@ async def _seat(session: AsyncSession) -> tuple[int | None, Guild, dict[str, str
 
 
 def _connections(guild_id: int) -> str:
-    return f"/api/v1/guilds/{guild_id}/auth/connections"
+    return f"/api/v1/communities/{guild_id}/auth/connections"
 
 
 def _rules(guild_id: int) -> str:
-    return f"/api/v1/guilds/{guild_id}/auth/rules"
+    return f"/api/v1/communities/{guild_id}/auth/rules"
 
 
 def _of_type(written: list[dict], event_type: AuditEventType) -> list[dict]:
@@ -192,17 +190,12 @@ async def test_a_communitys_own_rule_is_recorded_through_its_life(
     assert created.status_code == 201, created.text
     rule_id = created.json()["id"]
 
-    raised = await client.patch(
-        f"{_rules(guild_id)}/{rule_id}", headers=headers, json={"guild_role": "admin"}
-    )
-    assert raised.status_code == 200, raised.text
     gone = await client.delete(f"{_rules(guild_id)}/{rule_id}", headers=headers)
     assert gone.status_code == 204, gone.text
 
     written = emitted(capfd)
     for event in (
         AuditEventType.CLAIM_RULE_CREATED,
-        AuditEventType.CLAIM_RULE_UPDATED,
         AuditEventType.CLAIM_RULE_DELETED,
     ):
         rows = _of_type(written, event)
@@ -218,34 +211,3 @@ async def test_a_communitys_own_rule_is_recorded_through_its_life(
         "from": None,
         "to": provider_id,
     }
-
-    moved = _of_type(written, AuditEventType.CLAIM_RULE_UPDATED)[0]
-    assert moved["detail"]["changed"] == ["guild_role"]
-
-
-async def test_a_rule_edit_that_changes_nothing_records_nothing(
-    client: AsyncClient, session: AsyncSession, capfd
-):
-    _, guild, headers = await _seat(session)
-    provider = await create_auth_provider(session, slug="entra")
-    await create_guild_provider_connection(session, guild=guild, provider=provider)
-    created = await client.post(
-        _rules(guild.id),
-        headers=headers,
-        json={
-            "provider_id": provider.id,
-            "claim_value": GROUP_CLAIM_VALUE,
-            "guild_role": "member",
-        },
-    )
-    assert created.status_code == 201, created.text
-    capfd.readouterr()
-
-    same = await client.patch(
-        f"{_rules(guild.id)}/{created.json()['id']}",
-        headers=headers,
-        json={"guild_role": "member"},
-    )
-    assert same.status_code == 200, same.text
-
-    assert emitted(capfd, AuditEventType.CLAIM_RULE_UPDATED) == []

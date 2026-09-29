@@ -15,14 +15,12 @@ from sqlmodel import select
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.tenant.event_outbox import EventOutbox
-from app.testing import create_task, create_tag, route_as
-
-
-pytestmark = pytest.mark.integration
+from app.testing import create_resource_grant, create_tag, create_task, route_as
+from app.db.request_context import SystemGuild, Unattributed
 
 
 async def _outbox(session, guild_id: int) -> list[EventOutbox]:
-    await set_rls_context(session, guild_id=guild_id)
+    await set_rls_context(session, SystemGuild(guild_id))
     return list(await session.exec(select(EventOutbox).order_by(EventOutbox.id.asc())))
 
 
@@ -142,22 +140,12 @@ async def test_a_grant_is_reported_against_the_resource_it_shares(session, actin
     against the project (or document, queue, …) named in the row — which the
     subscriber can fetch, and which is the thing that actually changed.
     """
-    from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
 
     before = len(await _outbox(session, a.guild.id))
-    session.add(
-        ResourceGrant(
-            initiative_id=a.initiative.id,
-            resource_type="project",
-            resource_id=a.project.id,
-            user_id=b.user.id,
-            level=ResourceAccessLevel.read,
-        )
-    )
-    await session.commit()
+    await create_resource_grant(session, a.project, user=b.user)
 
     new_rows = (await _outbox(session, a.guild.id))[before:]
     reported = [
@@ -200,7 +188,7 @@ async def test_adding_a_member_reports_against_the_initiative(session, acting_us
 
     # Back to the shared baseline before building a person: an account is a
     # platform row, and this session is pointed at a guild by the actor above.
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     joiner = await create_user(session)
     await route_as(session, user_id=a.user.id, guild_id=a.guild.id)
     await create_initiative_member(session, a.initiative, joiner)
@@ -310,7 +298,7 @@ async def test_a_hard_delete_on_a_trash_table_never_surfaces(session, acting_use
     silent: a repeat of an announced delete, naming an id nothing can resolve."""
     from datetime import datetime, timezone
 
-    from app.services.tenant.trash_purge import hard_purge_entity
+    from app.services.tenant.soft_delete import hard_purge_entity
 
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project)
@@ -326,7 +314,7 @@ async def test_a_hard_delete_on_a_trash_table_never_surfaces(session, acting_use
     ]
     assert len(deletes_after_soft) == 1, "the soft delete should announce once"
 
-    await set_rls_context(session, guild_id=a.guild.id)
+    await set_rls_context(session, SystemGuild(a.guild.id))
     await hard_purge_entity(session, task)
     await session.commit()
 
@@ -354,7 +342,7 @@ async def test_a_hard_delete_that_was_never_trashed_still_announces(
     await session.commit()
 
     before = len(await _outbox(session, a.guild.id))
-    await set_rls_context(session, guild_id=a.guild.id)
+    await set_rls_context(session, SystemGuild(a.guild.id))
     await session.delete(membership)
     await session.commit()
 
@@ -373,7 +361,7 @@ async def test_a_trash_row_removed_outright_is_still_silent(session, acting_user
     task = await create_task(session, a.project)
 
     before = len(await _outbox(session, a.guild.id))
-    await set_rls_context(session, guild_id=a.guild.id)
+    await set_rls_context(session, SystemGuild(a.guild.id))
     await session.delete(task)
     await session.commit()
 
@@ -593,3 +581,62 @@ async def test_the_chain_carries_identifiers_and_nothing_else(session, acting_us
             assert set(parent) == {"type", "id"}, parent
             assert isinstance(parent["type"], str)
             assert isinstance(parent["id"], int)
+
+
+async def test_an_install_write_names_the_install(session, acting_user, role_session):
+    """A change an installed app's request wrote names the install, and no
+    person: the app acts as its community. A person's write names the person
+    and no install."""
+    from app.db.install_standing_test import _install, _route
+    from app.models.tenant.document import Document, DocumentType
+
+    install = await _install(
+        session, acting_user, role_session, granted=["documents:write"]
+    )
+
+    s, _ = await _route(role_session, install, ["documents:write"])
+    made = Document(
+        initiative_id=install.a.id,
+        name="Made by the app",
+        document_type=DocumentType.native,
+    )
+    s.add(made)
+    await s.commit()
+    made_id = made.id
+
+    person = await _create_document_as(session, install)
+
+    rows = await _outbox(session, install.guild.id)
+    by_app = [
+        r for r in rows if r.resource_type == "documents" and r.resource_id == made_id
+    ]
+    assert by_app, "an install's write produced no outbox row"
+    # The document, and the owner grant the database wrote for the install
+    # beside it: both are the app's writes.
+    assert {(r.actor_install_id, r.actor_user_id) for r in by_app} == {
+        (install.app.id, None)
+    }
+
+    by_person = [
+        r for r in rows if r.resource_type == "documents" and r.resource_id == person
+    ]
+    assert by_person
+    assert {(r.actor_install_id, r.actor_user_id) for r in by_person} == {
+        (None, install.seat.user.id)
+    }
+
+
+async def _create_document_as(session, install) -> int:
+    """A document the install's seat creates through the request path."""
+    from app.models.tenant.document import Document, DocumentType
+
+    await route_as(session, user_id=install.seat.user.id, guild_id=install.guild.id)
+    made = Document(
+        initiative_id=install.a.id,
+        name="Made by a person",
+        document_type=DocumentType.native,
+    )
+    session.add(made)
+    await session.commit()
+    assert made.id is not None
+    return made.id

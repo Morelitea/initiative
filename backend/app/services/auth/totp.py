@@ -25,7 +25,7 @@ from __future__ import annotations
 import hashlib
 import secrets
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from urllib.parse import quote
 
 import pyotp
@@ -37,6 +37,7 @@ from app.core.encryption import SALT_TOTP_SECRET, decrypt_field, encrypt_field
 from app.models.platform.mfa_recovery_code import MfaRecoveryCode
 from app.models.platform.user_totp import UserTotp
 from app.models.platform.user_totp_secret import UserTotpSecret
+from app.core.clock import utcnow
 
 #: The shape every authenticator app assumes, and the one an ``otpauth://`` URI
 #: does not need to spell out.
@@ -69,10 +70,6 @@ class Enrolment:
 
     secret: str
     uri: str
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 def _timestep(at: datetime) -> int:
@@ -175,7 +172,7 @@ async def begin_enrolment(
     else:
         factor.confirmed_at = None
         factor.last_timestep = None
-        factor.updated_at = _now()
+        factor.updated_at = utcnow()
         session.add(factor)
 
     stored = (
@@ -188,7 +185,7 @@ async def begin_enrolment(
         session.add(UserTotpSecret(user_id=user_id, secret_encrypted=ciphertext))
     else:
         stored.secret_encrypted = ciphertext
-        stored.updated_at = _now()
+        stored.updated_at = utcnow()
         session.add(stored)
     await session.flush()
     return Enrolment(
@@ -204,7 +201,7 @@ async def confirm_enrolment(session: AsyncSession, *, user_id: int, code: str) -
     secret = await _read_secret(session, user_id=user_id)
     if secret is None:
         return False
-    now = _now()
+    now = utcnow()
     step = _matching_timestep(secret, code, at=now)
     if step is None:
         return False
@@ -234,7 +231,7 @@ async def verify_code(session: AsyncSession, *, user_id: int, code: str) -> bool
     secret = await _read_secret(session, user_id=user_id)
     if secret is None:
         return False
-    now = _now()
+    now = utcnow()
     step = _matching_timestep(secret, code, at=now)
     if step is None:
         return False
@@ -338,7 +335,7 @@ async def consume_recovery_code(
             MfaRecoveryCode.code_hash == _hash_recovery_code(normalised),
             MfaRecoveryCode.used_at.is_(None),
         )
-        .values(used_at=_now())
+        .values(used_at=utcnow())
     )
     return bool(result.rowcount)
 

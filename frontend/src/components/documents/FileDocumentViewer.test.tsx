@@ -69,21 +69,21 @@ describe("FileDocumentViewer version controls", () => {
   });
 
   it("hides upload + delete for a read-only viewer", async () => {
-    renderViewer({ canEdit: false, isOwner: false });
+    renderViewer({ canEdit: false, canDeleteVersions: false });
     await userEvent.click(screen.getByRole("button", { name: /version history/i }));
     expect(screen.queryByText(/upload new version/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /delete version/i })).not.toBeInTheDocument();
   });
 
   it("shows the upload action for a writer", async () => {
-    renderViewer({ canEdit: true, isOwner: false });
+    renderViewer({ canEdit: true, canDeleteVersions: false });
     await userEvent.click(screen.getByRole("button", { name: /version history/i }));
     expect(screen.getByText(/upload new version/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /delete version/i })).not.toBeInTheDocument();
   });
 
   it("lets the owner delete a non-last version", async () => {
-    renderViewer({ canEdit: true, isOwner: true });
+    renderViewer({ canEdit: true, canDeleteVersions: true });
     await userEvent.click(screen.getByRole("button", { name: /version history/i }));
     const deleteButtons = screen.getAllByRole("button", { name: /delete version/i });
     expect(deleteButtons.length).toBe(2);
@@ -92,13 +92,13 @@ describe("FileDocumentViewer version controls", () => {
 
   it("disables delete when only one version exists", async () => {
     mockVersions = [buildVersion({ id: 2, version_number: 1, is_current: true })];
-    renderViewer({ canEdit: true, isOwner: true });
+    renderViewer({ canEdit: true, canDeleteVersions: true });
     await userEvent.click(screen.getByRole("button", { name: /version history/i }));
     expect(screen.getByRole("button", { name: /delete version/i })).toBeDisabled();
   });
 
   it("switches the viewer to an older version and shows the notice", async () => {
-    renderViewer({ canEdit: true, isOwner: true });
+    renderViewer({ canEdit: true, canDeleteVersions: true });
     await userEvent.click(screen.getByRole("button", { name: /version history/i }));
     await userEvent.click(screen.getByRole("button", { name: /version 1/i }));
     await waitFor(() => expect(screen.getByText(/viewing an older version/i)).toBeInTheDocument());

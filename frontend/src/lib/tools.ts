@@ -44,8 +44,8 @@ import {
 } from "lucide-react";
 
 import type {
+  InitiativeListRead,
   InitiativeMemberRead,
-  InitiativeRead,
   PermissionKey,
 } from "@/api/generated/initiativeAPI.schemas";
 import { ListingKind, Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -80,9 +80,6 @@ export const TOOLS = Object.values(Tool) as Tool[];
  * which is the part that was ever load-bearing.
  */
 export const DEFAULT_ENABLED_TOOLS: ReadonlySet<Tool> = new Set([Tool.project, Tool.document]);
-
-/** Every tool has a per-initiative master switch. */
-export const TOGGLEABLE_TOOLS = TOOLS;
 
 /**
  * Tools WITHOUT an export-engine source, and why. Stated as an exclusion so
@@ -181,8 +178,8 @@ export const toolPascalSingular = (tool: Tool): string =>
 export const toolPascalPlural = (tool: Tool): string =>
   toolPlural(tool).replace(/(?:^|_)(\w)/g, (_, c: string) => c.toUpperCase());
 
-/** Resource-relative API path (WITHOUT the `/g/{guildId}` segment), e.g. "/api/v1/counter-groups".
- *  Callers must prepend `/api/v1/g/${guildId}` when building guild-scoped requests. */
+/** Resource-relative API path (WITHOUT the `/c/{guildId}` segment), e.g. "/api/v1/counter-groups".
+ *  Callers must prepend `/api/v1/c/${guildId}` when building guild-scoped requests. */
 export const toolApiPath = (tool: Tool): string => `/api/v1/${toolRouteSegment(tool)}`;
 
 // ---------------------------------------------------------------------------
@@ -323,10 +320,6 @@ export const wikiDocumentRoute = (
  */
 export const entityRefRoute = (refType: string, id: number): string => `/go/${refType}/${id}`;
 
-/** {@link entityRefRoute} for a tool, keyed by its kebab singular. */
-export const toolRefRoute = (tool: Tool, id: number): string =>
-  entityRefRoute(toolKebabSingular(tool), id);
-
 /** The router path param carrying a tool entity's id, e.g. "counterGroupId".
  *  Every tool's detail/settings route names its param this way, so the shared
  *  settings page reads the id without a per-tool lookup. */
@@ -336,7 +329,7 @@ export const toolParamName = (tool: Tool): string => `${toolCamelSingular(tool)}
  * name, envelope discriminator, and entity-ref segment. */
 export const toolKebabSingular = (tool: Tool): string => tool.replaceAll("_", "-");
 
-/** Export-engine endpoint (relative to /g/{guildId}), e.g. "/exports/counter-group"
+/** Export-engine endpoint (relative to /c/{guildId}), e.g. "/exports/counter-group"
  * — the engine's source name is the KEBAB SINGULAR of the tool. */
 export const toolExportEndpoint = (tool: Tool): string => `/exports/${toolKebabSingular(tool)}`;
 
@@ -349,9 +342,6 @@ export const toolExportEndpoint = (tool: Tool): string => `/exports/${toolKebabS
  * the single-entity export selector. They agree because they are this rule.
  */
 export const toolIdParam = (tool: Tool): string => `${tool}_id`;
-
-/** Single-entity export selector param, e.g. "counter_group_id". */
-export const toolExportIdParam = toolIdParam;
 
 /** The envelope ``type`` discriminator a tool's single-entity export emits —
  * the same value its importer registers under: the kebab-singular. */
@@ -433,9 +423,6 @@ export const PARENT_TOOL = {
   wiki_page: Tool.wiki,
 } as const satisfies Record<string, Tool>;
 
-/** An entity kind that lives inside a tool rather than being one. */
-export type ChildEntityType = keyof typeof PARENT_TOOL;
-
 /**
  * Tools whose detail page does NOT carry a relations panel, and why. Stated as
  * an exclusion, like {@link NON_EXPORTABLE_TOOLS}, so a tool is linkable on its
@@ -456,8 +443,8 @@ export const showsRelations = (tool: Tool): boolean => !NO_RELATIONS_PANEL.has(t
  * The initiative master-switch field for a tool (same spelling as the view
  * permission). Every tool has one.
  */
-export const isToolEnabled = (tool: Tool, initiative: InitiativeRead): boolean =>
-  Boolean(initiative[`${toolPlural(tool)}_enabled` as keyof InitiativeRead]);
+export const isToolEnabled = (tool: Tool, initiative: InitiativeListRead): boolean =>
+  Boolean(initiative[`${toolPlural(tool)}_enabled` as keyof InitiativeListRead]);
 
 /** Guild-relative create target for a tool inside an initiative: the tool's
  *  own tab, with its create dialog open (`?create=true`). Callers prepend the

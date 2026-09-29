@@ -23,7 +23,7 @@ def dashboard_loader_options() -> list:
     return [
         selectinload(Dashboard.grants).selectinload(ResourceGrant.role),
         selectinload(Dashboard.initiative),
-        undefer(Dashboard.access_level),
+        undefer(Dashboard.actions),
     ]
 
 

@@ -4,19 +4,20 @@ import { FileSpreadsheet, FileText, Presentation } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { type DocumentSummary, type TagSummary, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { type DocumentSummary, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { DocumentsBulkBar } from "@/components/documents/DocumentsBulkBar";
+import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { buildPropertyColumns, propertyColumnIds } from "@/components/properties/propertyColumns";
-import { SortIcon } from "@/components/SortIcon";
-import { TagBadge } from "@/components/tags/TagBadge";
+import { SortHeader } from "@/components/SortIcon";
+import { TagBadgeList } from "@/components/tags/TagBadge";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { useProperties } from "@/hooks/useProperties";
+import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { getFileTypeLabel } from "@/lib/fileUtils";
-import { useGuildPath } from "@/lib/guildUrl";
+import { guildPath, useGuildPath } from "@/lib/guildUrl";
 import { dateSortingFn } from "@/lib/sorting";
 import type { AppColumnDef } from "@/lib/table";
 import { toolDetailRoute } from "@/lib/tools";
@@ -25,29 +26,16 @@ import { getUserDisplayName } from "@/lib/userDisplay";
 // Cell component that uses guild-scoped URLs
 const DocumentNameCell = ({ document }: { document: DocumentSummary }) => {
   const gp = useGuildPath();
+  const unread = useUnreadTree();
   return (
-    <div className="min-w-[220px] sm:min-w-0">
+    <div className="flex min-w-[220px] items-center gap-2 sm:min-w-0">
       <Link
         to={gp(toolDetailRoute(Tool.document, document.initiative_id, document.id))}
         className="font-medium text-primary hover:underline"
       >
         {document.name}
       </Link>
-    </div>
-  );
-};
-
-const DocumentTagsCell = ({ tags }: { tags: TagSummary[] }) => {
-  const gp = useGuildPath();
-  if (tags.length === 0) {
-    return <span className="text-muted-foreground text-sm">—</span>;
-  }
-  return (
-    <div className="flex flex-wrap gap-1">
-      {tags.slice(0, 3).map((tag) => (
-        <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
-      ))}
-      {tags.length > 3 && <span className="text-muted-foreground text-xs">+{tags.length - 3}</span>}
+      {unread.hasResource(document.guild_id, Tool.document, document.id) ? <UnreadDot /> : null}
     </div>
   );
 };
@@ -122,17 +110,7 @@ export const DocumentsListView = ({
     () => [
       {
         accessorKey: "name",
-        header: ({ column }) => {
-          const isSorted = column.getIsSorted();
-          return (
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-                {t("documents:columns.title")}
-                <SortIcon isSorted={isSorted} />
-              </Button>
-            </div>
-          );
-        },
+        header: ({ column }) => <SortHeader column={column} label={t("documents:columns.title")} />,
         cell: ({ row }) => <DocumentNameCell document={row.original} />,
         enableSorting: true,
         sortFn: "alphanumeric",
@@ -141,17 +119,9 @@ export const DocumentsListView = ({
       {
         id: "last updated",
         accessorKey: "updated_at",
-        header: ({ column }) => {
-          const isSorted = column.getIsSorted();
-          return (
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
-                {t("documents:columns.lastUpdated")}
-                <SortIcon isSorted={isSorted} />
-              </Button>
-            </div>
-          );
-        },
+        header: ({ column }) => (
+          <SortHeader column={column} label={t("documents:columns.lastUpdated")} />
+        ),
         cell: ({ row }) => (
           <div className="min-w-[100px] sm:min-w-0">
             <RelativeTime date={row.original.updated_at} className="text-muted-foreground" />
@@ -170,13 +140,25 @@ export const DocumentsListView = ({
       {
         id: "tags",
         header: t("documents:columns.tags"),
-        cell: ({ row }) => <DocumentTagsCell tags={row.original.tags ?? []} />,
+        cell: ({ row }) =>
+          row.original.tags.length === 0 ? (
+            <span className="text-muted-foreground text-sm">—</span>
+          ) : (
+            <TagBadgeList
+              tags={row.original.tags}
+              tagHref={(tag) => guildPath(row.original.guild_id, `/tags/${tag.id}`)}
+            />
+          ),
         size: 150,
       },
       {
         id: "owner",
         header: t("documents:columns.owner"),
         cell: ({ row }) => {
+          // An installed app owns what it made; its name is the owner's name.
+          if (row.original.owner_app) {
+            return <span>{row.original.owner_app.name}</span>;
+          }
           const ownerGrant = (row.original.grants ?? []).find((g) => g.level === "owner");
           if (!ownerGrant || ownerGrant.user_id == null) {
             return <span className="text-muted-foreground">—</span>;

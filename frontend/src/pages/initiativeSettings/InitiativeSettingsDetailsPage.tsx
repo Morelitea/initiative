@@ -26,7 +26,7 @@ import { useUpdateInitiative } from "@/hooks/useInitiatives";
 import { useServerForm } from "@/hooks/useServerForm";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { isToolEnabled, TOGGLEABLE_TOOLS, toolCamelPlural, toolViewPermission } from "@/lib/tools";
+import { isToolEnabled, TOOLS, toolCamelPlural, toolViewPermission } from "@/lib/tools";
 
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
@@ -166,7 +166,7 @@ export const InitiativeSettingsDetailsPage = () => {
         color={color}
         setColor={setColor}
         toolSwitches={Object.fromEntries(
-          TOGGLEABLE_TOOLS.map((tool) => [tool, Boolean(isToolEnabled(tool, initiative))])
+          TOOLS.map((tool) => [tool, Boolean(isToolEnabled(tool, initiative))])
         )}
         onToggleTool={handleToggleTool}
         canManageMembers={canManageMembers}

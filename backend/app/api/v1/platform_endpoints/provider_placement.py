@@ -6,13 +6,12 @@ the system engine, and the logic lives in
 ``app.services.platform.provider_placement``.
 """
 
-from typing import Annotated, List, Optional
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query, status
-from sqlmodel.ext.asyncio.session import AsyncSession
+from fastapi import APIRouter, Query, status
 
+from app.api.deps import SystemSessionDep
 from app.api.v1.platform_endpoints.operator import ConfigManageDep, GuildsManageDep
-from app.db.session import get_system_session
 from app.schemas.platform.settings import (
     GuildNarrowingPending,
     PlacementCommunityRead,
@@ -27,8 +26,6 @@ from app.services.auth import narrowing_review
 from app.services.platform import provider_placement
 
 router = APIRouter()
-
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 
 @router.get("/", response_model=ProviderPlacementResponse)

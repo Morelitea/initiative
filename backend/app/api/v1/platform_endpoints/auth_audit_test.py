@@ -22,7 +22,6 @@ from app.models.platform.user import UserStatus
 from app.testing import emitted
 from app.testing.factories import create_user, get_auth_headers
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 PASSWORD = "testpassword123"
 
@@ -286,16 +285,43 @@ async def test_an_oidc_sign_in_records_what_the_idp_asserted_about_it(
     ]
 
 
+@pytest.mark.parametrize("proved", [True, False], ids=["proved", "unproved"])
 async def test_claiming_an_existing_account_by_verified_email_is_recorded(
-    client: AsyncClient, session: AsyncSession, monkeypatch, capfd
+    client: AsyncClient, session: AsyncSession, monkeypatch, capfd, proved
 ):
     """The link is what makes every later sign-in resolve by subject, so the
-    moment an identity provider claims an existing account is worth a record."""
+    moment an identity provider claims an existing account is worth a record.
+    Where the account had not proved the address, the provider's word is its
+    first proof, and what the account held before it is retired."""
+    from sqlmodel import select
+
+    from app.core.security import get_password_hash
+    from app.models.platform.mfa_recovery_code import MfaRecoveryCode
+    from app.models.platform.user import User
+    from app.models.platform.user_passkey import UserPasskey
+    from app.services.auth import addresses
+    from app.services.auth import totp as totp_service
     from app.testing.oidc import FakeIdp
 
     await _enable_platform_oidc(session)
-    existing = await create_user(session, email="claimed-audit@example.com")
+    existing = await create_user(
+        session,
+        email="claimed-audit@example.com",
+        email_verified=proved,
+        hashed_password=get_password_hash("set-before-proof"),
+    )
     existing_id = existing.id
+    session.add(
+        UserPasskey(
+            user_id=existing_id,
+            credential_id=b"set-before-proof",
+            public_key=b"key",
+            rp_id="localhost",
+            name="Laptop",
+        )
+    )
+    await totp_service.issue_recovery_codes(session, user_id=existing_id)
+    await session.commit()
     idp = FakeIdp()
     _wire_fake_idp(monkeypatch, idp)
     capfd.readouterr()
@@ -311,6 +337,28 @@ async def test_claiming_an_existing_account_by_verified_email_is_recorded(
     )
     assert response.status_code in (302, 307)
 
-    rows = emitted(capfd, AuditEventType.AUTH_IDENTITY_LINKED)
+    events = emitted(capfd)
+    rows = [r for r in events if r["event_type"] == "auth.identity_linked"]
     assert [r["actor_user_id"] for r in rows] == [existing_id]
     assert rows[0]["detail"]["matched_by"] == "verified_email"
+    retired = [r for r in events if r["event_type"] == "auth.credentials_retired"]
+    assert len(retired) == (0 if proved else 1)
+    session.expire_all()
+    row = await session.get(User, existing_id)
+    assert row is not None
+    assert (row.hashed_password is not None) is proved
+    kept = (
+        await session.exec(
+            select(UserPasskey).where(UserPasskey.user_id == existing_id)
+        )
+    ).all()
+    codes = (
+        await session.exec(
+            select(MfaRecoveryCode).where(MfaRecoveryCode.user_id == existing_id)
+        )
+    ).all()
+    assert (len(kept), bool(codes)) == ((1, True) if proved else (0, False))
+    # Either way the account now holds the address as proved.
+    assert await addresses.holds_address(
+        session, user_id=existing_id, email="claimed-audit@example.com"
+    )

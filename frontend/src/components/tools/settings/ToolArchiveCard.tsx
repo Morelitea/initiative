@@ -6,18 +6,15 @@
  * can be archived is the `Tool` enum, so anything that grows the enum gets this
  * without being wired up again.
  *
- * The two directions read different fields, which is the whole point of the
- * card. Archiving is an ordinary write and asks `my_permission_level`.
- * Unarchiving cannot: an archived entity reports `read` there — the server caps
- * it, so every edit affordance goes off at once — so the way back out is its
- * own server-computed answer, `can_unarchive`. Reading the cap for both is what
- * left archived content with no way back.
+ * The two directions read different flags. Archiving is an ordinary edit.
+ * Nothing on an archived entity may be edited, so the way back out is its own
+ * answer, `can.unarchive`.
  */
 
 import { Archive, ArchiveRestore } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import type { ArchivableType } from "@/api/generated/initiativeAPI.schemas";
+import type { ArchivableType, ToolCan } from "@/api/generated/initiativeAPI.schemas";
 import { useToolSettings } from "@/components/tools/settings/ToolSettingsContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,14 +23,8 @@ import { toast } from "@/lib/chesterToast";
 
 /** Whether this viewer has anything to do here — what gates the card and, in
  *  the layout, the tab that holds it. */
-export const canUseArchiveCard = (entity: {
-  archived_at: string | null;
-  can_unarchive: boolean;
-  my_permission_level: string | null;
-}): boolean =>
-  entity.archived_at !== null
-    ? entity.can_unarchive
-    : entity.my_permission_level === "owner" || entity.my_permission_level === "write";
+export const canUseArchiveCard = (entity: { can: ToolCan }): boolean =>
+  entity.can.edit || entity.can.unarchive;
 
 export const ToolArchiveCard = () => {
   const { t } = useTranslation("common");

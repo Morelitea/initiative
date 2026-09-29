@@ -63,10 +63,6 @@
   "tags": "Étiquettes",
   "properties": "Propriétés",
   "today": "Aujourd'hui",
-  "export": {
-    "exportIcs": "Exporter .ics",
-    "exportError": "Échec de l'exportation des événements"
-  },
   "import": {
     "title": "Importer des événements",
     "importIcs": "Importer .ics",
@@ -90,8 +86,8 @@
   "calendar": "Calendrier",
   "selectCalendar": "Sélectionner un calendrier",
   "createCalendar": "Nouveau calendrier",
-  "calendarName": "Nom du calendrier",
-  "calendarNamePlaceholder": "p. ex. Planning d'équipe",
+  "name": "Nom du calendrier",
+  "namePlaceholder": "p. ex. Planning d'équipe",
   "calendarDescriptionPlaceholder": "À quoi sert ce calendrier ?",
   "calendarColor": "Couleur",
   "panel": {

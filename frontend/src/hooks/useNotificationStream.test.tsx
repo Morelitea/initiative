@@ -51,7 +51,7 @@ describe("useNotificationStream", () => {
     renderWithProviders(<Probe />);
 
     expect(latestSocket().url).toContain("/api/v1/notifications/stream");
-    expect(latestSocket().url).not.toContain("/g/");
+    expect(latestSocket().url).not.toContain("/c/");
     expect(latestSocket().url.startsWith("ws://") || latestSocket().url.startsWith("wss://")).toBe(
       true
     );
@@ -172,7 +172,7 @@ describe("useNotificationStream", () => {
     socket.open();
     invalidations.mockClear();
 
-    socket.receive({ resource: "heartbeat", action: "alive", ids: {} });
+    socket.receive({ heartbeat: true });
 
     expect(timesNamed(q.notifications())).toBe(0);
   });

@@ -22,7 +22,6 @@ from typing import Annotated, Optional
 
 from fastapi import (
     APIRouter,
-    Depends,
     File,
     Form,
     HTTPException,
@@ -34,14 +33,12 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 
 from app.api.deps import (
-    GuildContext,
     RLSSessionDep,
-    get_current_active_user,
-    get_guild_membership,
+    GuildContextDep,
+    CurrentUser,
 )
 from app.core.messages import ImportEngineMessages, MarketplaceMessages
 from app.models.platform.marketplace import MarketplaceListing
-from app.models.platform.user import User
 from app.schemas.platform.marketplace import (
     ListingKind,
     ListingStartFrom,
@@ -58,7 +55,6 @@ from app.services.marketplace import registration_lookup
 from app.services.import_engine.contract import ImportEngineError
 from app.services.marketplace.definitions import TOOL_LISTING_KINDS
 from app.services.marketplace.installs import (
-    ListingInstallError,
     count_install,
     installed_app_uids,
     listing_is_offered,
@@ -71,6 +67,7 @@ from app.services.marketplace.listing_assets import (
     UploadedImageError,
     store_uploaded_image,
 )
+from app.services.tenant import guild_apps as guild_apps_service
 from app.services.tenant.attachments import FileTooLargeError, read_upload_bounded
 from app.services.marketplace.publish_profile import export_for_listing
 from app.services.marketplace.tool_listings import (
@@ -80,14 +77,12 @@ from app.services.marketplace.tool_listings import (
 )
 from app.core.audit_events import AuditEventType
 from app.core.user_display import handle_of
-from app.db import session as db_session
+from app.db import cohorts
 from app.services import audit as audit_service
 from app.services.platform import app_settings as app_settings_service
 
 router = APIRouter()
 
-CurrentUser = Annotated[User, Depends(get_current_active_user)]
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 MAX_PAGE_SIZE = 100
 
@@ -113,8 +108,8 @@ async def list_marketplace_listings(
         kind=kind,
         query=q,
         bundled_with=sorted(await installed_app_uids(session)),
-        offset=(page - 1) * page_size,
-        limit=page_size,
+        page=page,
+        page_size=page_size,
     )
     # One query for the page's versions rather than one per card.
     versions = await catalog_service.get_listing_versions(
@@ -149,8 +144,26 @@ async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDet
             detail=MarketplaceMessages.LISTING_NOT_FOUND,
         )
     summary = serialize_listing_summary(listing, latest)
+    definition = dict(latest.definition) if latest else {}
+    # What the install dialog asks the seat about, from the version it would
+    # install and the registration's ceiling. Empty for anything not an app.
+    requested: list[str] = []
+    grantable: list[str] = []
+    if listing.kind == "app":
+        requested = guild_apps_service.requested_scopes(definition)
+        registration = await registration_lookup.registration_for_definition(definition)
+        grantable = guild_apps_service.grantable_scopes(
+            definition, registration.scope_ceiling if registration else ()
+        )
     return MarketplaceListingDetail(
         **summary.model_dump(),
+        requested_scopes=requested,
+        grantable_scopes=grantable,
+        app_names=await guild_apps_service.app_scope_names(session, requested),
+        has_initiative_surfaces=(
+            listing.kind == "app"
+            and guild_apps_service.has_initiative_surfaces(definition)
+        ),
         long_description=listing.long_description,
         # A preview of what installing would produce. The install path re-reads
         # the catalog itself, so this is display data, not an input.
@@ -242,17 +255,7 @@ async def install_marketplace_listing(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=MarketplaceMessages.LISTING_NOT_FOUND,
         )
-    try:
-        listing, version = await resolve_listing_install(
-            session, uid, kind=listing.kind
-        )
-    except ListingInstallError as exc:
-        raise HTTPException(
-            status_code=(
-                status.HTTP_404_NOT_FOUND if exc.not_found else status.HTTP_409_CONFLICT
-            ),
-            detail=exc.code,
-        ) from exc
+    listing, version = await resolve_listing_install(session, uid, kind=listing.kind)
     if payload.start_from == ListingStartFrom.example and (
         example_is_generated(tool) or not version.example
     ):
@@ -276,7 +279,7 @@ async def install_marketplace_listing(
     except ImportEngineError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
     await session.commit()
-    await count_install(listing.id)
+    await count_install(guild_context.guild_id, listing.id)
     return MarketplaceInstallResult(
         kind=listing.kind,
         listing_uid=listing.uid,
@@ -381,9 +384,9 @@ async def share_to_marketplace(
         else None
     )
 
-    # The catalogue's writer is the system engine; the member's session has
-    # done its part by reading the item.
-    async with db_session.SystemSessionLocal() as system:
+    # The catalogue's writer is the system engine, on this community's cohort;
+    # the member's session has done its part by reading the item.
+    async with cohorts.system_session(guild_context.guild_id) as system:
         hold = not await app_settings_service.marketplace_members_publish_directly(
             system
         )

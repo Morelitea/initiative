@@ -12,12 +12,13 @@ from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.core.intake import IntakeStream
 from app.models.platform.app_setting import AppSetting
-from app.models.tenant.intake import IntakeBinding
+from app.models.tenant.intake import IntakeBinding, IntakeCase
 from app.models.tenant.comment import Comment
 from app.models.tenant.moderation import ModerationReport, ModerationReportReporter
 from app.models.tenant.task import Task
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.testing import (
+    create_resource_grant,
     create_comment,
     create_guild,
     create_initiative,
@@ -29,8 +30,7 @@ from app.testing import (
     emitted,
     get_auth_headers,
 )
-
-pytestmark = pytest.mark.integration
+from app.db.request_context import SystemGuild, Unattributed
 
 
 async def _report(client: AsyncClient, actor, **body) -> Response:
@@ -39,12 +39,12 @@ async def _report(client: AsyncClient, actor, **body) -> Response:
 
 def _reports_url(scene: dict) -> str:
     """Where an initiative's moderators read what has been reported."""
-    return f"/api/v1/g/{scene['guild'].id}/initiatives/{scene['initiative'].id}/reports"
+    return f"/api/v1/c/{scene['guild'].id}/initiatives/{scene['initiative'].id}/reports"
 
 
 def _sharing_url(scene: dict) -> str:
     """Where they read what the initiative has shared."""
-    return f"/api/v1/g/{scene['guild'].id}/initiatives/{scene['initiative'].id}/sharing"
+    return f"/api/v1/c/{scene['guild'].id}/initiatives/{scene['initiative'].id}/sharing"
 
 
 async def _report_comment(client: AsyncClient, scene: dict, **body) -> Response:
@@ -83,9 +83,9 @@ async def _filed_report_id(client: AsyncClient, session, scene: dict, **body) ->
     filed = await _report_comment(client, scene, **body)
     assert filed.status_code == 202, filed.text
 
-    await set_rls_context(session, guild_id=scene["guild"].id)
+    await set_rls_context(session, SystemGuild(scene["guild"].id))
     report_id = (await session.exec(select(ModerationReport))).one().id
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     return report_id
 
 
@@ -112,22 +112,16 @@ async def scene(session, acting_user):
     # Shared with the initiative, which is what makes the comment something an
     # ordinary member can see — and therefore something they can report. A
     # report is only ever about a thing the reporter could reach.
-    session.add(
-        ResourceGrant(
-            # The service sets this on every grant it writes; a hand-made one
-            # without it is a grant no initiative-scoped read would find.
-            initiative_id=owner.initiative.id,
-            resource_type=Tool.project.value,
-            resource_id=owner.project.id,
-            all_initiative_members=True,
-            level=ResourceAccessLevel.write,
-        )
+    await create_resource_grant(
+        session,
+        owner.project,
+        all_initiative_members=True,
+        level=ResourceAccessLevel.write,
     )
-    await session.commit()
 
     task = await create_task(session, owner.project)
     comment = await create_comment(session, member.user, task=task)
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     return {
         "guild": owner.guild,
         "initiative": owner.initiative,
@@ -150,7 +144,7 @@ async def operations(session):
     ops_initiative = await create_initiative(session, ops_guild, staff)
     ops_project = await create_project(session, ops_initiative, staff)
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     row = (await session.exec(select(AppSetting).where(AppSetting.id == 1))).first()
     if row is None:
         row = AppSetting(id=1)
@@ -158,12 +152,12 @@ async def operations(session):
     session.add(row)
     await session.commit()
 
-    await set_rls_context(session, guild_id=ops_guild.id)
+    await set_rls_context(session, SystemGuild(ops_guild.id))
     session.add(
         IntakeBinding(stream=IntakeStream.moderation, project_id=ops_project.id)
     )
     await session.commit()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     return {"guild": ops_guild, "project": ops_project}
 
 
@@ -176,7 +170,7 @@ async def test_reporting_community_content_lands_in_its_initiative(
     assert response.status_code == 202, response.text
     assert response.json()["venue"] == ReportVenue.initiative.value
 
-    await set_rls_context(session, guild_id=scene["guild"].id)
+    await set_rls_context(session, SystemGuild(scene["guild"].id))
     report = (await session.exec(select(ModerationReport))).one()
     assert report.initiative_id == scene["initiative"].id
     assert report.target_type == "comment"
@@ -198,7 +192,7 @@ async def test_reporting_identity_goes_to_the_platform(
     assert response.json()["venue"] == ReportVenue.platform.value
 
     # It landed as an ordinary intake case in the operations community.
-    await set_rls_context(session, guild_id=operations["guild"].id)
+    await set_rls_context(session, SystemGuild(operations["guild"].id))
     task = (
         await session.exec(
             select(Task).where(Task.project_id == operations["project"].id)
@@ -260,11 +254,11 @@ async def test_a_deleted_target_leaves_the_report_without_one(client, session, s
     """The report stands; there is just nothing left to show or link to."""
     await _report_comment(client, scene, reason="harassment")
 
-    await set_rls_context(session, guild_id=scene["guild"].id)
+    await set_rls_context(session, SystemGuild(scene["guild"].id))
     comment = await session.get(Comment, scene["comment"].id)
     await session.delete(comment)
     await session.commit()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
 
     listed = await client.get(_reports_url(scene), headers=scene["mod"].headers)
     item = listed.json()["items"][0]
@@ -280,7 +274,7 @@ async def test_settling_closes_it_and_answers_with_the_whole_card(
     report_id = await _filed_report_id(client, session, scene, detail="Nonsense.")
 
     response = await client.post(
-        f"/api/v1/g/{scene['guild'].id}/reports/{report_id}/settle",
+        f"/api/v1/c/{scene['guild'].id}/reports/{report_id}/settle",
         json={"outcome": ReportOutcome.dismissed.value, "note": "Looked; fine."},
         headers=scene["mod"].headers,
     )
@@ -303,7 +297,7 @@ async def test_a_second_reporter_joins_the_open_report(client, session, scene):
     await create_initiative_member(
         session, scene["initiative"], another, role_name="member"
     )
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
 
     for headers in (scene["member"].headers, get_auth_headers(another)):
         response = await client.post(
@@ -338,9 +332,10 @@ async def test_the_same_person_reporting_twice_does_not_raise_the_count(client, 
 async def test_a_community_a_reporter_is_not_in_places_nothing_there(
     client, session, scene, operations
 ):
-    """Ids are unique only within a schema, so a named community is checked."""
+    """Ids are unique only within a schema, so a named community is checked,
+    and a reporter who cannot see the thing there cannot report it."""
     outsider = await create_user(session)
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
 
     response = await client.post(
         "/api/v1/me/reports",
@@ -352,19 +347,17 @@ async def test_a_community_a_reporter_is_not_in_places_nothing_there(
         },
         headers=get_auth_headers(outsider),
     )
-    # Accepted, and routed to the platform rather than into a community the
-    # reporter has no standing in.
-    assert response.status_code == 202
-    assert response.json()["venue"] == ReportVenue.platform.value
+    assert response.status_code == 404
+    assert response.json()["detail"] == "MODERATION_TARGET_NOT_FOUND"
 
-    await set_rls_context(session, guild_id=scene["guild"].id)
+    await set_rls_context(session, SystemGuild(scene["guild"].id))
     assert (await session.exec(select(ModerationReport))).all() == []
 
 
 async def test_a_settled_report_is_not_settled_again(client, session, scene):
     report_id = await _filed_report_id(client, session, scene)
 
-    url = f"/api/v1/g/{scene['guild'].id}/reports/{report_id}/settle"
+    url = f"/api/v1/c/{scene['guild'].id}/reports/{report_id}/settle"
     first = await client.post(
         url, json={"outcome": "dismissed"}, headers=scene["mod"].headers
     )
@@ -380,7 +373,7 @@ async def test_an_ordinary_member_cannot_settle(client, session, scene):
     report_id = await _filed_report_id(client, session, scene)
 
     response = await client.post(
-        f"/api/v1/g/{scene['guild'].id}/reports/{report_id}/settle",
+        f"/api/v1/c/{scene['guild'].id}/reports/{report_id}/settle",
         json={"outcome": "dismissed"},
         headers=scene["member"].headers,
     )
@@ -406,7 +399,7 @@ async def test_reporters_are_recorded_even_though_they_are_not_shown(
     """Held for dedupe and for an escalation to carry, not for display."""
     await _report_comment(client, scene)
 
-    await set_rls_context(session, guild_id=scene["guild"].id)
+    await set_rls_context(session, SystemGuild(scene["guild"].id))
     rows = (await session.exec(select(ModerationReportReporter))).all()
     assert [row.reporter_id for row in rows] == [scene["member"].user.id]
 
@@ -454,14 +447,14 @@ async def test_escalating_with_nowhere_to_send_leaves_the_report_open(
     report_id = await _filed_report_id(client, session, scene, reason="harassment")
 
     response = await client.post(
-        f"/api/v1/g/{scene['guild'].id}/reports/{report_id}/settle",
+        f"/api/v1/c/{scene['guild'].id}/reports/{report_id}/settle",
         json={"outcome": "escalated"},
         headers=scene["mod"].headers,
     )
     assert response.status_code == 503
     assert response.json()["detail"] == "MODERATION_NOWHERE_TO_SEND"
 
-    await set_rls_context(session, guild_id=scene["guild"].id)
+    await set_rls_context(session, SystemGuild(scene["guild"].id))
     still = (
         await session.exec(
             select(ModerationReport).where(ModerationReport.id == report_id)
@@ -477,14 +470,14 @@ async def test_escalating_opens_a_platform_case(client, session, scene, operatio
     report_id = await _filed_report_id(client, session, scene, reason="illegal")
 
     response = await client.post(
-        f"/api/v1/g/{scene['guild'].id}/reports/{report_id}/settle",
+        f"/api/v1/c/{scene['guild'].id}/reports/{report_id}/settle",
         json={"outcome": "escalated", "note": "Not ours to settle."},
         headers=scene["mod"].headers,
     )
     assert response.status_code == 200
     assert response.json()["outcome"] == "escalated"
 
-    await set_rls_context(session, guild_id=operations["guild"].id)
+    await set_rls_context(session, SystemGuild(operations["guild"].id))
     task = (
         await session.exec(
             select(Task).where(Task.project_id == operations["project"].id)
@@ -494,6 +487,11 @@ async def test_escalating_opens_a_platform_case(client, session, scene, operatio
     # The reporters travel with an escalation: the platform is where good
     # faith is judged.
     assert str(scene["member"].user.id) in (task.description or "")
+    # Named with its community, since content ids are numbered per community.
+    case = (await session.exec(select(IntakeCase))).one()
+    assert case.dedupe_key == (
+        f"report:{scene['guild'].id}:comment:{scene['comment'].id}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -512,7 +510,7 @@ async def test_any_account_can_be_reported_by_profile(
     """
     if stranger_to_the_reporter:
         target = await create_user(session)
-        await set_rls_context(session)
+        await set_rls_context(session, Unattributed())
     else:
         target = scene["mod"].user
 
@@ -534,7 +532,7 @@ async def test_a_community_the_reporter_cannot_see_is_not_reportable(
     """Hidden and missing answer the same way: reporting reaches as far as looking."""
     stranger = await create_user(session)
     hidden = await create_guild(session, creator=stranger)
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
 
     hidden_response = await _report(
         client,
@@ -585,7 +583,7 @@ async def test_a_guild_admin_reads_it_without_being_in_the_initiative(
     await create_guild_membership(
         session, user=admin, guild=scene["guild"], role=GuildRole.admin
     )
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
 
     response = await client.get(_sharing_url(scene), headers=get_auth_headers(admin))
     assert response.status_code == 200
@@ -613,7 +611,7 @@ async def test_a_communitys_moderation_leaves_no_trace_in_the_platform_log(
         client, session, scene, reason="harassment", detail="This is abusive."
     )
     settle = await client.post(
-        f"/api/v1/g/{scene['guild'].id}/reports/{report_id}/settle",
+        f"/api/v1/c/{scene['guild'].id}/reports/{report_id}/settle",
         json={"outcome": "content_removed", "note": "Taken down."},
         headers=scene["mod"].headers,
     )

@@ -1,13 +1,12 @@
 """Integration tests for the unified bulk resource-grants endpoint.
 
-``PUT /g/{guild}/resource-grants/bulk`` replaces sharing on many resources
+``PUT /c/{guild}/resource-grants/bulk`` replaces sharing on many resources
 (possibly of different types) in one call, best-effort per item: each item is
 authorized independently and reported ``ok`` / ``forbidden`` / ``not_found``,
 and a bad item never blocks the good ones.
 """
 
 from datetime import datetime, timezone
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -22,14 +21,13 @@ from app.testing.factories import (
     get_auth_headers,
 )
 
-BULK = "/api/v1/g/{guild}/resource-grants/bulk"
+BULK = "/api/v1/c/{guild}/resource-grants/bulk"
 
 
 def _results_by_id(body: dict) -> dict[int, str]:
     return {r["resource_id"]: r["status"] for r in body["results"]}
 
 
-@pytest.mark.integration
 async def test_bulk_applies_grants_across_many_projects(
     client: AsyncClient, session: AsyncSession
 ):
@@ -70,7 +68,7 @@ async def test_bulk_applies_grants_across_many_projects(
     # The grants actually applied (visible on the project reads).
     for pid, level in ((p1.id, "write"), (p2.id, "read")):
         detail = await client.get(
-            f"/api/v1/g/{guild.id}/projects/{pid}", headers=headers
+            f"/api/v1/c/{guild.id}/projects/{pid}", headers=headers
         )
         assert detail.status_code == 200
         grants = detail.json()["grants"]
@@ -79,7 +77,6 @@ async def test_bulk_applies_grants_across_many_projects(
         )
 
 
-@pytest.mark.integration
 async def test_bulk_dispatches_across_resource_types(
     client: AsyncClient, session: AsyncSession
 ):
@@ -122,7 +119,6 @@ async def test_bulk_dispatches_across_resource_types(
     assert statuses[("queue", queue.id)] == "ok"
 
 
-@pytest.mark.integration
 async def test_bulk_is_best_effort_per_item(client: AsyncClient, session: AsyncSession):
     """A missing resource (``not_found``) is skipped without blocking a valid item
     (``ok``) in the same request."""
@@ -159,12 +155,11 @@ async def test_bulk_is_best_effort_per_item(client: AsyncClient, session: AsyncS
 
     # The valid item applied despite its bad sibling.
     detail = await client.get(
-        f"/api/v1/g/{guild.id}/projects/{project.id}", headers=headers
+        f"/api/v1/c/{guild.id}/projects/{project.id}", headers=headers
     )
     assert any(g["user_id"] == member.id for g in detail.json()["grants"])
 
 
-@pytest.mark.integration
 async def test_bulk_reports_forbidden_for_unmanageable_item(
     client: AsyncClient, session: AsyncSession
 ):
@@ -199,7 +194,7 @@ async def test_bulk_reports_forbidden_for_unmanageable_item(
     # Nothing changed — the member did not self-grant write.
     owner_headers = get_auth_headers(owner)
     detail = await client.get(
-        f"/api/v1/g/{guild.id}/projects/{project.id}", headers=owner_headers
+        f"/api/v1/c/{guild.id}/projects/{project.id}", headers=owner_headers
     )
     assert not any(
         g["user_id"] == member.id and g["level"] == "write"
@@ -207,7 +202,6 @@ async def test_bulk_reports_forbidden_for_unmanageable_item(
     )
 
 
-@pytest.mark.integration
 async def test_bulk_skips_archived_project_but_applies_the_rest(
     client: AsyncClient, session: AsyncSession
 ):
@@ -249,7 +243,6 @@ async def test_bulk_skips_archived_project_but_applies_the_rest(
     assert _results_by_id(resp.json()) == {live.id: "ok", archived.id: "forbidden"}
 
 
-@pytest.mark.integration
 async def test_bulk_rejects_too_many_items(client: AsyncClient, session: AsyncSession):
     """A request over the item cap is rejected (422) before any work is done."""
     from app.schemas.tenant.resource_grant import MAX_BULK_GRANT_ITEMS
@@ -268,7 +261,6 @@ async def test_bulk_rejects_too_many_items(client: AsyncClient, session: AsyncSe
     assert resp.status_code == 422
 
 
-@pytest.mark.integration
 async def test_bulk_rejects_empty_items(client: AsyncClient, session: AsyncSession):
     """An empty item list is rejected (422)."""
     owner = await create_user(session, email="owner@example.com")

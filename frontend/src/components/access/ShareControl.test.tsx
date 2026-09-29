@@ -55,9 +55,28 @@ vi.mock("@/hooks/useInitiativeRoles", () => ({
   useInitiativeRoles: () => ({ data: roles }),
 }));
 
-// The guild view names guild members rather than an initiative's.
+// The guild view searches the guild's members rather than holding an
+// initiative's, and looks up the ones already named by id.
 vi.mock("@/hooks/useUsers", () => ({
-  useUsers: () => ({ data: [alice, bob] }),
+  USER_ID_LOOKUP_MAX: 100,
+  useMemberSearch: (_scope: unknown, { userIds }: { userIds?: number[] } = {}) => ({
+    data: {
+      items: userIds?.length ? [alice, bob].filter((u) => userIds.includes(u.id)) : [alice, bob],
+    },
+    isFetching: false,
+  }),
+}));
+
+// The community's installed apps, which name an app grantee.
+vi.mock("@/hooks/useGuildApps", () => ({
+  useGuildApps: () => ({
+    data: {
+      items: [
+        { id: 301, name: "Automations", avatar_url: null },
+        { id: 302, name: "Storefront", avatar_url: "/api/v1/marketplace/media/storefront.png" },
+      ],
+    },
+  }),
 }));
 
 import { ShareControl } from "./ShareControl";
@@ -202,6 +221,65 @@ describe("ShareControl in its community view", () => {
     ];
 
     renderWithProviders(<ShareControl initiativeId={null} grants={grants} onChange={onChange} />);
+
+    // The grantee is named from a lookup by id, with no roster held.
+    expect(await screen.findByText("Alice")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Add people" }));
+    await userEvent.click(await screen.findByText("Bob"));
+
+    expect(onChange).toHaveBeenCalledWith([
+      { user_id: alice.id, level: "read" },
+      { user_id: bob.id, level: "read" },
+    ]);
+  });
+});
+
+describe("ShareControl with an app", () => {
+  it("shows the owning app by name and picture in the Owner row", () => {
+    const grants: ResourceGrantSchema[] = [{ app_install_id: 302, level: "owner" }];
+
+    renderWithProviders(
+      <ShareControl
+        initiativeId={1}
+        grants={grants}
+        ownerId={null}
+        ownerApp={{ id: 302, name: "Storefront", avatar_url: "/media/storefront.png" }}
+        onChange={vi.fn()}
+      />
+    );
+
+    const row = screen.getByText("Storefront").closest("div") as HTMLElement;
+    expect(within(row).getByText("Owner")).toBeInTheDocument();
+    expect(within(row).getByText("App")).toBeInTheDocument();
+    expect(row.querySelector("img")).not.toBeNull();
+    // It is not offered as a person to add, and not editable.
+    expect(within(row).queryByRole("combobox")).not.toBeInTheDocument();
+  });
+
+  it("names an owning app from the community's apps when the read model does not", () => {
+    const grants: ResourceGrantSchema[] = [{ app_install_id: 301, level: "owner" }];
+
+    renderWithProviders(
+      <ShareControl initiativeId={1} grants={grants} ownerId={null} onChange={vi.fn()} />
+    );
+
+    const row = screen.getByText("Automations").closest("div") as HTMLElement;
+    expect(within(row).getByText("Owner")).toBeInTheDocument();
+  });
+
+  it("lists an app grantee by name, read-only, and never sends it back", async () => {
+    const onChange = vi.fn();
+    const grants: ResourceGrantSchema[] = [
+      { app_install_id: 301, level: "write" },
+      { user_id: alice.id, level: "read" },
+    ];
+
+    renderWithProviders(<ShareControl initiativeId={1} grants={grants} onChange={onChange} />);
+
+    expect(screen.getByText("Apps")).toBeInTheDocument();
+    const row = screen.getByText("Automations").closest("div") as HTMLElement;
+    expect(within(row).getByText("Editor")).toBeInTheDocument();
+    expect(within(row).queryByRole("button")).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Add people" }));
     await userEvent.click(await screen.findByText("Bob"));

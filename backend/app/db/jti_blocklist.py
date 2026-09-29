@@ -1,8 +1,8 @@
 """Shared purge for one-shot ``jti`` replay-guard tables.
 
 Every jti blocklist in the app — the billing service JWT blocklist
-(``billing_jti_blocklist``) and the initiative-auto delegation blocklist
-(``auto_delegation_jti_blocklist``) — is the same shape: a ``jti`` primary
+(``billing_jti_blocklist``) and the client assertions spent at the app token
+endpoint (``app_assertion_jtis``) — is the same shape: a ``jti`` primary
 key plus an ``expires_at`` mirroring the token's own ``exp``. Each row is a
 spent one-shot token, and it is **inert once expired** — the token's ``exp``
 is checked at verification, before the blocklist is ever consulted, so a

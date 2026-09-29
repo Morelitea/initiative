@@ -1,7 +1,5 @@
 """Unit tests for the platform capability model."""
 
-import pytest
-
 from app.core.capabilities import (
     Capability,
     can_assign_role,
@@ -20,7 +18,6 @@ class _Actor:
         self.status = status
 
 
-@pytest.mark.unit
 def test_a_suspended_account_holds_no_capability():
     """Whatever its rung: it is in time out, and the rung comes back on lifting."""
     for role in UserRole:
@@ -31,28 +28,24 @@ def test_a_suspended_account_holds_no_capability():
     )
 
 
-@pytest.mark.unit
 def test_config_manage_is_owner_only():
     assert roles_with_capability(Capability.CONFIG_MANAGE) == frozenset(
         {UserRole.owner}
     )
 
 
-@pytest.mark.unit
 def test_apps_manage_is_owner_only():
     """Wiring an app service is deployment configuration — the same tier
     ``config.manage`` occupies, and no lower one."""
     assert roles_with_capability(Capability.APPS_MANAGE) == frozenset({UserRole.owner})
 
 
-@pytest.mark.unit
 def test_data_bypass_is_operator_and_owner():
     assert roles_with_capability(Capability.DATA_BYPASS) == frozenset(
         {UserRole.operator, UserRole.owner}
     )
 
 
-@pytest.mark.unit
 def test_access_approve_is_operator_and_owner():
     """Approvers are also the ones who read the full access-grant queue."""
     assert roles_with_capability(Capability.ACCESS_APPROVE) == frozenset(
@@ -60,7 +53,6 @@ def test_access_approve_is_operator_and_owner():
     )
 
 
-@pytest.mark.unit
 def test_role_rank_follows_the_ladder():
     ladder = [
         UserRole.member,
@@ -73,19 +65,16 @@ def test_role_rank_follows_the_ladder():
     assert sorted(UserRole, key=role_rank) == ladder
 
 
-@pytest.mark.unit
 def test_member_has_no_capabilities():
     assert capabilities_for(UserRole.member) == frozenset()
 
 
-@pytest.mark.unit
 def test_owner_can_assign_every_role():
     owner = _Actor(UserRole.owner)
     for role in UserRole:
         assert can_assign_role(owner, role) is True, role
 
 
-@pytest.mark.unit
 def test_operator_can_assign_up_to_operator_but_not_owner():
     operator = _Actor(UserRole.operator)
     assert can_assign_role(operator, UserRole.member) is True
@@ -95,7 +84,6 @@ def test_operator_can_assign_up_to_operator_but_not_owner():
     assert can_assign_role(operator, UserRole.owner) is False
 
 
-@pytest.mark.unit
 def test_roles_without_assign_capability_cannot_assign():
     for role in (UserRole.member, UserRole.support, UserRole.moderator):
         assert can_assign_role(_Actor(role), UserRole.member) is False

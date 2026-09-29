@@ -75,7 +75,7 @@ export const WikiReadingSettingsPage = () => {
     return <p className="text-muted-foreground text-sm">{t("loading")}</p>;
   }
 
-  const canWrite = wiki.my_permission_level === "write" || wiki.my_permission_level === "owner";
+  const canWrite = wiki.can.edit;
   const save = (patch: Parameters<typeof update.mutate>[0]) => {
     if (canWrite) update.mutate(patch);
   };

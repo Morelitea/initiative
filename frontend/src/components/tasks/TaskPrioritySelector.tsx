@@ -11,18 +11,18 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useUpdateTask } from "@/hooks/useTasks";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useUpdateTaskInGuild } from "@/hooks/useTasks";
 import { toast } from "@/lib/chesterToast";
 
 type TaskPrioritySelectorProps = {
   task: TaskListRead;
-  /** Guild ID override. If not provided, uses the default from apiClient interceptor. */
-  guildId?: number | null;
   disabled?: boolean;
 };
 
 export const TaskPrioritySelector = ({ task, disabled }: TaskPrioritySelectorProps) => {
   const { t } = useTranslation("tasks");
+  const activeGuildId = useActiveGuildId();
 
   const PRIORITIES: { value: TaskPriority; label: string }[] = useMemo(
     () => [
@@ -34,7 +34,8 @@ export const TaskPrioritySelector = ({ task, disabled }: TaskPrioritySelectorPro
     [t]
   );
 
-  const updatePriority = useUpdateTask({
+  // A cross-guild list names each task's guild; a guild page's rows need not.
+  const updatePriority = useUpdateTaskInGuild({
     onSuccess: (updatedTask) => {
       toast.success(
         t("prioritySelector.changed", { priority: t(`priority.${updatedTask.priority}`) })
@@ -45,7 +46,11 @@ export const TaskPrioritySelector = ({ task, disabled }: TaskPrioritySelectorPro
   const handlePriorityChange = (value: string) => {
     const newPriority = value as TaskPriority;
     if (newPriority !== task.priority) {
-      updatePriority.mutate({ taskId: task.id, data: { priority: newPriority } });
+      updatePriority.mutate({
+        guildId: task.guild_id ?? activeGuildId,
+        taskId: task.id,
+        data: { priority: newPriority },
+      });
     }
   };
 
@@ -58,7 +63,7 @@ export const TaskPrioritySelector = ({ task, disabled }: TaskPrioritySelectorPro
           aria-label={t("prioritySelector.ariaLabel", { priority: t(`priority.${task.priority}`) })}
         >
           <Badge variant={priorityVariant[task.priority]} className="capitalize">
-            {task.priority.replace("_", " ")}
+            {t(`priority.${task.priority}`)}
           </Badge>
         </button>
       </DropdownMenuTrigger>

@@ -62,6 +62,10 @@ export function buildMarketplaceListingDetail(
     ...summary,
     long_description: null,
     definition: null,
+    requested_scopes: [],
+    grantable_scopes: [],
+    app_names: {},
+    has_initiative_surfaces: false,
     ...overrides,
   };
 }

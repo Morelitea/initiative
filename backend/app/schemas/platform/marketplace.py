@@ -102,6 +102,20 @@ class MarketplaceListingDetail(MarketplaceListingSummary):
     #: supplied their own, always present, and never installable. Display
     #: data, like the definition above.
     example: Optional[Dict[str, Any]] = None
+    #: For an app: the scopes its latest version asks a community to grant,
+    #: in vocabulary order. Empty for every other kind.
+    requested_scopes: List[str] = []
+    #: The requested scopes this deployment's registration lets a community
+    #: grant. What the install dialog offers ticked; the rest are shown
+    #: disabled.
+    grantable_scopes: List[str] = []
+    #: For each requested ``apps:`` scope, the name the app it lets this one
+    #: use goes by, keyed by that app's public id. Its public id when the
+    #: catalog has no name for it.
+    app_names: Dict[str, str] = {}
+    #: Whether the app offers a surface inside initiatives, and so has
+    #: somewhere to be placed.
+    has_initiative_surfaces: bool = False
 
 
 class ListingStartFrom(str, Enum):

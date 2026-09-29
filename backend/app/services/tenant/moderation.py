@@ -38,6 +38,7 @@ from app.core.moderation import (
 )
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
+from app.db import cohorts
 from app.db.session import set_rls_context
 from app.models.platform import user_profile_view
 from app.models.platform.user import User
@@ -45,6 +46,7 @@ from app.models.tenant.moderation import ModerationReport, ModerationReportRepor
 from app.models.tenant.search_entry import SearchEntry
 from app.services.platform.intake import CaseRefs, open_case
 from app.services.tenant.search import search_scope_clause
+from app.db.request_context import SystemGuild
 
 logger = logging.getLogger(__name__)
 
@@ -121,11 +123,13 @@ async def file_report(
 ) -> ReportFiled:
     """Route one report to whoever handles that kind of thing.
 
-    ``reporter_session`` is the reporter's own session, and the target is
-    resolved **on it** — so a person can only report something they can
-    already see, and the database is what decides that rather than a check here.
-    ``guild_id`` says which community they were standing in; it is validated as
-    theirs before it is used, and it decides nothing about the venue.
+    The target is resolved as the reporter — a platform target on
+    ``reporter_session``, their own platform session, and a community target
+    on a session of theirs from that community's cohort — so a person can only
+    report something they can already see, and the database is what decides
+    that rather than a check here. ``guild_id`` says which community they were
+    standing in; it is validated as theirs before it is used, and it decides
+    nothing about the venue.
     """
     moment = now or datetime.now(timezone.utc)
     venue = venue_for(target)
@@ -133,7 +137,6 @@ async def file_report(
     if venue is ReportVenue.initiative:
         assert isinstance(target, SearchEntityType)
         located = await _locate_as_reporter(
-            reporter_session,
             reporter=reporter,
             target=target,
             target_id=target_id,
@@ -151,10 +154,12 @@ async def file_report(
                 moment=moment,
             )
             return ReportFiled(ReportVenue.initiative)
-        # The community could not take it — nothing there answers to that id
-        # for this reader. The platform is the backstop: a report that resolves
-        # nowhere is a report nobody sees.
-        logger.info("report on %s:%s fell back to the platform", target, target_id)
+        # Nothing in the community answers to that id for this reader, and a
+        # report names only something its reporter can see.
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail=ModerationMessages.TARGET_NOT_FOUND,
+        )
 
     if isinstance(target, PlatformReportTarget) and not await _platform_target_visible(
         reporter_session, target, target_id
@@ -197,13 +202,12 @@ async def _place_in_initiative(
 ) -> None:
     """Open or join the community's report for this target.
 
-    Its own system session, routed as the guild admin: the row belongs to the
-    initiative's moderators, and the reporter must not be able to read it back.
+    Its own system session from the community's cohort, routed as the guild
+    admin: the row belongs to the initiative's moderators, and the reporter
+    must not be able to read it back.
     """
-    from app.db.session import SystemSessionLocal
-
-    async with SystemSessionLocal() as session:
-        await set_rls_context(session, guild_id=guild_id)
+    async with cohorts.system_session(guild_id) as session:
+        await set_rls_context(session, SystemGuild(guild_id))
         # Two people reporting the same thing in the same instant both look for
         # an open row before either writes one. They queue here instead, so the
         # second joins the first rather than losing the unique index. Held for
@@ -268,7 +272,6 @@ _ACCOUNT_TARGETS = frozenset(
 
 
 async def _locate_as_reporter(
-    reporter_session: AsyncSession,
     *,
     reporter: "User",
     target: SearchEntityType,
@@ -277,21 +280,24 @@ async def _locate_as_reporter(
 ) -> Optional[tuple[int, int]]:
     """``(guild_id, initiative_id)`` for a target this reporter can see.
 
-    Routed as the reporter through the ordinary entry point, so membership,
-    the auth policy and every gate apply exactly as they do on a read. A row
-    the reporter cannot see resolves to nothing, and so does an id that names
-    a different row in a community they merely claimed to be in — ids are
-    unique only within a schema.
+    On a request session from the community's cohort, routed as the reporter
+    through the ordinary entry point, so membership, the auth policy and every
+    gate apply exactly as they do on a read. A row the reporter cannot see
+    resolves to nothing, and so does an id that names a different row in a
+    community they merely claimed to be in — ids are unique only within a
+    schema.
     """
     if guild_id is None:
         return None
     from app.api.deps import GuildAccessError, establish_guild_access
 
-    try:
-        await establish_guild_access(reporter_session, reporter, guild_id)
-    except GuildAccessError:
-        return None
-    initiative_id = await _resolve_initiative(reporter_session, target, target_id)
+    async with cohorts.request_sessionmaker(guild_id)() as session:
+        account = await session.merge(reporter, load=False)
+        try:
+            await establish_guild_access(session, account, guild_id)
+        except GuildAccessError:
+            return None
+        initiative_id = await _resolve_initiative(session, target, target_id)
     return None if initiative_id is None else (guild_id, initiative_id)
 
 
@@ -323,6 +329,7 @@ async def _open_platform_case(
     moment: datetime,
     note: Optional[str] = None,
     reporter_ids: tuple[int, ...] = (),
+    guild_id: Optional[int] = None,
 ) -> bool:
     """File the report as an intake case in the operations guild.
 
@@ -346,12 +353,19 @@ async def _open_platform_case(
         refs=CaseRefs(
             # The subject is who or what was reported — never the reporter.
             subject_user=target_id if target in _ACCOUNT_TARGETS else None,
+            subject_guild=guild_id,
             resource_type=target.value,
             resource_id=target_id,
             reported_at=moment,
             severity=reason.value,
         ),
-        dedupe_key=f"report:{target.value}:{target_id}",
+        # Content ids are numbered per community, so its community is part
+        # of what names it.
+        dedupe_key=(
+            f"report:{guild_id}:{target.value}:{target_id}"
+            if guild_id is not None
+            else f"report:{target.value}:{target_id}"
+        ),
     )
     return outcome is not None
 
@@ -363,6 +377,7 @@ async def settle_report(
     outcome: ReportOutcome,
     note: Optional[str],
     decided_by: int,
+    guild_id: int,
     now: Optional[datetime] = None,
 ) -> ModerationReport:
     """Close a community report. Every outcome closes it.
@@ -416,6 +431,7 @@ async def settle_report(
             moment=moment,
             note=note,
             reporter_ids=tuple(reporters),
+            guild_id=guild_id,
         )
         if not opened:
             # Nothing is bound to receive it, so the report stays open and the

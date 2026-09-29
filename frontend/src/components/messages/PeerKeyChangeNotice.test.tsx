@@ -1,15 +1,15 @@
 /**
  * The notice that interrupts a conversation when a device key changes.
  *
- * Its whole job is to be actionable by a person: say whose key changed, show
- * the code they compare it against, and give them the button that lets the
+ * Its whole job is to be actionable by a person: say whose devices changed,
+ * show the safety number they compare, and give them the button that lets the
  * conversation carry on. None of those is visible to the type checker -- a
  * notice that renders the wrong name, or no name, compiles exactly the same.
  *
  * Sending is blocked while a change is outstanding, so this component is the
  * only way out of that state. A regression here is not cosmetic.
  */
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -22,18 +22,28 @@ const mocks = vi.hoisted(() => ({
   acknowledge: vi.fn(),
 }));
 
+const NUMBER = {
+  halves: [
+    { userId: 1, digits: "111112222233333444445555566666" },
+    { userId: 7, digits: "777778888899999000001234567890" },
+  ],
+  theirs: "777778888899999000001234567890",
+  clears: ["their-replacement"],
+  verified: false,
+};
+
 vi.mock("@/hooks/useMyMessages", () => ({
   usePeerKeyChanges: () => mocks.changes(),
-  useAcknowledgePeerKeyChange: () => ({
-    mutate: mocks.acknowledge,
-    isPending: false,
+  usePairSafetyNumber: (userId: number | null) => ({
+    data: userId === null ? undefined : NUMBER,
   }),
+  useAcknowledgeSafetyNumber: () => ({ mutate: mocks.acknowledge, isPending: false }),
 }));
 
 const CHANGE = {
   userId: 7,
   deviceId: "their-replacement",
-  now: "a-new-fingerprint",
+  now: { fingerprint: "a-new-fingerprint", identityKey: "a-new-identity" },
   at: new Date().toISOString(),
 };
 
@@ -53,9 +63,9 @@ describe("the changed-key notice", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("names the person whose key changed", async () => {
-    // A browser can be in several conversations. "A device key changed"
-    // without saying whose is not something anyone can act on.
+  it("names the person whose devices changed", async () => {
+    // A browser can be in several conversations. "A device changed" without
+    // saying whose is not something anyone can act on.
     mocks.changes.mockReturnValue({ data: [CHANGE] });
 
     renderPage(() => <PeerKeyChangeNotice nameOf={nameOf} />);
@@ -73,15 +83,22 @@ describe("the changed-key notice", () => {
     expect(await screen.findByRole("alert")).toBeInTheDocument();
   });
 
-  it("acknowledges the device that changed, not the person", async () => {
-    // Acknowledgement is per device: another device of theirs changing later
-    // has to interrupt again.
+  it("shows both halves of the safety number, and releases their devices when it matches", async () => {
     mocks.changes.mockReturnValue({ data: [CHANGE] });
     renderPage(() => <PeerKeyChangeNotice nameOf={nameOf} />);
 
-    await userEvent.click(await screen.findByRole("button"));
+    await userEvent.click(await screen.findByRole("button", { name: /compare safety number/i }));
 
-    expect(mocks.acknowledge).toHaveBeenCalledWith("their-replacement");
+    // Five digits at a time, each half under whose it is.
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("11111")).toBeInTheDocument();
+    expect(within(dialog).getByText("67890")).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: /they match/i }));
+
+    expect(mocks.acknowledge).toHaveBeenCalledWith(
+      { userId: 7, number: NUMBER },
+      expect.anything()
+    );
   });
 
   it("shows the first change when several are waiting", async () => {

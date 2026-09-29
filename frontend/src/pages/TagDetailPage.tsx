@@ -1,19 +1,11 @@
 import { Navigate, useParams, useRouter } from "@tanstack/react-router";
-import {
-  ListTodo,
-  ScrollText,
-  SearchX,
-  Settings,
-  SquareCheckBig,
-  TagIcon,
-  Trash2,
-} from "lucide-react";
+import { SearchX, Settings, TagIcon, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { StatusMessage } from "@/components/StatusMessage";
+import { SearchResultRow } from "@/components/search/SearchResultRow";
 import { TagDetailSkeleton } from "@/components/skeletons/PageSkeletons";
-import { TagTasksTable } from "@/components/tasks/TagTasksTable";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,11 +23,10 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { useDeleteTag, useTag, useTagEntities, useUpdateTag } from "@/hooks/useTags";
 import { toast } from "@/lib/chesterToast";
-import { DocumentsView } from "@/pages/DocumentsPage";
-import { ProjectsView } from "@/pages/ProjectsPage";
+import { TOOL_ICONS, TOOLS, toolNavLabelKey } from "@/lib/tools";
 
 export const TagDetailPage = () => {
-  const { t } = useTranslation(["tags", "common"]);
+  const { t } = useTranslation(["tags", "common", "nav"]);
   const { tagId: tagIdParam } = useParams({ strict: false }) as { tagId: string };
   const parsedTagId = Number(tagIdParam);
   const hasValidTagId = Number.isFinite(parsedTagId) && parsedTagId > 0;
@@ -118,10 +109,14 @@ export const TagDetailPage = () => {
     }
   };
 
-  const taskCount = entities?.tasks.length ?? 0;
-  const projectCount = entities?.projects.length ?? 0;
-  const documentCount = entities?.documents.length ?? 0;
-  const totalCount = taskCount + projectCount + documentCount;
+  const items = entities?.items ?? [];
+  const totalCount = items.length;
+  // One tab per tool holding something with this tag. Every row names the tool
+  // it lives in, so a task sits under Projects and a page under Wikis.
+  const groups = TOOLS.map((tool) => ({
+    tool,
+    hits: items.filter((item) => item.tool === tool),
+  })).filter(({ hits }) => hits.length > 0);
 
   return (
     <div className="space-y-6">
@@ -196,32 +191,33 @@ export const TagDetailPage = () => {
         )}
       </div>
 
-      {/* Tabbed Content */}
-      <Tabs defaultValue="tasks" className="space-y-4">
-        <TabsBar>
-          <TabsTrigger value="tasks" className="inline-flex items-center gap-2">
-            <SquareCheckBig className="h-4 w-4" />
-            {t("detail.tasksTab", { count: taskCount })}
-          </TabsTrigger>
-          <TabsTrigger value="projects" className="inline-flex items-center gap-2">
-            <ListTodo className="h-4 w-4" />
-            {t("detail.projectsTab", { count: projectCount })}
-          </TabsTrigger>
-          <TabsTrigger value="documents" className="inline-flex items-center gap-2">
-            <ScrollText className="h-4 w-4" />
-            {t("detail.documentsTab", { count: documentCount })}
-          </TabsTrigger>
-        </TabsBar>
-        <TabsContent value="tasks">
-          <TagTasksTable tagId={parsedTagId} />
-        </TabsContent>
-        <TabsContent value="projects">
-          <ProjectsView fixedTagIds={[parsedTagId]} canCreate={false} />
-        </TabsContent>
-        <TabsContent value="documents">
-          <DocumentsView fixedTagIds={[parsedTagId]} canCreate={false} />
-        </TabsContent>
-      </Tabs>
+      {groups.length === 0 ? (
+        <p className="text-muted-foreground text-sm">{t("detail.empty")}</p>
+      ) : (
+        <Tabs defaultValue={groups[0].tool} className="space-y-4">
+          <TabsBar>
+            {groups.map(({ tool, hits }) => {
+              const Icon = TOOL_ICONS[tool];
+              return (
+                <TabsTrigger key={tool} value={tool} className="inline-flex items-center gap-2">
+                  <Icon className="h-4 w-4" />
+                  {t("detail.toolTab", {
+                    tool: t(toolNavLabelKey(tool), { ns: "nav" }),
+                    count: hits.length,
+                  })}
+                </TabsTrigger>
+              );
+            })}
+          </TabsBar>
+          {groups.map(({ tool, hits }) => (
+            <TabsContent key={tool} value={tool}>
+              {hits.map((hit) => (
+                <SearchResultRow key={`${hit.entity_type}-${hit.entity_id}`} hit={hit} />
+              ))}
+            </TabsContent>
+          ))}
+        </Tabs>
+      )}
     </div>
   );
 };

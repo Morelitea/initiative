@@ -20,7 +20,7 @@ import { useTranslation } from "react-i18next";
 
 import { type ProjectRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
-import { BulkAccessBar, canManageSharing } from "@/components/access/BulkAccessBar";
+import { BulkAccessBar } from "@/components/access/BulkAccessBar";
 import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
 import { BulkExportButton } from "@/components/exports/BulkExportButton";
@@ -38,6 +38,7 @@ import {
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useProjectListView } from "@/hooks/useProjectListView";
 import { useReorderProjects } from "@/hooks/useProjects";
+import { everyCan } from "@/lib/permissions";
 
 type ProjectListPanelProps = {
   /** The projects this tab lists — active, templates, or archived. */
@@ -54,9 +55,7 @@ type ProjectListPanelProps = {
   storagePrefix: string;
   /** Drag-and-drop ordering plus a pinned section — the active list only. */
   sortable?: boolean;
-  fixedTagIds?: number[];
   viewableInitiativeIds?: Set<number> | null;
-  userId?: number;
   /** Buttons shown left of the grid/list toggle, from `sm` up only — create
    *  and friends. The bottom-nav add pill covers them on mobile. */
   toolbarActions?: ReactNode;
@@ -91,9 +90,7 @@ export const ProjectListPanel = ({
   noMatchesLabel,
   storagePrefix,
   sortable = false,
-  fixedTagIds,
   viewableInitiativeIds,
-  userId,
   toolbarActions,
   toolbarMenuItems,
   toolbarMenuDialogs,
@@ -107,7 +104,6 @@ export const ProjectListPanel = ({
     storagePrefix,
     allowCustomSort: sortable,
     separatePinned: sortable,
-    fixedTagIds,
     viewableInitiativeIds,
   });
   const { filteredProjects, pinnedProjects, sortedProjects, viewMode } = view;
@@ -158,7 +154,6 @@ export const ProjectListPanel = ({
       key={`${keyPrefix}${project.id}`}
       project={project}
       viewMode={viewMode}
-      userId={userId}
       actions={itemActions(project)}
       showInitiative={showInitiativeLabel}
     />
@@ -177,12 +172,7 @@ export const ProjectListPanel = ({
           onToggle={(options) => selection.toggle(project, options)}
           label={project.name}
         >
-          <ProjectItem
-            project={project}
-            viewMode={viewMode}
-            userId={userId}
-            showInitiative={showInitiativeLabel}
-          />
+          <ProjectItem project={project} viewMode={viewMode} showInitiative={showInitiativeLabel} />
         </SelectableGridItem>
       ))}
     </div>
@@ -202,7 +192,6 @@ export const ProjectListPanel = ({
               key={project.id}
               project={project}
               viewMode={viewMode}
-              userId={userId}
               actions={itemActions(project)}
               showInitiative={showInitiativeLabel}
             />
@@ -272,7 +261,7 @@ export const ProjectListPanel = ({
           {selection.active ? (
             <BulkAccessBar
               count={selection.selectedItems.length}
-              canManage={canManageSharing(selection.selectedItems) && !archivedSelected}
+              canManage={everyCan(selection.selectedItems, "share")}
               manageHint={archivedSelected ? t("archived.sharingUnavailable") : undefined}
               onEditAccess={() => setBulkAccessOpen(true)}
               onExit={selection.exit}
@@ -307,35 +296,18 @@ export const ProjectListPanel = ({
 type ProjectItemProps = {
   project: ProjectRead;
   viewMode: "grid" | "list";
-  userId?: number;
   actions?: ReactNode;
   showInitiative?: boolean;
 };
 
-const ProjectItem = ({ project, viewMode, userId, actions, showInitiative }: ProjectItemProps) =>
+const ProjectItem = ({ project, viewMode, actions, showInitiative }: ProjectItemProps) =>
   viewMode === "list" ? (
-    <ProjectRowLink
-      project={project}
-      userId={userId}
-      actions={actions}
-      showInitiative={showInitiative}
-    />
+    <ProjectRowLink project={project} actions={actions} showInitiative={showInitiative} />
   ) : (
-    <ProjectCardLink
-      project={project}
-      userId={userId}
-      actions={actions}
-      showInitiative={showInitiative}
-    />
+    <ProjectCardLink project={project} actions={actions} showInitiative={showInitiative} />
   );
 
-const SortableProjectItem = ({
-  project,
-  viewMode,
-  userId,
-  actions,
-  showInitiative,
-}: ProjectItemProps) => {
+const SortableProjectItem = ({ project, viewMode, actions, showInitiative }: ProjectItemProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: project.id.toString(),
   });
@@ -356,7 +328,6 @@ const SortableProjectItem = ({
       {viewMode === "list" ? (
         <ProjectRowLink
           project={project}
-          userId={userId}
           actions={actions}
           showInitiative={showInitiative}
           dragHandleProps={dragHandleProps}
@@ -364,7 +335,6 @@ const SortableProjectItem = ({
       ) : (
         <ProjectCardLink
           project={project}
-          userId={userId}
           actions={actions}
           showInitiative={showInitiative}
           dragHandleProps={dragHandleProps}

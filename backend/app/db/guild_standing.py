@@ -41,13 +41,32 @@ routing of one community and the standing of another.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+import json
+from dataclasses import dataclass, fields, replace
 from typing import TYPE_CHECKING, Any, Optional, Sequence
 
+from app.core.app_scopes import APP_SCOPE_PREFIX
 from app.core.tools import Tool
-from app.db.authorization import sql_values
+from app.db import gucs
+from app.db.authorization import LIVE_GRANT, sql_values
 from app.models.platform.access_grant import AccessGrantPurpose, AccessLevel
-from app.models.platform.guild import GUILD_LADDER, GuildRole
+from app.models.platform.app_service_registration import registration_live_sql
+from app.models.platform.guild import (
+    GUILD_LADDER,
+    LIVE_STATUS_VALUES,
+    GuildRole,
+    GuildStatus,
+)
+from app.models.platform.identity_ref import (
+    REF_GRACE_PERIOD,
+    REF_MAX_LENGTH,
+    IdentityEntity,
+    IdentityPurpose,
+    ref_prefix,
+)
+from app.models.platform.user import UserStatus
+from app.models.tenant.app_member_consent import ConsentAccess
+from app.models.tenant.initiative import DEFAULT_PERMISSION_VALUES, PermissionKey
 
 if TYPE_CHECKING:  # pragma: no cover
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -56,44 +75,17 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.guild import Guild, GuildMembership, GuildRole
 
 __all__ = [
+    "ActorContext",
     "GuildContext",
-    "STANDING_GUCS",
+    "INSTALL_STANDING_SQL",
+    "ISSUABLE_SCOPES_SQL",
+    "InstallContext",
     "STANDING_SQL",
     "compute_guild_standing",
-    "empty_standing",
-    "standing_bind_params",
+    "compute_install_standing",
+    "named_ref_candidates",
+    "standing_values",
 ]
-
-
-# --- The request context the statement reads back -----------------------------
-# NULLIF-guarded throughout: an unset value leaves nothing to cast, and a bare
-# ''::int raises and faults the whole statement (CLAUDE.md §6).
-_UID = "NULLIF(current_setting('app.current_user_id', true), '')::int"
-_GID = "NULLIF(current_setting('app.current_guild_id', true), '')::int"
-#: The community a content grant reaches, which a grantee carries instead of
-#: ``_GID``.
-_PAM_GID = "NULLIF(current_setting('app.pam_guild_id', true), '')::int"
-#: The community a settings grant reaches, which a grantee holding only one
-#: carries instead of either.
-_SETTINGS_GID = "NULLIF(current_setting('app.settings_guild_id', true), '')::int"
-#: Whichever of the three names the community this session is routed into.
-_ROUTED_GID = f"COALESCE({_GID}, {_PAM_GID}, {_SETTINGS_GID})"
-
-#: A grant that is in force right now — approved, unexpired, still standing.
-#: One definition, used by the statement below and by the ``access_grants``
-#: policies alike.
-LIVE_GRANT = "g.status = 'approved' AND g.expires_at > now()"
-
-
-def _live_grant(purpose: str, extra: str = "") -> str:
-    return (
-        "FROM public.access_grants g"
-        f" WHERE g.guild_id = {_ROUTED_GID}"
-        f" AND g.user_id = {_UID}"
-        f" AND g.purpose = '{purpose}'"
-        f" AND {LIVE_GRANT}"
-        f"{extra}"
-    )
 
 
 #: The rungs that administer a community, as the ladder orders them — the
@@ -118,122 +110,448 @@ def _tool_switch_values() -> str:
     return ", ".join(f"('{tool.value}', i.{tool.plural}_enabled)" for tool in Tool)
 
 
-#: The keys the standing writes, in the order the statement writes them. The
-#: routing statement writes ``''`` into every one of them.
-STANDING_GUCS: tuple[str, ...] = (
-    "app.standing_guild_id",
-    "app.guild_admin",
-    "app.guild_seat",
-    "app.settings_rung",
-    "app.pam_read",
-    "app.pam_write",
-    "app.member_initiatives",
-    "app.manager_initiatives",
-    "app.member_role_ids",
-    "app.role_grants",
-    "app.role_denies",
-    "app.enabled_tools",
-    "app.override_initiatives",
-    "app.guild_auth_ok",
-)
+def _writes(values: dict[gucs.Guc, str]) -> str:
+    """A standing statement's select list: each key written with its
+    expression, and returned under its name."""
+    return ",\n".join(
+        f"  set_config('{guc.name}', {expr}, true) AS {guc.bind}"
+        for guc, expr in values.items()
+    )
 
 
-#: The one statement. Runs as the routed role, after ``SET ROLE``, so the
-#: sub-selects on the shared tables are read under those tables' own policies
-#: and the routed role's grants (``app_guild_base`` holds ``SELECT`` on
-#: ``guild_memberships`` and ``access_grants``, and the read-only floor is
-#: derived from it), and the ones on ``initiative_members`` resolve in the
-#: community's own schema.
-STANDING_SQL = f"""
-SELECT
-  set_config('app.standing_guild_id',
-    COALESCE(
-      NULLIF(current_setting('app.current_guild_id', true), ''),
-      NULLIF(current_setting('app.pam_guild_id', true), ''),
-      NULLIF(current_setting('app.settings_guild_id', true), ''),
-      ''), true) AS standing_guild_id,
-  set_config('app.guild_admin', COALESCE((
-      SELECT (m.role IN ({_ADMIN_RUNGS_SQL}))::text
-      FROM public.guild_memberships m
-      WHERE m.guild_id = {_GID} AND m.user_id = {_UID}
-    ), 'false'), true) AS guild_admin,
-  set_config('app.guild_seat', COALESCE((
-      SELECT public.guild_superadmin({_ROUTED_GID}, {_UID})::text
-    ), 'false'), true) AS guild_seat,
-  set_config('app.settings_rung', COALESCE((
+#: The reader's own rows the person statement reads, each table once. Every
+#: key below is an aggregate over one of these, so a new key picks a row set
+#: rather than reading its table again.
+_PERSON_ROWS = f"""
+WITH my_initiatives AS MATERIALIZED (
+  SELECT im.initiative_id, im.role_id,
+         COALESCE(r.is_manager, false) AS is_manager,
+         COALESCE(r.override_share_restrictions, false) AS overrides
+  FROM initiative_members im
+  LEFT JOIN initiative_roles r ON r.id = im.role_id
+  WHERE im.user_id = {gucs.USER_ID}
+),
+my_role_permissions AS MATERIALIZED (
+  SELECT mi.initiative_id, rp.permission_key, rp.enabled
+  FROM my_initiatives mi
+  JOIN initiative_role_permissions rp ON rp.initiative_role_id = mi.role_id
+),
+my_membership AS MATERIALIZED (
+  SELECT m.role
+  FROM public.guild_memberships m
+  WHERE m.guild_id = {gucs.GUILD_ID} AND m.user_id = {gucs.USER_ID}
+),
+my_grants AS MATERIALIZED (
+  SELECT g.purpose, g.access_level::text AS access_level
+  FROM public.access_grants g
+  WHERE g.guild_id = {gucs.ROUTED_GUILD_ID}
+    AND g.user_id = {gucs.USER_ID}
+    AND {LIVE_GRANT}
+)"""
+
+#: What the person statement writes: each standing key and its expression.
+_PERSON_STANDING: dict[gucs.Guc, str] = {
+    gucs.STANDING_GUILD_ID: f"""COALESCE({gucs.ROUTED_COMMUNITY}, '')""",
+    gucs.GUILD_ADMIN: f"""COALESCE((
+      SELECT (m.role IN ({_ADMIN_RUNGS_SQL}))::text FROM my_membership m
+    ), 'false')""",
+    gucs.GUILD_SEAT: f"""COALESCE((
+      SELECT public.guild_superadmin({gucs.ROUTED_GUILD_ID}, {gucs.USER_ID})::text
+    ), 'false')""",
+    gucs.SETTINGS_RUNG: f"""COALESCE((
       SELECT CASE
 {_SETTINGS_RUNG_CASE}
              END
       FROM (
         SELECT m.role::text AS rung
-        FROM public.guild_memberships m
-        WHERE m.guild_id = {_GID} AND m.user_id = {_UID}
-          AND m.role IN ({_ADMIN_RUNGS_SQL})
+        FROM my_membership m
+        WHERE m.role IN ({_ADMIN_RUNGS_SQL})
         UNION ALL
-        SELECT g.access_level::text {_live_grant(AccessGrantPurpose.settings.value)}
+        SELECT g.access_level FROM my_grants g
+        WHERE g.purpose = '{AccessGrantPurpose.settings.value}'
       ) AS rungs
-    ), ''), true) AS settings_rung,
-  set_config('app.pam_read', (
-      SELECT EXISTS (SELECT 1 {_live_grant(AccessGrantPurpose.content.value)})::text
-    ), true) AS pam_read,
-  set_config('app.pam_write', (
+    ), '')""",
+    gucs.PAM_READ: f"""(
       SELECT EXISTS (
-        SELECT 1 {_live_grant(AccessGrantPurpose.content.value, f" AND g.access_level = '{AccessLevel.read_write.value}'")}
+        SELECT 1 FROM my_grants g
+        WHERE g.purpose = '{AccessGrantPurpose.content.value}'
       )::text
-    ), true) AS pam_write,
-  set_config('app.member_initiatives', COALESCE((
-      SELECT string_agg(DISTINCT im.initiative_id::text, ',')
-      FROM initiative_members im
-      WHERE im.user_id = {_UID}
-    ), ''), true) AS member_initiatives,
-  set_config('app.manager_initiatives', COALESCE((
-      SELECT string_agg(DISTINCT im.initiative_id::text, ',')
-      FROM initiative_members im
-      JOIN initiative_roles r ON r.id = im.role_id
-      WHERE im.user_id = {_UID} AND r.is_manager
-    ), ''), true) AS manager_initiatives,
-  set_config('app.member_role_ids', COALESCE((
-      SELECT string_agg(DISTINCT im.role_id::text, ',')
-      FROM initiative_members im
-      WHERE im.user_id = {_UID} AND im.role_id IS NOT NULL
-    ), ''), true) AS member_role_ids,
-  set_config('app.role_grants', COALESCE((
-      SELECT string_agg(DISTINCT im.initiative_id || ':' || rp.permission_key, ',')
-      FROM initiative_members im
-      JOIN initiative_role_permissions rp ON rp.initiative_role_id = im.role_id
-      WHERE im.user_id = {_UID} AND rp.enabled
-    ), ''), true) AS role_grants,
-  set_config('app.role_denies', COALESCE((
-      SELECT string_agg(DISTINCT im.initiative_id || ':' || rp.permission_key, ',')
-      FROM initiative_members im
-      JOIN initiative_role_permissions rp ON rp.initiative_role_id = im.role_id
-      WHERE im.user_id = {_UID} AND NOT rp.enabled
-    ), ''), true) AS role_denies,
-  set_config('app.enabled_tools', COALESCE((
+    )""",
+    gucs.PAM_WRITE: f"""(
+      SELECT EXISTS (
+        SELECT 1 FROM my_grants g
+        WHERE g.purpose = '{AccessGrantPurpose.content.value}'
+          AND g.access_level = '{AccessLevel.read_write.value}'
+      )::text
+    )""",
+    gucs.MEMBER_INITIATIVES: """COALESCE((
+      SELECT string_agg(DISTINCT mi.initiative_id::text, ',')
+      FROM my_initiatives mi
+    ), '')""",
+    gucs.MANAGER_INITIATIVES: """COALESCE((
+      SELECT string_agg(DISTINCT mi.initiative_id::text, ',')
+      FROM my_initiatives mi
+      WHERE mi.is_manager
+    ), '')""",
+    gucs.MEMBER_ROLE_IDS: """COALESCE((
+      SELECT string_agg(DISTINCT mi.role_id::text, ',')
+      FROM my_initiatives mi
+      WHERE mi.role_id IS NOT NULL
+    ), '')""",
+    gucs.ROLE_GRANTS: """COALESCE((
+      SELECT string_agg(DISTINCT rp.initiative_id || ':' || rp.permission_key, ',')
+      FROM my_role_permissions rp
+      WHERE rp.enabled
+    ), '')""",
+    gucs.ROLE_DENIES: """COALESCE((
+      SELECT string_agg(DISTINCT rp.initiative_id || ':' || rp.permission_key, ',')
+      FROM my_role_permissions rp
+      WHERE NOT rp.enabled
+    ), '')""",
+    gucs.ENABLED_TOOLS: f"""COALESCE((
       SELECT string_agg(DISTINCT i.id || ':' || t.tool, ',')
       FROM initiatives i
-      JOIN initiative_members im
-        ON im.initiative_id = i.id AND im.user_id = {_UID}
+      JOIN my_initiatives mi ON mi.initiative_id = i.id
       CROSS JOIN LATERAL (VALUES {_tool_switch_values()}) AS t(tool, enabled)
       WHERE t.enabled
-    ), ''), true) AS enabled_tools,
-  set_config('app.override_initiatives', COALESCE((
-      SELECT string_agg(DISTINCT im.initiative_id::text, ',')
-      FROM initiative_members im
-      JOIN initiative_roles r ON r.id = im.role_id
-      WHERE im.user_id = {_UID} AND r.override_share_restrictions
-    ), ''), true) AS override_initiatives,
-  set_config('app.guild_auth_ok',
-    (SELECT public.guild_auth_satisfied()::text), true) AS guild_auth_ok
+    ), '')""",
+    gucs.OVERRIDE_INITIATIVES: """COALESCE((
+      SELECT string_agg(DISTINCT mi.initiative_id::text, ',')
+      FROM my_initiatives mi
+      WHERE mi.overrides
+    ), '')""",
+    gucs.GUILD_AUTH_OK: """   (SELECT public.guild_auth_satisfied()::text)""",
+    gucs.CONTENT_HOLD: f"""COALESCE((
+      SELECT (g.status = '{GuildStatus.read_only.value}')::text
+      FROM public.guilds g
+      WHERE g.id = {gucs.GUILD_ID}
+    ), 'false')""",
+}
+
+#: The one statement. Runs as the routed role, after ``SET ROLE``, so the
+#: reads of the shared tables go through those tables' own policies and the
+#: routed role's grants (``app_guild_base`` holds ``SELECT`` on
+#: ``guild_memberships`` and ``access_grants``, and the read-only floor is
+#: derived from it), and the read of ``initiative_members`` resolves in the
+#: community's own schema.
+STANDING_SQL = f"""{_PERSON_ROWS}
+SELECT
+{_writes(_PERSON_STANDING)}
 """
 
 
-def _ids(csv: str | None) -> tuple[int, ...]:
-    return tuple(int(part) for part in (csv or "").split(",") if part)
+# --- An installed app's standing ---------------------------------------------
+#: The ``apps:`` scope family names another app rather than a resource of the
+#: community's, so it adds nothing to what the install reads or writes.
+_APP_SCOPE_FAMILY = APP_SCOPE_PREFIX.rstrip(":")
+#: The community statuses whose content is in use, as the person seam reads
+#: them.
+_LIVE_STATUSES_SQL = sql_values(sorted(LIVE_STATUS_VALUES))
+
+#: A reference row in this install's own sector: the app purpose, the routed
+#: community and the routed install. The same predicate the ``identity_refs``
+#: policies for the install floor hold every read and insert to
+#: (``app.db.public_rls``).
+_IN_INSTALL_SECTOR = (
+    f"r.purpose = '{IdentityPurpose.app.value}'"
+    f" AND r.sector_guild_id = {gucs.GUILD_ID}"
+    f" AND r.sector_id = {gucs.INSTALL_ID}"
+)
+#: How long a replaced reference keeps resolving, as an interval.
+_GRACE_INTERVAL = f"interval '{int(REF_GRACE_PERIOD.total_seconds())} seconds'"
 
 
-def _pairs(csv: str | None) -> tuple[str, ...]:
-    return tuple(part for part in (csv or "").split(",") if part)
+def _tool_permission_values() -> str:
+    """Each tool's two role keys as a ``VALUES`` list of ``(resource, key,
+    for_write)``: viewing it answers to the tool's read scope, creating it to
+    its write scope. Rendered from the ``Tool`` enum, as the switches are."""
+    return ", ".join(
+        f"('{tool.plural}', '{key}', {str(for_write).lower()})"
+        for tool in Tool
+        for key, for_write in (
+            (tool.view_permission, False),
+            (tool.create_permission, True),
+        )
+    )
+
+
+def _permission_key_values() -> str:
+    """Every initiative role key, as a one-column ``VALUES`` list."""
+    return ", ".join(f"('{key.value}')" for key in PermissionKey)
+
+
+def _permission_default_values() -> str:
+    """Every initiative role key with the answer it gets where a role has no
+    row for it, as a ``VALUES`` list of ``(key, is_default)``: the defaults
+    the content policies hand ``initiative_role_permits``."""
+    return ", ".join(
+        f"('{key.value}', {str(DEFAULT_PERMISSION_VALUES.get(key, False)).lower()})"
+        for key in PermissionKey
+    )
+
+
+#: The scopes an install's tokens may carry, as ``text[]`` over ``guild_apps
+#: a``: those the seat granted that the pinned version still requests. The
+#: grant itself is left as the seat set it, so a scope a later version stops
+#: requesting stops being carried by every token at once. Read by token
+#: issuance, the install standing and the app hub alike.
+ISSUABLE_SCOPES_SQL = (
+    "ARRAY(SELECT s FROM unnest(a.granted_scopes) AS s "
+    "WHERE a.definition -> 'service' -> 'scopes' @> jsonb_build_array(s))"
+)
+
+
+#: What the install statement writes: each key and its expression.
+_INSTALL_STANDING: dict[gucs.Guc, str] = {
+    gucs.STANDING_GUILD_ID: f"""COALESCE({gucs.GUILD_ID.text}, '')""",
+    gucs.GUILD_ADMIN: """'false'""",
+    gucs.GUILD_SEAT: """'false'""",
+    gucs.SETTINGS_RUNG: """''""",
+    gucs.PAM_GUILD_ID: """''""",
+    gucs.PAM_READ: """'false'""",
+    gucs.PAM_WRITE: """'false'""",
+    gucs.MEMBER_INITIATIVES: """COALESCE((
+      SELECT string_agg(p.initiative_id::text, ',' ORDER BY p.initiative_id)
+      FROM placed p
+    ), '')""",
+    gucs.MANAGER_INITIATIVES: """''""",
+    gucs.MEMBER_ROLE_IDS: """COALESCE((
+      SELECT string_agg(DISTINCT mr.role_id::text, ',')
+      FROM member_role mr
+      JOIN placed p ON p.initiative_id = mr.initiative_id
+      WHERE mr.role_id IS NOT NULL
+    ), '')""",
+    gucs.ROLE_GRANTS: """COALESCE((
+      SELECT string_agg(gr.pair, ',' ORDER BY gr.pair) FROM granted gr
+    ), '')""",
+    gucs.ROLE_DENIES: """COALESCE((
+      SELECT string_agg(d.pair, ',' ORDER BY d.pair) FROM denied d
+    ), '')""",
+    gucs.ENABLED_TOOLS: f"""COALESCE((
+      SELECT string_agg(DISTINCT i.id || ':' || t.tool, ',')
+      FROM initiatives i
+      JOIN placed p ON p.initiative_id = i.id
+      CROSS JOIN LATERAL (VALUES {_tool_switch_values()}) AS t(tool, enabled)
+      WHERE t.enabled
+    ), '')""",
+    gucs.OVERRIDE_INITIATIVES: """COALESCE((
+      SELECT string_agg(DISTINCT mr.initiative_id::text, ',')
+      FROM member_role mr
+      JOIN placed p ON p.initiative_id = mr.initiative_id
+      WHERE mr.overrides
+    ), '')""",
+    gucs.INSTALL_READ: """COALESCE((
+      SELECT string_agg(DISTINCT h.resource, ',') FROM held h
+    ), '')""",
+    gucs.INSTALL_WRITE: """COALESCE((
+      SELECT string_agg(DISTINCT h.resource, ',') FROM held h WHERE h.writes
+    ), '')""",
+    gucs.GUILD_AUTH_OK: """   (SELECT EXISTS (SELECT 1 FROM install))::text""",
+    gucs.CONTENT_HOLD: f"""COALESCE((
+      SELECT (g.status = '{GuildStatus.read_only.value}')::text
+      FROM public.guilds g
+      WHERE g.id = {gucs.GUILD_ID}
+    ), 'false')""",
+}
+
+#: An installed app's standing, in one statement. Runs as ``guild_<id>_app``
+#: after the install routing. The community, the install, the client the token
+#: was issued to, the token's scopes, the narrowed initiative and, for a member
+#: token, the member and the purpose are read back from that routing; the one
+#: bind, ``:named_refs``, is the references the request names (below).
+#:
+#: ``install`` is the install when it may act at all: the community's status is
+#: one its members use, the install is on, and the operator's registration for
+#: its listing is live (on, its publisher on, and holding a key set) and the
+#: client the token names. Every value below is computed from it, so an install
+#: that may not act has an empty standing. ``live`` says which.
+#:
+#: An install is a member of the initiatives it is placed in (narrowed to one
+#: when the token names it), and its initiative role is exactly what its scopes
+#: allow there: a tool's view key for a read scope on it, its create key for a
+#: write scope, and every other key denied, so no member default answers for
+#: it. It administers nothing, manages nothing, holds no initiative role a
+#: share could name, and carries no grant. The community's sign-in rules
+#: govern people signing in; an install's admission is the seat's consent, so
+#: that value is what ``live`` says.
+#:
+#: A **member token** names a member (``app.current_user_id``) and the purpose
+#: they consented to (``app.token_purpose``). ``install`` then also asks that
+#: the member still belongs to the community, their account is active, and
+#: their consent for this install and purpose is granted and not revoked (and,
+#: when it is bound to an initiative, that the token is narrowed to it). What it
+#: reaches is the member's own within the install's: the initiatives the member
+#: is in and the install is placed in; there, the keys the member's role
+#: permits (a manager role, a stored yes, or a default no stored row turns off)
+#: that the scopes also allow, and every other key denied; the member's roles
+#: and "Full access" within those initiatives; and writes only when the
+#: consent is ``read_write``. It is never an admin, the seat, a grantee or a
+#: manager. The consent was given from a session that met the community's
+#: sign-in rules, so that value too is what ``live`` says.
+#:
+#: Two more columns carry what the install calls things, both read only in its
+#: own sector (``purpose = 'app'``, the routed community and the routed
+#: install): ``guild_ref``, its live reference for the community, and
+#: ``named_refs``, the references in ``:named_refs`` that name somebody there,
+#: as ``{ref: [entity_type, entity_id]}``. A replaced reference still resolves
+#: for its grace window, as ``identity_refs.resolve_ref`` has it. The array
+#: chooses which rows are looked up; the sector is the routing's.
+INSTALL_STANDING_SQL = f"""
+WITH consent AS (
+  SELECT c.initiative_id,
+         c.granted_access = '{ConsentAccess.read_write.value}' AS writes
+  FROM app_member_consents c
+  WHERE {gucs.USER_ID} IS NOT NULL
+    AND c.install_id = {gucs.INSTALL_ID}
+    AND c.user_id = {gucs.USER_ID}
+    AND c.purpose IS NOT DISTINCT FROM {gucs.TOKEN_PURPOSE}
+    AND c.granted_access IS NOT NULL
+    AND c.revoked_at IS NULL
+    AND (c.initiative_id IS NULL OR c.initiative_id = {gucs.SCOPE_INITIATIVE_ID})
+),
+install AS (
+  SELECT a.id, {ISSUABLE_SCOPES_SQL} AS granted_scopes,
+         g.status = '{GuildStatus.read_only.value}' AS read_only
+  FROM guild_apps a
+  JOIN public.guilds g ON g.id = {gucs.GUILD_ID}
+  WHERE a.id = {gucs.INSTALL_ID}
+    AND a.enabled
+    AND g.status IN ({_LIVE_STATUSES_SQL})
+    AND EXISTS (
+      SELECT 1
+      FROM public.app_service_registrations r
+      JOIN public.publishers p ON p.id = r.publisher_id
+      WHERE r.listing_uid = a.listing_uid
+        AND r.public_id = {gucs.TOKEN_CLIENT_ID}
+        AND {registration_live_sql("r", "p")}
+    )
+    AND ({gucs.USER_ID} IS NULL OR (
+      EXISTS (SELECT 1 FROM consent)
+      AND EXISTS (
+        SELECT 1
+        FROM public.guild_memberships m
+        WHERE m.guild_id = {gucs.GUILD_ID} AND m.user_id = {gucs.USER_ID}
+      )
+      AND EXISTS (
+        SELECT 1
+        FROM public.users u
+        WHERE u.id = {gucs.USER_ID} AND u.status = '{UserStatus.active.value}'
+      )
+    ))
+),
+granted_scope AS (
+  SELECT split_part(s.scope, ':', 1) AS resource,
+         bool_or(split_part(s.scope, ':', 2) = 'write') AS writes
+  FROM install i
+  CROSS JOIN LATERAL unnest(i.granted_scopes) AS s(scope)
+  WHERE split_part(s.scope, ':', 1) <> '{_APP_SCOPE_FAMILY}'
+  GROUP BY 1
+),
+token_scope AS (
+  SELECT split_part(t.scope, ':', 1) AS resource,
+         bool_or(split_part(t.scope, ':', 2) = 'write') AS writes
+  FROM unnest({gucs.TOKEN_SCOPES}) AS t(scope)
+  WHERE split_part(t.scope, ':', 1) <> '{_APP_SCOPE_FAMILY}'
+  GROUP BY 1
+),
+held AS (
+  SELECT g.resource,
+         g.writes AND t.writes AND NOT i.read_only
+           AND ({gucs.USER_ID} IS NULL OR EXISTS (SELECT 1 FROM consent c WHERE c.writes))
+           AS writes
+  FROM granted_scope g
+  JOIN token_scope t ON t.resource = g.resource
+  CROSS JOIN install i
+),
+member_role AS (
+  SELECT im.initiative_id, im.role_id,
+         COALESCE(r.is_manager, false) AS is_manager,
+         COALESCE(r.override_share_restrictions, false) AS overrides
+  FROM initiative_members im
+  LEFT JOIN initiative_roles r ON r.id = im.role_id
+  WHERE {gucs.USER_ID} IS NOT NULL AND im.user_id = {gucs.USER_ID}
+),
+placed AS (
+  SELECT DISTINCT p.initiative_id
+  FROM app_placements p
+  JOIN install i ON i.id = p.install_id
+  WHERE ({gucs.SCOPE_INITIATIVE_ID} IS NULL OR p.initiative_id = {gucs.SCOPE_INITIATIVE_ID})
+    AND ({gucs.USER_ID} IS NULL OR (
+      p.initiative_id IN (SELECT mr.initiative_id FROM member_role mr)
+      AND NOT EXISTS (
+        SELECT 1 FROM consent c WHERE c.initiative_id <> p.initiative_id
+      )
+    ))
+),
+permitted AS (
+  SELECT p.initiative_id, k.key
+  FROM placed p
+  JOIN member_role mr ON mr.initiative_id = p.initiative_id
+  CROSS JOIN (VALUES {_permission_default_values()}) AS k(key, is_default)
+  WHERE mr.is_manager
+     OR EXISTS (
+       SELECT 1 FROM initiative_role_permissions rp
+       WHERE rp.initiative_role_id = mr.role_id
+         AND rp.permission_key = k.key
+         AND rp.enabled
+     )
+     OR (k.is_default AND NOT EXISTS (
+       SELECT 1 FROM initiative_role_permissions rp
+       WHERE rp.initiative_role_id = mr.role_id
+         AND rp.permission_key = k.key
+         AND NOT rp.enabled
+     ))
+),
+granted AS (
+  SELECT DISTINCT p.initiative_id || ':' || k.key AS pair
+  FROM placed p
+  CROSS JOIN (VALUES {_tool_permission_values()}) AS k(resource, key, for_write)
+  JOIN held h ON h.resource = k.resource AND (h.writes OR NOT k.for_write)
+  WHERE {gucs.USER_ID} IS NULL OR EXISTS (
+    SELECT 1 FROM permitted pm
+    WHERE pm.initiative_id = p.initiative_id AND pm.key = k.key
+  )
+),
+denied AS (
+  SELECT DISTINCT p.initiative_id || ':' || k.key AS pair
+  FROM placed p
+  CROSS JOIN (VALUES {_permission_key_values()}) AS k(key)
+  WHERE NOT EXISTS (
+    SELECT 1 FROM granted gr WHERE gr.pair = p.initiative_id || ':' || k.key
+  )
+)
+SELECT
+  (SELECT EXISTS (SELECT 1 FROM install)) AS live,
+{_writes(_INSTALL_STANDING)},
+  (
+    SELECT r.ref
+    FROM public.identity_refs r
+    WHERE {_IN_INSTALL_SECTOR}
+      AND r.entity_type = '{IdentityEntity.guild.value}'
+      AND r.entity_id = {gucs.GUILD_ID}
+      AND r.retired_at IS NULL
+      AND EXISTS (SELECT 1 FROM install)
+  ) AS guild_ref,
+  COALESCE((
+      SELECT jsonb_object_agg(r.ref, jsonb_build_array(r.entity_type, r.entity_id))
+      FROM public.identity_refs r
+      WHERE r.ref = ANY(CAST(:named_refs AS text[]))
+        AND {_IN_INSTALL_SECTOR}
+        AND (r.retired_at IS NULL OR r.retired_at > now() - {_GRACE_INTERVAL})
+        AND EXISTS (SELECT 1 FROM install)
+    ), '{{}}'::jsonb) AS named_refs
+"""
+
+
+def _standing_fields(context: Any, row: dict[str, Any]) -> dict[str, Any]:
+    """The standing keys ``context`` carries, decoded from a standing
+    statement's row."""
+    names = {f.name for f in fields(context)}
+    return {
+        guc.bind: guc.decode(row.get(guc.bind))
+        for guc in gucs.STANDING
+        if guc.bind in names
+    }
 
 
 @dataclass(frozen=True)
@@ -281,10 +599,10 @@ class GuildContext:
     standing_guild_id: Optional[int] = None
     #: The membership row's role is ``admin`` or ``superadmin``. Computed from
     #: that row by the database; no grant sets it.
-    admin: bool = False
+    guild_admin: bool = False
     #: ``public.guild_superadmin(guild, user)`` — the membership row's seat, or
     #: a live ``superadmin`` settings grant.
-    seat: bool = False
+    guild_seat: bool = False
     #: The rung this request administers the community at, or ``None``.
     settings_rung: Optional[str] = None
     #: A live content grant covers this request, at read / read_write.
@@ -303,6 +621,10 @@ class GuildContext:
     override_initiatives: tuple[int, ...] = ()
     #: The community's sign-in policy is satisfied by this session.
     guild_auth_ok: bool = False
+    #: The community's content is on hold for this reader (``read_only``,
+    #: reached by membership). The routing already chose ``guild_<id>_ro``
+    #: from the same fact; the gates read it here.
+    content_hold: bool = False
 
     # --- Identity ------------------------------------------------------------
 
@@ -326,7 +648,7 @@ class GuildContext:
         The membership row's own fact, as the database computed it. A grant
         never answers yes here: what a grant reaches is its own two axes.
         """
-        return self.admin
+        return self.guild_admin
 
     @property
     def rung(self) -> "GuildRole":
@@ -355,9 +677,9 @@ class GuildContext:
         rungs above member are the membership row's alone.
         """
         if rung is GuildRole.superadmin:
-            return self.seat and (settings or self.admin)
+            return self.guild_seat and (settings or self.guild_admin)
         if rung is GuildRole.admin:
-            return self.admin or (settings and self.settings_rung is not None)
+            return self.guild_admin or (settings and self.settings_rung is not None)
         if rung is GuildRole.member:
             return self.guild_role is not None and GuildRole(self.guild_role).reaches(
                 GuildRole.member
@@ -458,73 +780,179 @@ class GuildContext:
 
     def with_standing(self, row: dict[str, Any]) -> "GuildContext":
         """This context completed with what the standing statement returned."""
+        return replace(self, **_standing_fields(self, row))
+
+
+@dataclass(frozen=True)
+class InstallContext:
+    """An installed app's standing in its community, for one request.
+
+    Built only by the establishment seam (``app.api.deps``) from a verified
+    install: the routing names the community, the install, the client and the
+    token's scopes, and the install standing statement computes the rest from
+    rows. Stored on the session as part of the routing parameters, and
+    replayed per transaction with them, like :class:`GuildContext`.
+    """
+
+    guild_id: int
+    install_id: int
+    #: The registration's ``public_id`` the token was issued to.
+    client_id: str
+    #: The scopes the token carries. What the install may use is these and
+    #: the seat's grant together, which the standing computes.
+    token_scopes: frozenset[str]
+    #: The one initiative the token is narrowed to, when it is.
+    scope_initiative_id: Optional[int] = None
+    #: The member a member token acts for, and the purpose they consented to
+    #: (``None`` for app-wide consent). ``None`` for the install itself. A write
+    #: that names its author, such as the owner grant on something created,
+    #: names this member.
+    member_user_id: Optional[int] = None
+    purpose: Optional[str] = None
+
+    # --- What the install standing statement returned -------------------------
+    #: The community the standing was computed for; ``None`` until it has been.
+    standing_guild_id: Optional[int] = None
+    #: The community is in use, the install is on, and its registration is
+    #: live and the client the token names.
+    live: bool = False
+    #: The community's content is on hold (``read_only`` status).
+    content_hold: bool = False
+    #: The initiatives the install is placed in, narrowed to one when asked.
+    member_initiatives: tuple[int, ...] = ()
+    #: ``"<initiative_id>:<permission_key>"`` its scopes allow there.
+    role_grants: tuple[str, ...] = ()
+    #: Every other key, in the same initiatives.
+    role_denies: tuple[str, ...] = ()
+    #: ``"<initiative_id>:<tool>"`` where the initiative's switch is on.
+    enabled_tools: tuple[str, ...] = ()
+    #: For a member token, the member's initiative roles, and the initiatives
+    #: where their role holds "Full access", within ``member_initiatives``.
+    #: Empty for the install itself.
+    member_role_ids: tuple[int, ...] = ()
+    override_initiatives: tuple[int, ...] = ()
+    #: The resources its scopes let it read, and write.
+    install_read: tuple[str, ...] = ()
+    install_write: tuple[str, ...] = ()
+    #: What this install calls its community, when it has been named to it.
+    guild_ref: Optional[str] = None
+    #: The references this request named that resolve in the install's own
+    #: sector, as ``(ref, entity_type, entity_id)``. For this request only:
+    #: the replay writes the standing, and names nobody.
+    named_refs: tuple[tuple[str, str, int], ...] = ()
+
+    @property
+    def guild_auth_ok(self) -> bool:
+        """What the standing wrote for the community's sign-in gate: an install
+        that may act answers it."""
+        return self.live
+
+    def overrides_sharing(self, initiative_id: Optional[int]) -> bool:
+        """Whether the member a member token acts for holds "Full access" in
+        ``initiative_id``. Never, for the install itself."""
+        return initiative_id is not None and initiative_id in self.override_initiatives
+
+    # --- A person's standing, as an install answers it -----------------------
+    # A route that serves both actors reads these off whichever context it was
+    # handed. Each is what the install standing statement wrote for the key a
+    # person's standing sets: an install is never an admin, a grantee or a
+    # manager, and it is nobody. A member token names its member in
+    # ``member_user_id``; what that member's writes own is written by the
+    # tool table's trigger, as for the install.
+
+    @property
+    def user_id(self) -> None:
+        """An install is not a person, even when it acts for one."""
+        return None
+
+    @property
+    def is_admin(self) -> bool:
+        return False
+
+    @property
+    def content_read_only(self) -> bool:
+        """The community is in ``read_only`` status. The standing leaves the
+        install no write scope there; this reports the same hold."""
+        return self.content_hold
+
+    @property
+    def is_pam(self) -> bool:
+        return False
+
+    @property
+    def pam_read(self) -> bool:
+        return False
+
+    @property
+    def pam_write(self) -> bool:
+        return False
+
+    @property
+    def grant_content(self) -> Optional[str]:
+        return None
+
+    def grant_satisfies(
+        self, *, access: str = "read", require_owner: bool = False
+    ) -> bool:
+        return False
+
+    @property
+    def manager_initiatives(self) -> tuple[int, ...]:
+        return ()
+
+    def holds(self, scope: str) -> bool:
+        """Whether the standing lets this install use ``scope``: its resource
+        among what the token and the seat's grant hold together (write implies
+        read), writing only where the standing writes."""
+        resource, _, access = scope.partition(":")
+        return resource in (
+            self.install_write if access == "write" else self.install_read
+        )
+
+    def with_standing(self, row: dict[str, Any]) -> "InstallContext":
+        """This context completed with what the install standing statement
+        returned."""
         return replace(
             self,
-            standing_guild_id=int(row["standing_guild_id"])
-            if row.get("standing_guild_id")
-            else None,
-            admin=row.get("guild_admin") == "true",
-            seat=row.get("guild_seat") == "true",
-            settings_rung=row.get("settings_rung") or None,
-            pam_read=row.get("pam_read") == "true",
-            pam_write=row.get("pam_write") == "true",
-            member_initiatives=_ids(row.get("member_initiatives")),
-            manager_initiatives=_ids(row.get("manager_initiatives")),
-            member_role_ids=_ids(row.get("member_role_ids")),
-            role_grants=_pairs(row.get("role_grants")),
-            role_denies=_pairs(row.get("role_denies")),
-            enabled_tools=_pairs(row.get("enabled_tools")),
-            override_initiatives=_ids(row.get("override_initiatives")),
-            guild_auth_ok=row.get("guild_auth_ok") == "true",
+            **_standing_fields(self, row),
+            live=bool(row.get("live")),
+            guild_ref=row.get("guild_ref") or None,
+            named_refs=_named_refs(row.get("named_refs")),
         )
 
 
-def _csv(values: Sequence[Any]) -> str:
-    return ",".join(str(v) for v in values)
+#: Who a request that names an app scope is serving: a person's standing in the
+#: community, or an installed app's.
+ActorContext = GuildContext | InstallContext
 
 
-def empty_standing() -> dict[str, str]:
-    """What the routing statement writes: nothing.
-
-    Every membership, role and switch leg reads no from it, which is what a
-    session that has been routed but not yet stood up should answer.
-    """
-    return {
-        "standing_guild_id": "",
-        "guild_admin": "false",
-        "guild_seat": "false",
-        "settings_rung": "",
-        "member_initiatives": "",
-        "manager_initiatives": "",
-        "member_role_ids": "",
-        "role_grants": "",
-        "role_denies": "",
-        "enabled_tools": "",
-        "override_initiatives": "",
-    }
+def _named_refs(value: Any) -> tuple[tuple[str, str, int], ...]:
+    """The statement's ``named_refs`` column as sorted triples. The driver hands
+    a ``jsonb`` column read through ``text()`` back as its text."""
+    if not value:
+        return ()
+    mapping = json.loads(value) if isinstance(value, (str, bytes)) else value
+    return tuple(
+        sorted(
+            (str(ref), str(entity_type), int(entity_id))
+            for ref, (entity_type, entity_id) in mapping.items()
+        )
+    )
 
 
-def standing_bind_params(context: Optional[GuildContext]) -> dict[str, str]:
-    """The routing statement's standing binds for ``context``.
+def standing_values(
+    context: "GuildContext | InstallContext | None",
+) -> dict[gucs.Guc, Any]:
+    """The standing ``context`` carries, as the routing statement writes it.
 
-    ``None`` — a system route, an unattributed context, the window between the
-    routing and the standing — renders :func:`empty_standing`.
+    Nothing for no context, or one whose standing has not been computed — a
+    system route, an unattributed context, the window between the routing and
+    the standing — so the routing writes every standing key empty. A key the
+    context does not carry is written empty too.
     """
     if context is None or context.standing_guild_id is None:
-        return empty_standing()
-    return {
-        "standing_guild_id": str(context.standing_guild_id),
-        "guild_admin": "true" if context.admin else "false",
-        "guild_seat": "true" if context.seat else "false",
-        "settings_rung": context.settings_rung or "",
-        "member_initiatives": _csv(context.member_initiatives),
-        "manager_initiatives": _csv(context.manager_initiatives),
-        "member_role_ids": _csv(context.member_role_ids),
-        "role_grants": _csv(context.role_grants),
-        "role_denies": _csv(context.role_denies),
-        "enabled_tools": _csv(context.enabled_tools),
-        "override_initiatives": _csv(context.override_initiatives),
-    }
+        return {}
+    return {guc: getattr(context, guc.bind, None) for guc in gucs.STANDING}
 
 
 async def compute_guild_standing(session: "AsyncSession") -> dict[str, Any]:
@@ -537,4 +965,43 @@ async def compute_guild_standing(session: "AsyncSession") -> dict[str, Any]:
     from sqlalchemy import text
 
     row = (await session.exec(text(STANDING_SQL))).one()
+    return dict(row._mapping)
+
+
+def named_ref_candidates(values: Sequence[str]) -> list[str]:
+    """The strings among ``values`` shaped like a reference an install holds,
+    once each: its ``app`` prefix for a person or a community, and no longer
+    than a reference can be. What the install standing statement is asked to
+    look up."""
+    prefixes = tuple(
+        f"{ref_prefix(entity, IdentityPurpose.app)}_" for entity in IdentityEntity
+    )
+    return sorted(
+        {
+            value
+            for value in values
+            if len(value) <= REF_MAX_LENGTH and value.startswith(prefixes)
+        }
+    )
+
+
+async def compute_install_standing(
+    session: "AsyncSession", named_refs: Sequence[str] = ()
+) -> dict[str, Any]:
+    """Run :data:`INSTALL_STANDING_SQL` and return the row it wrote.
+
+    The install and its community are read back from the routing, as
+    :func:`compute_guild_standing` reads the person back. ``named_refs`` is
+    the one bind: the references the request names, resolved in the same
+    statement, in the install's own sector.
+    """
+    from sqlalchemy import text
+
+    row = (
+        await session.exec(
+            text(INSTALL_STANDING_SQL).bindparams(
+                named_refs=named_ref_candidates(named_refs)
+            )
+        )
+    ).one()
     return dict(row._mapping)

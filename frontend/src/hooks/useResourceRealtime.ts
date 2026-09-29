@@ -1,53 +1,51 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
 import { getAuthToken } from "@/api/client";
 import { invalidate, q } from "@/api/query-keys";
-import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
+import { openLiveSocket } from "@/lib/liveSocket";
 import { buildGuildWsUrl } from "@/lib/wsUrl";
 
 /**
- * Subscribe to a resource's realtime WebSocket and invalidate its queries on
- * every event, so React Query refetches the latest state through the normal
- * endpoints. The socket carries no resource content — it is a change signal
- * only. Authentication is sent as the first message after the socket opens,
- * matching the collaboration WebSocket.
+ * Subscribe to one resource's change signal and refetch it on every change, so
+ * React Query reads the latest state through the normal endpoints. A frame
+ * names a change and never carries the resource.
+ *
+ * Built on the shared live socket, so it authenticates in its first frame,
+ * reconnects with jittered backoff, and notices a connection that has gone
+ * quiet. The credential is read as each first frame is written, so a renewed
+ * token does not tear the socket down; a reconnect refetches, since whatever
+ * changed while it was away was said to nobody.
  */
 const useResourceRealtime = (
   resourceId: number | null,
   resource: string,
-  invalidate: (resourceId: number) => void
+  refetch: (resourceId: number) => void
 ): void => {
-  const wsRef = useRef<WebSocket | null>(null);
-  const { token } = useAuth();
   const { activeGuildId } = useGuilds();
 
   useEffect(() => {
     if (!resourceId || !activeGuildId) return;
 
-    const ws = new WebSocket(buildGuildWsUrl(activeGuildId, `${resource}/${resourceId}/ws`));
-    wsRef.current = ws;
+    let opened = 0;
+    const connection = openLiveSocket({
+      url: buildGuildWsUrl(activeGuildId, `${resource}/${resourceId}/ws`),
+      // Null is fine — the server reads the session cookie, which is the web
+      // path.
+      auth: () => ({ token: getAuthToken() }),
+      onFrame: (frame) => {
+        if ((frame as { heartbeat?: boolean } | null)?.heartbeat) return;
+        refetch(resourceId);
+      },
+      onStatus: (connected) => {
+        if (!connected) return;
+        opened += 1;
+        if (opened > 1) refetch(resourceId);
+      },
+    });
 
-    ws.onopen = () => {
-      // Read as the frame is written: the credential renews on its own clock
-      // while the socket stays open. Null is fine — the server reads the
-      // session cookie, which is the web path.
-      ws.send(JSON.stringify({ token: getAuthToken() ?? token ?? null }));
-    };
-
-    ws.onmessage = () => {
-      invalidate(resourceId);
-    };
-
-    ws.onclose = () => {
-      wsRef.current = null;
-    };
-
-    return () => {
-      ws.close();
-      wsRef.current = null;
-    };
-  }, [resourceId, resource, invalidate, token, activeGuildId]);
+    return () => connection.close();
+  }, [resourceId, resource, refetch, activeGuildId]);
 };
 
 // Module-level invalidators so the effect's dependency stays stable.

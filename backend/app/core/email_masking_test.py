@@ -2,8 +2,6 @@ import pytest
 
 from app.core.email_masking import mask_email
 
-pytestmark = pytest.mark.unit
-
 
 @pytest.mark.parametrize(
     "raw,masked",

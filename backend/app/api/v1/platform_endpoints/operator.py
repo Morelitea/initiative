@@ -1,11 +1,13 @@
 import logging
-from typing import Annotated, List
+from typing import Annotated, Literal, Optional
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Response
+from sqlalchemy import case, func
 from sqlmodel import select
 
-from app.api.deps import UserSessionDep, require_capability
+from app.api.deps import UserSessionDep, require_capability, SystemSessionDep
+from app.db.query import build_paginated_response, paginated_query
 from app.core.audit_events import AuditEventType
 from app.core.user_display import handle_of
 from app.core.usernames import UsernameError
@@ -15,11 +17,14 @@ from app.core.capabilities import (
     can_assign_role,
     role_rank,
 )
-from app.db.session import get_system_session
-from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.user import User, UserStatus
-from app.models.platform.user_token import UserTokenPurpose
-from app.schemas.platform.user import OperatorUserRead, AccountDeletionResponse
+from app.models.platform.user_email import UserEmail
+from app.models.platform.user_token import UserToken, UserTokenPurpose
+from app.schemas.platform.user import (
+    OperatorUserListResponse,
+    OperatorUserRead,
+    AccountDeletionResponse,
+)
 from app.schemas.platform.auth import VerificationSendResponse
 from app.schemas.platform.operator import (
     OperatorSuspensionUpdate,
@@ -39,14 +44,17 @@ from app.services.platform import account_stream
 from app.services.platform import user_tokens
 from app.services.platform import csv_export
 from app.services import email as email_service
+from app.services.auth import addresses
 from app.services.auth import challenges as challenge_service
 from app.services.auth import sessions as session_service
+from app.services.auth import sign_in_locks
 from app.services.auth import totp as totp_service
-from app.services.stream_authz import authority as stream_authority
+from app.services.content_sockets import sockets as content_sockets
 from app.services import notifications as notifications_service
 from app.services.platform import user_avatars as user_avatars_service
 from app.services import audit as audit_service
 from app.services.platform import usernames as username_service
+from app.services.platform import guilds as guilds_service
 from app.services.platform import users as users_service
 
 logger = logging.getLogger(__name__)
@@ -71,24 +79,105 @@ RolesAssignDep = Annotated[User, Depends(require_capability(Capability.ROLES_ASS
 # App-wide configuration (OIDC, SMTP, branding, role labels, platform AI).
 # Owner-only — imported by settings.py / ai_settings.py.
 ConfigManageDep = Annotated[User, Depends(require_capability(Capability.CONFIG_MANAGE))]
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
 
-@router.get("/users", response_model=List[OperatorUserRead])
+async def _account_within_rank(
+    session: SystemSessionDep, user_id: int, actor: User, *, lock: bool = False
+) -> User:
+    """The account an operator action names, when it sits at or below the
+    actor's own rung — the bound a role change and a suspension apply."""
+    stmt = select(User).where(User.id == user_id)
+    if lock:
+        stmt = stmt.with_for_update()
+    user = (await session.exec(stmt)).one_or_none()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
+        )
+    if role_rank(user.role) > role_rank(actor.role):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=OperatorMessages.CANNOT_MANAGE_HIGHER_ROLE,
+        )
+    return user
+
+
+#: Accounts ordered by how much of the app is left to them, so sorting on
+#: status brings the ones needing attention together at one end.
+_STATUS_RANK = {
+    UserStatus.active: 0,
+    UserStatus.suspended: 1,
+    UserStatus.deactivated: 2,
+    UserStatus.deleted: 3,
+    UserStatus.anonymized: 4,
+}
+
+_USER_SORT_FIELDS = {
+    "id": User.id,
+    "username": User.username,
+    "status": case(_STATUS_RANK, value=User.status, else_=len(_STATUS_RANK)),
+}
+
+
+@router.get("/users", response_model=OperatorUserListResponse)
 async def list_all_users(
     session: UserSessionDep,
     _current_user: UsersReadDep,
-) -> List[OperatorUserRead]:
-    """List all users in the platform (``users.read``).
+    search: Optional[str] = Query(
+        default=None,
+        description=(
+            "Matches the handle's name part; a whole handle (`foobar#1234`) "
+            "pins one account."
+        ),
+    ),
+    sort_by: Optional[Literal["id", "username", "status"]] = None,
+    sort_dir: Literal["asc", "desc"] = "asc",
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+) -> OperatorUserListResponse:
+    """One page of the platform's accounts (``users.read``).
 
     Platform-scoped: runs on the role-scoped session (``platform_<tier>``), so the
     cross-user read is authorized by RLS (``users_platform_read``, support+) rather
     than the system engine. Initiative roles are guild-scoped and
     deliberately NOT loaded here — a platform user view exposes platform data only.
+
+    Ordered by ``sort_by`` when given; otherwise nearest match first while
+    searching, and oldest account first while not.
     """
-    stmt = select(User).order_by(User.created_at.asc())
-    result = await session.exec(stmt)
-    return await users_service.to_operator_read(list(result.all()))
+    base = select(User)
+    closest = None
+    if search and (term := search.strip()):
+        matches, closest = users_service.member_match(
+            term, shows_names=False, profile=User
+        )
+        base = base.where(matches)
+
+    if sort_by is not None:
+        order = _USER_SORT_FIELDS[sort_by]
+        data_stmt = base.order_by(
+            order.desc() if sort_dir == "desc" else order.asc(), User.id.asc()
+        )
+    elif closest is not None:
+        data_stmt = base.order_by(closest.desc(), User.id.asc())
+    else:
+        data_stmt = base.order_by(User.id.asc())
+
+    users, total_count, actual_page = await paginated_query(
+        session,
+        data_stmt,
+        select(func.count()).select_from(base.subquery()),
+        page=page,
+        page_size=page_size,
+    )
+    return OperatorUserListResponse(
+        **build_paginated_response(
+            await users_service.to_operator_read(users),
+            total_count,
+            actual_page,
+            page_size,
+        )
+    )
 
 
 #: ``email`` is masked here exactly as it is in the roster this exports, so
@@ -198,11 +287,7 @@ async def clear_second_factor(
     this caller or any other. Their sessions and any part-way sign-in go with
     it, and the account is told.
     """
-    user = (await session.exec(select(User).where(User.id == user_id))).one_or_none()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
-        )
+    user = await _account_within_rank(session, user_id, current_user)
     if not await totp_service.is_enrolled(session, user_id=user_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -222,7 +307,7 @@ async def clear_second_factor(
     )
     await session.commit()
     # Connections opened on the ended sessions close now.
-    await stream_authority.revoke_user_everywhere(user_id)
+    await content_sockets.revoke_user_everywhere(user_id)
     await email_service.announce_second_factor_change(session, user, enabled=False)
 
 
@@ -230,16 +315,10 @@ async def clear_second_factor(
 async def trigger_password_reset(
     user_id: int,
     session: SystemSessionDep,
-    _current_user: UsersManageDep,
+    current_user: UsersManageDep,
 ) -> VerificationSendResponse:
     """Trigger a password reset email for a user (``users.manage``)."""
-    stmt = select(User).where(User.id == user_id)
-    result = await session.exec(stmt)
-    user = result.one_or_none()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
-        )
+    user = await _account_within_rank(session, user_id, current_user)
 
     if user.status != UserStatus.active:
         raise HTTPException(
@@ -267,20 +346,87 @@ async def trigger_password_reset(
     return VerificationSendResponse(status="sent")
 
 
+@router.post(
+    "/users/{user_id}/verification-email", response_model=VerificationSendResponse
+)
+async def resend_verification_email(
+    user_id: int,
+    session: SystemSessionDep,
+    current_user: UsersManageDep,
+) -> VerificationSendResponse:
+    """Send an account's sign-up confirmation letter again (``users.manage``).
+
+    For somebody whose first letter expired or never arrived. It goes to the
+    address they signed up with and replaces the one they were sent; the
+    invite that letter was waiting on still joins when they confirm.
+    """
+    user = await _account_within_rank(session, user_id, current_user)
+    address = None
+    if not await addresses.has_proven_address(session, user_id=user.id):
+        address = (
+            await session.exec(
+                select(UserEmail).where(
+                    UserEmail.user_id == user.id,
+                    UserEmail.is_primary,
+                    UserEmail.verified_at.is_(None),
+                    UserEmail.source != addresses.SOURCE_SYNTHETIC,
+                )
+            )
+        ).one_or_none()
+    if address is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=OperatorMessages.NOTHING_TO_VERIFY,
+        )
+    invite_id = (
+        await session.exec(
+            select(UserToken.invite_id).where(
+                UserToken.user_id == user.id,
+                UserToken.purpose == UserTokenPurpose.email_verification,
+                UserToken.user_email_id == address.id,
+                UserToken.invite_id.is_not(None),
+            )
+        )
+    ).first()
+    if not await email_service.email_configured(session):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=SettingsMessages.SMTP_INCOMPLETE,
+        )
+
+    # The new letter replaces the old one only once it has been sent.
+    token = await user_tokens.create_token(
+        session,
+        user_id=user.id,
+        purpose=UserTokenPurpose.email_verification,
+        expires_minutes=60 * 24,
+        user_email_id=address.id,
+        invite_id=invite_id,
+        commit=False,
+    )
+    try:
+        await email_service.send_verification_email(session, user, token)
+    except RuntimeError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+    await session.commit()
+    return VerificationSendResponse(status="sent")
+
+
 @router.post("/users/{user_id}/reactivate", response_model=OperatorUserRead)
 async def reactivate_user(
     user_id: int,
     session: SystemSessionDep,
-    _current_user: UsersManageDep,
+    current_user: UsersManageDep,
 ) -> OperatorUserRead:
-    """Reactivate a deactivated user account (``users.manage``)."""
-    stmt = select(User).where(User.id == user_id)
-    result = await session.exec(stmt)
-    user = result.one_or_none()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
-        )
+    """Reactivate a deactivated user account (``users.manage``).
+
+    A suspension is lifted through ``suspension`` and a pending deletion
+    called off through ``restore``; this reopens only a deactivated account.
+    """
+    user = await _account_within_rank(session, user_id, current_user)
 
     if user.status == UserStatus.active:
         raise HTTPException(
@@ -294,9 +440,23 @@ async def reactivate_user(
             detail=AuthMessages.CANNOT_REACTIVATE_ANONYMIZED,
         )
 
+    if user.status != UserStatus.deactivated:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=OperatorMessages.USER_NOT_DEACTIVATED,
+        )
+
     user.status = UserStatus.active
     user.updated_at = datetime.now(timezone.utc)
     session.add(user)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.USER_REACTIVATED,
+        actor_user_id=current_user.id,
+        target_user_id=user_id,
+        target_type="user",
+        target_id=user_id,
+    )
     await session.commit()
     await session.refresh(user)
     # Platform user management stays platform-table-only: initiative
@@ -325,11 +485,7 @@ async def restore_deleted_user(
     gives back an account with no communities — the memberships that one
     dropped are not coming back.
     """
-    user = await session.get(User, user_id)
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
-        )
+    user = await _account_within_rank(session, user_id, current_user)
     if user.status != UserStatus.deleted:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -361,14 +517,9 @@ async def remove_user_avatar(
 
     The bytes are destroyed rather than hidden. Runs on the system engine
     because the row policies scope every request-path write to the caller's own
-    avatar, so nothing in the schema grants this — the capability check above
-    is the whole authorization.
+    avatar, so the capability check above, bounded by rank, is what admits it.
     """
-    user = await session.get(User, user_id)
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
-        )
+    user = await _account_within_rank(session, user_id, current_user)
 
     # An externally hosted picture is the same surface by another route, so a
     # takedown that left it in place would not be one: both go.
@@ -420,11 +571,7 @@ async def set_user_username(
     This also marks the handle as chosen, so its owner cannot immediately spend
     a pick on undoing a moderation decision.
     """
-    user = await session.get(User, user_id)
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
-        )
+    user = await _account_within_rank(session, user_id, current_user)
 
     previous_handle = handle_of(user)
     try:
@@ -542,8 +689,41 @@ async def set_user_suspension(
         # joined, so they are re-checked now rather than at the next sweep.
         # Everywhere at once: this is a change to the account, which has no one
         # guild to name.
-        await stream_authority.revoke_user_everywhere(user_id)
+        await content_sockets.revoke_user_everywhere(user_id)
 
+    return await users_service.to_operator_read_one(user)
+
+
+@router.delete("/users/{user_id}/sign-in-lock", response_model=OperatorUserRead)
+async def lift_sign_in_lock(
+    user_id: int,
+    session: SystemSessionDep,
+    current_user: UsersManageDep,
+) -> OperatorUserRead:
+    """Turn an account's password and code sign-in back on.
+
+    Wrong passwords or codes turn them off for a while, longer for each lock
+    within a day. This lifts the lock now, and starts both counts over.
+
+    Gated on ``users.manage`` (moderator and above), like a suspension.
+    """
+    user = await _account_within_rank(session, user_id, current_user)
+    if not await sign_in_locks.lift(session, user_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=UserMessages.SIGN_IN_NOT_LOCKED,
+        )
+
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.USER_SIGN_IN_LOCK_LIFTED,
+        actor_user_id=current_user.id,
+        target_user_id=user_id,
+        target_type="user",
+        target_id=user_id,
+        detail={},
+    )
+    await session.commit()
     return await users_service.to_operator_read_one(user)
 
 
@@ -567,11 +747,7 @@ async def clear_age_block(
     one person restoring another's access, which is exactly the kind of thing
     a log is for.
     """
-    user = await session.get(User, user_id)
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
-        )
+    user = await _account_within_rank(session, user_id, current_user)
     if user.age_below_minimum_at is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -706,13 +882,7 @@ async def check_user_deletion_eligibility(
             detail=OperatorMessages.USE_SELF_DELETION,
         )
 
-    stmt = select(User).where(User.id == user_id)
-    result = await session.exec(stmt)
-    user = result.one_or_none()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
-        )
+    user = await _account_within_rank(session, user_id, current_user)
 
     can_delete, blockers = await users_service.check_deletion_eligibility(
         session, user_id, operator_context=True
@@ -728,16 +898,14 @@ async def check_user_deletion_eligibility(
             )
             can_delete = False
 
-    guild_blocker_details = await users_service.get_guild_blocker_details(
-        session, user_id
-    )
-
     return OperatorDeletionEligibilityResponse(
         can_delete=can_delete,
         blockers=blockers,
         guild_blockers=[
-            GuildBlockerInfo(guild_id=gb["guild_id"], guild_name=gb["guild_name"])
-            for gb in guild_blocker_details
+            GuildBlockerInfo(guild_id=guild_id, guild_name=guild_name)
+            for guild_id, guild_name in await guilds_service.stranded_seats(
+                session, user_id=user_id
+            )
         ],
     )
 
@@ -770,13 +938,7 @@ async def delete_user(
             detail=OperatorMessages.CANNOT_DELETE_SELF,
         )
 
-    stmt = select(User).where(User.id == user_id).with_for_update()
-    result = await session.exec(stmt)
-    user = result.one_or_none()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
-        )
+    user = await _account_within_rank(session, user_id, current_user, lock=True)
 
     # Check if target is the last platform owner (last config manager)
     if Capability.CONFIG_MANAGE in capabilities_for(user.role):

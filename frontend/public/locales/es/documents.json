@@ -130,7 +130,6 @@
     "noInitiatives": "No hay iniciativas aquí a las que puedas añadir documentos."
   },
   "detail": {
-    "invalidId": "ID de documento no válido.",
     "loading": "Cargando documento…",
     "notFound": "Documento no encontrado",
     "notFoundDescription": "Este documento puede haber sido eliminado o el enlace está roto.",
@@ -209,6 +208,7 @@
     "cancelDrawing": "Cancelar",
     "checklist": "Lista de verificación",
     "clearFormatting": "Limpiar formato",
+    "collapseCallout": "Contraer aviso",
     "colorBlack": "Negro",
     "colorBlue": "Azul",
     "colorDefault": "Predeterminado",
@@ -232,6 +232,7 @@
     "editStatus": "Cambiar estado",
     "embed": "Insertar",
     "embedContent": "Insertar {{contentName}}",
+    "expandCallout": "Expandir aviso",
     "fontSize": "Tamaño de fuente",
     "format": "Formato",
     "horizontalRule": "Línea horizontal",
@@ -281,6 +282,13 @@
     "undo": "Deshacer",
     "unmergeCells": "Separar celdas",
     "youtubeVideo": "Video de YouTube"
+  },
+  "embeds": {
+    "insert": "Insertar",
+    "showAsEmbed": "Mostrar completo",
+    "showAsLink": "Mostrar como enlace",
+    "expand": "Expandir",
+    "collapse": "Contraer"
   },
   "outline": {
     "title": "Contenido",
@@ -377,6 +385,7 @@
   "smartChips": {
     "aspects": {
       "assignee": "Persona asignada",
+      "checklist": "Hecha",
       "due": "Fecha de vencimiento",
       "priority": "Prioridad",
       "progress": "Progreso",
@@ -398,6 +407,7 @@
     "searchPlaceholder": "Busca algo que mostrar",
     "searching": "Buscando…",
     "taskAssignee": "Persona asignada",
+    "taskChecklist": "Casilla de la tarea",
     "taskDue": "Fecha de vencimiento",
     "taskPriority": "Prioridad",
     "taskStatus": "Estado de la tarea",

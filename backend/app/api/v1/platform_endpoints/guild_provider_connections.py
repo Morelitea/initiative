@@ -30,17 +30,16 @@ from app.api.deps import (
     SeatWriteSessionDep,
     SettingsAdminContextDep,
     get_current_active_user,
+    SystemSessionDep,
 )
 from app.api.v1.platform_endpoints.guilds import _require_guild_auth_option
 from app.core.guild_auth_options import GuildAuthOption
-from app.db.session import get_system_session
 from app.models.platform.user import User
 from app.schemas.platform.settings import (
     ConnectableProviderRead,
     GuildClaimRuleCreate,
     GuildClaimRuleRead,
     GuildClaimRulesResponse,
-    GuildClaimRuleUpdate,
     GuildProviderConnectionCreate,
     GuildProviderConnectionRead,
     GuildProviderConnectionUpdate,
@@ -50,7 +49,6 @@ from app.services.auth import guild_provider_connections as connections
 from app.services.platform import guilds as guilds_service
 
 router = APIRouter()
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 
 
@@ -198,25 +196,6 @@ async def create_guild_claim_rule(
     return await claim_rules.create_rule(
         system_session,
         guild_id=guild_id,
-        payload=payload,
-        actor_user_id=current_user.id,
-    )
-
-
-@router.patch("/{guild_id}/auth/rules/{rule_id}", response_model=GuildClaimRuleRead)
-async def update_guild_claim_rule(
-    guild_id: int,
-    rule_id: int,
-    payload: GuildClaimRuleUpdate,
-    _session: SeatWriteSessionDep,
-    system_session: SystemSessionDep,
-    current_user: CurrentUserDep,
-) -> GuildClaimRuleRead:
-    await _require_connection_option(system_session, guild_id)
-    return await claim_rules.update_rule(
-        system_session,
-        guild_id=guild_id,
-        rule_id=rule_id,
         payload=payload,
         actor_user_id=current_user.id,
     )

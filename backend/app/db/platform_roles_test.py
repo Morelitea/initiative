@@ -13,8 +13,12 @@ import pytest
 from sqlalchemy import text
 
 from app.core.config import settings
-from app.db.schema_provisioning import PLATFORM_TIERS, platform_role_name
+from app.db.schema_provisioning import platform_role_name
 from app.db.session import set_rls_context
+from app.models.platform.user import UserRole
+from app.db.request_context import Platform
+
+_TIERS = [role.value for role in UserRole]
 
 
 async def _reset_role(session) -> None:
@@ -25,7 +29,7 @@ async def test_platform_roles_exist_and_are_least_privilege(session):
     """All five tiers + the base floor exist, are NOLOGIN, and crucially carry
     NO BYPASSRLS — the platform ladder never holds a standing all-guild bypass."""
     expected = {f"{settings.PLATFORM_ROLE_PREFIX}platform_base"} | {
-        platform_role_name(tier) for tier in PLATFORM_TIERS
+        platform_role_name(tier) for tier in _TIERS
     }
     rows = (
         await session.exec(
@@ -64,15 +68,15 @@ async def test_each_tier_inherits_the_base_floor(session):
         .scalars()
         .all()
     )
-    for tier in PLATFORM_TIERS:
+    for tier in _TIERS:
         assert platform_role_name(tier) in members
 
 
-@pytest.mark.parametrize("tier", PLATFORM_TIERS)
+@pytest.mark.parametrize("tier", _TIERS)
 async def test_public_path_assumes_platform_role(session, tier):
     """A no-guild request with a platform tier assumes platform_<tier>, not the
     bare login role."""
-    await set_rls_context(session, user_id=1, platform_role=tier)
+    await set_rls_context(session, Platform(user_id=1, tier=tier))
     current = (await session.exec(text("SELECT current_user"))).scalar_one()
     assert current == platform_role_name(tier)
     await _reset_role(session)
@@ -81,7 +85,7 @@ async def test_public_path_assumes_platform_role(session, tier):
 async def test_no_tier_stays_on_login_role(session):
     """Without a platform tier the public path stays on the login role ('none'),
     preserving today's behavior for unauthenticated / service-layer callers."""
-    await set_rls_context(session, user_id=1)
+    await set_rls_context(session, Platform(user_id=1))
     # current_user is the connection's login role (superuser in tests); the point
     # is that no platform_* role was assumed.
     current = (await session.exec(text("SELECT current_user"))).scalar_one()
@@ -93,7 +97,7 @@ async def test_commit_preserves_platform_role(session):
     """The after_begin replay re-asserts the platform role on the transaction
     after a commit, so post-commit queries stay role-scoped with no manual
     reapply."""
-    await set_rls_context(session, user_id=1, platform_role="support")
+    await set_rls_context(session, Platform(user_id=1, tier="support"))
     await session.commit()
     current = (await session.exec(text("SELECT current_user"))).scalar_one()
     assert current == platform_role_name("support")
@@ -103,7 +107,7 @@ async def test_commit_preserves_platform_role(session):
 async def test_invalid_platform_role_rejected(session):
     """An off-ladder tier is rejected before reaching the SET ROLE name sink."""
     with pytest.raises(ValueError):
-        await set_rls_context(session, user_id=1, platform_role="superuser")
+        await set_rls_context(session, Platform(user_id=1, tier="superuser"))
 
 
 # --- acting_user harness (emulate a platform role through the request path) ---
@@ -115,7 +119,7 @@ async def test_acting_user_defaults_to_owner(client, acting_user):
     a = await acting_user()
     assert a.user.role.value == "owner"
     # A personal-mode (UserSessionDep) endpoint runs AS platform_owner end to end.
-    resp = await client.get("/api/v1/guilds/", headers=a.headers)
+    resp = await client.get("/api/v1/communities/", headers=a.headers)
     assert resp.status_code == 200
 
 
@@ -127,7 +131,7 @@ async def test_acting_user_emulates_each_tier(client, acting_user, tier):
     RLS unchanged, so every tier runs a personal-mode request like today)."""
     a = await acting_user(tier)
     assert a.user.role.value == tier
-    resp = await client.get("/api/v1/guilds/", headers=a.headers)
+    resp = await client.get("/api/v1/communities/", headers=a.headers)
     assert resp.status_code == 200
 
 
@@ -139,7 +143,7 @@ async def test_acting_user_optional_guild_role(client, acting_user, g_role):
     explicitly since a guild_role actor defaults to platform member."""
     a = await acting_user("member", guild_role=g_role)
     assert a.user.role.value == "member"
-    resp = await client.get(f"/api/v1/g/{a.guild.id}/initiatives/", headers=a.headers)
+    resp = await client.get(f"/api/v1/c/{a.guild.id}/initiatives/", headers=a.headers)
     assert resp.status_code == 200
 
 
@@ -148,7 +152,7 @@ async def test_platform_and_guild_roles_coexist(client, acting_user):
     identity uses the right role on each path:
 
       * public/platform path  -> assumes platform_<tier>  (here platform_member)
-      * guild path (/g/{id}/…) -> assumes guild_<id> with current_guild_role=admin
+      * guild path (/c/{id}/…) -> assumes guild_<id> with current_guild_role=admin
 
     SET ROLE is single-valued per statement, so the two never conflict and neither
     costs the other. Uses a non-bypass platform tier (member) so the guild request
@@ -156,10 +160,10 @@ async def test_platform_and_guild_roles_coexist(client, acting_user):
     """
     a = await acting_user("member", guild_role="admin")
 
-    public_resp = await client.get("/api/v1/guilds/", headers=a.headers)
+    public_resp = await client.get("/api/v1/communities/", headers=a.headers)
     assert public_resp.status_code == 200  # ran as platform_member
 
     guild_resp = await client.get(
-        f"/api/v1/g/{a.guild.id}/initiatives/", headers=a.headers
+        f"/api/v1/c/{a.guild.id}/initiatives/", headers=a.headers
     )
     assert guild_resp.status_code == 200  # ran as guild_<id> (admin), same identity

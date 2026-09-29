@@ -12,9 +12,9 @@ button. Not ``hard_delete_user`` — anonymizing keeps the row, so the work the
 account touched still tells one departed author from another.
 
 Polled by ``background_tasks._loop_worker`` once an hour on
-``SystemSessionLocal`` (the ``app_admin`` login). ``soft_delete_user`` routes
-into each guild schema itself to scrub mention markup, so there is nothing to
-route here.
+``SystemSessionLocal`` (the ``app_admin`` login). ``soft_delete_user`` does
+each guild's part on a system session from that guild's cohort, so this session
+stays in ``public``.
 """
 
 from __future__ import annotations
@@ -27,6 +27,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import SystemSessionLocal, set_rls_context
 from app.models.platform.user import User, UserStatus
+from app.db.request_context import Unattributed
 
 
 logger = logging.getLogger(__name__)
@@ -75,6 +76,24 @@ async def _due_user_ids(
     return list(rows.all())
 
 
+async def _claim(session: AsyncSession, user_id: int) -> bool:
+    """Take one account for this sweep, or learn it is not ours to erase.
+
+    A row lock on the account, held by the erasure's own transaction until it
+    commits, and re-asking that it is still waiting: another process sweeping
+    at the same moment skips it, and one that arrives after the commit finds it
+    already erased. Each account is erased — and its receipt sent — once.
+    """
+    claimed = (
+        await session.exec(
+            select(User.id)
+            .where(User.id == user_id, User.status == UserStatus.deleted)
+            .with_for_update(skip_locked=True)
+        )
+    ).first()
+    return claimed is not None
+
+
 async def purge_due_accounts(session: AsyncSession, *, now: datetime) -> int:
     """One pass. Returns how many accounts were erased.
 
@@ -85,7 +104,7 @@ async def purge_due_accounts(session: AsyncSession, *, now: datetime) -> int:
     stepped over: an account whose erasure faults must not stop the queue
     behind it, and the next sweep tries it again.
     """
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     retention = await retention_days(session)
     if retention is None:
         # This deployment keeps deleted accounts. Nothing is erased on a timer.
@@ -93,14 +112,13 @@ async def purge_due_accounts(session: AsyncSession, *, now: datetime) -> int:
     user_ids = await _due_user_ids(session, now=now, retention=retention)
     erased = 0
     for user_id in user_ids:
-        # ids collide across guild schemas, and soft_delete_user visits all of
-        # them, so the identity map is cleared between accounts.
-        session.expunge_all()
         try:
             # Imported here rather than at module scope: ``users`` reaches back
             # into this package, and the two would import each other.
             from app.services.platform import users as users_service
 
+            if not await _claim(session, user_id):
+                continue
             await users_service.soft_delete_user(session, user_id, actor_user_id=None)
         except Exception:
             await session.rollback()

@@ -1,7 +1,7 @@
 import {
-  discardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDelete,
-  uploadAttachmentApiV1GGuildIdAttachmentsPost,
-  uploadPastedImageApiV1GGuildIdAttachmentsPastedPost,
+  discardPastedImageApiV1CGuildIdAttachmentsPastedFilenameDelete,
+  uploadAttachmentApiV1CGuildIdAttachmentsPost,
+  uploadPastedImageApiV1CGuildIdAttachmentsPastedPost,
 } from "@/api/generated/attachments/attachments";
 import type { AttachmentUploadResponse } from "@/api/generated/initiativeAPI.schemas";
 
@@ -9,7 +9,7 @@ export const uploadAttachment = async (
   guildId: number,
   file: File
 ): Promise<AttachmentUploadResponse> => {
-  return uploadAttachmentApiV1GGuildIdAttachmentsPost(guildId, {
+  return uploadAttachmentApiV1CGuildIdAttachmentsPost(guildId, {
     file,
   }) as unknown as Promise<AttachmentUploadResponse>;
 };
@@ -17,7 +17,7 @@ export const uploadAttachment = async (
 /** A picture pasted into markdown — a task's description, a comment — stored
  *  so that taking it back out, or purging what it is in, deletes it. */
 export const uploadPastedImage = async (guildId: number, file: File): Promise<string> => {
-  const response = (await uploadPastedImageApiV1GGuildIdAttachmentsPastedPost(guildId, {
+  const response = (await uploadPastedImageApiV1CGuildIdAttachmentsPastedPost(guildId, {
     file,
   })) as unknown as AttachmentUploadResponse;
   return response.url;
@@ -28,5 +28,5 @@ export const uploadPastedImage = async (guildId: number, file: File): Promise<st
 export const discardPastedImage = async (guildId: number, url: string): Promise<void> => {
   const filename = url.split("/").pop();
   if (!filename) return;
-  await discardPastedImageApiV1GGuildIdAttachmentsPastedFilenameDelete(guildId, filename);
+  await discardPastedImageApiV1CGuildIdAttachmentsPastedFilenameDelete(guildId, filename);
 };

@@ -4,8 +4,6 @@ import pytest
 
 from app.services.import_engine import jira_sprints as js
 
-pytestmark = pytest.mark.unit
-
 
 def _sprint(sprint_id=7, **over):
     base = {

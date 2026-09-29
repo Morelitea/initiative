@@ -24,7 +24,7 @@ import hmac
 import secrets
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from enum import Enum
 
 from sqlalchemy import delete, or_, update
@@ -33,6 +33,7 @@ from sqlmodel import select
 
 from app.core.encryption import SALT_EMAIL, decrypt_field, encrypt_field
 from app.models.platform.auth_challenge import AuthChallenge
+from app.core.clock import utcnow
 
 #: Bytes of randomness behind the value handed to the client.
 _CHALLENGE_BYTES = 32
@@ -56,6 +57,12 @@ class ChallengePurpose(str, Enum):
     #: different things: a browser reads its refresh token from a cookie, and
     #: the app is given it to keep.
     sign_in_native = "sign_in_native"
+    #: A code sent to one of the account's addresses was accepted and the
+    #: account's second factor is outstanding. Kept apart from :attr:`sign_in`
+    #: because the session it opens records what the first leg proved.
+    sign_in_after_code = "sign_in_after_code"
+    #: The same, from the native sign-in.
+    sign_in_after_code_native = "sign_in_after_code_native"
     #: A passkey registration is under way. The value is the WebAuthn challenge
     #: itself, so the finish route reads it back out of the signed client data.
     passkey_register = "passkey_register"
@@ -86,6 +93,11 @@ class ChallengePurpose(str, Enum):
     email_otp_register = "email_otp_register"
     #: The same, from the native sign-up.
     email_otp_register_native = "email_otp_register_native"
+    #: A sign-in finished in the phone's browser, waiting for the app that
+    #: began it. The value is the sealed code the browser hands back; the
+    #: answer is the app's S256 challenge, so only the verifier behind it
+    #: redeems the code.
+    native_handoff = "native_handoff"
     #: A passkey is being registered for an account that does not exist yet.
     #: The row names nobody — there is nobody to name — and what it stands for
     #: is that the gates a registration has to pass were passed before the
@@ -103,10 +115,6 @@ class IssuedChallenge:
 
     challenge: AuthChallenge
     value: str
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 def _hash(value: str) -> bytes:
@@ -154,7 +162,7 @@ async def create(
         user_email_id=user_email_id,
         email_encrypted=encrypt_field(email, SALT_EMAIL) if email else None,
         purpose=purpose.value,
-        expires_at=_now() + (ttl or CHALLENGE_TTL),
+        expires_at=utcnow() + (ttl or CHALLENGE_TTL),
     )
     session.add(challenge)
     await session.flush()
@@ -188,7 +196,7 @@ async def claim_attempt(
             AuthChallenge.challenge_hash == digest,
             AuthChallenge.purpose.in_([p.value for p in purposes]),
             AuthChallenge.consumed_at.is_(None),
-            AuthChallenge.expires_at > _now(),
+            AuthChallenge.expires_at > utcnow(),
             AuthChallenge.attempts < MAX_ATTEMPTS,
         )
         .values(attempts=AuthChallenge.attempts + 1)
@@ -237,7 +245,7 @@ async def consume(session: AsyncSession, challenge: AuthChallenge) -> bool:
             AuthChallenge.id == challenge.id,
             AuthChallenge.consumed_at.is_(None),
         )
-        .values(consumed_at=_now())
+        .values(consumed_at=utcnow())
     )
     return bool(result.rowcount)
 
@@ -264,7 +272,7 @@ async def purge_expired(session: AsyncSession) -> int:
     result = await session.exec(
         delete(AuthChallenge).where(
             or_(
-                AuthChallenge.expires_at <= _now(),
+                AuthChallenge.expires_at <= utcnow(),
                 AuthChallenge.consumed_at.is_not(None),
             )
         )

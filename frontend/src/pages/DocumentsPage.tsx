@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 
 import type {
   DocumentSummary,
-  ListDocumentsApiV1GGuildIdDocumentsGetParams,
+  ListDocumentsApiV1CGuildIdDocumentsGetParams,
   TagRead,
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -55,14 +55,14 @@ import {
 } from "@/hooks/useDocuments";
 import { useFileDrop } from "@/hooks/useFileDrop";
 import type { GridToggleOptions } from "@/hooks/useGridSelection";
-import { useInitiativeAccess, useToolCreateAccess } from "@/hooks/useInitiativeAccess";
+import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { usePersistedTableState } from "@/hooks/usePersistedTableState";
 import { useTags } from "@/hooks/useTags";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { DOCUMENT_UPLOAD_ACCEPT } from "@/lib/fileUtils";
 import { useGuildPath } from "@/lib/guildUrl";
-import { hasWriteAccess } from "@/lib/permissions";
+import { everyCan } from "@/lib/permissions";
 import { resolveCardClick } from "@/lib/selectionRange";
 import { buildTagTree, collectDescendantTagIds, findNodeByPath } from "@/lib/tagTree";
 import { toolDetailRoute } from "@/lib/tools";
@@ -83,22 +83,16 @@ const DEFAULT_SORTING: SortingState = [{ id: "last updated", desc: true }];
 
 type DocumentsViewProps = {
   fixedInitiativeId?: number;
-  fixedTagIds?: number[];
   canCreate?: boolean;
 };
 
-export const DocumentsView = ({
-  fixedInitiativeId,
-  fixedTagIds,
-  canCreate,
-}: DocumentsViewProps) => {
+export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewProps) => {
   const { t } = useTranslation(["documents", "common", "access"]);
   const router = useRouter();
   const prefetchDocuments = usePrefetchDocumentsList();
   const { user } = useAuth();
   // Shared access helper — honors guild-admin / PAM / membership so this page
   // never re-derives access from raw membership flags.
-  const { isGuildAdmin, isGrantGuild } = useInitiativeAccess();
   const gp = useGuildPath();
   const searchParams = useSearch({ strict: false }) as {
     create?: string;
@@ -116,46 +110,37 @@ export const DocumentsView = ({
   // longer take the top of the page before the list itself.
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  // View mode and tag filters are server-persisted in the normal case.
-  // When fixedTagIds is provided (tag detail page), the view is forced
-  // to "list" and tagFilters mirrors the prop — writes are discarded so
-  // we don't pollute the persisted "regular" preferences with the
-  // ephemeral fixed-page values.
+  // View mode and tag filters are server-persisted.
   const [persistedViewMode, setPersistedViewMode] = useViewPreference<string>(
     DOCUMENT_VIEW_KEY,
     "tags"
   );
-  const viewMode: "grid" | "list" | "tags" = fixedTagIds
-    ? "list"
-    : persistedViewMode === "list" || persistedViewMode === "grid" || persistedViewMode === "tags"
+  const viewMode: "grid" | "list" | "tags" =
+    persistedViewMode === "list" || persistedViewMode === "grid" || persistedViewMode === "tags"
       ? persistedViewMode
       : "tags";
   const setViewMode = useCallback(
     (next: "grid" | "list" | "tags") => {
-      if (fixedTagIds) return;
       setPersistedViewMode(next);
     },
-    [fixedTagIds, setPersistedViewMode]
+    [setPersistedViewMode]
   );
 
   const [persistedTagFilters, setPersistedTagFilters] = useViewPreference<number[]>(
     DOCUMENT_TAG_FILTERS_KEY,
     []
   );
-  const tagFilters = fixedTagIds
-    ? fixedTagIds
-    : Array.isArray(persistedTagFilters)
-      ? persistedTagFilters.filter((n): n is number => typeof n === "number" && Number.isFinite(n))
-      : [];
+  const tagFilters = Array.isArray(persistedTagFilters)
+    ? persistedTagFilters.filter((n): n is number => typeof n === "number" && Number.isFinite(n))
+    : [];
   const setTagFilters = useCallback(
     (next: number[] | ((prev: number[]) => number[])) => {
-      if (fixedTagIds) return;
       setPersistedTagFilters((prev) => {
         const safe = Array.isArray(prev) ? prev : [];
         return typeof next === "function" ? next(safe) : next;
       });
     },
-    [fixedTagIds, setPersistedTagFilters]
+    [setPersistedTagFilters]
   );
 
   const [treeSelectedPaths, setTreeSelectedPaths] = useState<Set<string>>(new Set());
@@ -171,10 +156,10 @@ export const DocumentsView = ({
 
   // Documents and templates are two states of one list, the way the projects
   // list splits its own templates out. It lives in the URL so a templates view
-  // is linkable and answers the back button; the cross-initiative tag browse
-  // only ever reads documents, so it pins the value and hides the control.
-  const status: DocumentStatus =
-    !fixedTagIds && isDocumentStatus(searchParams.status) ? searchParams.status : "documents";
+  // is linkable and answers the back button.
+  const status: DocumentStatus = isDocumentStatus(searchParams.status)
+    ? searchParams.status
+    : "documents";
   const isTemplateView = status === "templates";
   // An archived document is off the live list, so the archived state is the one
   // place it can be found — and the only place it can be taken back out. It
@@ -304,8 +289,7 @@ export const DocumentsView = ({
   }, [viewMode]);
 
   // In tags view, the tree does its own client-side filtering, so skip backend tag filters
-  // When fixedTagIds is provided, always use them regardless of view mode
-  const effectiveTagFilters = fixedTagIds ? fixedTagIds : viewMode === "tags" ? [] : tagFilters;
+  const effectiveTagFilters = viewMode === "tags" ? [] : tagFilters;
 
   // For tags view, derive tag_ids from tree selection for server-side filtering
   const treeTagIds = useMemo(() => {
@@ -354,7 +338,7 @@ export const DocumentsView = ({
   // primitive string (same serialization => same cache key).
   const encodedPropertyFilters = propertyFilters.length > 0 ? propertyFiltersKey : null;
 
-  const documentsQueryParams: ListDocumentsApiV1GGuildIdDocumentsGetParams = {
+  const documentsQueryParams: ListDocumentsApiV1CGuildIdDocumentsGetParams = {
     ...(lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {}),
     ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
     ...(queryTagIds.length > 0 ? { tag_ids: queryTagIds } : {}),
@@ -383,20 +367,11 @@ export const DocumentsView = ({
   // Totals behind each state, so the toggle says how much sits in the other one
   // before it is opened. Scoped to the initiative only — like the projects
   // list's status counts, these answer "how many exist", not "how many survive
-  // the current filters". The tag browse hides the toggle, so it skips them.
+  // the current filters".
   const statusCountsBase = lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {};
-  const documentsCountQuery = useDocumentCounts(
-    { ...statusCountsBase, is_template: false },
-    { enabled: !fixedTagIds }
-  );
-  const templatesCountQuery = useDocumentCounts(
-    { ...statusCountsBase, is_template: true },
-    { enabled: !fixedTagIds }
-  );
-  const archivedCountQuery = useDocumentCounts(
-    { ...statusCountsBase, archived: true },
-    { enabled: !fixedTagIds }
-  );
+  const documentsCountQuery = useDocumentCounts({ ...statusCountsBase, is_template: false });
+  const templatesCountQuery = useDocumentCounts({ ...statusCountsBase, is_template: true });
+  const archivedCountQuery = useDocumentCounts({ ...statusCountsBase, archived: true });
   const statusCounts = {
     documents: documentsCountQuery.data?.total_count,
     templates: templatesCountQuery.data?.total_count,
@@ -407,7 +382,7 @@ export const DocumentsView = ({
   const prefetchPage = useCallback(
     (targetPage: number) => {
       if (targetPage < 1) return;
-      const prefetchParams: ListDocumentsApiV1GGuildIdDocumentsGetParams = {
+      const prefetchParams: ListDocumentsApiV1CGuildIdDocumentsGetParams = {
         ...(lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {}),
         ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
         ...(queryTagIds.length > 0 ? { tag_ids: queryTagIds } : {}),
@@ -507,48 +482,21 @@ export const DocumentsView = ({
     setSelectedDocuments([]);
   }, [viewMode, status]);
 
-  // Check if user owns all selected documents (required for delete)
-  const canDeleteSelectedDocuments = useMemo(() => {
-    if (!user || selectedDocuments.length === 0) {
-      return false;
-    }
-    return selectedDocuments.every((doc) => doc.my_permission_level === "owner");
-  }, [selectedDocuments, user]);
-
-  // Check if user has write access on all selected documents (required for duplicate and bulk edit)
-  const canDuplicateSelectedDocuments = useMemo(() => {
-    if (!user || selectedDocuments.length === 0) {
-      return false;
-    }
-    return selectedDocuments.every((doc) => hasWriteAccess(doc.my_permission_level));
-  }, [selectedDocuments, user]);
-
-  const canEditSelectedDocuments = canDuplicateSelectedDocuments;
+  const canDeleteSelectedDocuments = everyCan(selectedDocuments, "delete");
+  const canEditSelectedDocuments = everyCan(selectedDocuments, "edit");
+  // Duplicating and bulk editing both ask for edit on every selected document.
+  const canDuplicateSelectedDocuments = canEditSelectedDocuments;
 
   const [bulkEditTagsOpen, setBulkEditTagsOpen] = useState(false);
   const [bulkEditAccessOpen, setBulkEditAccessOpen] = useState(false);
 
   // Check if user can view docs for the filtered initiative
+  // The cross-initiative tag browse has no one initiative to ask, and one not
+  // loaded yet reads as yes; the server refuses what this would wrongly offer.
   const canViewDocs = useMemo(() => {
-    // Guild admins / PAM grantees always have access — a membership row must
-    // never downgrade them.
-    if (isGuildAdmin || isGrantGuild) {
-      return true;
-    }
-    // The cross-initiative tag browse has no one initiative to check.
-    if (!lockedInitiativeId || !user) {
-      return true;
-    }
     const initiative = initiativesQuery.data?.find((i) => i.id === lockedInitiativeId);
-    if (!initiative) {
-      return true; // Initiative not loaded yet, assume access
-    }
-    const membership = initiative.members.find((m) => m.user.id === user.id);
-    if (!membership) {
-      return true; // Not a member, let the backend handle access control
-    }
-    return membership.can_view_documents !== false;
-  }, [lockedInitiativeId, user, initiativesQuery.data, isGuildAdmin, isGrantGuild]);
+    return initiative ? initiative.can.view.includes(Tool.document) : true;
+  }, [lockedInitiativeId, initiativesQuery.data]);
 
   // An explicit canCreate prop (e.g. from InitiativeDetailPage) wins; otherwise
   // use the canonical derivation above.
@@ -572,7 +520,7 @@ export const DocumentsView = ({
   // by tag through its own tree, so its tag selection isn't counted here.
   const activeFilterCount =
     (searchQuery.trim() ? 1 : 0) +
-    (fixedTagIds || viewMode === "tags" ? 0 : tagFilters.length) +
+    (viewMode === "tags" ? 0 : tagFilters.length) +
     (queryDocumentType ? 1 : 0) +
     propertyFilters.length;
 
@@ -628,19 +576,13 @@ export const DocumentsView = ({
 
   // Initiatives whose documents this reader may see. Still needed on the
   // cross-initiative tag browse, which lists documents from several at once.
-  const viewableInitiatives = useMemo(() => {
-    const allInitiatives = initiativesQuery.data ?? [];
-    if (!user) return allInitiatives;
-    // Guild admins / PAM grantees see every initiative regardless of any
-    // membership row.
-    if (isGuildAdmin || isGrantGuild) return allInitiatives;
-    return allInitiatives.filter((initiative) => {
-      const membership = initiative.members.find((m) => m.user.id === user.id);
-      // If not a member, include it (backend will handle access control)
-      if (!membership) return true;
-      return membership.can_view_documents !== false;
-    });
-  }, [initiativesQuery.data, user, isGuildAdmin, isGrantGuild]);
+  const viewableInitiatives = useMemo(
+    () =>
+      (initiativesQuery.data ?? []).filter((initiative) =>
+        initiative.can.view.includes(Tool.document)
+      ),
+    [initiativesQuery.data]
+  );
   // Get IDs of initiatives where user can view docs
   const viewableInitiativeIds = useMemo(() => {
     return new Set(viewableInitiatives.map((i) => i.id));
@@ -664,7 +606,7 @@ export const DocumentsView = ({
   return (
     <div className="relative space-y-6" {...drop.handlers}>
       {drop.dragging ? <DropOverlay label={t("page.dropToUpload")} tall /> : null}
-      {!lockedInitiativeId && !fixedTagIds && (
+      {!lockedInitiativeId && (
         <div>
           <div className="flex items-baseline gap-4">
             <h1 className="font-semibold text-3xl tracking-tight">{t("page.title")}</h1>
@@ -682,28 +624,19 @@ export const DocumentsView = ({
 
       <ToolListToolbar
         leading={
-          // The tag browse reads documents across initiatives and has no
-          // templates state to offer.
-          fixedTagIds ? undefined : (
-            <DocumentsStatusFilter value={status} onChange={setStatus} counts={statusCounts} />
-          )
+          <DocumentsStatusFilter value={status} onChange={setStatus} counts={statusCounts} />
         }
         filters={{
           open: filtersOpen,
           onOpenChange: setFiltersOpen,
           activeCount: activeFilterCount,
         }}
-        view={
-          // The tag-detail browse pins the list view, so it has nothing to pick.
-          fixedTagIds
-            ? undefined
-            : {
-                value: viewMode,
-                onChange: setViewMode,
-                options: viewOptions,
-                label: t("common:toolbar.view"),
-              }
-        }
+        view={{
+          value: viewMode,
+          onChange: setViewMode,
+          options: viewOptions,
+          label: t("common:toolbar.view"),
+        }}
         actions={
           canCreateDocuments && lockedInitiativeId ? (
             <Button
@@ -735,7 +668,6 @@ export const DocumentsView = ({
         viewMode={viewMode}
         tagFilters={selectedTagsForFilter}
         onTagFiltersChange={handleTagFiltersChange}
-        fixedTagIds={fixedTagIds}
         documentTypeFilter={documentTypeFilter}
         onDocumentTypeFilterChange={setDocumentTypeFilter}
         propertyFilters={propertyFilters}

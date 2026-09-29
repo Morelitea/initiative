@@ -33,13 +33,13 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  clearGuildBannerApiV1GuildsGuildIdBannerDelete,
-  clearGuildIconApiV1GuildsGuildIdIconDelete,
-  setGuildBannerApiV1GuildsGuildIdBannerPut,
-  setGuildIconApiV1GuildsGuildIdIconPut,
-  updateGuildApiV1GuildsGuildIdPatch,
-  useReadGuildEntitlementsApiV1GuildsGuildIdEntitlementsGet,
-} from "@/api/generated/guilds/guilds";
+  clearGuildBannerApiV1CommunitiesGuildIdBannerDelete,
+  clearGuildIconApiV1CommunitiesGuildIdIconDelete,
+  setGuildBannerApiV1CommunitiesGuildIdBannerPut,
+  setGuildIconApiV1CommunitiesGuildIdIconPut,
+  updateGuildApiV1CommunitiesGuildIdPatch,
+  useReadGuildEntitlementsApiV1CommunitiesGuildIdEntitlementsGet,
+} from "@/api/generated/communities/communities";
 import {
   BannerFade,
   BannerTextAlign,
@@ -88,7 +88,7 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
   // Only an admin reaches this panel, which is who may read this. Until the
   // answer lands, assume artwork is on offer: it is the ordinary case, and the
   // server is what actually decides.
-  const entitlements = useReadGuildEntitlementsApiV1GuildsGuildIdEntitlementsGet(guild.id);
+  const entitlements = useReadGuildEntitlementsApiV1CommunitiesGuildIdEntitlementsGet(guild.id);
   const mayUploadBanner = entitlements.data?.banner_image_enabled ?? true;
 
   useEffect(() => {
@@ -114,9 +114,9 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
     void run("look", async () =>
       // The endpoint answers with the whole guild; the cast is the generated
       // client's, which types a PATCH body as unknown.
-      updateGuildApiV1GuildsGuildIdPatch(guild.id, {
+      updateGuildApiV1CommunitiesGuildIdPatch(guild.id, {
         banner,
-      } as Parameters<typeof updateGuildApiV1GuildsGuildIdPatch>[1])
+      } as Parameters<typeof updateGuildApiV1CommunitiesGuildIdPatch>[1])
     );
   };
 
@@ -155,13 +155,13 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
 
   const pickIcon = (file: File) => {
     void run("icon", async () =>
-      setGuildIconApiV1GuildsGuildIdIconPut(guild.id, { icon: await renderGuildIcon(file) })
+      setGuildIconApiV1CommunitiesGuildIdIconPut(guild.id, { icon: await renderGuildIcon(file) })
     );
   };
 
   const pickBanner = (file: File) => {
     void run("banner", async () =>
-      setGuildBannerApiV1GuildsGuildIdBannerPut(guild.id, await renderGuildBanner(file))
+      setGuildBannerApiV1CommunitiesGuildIdBannerPut(guild.id, await renderGuildBanner(file))
     );
   };
 
@@ -194,7 +194,7 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
                 variant="outline"
                 disabled={busy !== null}
                 onClick={() =>
-                  void run("icon", () => clearGuildIconApiV1GuildsGuildIdIconDelete(guild.id))
+                  void run("icon", () => clearGuildIconApiV1CommunitiesGuildIdIconDelete(guild.id))
                 }
               >
                 {t("guilds:settings.removeIcon")}
@@ -271,7 +271,9 @@ export const GuildArtworkPanel = ({ guild }: { guild: GuildRead }) => {
               variant="outline"
               disabled={busy !== null}
               onClick={() =>
-                void run("banner", () => clearGuildBannerApiV1GuildsGuildIdBannerDelete(guild.id))
+                void run("banner", () =>
+                  clearGuildBannerApiV1CommunitiesGuildIdBannerDelete(guild.id)
+                )
               }
             >
               {t("guilds:settings.artwork.removeBanner")}

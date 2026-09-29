@@ -88,7 +88,6 @@ def _configure(
     monkeypatch.setattr(captcha_config, "current_captcha_config", lambda: cfg)
 
 
-@pytest.mark.unit
 async def test_no_op_when_provider_unset(monkeypatch):
     """Silent disable: missing CAPTCHA_PROVIDER must not raise even
     when the caller doesn't supply a token."""
@@ -97,7 +96,6 @@ async def test_no_op_when_provider_unset(monkeypatch):
     await captcha_service.verify_or_raise("", remote_ip="1.2.3.4")
 
 
-@pytest.mark.unit
 async def test_no_op_when_secret_missing(monkeypatch):
     """Half-configured (provider set, secret absent) is treated as
     disabled — same call shape as fully-disabled."""
@@ -105,7 +103,6 @@ async def test_no_op_when_secret_missing(monkeypatch):
     await captcha_service.verify_or_raise("ignored", remote_ip=None)
 
 
-@pytest.mark.unit
 async def test_missing_token_when_configured(monkeypatch):
     """When configured, an empty / blank / missing token surfaces as
     400 CAPTCHA_REQUIRED so the SPA can replace the toast appropriately."""
@@ -117,7 +114,6 @@ async def test_missing_token_when_configured(monkeypatch):
         assert exc.value.detail == "CAPTCHA_REQUIRED"
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     "provider, expected_url",
     [
@@ -149,7 +145,6 @@ async def test_provider_routes_to_correct_url(
     }
 
 
-@pytest.mark.unit
 async def test_omits_remote_ip_when_unknown(monkeypatch):
     """When the request has no client IP (test client, internal call),
     don't send the field — the providers treat it as optional."""
@@ -163,7 +158,6 @@ async def test_omits_remote_ip_when_unknown(monkeypatch):
     assert "remoteip" not in (fake_client.last_data or {})
 
 
-@pytest.mark.unit
 async def test_provider_rejection_surfaces_as_400_invalid(monkeypatch):
     """``success: false`` from the provider → 400 CAPTCHA_INVALID."""
     _configure(monkeypatch, provider="turnstile")
@@ -182,7 +176,6 @@ async def test_provider_rejection_surfaces_as_400_invalid(monkeypatch):
     assert exc.value.detail == "CAPTCHA_INVALID"
 
 
-@pytest.mark.unit
 async def test_network_error_fails_closed(monkeypatch):
     """If the verifier is unreachable we don't want to silently let a
     registration through — that would defeat the captcha. Surface as
@@ -203,7 +196,6 @@ async def test_network_error_fails_closed(monkeypatch):
     assert exc.value.detail == "CAPTCHA_INVALID"
 
 
-@pytest.mark.unit
 async def test_unrecognised_provider_treated_as_disabled(monkeypatch):
     """A typo in CAPTCHA_PROVIDER shouldn't blow up registration —
     ``is_configured`` returns False so the verifier short-circuits."""

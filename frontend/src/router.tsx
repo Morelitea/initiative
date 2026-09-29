@@ -3,6 +3,7 @@ import { createRouter } from "@tanstack/react-router";
 
 import type { GuildRead, UserRead } from "@/api/generated/initiativeAPI.schemas";
 import { NotFoundPage, RouteErrorPage } from "@/components/errors/ErrorPages";
+import type { NativeSession } from "@/lib/nativeSession";
 
 import { routeTree } from "./routeTree.gen";
 
@@ -20,7 +21,7 @@ export interface AuthContextValue {
     full_name?: string;
     inviteCode?: string;
   }) => Promise<unknown>;
-  completeOidcLogin: (token: string) => Promise<void>;
+  completeOidcLogin: (credential?: NativeSession | { deviceToken: string }) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }

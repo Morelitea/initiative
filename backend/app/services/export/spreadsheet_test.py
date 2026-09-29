@@ -9,7 +9,6 @@ choice explicit and predictable.
 import io
 from typing import Any
 
-import pytest
 from openpyxl import load_workbook
 
 from app.services.export.spreadsheet import render_csv, render_xlsx, sheets_of
@@ -33,13 +32,11 @@ def _workbook(*sheets: dict) -> dict:
     return {"schema_version": 3, "kind": "spreadsheet", "sheets": list(sheets)}
 
 
-@pytest.mark.unit
 def test_sheets_of_reads_a_v3_workbook():
     content = _workbook(_sheet("One", {}), _sheet("Two", {}))
     assert [s["name"] for s in sheets_of(content)] == ["One", "Two"]
 
 
-@pytest.mark.unit
 def test_sheets_of_treats_a_legacy_snapshot_as_one_sheet():
     """A document not re-saved since multi-sheet landed has its structures
     at the top level and no ``sheets`` key."""
@@ -47,7 +44,6 @@ def test_sheets_of_treats_a_legacy_snapshot_as_one_sheet():
     assert sheets_of(legacy) == [legacy]
 
 
-@pytest.mark.unit
 def test_xlsx_renders_one_worksheet_per_sheet():
     content = _workbook(
         _sheet("Summary", {"0:0": "total", "0:1": "=SUM(Data!A1:A2)"}),
@@ -61,7 +57,6 @@ def test_xlsx_renders_one_worksheet_per_sheet():
     assert book["Data"]["A2"].value == 2
 
 
-@pytest.mark.unit
 def test_xlsx_titles_a_legacy_snapshot_from_the_document_name():
     legacy = {
         "schema_version": 2,
@@ -74,7 +69,6 @@ def test_xlsx_titles_a_legacy_snapshot_from_the_document_name():
     assert book.sheetnames == ["Q2 NumbersPlan"]
 
 
-@pytest.mark.unit
 def test_xlsx_breaks_colliding_worksheet_titles():
     """openpyxl raises on a duplicate title, and a hand-edited payload can
     still carry one even though names are de-duplicated on write."""
@@ -83,7 +77,6 @@ def test_xlsx_breaks_colliding_worksheet_titles():
     assert book.sheetnames == ["Data", "Data 2"]
 
 
-@pytest.mark.unit
 def test_xlsx_keeps_per_sheet_frozen_panes():
     content = _workbook(
         _sheet("A", {}, frozen={"rows": 1, "cols": 0}),
@@ -94,7 +87,6 @@ def test_xlsx_keeps_per_sheet_frozen_panes():
     assert book["B"].freeze_panes == "C1"
 
 
-@pytest.mark.unit
 def test_csv_renders_the_first_sheet_only():
     content = _workbook(
         _sheet("First", {"0:0": "a", "0:1": "b"}),
@@ -105,7 +97,6 @@ def test_csv_renders_the_first_sheet_only():
     assert "should not appear" not in text
 
 
-@pytest.mark.unit
 def test_csv_still_renders_a_legacy_snapshot():
     legacy = {
         "schema_version": 2,
@@ -172,7 +163,6 @@ def _rendered(content: dict):
     return load_workbook(io.BytesIO(render_xlsx(content, title="B"))).active
 
 
-@pytest.mark.unit
 def test_a_cells_own_look_reaches_the_workbook() -> None:
     """A cell entry keeps its look under ``style``, beside its ``format`` —
     the same wrapper the column and row layers use. Reading the entry as
@@ -202,7 +192,6 @@ def test_a_cells_own_look_reaches_the_workbook() -> None:
     assert cell.number_format == "0.0%"
 
 
-@pytest.mark.unit
 def test_a_column_look_still_reaches_the_workbook() -> None:
     """Column and row layers have always used the wrapper; a cell layer that
     does must not cost them theirs."""

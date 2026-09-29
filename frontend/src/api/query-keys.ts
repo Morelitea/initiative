@@ -3,13 +3,15 @@
  *
  * NAMING — the UI calls these "communities"; the code calls them guilds.
  * Communities ended up being used far more broadly than the gaming guilds the
- * name was picked for, so the product renamed them. The rename stopped at the
- * user-visible strings: the database, the API, the generated client and every
- * identifier below still say `guild`, because moving those means a schema
- * migration across every tenant. Treat `guild` in code and `community` in copy
+ * name was picked for, so the product renamed them. The rename reaches the
+ * user-visible strings and the URLs — the UI's `/c/{id}` and the API's
+ * `/api/v1/c/{guild_id}` and `/api/v1/communities` — and stops there: the
+ * database, path parameter names, schema and hook names, and every identifier
+ * below still say `guild`, because moving those means a schema migration
+ * across every tenant. Treat `guild` in code and `community` in copy and paths
  * as the same thing. This is deliberate and permanent, not a half-finished
- * rename -- if you are adding UI, say community; if you are adding a query,
- * follow the `guild` that is already here.
+ * rename -- if you are adding UI or a route, say community; if you are adding a
+ * query, follow the `guild` that is already here.
  *
  * Orval keys queries by URL (e.g. `["/api/v1/tags/"]`), so a domain question
  * ("every task list") is a question about paths. The `q.*` builders answer it
@@ -29,12 +31,12 @@
  * There are TWO disjoint families of keys, and a match MUST NOT cross between
  * them:
  *
- *  - GUILD-scoped keys live under `/api/v1/g/{guildId}/...`. `guildExact` and
+ *  - GUILD-scoped keys live under `/api/v1/c/{guildId}/...`. `guildExact` and
  *    `guildPrefix` reach these and ONLY for the ACTIVE guild — never another
  *    guild, and never a non-guild key. This is the tenancy boundary: a mutation
  *    in one guild can't touch another guild's (or a personal) cached data.
  *  - PERSONAL / platform keys are everything else (`/api/v1/me/*`, `/settings`,
- *    `/users`, `/guilds`, `/operator`, `/notifications`, `/version`, `/recents`).
+ *    `/users`, `/communities`, `/operator`, `/notifications`, `/version`, `/recents`).
  *    `personalExact` and `personalPrefix` reach these and ONLY these.
  *
  * A few resources genuinely span both (a guild list plus its cross-guild `/me`
@@ -46,7 +48,7 @@
  */
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { queryClient } from "@/lib/queryClient";
-import { singularOf, toolIdParam } from "@/lib/tools";
+import { singularOf, TOOLS, toolApiPath, toolIdParam, toolRouteSegment } from "@/lib/tools";
 
 // The active guild is per-tab React state in `GuildProvider`, mirrored here (a
 // module var is per-JS-context, so it stays per-tab — unlike shared storage) so
@@ -58,7 +60,7 @@ export const setInvalidationGuild = (guildId: number | null) => {
   scopedGuildId = guildId && guildId > 0 ? guildId : null;
 };
 
-const GUILD_SEGMENT = /^\/api\/v1\/g\/(\d+)(\/.*)?$/;
+const GUILD_SEGMENT = /^\/api\/v1\/c\/(\d+)(\/.*)?$/;
 
 // ── What a write made stale ──────────────────────────────────────────────────
 
@@ -79,7 +81,7 @@ export type Spec = {
   personalPrefix?: readonly string[];
   /**
    * Comment threads, as `[parentParam, parentId]`. A thread is keyed
-   * `["/api/v1/g/{g}/comments/", { task_id: 7 }]` — the id sits in the params
+   * `["/api/v1/c/{g}/comments/", { task_id: 7 }]` — the id sits in the params
    * object rather than the path, so it cannot be reached by a prefix.
    */
   threads?: readonly (readonly [param: string, id: number])[];
@@ -240,11 +242,7 @@ const allTasks = (): Spec => compose(resourceAndMe("tasks"), resourceAndMe("cale
 
 const task = (taskId: number): Spec => ({ guildExact: [`/api/v1/tasks/${taskId}`] });
 
-// ── Projects (guild + me) ────────────────────────────────────────────────────
-
-const allProjects = (): Spec => resourceAndMe("projects");
-
-const project = (projectId: number): Spec => ({ guildExact: [`/api/v1/projects/${projectId}`] });
+// ── Projects (guild) ─────────────────────────────────────────────────────────
 
 const projectTaskStatuses = (projectId: number): Spec => ({
   guildExact: [`/api/v1/projects/${projectId}/task-statuses/`],
@@ -258,20 +256,14 @@ const projectActivity = (projectId: number): Spec => ({
   guildExact: [`/api/v1/projects/${projectId}/activity`],
 });
 
-// Recents list is a cross-guild personal endpoint (`/api/v1/recents/`, no /g/).
+// Recents list is a cross-guild personal endpoint (`/api/v1/recents/`, no /c/).
 const recents = (): Spec => ({ personalExact: ["/api/v1/recents/"] });
 
 const favoriteProjects = (): Spec => ({ guildExact: ["/api/v1/projects/favorites"] });
 
 const writableProjects = (): Spec => ({ guildExact: ["/api/v1/projects/writable"] });
 
-// ── Documents (guild + me) ───────────────────────────────────────────────────
-
-const allDocuments = (): Spec => resourceAndMe("documents");
-
-const document = (documentId: number): Spec => ({
-  guildExact: [`/api/v1/documents/${documentId}`],
-});
+// ── Documents (guild) ────────────────────────────────────────────────────────
 
 /** Every read of the graph. One path serves them all, so one bucket does. */
 const relationships = (): Spec => ({
@@ -356,10 +348,6 @@ const initiativeRoles = (initiativeId: number): Spec => ({
   guildExact: [`/api/v1/initiatives/${initiativeId}/roles`],
 });
 
-const myPermissions = (initiativeId: number): Spec => ({
-  guildExact: [`/api/v1/initiatives/${initiativeId}/my-permissions`],
-});
-
 const initiativeMembers = (initiativeId: number): Spec => ({
   guildExact: [`/api/v1/initiatives/${initiativeId}/members`],
 });
@@ -376,7 +364,7 @@ const initiativeJoinRequests = (initiativeId: number): Spec => ({
 
 // "All settings" is a blunt flush spanning two DELIBERATELY separate backend
 // scopes: app/platform config (`/api/v1/settings/*`, owner-only) and a guild's
-// AI settings (`/api/v1/g/{id}/settings/ai/*`, RLS-scoped). They live on
+// AI settings (`/api/v1/c/{id}/settings/ai/*`, RLS-scoped). They live on
 // different paths by design — app config isn't guild-specific, and guild AI
 // settings must carry guild context — so name a bucket in each family rather
 // than let one path test cross the boundary. (Not a backend inconsistency.)
@@ -395,7 +383,7 @@ const authProviders = (): Spec => ({ personalExact: ["/api/v1/settings/auth/prov
 
 /** What one community says its own arrivals look like, and who has agreed. */
 const guildNarrowings = (guildId: number): Spec => ({
-  personalExact: [`/api/v1/settings/guilds/${guildId}/narrowings`],
+  personalExact: [`/api/v1/settings/communities/${guildId}/narrowings`],
 });
 
 const storageSettings = (): Spec => ({ personalExact: ["/api/v1/settings/storage"] });
@@ -431,7 +419,7 @@ const notificationSettings = (): Spec => ({
 
 /** The same three answers for one community. */
 const guildNotificationPolicy = (guildId: number): Spec => ({
-  personalExact: [`/api/v1/guilds/${guildId}/notification-policy`],
+  personalExact: [`/api/v1/communities/${guildId}/notification-policy`],
 });
 
 /** Where each stream of operations work lands, and what it could land in. */
@@ -446,8 +434,8 @@ const moderationReports = (initiativeId: number): Spec => ({
 });
 
 // The platform Guilds tab reads/writes only shared public tables (owner-only),
-// so its list lives in the personal/platform family, not under any /g/ key.
-const platformGuilds = (): Spec => ({ personalExact: ["/api/v1/settings/guilds"] });
+// so its list lives in the personal/platform family, not under any /c/ key.
+const platformGuilds = (): Spec => ({ personalExact: ["/api/v1/settings/communities"] });
 
 // ── App services (personal / platform) ───────────────────────────────────────
 // Orval keys the list as `/api/v1/app-services/` (trailing slash) and each row
@@ -486,7 +474,7 @@ const platformAIConnections = (): Spec => ({
   personalExact: ["/api/v1/settings/ai/platform/connections"],
 });
 
-/** A guild admin's own connections list (`/g/{id}/settings/ai/connections`). */
+/** A guild admin's own connections list (`/c/{id}/settings/ai/connections`). */
 const guildAIConnections = (): Spec => ({ guildExact: ["/api/v1/settings/ai/connections"] });
 
 /** The member's own view: selected connection, per-connection key state, on/off. */
@@ -507,35 +495,22 @@ const userStats = (): Spec => ({ personalPrefix: ["/api/v1/me/stats"] });
 const operatorUsers = (): Spec => ({ personalPrefix: ["/api/v1/operator"] });
 
 // ── Guild Members (guild) ────────────────────────────────────────────────────
-// The member roster is guild-scoped (`/api/v1/g/{id}/users/`), even though the
-// membership *mutations* go through the platform `/api/v1/guilds/{id}/members/…`
-// path. It must stay in the guild bucket.
+// The member roster is guild-scoped (`/api/v1/c/{id}/users/`), even though the
+// membership *mutations* go through the platform `/api/v1/communities/{id}/members/…`
+// path. It must stay in the guild bucket. The member search rides along: the
+// pickers read each person's guild role from it.
 
-const guildMembers = (): Spec => ({ guildExact: ["/api/v1/users/"] });
+const guildMembers = (): Spec => ({ guildExact: ["/api/v1/users/", "/api/v1/users/search"] });
 
 // ── Guilds (personal / platform) ─────────────────────────────────────────────
 
-const allGuilds = (): Spec => ({ personalPrefix: ["/api/v1/guilds"] });
+const allGuilds = (): Spec => ({ personalPrefix: ["/api/v1/communities"] });
 
 const guildInvites = (guildId: number): Spec => ({
-  personalExact: [`/api/v1/guilds/${guildId}/invites`],
+  personalExact: [`/api/v1/communities/${guildId}/invites`],
 });
 
-// ── Queues (guild) ───────────────────────────────────────────────────────────
-
-const allQueues = (): Spec => ({ guildPrefix: ["/api/v1/queues"] });
-
-const queue = (queueId: number): Spec => ({ guildExact: [`/api/v1/queues/${queueId}`] });
-
-// ── Counter Groups (guild) ───────────────────────────────────────────────────
-
-const allCounterGroups = (): Spec => ({ guildPrefix: ["/api/v1/counter-groups"] });
-
-const counterGroup = (groupId: number): Spec => ({
-  guildExact: [`/api/v1/counter-groups/${groupId}`],
-});
-
-// ── Calendars & Calendar Events (guild + me) ─────────────────────────────────
+// ── Calendar Events (guild + me) ─────────────────────────────────────────────
 
 // The calendar-entries aggregate unions events + task markers; name it too so
 // event mutations reflect on the calendar surfaces.
@@ -548,28 +523,7 @@ const calendarEvent = (eventId: number): Spec => ({
   guildExact: [`/api/v1/calendar-events/${eventId}`],
 });
 
-// Calendar (the container) mutations also reach the events + entries views —
-// renames/colors/sharing change what those surfaces show.
-const allCalendars = (): Spec =>
-  compose({ guildPrefix: ["/api/v1/calendars"] }, allCalendarEvents());
-
-const calendar = (calendarId: number): Spec => ({
-  guildExact: [`/api/v1/calendars/${calendarId}`],
-});
-
-// ── Dashboards (guild) ───────────────────────────────────────────────────────
-
-const allDashboards = (): Spec => ({ guildPrefix: ["/api/v1/dashboards"] });
-
-const dashboard = (dashboardId: number): Spec => ({
-  guildExact: [`/api/v1/dashboards/${dashboardId}`],
-});
-
 // ── Posts (guild) ────────────────────────────────────────────────────────────
-
-const allPosts = (): Spec => ({ guildPrefix: ["/api/v1/posts"] });
-
-const post = (postId: number): Spec => ({ guildExact: [`/api/v1/posts/${postId}`] });
 
 /**
  * The board's timeline rail only.
@@ -584,12 +538,6 @@ const postTimeline = (): Spec => ({ guildPrefix: ["/api/v1/posts/timeline"] });
 
 // ── Galleries (guild) ────────────────────────────────────────────────────────
 
-const allGalleries = (): Spec => ({ guildPrefix: ["/api/v1/galleries"] });
-
-const gallery = (galleryId: number): Spec => ({
-  guildExact: [`/api/v1/galleries/${galleryId}`],
-});
-
 /** A gallery's pictures — every page of the list, the timeline rail, and
  *  each picture's own reads and versions — without the gallery row itself. */
 const galleryImages = (galleryId: number): Spec => ({
@@ -597,12 +545,6 @@ const galleryImages = (galleryId: number): Spec => ({
 });
 
 // ── Wikis (guild) ────────────────────────────────────────────────────────────
-
-const allWikis = (): Spec => ({ guildPrefix: ["/api/v1/wikis"] });
-
-const wiki = (wikiId: number): Spec => ({
-  guildExact: [`/api/v1/wikis/${wikiId}`],
-});
 
 /** A wiki's pages — the tree, each page's own read, and its connections —
  *  without the wiki row itself. */
@@ -624,24 +566,47 @@ const allTaskStatuses = (): Spec => ({ guildPrefix: ["/api/v1/projects"] });
 
 const allProperties = (): Spec => ({ guildPrefix: ["/api/v1/property-definitions"] });
 
-// ── One tool entity (guild, cross-tool) ──────────────────────────────────────
-// What every generic per-tool mutation — set tags, flip the comment switch —
-// makes stale: that tool's list and detail queries. `Record<Tool, …>` so a new
-// Tool member fails to compile until it declares its invalidation.
+// ── Tools (guild + me) ───────────────────────────────────────────────────────
+// Every tool is cached the same way, so its keys are one rule over the `Tool`
+// enum rather than a table per tool: a new member is covered the day it lands.
 
-const TOOL_SPECS: Record<Tool, (id: number) => Spec> = {
-  [Tool.project]: (id) => compose(project(id), allProjects()),
-  [Tool.document]: (id) => compose(document(id), allDocuments()),
-  [Tool.queue]: (id) => compose(queue(id), allQueues()),
-  [Tool.counter_group]: (id) => compose(counterGroup(id), allCounterGroups()),
-  [Tool.calendar]: (id) => compose(calendar(id), allCalendars()),
-  [Tool.dashboard]: (id) => compose(dashboard(id), allDashboards()),
-  [Tool.post]: (id) => compose(post(id), allPosts()),
-  [Tool.gallery]: (id) => compose(gallery(id), allGalleries()),
-  [Tool.wiki]: (id) => compose(wiki(id), allWikis()),
+/**
+ * Every list of one tool — its guild-wide list and the cross-guild `/me` twin
+ * every tool has. A calendar's also reaches the events and entries views, which
+ * show its name and colour.
+ */
+const toolList = (which: Tool): Spec => {
+  const lists = resourceAndMe(toolRouteSegment(which));
+  return which === Tool.calendar ? compose(lists, allCalendarEvents()) : lists;
 };
 
-const tool = (which: Tool, id: number): Spec => TOOL_SPECS[which](id);
+/** One tool entity's own read. */
+const toolEntity = (which: Tool, id: number): Spec => ({
+  guildExact: [`${toolApiPath(which)}/${id}`],
+});
+
+/** One entity and every list it sits in — what a generic per-tool write makes stale. */
+const tool = (which: Tool, id: number): Spec => compose(toolEntity(which, id), toolList(which));
+
+// The same two, by name, for the call sites that already know their tool.
+const allProjects = (): Spec => toolList(Tool.project);
+const project = (id: number): Spec => toolEntity(Tool.project, id);
+const allDocuments = (): Spec => toolList(Tool.document);
+const document = (id: number): Spec => toolEntity(Tool.document, id);
+const allQueues = (): Spec => toolList(Tool.queue);
+const queue = (id: number): Spec => toolEntity(Tool.queue, id);
+const allCounterGroups = (): Spec => toolList(Tool.counter_group);
+const counterGroup = (id: number): Spec => toolEntity(Tool.counter_group, id);
+const allCalendars = (): Spec => toolList(Tool.calendar);
+const calendar = (id: number): Spec => toolEntity(Tool.calendar, id);
+const allDashboards = (): Spec => toolList(Tool.dashboard);
+const dashboard = (id: number): Spec => toolEntity(Tool.dashboard, id);
+const allPosts = (): Spec => toolList(Tool.post);
+const post = (id: number): Spec => toolEntity(Tool.post, id);
+const allGalleries = (): Spec => toolList(Tool.gallery);
+const gallery = (id: number): Spec => toolEntity(Tool.gallery, id);
+const allWikis = (): Spec => toolList(Tool.wiki);
+const wiki = (id: number): Spec => toolEntity(Tool.wiki, id);
 
 // ── Everything this guild shows (cross-tool) ─────────────────────────────────
 // Two callers, one description. Gaining (or losing) a membership row changes
@@ -651,20 +616,7 @@ const tool = (which: Tool, id: number): Spec => TOOL_SPECS[which](id);
 // name its rows one by one says so instead, and this is the answer.
 
 const guildContent = (): Spec =>
-  compose(
-    allInitiatives(),
-    allProjects(),
-    allDocuments(),
-    allQueues(),
-    allCounterGroups(),
-    allCalendars(),
-    allDashboards(),
-    allPosts(),
-    allGalleries(),
-    allWikis(),
-    allTasks(),
-    allComments()
-  );
+  compose(allInitiatives(), ...TOOLS.map(toolList), allTasks(), allComments());
 
 /** Every description, by name. The only export a call site needs beside `invalidate`. */
 export const q = {
@@ -732,7 +684,6 @@ export const q = {
   latestVersion,
   memberAI,
   myAI,
-  myPermissions,
   notifications,
   operatorUsers,
   platformAIConnections,
@@ -758,6 +709,7 @@ export const q = {
   task,
   taskComments,
   tool,
+  toolList,
   toolComments,
   userStats,
   version,
@@ -767,39 +719,28 @@ export const q = {
 };
 
 // ── Guild Switch ─────────────────────────────────────────────────────────────
-// Keys that are NOT guild-scoped and should survive a guild switch.
-// `/api/v1/recents` is one of them: the recents bar is a cross-guild personal
-// list, so switching community neither changes its contents nor invalidates
-// them. Resetting it made the bar blank and refetch on every switch, dropping
-// tabs that belong to the community being left as well as the one arriving.
-const GLOBAL_KEY_PREFIXES = [
-  "/api/v1/guilds",
-  "/api/v1/users/me",
-  "/api/v1/version",
-  "/api/v1/recents",
-];
 
 /**
- * Remove guild-scoped query data so stale cross-guild results are never shown.
+ * Drop the departing guild's cached data on a guild switch.
  *
- * `arrivingGuildId` names the guild being entered, and that guild's own keys
- * are left alone: they hold its data, not the departing guild's, so there is
- * nothing stale about them. Online this changes nothing observable — those
- * queries are stale on mount and refetch anyway — but it is the difference
- * between showing a cached page and showing an empty one when the device has
- * no connection to refetch from.
+ * Only keys that address a guild (`/api/v1/c/{guildId}/…`) are reset, and not
+ * the arriving guild's own: those hold its data, not the departing guild's.
+ * Online that changes nothing observable — they are stale on mount and refetch
+ * anyway — but it is the difference between a cached page and an empty one
+ * when the device has no connection to refetch from.
+ *
+ * Everything else survives. A platform or personal path (`/me/*`, `/users`,
+ * `/communities`, `/recents`) answers the same in every guild, and a
+ * hand-written key that holds guild data (`["query", guildId, …]`) carries the
+ * guild's id, so another guild's entry is never the one read.
  */
 export const resetGuildScopedQueries = (arrivingGuildId?: number | null) =>
   queryClient.resetQueries({
     predicate: (query) => {
       const first = query.queryKey[0];
-      if (typeof first !== "string") return true;
-      if (GLOBAL_KEY_PREFIXES.some((prefix) => first.startsWith(prefix))) return false;
-      if (arrivingGuildId != null) {
-        const match = GUILD_SEGMENT.exec(first);
-        if (match && Number(match[1]) === arrivingGuildId) return false;
-      }
-      return true;
+      if (typeof first !== "string") return false;
+      const match = GUILD_SEGMENT.exec(first);
+      return match !== null && Number(match[1]) !== arrivingGuildId;
     },
   });
 

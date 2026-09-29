@@ -13,7 +13,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.testing import guild_of
+from app.testing import create_resource_grant, guild_of
 from app.core.relationships import (
     ENDPOINT_KINDS,
     SPECS,
@@ -26,7 +26,6 @@ from app.core.search import SearchEntityType
 from app.testing.schema_harness import route_session_to_guild
 from app.models.platform.guild import GuildRole
 from app.models.tenant.relationship import EntityRelationship
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.tenant import relationships
 from app.services.tenant.relationships import Endpoint
 from app.testing.factories import (
@@ -39,15 +38,12 @@ from app.testing.factories import (
     create_task,
 )
 
-pytestmark = pytest.mark.integration
-
 
 # ---------------------------------------------------------------------------
 # The vocabulary
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
 def test_kind_codes_are_unique_and_never_reused():
     """Codes are the high bits of every stored node id.
 
@@ -60,13 +56,11 @@ def test_kind_codes_are_unique_and_never_reused():
     assert all(code > 0 for code in codes)
 
 
-@pytest.mark.unit
 def test_node_ids_round_trip():
     for kind in ENDPOINT_KINDS:
         assert decode_node_id(node_id(kind, 4242)) == (kind, 4242)
 
 
-@pytest.mark.unit
 def test_every_kind_resolves_to_a_table():
     from app.db.reference_targets import title_column
 
@@ -75,7 +69,6 @@ def test_every_kind_resolves_to_a_table():
         assert title_column(kind) is not None
 
 
-@pytest.mark.unit
 def test_symmetric_types_declare_no_direction():
     """A symmetric relation has no described end, so it cannot also be
     asymmetric — the two characteristics contradict each other."""
@@ -322,17 +315,7 @@ async def test_an_edge_is_invisible_to_a_reader_who_clears_only_one_end(
 
     # The project is shared with the whole initiative, so the reader can open
     # it: what is being tested is the edge's FAR end, not this one.
-    await route_session_to_guild(session, owner.guild.id)
-    session.add(
-        ResourceGrant(
-            resource_type="project",
-            resource_id=owner.project.id,
-            all_initiative_members=True,
-            level=ResourceAccessLevel.read,
-            initiative_id=owner.initiative.id,
-        )
-    )
-    await session.commit()
+    await create_resource_grant(session, owner.project, all_initiative_members=True)
 
     # A guild member in the project's initiative but not the document's.
     reader = await acting_user(

@@ -15,10 +15,13 @@ from sqlalchemy.exc import DBAPIError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.errors import dbapi_sqlstate
-from app.db.frozen import FROZEN_SQLSTATE, mark_restructuring
+from app.db import gucs
+from app.db.frozen import FROZEN_SQLSTATE
+from app.db.session import raise_flag
 from app.services.tenant import archive as archive_service
 from app.services.tenant.soft_delete import soft_delete_entity
 from app.models.platform.guild import GuildRole
+from app.models.tenant.project import Project
 from app.testing import (
     create_comment,
     create_guild,
@@ -31,8 +34,6 @@ from app.testing import (
     create_user,
     route_as,
 )
-
-pytestmark = pytest.mark.database
 
 
 @pytest.fixture
@@ -231,30 +232,27 @@ class TestAncestorFreeze:
         assert "frozen_ancestor_insert" in str(excinfo.value)
 
     async def test_the_first_grant_on_a_new_resource_is_not_sharing(
-        self, session, routed, workspace
+        self, routed, workspace
     ):
         """A grant is what makes a resource reachable, so the first one is
-        written while the resource still answers to nobody. Asked the way every
-        other ancestor is asked, no resource could ever be created."""
-        user, guild, initiative, project, _t = workspace
-        # The state a resource is in between its own INSERT and its owner
-        # grant: it exists, and it answers to nobody yet.
-        await session.exec(
-            text(
-                "DELETE FROM resource_grants "
-                "WHERE resource_type = 'project' AND resource_id = :pid"
-            ).bindparams(pid=project.id)
-        )
-        await session.commit()
+        written while the resource still answers to nobody: by the table's
+        create trigger, as the row goes in. Asked the way every other ancestor
+        is asked, no resource could ever be created."""
+        user, _g, initiative, _p, _t = workspace
+        routed.add(Project(name="Fresh", initiative_id=initiative.id))
+        await routed.flush()
 
-        await routed.exec(
-            text(
-                "INSERT INTO resource_grants "
-                "(resource_type, resource_id, user_id, level, "
-                " initiative_id, created_at) "
-                "VALUES ('project', :pid, :uid, 'owner', :iid, now())"
-            ).bindparams(pid=project.id, uid=user.id, iid=initiative.id)
-        )
+        owners = (
+            await routed.exec(
+                text(
+                    "SELECT g.user_id FROM resource_grants g "
+                    "JOIN projects p ON p.id = g.resource_id "
+                    "WHERE g.resource_type = 'project' AND g.level = 'owner' "
+                    "AND p.name = 'Fresh'"
+                )
+            )
+        ).all()
+        assert [row[0] for row in owners] == [user.id]
 
     async def test_a_trashed_project_takes_no_new_sharing(
         self, session, role_session, workspace
@@ -526,7 +524,7 @@ class TestRowFreeze:
         _u, _g, _i, project, task = workspace
         other = await create_task_status(session, project, name="Elsewhere")
         await _archive(session, task)
-        await mark_restructuring(routed)
+        await raise_flag(routed, gucs.RESTRUCTURING)
         await routed.exec(
             text("UPDATE tasks SET task_status_id = :status WHERE id = :id").bindparams(
                 status=other.id, id=task.id
@@ -539,7 +537,7 @@ class TestRowFreeze:
     ):
         _u, _g, _i, _p, task = workspace
         await _archive(session, task)
-        await mark_restructuring(routed)
+        await raise_flag(routed, gucs.RESTRUCTURING)
         await routed.commit()
         with pytest.raises(DBAPIError) as excinfo:
             await routed.exec(

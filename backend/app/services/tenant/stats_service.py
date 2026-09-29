@@ -4,7 +4,7 @@ Service for calculating user statistics and metrics.
 
 from datetime import date, datetime, timedelta, timezone
 from typing import List, Literal, Optional, Set
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import case, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -19,14 +19,7 @@ from app.schemas.tenant.stats import (
     UserStatsResponse,
     VelocityWeekData,
 )
-
-
-def _resolve_timezone(timezone_str: str) -> ZoneInfo:
-    """Resolve timezone string to ZoneInfo object, falling back to UTC if invalid."""
-    try:
-        return ZoneInfo(timezone_str)
-    except ZoneInfoNotFoundError:
-        return ZoneInfo("UTC")
+from app.core.user_input_validators import resolve_zone
 
 
 def _get_week_start(dt: date, week_starts_on: int) -> date:
@@ -85,7 +78,7 @@ async def calculate_user_streak(
     Task activity includes: task creation dates and task updates for tasks user is assigned to.
     Weekends do not break the streak.
     """
-    user_tz = _resolve_timezone(user_timezone)
+    user_tz = resolve_zone(user_timezone)
     now_local = datetime.now(user_tz)
     today = now_local.date()
 
@@ -241,7 +234,7 @@ async def get_completed_counts(
 
     Returns (total_completed, this_week_completed)
     """
-    user_tz = _resolve_timezone(user_timezone)
+    user_tz = resolve_zone(user_timezone)
     now_local = datetime.now(user_tz)
     today = now_local.date()
 
@@ -305,7 +298,7 @@ async def get_velocity_data(
     Returns list of VelocityWeekData with assigned and completed counts per week.
     Note: "Assigned" counts tasks created in the week (assumes assignment at creation).
     """
-    user_tz = _resolve_timezone(user_timezone)
+    user_tz = resolve_zone(user_timezone)
     week_boundaries = _get_week_boundaries(user_tz, week_starts_on, num_weeks=12)
 
     velocity_data: List[VelocityWeekData] = []
@@ -376,7 +369,7 @@ async def get_heatmap_data(
 
     Activity includes task creation and task updates for user's assigned tasks.
     """
-    user_tz = _resolve_timezone(user_timezone)
+    user_tz = resolve_zone(user_timezone)
     now_local = datetime.now(user_tz)
     today = now_local.date()
 
@@ -485,7 +478,7 @@ async def get_backlog_trend(
     Returns "Growing" if more tasks assigned than completed this week, else "Shrinking".
     Note: "Assigned" counts tasks created this week (assumes assignment at creation).
     """
-    user_tz = _resolve_timezone(user_timezone)
+    user_tz = resolve_zone(user_timezone)
     now_local = datetime.now(user_tz)
     today = now_local.date()
 
@@ -654,14 +647,13 @@ async def get_user_stats(
     """Get comprehensive user statistics, routed per guild.
 
     Tasks/projects/initiatives live in per-guild schemas, so no single query
-    can span them. We route into each target guild's schema
-    and compute there: one guild when
+    can span them. Each target guild is entered through the seam
+    (``gather_across_guilds``) and computed there: one guild when
     ``guild_id`` is given (exact), otherwise every guild the user belongs to,
-    merged.
+    merged. These numbers count what a request to that community would have
+    shown this reader and nothing else.
     """
-    from app.api.deps import GuildAccessError, establish_guild_access
-    from app.db.session import set_rls_context
-    from app.services.cross_guild import member_guild_ids
+    from app.services.cross_guild import gather_across_guilds, member_guild_ids
 
     # Always restrict to the user's own guilds (membership is the access gate);
     # a guild_id the user isn't in yields no stats rather than routing into a
@@ -670,21 +662,10 @@ async def get_user_stats(
         session, user.id, restrict_to=[guild_id] if guild_id is not None else None
     )
 
-    parts: List[UserStatsResponse] = []
-    for gid in target_guilds:
-        session.expunge_all()
-        # Through the seam, so these numbers count what a request to that
-        # community would have shown this reader and nothing else.
-        try:
-            await establish_guild_access(session, user, gid)
-        except GuildAccessError:
-            continue
-        parts.append(await _compute_guild_stats(session, user, gid, days))
+    async def fetch(routed: AsyncSession, gid: int) -> List[UserStatsResponse]:
+        return [await _compute_guild_stats(routed, user, gid, days)]
 
-    # Reset to the user-only (public) baseline so the caller's session isn't
-    # left routed into the last guild.
-    session.expunge_all()
-    await set_rls_context(session, user_id=user.id)
+    parts = await gather_across_guilds(session, user.id, target_guilds, fetch)
 
     if not parts:
         return UserStatsResponse(

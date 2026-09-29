@@ -10,6 +10,7 @@ import type {
   TaskRecurrenceOutput,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { MentionComposer } from "@/components/markdown/MentionComposer";
 import { type MemberLike, MemberMultiSelect } from "@/components/members/MemberSearchSelect";
 import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
@@ -292,7 +293,7 @@ export const TaskForm = ({
       <div className="space-y-2">
         <Label>{t("taskForm.assigneesLabel")}</Label>
         <MemberMultiSelect
-          scope={{ type: "project", projectId: projectId ?? null }}
+          scope={{ type: "canOpen", tool: Tool.project, id: projectId ?? null }}
           selectedIds={value.assigneeIds}
           selectedUsers={selectedAssignees}
           onChange={(ids) => set({ assigneeIds: ids })}
@@ -333,6 +334,7 @@ export const TaskForm = ({
         onRemove={handlePropertyRemove}
         disabled={disabled}
         initiativeId={initiativeId}
+        canOpen={{ tool: Tool.project, id: projectId }}
       />
       <AddPropertyButton
         initiativeId={initiativeId ?? 0}

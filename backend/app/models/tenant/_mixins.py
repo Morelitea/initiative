@@ -9,14 +9,16 @@ CI if a ``SoftDeleteMixin`` subclass ever lands outside ``app/models/tenant/``.
 """
 
 from datetime import datetime
-from typing import TYPE_CHECKING, ClassVar, Optional
+from typing import TYPE_CHECKING, Any, ClassVar, Optional, TypeVar
 
-from sqlalchemy import DateTime, Integer, String, func, select
+from sqlalchemy import ARRAY, DateTime, Integer, String, func, select
 from sqlalchemy.orm import column_property
 from sqlmodel import Field, SQLModel
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.core.tools import Tool
+
+_M = TypeVar("_M", bound=SQLModel)
 
 
 class SoftDeleteMixin(SQLModel):
@@ -197,6 +199,19 @@ class CommentsToggleMixin(SQLModel):
     )
 
 
+def _mapped_subclasses(base: type[_M]) -> dict[str, type[_M]]:
+    """Every mapped table model under ``base``, however indirectly, by table."""
+    found: dict[str, type[_M]] = {}
+    stack = list(base.__subclasses__())
+    while stack:
+        cls = stack.pop()
+        stack.extend(cls.__subclasses__())
+        table = getattr(cls, "__tablename__", None)
+        if table and getattr(cls, "__table__", None) is not None:
+            found[str(table)] = cls
+    return found
+
+
 def archive_models() -> list[type[ArchiveMixin]]:
     """Every mapped model carrying :class:`ArchiveMixin`, by table name.
 
@@ -204,14 +219,7 @@ def archive_models() -> list[type[ArchiveMixin]]:
     rather than keeping a list of its own, so a tool that becomes archivable is
     archivable everywhere the moment it declares the mixin.
     """
-    found: dict[str, type[ArchiveMixin]] = {}
-    stack = list(ArchiveMixin.__subclasses__())
-    while stack:
-        cls = stack.pop()
-        stack.extend(cls.__subclasses__())
-        table = getattr(cls, "__tablename__", None)
-        if table and getattr(cls, "__table__", None) is not None:
-            found[str(table)] = cls
+    found = _mapped_subclasses(ArchiveMixin)
     return [found[name] for name in sorted(found)]
 
 
@@ -221,14 +229,7 @@ def created_by_models() -> list[type[CreatedByMixin]]:
     The single source for "which tables record an author" — the completeness
     test reads it, so a new table joins the moment it declares the mixin.
     """
-    found: dict[str, type[CreatedByMixin]] = {}
-    stack = list(CreatedByMixin.__subclasses__())
-    while stack:
-        cls = stack.pop()
-        stack.extend(cls.__subclasses__())
-        table = getattr(cls, "__tablename__", None)
-        if table and getattr(cls, "__table__", None) is not None:
-            found[str(table)] = cls
+    found = _mapped_subclasses(CreatedByMixin)
     return [found[name] for name in sorted(found)]
 
 
@@ -241,42 +242,65 @@ def tool_models() -> dict[str, type[SQLModel]]:
     moment its model exists, which is what keeps those registries from being a
     place a new tool can be forgotten.
     """
-    found: dict[str, type[SQLModel]] = {}
-    stack = list(SoftDeleteMixin.__subclasses__())
-    while stack:
-        cls = stack.pop()
-        stack.extend(cls.__subclasses__())
-        table = getattr(cls, "__tablename__", None)
-        if table and getattr(cls, "__table__", None) is not None:
-            found[str(table)] = cls
-    return found
+    return _mapped_subclasses(SoftDeleteMixin)
 
 
-def attach_access_level(model: type[SQLModel], tool: "Tool") -> None:
-    """Map ``access_level`` on a shareable model: the rung of the sharing
-    ladder the request holds on the row, answered by the schema's own
-    ``resource_level`` in the same SELECT as the row.
+def attach_actions(model: type[SQLModel], tool: "Tool") -> None:
+    """Map ``actions`` on a shareable model: what the request may do to the
+    row beyond reading it, answered by the schema's own ``resource_actions`` in
+    the same SELECT as the row — the function whose answers the routes refuse
+    by and the row's ``can`` reports.
 
     Deferred, so a load that only needs the row pays nothing; a loader that
-    goes on to serialize the row asks for it with ``undefer``. Read through
-    :func:`app.services.permissions.level_of`.
+    goes on to decide or serialize asks for it with ``undefer``. Read through
+    :func:`app.services.permissions.actions_of`.
     """
-    reader = func.nullif(func.current_setting("app.current_user_id", True), "").cast(
-        Integer
-    )
-    # This statement's standing, as ``app.db.authorization.standing_arg`` spells
-    # it; this module sits below that one, so the sub-select is written here.
-    standing = select(func.current_standing()).scalar_subquery()
     model.__mapper__.add_property(  # type: ignore[attr-defined]
-        "access_level",
+        "actions",
         column_property(
-            func.resource_level(
+            func.resource_actions(
                 tool.value,
                 model.id,  # type: ignore[attr-defined]
-                reader,
+                _reader(),
                 model.initiative_id,  # type: ignore[attr-defined]
-                standing,
+                model.archived_at,  # type: ignore[attr-defined]
+                model.deleted_at,  # type: ignore[attr-defined]
+                _standing(),
+                type_=ARRAY(String),
             ),
             deferred=True,
         ),
     )
+
+
+def attach_initiative_actions(model: type[SQLModel]) -> None:
+    """Map ``actions`` on the initiative: what the request may do in it,
+    answered by the schema's ``initiative_actions`` in the same SELECT as the
+    row. Deferred like a tool's; the loaders that serialize an initiative ask
+    for it with ``undefer``."""
+    model.__mapper__.add_property(  # type: ignore[attr-defined]
+        "actions",
+        column_property(
+            func.initiative_actions(
+                model.id,  # type: ignore[attr-defined]
+                _reader(),
+                _standing(),
+                type_=ARRAY(String),
+            ),
+            deferred=True,
+        ),
+    )
+
+
+def _reader() -> Any:
+    """The request's user, as the policies read it."""
+    return func.nullif(func.current_setting("app.current_user_id", True), "").cast(
+        Integer
+    )
+
+
+def _standing() -> Any:
+    """This statement's standing, as ``app.db.authorization.standing_arg``
+    spells it; this module sits below that one, so the sub-select is written
+    here."""
+    return select(func.current_standing()).scalar_subquery()

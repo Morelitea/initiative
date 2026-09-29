@@ -59,15 +59,13 @@ describe("useProjectListView filtering", () => {
       buildProject({ name: "Neither" }),
     ];
 
-    expect(names(render(projects, { fixedTagIds: [42] }).filteredProjects)).toEqual([
-      "Both",
-      "Tag only",
-    ]);
+    prefs.set(`${PREFIX}:tag-filters`, [42]);
+    expect(names(render(projects).filteredProjects)).toEqual(["Both", "Tag only"]);
 
     // Favorites is component state rather than a preference, so drive it the
     // way the filter bar does.
     const { result, rerender } = renderHook(() =>
-      useProjectListView({ projects, storagePrefix: PREFIX, fixedTagIds: [42] })
+      useProjectListView({ projects, storagePrefix: PREFIX })
     );
     result.current.filterBarProps.onFavoritesOnlyChange(true);
     rerender();

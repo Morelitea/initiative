@@ -294,16 +294,6 @@ def format_handle(name: str, discriminator: int) -> str:
 DISCRIMINATOR_DIGITS: Final = 4
 
 
-def url_handle(username: str, discriminator: int) -> str:
-    """``jordan`` + ``1234`` -> ``jordan1234`` — the handle as one URL segment.
-
-    ``#`` is not something to put in a path: it never reaches the server. The
-    number keeps its four digits and simply runs on from the name, which stays
-    reversible because the width is fixed.
-    """
-    return f"{username}{discriminator:0{DISCRIMINATOR_DIGITS}d}"
-
-
 def parse_url_handle(value: str) -> tuple[str, int] | None:
     """``jordan1234`` -> ``("jordan", 1234)``, or ``None`` if it is not one.
 

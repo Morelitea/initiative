@@ -10,15 +10,9 @@ guild's ``guild_<id>`` schema before touching the database (see
 ``route_session_to_guild``.
 """
 
-from app.testing.actor import Actor, make_actor
+from app.testing.actor import Actor, guild_url, make_actor
 from app.testing.audit import emitted
 from app.testing.captcha import captcha_switched_on
-from app.testing.app_channel import (
-    APP_CHANNEL_SECRET,
-    channel_headers,
-    encode_body,
-    register_app_service,
-)
 from app.testing.factories import (
     create_access_grant,
     grant_role_permission,
@@ -26,8 +20,10 @@ from app.testing.factories import (
     billing_guild_ref,
     enable_all_tools,
     create_tool_entity,
-    create_app_delegation,
     create_app_service_registration,
+    sealed_vendor_values,
+    create_publisher,
+    sample_app_jwks,
     create_auth_provider,
     create_guild_provider_connection,
     NARROWED_CLAIM,
@@ -62,6 +58,8 @@ from app.testing.factories import (
     create_initiative,
     create_initiative_member,
     create_project,
+    create_resource_grant,
+    strip_non_owner_grants,
     create_property_definition,
     create_queue,
     create_queue_item,
@@ -75,9 +73,12 @@ from app.testing.factories import (
     create_task_property_value,
     create_task_status,
     create_upload,
+    create_export_job,
+    create_import_job,
     create_user,
     set_notification_prefs,
     get_auth_headers,
+    signed_in_headers,
     get_auth_token,
 )
 from app.testing.passkeys import (
@@ -88,29 +89,35 @@ from app.testing.passkeys import (
     stub_registration,
 )
 from app.testing.push import push_switched_on
-from app.testing.routing import route_as, route_system
+from app.testing.routing import (
+    as_role,
+    platform_session,
+    route_as,
+    route_as_install,
+    route_system,
+)
 from app.testing.schema_harness import guild_of, route_session_to_guild
 
 __all__ = [
+    "as_role",
     "captcha_switched_on",
     "assertion_for",
     "create_passkey",
     "registration_for",
     "stub_assertion",
     "stub_registration",
-    "APP_CHANNEL_SECRET",
-    "channel_headers",
-    "encode_body",
-    "register_app_service",
     "TOOL_FACTORIES",
     "billing_guild_ref",
     "enable_all_tools",
     "create_tool_entity",
     "Actor",
+    "guild_url",
     "make_actor",
     "emitted",
-    "create_app_delegation",
     "create_app_service_registration",
+    "sealed_vendor_values",
+    "create_publisher",
+    "sample_app_jwks",
     "create_auth_provider",
     "create_guild_provider_connection",
     "NARROWED_CLAIM",
@@ -147,6 +154,8 @@ __all__ = [
     "create_initiative_member",
     "grant_role_permission",
     "create_project",
+    "create_resource_grant",
+    "strip_non_owner_grants",
     "create_property_definition",
     "create_queue",
     "create_queue_item",
@@ -160,13 +169,18 @@ __all__ = [
     "create_task_property_value",
     "create_task_status",
     "create_upload",
+    "create_export_job",
+    "create_import_job",
     "create_user",
     "set_notification_prefs",
     "get_auth_headers",
+    "signed_in_headers",
     "get_auth_token",
     "guild_of",
+    "platform_session",
     "push_switched_on",
     "route_as",
+    "route_as_install",
     "route_session_to_guild",
     "route_system",
 ]

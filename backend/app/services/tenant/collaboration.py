@@ -9,7 +9,7 @@ documents in particular.
 
 A room deliberately does **not**
 keep a list of who is connected: that register lives once, in
-:mod:`app.services.stream_authz`, keyed by socket. A channel that keeps its own
+:mod:`app.services.content_sockets`, keyed by socket. A channel that keeps its own
 copy has to keep the two in step, and the moment they disagree — which is every
 time one account opens a second tab — delivery and authorization stop matching
 the sockets that actually exist.
@@ -20,22 +20,35 @@ import json
 import logging
 from contextlib import suppress
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Set, Tuple
+from typing import Any, Dict, Optional, Tuple
 
-from pycrdt import Doc
+from pycrdt import Decoder, Doc
 from sqlalchemy import update as sa_update
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
-from app.db.session import SystemSessionLocal, set_rls_context
-from app.services.stream_authz import authority as stream_authority
+from app.db import cohorts
+from app.db.session import set_rls_context
+from app.services.content_sockets import resource_room, sockets
+from app.services.tenant import attachments as attachments_service
 from app.services.tenant.collaborative_resources import (
     YJS_STATE_COLUMN,
     YJS_UPDATED_COLUMN,
     resource_for,
 )
+from app.db.request_context import SystemGuild
 
 logger = logging.getLogger(__name__)
+
+
+def _clocks(state_vector: bytes) -> dict[int, int]:
+    """A Yjs state vector as ``{client: clock}``: a count, then that many
+    ``(client, clock)`` pairs, all variable-length unsigned integers."""
+    decoder = Decoder(state_vector)
+    return {
+        decoder.read_var_uint(): decoder.read_var_uint()
+        for _ in range(decoder.read_var_uint())
+    }
 
 
 class CollaborationRoom:
@@ -71,6 +84,8 @@ class CollaborationRoom:
         # rendering of the document is only current if it came from the tab
         # that last moved it.
         self._last_writer: Any = None
+        #: Everyone who has changed the document in this room.
+        self.writers: set[int] = set()
         # A room dropped from the registry. Nothing should reach one — the
         # registry only drops rooms with no connections — but a write that does
         # would go nowhere, so it says so instead of swallowing it.
@@ -97,8 +112,8 @@ class CollaborationRoom:
 
     def connection_count(self) -> int:
         """How many sockets are in this room, asked of the one register."""
-        return stream_authority.room_size(
-            self.guild_id, self.resource_type, self.resource_id
+        return sockets.room_size(
+            resource_room(self.guild_id, self.resource_type, self.resource_id)
         )
 
     def is_empty(self) -> bool:
@@ -135,18 +150,15 @@ class CollaborationRoom:
             if self._loaded:
                 return
             spec = resource_for(self.resource_type)
-            statement = select(spec.model).where(spec.model.id == self.resource_id)
+            statement = select(
+                spec.model.id, getattr(spec.model, YJS_STATE_COLUMN)
+            ).where(spec.model.id == self.resource_id)
             row = (await session.exec(statement)).one_or_none()
             if row:
-                await self.initialize_from_db(
-                    yjs_state=getattr(row, YJS_STATE_COLUMN),
-                    lexical_content=getattr(row, spec.content_column),
-                )
+                await self.initialize_from_db(yjs_state=row[1])
             self._loaded = True
 
-    async def initialize_from_db(
-        self, yjs_state: Optional[bytes], lexical_content: Optional[dict]
-    ) -> None:
+    async def initialize_from_db(self, yjs_state: Optional[bytes]) -> None:
         """Initialize the Y.Doc from database state.
 
         Note: We don't try to convert Lexical content to Yjs here because Lexical's
@@ -205,11 +217,27 @@ class CollaborationRoom:
         """
         return bytes(self.doc.get_state())
 
-    def apply_update(self, update: bytes, connection: Any = None) -> None:
-        """Apply a Yjs update from a client."""
+    def known_to(self, state_vector: bytes) -> bool:
+        """Whether a client at ``state_vector`` has everything this room has.
+
+        Only then is that client's rendering a rendering of this room: one that
+        is missing somebody else's edits describes an older document.
+        """
+        theirs = _clocks(state_vector)
+        return all(
+            clock <= theirs.get(client, 0)
+            for client, clock in _clocks(self.state_vector()).items()
+        )
+
+    def apply_update(
+        self, update: bytes, connection: Any = None, user_id: int | None = None
+    ) -> None:
+        """Apply a Yjs update from a client, sent by ``user_id``."""
         self.doc.apply_update(update)
         self._revision += 1
         self._last_writer = connection
+        if user_id is not None:
+            self.writers.add(user_id)
 
     def offer_content(self, content: dict, connection: Any = None) -> bool:
         """Record the JSON an editor says this document now reads as.
@@ -387,23 +415,34 @@ class CollaborationManager:
                 )
                 return False
 
-    async def persist_room(
-        self,
-        guild_id: int,
-        resource_type: str,
-        resource_id: int,
-        session: AsyncSession,
-    ) -> None:
-        """Persist the current room state to the database.
+    async def save(self, room: CollaborationRoom) -> None:
+        """Write one room, on a system session from its community's cohort
+        routed into it.
 
-        ``session`` must be routed to ``guild_id``, whose schema holds the row
-        being written.
+        The one way a room reaches the database: the sweep, the last
+        connection leaving and a handed-over edit all come here, so none of
+        them depends on whose request happened to be last in the room.
+        """
+        async with cohorts.system_session(room.guild_id) as session:
+            await set_rls_context(session, SystemGuild(room.guild_id))
+            await self._write_room(room, session)
+
+    async def leave(self, guild_id: int, resource_type: str, resource_id: int) -> None:
+        """Save a room nothing is connected to any more, and retire it.
+
+        A room somebody is still in, or on their way into, is left alone. A
+        save that fails leaves the room dirty, and the sweep tries again.
         """
         async with self._lock:
             room = self._rooms.get((guild_id, resource_type, resource_id))
-        if room is None:
+        if room is None or not room.is_empty():
             return
-        await self._write_room(room, session)
+        if room.is_dirty:
+            try:
+                await self.save(room)
+            except Exception:
+                logger.exception(f"Failed to save {resource_type} {resource_id}")
+        await self.remove_room(guild_id, resource_type, resource_id)
 
     async def _write_room(self, room: CollaborationRoom, session: AsyncSession) -> None:
         """Write both views of one room in a single statement.
@@ -450,6 +489,15 @@ class CollaborationManager:
                 .where(spec.model.id == room.resource_id)
                 .values(**values)
             )
+            if content is not None and result.rowcount:
+                # The files its writers uploaded are claimed. Nothing is copied:
+                # the content is the editors' rendering of the room's document,
+                # which the next save writes again as they hold it.
+                await attachments_service.claim_uploads(
+                    session,
+                    await session.get(spec.model, room.resource_id),
+                    uploaded_by=room.writers,
+                )
             await session.commit()
             if result.rowcount:
                 room.mark_persisted(revision)
@@ -473,28 +521,27 @@ class CollaborationManager:
             await session.rollback()
 
     async def persist_dirty_rooms(self) -> int:
-        """Write every room that has changed since it was last written.
+        """Write every room that has changed since it was last written, then
+        retire the ones nobody is in.
 
-        Returns how many were written. A room nobody has touched costs nothing:
-        serializing an unchanged document and rewriting its column every sweep
-        is the kind of idle work that scales with how many documents are open
-        rather than with how much is happening in them.
+        Returns how many were written. A room nobody has touched costs nothing
+        to keep open, and one nobody is in any more — its last save failed, or
+        the connection that left could not finish — is retired here once it is
+        saved, rather than held for the life of the process.
         """
         async with self._lock:
             targets = [room for room in self._rooms.values() if room.is_dirty]
         for room in targets:
             try:
-                # Nobody is doing this: a sweep writing back what an open
-                # room already holds. It runs on the system engine and routes
-                # into the community for its schema, which the policies admit
-                # by the connection's own login.
-                async with SystemSessionLocal() as session:
-                    await set_rls_context(session, guild_id=room.guild_id)
-                    await self._write_room(room, session)
+                await self.save(room)
             except Exception:
                 logger.exception(
                     f"Sweep failed to persist {room.resource_type} {room.resource_id}"
                 )
+        async with self._lock:
+            idle = [key for key, room in self._rooms.items() if room.is_empty()]
+        for key in idle:
+            await self.remove_room(*key)
         return len(targets)
 
     def ensure_persistence_loop(self) -> None:
@@ -533,16 +580,6 @@ class CollaborationManager:
             except Exception:
                 logger.exception("collaboration persistence sweep failed")
 
-    def get_active_rooms(self) -> Set[RoomKey]:
-        """Get the set of (guild, document) pairs with active rooms."""
-        return set(self._rooms.keys())
-
-    def get_room(
-        self, guild_id: int, resource_type: str, resource_id: int
-    ) -> Optional[CollaborationRoom]:
-        """Get a room without creating it."""
-        return self._rooms.get((guild_id, resource_type, resource_id))
-
     def has_active_collaborators(
         self, guild_id: int, resource_type: str, resource_id: int
     ) -> bool:
@@ -560,7 +597,9 @@ def room_roster(guild_id: int, resource_type: str, resource_id: int) -> list[dic
     can write if any of those connections may.
     """
     by_user: Dict[int, dict] = {}
-    for member in stream_authority.room_members(guild_id, resource_type, resource_id):
+    for member in sockets.room_members(
+        resource_room(guild_id, resource_type, resource_id)
+    ):
         user_id = member.user.id
         if user_id is None:
             continue
@@ -587,13 +626,13 @@ def user_has_connection(
     """
     return any(
         member.user.id == user_id
-        for member in stream_authority.room_members(
-            guild_id, resource_type, resource_id
+        for member in sockets.room_members(
+            resource_room(guild_id, resource_type, resource_id)
         )
     )
 
 
-async def broadcast_awareness(
+def broadcast_awareness(
     guild_id: int,
     resource_type: str,
     resource_id: int,
@@ -611,8 +650,8 @@ async def broadcast_awareness(
         bytes([MSG_AWARENESS])
         + json.dumps({"type": "awareness", "data": awareness_data}).encode()
     )
-    await stream_authority.emit_bytes(
-        guild_id, resource_type, resource_id, message, exclude=exclude
+    sockets.emit_bytes(
+        resource_room(guild_id, resource_type, resource_id), message, exclude=exclude
     )
 
 

@@ -11,12 +11,11 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
 
-import pytest
 
 from app.models.platform.guild import GuildRole
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services.tenant.post_publication import publish_due_posts
 from app.testing import (
+    create_resource_grant,
     Actor,
     create_comment,
     create_document,
@@ -27,7 +26,6 @@ from app.testing import (
     route_session_to_guild,
 )
 
-pytestmark = pytest.mark.integration
 
 ActingUser = Callable[..., Awaitable[Actor]]
 
@@ -688,7 +686,6 @@ async def test_a_subject_that_names_nothing_narrows_nothing(
     assert [item["entity_id"] for item in offered] == [doc.id]
 
 
-@pytest.mark.integration
 async def test_a_suggestion_says_whether_it_is_yours_to_change(
     client, acting_user, session
 ):
@@ -708,14 +705,8 @@ async def test_a_suggestion_says_whether_it_is_yours_to_change(
     theirs = await create_document(
         session, a.initiative, b.user, name="Read only to me"
     )
-    session.add(
-        ResourceGrant(
-            resource_type="document",
-            resource_id=theirs.id,
-            all_initiative_members=True,
-            level=ResourceAccessLevel.read,
-            initiative_id=theirs.initiative_id,
-        )
+    await create_resource_grant(
+        session, theirs, all_initiative_members=True, commit=False
     )
     mine = await create_document(session, a.initiative, a.user, name="Read only mine")
     await session.commit()

@@ -13,8 +13,12 @@ import {
   buildGuild,
   buildInitiative,
   buildInitiativeMember,
+  buildInitiativeRole,
+  buildPage,
   buildUser,
   buildUserPublic,
+  buildUserSummary,
+  initiativeCan,
 } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
@@ -41,7 +45,16 @@ function stubInitiative(overrides: Partial<InitiativeRead> = {}, patchFails?: [n
   const patches: unknown[] = [];
   server.use(
     guildHttp.get("/initiatives/:id", () =>
-      HttpResponse.json(buildInitiative({ id: INITIATIVE_ID, name: "Apollo", ...overrides }))
+      HttpResponse.json(
+        buildInitiative({
+          id: INITIATIVE_ID,
+          name: "Apollo",
+          // Everyone these tests sign in as manages it: an admin, or a member
+          // holding the manager role.
+          can: initiativeCan({ manage: true }),
+          ...overrides,
+        })
+      )
     ),
     guildHttp.get("/initiatives/:id/roles", () => HttpResponse.json([])),
     guildHttp.patch("/initiatives/:id", async ({ request }) => {
@@ -124,6 +137,48 @@ describe("InitiativeSettingsMembersPage", () => {
     renderMembers();
 
     expect(await screen.findByRole("radio", { name: /By request/ })).toBeChecked();
+  });
+
+  it("finds someone to add by searching the community, and seats an admin as moderator", async () => {
+    stubInitiative({ members: [managerMembership()] });
+    const searches: (string | null)[] = [];
+    const added: unknown[] = [];
+    server.use(
+      guildHttp.get("/initiatives/:id/roles", () =>
+        HttpResponse.json([
+          buildInitiativeRole({ id: 20, name: "member", display_name: "Member" }),
+          buildInitiativeRole({
+            id: 21,
+            name: "moderator",
+            display_name: "Moderator",
+            is_manager: true,
+          }),
+        ])
+      ),
+      guildHttp.get("/users/search", ({ request }) => {
+        searches.push(new URL(request.url).searchParams.get("search"));
+        return HttpResponse.json(
+          buildPage([buildUserSummary({ id: 55, full_name: "Ada Admin", guild_role: "admin" })])
+        );
+      }),
+      guildHttp.post("/initiatives/:id/members", async ({ request }) => {
+        added.push(await request.json());
+        return HttpResponse.json(buildInitiative({ id: INITIATIVE_ID }));
+      })
+    );
+
+    renderMembers();
+
+    await userEvent.click(await screen.findByRole("combobox", { name: "Select user" }));
+    await userEvent.type(screen.getByPlaceholderText("Search"), "ada");
+    // The community is asked for what was typed, once the picker's debounce
+    // has let it through.
+    await waitFor(() => expect(searches).toContain("ada"));
+    await userEvent.click(await screen.findByRole("option", { name: "Ada Admin" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add member" }));
+
+    // Its admin lands on the moderator role whatever the role select held.
+    await waitFor(() => expect(added).toEqual([{ user_id: 55, role_id: 21 }]));
   });
 
   /**

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Annotated, List, Optional, Sequence
@@ -15,9 +16,8 @@ from fastapi import (
     status,
 )
 from fastapi.responses import Response
-from sqlalchemy import delete as sa_delete, func, text
+from sqlalchemy import func, text
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -25,21 +25,26 @@ from app.core.audit_events import AuditEventType
 from app.core.relationships import Related, RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.project import Project
+from app.services.permissions import Action
 from app.services.tenant import archive as archive_service
 from app.services.tenant import content_references
 from app.services.tenant import relationships
 from app.services.tenant.relationships import Endpoint
+from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    ActorContext,
+    ActorSessionDep,
+    ActorUserDep,
     IncludeDeletedDep,
     RLSSessionDep,
+    app_scope,
     SessionDep,
     UploadUserDep,
-    addressed_guild_id,
     establish_guild_access,
     get_current_active_user,
-    get_guild_membership,
     GuildAccessError,
     GuildContext,
+    GuildContextDep,
 )
 from app.core.messages import (
     AttachmentMessages,
@@ -47,18 +52,14 @@ from app.core.messages import (
     InitiativeMessages,
 )
 from app.core.rate_limit import limiter
-from app.db.session import require_guild_context
+from app.db.session import require_actor_context
 from app.models.tenant.document import (
     Document,
     DocumentFileVersion,
     DocumentType,
 )
-from app.models.tenant.upload import Upload
-from app.models.tenant.initiative import (
-    Initiative,
-    PermissionKey,
-)
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.models.tenant.initiative import Initiative
+from app.models.platform.notification import NotificationType
 from app.models.platform.user import User
 from app.schemas.tenant.document import (
     DocumentCopyRequest,
@@ -75,6 +76,7 @@ from app.schemas.tenant.document import (
     serialize_document_summary,
     SpreadsheetImportRead,
 )
+from app.schemas.tenant.resource_grant import initiative_readable
 from app.schemas.ai_generation import GenerateDocumentSummaryResponse
 from app.schemas.tenant.property import PropertyValuesSetRequest
 from app.services.tenant import attachments as attachments_service
@@ -83,15 +85,13 @@ from app.services.storage import build_upload_response, get_guild_storage
 from app.api import resource_access
 from app.core.tools import Tool
 from app.services.tenant import documents as documents_service
-from app.services.tenant import initiatives as initiatives_service
+from app.services.tenant import ownership as ownership_service
 from app.services.tenant import tags as tags_service
+from app.services.tenant.names import ensure_name_free
 from app.services.tenant import tool_listing
 from app.services import notifications as notifications_service
-from app.services.platform import accounts as accounts_service
-from app.services import permissions as permissions_service
 from app.services import reachability
 from app.services.tenant import properties as properties_service
-from app.services import rls as rls_service
 from app.services import audit as audit_service
 from app.services.ai_generation import AIGenerationError, generate_document_summary
 from app.services.ai_settings import resolve_ai_settings
@@ -120,123 +120,23 @@ async def attached_projects(
     )
 
 
-router = APIRouter()
+router = APIRouter(route_class=ActorRoute)
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+#: The routes an installed app may call, under the documents scopes.
+DocumentsRead = Annotated[ActorContext, Depends(app_scope("documents:read"))]
+DocumentsWrite = Annotated[ActorContext, Depends(app_scope("documents:write"))]
 
 # Upper bound on the ``ids`` filter, matching the page_size ceiling: the
-# filter exists to hydrate one page worth of known documents, not to smuggle
-# an unbounded IN list into the query.
+# filter hydrates one page worth of known documents.
 MAX_DOCUMENT_IDS = 100
 
 
-async def get_initiative_or_404(
-    session: SessionDep,
-    *,
-    initiative_id: int,
-    guild_id: int,
-) -> Initiative:
-    stmt = select(Initiative).where(
-        Initiative.id == initiative_id,
-    )
-    result = await session.exec(stmt)
-    initiative = result.one_or_none()
-    if not initiative:
+async def get_initiative_or_404(session: SessionDep, *, initiative_id: int) -> None:
+    """Refuse with 404 unless ``initiative_id`` is an initiative of this guild."""
+    if await session.get(Initiative, initiative_id) is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=InitiativeMessages.NOT_FOUND
         )
-    return initiative
-
-
-async def _get_document_or_404(
-    session: SessionDep,
-    *,
-    document_id: int,
-    guild_id: int,
-    populate_existing: bool = False,
-    user_id: int,
-) -> Document:
-    """Load a document with everything a ``DocumentRead`` reads, or refuse.
-
-    The eager loads are the registry's (``documents.get_document_hydrated`` —
-    the same ones ``resource_access.load_authorized(..., hydrated=True)``
-    takes), so a document reaches a response the same way whichever door it
-    came through. For the re-read a write answers with, where the row has
-    already been authorized.
-    """
-    document = await documents_service.get_document_hydrated(
-        session, document_id, populate_existing=populate_existing
-    )
-    if not document:
-        raise await reachability.missing_or_denied(
-            "documents",
-            document_id,
-            user_id,
-            guild_id,
-            not_found=Tool.document.not_found_code,
-            denied=Tool.document.no_access_code,
-        )
-    return document
-
-
-async def _require_initiative_access(
-    session: SessionDep,
-    *,
-    initiative_id: int,
-    user: User,
-    guild_context: GuildContext,
-    require_manager: bool = False,
-    permission_key: PermissionKey | None = None,
-) -> None:
-    """Check that user has access to an initiative.
-
-    Args:
-        session: Database session
-        initiative_id: Initiative to check access for
-        user: User to check
-        guild_context: the reader's standing (an admin passes)
-        require_manager: If True, require manager-level role (legacy, use permission_key instead)
-        permission_key: Specific permission to check (e.g., PermissionKey.create_documents)
-    """
-    if guild_context.is_admin:
-        return
-    membership = await initiatives_service.get_initiative_membership(
-        session,
-        initiative_id=initiative_id,
-        user_id=user.id,
-    )
-    if not membership:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=DocumentMessages.INITIATIVE_MEMBERSHIP_REQUIRED,
-        )
-
-    # Check specific permission if requested
-    if permission_key is not None:
-        has_perm = await rls_service.check_initiative_permission(
-            session,
-            initiative_id=initiative_id,
-            user=user,
-            permission_key=permission_key,
-        )
-        if not has_perm:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=Tool.document.role_permission_code,
-            )
-        return
-
-    # Legacy manager check
-    if require_manager:
-        is_manager = await rls_service.is_initiative_manager(
-            session,
-            initiative_id=initiative_id,
-        )
-        if not is_manager:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=InitiativeMessages.MANAGER_REQUIRED,
-            )
 
 
 def _file_download_response(
@@ -268,12 +168,13 @@ def _file_download_response(
         or "html" in normalized_type
     ):
         if inline:
-            # Disable scripts (stored-XSS hardening) but allow the file to be
-            # framed by the same-origin in-app document viewer. X-Frame-Options
-            # set here overrides the SecurityHeadersMiddleware global DENY (it
-            # uses setdefault); frame-ancestors 'self' is the CSP equivalent.
+            # Shown as a static page: sandboxed, with no scripts and no forms,
+            # and framed only by the in-app document viewer on this origin.
+            # X-Frame-Options set here overrides the SecurityHeadersMiddleware
+            # global DENY (it uses setdefault); frame-ancestors 'self' is the
+            # CSP equivalent.
             headers["Content-Security-Policy"] = (
-                "script-src 'none'; frame-ancestors 'self'"
+                "sandbox; script-src 'none'; form-action 'none'; frame-ancestors 'self'"
             )
             headers["X-Frame-Options"] = "SAMEORIGIN"
         else:
@@ -289,8 +190,8 @@ def _file_download_response(
 
 
 def visible_document_conditions(
-    context: GuildContext,
-    user_id: int,
+    context: ActorContext,
+    user_id: int | None,
     *,
     initiative_id: Optional[int] = None,
     ids: Optional[List[int]] = None,
@@ -339,7 +240,7 @@ def visible_document_conditions(
 
 
 async def serialize_document_page(
-    session: AsyncSession, user: User, documents: list[Document]
+    session: AsyncSession, user_id: int | None, documents: list[Document]
 ) -> list[DocumentSummary]:
     """Serialize one page of documents — the rows a document list answers with.
 
@@ -354,13 +255,14 @@ async def serialize_document_page(
     """
     await tags_service.annotate_tags(session, documents)
     await documents_service.annotate_comment_counts(session, documents)
+    await ownership_service.annotate_owner_apps(session, documents)
     attached = await attached_projects(session, documents)
-    context = require_guild_context(session)
+    context = require_actor_context(session)
     return [
         serialize_document_summary(
             document,
             context=context,
-            user_id=user.id,
+            user_id=user_id,
             projects=attached.get(document.id, []),
         )
         for document in documents
@@ -391,9 +293,7 @@ async def get_document_counts(
     list endpoint so the sidebar counts match the list beside it.
     """
     if initiative_id is not None:
-        await get_initiative_or_404(
-            session, initiative_id=initiative_id, guild_id=guild_context.guild_id
-        )
+        await get_initiative_or_404(session, initiative_id=initiative_id)
 
     conditions = visible_document_conditions(
         guild_context,
@@ -437,53 +337,16 @@ async def get_document_counts(
     )
 
 
-async def _check_duplicate_name(
-    session: SessionDep,
-    *,
-    initiative_id: int,
-    name: str,
-    exclude_document_id: int | None = None,
-) -> None:
-    """Check if a document with the same name already exists in the initiative.
-
-    Raises 400 if a duplicate is found.
-    """
-    normalized_name = name.strip().lower()
-    stmt = select(Document).where(
-        Document.initiative_id == initiative_id,
-        func.lower(Document.name) == normalized_name,
-    )
-    if exclude_document_id is not None:
-        stmt = stmt.where(Document.id != exclude_document_id)
-
-    result = await session.exec(stmt)
-    existing = result.first()
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=DocumentMessages.NAME_ALREADY_EXISTS,
-        )
-
-
 @router.post("/", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
 async def create_document(
     document_in: DocumentCreate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: DocumentsWrite,
 ) -> DocumentRead:
-    initiative = await get_initiative_or_404(
-        session,
-        initiative_id=document_in.initiative_id,
-        guild_id=guild_context.guild_id,
-    )
-    resource_access.require_tool_enabled(Tool.document, initiative)
-    await _require_initiative_access(
-        session,
-        initiative_id=initiative.id,
-        user=current_user,
-        guild_context=guild_context,
-        permission_key=PermissionKey.create_documents,
+    resource_access.refuse_app_sharing(guild_context, document_in, "grants")
+    initiative = await resource_access.prepare_create(
+        session, Tool.document, document_in.initiative_id, current_user, guild_context
     )
     name = document_in.name.strip()
     if not name:
@@ -492,15 +355,18 @@ async def create_document(
             detail=DocumentMessages.NAME_REQUIRED,
         )
 
-    # Check for duplicate name in initiative
-    await _check_duplicate_name(session, initiative_id=initiative.id, name=name)
-
-    requested_type = DocumentType(document_in.document_type)
+    await ensure_name_free(
+        session,
+        Document.name,
+        name,
+        Document.initiative_id == initiative.id,
+        detail=DocumentMessages.NAME_ALREADY_EXISTS,
+    )
 
     try:
         normalized_content = documents_service.normalize_document_content(
             document_in.content,
-            document_type=requested_type,
+            document_type=document_in.document_type,
         )
     except documents_service.DocumentContentError as exc:
         raise HTTPException(
@@ -510,37 +376,24 @@ async def create_document(
     document = Document(
         name=name,
         initiative_id=initiative.id,
-        document_type=requested_type,
+        document_type=document_in.document_type,
         content=normalized_content,
-        created_by=current_user.id,
+        created_by=guild_context.user_id,
         featured_image_url=document_in.featured_image_url,
         is_template=document_in.is_template,
     )
     session.add(document)
     await session.flush()
 
-    # Add owner permission for the creator
-    owner_permission = ResourceGrant(
-        resource_type="document",
-        resource_id=document.id,
-        user_id=current_user.id,
-        role_id=None,
-        level=ResourceAccessLevel.owner,
-        initiative_id=document.initiative_id,
-    )
-    session.add(owner_permission)
-
-    # Apply the initial sharing exactly the way edits do — one grant list, one
-    # code path (defaults to Viewer for all members, set on DocumentCreate.grants).
-    await permissions_service.replace_resource_grants(
+    await resource_access.grant_initial_sharing(
         session,
-        resource_type="document",
+        guild_context,
+        Tool.document,
+        user=current_user,
         resource_id=document.id,
-        guild_id=guild_context.guild_id,
-        initiative_id=document.initiative_id,
-        owner_id=current_user.id,
+        initiative_id=initiative.id,
+        payload=document_in,
         grants=document_in.grants,
-        actor_user_id=current_user.id,
     )
 
     # What the new body points at becomes `references` edges.
@@ -548,22 +401,12 @@ async def create_document(
         session,
         Endpoint(SearchEntityType.document, document.id),
         body=document.content,
-        author_id=current_user.id,
+        author_id=guild_context.user_id,
     )
+    await attachments_service.claim_uploads(session, document)
 
     await session.commit()
-
-    hydrated = await _get_document_or_404(
-        session,
-        document_id=document.id,
-        guild_id=guild_context.guild_id,
-        user_id=current_user.id,
-    )
-    return serialize_document(
-        hydrated,
-        user_id=current_user.id,
-        context=guild_context,
-    )
+    return await read_after_write(session, document.id, current_user, guild_context)
 
 
 @router.post(
@@ -578,18 +421,8 @@ async def upload_document_file(
     file: UploadFile = File(...),
 ) -> DocumentRead:
     """Upload a file document (PDF, DOCX, etc.)."""
-    initiative = await get_initiative_or_404(
-        session,
-        initiative_id=initiative_id,
-        guild_id=guild_context.guild_id,
-    )
-    resource_access.require_tool_enabled(Tool.document, initiative)
-    await _require_initiative_access(
-        session,
-        initiative_id=initiative.id,
-        user=current_user,
-        guild_context=guild_context,
-        permission_key=PermissionKey.create_documents,
+    initiative = await resource_access.prepare_create(
+        session, Tool.document, initiative_id, current_user, guild_context
     )
     name = name.strip()
     if not name:
@@ -601,8 +434,13 @@ async def upload_document_file(
     # Pick up a backend/credential change saved in another worker before writing.
     await storage_config.ensure_storage_config_fresh(session)
 
-    # Check for duplicate name in initiative
-    await _check_duplicate_name(session, initiative_id=initiative.id, name=name)
+    await ensure_name_free(
+        session,
+        Document.name,
+        name,
+        Document.initiative_id == initiative.id,
+        detail=DocumentMessages.NAME_ALREADY_EXISTS,
+    )
 
     # Read the body with a hard cap so an over-limit upload is rejected before
     # the whole payload is buffered into memory (memory-exhaustion DoS guard).
@@ -637,20 +475,15 @@ async def upload_document_file(
             detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
         )
 
-    # Save file to uploads directory
-    file_url = attachments_service.save_document_file(
-        contents, extension, guild_context.guild_id, content_type=mime_type
-    )
-
-    # Track the upload in the uploads table for guild-scoped access control
-    upload_record = Upload(
-        filename=file_url.split("/")[-1],
-        created_by=current_user.id,
-        size_bytes=len(contents),
+    file_url = await attachments_service.store_upload(
+        session,
+        guild_id=guild_context.guild_id,
+        filename=attachments_service.new_upload_filename(extension),
+        data=contents,
         content_type=mime_type,
-        content_hash=attachments_service.compute_content_hash(contents),
+        created_by=current_user.id,
+        initiative_id=initiative.id,
     )
-    session.add(upload_record)
 
     # Create document record. A picture is its own featured image, set here so
     # it is written with the row: the uploader's owner grant is only added
@@ -672,28 +505,15 @@ async def upload_document_file(
     session.add(document)
     await session.flush()
 
-    # Add owner permission for the creator
-    session.add(
-        ResourceGrant(
-            resource_type="document",
-            resource_id=document.id,
-            user_id=current_user.id,
-            role_id=None,
-            level=ResourceAccessLevel.owner,
-            initiative_id=document.initiative_id,
-        )
-    )
-    # File uploads default to Viewer for all members, like native docs.
-    session.add(
-        ResourceGrant(
-            resource_type="document",
-            resource_id=document.id,
-            user_id=None,
-            role_id=None,
-            all_initiative_members=True,
-            level=ResourceAccessLevel.read,
-            initiative_id=document.initiative_id,
-        )
+    await resource_access.grant_initial_sharing(
+        session,
+        guild_context,
+        Tool.document,
+        user=current_user,
+        resource_id=document.id,
+        initiative_id=initiative.id,
+        payload=None,
+        grants=initiative_readable(),
     )
     # The grants land before the version row: writing a version is the
     # document owner's to do, and the uploader is its owner only once the
@@ -714,18 +534,7 @@ async def upload_document_file(
         )
     )
     await session.commit()
-
-    hydrated = await _get_document_or_404(
-        session,
-        document_id=document.id,
-        guild_id=guild_context.guild_id,
-        user_id=current_user.id,
-    )
-    return serialize_document(
-        hydrated,
-        user_id=current_user.id,
-        context=guild_context,
-    )
+    return await read_after_write(session, document.id, current_user, guild_context)
 
 
 def _normalize_mime(mime: str | None) -> str:
@@ -750,13 +559,7 @@ async def upload_document_version(
 ) -> DocumentFileVersionRead:
     """Upload a new version of a file document. Requires write access."""
     document = await resource_access.load_authorized(
-        session,
-        Tool.document,
-        document_id,
-        current_user,
-        guild_context,
-        access="write",
-        hydrated=True,
+        session, Tool.document, document_id, current_user, guild_context, access="write"
     )
     if document.document_type != DocumentType.file:
         raise HTTPException(
@@ -812,19 +615,15 @@ async def upload_document_version(
             detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
         )
 
-    file_url = attachments_service.save_document_file(
-        contents, extension, guild_context.guild_id, content_type=mime_type
-    )
-
-    # Track the new blob in the uploads table for guild-scoped access control.
-    upload_record = Upload(
-        filename=file_url.split("/")[-1],
-        created_by=current_user.id,
-        size_bytes=len(contents),
+    file_url = await attachments_service.store_upload(
+        session,
+        guild_id=guild_context.guild_id,
+        filename=attachments_service.new_upload_filename(extension),
+        data=contents,
         content_type=mime_type,
-        content_hash=attachments_service.compute_content_hash(contents),
+        created_by=current_user.id,
+        initiative_id=document.initiative_id,
     )
-    session.add(upload_record)
 
     max_version = await session.scalar(
         select(func.max(DocumentFileVersion.version_number)).where(
@@ -862,7 +661,9 @@ async def upload_document_version(
         # MAX() read and this commit. Roll back, drop the orphaned blob, and ask
         # the caller to retry rather than surfacing a 500.
         await session.rollback()
-        attachments_service.delete_upload_by_url(file_url)
+        attachments_service.delete_blobs(
+            guild_context.guild_id, attachments_service.upload_names([file_url])
+        )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=DocumentMessages.VERSION_CONFLICT,
@@ -880,13 +681,7 @@ async def list_document_versions(
 ) -> List[DocumentFileVersionRead]:
     """List all stored versions of a file document, newest first. Read access."""
     document = await resource_access.load_authorized(
-        session,
-        Tool.document,
-        document_id,
-        current_user,
-        guild_context,
-        access="read",
-        hydrated=True,
+        session, Tool.document, document_id, current_user, guild_context
     )
     if document.document_type != DocumentType.file:
         raise HTTPException(
@@ -922,8 +717,7 @@ async def delete_document_version(
         document_id,
         current_user,
         guild_context,
-        require_owner=True,
-        hydrated=True,
+        action=Action.delete,
     )
     if document.document_type != DocumentType.file:
         raise HTTPException(
@@ -965,11 +759,6 @@ async def delete_document_version(
     deleted_url = target.file_url
 
     await session.delete(target)
-    await session.flush()
-
-    # Remove the upload-tracking row + filesystem blob for this version.
-    filename = deleted_url.split("/")[-1]
-    await session.exec(sa_delete(Upload).where(Upload.filename == filename))
 
     if is_current:
         # Promote the next-highest version to current by mirroring its file
@@ -987,19 +776,21 @@ async def delete_document_version(
                     document.featured_image_url = promoted.file_url
                 else:
                     document.featured_image_url = None
-
     await session.commit()
 
-    # Delete the blob after the row is gone so a failed commit doesn't orphan files.
-    attachments_service.delete_upload_by_url(deleted_url)
+    # Once the version is gone, and only if nothing else shows its file.
+    released = await attachments_service.release_unshown(
+        guild_context.guild_id, [deleted_url]
+    )
+    attachments_service.delete_blobs(guild_context.guild_id, released)
 
 
 @router.get("/{document_id}", response_model=DocumentRead)
 async def read_document(
     document_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: DocumentsRead,
     include_deleted: IncludeDeletedDep = False,
     include_content: Annotated[
         bool,
@@ -1024,7 +815,7 @@ async def read_document(
     )
     return serialize_document(
         document,
-        user_id=current_user.id,
+        user_id=guild_context.user_id,
         include_content=include_content,
         context=guild_context,
     )
@@ -1034,23 +825,17 @@ async def read_document(
 async def update_document(
     document_id: int,
     document_in: DocumentUpdate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: DocumentsWrite,
 ) -> DocumentRead:
     document = await resource_access.load_authorized(
-        session,
-        Tool.document,
-        document_id,
-        current_user,
-        guild_context,
-        access="write",
-        hydrated=True,
+        session, Tool.document, document_id, current_user, guild_context, access="write"
     )
     updated = False
     update_data = document_in.model_dump(exclude_unset=True)
     removed_upload_urls: set[str] = set()
-    previous_content_urls = attachments_service.extract_upload_urls(document.content)
+    released: set[str] = set()
     previous_featured_url = document.featured_image_url
 
     if "name" in update_data:
@@ -1060,12 +845,13 @@ async def update_document(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=DocumentMessages.NAME_REQUIRED,
             )
-        # Check for duplicate name in initiative (exclude current document)
-        await _check_duplicate_name(
+        await ensure_name_free(
             session,
-            initiative_id=document.initiative_id,
-            name=name,
-            exclude_document_id=document.id,
+            Document.name,
+            name,
+            Document.initiative_id == document.initiative_id,
+            Document.id != document.id,
+            detail=DocumentMessages.NAME_ALREADY_EXISTS,
         )
         document.name = name
         updated = True
@@ -1091,6 +877,10 @@ async def update_document(
             detail=DocumentMessages.LIVE_SESSION_OWNS_CONTENT,
         )
     if "content" in update_data:
+        await session.refresh(document, ["content"])
+        previous_content_urls = attachments_service.extract_upload_urls(
+            document.content
+        )
         try:
             document.content = documents_service.normalize_document_content(
                 update_data["content"],
@@ -1131,12 +921,17 @@ async def update_document(
                 session,
                 Endpoint(SearchEntityType.document, document.id),
                 body=document.content,
-                author_id=current_user.id,
+                author_id=guild_context.user_id,
             )
-        if removed_upload_urls:
-            filenames = [url.split("/")[-1] for url in removed_upload_urls]
-            await session.exec(sa_delete(Upload).where(Upload.filename.in_(filenames)))
+        await attachments_service.claim_uploads(session, document)
+        # What the edit took out goes once nothing else shows it. An installed
+        # app does not manage the community's uploads; what its edit let go of
+        # stays for a person to clear.
         await session.commit()
+        if current_user is not None and removed_upload_urls:
+            released = await attachments_service.release_unshown(
+                guild_context.guild_id, removed_upload_urls
+            )
         # Invalidate any in-memory collaboration room so the next session
         # loads fresh state from the database. If a room has active
         # collaborators their in-memory state wins until they disconnect.
@@ -1144,18 +939,60 @@ async def update_document(
             await collaboration_manager.invalidate_room_if_empty(
                 guild_context.guild_id, SearchEntityType.document.value, document.id
             )
-    hydrated = await _get_document_or_404(
+    attachments_service.delete_blobs(guild_context.guild_id, released)
+    return await read_after_write(session, document.id, current_user, guild_context)
+
+
+async def _duplicate_into(
+    session: RLSSessionDep,
+    source: Document,
+    *,
+    initiative_id: int,
+    name: str,
+    user: User,
+    guild_context: GuildContext,
+) -> DocumentRead:
+    """Make a copy of ``source`` named ``name`` in ``initiative_id``, held to
+    what a create is held to: the caller may create documents there and the
+    name is free in it. Commits."""
+    await resource_access.prepare_create(
+        session, Tool.document, initiative_id, user, guild_context
+    )
+    name = name.strip()
+    if not name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=DocumentMessages.NAME_REQUIRED,
+        )
+    await ensure_name_free(
         session,
-        document_id=document.id,
-        guild_id=guild_context.guild_id,
-        user_id=current_user.id,
+        Document.name,
+        name,
+        Document.initiative_id == initiative_id,
+        detail=DocumentMessages.NAME_ALREADY_EXISTS,
     )
-    attachments_service.delete_uploads_by_urls(removed_upload_urls)
-    return serialize_document(
-        hydrated,
-        user_id=current_user.id,
-        context=guild_context,
+    try:
+        duplicated = await documents_service.duplicate_document(
+            session,
+            source=source,
+            initiative_id=initiative_id,
+            name=name,
+            user=user,
+            actor=guild_context,
+        )
+    except attachments_service.StorageQuotaExceededError:
+        raise HTTPException(
+            status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
+            detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
+        )
+    await content_references.sync_for_entity(
+        session,
+        Endpoint(SearchEntityType.document, duplicated.id),
+        body=duplicated.content,
+        author_id=user.id,
     )
+    await session.commit()
+    return await read_after_write(session, duplicated.id, user, guild_context)
 
 
 @router.post(
@@ -1171,46 +1008,15 @@ async def duplicate_document(
     payload: DocumentDuplicateRequest | None = Body(default=None),
 ) -> DocumentRead:
     document = await resource_access.load_authorized(
-        session,
-        Tool.document,
-        document_id,
-        current_user,
-        guild_context,
-        access="write",
-        hydrated=True,
+        session, Tool.document, document_id, current_user, guild_context, access="write"
     )
-    payload = payload or DocumentDuplicateRequest()
-    name = (payload.name or f"{document.name} (Copy)").strip()
-    if not name:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=DocumentMessages.NAME_REQUIRED,
-        )
-
-    try:
-        duplicated = await documents_service.duplicate_document(
-            session,
-            source=document,
-            target_initiative_id=document.initiative_id,
-            name=name,
-            user_id=current_user.id,
-            guild_id=guild_context.guild_id,
-        )
-    except attachments_service.StorageQuotaExceededError:
-        raise HTTPException(
-            status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
-            detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
-        )
-    hydrated = await _get_document_or_404(
+    return await _duplicate_into(
         session,
-        document_id=duplicated.id,
-        guild_id=guild_context.guild_id,
-        user_id=current_user.id,
-    )
-    return serialize_document(
-        hydrated,
-        user_id=current_user.id,
-        context=guild_context,
+        document,
+        initiative_id=document.initiative_id,
+        name=(payload.name if payload else None) or f"{document.name} (Copy)",
+        user=current_user,
+        guild_context=guild_context,
     )
 
 
@@ -1227,12 +1033,7 @@ async def copy_document(
     guild_context: GuildContextDep,
 ) -> DocumentRead:
     document = await resource_access.load_authorized(
-        session,
-        Tool.document,
-        document_id,
-        current_user,
-        guild_context,
-        hydrated=True,
+        session, Tool.document, document_id, current_user, guild_context
     )
     # Templates are starter content meant to be copied — read on the source is
     # enough. Copying anything else asks for write on it, so a copy is never a
@@ -1245,89 +1046,14 @@ async def copy_document(
             access="write",
             context=guild_context,
         )
-    target_initiative = await get_initiative_or_404(
-        session,
-        initiative_id=payload.target_initiative_id,
-        guild_id=guild_context.guild_id,
-    )
-    # Also require create_documents permission in target initiative
-    resource_access.require_tool_enabled(Tool.document, target_initiative)
-    await _require_initiative_access(
-        session,
-        initiative_id=target_initiative.id,
-        user=current_user,
-        guild_context=guild_context,
-        permission_key=PermissionKey.create_documents,
-    )
-    name = (payload.name or document.name).strip()
-    if not name:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=DocumentMessages.NAME_REQUIRED,
-        )
-
-    try:
-        duplicated = await documents_service.duplicate_document(
-            session,
-            source=document,
-            target_initiative_id=target_initiative.id,
-            name=name,
-            user_id=current_user.id,
-            guild_id=guild_context.guild_id,
-        )
-    except attachments_service.StorageQuotaExceededError:
-        raise HTTPException(
-            status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
-            detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
-        )
-    hydrated = await _get_document_or_404(
-        session,
-        document_id=duplicated.id,
-        guild_id=guild_context.guild_id,
-        user_id=current_user.id,
-    )
-    return serialize_document(
-        hydrated,
-        user_id=current_user.id,
-        context=guild_context,
-    )
-
-
-@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_document(
-    document_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> None:
-    """Soft-delete a document. Upload rows + filesystem blobs survive so a
-    restored document keeps its images and file body. Wikilinks pointing at
-    this document continue to reference the row but resolve to nothing
-    (the active-row filter hides it). Both URL-orphan cleanup for native
-    docs and the 1:1 Upload cleanup for file-type docs run later, at
-    hard-purge time, via ``purge_document_uploads``."""
-    from app.services.platform import guilds as guilds_service
-    from app.services.tenant.soft_delete import soft_delete_entity
-
-    document = await resource_access.load_authorized(
-        session,
-        Tool.document,
-        document_id,
-        current_user,
-        guild_context,
-        require_owner=True,
-        hydrated=True,
-    )
-    retention_days = await guilds_service.get_guild_retention_days(
-        session, guild_context.guild_id
-    )
-    await soft_delete_entity(
+    return await _duplicate_into(
         session,
         document,
-        deleted_by_user_id=current_user.id,
-        retention_days=retention_days,
+        initiative_id=payload.target_initiative_id,
+        name=payload.name or document.name,
+        user=current_user,
+        guild_context=guild_context,
     )
-    await session.commit()
 
 
 @router.post("/{document_id}/mentions", status_code=status.HTTP_204_NO_CONTENT)
@@ -1342,39 +1068,26 @@ async def notify_mentions(
     if not mentioned_user_ids:
         return
     document = await resource_access.load_authorized(
+        session, Tool.document, document_id, current_user, guild_context, access="write"
+    )
+    name = notifications_service.actor_name(current_user)
+    await notifications_service.notify(
         session,
-        Tool.document,
-        document_id,
-        current_user,
-        guild_context,
-        access="write",
-        hydrated=True,
+        NotificationType.mention,
+        mentioned_user_ids,
+        about=(Tool.document.value, document.id),
+        key="mention.document",
+        values={"actor": name, "document": document.name},
+        data={
+            "document_id": document.id,
+            "mentioned_by_name": name,
+            "mentioned_by_id": current_user.id,
+        },
+        actor=current_user,
+        # The editor reports mentions as it saves: an unread line absorbs the
+        # next report rather than mailing again.
+        rollup_key=f"document-body:{document.id}",
     )
-    memberships = await initiatives_service.initiative_roster(
-        session, document.initiative_id
-    )
-    member_ids = {
-        membership.user_id for membership in memberships if membership.user_id
-    }
-    # Who to tell is a question about their account, so it is asked where an
-    # account may be read.
-    recipients = await accounts_service.load(
-        (user_id for user_id in mentioned_user_ids if user_id in member_ids),
-        excluding_ignorers_of=current_user.id,
-    )
-    for user_id in mentioned_user_ids:
-        mentioned_user = recipients.get(user_id)
-        if not mentioned_user:
-            continue
-        await notifications_service.notify_document_mention(
-            session,
-            mentioned_user=mentioned_user,
-            mentioned_by=current_user,
-            document_id=document.id,
-            document_name=document.name,
-            guild_id=guild_context.guild_id,
-            initiative_id=document.initiative_id,
-        )
     await session.commit()
 
 
@@ -1389,25 +1102,18 @@ async def generate_summary(
 ) -> GenerateDocumentSummaryResponse:
     """Generate an AI summary of a document.
 
-    Requires read access to the document. Only works for native documents
-    (not file uploads like PDFs).
+    Requires read access to the document. Only works for native (editor)
+    documents.
     """
     document = await resource_access.load_authorized(
-        session,
-        Tool.document,
-        document_id,
-        current_user,
-        guild_context,
-        access="read",
-        hydrated=True,
+        session, Tool.document, document_id, current_user, guild_context
     )
-
-    # Only allow summarization of native documents with content
-    if document.document_type == DocumentType.file:
+    if document.document_type != DocumentType.native:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=DocumentMessages.AI_NATIVE_ONLY,
         )
+    await session.refresh(document, ["content"])
 
     # Written down before the request goes out, since the disclosure does not
     # wait on the reply: which document, which connection, which provider, and
@@ -1441,95 +1147,76 @@ async def generate_summary(
         )
         return GenerateDocumentSummaryResponse(summary=summary)
     except AIGenerationError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=e.status_code, detail=e.code)
 
 
 @router.put("/{document_id}/properties", response_model=DocumentRead)
 async def set_document_properties(
     document_id: int,
     payload: PropertyValuesSetRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: DocumentsWrite,
 ) -> DocumentRead:
     """Replace the custom property values on a document.
 
     Requires document write access. Values are validated server-side against
-    each property definition's type and options.
+    each property definition's type and options. An installed app names the
+    person a person-valued property holds by its reference for them.
     """
     document = await resource_access.load_authorized(
-        session,
-        Tool.document,
-        document_id,
-        current_user,
-        guild_context,
-        access="write",
-        hydrated=True,
+        session, Tool.document, document_id, current_user, guild_context, access="write"
     )
 
     try:
         await properties_service.set_document_property_values(
             session,
             document,
-            payload.values,
+            await properties_service.property_values_by_row_id(session, payload.values),
             document.initiative_id,
         )
     except HTTPException:
         await session.rollback()
         raise
 
-    # Bump updated_at via a lightweight select to avoid touching the
-    # relationship collections after the DELETE in the service layer.
-    ts_stmt = select(Document).where(Document.id == document_id)
-    ts_result = await session.exec(ts_stmt)
-    ts_doc = ts_result.one()
-    ts_doc.updated_at = datetime.now(timezone.utc)
+    document.updated_at = datetime.now(timezone.utc)
     await session.commit()
-
-    # populate_existing=True forces selectinload to refresh the cached
-    # document's property_values collection. Without it, expire_on_commit
-    # =False keeps the stale (pre-replace-all) collection in the identity
-    # map and the response serializes as if no values were set.
-    refreshed = await _get_document_or_404(
-        session,
-        document_id=document_id,
-        guild_id=guild_context.guild_id,
-        populate_existing=True,
-        user_id=current_user.id,
-    )
-    return serialize_document(
-        refreshed,
-        user_id=current_user.id,
-        context=guild_context,
+    # A document already in the session keeps the property values it was
+    # read with unless the re-read refreshes it.
+    return await read_after_write(
+        session, document_id, current_user, guild_context, populate_existing=True
     )
 
 
 async def read_after_write(
     session: RLSSessionDep,
     document_id: int,
-    user: User,
-    guild_context: GuildContext,
+    user: Optional[User],
+    guild_context: ActorContext,
+    *,
+    populate_existing: bool = False,
 ) -> DocumentRead:
-    """The document a write answers with: re-read after the commit, serialized.
+    """The document a write answers with: re-read after the commit with
+    everything a ``DocumentRead`` reads, and serialized. ``populate_existing``
+    refreshes a copy already in the session.
 
     Registered in ``tool_lists.TOOL_LISTS`` so the shared sharing route
     (``tool_grants.py``) answers in this tool's own shape.
     """
-    hydrated = await _get_document_or_404(
-        session,
-        document_id=document_id,
-        guild_id=guild_context.guild_id,
-        user_id=user.id,
+    document = await documents_service.get_document_hydrated(
+        session, document_id, populate_existing=populate_existing
     )
-    return serialize_document(hydrated, user_id=user.id, context=guild_context)
-
-
-def _download_document_options():
-    """Eager loads the download's access check reads off the document."""
-    return (
-        selectinload(Document.initiative),
-        undefer(Document.access_level),
-        selectinload(Document.grants).selectinload(ResourceGrant.role),
+    if not document:
+        raise await reachability.missing_or_denied(
+            "documents",
+            document_id,
+            guild_context.user_id,
+            guild_context.guild_id,
+            not_found=Tool.document.not_found_code,
+            denied=Tool.document.no_access_code,
+        )
+    return serialize_document(
+        document, user_id=guild_context.user_id, context=guild_context
     )
 
 
@@ -1540,7 +1227,7 @@ async def _load_download_document(
     with the eager loads the access check needs.
 
     Downloads are served via iframe/window.open, which can't send headers, so
-    the guild rides in the ``/g/{guild_id}`` path segment and names exactly the
+    the guild rides in the ``/c/{guild_id}`` path segment and names exactly the
     schema to read. Access is re-validated here (membership or live PAM grant).
     Leaves the session routed into the guild so a follow-up version query runs
     in the same schema.
@@ -1553,8 +1240,8 @@ async def _load_download_document(
     """
     from app.db.schema_provisioning import guild_schema_name
 
-    # Guard the SET ROLE sink: if the guild schema/role isn't provisioned,
-    # establish_guild_access would fault rather than 404. The catalog answers
+    # If the guild schema/role isn't provisioned, establish_guild_access would
+    # fault rather than 404. The catalog answers
     # this for any login.
     schema_exists = (
         await session.exec(
@@ -1574,14 +1261,7 @@ async def _load_download_document(
     except GuildAccessError:
         return None, None
 
-    doc = (
-        await session.exec(
-            select(Document)
-            .where(Document.id == document_id)
-            .options(*_download_document_options())
-        )
-    ).one_or_none()
-    return doc, ctx
+    return await documents_service.get_document_for_grants(session, document_id), ctx
 
 
 @router.get("/{document_id}/download", include_in_schema=False)
@@ -1597,9 +1277,6 @@ async def download_document_file(
     inline: bool = False,
 ) -> Response:
     """Download a file-type document — requires read permission on the document."""
-    # These two routes resolve the guild themselves rather than through
-    # ``get_guild_membership``, so they ask the same question it does.
-    guild_id = addressed_guild_id(request, guild_id)
     document, context = await _load_download_document(
         session, current_user, guild_id, document_id
     )
@@ -1650,7 +1327,6 @@ async def download_document_file_version(
     inline: bool = False,
 ) -> Response:
     """Download a specific stored version of a file document — read permission."""
-    guild_id = addressed_guild_id(request, guild_id)
     document, context = await _load_download_document(
         session, current_user, guild_id, document_id
     )
@@ -1725,13 +1401,7 @@ async def import_spreadsheet_file(
     as any other.
     """
     document = await resource_access.load_authorized(
-        session,
-        Tool.document,
-        document_id,
-        current_user,
-        guild_context,
-        access="write",
-        hydrated=True,
+        session, Tool.document, document_id, current_user, guild_context, access="write"
     )
     if document.document_type != DocumentType.spreadsheet:
         raise HTTPException(
@@ -1751,8 +1421,9 @@ async def import_spreadsheet_file(
         )
 
     try:
-        sheets = spreadsheet_import.parse_spreadsheet_file(
-            file.filename or "", contents
+        # Parsing a workbook is CPU work, so it runs off the event loop.
+        sheets = await asyncio.to_thread(
+            spreadsheet_import.parse_spreadsheet_file, file.filename or "", contents
         )
     except documents_service.DocumentContentError as exc:
         raise HTTPException(

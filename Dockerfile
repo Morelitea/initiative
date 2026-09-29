@@ -6,10 +6,15 @@ COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml 
 RUN corepack enable && pnpm install --frozen-lockfile
 COPY frontend .
 COPY VERSION /VERSION
+COPY MIN_NATIVE_VERSION /MIN_NATIVE_VERSION
 ARG VITE_API_URL=/api/v1
 ARG VITE_VERSION_SUFFIX=
+# A public key the app also accepts app updates from, for a build signed with
+# its own key (see docs/en/running-a-server/building-your-own-image.md).
+ARG VITE_OTA_DEV_KEY=
 ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_VERSION_SUFFIX=$VITE_VERSION_SUFFIX
+ENV VITE_OTA_DEV_KEY=$VITE_OTA_DEV_KEY
 # Browser SPA build (base "/") served by the backend at /app/static.
 RUN pnpm run build
 # Capacitor-flavored OTA bundle (base "", __IS_CAPACITOR__=true) shipped at /app/ota so the
@@ -22,15 +27,46 @@ RUN cp -r dist /tmp/browser-dist \
  && (cd dist && zip -qr /ota/bundle.zip .) \
  && sha256sum /ota/bundle.zip | cut -d' ' -f1 > /ota/bundle.sha256 \
  && rm -rf dist && mv /tmp/browser-dist dist
+# The statement the app installs an update on, signed when the build is given
+# the release key as the secret `ota_signing_key` (see scripts/sign-ota.mjs).
+RUN --mount=type=secret,id=ota_signing_key \
+    node scripts/sign-ota.mjs /ota "$(cat /VERSION)${VITE_VERSION_SUFFIX}" \
+      "$(cat /MIN_NATIVE_VERSION)" /run/secrets/ota_signing_key
 
-FROM python:3.12-slim@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea AS backend-runtime
+FROM python:3.12-slim@sha256:f77ac9e44ae96ef2c90b8053ea08c31f8be030f824196b0ae4db6d462c84e51f AS backend-runtime
 ARG VERSION=0.1.0
 LABEL org.opencontainers.image.version="${VERSION}"
 LABEL org.opencontainers.image.title="Initiative"
 LABEL org.opencontainers.image.description="Initiative project management application"
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+# dist-upgrade, not upgrade. `apt-get upgrade` leaves a package at its current
+# version when the new one "cannot be upgraded without changing the install
+# status of another package", and it never removes one -- so a security update
+# that needs a dependency change is held back, silently, while this line still
+# looks like it applied everything available.
+#
+# Then assert it: a simulated pass must find nothing left to install. Without
+# that the claim "available security updates are applied" is a claim nothing
+# checks, and the image that quietly kept a vulnerable package looks exactly
+# like the image that had nothing to keep.
+#
+# This layer sits above the application so a code change reuses it. A build
+# that must apply today's updates passes a new APT_REFRESH, which is all it
+# takes to run this layer again.
+ARG APT_REFRESH=
+RUN apt-get update \
+    && apt-get dist-upgrade -y \
+    && apt-get install -y --no-install-recommends gosu \
+    && remaining="$(apt-get --simulate dist-upgrade | grep '^Inst ' || true)" \
+    && if [ -n "$remaining" ]; then \
+         echo "packages still upgradable after dist-upgrade:" >&2; \
+         echo "$remaining" >&2; \
+         exit 1; \
+       fi \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /app/uploads
 # uv binary (pinned) for native, lockfile-based dependency installs
-COPY --from=ghcr.io/astral-sh/uv:0.11.21 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.11.21@sha256:ff07b86af50d4d9391d9daf4ff89ce427bc544f9aae87057e69a1cc0aa369946 /uv /uvx /bin/
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_PREFERENCE=only-system
 WORKDIR /app
 # Install dependencies first as a cached layer keyed on the lockfile (no app source needed —
@@ -51,29 +87,7 @@ COPY VERSION ./VERSION
 COPY MIN_NATIVE_VERSION ./MIN_NATIVE_VERSION
 COPY CHANGELOG.md ./CHANGELOG.md
 COPY --from=frontend-build /frontend/dist ./static
-COPY --from=frontend-build /ota/bundle.zip ./ota/bundle.zip
-COPY --from=frontend-build /ota/bundle.sha256 ./ota/bundle.sha256
-# dist-upgrade, not upgrade. `apt-get upgrade` leaves a package at its current
-# version when the new one "cannot be upgraded without changing the install
-# status of another package", and it never removes one -- so a security update
-# that needs a dependency change is held back, silently, while this line still
-# looks like it applied everything available.
-#
-# Then assert it: a simulated pass must find nothing left to install. Without
-# that the claim "available security updates are applied" is a claim nothing
-# checks, and the image that quietly kept a vulnerable package looks exactly
-# like the image that had nothing to keep.
-RUN apt-get update \
-    && apt-get dist-upgrade -y \
-    && apt-get install -y --no-install-recommends gosu \
-    && remaining="$(apt-get --simulate dist-upgrade | grep '^Inst ' || true)" \
-    && if [ -n "$remaining" ]; then \
-         echo "packages still upgradable after dist-upgrade:" >&2; \
-         echo "$remaining" >&2; \
-         exit 1; \
-       fi \
-    && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /app/uploads
+COPY --from=frontend-build /ota/ ./ota/
 COPY backend/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]

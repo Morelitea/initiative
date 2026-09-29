@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -23,7 +22,6 @@ from app.models.platform.user_token import UserToken, UserTokenPurpose
 from app.services.platform import user_tokens
 from app.testing import create_user, emitted
 
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 PASSWORD = "testpassword123"
 
@@ -284,3 +282,31 @@ async def test_an_unknown_device_token_buys_nothing(client: AsyncClient):
         "/api/v1/auth/device-token/exchange", json={"device_token": "not-a-token"}
     )
     assert response.status_code == 401
+
+
+async def test_a_narrowed_session_narrows_every_token_the_app_is_handed(
+    client: AsyncClient, session: AsyncSession
+):
+    """A session that ends sooner than the deployment's access-token lifetime
+    ends its tokens with it, on the app's two ways in as on the browser's."""
+    from app.services.platform import app_settings as app_settings_service
+
+    row = await app_settings_service.get_app_settings(session)
+    row.session_idle_minutes = 5
+    session.add(row)
+    user = await create_user(session, email="native-narrowed@example.com")
+    device_token = await user_tokens.create_device_token(
+        session, user_id=user.id, device_name="old-phone"
+    )
+    await session.commit()
+    ceiling = timedelta(minutes=5).total_seconds()
+
+    signed_in = await _sign_in_native(client, "native-narrowed@example.com")
+    assert signed_in["expires_in"] <= ceiling
+
+    exchanged = await client.post(
+        "/api/v1/auth/device-token/exchange", json={"device_token": device_token}
+    )
+    assert exchanged.status_code == 200, exchanged.text
+    claims = decode_session_token(exchanged.json()["access_token"])
+    assert claims["exp"] - claims["iat"] <= ceiling

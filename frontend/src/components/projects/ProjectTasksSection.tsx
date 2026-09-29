@@ -71,6 +71,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAuth } from "@/hooks/useAuth";
 import {
   useCreateFilterPreset,
@@ -79,6 +80,7 @@ import {
 } from "@/hooks/useFilterPresets";
 import { useTags } from "@/hooks/useTags";
 import {
+  type UpdateTaskVariables,
   useArchiveDoneTasks,
   useBulkArchiveTasks,
   useBulkDeleteTasks,
@@ -109,6 +111,9 @@ import { getItem, setItem } from "@/lib/storage";
 import { taskReadToListRow } from "@/lib/taskUtils";
 
 type ViewMode = TaskViewMode;
+
+/** A status change on screen whose request has not answered yet. */
+type PendingStatus = { vars: UpdateTaskVariables; status: TaskStatusRead };
 
 /**
  * What this project's task view remembers for one person: the filter values,
@@ -209,9 +214,7 @@ type ProjectTasksSectionProps = {
    *  view of their own yet and the URL doesn't name one. */
   projectDefaultViewMode?: string | null;
   canEditTaskDetails: boolean;
-  canWriteProject: boolean;
   projectIsArchived: boolean;
-  canViewTaskDetails: boolean;
   taskHref: (taskId: number) => string;
   initialComposerOpen?: boolean;
   onComposerOpenChange?: (isOpen: boolean) => void;
@@ -223,14 +226,13 @@ export const ProjectTasksSection = ({
   taskStatuses,
   projectDefaultViewMode,
   canEditTaskDetails,
-  canWriteProject,
   projectIsArchived,
-  canViewTaskDetails,
   taskHref,
   initialComposerOpen,
   onComposerOpenChange,
 }: ProjectTasksSectionProps) => {
   const { t } = useTranslation("projects");
+  const guildId = useActiveGuildId();
   const sortedTaskStatuses = useMemo(() => {
     return [...taskStatuses].sort((a, b) => {
       if (a.position === b.position) {
@@ -571,7 +573,7 @@ export const ProjectTasksSection = ({
     onSuccess: (newTask) => {
       setComposerValue(emptyTaskFormValue({ statusId: defaultStatusId }));
       setIsComposerOpen(false);
-      setLocalOverride((prev) => [...(prev ?? projectTasks), taskReadToListRow(newTask)]);
+      setLocalOverride((prev) => [...(prev ?? projectTasks), taskReadToListRow(newTask, guildId)]);
       toast.success(t("tasks.taskCreated"));
     },
   });
@@ -621,7 +623,7 @@ export const ProjectTasksSection = ({
    * round trip lands.
    */
   const stillMatchesFilters = useCallback(
-    (task: TaskRead) => {
+    (task: Pick<TaskListRead, "task_status_id" | "task_status" | "due_date">) => {
       const { status_ids, status_categories, due } = appliedSpec;
       if (status_ids.length > 0 && !status_ids.includes(task.task_status_id)) return false;
       if (status_categories.length > 0 && !status_categories.includes(task.task_status.category)) {
@@ -641,19 +643,42 @@ export const ProjectTasksSection = ({
         const base = prev ?? projectTasks;
         if (!base.length) return prev;
         if (stillMatchesFilters(updatedTask)) {
-          const row = taskReadToListRow(updatedTask);
+          const row = taskReadToListRow(updatedTask, guildId);
           return base.map((task) => (task.id === row.id ? row : task));
         }
         return base.filter((task) => task.id !== updatedTask.id);
       });
     },
-    [projectTasks, stillMatchesFilters]
+    [projectTasks, stillMatchesFilters, guildId]
   );
 
-  const updateTaskStatus = useUpdateTask({
-    onSuccess: (updatedTask) => {
+  // Status changes shown before the server confirms them, keyed by task. Each
+  // entry keeps the request that made it, and only that request's reply
+  // retires it: an older reply for the same task (ticked, then unticked) does
+  // not overwrite the newer choice, and a failure drops the entry, which puts
+  // the row back. The ref is what reply callbacks read, since an earlier
+  // request keeps the callbacks of the render that sent it.
+  const pendingStatusesRef = useRef<ReadonlyMap<number, PendingStatus>>(new Map());
+  const [pendingStatuses, setPendingStatuses] = useState(pendingStatusesRef.current);
+  const writePendingStatuses = useCallback((update: (next: Map<number, PendingStatus>) => void) => {
+    const next = new Map(pendingStatusesRef.current);
+    update(next);
+    pendingStatusesRef.current = next;
+    setPendingStatuses(next);
+  }, []);
+
+  // Silent like the reschedule below: ticking off a run of tasks should not
+  // stack a toast per row. The checkbox and completion feedback confirm it.
+  const { mutate: mutateTaskStatus } = useUpdateTask({
+    onSuccess: (updatedTask, vars) => {
+      const pending = pendingStatusesRef.current.get(vars.taskId);
+      // A newer change to this task is still on its way and will settle it.
+      if (pending && pending.vars !== vars) return;
       applyTaskUpdateToLocal(updatedTask);
-      toast.success(t("tasks.taskUpdated"));
+    },
+    onSettled: (_data, _error, vars) => {
+      if (pendingStatusesRef.current.get(vars.taskId)?.vars !== vars) return;
+      writePendingStatuses((next) => next.delete(vars.taskId));
     },
   });
 
@@ -705,10 +730,43 @@ export const ProjectTasksSection = ({
 
   const { mutate: persistTaskOrderMutate, isPending: isPersistingOrder } = useReorderTasks();
 
-  const taskActionsDisabled = updateTaskStatus.isPending || isPersistingOrder;
+  // Status changes stay open while earlier ones are in flight, so a run of
+  // tasks can be ticked off without waiting on each.
+  const taskActionsDisabled = isPersistingOrder;
   const canReorderTasks = canEditTaskDetails && !isPersistingOrder;
 
-  const tasks = useMemo(() => localOverride ?? projectTasks, [localOverride, projectTasks]);
+  const tasks = useMemo(() => {
+    const base = localOverride ?? projectTasks;
+    if (pendingStatuses.size === 0) return base;
+    return base.flatMap((task) => {
+      const pending = pendingStatuses.get(task.id);
+      if (!pending) return [task];
+      const row = { ...task, task_status_id: pending.status.id, task_status: pending.status };
+      return stillMatchesFilters(row) ? [row] : [];
+    });
+  }, [localOverride, projectTasks, pendingStatuses, stillMatchesFilters]);
+
+  // Show the new status at once and send it; the completion feedback goes out
+  // with the click rather than the reply.
+  const changeTaskStatus = useCallback(
+    (taskId: number, taskStatusId: number) => {
+      const status = statusLookup.get(taskStatusId);
+      const current = tasks.find((task) => task.id === taskId);
+      const vars: UpdateTaskVariables = {
+        taskId,
+        data: { task_status_id: taskStatusId },
+        statusChange:
+          status && current
+            ? { from: current.task_status.category, to: status.category }
+            : undefined,
+      };
+      if (status) {
+        writePendingStatuses((next) => next.set(taskId, { vars, status }));
+      }
+      mutateTaskStatus(vars);
+    },
+    [statusLookup, tasks, writePendingStatuses, mutateTaskStatus]
+  );
   const activeTask = useMemo(
     () => projectTasks.find((task) => task.id === activeTaskId) ?? null,
     [projectTasks, activeTaskId]
@@ -1147,7 +1205,6 @@ export const ProjectTasksSection = ({
             groupedTasks={groupedTasks}
             collapsedStatusIds={collapsedStatuses}
             canReorderTasks={canReorderTasks}
-            canOpenTask={canViewTaskDetails}
             taskHref={taskHref}
             priorityVariant={priorityVariant}
             sensors={kanbanSensors}
@@ -1198,17 +1255,11 @@ export const ProjectTasksSection = ({
             sensors={listSensors}
             canReorderTasks={canReorderTasks}
             canEditTaskDetails={canEditTaskDetails}
-            canOpenTask={canViewTaskDetails}
             taskActionsDisabled={taskActionsDisabled}
             onDragStart={handleTaskDragStart}
             onDragEnd={handleListDragEnd}
             onDragCancel={handleListDragCancel}
-            onStatusChange={(taskId, taskStatusId) =>
-              updateTaskStatus.mutate({
-                taskId,
-                data: { task_status_id: taskStatusId },
-              })
-            }
+            onStatusChange={changeTaskStatus}
             taskHref={taskHref}
             onTaskSelectionChange={setSelectedTasks}
             onExitSelection={() => setSelectedTasks([])}
@@ -1239,7 +1290,7 @@ export const ProjectTasksSection = ({
             onFocusDateChange={setCalendarFocusDate}
             onEntryClick={(entry) => {
               const meta = entry.meta as { taskId?: number } | undefined;
-              if (meta?.taskId && canViewTaskDetails) void navigate({ to: taskHref(meta.taskId) });
+              if (meta?.taskId) void navigate({ to: taskHref(meta.taskId) });
             }}
             onEntryReschedule={canEditTaskDetails ? handleCalendarReschedule : undefined}
             weekStartsOn={weekStartsOn}
@@ -1254,7 +1305,7 @@ export const ProjectTasksSection = ({
             onOpenChange={(open) => (open ? setIsComposerOpen(true) : closeComposer())}
           >
             <ProjectTaskComposer
-              canWrite={canWriteProject}
+              canWrite={canEditTaskDetails}
               isArchived={projectIsArchived}
               isSubmitting={createTask.isPending}
               hasError={Boolean(createTask.isError)}

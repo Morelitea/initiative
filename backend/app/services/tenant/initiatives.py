@@ -11,10 +11,11 @@ from sqlalchemy.orm import aliased, selectinload
 from sqlmodel import select, delete, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.query import ids_in
 from app.db.session import routed_guild_id
 from app.core.audit_events import AuditEventType
 from app.core.messages import InitiativeMessages
-from app.db.session import rls_context_params
+from app.db.session import routed_context
 from app.models.tenant.initiative import (
     BUILTIN_ROLES,
     Initiative,
@@ -54,17 +55,6 @@ async def get_role_by_name(
     )
     result = await session.exec(stmt)
     return result.one_or_none()
-
-
-async def get_pm_role(
-    session: AsyncSession,
-    *,
-    initiative_id: int,
-) -> InitiativeRoleModel | None:
-    """Get the project_manager role for an initiative."""
-    return await get_role_by_name(
-        session, initiative_id=initiative_id, role_name="project_manager"
-    )
 
 
 async def get_moderator_role(
@@ -260,7 +250,7 @@ async def load_user_initiative_roles(
         .outerjoin(
             InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id
         )
-        .where(InitiativeMember.user_id.in_(tuple(user_ids)))
+        .where(ids_in(InitiativeMember.user_id, user_ids))
     )
     result = await session.exec(stmt)
     assignments: dict[int, list[UserInitiativeRole]] = {
@@ -357,105 +347,38 @@ async def ensure_managers_remain(
         raise ValueError(InitiativeMessages.MUST_HAVE_PM)
 
 
-async def clear_user_task_assignments_for_initiative(
-    session: AsyncSession,
-    *,
-    initiative_id: int,
-    user_id: int,
-) -> None:
-    """Remove task assignments for a user across all projects in an initiative."""
-    from app.models.tenant.task import Task, TaskAssignee
-    from app.models.tenant.project import Project
-
-    project_ids_result = await session.exec(
-        select(Project.id).where(Project.initiative_id == initiative_id)
-    )
-    project_ids = list(project_ids_result.all())
-    if not project_ids:
-        return
-
-    task_ids_result = await session.exec(
-        select(Task.id).where(Task.project_id.in_(tuple(project_ids)))
-    )
-    task_ids = list(task_ids_result.all())
-    if not task_ids:
-        return
-
-    await session.exec(
-        delete(TaskAssignee)
-        .where(TaskAssignee.user_id == user_id)
-        .where(TaskAssignee.task_id.in_(tuple(task_ids)))
-    )
-
-
 async def remove_user_from_guild_initiatives(
     session: AsyncSession,
     *,
     guild_id: int,
     user_id: int,
 ) -> None:
-    """Remove a user from all initiatives in a guild, clearing task assignments
-    and dropping the access grants that came with membership.
+    """Take a user out of the community's content: every initiative, and the
+    community's own tools.
 
     Used by every "user leaves the guild for any reason" path: leave-guild,
     deactivate, soft-delete, hard-delete, OIDC-sync revocation, and the
     guild-admin Remove-from-guild action.
 
-    Content they owned is left **unowned** rather than handed to anyone: nobody
-    inherits privilege they did not ask for, which matters most in a guild with
-    heavy turnover. Guild admins still administer it, and can claim it whenever
-    they choose (``app.services.tenant.ownership``).
+    Deleting each membership row runs ``tr_initiative_members_departure``,
+    which drops every grant naming them in that initiative, owner rows
+    included, and takes them off its tasks, events, person fields and queue
+    items. ``member_departs`` with no initiative does the same for content
+    that belongs to the community itself. What they owned is left **unowned**
+    rather than handed to anyone; guild admins can claim it whenever they
+    choose (``app.services.tenant.ownership``).
     """
-    from app.services.tenant import ownership as ownership_service
+    from app.db.schema_provisioning import guild_schema_name
 
-    # Find initiatives in this guild where the user is a member
-    initiative_ids_result = await session.exec(
-        select(InitiativeMember.initiative_id).where(
+    await session.exec(
+        select(func.public.member_departs(guild_schema_name(guild_id), user_id, None))
+    )
+    await session.exec(
+        delete(InitiativeMember).where(
             InitiativeMember.user_id == user_id,
             InitiativeMember.initiative_id.in_(select(Initiative.id)),
         )
     )
-    initiative_ids = list(initiative_ids_result.all())
-
-    # Ownership goes first, while the user's membership rows are still in place:
-    # dropping an owner grant is a write to guild content, and its initiative-level
-    # RLS is evaluated against the *live* membership this function is about to
-    # delete.
-    await ownership_service.release_owned_content(session, user_id=user_id)
-
-    # Clear task assignments per initiative before dropping the membership rows.
-    for init_id in initiative_ids:
-        await clear_user_task_assignments_for_initiative(
-            session,
-            initiative_id=init_id,
-            user_id=user_id,
-        )
-
-    # Drop their remaining document grants in those initiatives (one statement
-    # for the whole batch) — access that came with the membership goes with it.
-    # The owner grants are already gone, released above.
-    if initiative_ids:
-        from app.models.tenant.document import Document
-        from app.models.tenant.resource_grant import ResourceGrant
-
-        await session.exec(
-            delete(ResourceGrant).where(
-                ResourceGrant.resource_type == "document",
-                ResourceGrant.user_id == user_id,
-                ResourceGrant.resource_id.in_(
-                    select(Document.id).where(
-                        Document.initiative_id.in_(tuple(initiative_ids))
-                    )
-                ),
-            )
-        )
-
-    # Remove initiative memberships
-    stmt = delete(InitiativeMember).where(
-        InitiativeMember.user_id == user_id,
-        InitiativeMember.initiative_id.in_(select(Initiative.id)),
-    )
-    await session.exec(stmt)
 
 
 async def list_initiative_roles(
@@ -625,9 +548,9 @@ async def list_directory_entries(
     Active, non-archived initiatives whose policy asks to be listed — plus the
     caller's own initiatives whatever their policy, so the directory doubles as
     the guild's complete initiative list. Each entry carries its roster size
-    and the caller's own state (in it / knocked / free to join) so the client
-    renders one call to action per card. A private initiative the caller is
-    *not* in stays unlisted.
+    and the caller's own state (in it and on which role / knocked / free to
+    join) so the client renders one call to action per card. A private
+    initiative the caller is *not* in stays unlisted.
 
     One reading for everyone, guild admin included: their authority still
     reaches every initiative, but the front page lists the ones they are in and
@@ -653,6 +576,15 @@ async def list_directory_entries(
             InitiativeMember.user_id == user_id,
         )
         .exists()
+    )
+    role_display_name = (
+        select(InitiativeRoleModel.display_name)
+        .join(InitiativeMember, InitiativeMember.role_id == InitiativeRoleModel.id)
+        .where(
+            InitiativeMember.initiative_id == Initiative.id,
+            InitiativeMember.user_id == user_id,
+        )
+        .scalar_subquery()
     )
     has_pending_request = (
         select(InitiativeJoinRequest.id)
@@ -694,6 +626,7 @@ async def list_directory_entries(
             Initiative,
             member_count,
             is_member,
+            role_display_name,
             has_pending_request,
             pending_queue_size,
         )
@@ -717,10 +650,11 @@ async def list_directory_entries(
             auto_join=initiative.auto_join,
             member_count=count,
             is_member=member,
+            role_display_name=role,
             has_pending_request=pending,
             pending_join_request_count=queue_size,
         )
-        for initiative, count, member, pending, queue_size in rows
+        for initiative, count, member, role, pending, queue_size in rows
     ]
 
 
@@ -741,7 +675,7 @@ def _acting_user_id(session: AsyncSession) -> int | None:
     every request path is recorded against the account making it.
     """
     try:
-        return rls_context_params(session).get("user_id")
+        return routed_context(session).user_id
     except RuntimeError:
         return None
 
@@ -1176,7 +1110,7 @@ async def create_imported_initiative(
     on collision (always-create policy) instead of 409ing, and the tool
     master switches taken from the backup manifest. Flush-only — the backup
     orchestrator owns its per-chunk transaction."""
-    from app.core.tools import DEFAULT_ENABLED_TOOLS, TOGGLEABLE_TOOLS
+    from app.core.tools import DEFAULT_ENABLED_TOOLS, Tool
     from app.services.import_engine.common import unique_name
 
     existing = {row for row in (await session.exec(select(Initiative.name))).all()}
@@ -1192,7 +1126,7 @@ async def create_imported_initiative(
             t.view_permission: bool(
                 tool_flags.get(t.view_permission, t in DEFAULT_ENABLED_TOOLS)
             )
-            for t in TOGGLEABLE_TOOLS
+            for t in Tool
         },
     )
     session.add(initiative)

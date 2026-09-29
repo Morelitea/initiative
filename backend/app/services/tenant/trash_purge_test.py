@@ -6,7 +6,6 @@ cascade pass already queued for deletion, so we don't double-purge them.
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -15,7 +14,8 @@ from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.task import Task
 from app.services.tenant.soft_delete import soft_delete_entity
-from app.services.tenant.trash_purge import _run_purge_pass
+from app.services.guild_sweeps import Scope, each_guild
+from app.services.tenant.trash_purge import _run_purge_pass, purge_guild
 from app.testing.factories import (
     create_guild,
     create_initiative,
@@ -23,22 +23,15 @@ from app.testing.factories import (
     create_task,
     create_user,
 )
-
-
-pytestmark = pytest.mark.integration
+from app.db.request_context import SystemGuild
 
 
 async def test_auto_purge_does_not_double_purge_cascaded_descendants(
     session: AsyncSession,
 ):
-    """When an Initiative purge cascades through its Projects, the next
-    iteration of the per-model loop must skip those Projects (they're
-    already queued for deletion) instead of feeding them to
-    ``hard_purge_entity`` a second time.
-
-    Regression: the previous ``row not in session`` guard didn't fire
-    because SQLAlchemy keeps deleted-but-unflushed objects in the
-    identity map. The replacement uses ``sa_inspect(row).deleted``."""
+    """When an Initiative purge cascades through its Projects, the later
+    pass over projects must not find them again and purge them a second
+    time."""
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
     initiative = await create_initiative(session, guild, user)
@@ -71,18 +64,13 @@ async def test_auto_purge_does_not_double_purge_cascaded_descendants(
     initiative_id = initiative.id
     project_id = project.id
 
-    # One pass — should sweep both rows without raising. If the skip guard
-    # is broken we'd hit "Instance is not persisted" on the second
-    # hard_purge_entity call against the cascaded project. Drive the inner
-    # loop with the test session so the DELETEs land on the test DB
-    # (process_trash_purges() opens its own SystemSessionLocal pointed at
-    # the dev DB).
+    # One pass — should sweep both rows without raising. Drive the inner
+    # loop with the test session.
     await _run_purge_pass(session, now=datetime.now(timezone.utc))
     await session.commit()
 
-    # Verify against the DB directly — process_trash_purges runs on its
-    # own SystemSessionLocal, so the test session's identity map is stale
-    # for these rows.
+    # Verify against the DB directly: the test session's identity map is
+    # stale for these rows.
     initiative_count = (
         await session.exec(
             text("SELECT COUNT(*) FROM initiatives WHERE id = :id"),
@@ -104,14 +92,13 @@ async def test_auto_purge_sweeps_every_guild_schema(
 ):
     """Expired trash lives in each guild's own schema, so the purge worker must
     visit every guild — the old single public-scoped pass would purge nothing.
-    Stage expired trash in two guilds and assert _purge_all_guilds clears both.
+    Stage expired trash in two guilds and assert the hourly pass's visit clears
+    both.
 
-    Driven on a real ``app_admin`` connection like production
-    (``process_trash_purges`` opens ``SystemSessionLocal``), so the purge runs
-    under the same privilege boundary that has to clear the admin-only purge
-    guard."""
+    Run through the runner, on real ``app_admin`` connections like production,
+    so the purge runs under the same privilege boundary that has to clear the
+    admin-only purge guard."""
     from app.db.session import set_rls_context
-    from app.services.tenant.trash_purge import _purge_all_guilds
 
     user = await create_user(session)
     past = datetime.now(timezone.utc) - timedelta(days=2)
@@ -137,12 +124,11 @@ async def test_auto_purge_sweeps_every_guild_schema(
         await session.commit()
         targets.append((guild.id, initiative.id))
 
-    # Production runs the worker on SystemSessionLocal (app_admin).
     admin = await role_session("app_admin")
-    await _purge_all_guilds(admin, now=datetime.now(timezone.utc))
+    await each_guild([(Scope.ACTIVE, purge_guild)], name="trash-purge")
 
     for guild_id, initiative_id in targets:
-        await set_rls_context(admin, guild_id=guild_id)
+        await set_rls_context(admin, SystemGuild(guild_id))
         count = (
             await admin.exec(
                 text("SELECT COUNT(*) FROM initiatives WHERE id = :id"),
@@ -161,7 +147,6 @@ async def test_auto_purge_clears_content_table_guard(
     soft_delete_admin_purge RESTRICTIVE guard; the worker clears both by routing
     as a guild admin. Regression: routing in without the admin guild-role GUC
     cleared neither, so the DELETE silently matched 0 rows."""
-    from app.services.tenant.trash_purge import _purge_all_guilds
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
@@ -183,9 +168,12 @@ async def test_auto_purge_clears_content_table_guard(
     await session.commit()
     project_id = project.id
 
-    admin = await role_session("app_admin")
-    await _purge_all_guilds(admin, now=datetime.now(timezone.utc))
+    from app.db.session import set_rls_context
 
+    admin = await role_session("app_admin")
+    await each_guild([(Scope.ACTIVE, purge_guild)], name="trash-purge")
+
+    await set_rls_context(admin, SystemGuild(guild.id))
     count = (
         await admin.exec(
             text("SELECT COUNT(*) FROM projects WHERE id = :id"),
@@ -201,7 +189,6 @@ async def test_auto_purge_skips_non_active_guilds(session: AsyncSession, role_se
     unresolved. Purging resumes (original ``purge_at`` stamps) once the guild
     returns to active."""
     from app.models.platform.guild import GuildStatus
-    from app.services.tenant.trash_purge import _purge_all_guilds
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
@@ -225,11 +212,11 @@ async def test_auto_purge_skips_non_active_guilds(session: AsyncSession, role_se
     initiative_id = initiative.id
 
     admin = await role_session("app_admin")
-    await _purge_all_guilds(admin, now=datetime.now(timezone.utc))
+    await each_guild([(Scope.ACTIVE, purge_guild)], name="trash-purge")
 
     from app.db.session import set_rls_context
 
-    await set_rls_context(admin, guild_id=guild.id)
+    await set_rls_context(admin, SystemGuild(guild.id))
     count = (
         await admin.exec(
             text("SELECT COUNT(*) FROM initiatives WHERE id = :id"),
@@ -243,8 +230,8 @@ async def test_auto_purge_skips_non_active_guilds(session: AsyncSession, role_se
     session.add(guild)
     await session.commit()
 
-    await _purge_all_guilds(admin, now=datetime.now(timezone.utc))
-    await set_rls_context(admin, guild_id=guild.id)
+    await each_guild([(Scope.ACTIVE, purge_guild)], name="trash-purge")
+    await set_rls_context(admin, SystemGuild(guild.id))
     count = (
         await admin.exec(
             text("SELECT COUNT(*) FROM initiatives WHERE id = :id"),
@@ -292,3 +279,55 @@ async def test_a_task_with_assignees_can_be_purged(session: AsyncSession):
         )
     )
     assert left.one()[0] == 0
+
+
+async def test_purging_an_initiative_takes_everything_under_it(session: AsyncSession):
+    """One purge clears the whole subtree: tools, their children, every thread
+    and reply, and the rows that hang off them without being in the trash
+    themselves (members, a project's columns)."""
+    from app.models.tenant.comment import Comment
+    from app.services.tenant.soft_delete import hard_purge_entity
+    from app.testing.factories import create_comment
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    initiative = await create_initiative(session, guild, user)
+    project = await create_project(session, initiative, user)
+    task = await create_task(session, project)
+    on_project = await create_comment(session, user, project=project)
+    on_task = await create_comment(session, user, task=task)
+    await create_comment(session, user, task=task, parent_comment_id=on_task.id)
+
+    await soft_delete_entity(
+        session, initiative, deleted_by_user_id=user.id, retention_days=1
+    )
+    await session.commit()
+    trashed = (
+        await session.exec(
+            select_including_deleted(Initiative).where(Initiative.id == initiative.id)
+        )
+    ).one()
+
+    await hard_purge_entity(session, trashed)
+    await session.commit()
+
+    async def count(table: str, column: str, value: int) -> int:
+        result = await session.exec(
+            text(f"SELECT count(*) FROM {table} WHERE {column} = :v").bindparams(
+                v=value
+            )
+        )
+        return result.one()[0]
+
+    assert await count("initiatives", "id", initiative.id) == 0
+    assert await count("initiative_members", "initiative_id", initiative.id) == 0
+    assert await count("projects", "id", project.id) == 0
+    assert await count("task_statuses", "project_id", project.id) == 0
+    assert await count("tasks", "id", task.id) == 0
+    assert await count("comments", "project_id", project.id) == 0
+    assert await count("comments", "task_id", task.id) == 0
+    assert (
+        await session.exec(
+            select_including_deleted(Comment).where(Comment.id == on_project.id)
+        )
+    ).one_or_none() is None

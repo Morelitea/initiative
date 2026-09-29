@@ -1,6 +1,3 @@
-import asyncio
-import contextlib
-import json
 import logging
 from time import monotonic
 
@@ -10,10 +7,8 @@ from fastapi import (
     HTTPException,
     Query,
     WebSocket,
-    WebSocketDisconnect,
     status,
 )
-from sqlalchemy import text
 
 from app.api.deps import (
     AccountHolder,
@@ -21,41 +16,38 @@ from app.api.deps import (
     UserSessionDep,
     get_current_active_user,
 )
-from app.core.security import SESSION_COOKIE_NAME
-from app.db.session import CONNECTION_RESET_SQL, AsyncSessionLocal
+from app.db.cohorts import request_sessionmaker
 from app.models.platform.user import User
 from app.schemas.platform.notification import (
     NotificationCountResponse,
     NotificationListResponse,
     NotificationPlace,
     NotificationRead,
+    SubjectReadRequest,
+    SubjectReadResponse,
     UnreadPlacesResponse,
 )
 from app.core.messages import NotificationMessages
-from app.services.platform import notification_subjects, presence, user_stream
+from app.services.platform import notification_subjects, presence
 from app.services.platform import user_notifications as notifications_service
 from app.services.platform.ws_auth import authenticate_ws_token
+from app.api.content_socket import hold_open, read_auth_frame
+from app.services.content_sockets import (
+    Credential,
+    Subscriber,
+    Wire,
+    account_authorizer,
+    account_room,
+    sockets,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-# Message type for authentication — the same first-frame handshake the guild
-# events, queue, counter and collaboration sockets use.
-MSG_AUTH = 5
 
 # "Somebody just did something in this tab." One byte, no payload: it says only
 # that the person is at their keyboard, which is the whole of what idle needs
 # to know. The client throttles it hard, so this is a frame a minute at most.
 MSG_ACTIVE = 6
-
-# How long an accepted socket may go without sending that frame. Generous
-# against a slow network, short against a socket that will never send one.
-AUTH_TIMEOUT_SECONDS = 10.0
-
-#: How long the socket may say nothing before it says so. Silence is otherwise
-#: indistinguishable from a channel that has stopped carrying, and the client
-#: has nothing else to go on: it only speaks when its person does.
-HEARTBEAT_SECONDS = 30.0
 
 
 @router.get("/", response_model=NotificationListResponse)
@@ -134,12 +126,25 @@ async def unread_notification_places(
     "look here" and the popover says what.
     """
     places = await notifications_service.unread_places(session, user_id=current_user.id)
-    return UnreadPlacesResponse(
-        places=[
-            NotificationPlace(guild_id=guild_id, initiative_id=initiative_id, tool=tool)
-            for guild_id, initiative_id, tool in places
-        ]
+    return UnreadPlacesResponse(places=[NotificationPlace(**place) for place in places])
+
+
+@router.post("/read-subject", response_model=SubjectReadResponse)
+async def read_notification_subject(
+    payload: SubjectReadRequest,
+    session: UserSessionDep,
+    current_user: User = Depends(get_current_active_user),
+) -> SubjectReadResponse:
+    """Mark every unread notification about one item read — its page calls
+    this when it opens — and say what was unread on it."""
+    comment_ids, since = await notifications_service.read_subject(
+        session,
+        user_id=current_user.id,
+        guild_id=payload.guild_id,
+        subject_type=payload.subject_type,
+        subject_id=payload.subject_id,
     )
+    return SubjectReadResponse(comment_ids=comment_ids, since=since)
 
 
 @router.post("/{notification_id}/read", response_model=NotificationRead)
@@ -212,63 +217,37 @@ async def websocket_notifications(websocket: WebSocket):
     notifications from every guild they are in, and some from no guild at all.
 
     Protocol: the client sends ``MSG_AUTH`` with ``{"token": "..."}`` as its
-    first (binary) frame, exactly as on the guild events socket; web sessions
+    first (binary) frame, read by ``app.api.content_socket.read_auth_frame``
+    exactly as on the guild sockets; web sessions
     may send ``{"token": null}`` and be authenticated from the session cookie.
     After that the server sends id envelopes, and the only thing the client
     sends back is ``MSG_ACTIVE`` — a sign that its person is at the keyboard,
     which is what keeps them from reading as idle. It names nobody: the socket
     already knows whose it is.
 
-    Authorization is connect-time only. The stream says "your inbox changed"
-    and never what changed, so the decision that matters is made by the refetch
-    it provokes: the REST endpoints above resolve the inbox from
-    ``current_user`` on a freshly validated credential. Content-bearing
-    channels (collaboration, counters, queues) ride the ``stream_authz`` spine
-    with continuous re-authorization instead.
+    The stream says "your inbox changed" and never what changed, so the
+    decision about content is made by the refetch it provokes: the REST
+    endpoints above resolve the inbox from ``current_user`` on a freshly
+    validated credential. The socket itself is held to the credential it was
+    opened with: it is registered in ``app.services.content_sockets`` as its
+    account's socket, re-checked with every other socket, and closed with
+    ``WS_CREDENTIAL_ENDED`` once that sign-in ends or the account is no longer
+    active.
 
     A socket that never sends its first frame is closed at
-    ``AUTH_TIMEOUT_SECONDS`` rather than held open indefinitely.
+    ``content_socket.AUTH_TIMEOUT_SECONDS`` rather than held open indefinitely.
     """
     await websocket.accept()
-
-    try:
-        auth_data = await asyncio.wait_for(
-            websocket.receive_bytes(), AUTH_TIMEOUT_SECONDS
-        )
-        if len(auth_data) < 2 or auth_data[0] != MSG_AUTH:
-            logger.warning("Notifications WS: expected MSG_AUTH as first message")
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
-        try:
-            auth_payload = json.loads(auth_data[1:].decode())
-            token = auth_payload.get("token")
-            if not token:
-                # Fall back to the session cookie (web sessions after refresh).
-                token = websocket.cookies.get(SESSION_COOKIE_NAME)
-            if not token:
-                raise ValueError("Missing token")
-        except (json.JSONDecodeError, ValueError, TypeError) as exc:
-            logger.warning(f"Notifications WS: invalid auth payload: {exc}")
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
-    except asyncio.TimeoutError:
-        logger.warning("Notifications WS: no auth frame within the timeout")
-        with contextlib.suppress(Exception):
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+    first = await read_auth_frame(websocket)
+    if first is None:
         return
-    except WebSocketDisconnect:
-        logger.info("Notifications WS: client disconnected before auth")
-        return
+    token, _payload = first
 
     # Validate in a SHORT-LIVED session and release it before the keepalive
     # loop — holding one for the socket's lifetime parks a connection
     # idle-in-transaction, whose locks block DDL like guild deletion's DROP
-    # SCHEMA. Mirrors the events/queue/counter sockets.
-    async with AsyncSessionLocal() as session:
-        # Clear any stale GUCs the pooled connection carries (a SET ROLE to a
-        # since-dropped guild role would make the auth query error);
-        # AsyncSessionLocal skips get_session's per-request reset.
-        await session.exec(text(CONNECTION_RESET_SQL))
+    # SCHEMA.
+    async with request_sessionmaker(None)() as session:
         # Taken before the row is read, so it is never later than the value
         # that read comes back with.
         presence_known_at = monotonic()
@@ -279,41 +258,24 @@ async def websocket_notifications(websocket: WebSocket):
             return
         user_id = user.id
         chosen_presence = user.presence
+        watched = Subscriber(
+            websocket=websocket,
+            user=user,
+            guild_id=None,
+            wire=Wire.json,
+            authorize=account_authorizer,
+            credential=Credential.captured(),
+            rooms=frozenset({account_room(user_id)}),
+            presence=True,
+        )
 
-    await user_stream.stream.connect(
-        user_id,
-        websocket,
-        chosen_presence=chosen_presence,
-        presence_known_at=presence_known_at,
+    sockets.join(
+        watched, chosen_presence=chosen_presence, presence_known_at=presence_known_at
     )
-    heartbeat = user_stream.build_frame(user_stream.RESOURCE_HEARTBEAT, "alive")
-    try:
-        while True:
-            # Awaiting keeps the socket open and surfaces the disconnect; the
-            # one frame the client does send is its person's activity.
-            #
-            # The wait is bounded so the quiet case says something. A client
-            # cannot tell a channel with no news from one that has stopped
-            # carrying — a half-open connection reports itself open and
-            # delivers nothing — so a beat goes out whenever nothing else has,
-            # and the client reads silence past it as the socket being gone.
-            try:
-                frame = await asyncio.wait_for(websocket.receive(), HEARTBEAT_SECONDS)
-            except asyncio.TimeoutError:
-                await websocket.send_json(heartbeat)
-                continue
-            if frame.get("type") == "websocket.disconnect":
-                break
-            data = frame.get("bytes")
-            if data and data[0] == MSG_ACTIVE:
-                presence.online.active(user_id)
-    except WebSocketDisconnect:
-        pass
-    except Exception:
-        with contextlib.suppress(Exception):
-            await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
-    finally:
-        # Unconditional, including cancellation (a BaseException, so past both
-        # excepts above) — a registry entry left behind would keep sending to a
-        # dead socket until the first write failed.
-        await user_stream.stream.disconnect(websocket)
+
+    def on_bytes(data: bytes) -> None:
+        # The one frame the client sends is its person's activity.
+        if data[0] == MSG_ACTIVE:
+            presence.online.active(user_id)
+
+    await hold_open(watched, on_bytes=on_bytes)

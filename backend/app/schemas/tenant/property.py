@@ -3,9 +3,17 @@
 from datetime import datetime
 from typing import Any, List, Optional
 
-from pydantic import ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    ConfigDict,
+    Field,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
+from app.core.identity_boundary import responding_to_install, serialize_person_id
 from app.schemas.base import SanitizedBaseModel
+from app.services.platform.user_avatars import is_avatar_url
 
 from app.models.tenant.property import PropertyType
 
@@ -59,9 +67,8 @@ class PropertyDefinitionUpdate(SanitizedBaseModel):
     """Mutable fields on a property definition.
 
     ``type`` is deliberately excluded — type changes require a dedicated
-    flow because existing values would become invalid. The endpoint
-    raises 409 PROPERTY_TYPE_CHANGE_BLOCKED if any values exist; the
-    service layer enforces the rule.
+    flow because existing values would become invalid. A ``type`` sent
+    in the payload is ignored.
     """
 
     name: Optional[str] = Field(default=None, min_length=1, max_length=100)
@@ -155,3 +162,22 @@ class PropertySummary(SanitizedBaseModel):
     type: PropertyType
     options: Optional[List[PropertyOption]] = None
     value: Any = None
+
+    @field_serializer("value")
+    def _value_out(self, value: Any) -> Any:
+        """A person a ``user_reference`` value names, as the response's reader
+        knows them: an installed app gets its own reference, and no picture
+        this API serves (it is addressed by the person's row id)."""
+        if (
+            self.type is not PropertyType.user_reference
+            or not isinstance(value, dict)
+            or not responding_to_install()
+        ):
+            return value
+        person = dict(value)
+        if isinstance(person.get("id"), int):
+            person["id"] = serialize_person_id(person["id"])
+        avatar = person.get("avatar_url")
+        if isinstance(avatar, str) and is_avatar_url(avatar):
+            person["avatar_url"] = None
+        return person

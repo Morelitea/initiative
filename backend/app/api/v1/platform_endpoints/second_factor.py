@@ -10,29 +10,31 @@ there is anybody to scope a policy to.
 """
 
 from datetime import datetime
-from typing import Annotated, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from app.api.deps import (
     FactorExemptUser,
-    get_current_active_user,
     require_first_party_session,
+    SystemSessionDep,
+    CurrentUser,
 )
 from app.core.audit_events import AuditEventType
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages
-from app.core.rate_limit import limiter
+from app.core.rate_limit import get_user_or_ip_key, limiter
 from app.core.security import has_usable_password
 from app.api.v1.platform_endpoints.password_recheck import (
     require_password,
     require_password_or_recent_proof,
 )
-from app.api.v1.platform_endpoints.session_opening import upgrade_session
-from sqlalchemy.ext.asyncio import AsyncSession
+from app.api.v1.platform_endpoints.session_opening import (
+    count_wrong_answer,
+    refuse_if_locked,
+    upgrade_session,
+)
 
-from app.db.session import get_system_session
-from app.models.platform.user import User
 from app.schemas.platform.token import Token
 from app.schemas.platform.second_factor import (
     SecondFactorStepUpAnswer,
@@ -48,17 +50,16 @@ from app.services import audit as audit_service
 from app.services import email as email_service
 from app.services.auth import addresses
 from app.services.auth import challenges as challenge_service
+from app.services.auth import sign_in_locks
 from app.services.auth import totp as totp_service
 from app.services.platform import auth_posture
 from app.services.auth import sessions as session_service
 from app.services.auth.assurance import SECOND_FACTOR_AMR
-from app.services.stream_authz import authority as stream_authority
+from app.services.content_sockets import sockets as content_sockets
 
 router = APIRouter()
 
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 
-CurrentUser = Annotated[User, Depends(get_current_active_user)]
 #: Setting a factor up and presenting one have to answer while the
 #: deployment's own rule is unmet — they are how an account meets it. Removing
 #: one, and replacing the recovery set, are ordinary and take ``CurrentUser``.
@@ -136,7 +137,9 @@ async def begin_second_factor(
             status_code=status.HTTP_409_CONFLICT,
             detail=AuthMessages.TOTP_ALREADY_ENROLLED,
         )
-    require_password(current_user, payload.current_password)
+    await require_password_or_recent_proof(
+        request, system_session, current_user, payload.current_password
+    )
 
     # What the authenticator app shows under the issuer. The address the
     # person signs in with where there is one, so an account with two entries
@@ -212,7 +215,7 @@ async def confirm_second_factor(
 
 
 @router.post("/totp/disable", status_code=status.HTTP_204_NO_CONTENT)
-@limiter.limit("10/15minutes")
+@limiter.limit("10/15minutes", key_func=get_user_or_ip_key)
 async def disable_second_factor(
     request: Request,
     current_user: CurrentUser,
@@ -231,6 +234,7 @@ async def disable_second_factor(
             detail=AuthMessages.TOTP_NOT_ENROLLED,
         )
     require_password(current_user, payload.current_password)
+    await refuse_if_locked(system_session, current_user.id)
 
     if payload.recovery_code:
         proved = await totp_service.consume_recovery_code(
@@ -249,9 +253,10 @@ async def disable_second_factor(
             actor_user_id=current_user.id,
             detail={"method": "totp", "during": "removal"},
         )
-        await system_session.commit()
+        await count_wrong_answer(system_session, current_user.id)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=refusal)
 
+    await sign_in_locks.record_success(system_session, current_user.id)
     await totp_service.disable(system_session, user_id=current_user.id)
     await challenge_service.revoke_for_user(system_session, user_id=current_user.id)
     # Every other session, and not this one: the change was made from a page
@@ -269,14 +274,14 @@ async def disable_second_factor(
     )
     await system_session.commit()
     # Connections opened on the ended sessions close; this one's stay.
-    await stream_authority.revoke_user_everywhere(current_user.id)
+    await content_sockets.revoke_user_everywhere(current_user.id)
     await email_service.announce_second_factor_change(
         system_session, current_user, enabled=False
     )
 
 
 @router.post("/step-up/totp", response_model=Token)
-@limiter.limit("10/15minutes")
+@limiter.limit("10/15minutes", key_func=get_user_or_ip_key)
 async def step_up_with_factor(
     request: Request,
     response: Response,
@@ -301,6 +306,7 @@ async def step_up_with_factor(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.TOTP_NOT_ENROLLED,
         )
+    await refuse_if_locked(system_session, current_user.id)
 
     if payload.recovery_code:
         accepted = await totp_service.consume_recovery_code(
@@ -322,9 +328,10 @@ async def step_up_with_factor(
             actor_user_id=current_user.id,
             detail={"method": method, "during": "step_up"},
         )
-        await system_session.commit()
+        await count_wrong_answer(system_session, current_user.id)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=refusal)
 
+    await sign_in_locks.record_success(system_session, current_user.id)
     return await upgrade_session(
         request,
         response,

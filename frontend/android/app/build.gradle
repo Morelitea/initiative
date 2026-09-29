@@ -36,11 +36,17 @@ if (!releaseIsSigned && missingSigningProperties.size() < signingPropertyNames.s
     )
 }
 
+// The dev channel installs beside the published app: its own id and launcher
+// name, from the same ORG_GRADLE_PROJECT_<name> properties.
+def appIdSuffix = findProperty('initiativeAppIdSuffix')?.toString()?.trim() ?: ''
+def appLabel = findProperty('initiativeAppLabel')?.toString()?.trim() ?: 'Initiative'
+
 android {
     namespace = "com.morelitea.initiative"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.morelitea.initiative"
+        applicationId "com.morelitea.initiative" + appIdSuffix
+        manifestPlaceholders = [appLabel: appLabel]
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode appVersionCode

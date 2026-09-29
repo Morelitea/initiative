@@ -48,8 +48,8 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from app.core.config import settings
 from app.core.encryption import (
     SALT_AI_API_KEY,
-    SALT_APP_SERVICE_SECRET,
     SALT_APP_CONFIG,
+    SALT_APP_VENDOR,
     SALT_EMAIL,
     SALT_IMPORT_CREDENTIAL,
     SALT_OIDC_CLIENT_SECRET,
@@ -63,8 +63,10 @@ from app.core.encryption import (
     encrypt_field,
     hash_email,
 )
+from app.db import cohorts
 from app.db import session as db_session
-from app.db.schema_provisioning import guild_role_name, guild_schema_name
+from app.db.schema_provisioning import guild_schema_name
+from app.db.request_context import SystemGuild
 
 logger = logging.getLogger(__name__)
 
@@ -99,15 +101,12 @@ _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
     # ciphertext and same salt as the two address columns above, so it is
     # re-keyed with them.
     ("auth_challenges", "email_encrypted", SALT_EMAIL),
-    # The shared secret an app service signs its requests with. Left out, a
-    # rotation would strand it: the registration would still be there and still
-    # look healthy, and every verification and boot reconciliation that decrypts
-    # it would fail once the previous key was retired.
-    (
-        "app_service_registrations",
-        "secret_encrypted",
-        SALT_APP_SERVICE_SECRET,
-    ),
+]
+
+# Shared-table JSONB columns holding one ciphertext per key: what an operator
+# supplied for an app's vendor client.
+_PUBLIC_JSON_MAPS: list[tuple[str, str, bytes]] = [
+    ("app_service_registrations", "vendor_values", SALT_APP_VENDOR),
 ]
 
 # Columns rotated once per ``guild_<id>`` schema (the live copies). The member
@@ -119,19 +118,20 @@ _GUILD_SCHEMA_COLUMNS: list[tuple[str, str, bytes]] = [
     # value lives for the length of one fetch — but a rotation that lands
     # mid-import must not be what fails it.
     ("import_jobs", "secret_encrypted", SALT_IMPORT_CREDENTIAL),
-    ("guild_ai_connections", "api_key_encrypted", SALT_AI_API_KEY),
+    ("guild_ai_connection_keys", "api_key_encrypted", SALT_AI_API_KEY),
     ("guild_ai_member_keys", "api_key_encrypted", SALT_AI_API_KEY),
 ]
 
 # Guild-schema columns holding SEVERAL ciphertexts inside one JSONB map, rather
 # than one per column. An app declares many connection fields, so its values
 # cannot each have a column of their own; they are keyed instead, and every
-# string leaf of the map is a Fernet token. (table, column, salt) — rewritten by
-# primary key, because the value as a whole is not a token and so cannot be its
-# own WHERE clause the way a single-column ciphertext can.
-_GUILD_SCHEMA_JSON_MAPS: list[tuple[str, str, bytes]] = [
-    ("guild_apps", "config_secrets", SALT_APP_CONFIG),
-    ("guild_app_user_connections", "config_secrets", SALT_APP_CONFIG),
+# string leaf of the map is a Fernet token. (table, column, salt, key) —
+# rewritten by the primary key column ``key``, because the value as a whole is
+# not a token and so cannot be its own WHERE clause the way a single-column
+# ciphertext can.
+_GUILD_SCHEMA_JSON_MAPS: list[tuple[str, str, bytes, str]] = [
+    ("guild_app_secrets", "secrets", SALT_APP_CONFIG, "install_id"),
+    ("guild_app_user_connections", "config_secrets", SALT_APP_CONFIG, "id"),
 ]
 
 
@@ -306,13 +306,14 @@ async def _rotate_fernet_json_map(
     old_key: str,
     new_key: str,
     dry_run: bool,
+    key: str = "id",
 ) -> ColumnResult:
     """Re-encrypt the ciphertexts held inside one JSONB column.
 
-    Rewritten by ``id`` rather than by matching the old value: the column holds
-    a document, not a token, so it has no single ciphertext to key the UPDATE
-    on. Reads stream and writes go to a second connection, for the same reason
-    the single-column sweep does.
+    Rewritten by the primary key ``key`` rather than by matching the old value:
+    the column holds a document, not a token, so it has no single ciphertext to
+    key the UPDATE on. Reads stream and writes go to a second connection, for
+    the same reason the single-column sweep does.
     """
     result = ColumnResult(schema, table, column)
     if (
@@ -324,7 +325,7 @@ async def _rotate_fernet_json_map(
         return result
     stream = await read_conn.stream(
         text(
-            f'SELECT id, "{column}" FROM "{schema}"."{table}" '  # noqa: S608
+            f'SELECT "{key}", "{column}" FROM "{schema}"."{table}" '  # noqa: S608
             f'WHERE "{column}" IS NOT NULL AND "{column}"::text <> \'{{}}\''
         )
     )
@@ -341,7 +342,7 @@ async def _rotate_fernet_json_map(
             # bind params.
             text(
                 f'UPDATE "{schema}"."{table}" SET "{column}" = CAST(:new AS jsonb) '  # noqa: S608
-                f"WHERE id = :id"
+                f'WHERE "{key}" = :id'
             ),
             {"new": json.dumps(rewritten), "id": row_id},
         )
@@ -426,18 +427,14 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
         )
 
     summary = RotationSummary(dry_run=dry_run)
-    # System engine (policy-bound): the public half runs as app_admin under its
-    # enumerated `_system` policies; each guild schema is entered by assuming
-    # that guild's own role (app_admin holds INHERIT FALSE membership in all).
+    # The public half runs on the platform system engine; each guild schema on
+    # system sessions from that guild's cohort, routed into it.
     engine = db_session.system_engine
 
     # Platform tables (public). Reads stream on one connection; writes commit on a
     # second (engine.begin()) — separate connections so an open read cursor and the
     # UPDATEs don't collide on asyncpg. The write txn commits together, resumable.
     async with engine.connect() as read_conn, engine.begin() as write_conn:
-        for conn_ in (read_conn, write_conn):
-            # Pooled connections: shed any guild role a prior checkout assumed.
-            await conn_.execute(text("SELECT set_config('role', 'none', false)"))
         summary.columns.append(
             await _rotate_user_emails(read_conn, write_conn, old_key, new_key, dry_run)
         )
@@ -455,14 +452,24 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
                     dry_run,
                 )
             )
+        for table, column, salt in _PUBLIC_JSON_MAPS:
+            summary.columns.append(
+                await _rotate_fernet_json_map(
+                    read_conn,
+                    write_conn,
+                    "public",
+                    table,
+                    column,
+                    salt,
+                    old_key,
+                    new_key,
+                    dry_run,
+                )
+            )
 
-    # Guild-scoped live copies — one write transaction per guild schema (independently
+    # Guild-scoped live copies: one write transaction per guild schema (independently
     # resumable). A guild whose schema is missing/broken is logged and skipped.
     async with engine.connect() as conn:
-        # Pooled connection: shed any guild role a prior checkout assumed (a
-        # lingering role would RLS-filter public.guilds to zero rows and the
-        # sweep would silently skip every guild schema).
-        await conn.execute(text("SELECT set_config('role', 'none', false)"))
         guild_ids = (
             (await conn.execute(text("SELECT id FROM public.guilds ORDER BY id")))
             .scalars()
@@ -472,21 +479,13 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
         schema = guild_schema_name(gid)
         try:
             async with (
-                engine.connect() as read_conn,
-                engine.begin() as write_conn,
+                cohorts.system_session(gid) as reader,
+                cohorts.system_session(gid) as writer,
             ):
-                # Transaction-local: the guild role dies with each connection's
-                # transaction (the write txn's commit, the read txn's rollback
-                # on close). A session-level set_config survives the write
-                # txn's COMMIT, so the pooled connection would return to the
-                # pool still wearing guild_<id> and every later system-engine
-                # checkout would read shared tables RLS-filtered — boot seeding
-                # then tries to re-create the primary guild (issue #927).
-                for conn_ in (read_conn, write_conn):
-                    await conn_.execute(
-                        text("SELECT set_config('role', :r, true)"),
-                        {"r": guild_role_name(gid)},
-                    )
+                for session in (reader, writer):
+                    await db_session.set_rls_context(session, SystemGuild(gid))
+                read_conn = await reader.connection()
+                write_conn = await writer.connection()
                 for table, column, salt in _GUILD_SCHEMA_COLUMNS:
                     summary.columns.append(
                         await _rotate_fernet_column(
@@ -501,7 +500,7 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
                             dry_run,
                         )
                     )
-                for table, column, salt in _GUILD_SCHEMA_JSON_MAPS:
+                for table, column, salt, key in _GUILD_SCHEMA_JSON_MAPS:
                     summary.columns.append(
                         await _rotate_fernet_json_map(
                             read_conn,
@@ -513,8 +512,10 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
                             old_key,
                             new_key,
                             dry_run,
+                            key,
                         )
                     )
+                await writer.commit()
         except Exception:
             logger.exception(
                 "secret-key rotation: failed to rotate schema %s — skipping", schema

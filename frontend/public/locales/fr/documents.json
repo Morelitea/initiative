@@ -130,7 +130,6 @@
     "noInitiatives": "Aucune initiative ici à laquelle vous pouvez ajouter des documents."
   },
   "detail": {
-    "invalidId": "Identifiant de document invalide.",
     "loading": "Chargement du document…",
     "notFound": "Document introuvable",
     "notFoundDescription": "Ce document a peut-être été supprimé ou vous avez suivi un lien invalide.",
@@ -209,6 +208,7 @@
     "cancelDrawing": "Annuler",
     "checklist": "Liste de contrôle",
     "clearFormatting": "Effacer la mise en forme",
+    "collapseCallout": "Replier l'encadré",
     "colorBlack": "Noir",
     "colorBlue": "Bleu",
     "colorDefault": "Par défaut",
@@ -232,6 +232,7 @@
     "editStatus": "Modifier le statut",
     "embed": "Intégrer",
     "embedContent": "Intégrer {{contentName}}",
+    "expandCallout": "Déplier l'encadré",
     "fontSize": "Taille de police",
     "format": "Format",
     "horizontalRule": "Règle horizontale",
@@ -281,6 +282,13 @@
     "undo": "Annuler",
     "unmergeCells": "Scinder les cellules",
     "youtubeVideo": "Vidéo YouTube"
+  },
+  "embeds": {
+    "insert": "Intégrer",
+    "showAsEmbed": "Afficher en entier",
+    "showAsLink": "Afficher comme lien",
+    "expand": "Déplier",
+    "collapse": "Replier"
   },
   "outline": {
     "title": "Sommaire",
@@ -377,6 +385,7 @@
   "smartChips": {
     "aspects": {
       "assignee": "Personne assignée",
+      "checklist": "Terminée",
       "due": "Date d'échéance",
       "priority": "Priorité",
       "progress": "Avancement",
@@ -398,6 +407,7 @@
     "searchPlaceholder": "Cherchez quelque chose à afficher",
     "searching": "Recherche…",
     "taskAssignee": "Personne assignée",
+    "taskChecklist": "Case à cocher de la tâche",
     "taskDue": "Date d'échéance",
     "taskPriority": "Priorité",
     "taskStatus": "Statut de la tâche",

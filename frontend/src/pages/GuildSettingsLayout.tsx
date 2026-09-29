@@ -7,12 +7,6 @@ import { SettingsPaneSkeleton } from "@/components/skeletons/PageSkeletons";
 import { Badge } from "@/components/ui/badge";
 import { useGuilds } from "@/hooks/useGuilds";
 import { extractSubPath, guildPath, isGuildScopedPath } from "@/lib/guildUrl";
-import {
-  administersGuild,
-  changesGuildSettings,
-  holdsGuildSeat,
-  reachesGuildContent,
-} from "@/lib/permissions";
 import { matchActiveTab } from "@/lib/tabs";
 
 export const GuildSettingsLayout = () => {
@@ -22,15 +16,15 @@ export const GuildSettingsLayout = () => {
   // either rung. Separate from reaching the work inside it, which a settings
   // grant does not — the tabs built on content are dropped below rather than
   // rendered into refusals.
-  const administers = administersGuild(activeGuild);
+  const administers = Boolean(activeGuild?.can.administer);
   // Whether what the rung reaches may also be changed — the server's answer.
   // Without it every control on these pages is shown disabled.
-  const changesSettings = changesGuildSettings(activeGuild);
-  const reachesContent = reachesGuildContent(activeGuild);
+  const changesSettings = Boolean(activeGuild?.can.configure);
+  const reachesContent = Boolean(activeGuild?.can.content);
   // The seat above admin, which holds this community's sign-in and its
   // integrations — held outright, or lent for a window by a settings grant.
   const onTheGrantedSeat = activeGuild?.grantSettingsLevel === "superadmin";
-  const isSuperadmin = holdsGuildSeat(activeGuild);
+  const isSuperadmin = Boolean(activeGuild?.can.seat);
   // Where the community has a sign-in of its own to configure, that is. Most
   // never do: the operator grants each half of the surface separately, and
   // with neither there is nothing on the tab to show anybody. A grantee's

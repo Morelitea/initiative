@@ -40,9 +40,7 @@ const board = () =>
         initiativeId={1}
         taskStatuses={STATUSES}
         canEditTaskDetails
-        canWriteProject
         projectIsArchived={false}
-        canViewTaskDetails
         taskHref={(taskId) => `/tasks/${taskId}`}
       />
     ),

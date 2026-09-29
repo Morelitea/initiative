@@ -1,6 +1,6 @@
 """Integration tests for the calendar-entries aggregate endpoints.
 
-``GET /g/{guild_id}/calendar-entries`` and ``GET /me/calendar-entries`` return a
+``GET /c/{guild_id}/calendar-entries`` and ``GET /me/calendar-entries`` return a
 union of calendar events + task markers over a date window. They must be a union
 *under the existing gates* — the same events/tasks the separate list endpoints
 would return for the same actor, never more.
@@ -8,10 +8,10 @@ would return for the same actor, never more.
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.messages import CalendarEventMessages
 from app.models.platform.guild import GuildRole
 from app.testing import (
     create_calendar,
@@ -47,7 +47,6 @@ async def _enable_events(session: AsyncSession, initiative, creator):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.integration
 async def test_guild_entries_unions_events_and_task_markers(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -76,7 +75,6 @@ async def test_guild_entries_unions_events_and_task_markers(
     assert {t["id"] for t in body["tasks"]} == {task.id}
 
 
-@pytest.mark.integration
 async def test_guild_entries_include_flags_skip_legs(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -88,7 +86,12 @@ async def test_guild_entries_include_flags_skip_legs(
     only_tasks = await client.get(
         a.g("/calendar-entries/"),
         headers=a.headers,
-        params={"initiative_id": a.initiative.id, "include_events": "false"},
+        params={
+            "initiative_id": a.initiative.id,
+            "start_after": WINDOW_START,
+            "start_before": WINDOW_END,
+            "include_events": "false",
+        },
     )
     assert only_tasks.status_code == 200
     assert only_tasks.json()["events"] == []
@@ -97,14 +100,18 @@ async def test_guild_entries_include_flags_skip_legs(
     only_events = await client.get(
         a.g("/calendar-entries/"),
         headers=a.headers,
-        params={"initiative_id": a.initiative.id, "include_tasks": "false"},
+        params={
+            "initiative_id": a.initiative.id,
+            "start_after": WINDOW_START,
+            "start_before": WINDOW_END,
+            "include_tasks": "false",
+        },
     )
     assert only_events.status_code == 200
     assert len(only_events.json()["events"]) == 1
     assert only_events.json()["tasks"] == []
 
 
-@pytest.mark.integration
 async def test_guild_entries_hidden_from_non_member(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -134,7 +141,6 @@ async def test_guild_entries_hidden_from_non_member(
     assert task.id not in {t["id"] for t in body["tasks"]}
 
 
-@pytest.mark.integration
 async def test_guild_entries_leave_out_an_initiative_the_reader_is_not_in(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -167,7 +173,6 @@ async def test_guild_entries_leave_out_an_initiative_the_reader_is_not_in(
     assert task.id not in {t["id"] for t in body["tasks"]}
 
 
-@pytest.mark.integration
 async def test_guild_entries_windows_tasks_by_params(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -201,6 +206,25 @@ async def test_guild_entries_windows_tasks_by_params(
     assert in_window.id in task_ids
     assert out_window.id not in task_ids
 
+    # The window is required, may not run backwards, and is bounded.
+    missing = await client.get(
+        a.g("/calendar-entries/"),
+        headers=a.headers,
+        params={"initiative_id": a.initiative.id, "start_after": WINDOW_START},
+    )
+    assert missing.status_code == 422
+    for start, end in (
+        (WINDOW_END, WINDOW_START),
+        (WINDOW_START, (NOW + timedelta(days=400)).isoformat()),
+    ):
+        refused = await client.get(
+            a.g("/calendar-entries/"),
+            headers=a.headers,
+            params={"start_after": start, "start_before": end},
+        )
+        assert refused.status_code == 422
+        assert refused.json()["detail"] == CalendarEventMessages.WINDOW_INVALID
+
 
 # ---------------------------------------------------------------------------
 # Cross-guild /me endpoint
@@ -216,7 +240,6 @@ async def _guild_with_project(session, user, *, name):
     return guild, initiative, project, calendar
 
 
-@pytest.mark.integration
 async def test_guild_scope_returns_every_guild_calendar_s_events(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -254,7 +277,6 @@ async def test_guild_scope_returns_every_guild_calendar_s_events(
     assert sorted(e["title"] for e in response.json()["events"]) == sorted(titles)
 
 
-@pytest.mark.integration
 async def test_me_entries_aggregate_across_guilds(
     client: AsyncClient, session: AsyncSession
 ):
@@ -299,7 +321,6 @@ async def test_me_entries_aggregate_across_guilds(
     assert (g2.id, event2.id) not in narrowed_event_keys
 
 
-@pytest.mark.integration
 async def test_me_entries_windows_tasks_by_params(
     client: AsyncClient, session: AsyncSession
 ):
@@ -328,3 +349,16 @@ async def test_me_entries_windows_tasks_by_params(
     task_ids = {t["id"] for t in response.json()["tasks"]}
     assert in_window.id in task_ids
     assert out_window.id not in task_ids
+
+    missing = await client.get("/api/v1/me/calendar-entries", headers=headers)
+    assert missing.status_code == 422
+    too_wide = await client.get(
+        "/api/v1/me/calendar-entries",
+        headers=headers,
+        params={
+            "start_after": WINDOW_START,
+            "start_before": (NOW + timedelta(days=400)).isoformat(),
+        },
+    )
+    assert too_wide.status_code == 422
+    assert too_wide.json()["detail"] == CalendarEventMessages.WINDOW_INVALID

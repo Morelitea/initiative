@@ -114,6 +114,7 @@ class OidcCompletion:
     refresh_token: str | None
     mobile: bool
     device_name: str
+    app_challenge: str
 
 
 class OidcProvider:
@@ -140,13 +141,16 @@ class OidcProvider:
             client_factory=client_factory, http_timeout_seconds=http_timeout_seconds
         )
 
-    async def begin(self, *, mobile: bool = False, device_name: str = "") -> OidcBegin:
+    async def begin(
+        self, *, mobile: bool = False, device_name: str = "", app_challenge: str = ""
+    ) -> OidcBegin:
         """Mint the flow state and build the authorization redirect URL."""
         metadata = await self._fetch_metadata()
         state, payload = create_flow_state(
             mobile=mobile,
             device_name=device_name,
             provider_slug=self._config.provider_slug,
+            app_challenge=app_challenge,
         )
         params = {
             "response_type": "code",
@@ -219,6 +223,7 @@ class OidcProvider:
             refresh_token=refresh_token if isinstance(refresh_token, str) else None,
             mobile=flow.mobile,
             device_name=flow.device_name,
+            app_challenge=flow.app_challenge,
         )
 
     async def fetch_userinfo(self, access_token: str) -> dict[str, Any] | None:

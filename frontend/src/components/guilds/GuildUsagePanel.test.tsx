@@ -22,11 +22,11 @@ vi.mock("@/hooks/useAppConfig", () => ({
   useAppConfig: () => ({ billing: state.billing }),
 }));
 vi.mock("@/api/generated/storage/storage", () => ({
-  useReadStorageUsageApiV1GGuildIdStorageUsageGet: () => ({ data: state.usage }),
+  useReadStorageUsageApiV1CGuildIdStorageUsageGet: () => ({ data: state.usage }),
 }));
 const mintMock = vi.hoisted(() => vi.fn());
-vi.mock("@/api/generated/guilds/guilds", () => ({
-  createGuildBillingHandoffApiV1GuildsGuildIdBillingHandoffPost: mintMock,
+vi.mock("@/api/generated/communities/communities", () => ({
+  createGuildBillingHandoffApiV1CommunitiesGuildIdBillingHandoffPost: mintMock,
 }));
 
 import { GuildUsagePanel } from "./GuildUsagePanel";

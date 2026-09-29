@@ -4,6 +4,13 @@
 // empty-state message arrive already localized in the payload (the adapter
 // translates to the export creator's locale), so this file is pure layout.
 #let payload = json(bytes(sys.inputs.at("data", default: "{}")))
+
+// Who exported the file and when: document metadata, not printed on the page.
+#let exported = payload.at("exported", default: (:))
+#set document(
+  author: exported.at("by", default: ()),
+  date: if "date" in exported { datetime(..exported.date) } else { auto },
+)
 #let cols = payload.at("columns", default: ())
 #let rows = payload.at("rows", default: ())
 #let description = payload.at("description", default: "")

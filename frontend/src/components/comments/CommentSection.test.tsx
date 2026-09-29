@@ -1,13 +1,14 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse } from "msw";
+import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { buildComment } from "@/__tests__/factories/comment.factory";
+import { buildUser } from "@/__tests__/factories/user.factory";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
-import type { CommentCreate } from "@/api/generated/initiativeAPI.schemas";
+import type { CommentCreate, SubjectReadRequest } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 
 import { CommentSection } from "./CommentSection";
@@ -99,6 +100,53 @@ describe("CommentSection", () => {
     });
   });
 
+  it("reads the thread on opening and marks what was unread", async () => {
+    const me = buildUser();
+    const other = buildUser();
+    const named = buildComment({ content: "Named by a line", created_by: me.id });
+    const olderByOther = buildComment({
+      content: "Before the roll-up",
+      created_by: other.id,
+      created_at: "2026-01-01T00:00:00Z",
+    });
+    const newerByOther = buildComment({
+      content: "After the roll-up",
+      created_by: other.id,
+      created_at: "2026-01-03T00:00:00Z",
+    });
+    const newerByMe = buildComment({
+      content: "My own reply",
+      created_by: me.id,
+      created_at: "2026-01-03T00:00:00Z",
+    });
+    let read: SubjectReadRequest | null = null;
+    server.use(
+      http.post("/api/v1/notifications/read-subject", async ({ request }) => {
+        read = (await request.json()) as SubjectReadRequest;
+        return HttpResponse.json({ comment_ids: [named.id], since: "2026-01-02T00:00:00Z" });
+      })
+    );
+
+    renderPage(
+      () => (
+        <CommentSection
+          entityType="task"
+          entityId={3}
+          comments={[named, olderByOther, newerByOther, newerByMe]}
+          initiativeId={7}
+        />
+      ),
+      { auth: { user: me } }
+    );
+
+    const marked = (text: string) => screen.getByText(text).closest("[data-unread]") !== null;
+    await waitFor(() => expect(marked("Named by a line")).toBe(true));
+    expect(read).toEqual({ guild_id: 1, subject_type: "task", subject_id: 3 });
+    expect(marked("After the roll-up")).toBe(true);
+    expect(marked("Before the roll-up")).toBe(false);
+    expect(marked("My own reply")).toBe(false);
+  });
+
   it("offers no mention suggestions for a guild-level entity", async () => {
     renderPage(() => (
       <CommentSection entityType={Tool.calendar} entityId={5} comments={[]} initiativeId={0} />
@@ -110,5 +158,39 @@ describe("CommentSection", () => {
     // popover reports an empty list rather than failing.
     expect(await screen.findByText(/no one by that name/i)).toBeInTheDocument();
     expect(screen.getByRole("textbox")).toHaveValue("@al");
+  });
+
+  it("puts the newest conversation first and keeps each one's replies in order", async () => {
+    const older = buildComment({ content: "Older thread", created_at: "2026-01-10T09:00:00Z" });
+    const newer = buildComment({ content: "Newer thread", created_at: "2026-01-12T09:00:00Z" });
+    const firstReply = buildComment({
+      content: "First reply",
+      parent_comment_id: older.id,
+      created_at: "2026-01-13T09:00:00Z",
+    });
+    const secondReply = buildComment({
+      content: "Second reply",
+      parent_comment_id: older.id,
+      created_at: "2026-01-14T09:00:00Z",
+    });
+
+    renderPage(() => (
+      <CommentSection
+        entityType={Tool.queue}
+        entityId={42}
+        comments={[older, firstReply, newer, secondReply]}
+        initiativeId={7}
+      />
+    ));
+
+    await screen.findByText("Newer thread");
+    const said = ["Newer thread", "Older thread", "First reply", "Second reply"].map((text) =>
+      screen.getByText(text)
+    );
+    for (let i = 1; i < said.length; i++) {
+      expect(said[i - 1].compareDocumentPosition(said[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING
+      );
+    }
   });
 });

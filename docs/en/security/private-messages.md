@@ -46,7 +46,7 @@ These two things are connected. If the server kept a readable archive so a new p
 
 So there isn't one. Each device keeps its own copy, a device that wasn't there doesn't have the older messages, and signing out takes that device's copy with it. It's a genuine cost, and it's what buys everything above. See [Your messages live on your devices](../guides/messages.md#your-messages-live-on-your-devices).
 
-Two places history moves between devices, and neither changes that: your own other device can send a new one its copy, and somebody joining a group is sent the thread by a member who has it. Both are ordinary encrypted messages, written by a device and read by a device. The server carries them the way it carries everything else, and keeps them no longer.
+Two places history moves between devices, and neither changes that: your own other device can send a new one its copy once you've said the new one is yours, and somebody joining a group is sent, by each member, what that member wrote. Both are ordinary encrypted messages, written by a device and read by a device. The server carries them the way it carries everything else, and keeps them no longer.
 
 ## Messages aren't community content
 
@@ -64,6 +64,7 @@ If you're the person who has to answer for this choice to a board, a client, or 
 
 - Messages use the **Double Ratchet**, the same algorithm behind the mainstream encrypted messengers, through a well-established and independently audited open-source implementation. We did not invent a cipher, and you should be suspicious of anyone who has.
 - **No key is ever shared between more than two devices**, including in a group. A group message is encrypted separately for each device it is going to, on that pair's own ratchet — there is no group key, and nothing to leak when somebody leaves.
+- **Every device signs its own keys**, and each app checks those signatures before it writes to a device. A new device on your account waits until you confirm it, and a person's devices changing shows up as a notice with a **safety number** you can compare with them in person.
 - There are **no recovery keys and no exceptional access**. Nothing is held in reserve, so nothing can be lost or demanded.
 - The code is **open source**, like the rest of Initiative. You can read it rather than take our word for it.
 

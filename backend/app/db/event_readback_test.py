@@ -6,7 +6,7 @@ lets it stay content-free: the subscriber reads the state back through the API,
 where the gates decide. It only works if each id is a whole address, so the
 route for a resource type is derivable from the type itself:
 
-    resource_type -> /g/{guild_id}/<kebab>/{id}
+    resource_type -> /c/{guild_id}/<kebab>/{id}
 
 Which is not a convention invented here — it is what the resources that already
 worked all do. Sub-resources with an id of their own (``comments``,
@@ -21,14 +21,11 @@ Between the two, a new evented table owes no new API surface.
 
 from __future__ import annotations
 
-import pytest
 
 from app.db.base import *  # noqa: F401,F403 — register every model
 from app.db.event_capture import build_specs
 from app.db.initiative_rls import parent_types
 from app.main import app
-
-pytestmark = pytest.mark.unit
 
 
 def _detail_paths() -> set[str]:
@@ -37,9 +34,9 @@ def _detail_paths() -> set[str]:
     for route in app.routes:
         path = getattr(route, "path", "")
         methods = getattr(route, "methods", set()) or set()
-        if "GET" not in methods or "/g/{guild_id}/" not in path:
+        if "GET" not in methods or "/c/{guild_id}/" not in path:
             continue
-        tail = path.split("/g/{guild_id}/", 1)[1]
+        tail = path.split("/c/{guild_id}/", 1)[1]
         parts = tail.split("/")
         # Exactly "<segment>/{param}" — one hop, then the id.
         if (
@@ -70,6 +67,6 @@ def test_every_evented_resource_resolves_by_its_own_id():
     missing = sorted(r for r in _named_resources() if r.replace("_", "-") not in paths)
     assert not missing, (
         f"{missing} emit events naming ids nothing can fetch. Either add "
-        f"GET /g/{{guild_id}}/<kebab>/{{id}}, or report the table against a "
+        f"GET /c/{{guild_id}}/<kebab>/{{id}}, or report the table against a "
         "parent that has one (Emit(reports_as=...))."
     )

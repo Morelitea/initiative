@@ -13,7 +13,7 @@ from sqlmodel import select
 from app.api.deps import UserSessionDep, get_current_active_user
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.session import get_system_session, set_rls_context
+from app.db.session import get_system_session
 from app.core.notification_categories import (
     CATEGORY_SPECS,
     ALL_CHANNELS,
@@ -249,6 +249,10 @@ async def update_my_notification_preferences(
         )
         await system_session.commit()
 
+    # The choice is saved before any queue is emptied, so a queue is only ever
+    # discarded for a choice that stuck.
+    await session.commit()
+
     # A queue nobody will ever be sent is discarded, not kept: it is guild
     # scoped, so this reaches into each of the account's guild schemas.
     emptied = [
@@ -261,9 +265,6 @@ async def update_my_notification_preferences(
         await notifications_service.clear_digest_queue_across_guilds(
             session, user_id, emptied
         )
-        # The cross-guild fan-out leaves the session routed; put it back on
-        # the platform context this request runs in.
-        await set_rls_context(session, user_id=user_id)
 
     await session.commit()
     return await read_my_notification_preferences(session, current_user)

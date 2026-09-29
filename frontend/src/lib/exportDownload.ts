@@ -63,7 +63,7 @@ export async function downloadExportArtifact(
   format = "pdf"
 ): Promise<void> {
   try {
-    const res = await apiClient.get<Blob>(`/g/${guildId}/exports/${jobId}/download`, {
+    const res = await apiClient.get<Blob>(`/c/${guildId}/exports/${jobId}/download`, {
       responseType: "blob",
     });
     const serverName = filenameFromDisposition(res.headers["content-disposition"]);

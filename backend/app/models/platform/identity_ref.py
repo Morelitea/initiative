@@ -26,7 +26,7 @@ request path holds ``SELECT`` and a policy admitting ``client``, the sector an
 account's own access token names it by (``services.auth.subject``).
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Optional
 
@@ -109,6 +109,12 @@ REF_RANDOM_LENGTH = 32
 #: Width the column holds: prefix, separator, and the random half, with room
 #: for a longer prefix than any purpose uses today.
 REF_MAX_LENGTH = 64
+
+#: How long a replaced reference keeps resolving. Long enough for the other
+#: party to pick up the new value and for anything already in flight to land.
+#: Held here rather than beside the minting code so the install standing
+#: statement (``app.db.guild_standing``) honours the same window.
+REF_GRACE_PERIOD = timedelta(days=30)
 
 
 class IdentityRef(SQLModel, table=True):

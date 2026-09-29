@@ -8,6 +8,10 @@ from __future__ import annotations
 
 import html
 import json
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
+
 import httpx
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -15,23 +19,41 @@ from app.core.messages import AIMessages
 from app.models.tenant.task import Task
 from app.models.platform.user import User
 from app.schemas.ai_settings import AIProvider
-from app.services.ai_settings import resolve_ai_settings
+from app.services.ai_settings import failure_code, refusal_code, resolve_ai_settings
+from app.services.export.lexical import editor_markdown
 from app.services.safe_http import request_public_target
-from app.services.webhook_target_url import (
-    WebhookTargetUrlError,
-    WebhookTargetUrlPrivateError,
-)
 
 # Maximum output lengths to prevent excessive LLM responses
 _MAX_CHECKLIST_ITEM_LENGTH = 200
 _MAX_DESCRIPTION_LENGTH = 2000
 _MAX_SUMMARY_LENGTH = 5000
 
+_PROVIDER_FAULTS = frozenset(
+    {AIMessages.PROVIDER_UNAVAILABLE, AIMessages.PROVIDER_ERROR}
+)
+
 
 class AIGenerationError(Exception):
-    """Raised when AI generation fails."""
+    """A generation that failed, with the message code and status the
+    endpoint answers: a fault on the provider's side is a bad gateway."""
 
-    pass
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+        self.status_code = 502 if code in _PROVIDER_FAULTS else 400
+
+
+@dataclass(frozen=True)
+class _Job:
+    """What one kind of generation asks of the model."""
+
+    temperature: float
+    max_tokens: int
+    timeout: float
+
+
+_SHORT_JOB = _Job(temperature=0.7, max_tokens=500, timeout=60.0)
+_SUMMARY_JOB = _Job(temperature=0.5, max_tokens=1000, timeout=120.0)
 
 
 async def generate_checklist(
@@ -44,57 +66,11 @@ async def generate_checklist(
     project_name: str | None = None,
 ) -> list[str]:
     """Suggest checklist steps using the configured AI provider."""
-    resolved = await resolve_ai_settings(session, user, guild_id)
-
-    if not resolved.enabled:
-        raise AIGenerationError("AI features are not enabled")
-
-    if not resolved.api_key and resolved.provider != AIProvider.ollama:
-        raise AIGenerationError("No API key configured for AI provider")
-
-    if not resolved.provider:
-        raise AIGenerationError("No AI provider configured")
-
-    locale = getattr(user, "locale", None) or "en"
-    system_prompt, user_content = _build_checklist_prompt(
-        task, initiative_name, project_name, locale=locale
+    prompt = _build_checklist_prompt(
+        task, initiative_name, project_name, locale=user.locale or "en"
     )
-
-    if resolved.provider == AIProvider.openai:
-        return await _generate_openai_checklist(
-            api_key=resolved.api_key,
-            model=resolved.model or "gpt-4o-mini",
-            system_prompt=system_prompt,
-            user_content=user_content,
-        )
-    elif resolved.provider == AIProvider.anthropic:
-        return await _generate_anthropic_checklist(
-            api_key=resolved.api_key,
-            model=resolved.model or "claude-3-5-haiku-20241022",
-            system_prompt=system_prompt,
-            user_content=user_content,
-        )
-    elif resolved.provider == AIProvider.ollama:
-        content = await _ollama_chat(
-            base_url=resolved.base_url or "http://localhost:11434",
-            model=resolved.model or "llama3.2",
-            system_prompt=system_prompt,
-            user_content=user_content,
-            timeout=60.0,
-            allow_private=resolved.allow_private,
-        )
-        return _parse_checklist_response(content)
-    elif resolved.provider == AIProvider.custom:
-        return await _generate_custom_checklist(
-            api_key=resolved.api_key,
-            base_url=resolved.base_url,
-            model=resolved.model,
-            system_prompt=system_prompt,
-            user_content=user_content,
-            allow_private=resolved.allow_private,
-        )
-    else:
-        raise AIGenerationError(f"Unsupported AI provider: {resolved.provider}")
+    content = await _generate(session, user, guild_id, prompt, _SHORT_JOB)
+    return _parse_checklist_response(content)
 
 
 async def generate_description(
@@ -107,57 +83,11 @@ async def generate_description(
     project_name: str | None = None,
 ) -> str:
     """Generate/enhance task description using configured AI provider."""
-    resolved = await resolve_ai_settings(session, user, guild_id)
-
-    if not resolved.enabled:
-        raise AIGenerationError("AI features are not enabled")
-
-    if not resolved.api_key and resolved.provider != AIProvider.ollama:
-        raise AIGenerationError("No API key configured for AI provider")
-
-    if not resolved.provider:
-        raise AIGenerationError("No AI provider configured")
-
-    locale = getattr(user, "locale", None) or "en"
-    system_prompt, user_content = _build_description_prompt(
-        task, initiative_name, project_name, locale=locale
+    prompt = _build_description_prompt(
+        task, initiative_name, project_name, locale=user.locale or "en"
     )
-
-    if resolved.provider == AIProvider.openai:
-        return await _generate_openai_description(
-            api_key=resolved.api_key,
-            model=resolved.model or "gpt-4o-mini",
-            system_prompt=system_prompt,
-            user_content=user_content,
-        )
-    elif resolved.provider == AIProvider.anthropic:
-        return await _generate_anthropic_description(
-            api_key=resolved.api_key,
-            model=resolved.model or "claude-3-5-haiku-20241022",
-            system_prompt=system_prompt,
-            user_content=user_content,
-        )
-    elif resolved.provider == AIProvider.ollama:
-        content = await _ollama_chat(
-            base_url=resolved.base_url or "http://localhost:11434",
-            model=resolved.model or "llama3.2",
-            system_prompt=system_prompt,
-            user_content=user_content,
-            timeout=60.0,
-            allow_private=resolved.allow_private,
-        )
-        return _truncate_output(content.strip(), _MAX_DESCRIPTION_LENGTH)
-    elif resolved.provider == AIProvider.custom:
-        return await _generate_custom_description(
-            api_key=resolved.api_key,
-            base_url=resolved.base_url,
-            model=resolved.model,
-            system_prompt=system_prompt,
-            user_content=user_content,
-            allow_private=resolved.allow_private,
-        )
-    else:
-        raise AIGenerationError(f"Unsupported AI provider: {resolved.provider}")
+    content = await _generate(session, user, guild_id, prompt, _SHORT_JOB)
+    return _truncate_output(content.strip(), _MAX_DESCRIPTION_LENGTH)
 
 
 async def generate_document_summary(
@@ -168,62 +98,16 @@ async def generate_document_summary(
     document_name: str,
 ) -> str:
     """Generate a summary of a document using configured AI provider."""
-    resolved = await resolve_ai_settings(session, user, guild_id)
-
-    if not resolved.enabled:
-        raise AIGenerationError("AI features are not enabled")
-
-    if not resolved.api_key and resolved.provider != AIProvider.ollama:
-        raise AIGenerationError("No API key configured for AI provider")
-
-    if not resolved.provider:
-        raise AIGenerationError("No AI provider configured")
-
-    # Convert Lexical JSON to markdown for better AI comprehension
-    markdown_content = lexical_to_markdown(document_content)
+    # The editor state as markdown, which a model reads better than JSON
+    markdown_content = editor_markdown(document_content, reading=True)
     if not markdown_content.strip():
-        raise AIGenerationError("Document has no content to summarize")
+        raise AIGenerationError(AIMessages.DOCUMENT_EMPTY)
 
-    locale = getattr(user, "locale", None) or "en"
-    system_prompt, user_content = _build_summary_prompt(
-        document_name, markdown_content, locale=locale
+    prompt = _build_summary_prompt(
+        document_name, markdown_content, locale=user.locale or "en"
     )
-
-    if resolved.provider == AIProvider.openai:
-        return await _generate_openai_summary(
-            api_key=resolved.api_key,
-            model=resolved.model or "gpt-4o-mini",
-            system_prompt=system_prompt,
-            user_content=user_content,
-        )
-    elif resolved.provider == AIProvider.anthropic:
-        return await _generate_anthropic_summary(
-            api_key=resolved.api_key,
-            model=resolved.model or "claude-3-5-haiku-20241022",
-            system_prompt=system_prompt,
-            user_content=user_content,
-        )
-    elif resolved.provider == AIProvider.ollama:
-        content = await _ollama_chat(
-            base_url=resolved.base_url or "http://localhost:11434",
-            model=resolved.model or "llama3.2",
-            system_prompt=system_prompt,
-            user_content=user_content,
-            timeout=120.0,
-            allow_private=resolved.allow_private,
-        )
-        return _truncate_output(content.strip(), _MAX_SUMMARY_LENGTH)
-    elif resolved.provider == AIProvider.custom:
-        return await _generate_custom_summary(
-            api_key=resolved.api_key,
-            base_url=resolved.base_url,
-            model=resolved.model,
-            system_prompt=system_prompt,
-            user_content=user_content,
-            allow_private=resolved.allow_private,
-        )
-    else:
-        raise AIGenerationError(f"Unsupported AI provider: {resolved.provider}")
+    content = await _generate(session, user, guild_id, prompt, _SUMMARY_JOB)
+    return _truncate_output(content.strip(), _MAX_SUMMARY_LENGTH)
 
 
 def _locale_instruction(locale: str) -> str:
@@ -416,18 +300,6 @@ def _parse_checklist_response(text: str) -> list[str]:
     return items[:7]
 
 
-def _is_openai_new_api_model(model: str) -> bool:
-    """Check if the model uses the newer OpenAI API parameters.
-
-    Reasoning models (o1, o3) and GPT-5+ models use:
-    - max_completion_tokens instead of max_tokens
-    - Don't support temperature parameter
-    """
-    model_lower = model.lower()
-    # Reasoning models and GPT-5+ series
-    return model_lower.startswith(("o1", "o3", "gpt-5"))
-
-
 def _openai_messages(system_prompt: str, user_content: str) -> list[dict[str, str]]:
     """Build a messages array for OpenAI-compatible APIs."""
     return [
@@ -437,721 +309,169 @@ def _openai_messages(system_prompt: str, user_content: str) -> list[dict[str, st
 
 
 # ---------------------------------------------------------------------------
-# OpenAI implementation
+# Providers — one request path, with what differs per provider in an adapter.
 # ---------------------------------------------------------------------------
 
 
-async def _generate_openai_checklist(
-    api_key: str | None,
-    model: str,
-    system_prompt: str,
-    user_content: str,
-) -> list[str]:
-    """Generate checklist steps using OpenAI API."""
-    if not api_key:
-        raise AIGenerationError("API key is required for OpenAI")
-
-    try:
-        # Build request payload - newer models have different parameter requirements
-        payload: dict = {
-            "model": model,
-            "messages": _openai_messages(system_prompt, user_content),
-        }
-        if _is_openai_new_api_model(model):
-            # Reasoning models and GPT-5+ use max_completion_tokens, no temperature
-            payload["max_completion_tokens"] = 1000
-        else:
-            payload["temperature"] = 0.7
-            payload["max_tokens"] = 500
-
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-            )
-
-            if response.status_code == 401:
-                raise AIGenerationError("Invalid OpenAI API key")
-            elif response.status_code != 200:
-                try:
-                    error_data = response.json()
-                    error_msg = error_data.get("error", {}).get(
-                        "message", f"Status {response.status_code}"
-                    )
-                except Exception:
-                    error_msg = f"Status {response.status_code}"
-                raise AIGenerationError(f"OpenAI API error: {error_msg}")
-
-            data = response.json()
-            content = data["choices"][0]["message"]["content"]
-            return _parse_checklist_response(content)
-    except httpx.TimeoutException:
-        raise AIGenerationError("OpenAI request timed out")
-    except AIGenerationError:
-        raise
-    except Exception as e:
-        raise AIGenerationError(f"OpenAI request failed: {str(e)}")
+def _bearer(api_key: str | None) -> dict[str, str]:
+    return {"Authorization": f"Bearer {api_key}"} if api_key else {}
 
 
-async def _generate_openai_description(
-    api_key: str | None,
-    model: str,
-    system_prompt: str,
-    user_content: str,
+def _chat_body(
+    model: str, system_prompt: str, user_content: str, job: _Job
+) -> dict[str, Any]:
+    """An OpenAI-compatible chat completion body."""
+    return {
+        "model": model,
+        "messages": _openai_messages(system_prompt, user_content),
+        "temperature": job.temperature,
+        "max_tokens": job.max_tokens,
+    }
+
+
+def _openai_body(
+    model: str, system_prompt: str, user_content: str, job: _Job
+) -> dict[str, Any]:
+    """Reasoning models (o1, o3) and GPT-5+ take ``max_completion_tokens``,
+    which also counts reasoning tokens, and no temperature."""
+    if not model.lower().startswith(("o1", "o3", "gpt-5")):
+        return _chat_body(model, system_prompt, user_content, job)
+    return {
+        "model": model,
+        "messages": _openai_messages(system_prompt, user_content),
+        "max_completion_tokens": job.max_tokens * 2,
+    }
+
+
+def _anthropic_body(
+    model: str, system_prompt: str, user_content: str, job: _Job
+) -> dict[str, Any]:
+    return {
+        "model": model,
+        "max_tokens": job.max_tokens,
+        "system": system_prompt,
+        "messages": [{"role": "user", "content": user_content}],
+    }
+
+
+def _ollama_body(
+    model: str, system_prompt: str, user_content: str, job: _Job
+) -> dict[str, Any]:
+    return {
+        "model": model,
+        "messages": _openai_messages(system_prompt, user_content),
+        "stream": False,
+    }
+
+
+def _choice_content(data: Any) -> str:
+    return data["choices"][0]["message"]["content"]
+
+
+@dataclass(frozen=True)
+class _ProviderAdapter:
+    """The parts of a chat completion that differ by provider."""
+
+    default_model: str
+    headers: Callable[[str | None], dict[str, str]]
+    body: Callable[[str, str, str, _Job], dict[str, Any]]
+    content: Callable[[Any], str]
+    #: The provider's own endpoint. Without one, the request goes to the
+    #: connection's base URL plus ``path``, through the pinned egress.
+    endpoint: str | None = None
+    path: str = ""
+    default_base_url: str | None = None
+
+
+_ADAPTERS: dict[AIProvider, _ProviderAdapter] = {
+    AIProvider.openai: _ProviderAdapter(
+        default_model="gpt-4o-mini",
+        endpoint="https://api.openai.com/v1/chat/completions",
+        headers=_bearer,
+        body=_openai_body,
+        content=_choice_content,
+    ),
+    AIProvider.anthropic: _ProviderAdapter(
+        default_model="claude-3-5-haiku-20241022",
+        endpoint="https://api.anthropic.com/v1/messages",
+        headers=lambda api_key: {
+            "x-api-key": api_key or "",
+            "anthropic-version": "2023-06-01",
+        },
+        body=_anthropic_body,
+        content=lambda data: data["content"][0]["text"],
+    ),
+    AIProvider.ollama: _ProviderAdapter(
+        default_model="llama3.2",
+        path="/api/chat",
+        default_base_url="http://localhost:11434",
+        headers=lambda api_key: {},
+        body=_ollama_body,
+        content=lambda data: data["message"]["content"],
+    ),
+    AIProvider.custom: _ProviderAdapter(
+        default_model="default",
+        path="/chat/completions",
+        headers=_bearer,
+        body=_chat_body,
+        content=_choice_content,
+    ),
+}
+
+
+async def _generate(
+    session: AsyncSession,
+    user: User,
+    guild_id: int | None,
+    prompt: tuple[str, str],
+    job: _Job,
 ) -> str:
-    """Generate description using OpenAI API."""
-    if not api_key:
-        raise AIGenerationError("API key is required for OpenAI")
+    """Run one chat completion on the caller's resolved AI connection and
+    return the model's text.
 
-    try:
-        # Build request payload - newer models have different parameter requirements
-        payload: dict = {
-            "model": model,
-            "messages": _openai_messages(system_prompt, user_content),
-        }
-        if _is_openai_new_api_model(model):
-            # Reasoning models and GPT-5+ use max_completion_tokens, no temperature
-            payload["max_completion_tokens"] = 1000
-        else:
-            payload["temperature"] = 0.7
-            payload["max_tokens"] = 500
-
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-            )
-
-            if response.status_code == 401:
-                raise AIGenerationError("Invalid OpenAI API key")
-            elif response.status_code != 200:
-                try:
-                    error_data = response.json()
-                    error_msg = error_data.get("error", {}).get(
-                        "message", f"Status {response.status_code}"
-                    )
-                except Exception:
-                    error_msg = f"Status {response.status_code}"
-                raise AIGenerationError(f"OpenAI API error: {error_msg}")
-
-            data = response.json()
-            text = data["choices"][0]["message"]["content"].strip()
-            return _truncate_output(text, _MAX_DESCRIPTION_LENGTH)
-    except httpx.TimeoutException:
-        raise AIGenerationError("OpenAI request timed out")
-    except AIGenerationError:
-        raise
-    except Exception as e:
-        raise AIGenerationError(f"OpenAI request failed: {str(e)}")
-
-
-async def _generate_openai_summary(
-    api_key: str | None,
-    model: str,
-    system_prompt: str,
-    user_content: str,
-) -> str:
-    """Generate summary using OpenAI API."""
-    if not api_key:
-        raise AIGenerationError("API key is required for OpenAI")
-
-    try:
-        payload: dict = {
-            "model": model,
-            "messages": _openai_messages(system_prompt, user_content),
-        }
-        if _is_openai_new_api_model(model):
-            payload["max_completion_tokens"] = 2000
-        else:
-            payload["temperature"] = 0.5
-            payload["max_tokens"] = 1000
-
-        async with httpx.AsyncClient(timeout=90.0) as client:
-            response = await client.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-            )
-
-            if response.status_code == 401:
-                raise AIGenerationError("Invalid OpenAI API key")
-            elif response.status_code != 200:
-                try:
-                    error_data = response.json()
-                    error_msg = error_data.get("error", {}).get(
-                        "message", f"Status {response.status_code}"
-                    )
-                except Exception:
-                    error_msg = f"Status {response.status_code}"
-                raise AIGenerationError(f"OpenAI API error: {error_msg}")
-
-            data = response.json()
-            text = data["choices"][0]["message"]["content"].strip()
-            return _truncate_output(text, _MAX_SUMMARY_LENGTH)
-    except httpx.TimeoutException:
-        raise AIGenerationError("OpenAI request timed out")
-    except AIGenerationError:
-        raise
-    except Exception as e:
-        raise AIGenerationError(f"OpenAI request failed: {str(e)}")
-
-
-# ---------------------------------------------------------------------------
-# Anthropic implementation
-# ---------------------------------------------------------------------------
-
-
-async def _generate_anthropic_checklist(
-    api_key: str | None,
-    model: str,
-    system_prompt: str,
-    user_content: str,
-) -> list[str]:
-    """Generate checklist steps using Anthropic API."""
-    if not api_key:
-        raise AIGenerationError("API key is required for Anthropic")
-
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": api_key,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": model,
-                    "max_tokens": 500,
-                    "system": system_prompt,
-                    "messages": [{"role": "user", "content": user_content}],
-                },
-            )
-
-            if response.status_code == 401:
-                raise AIGenerationError("Invalid Anthropic API key")
-            elif response.status_code != 200:
-                raise AIGenerationError(f"Anthropic API error: {response.status_code}")
-
-            data = response.json()
-            content = data["content"][0]["text"]
-            return _parse_checklist_response(content)
-    except httpx.TimeoutException:
-        raise AIGenerationError("Anthropic request timed out")
-    except AIGenerationError:
-        raise
-    except Exception as e:
-        raise AIGenerationError(f"Anthropic request failed: {str(e)}")
-
-
-async def _generate_anthropic_description(
-    api_key: str | None,
-    model: str,
-    system_prompt: str,
-    user_content: str,
-) -> str:
-    """Generate description using Anthropic API."""
-    if not api_key:
-        raise AIGenerationError("API key is required for Anthropic")
-
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": api_key,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": model,
-                    "max_tokens": 500,
-                    "system": system_prompt,
-                    "messages": [{"role": "user", "content": user_content}],
-                },
-            )
-
-            if response.status_code == 401:
-                raise AIGenerationError("Invalid Anthropic API key")
-            elif response.status_code != 200:
-                raise AIGenerationError(f"Anthropic API error: {response.status_code}")
-
-            data = response.json()
-            text = data["content"][0]["text"].strip()
-            return _truncate_output(text, _MAX_DESCRIPTION_LENGTH)
-    except httpx.TimeoutException:
-        raise AIGenerationError("Anthropic request timed out")
-    except AIGenerationError:
-        raise
-    except Exception as e:
-        raise AIGenerationError(f"Anthropic request failed: {str(e)}")
-
-
-async def _generate_anthropic_summary(
-    api_key: str | None,
-    model: str,
-    system_prompt: str,
-    user_content: str,
-) -> str:
-    """Generate summary using Anthropic API."""
-    if not api_key:
-        raise AIGenerationError("API key is required for Anthropic")
-
-    try:
-        async with httpx.AsyncClient(timeout=90.0) as client:
-            response = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": api_key,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": model,
-                    "max_tokens": 1000,
-                    "system": system_prompt,
-                    "messages": [{"role": "user", "content": user_content}],
-                },
-            )
-
-            if response.status_code == 401:
-                raise AIGenerationError("Invalid Anthropic API key")
-            elif response.status_code != 200:
-                raise AIGenerationError(f"Anthropic API error: {response.status_code}")
-
-            data = response.json()
-            text = data["content"][0]["text"].strip()
-            return _truncate_output(text, _MAX_SUMMARY_LENGTH)
-    except httpx.TimeoutException:
-        raise AIGenerationError("Anthropic request timed out")
-    except AIGenerationError:
-        raise
-    except Exception as e:
-        raise AIGenerationError(f"Anthropic request failed: {str(e)}")
-
-
-# ---------------------------------------------------------------------------
-# Ollama implementation
-# ---------------------------------------------------------------------------
-
-
-async def _ollama_chat(
-    *,
-    base_url: str,
-    model: str,
-    system_prompt: str,
-    user_content: str,
-    timeout: float,
-    allow_private: bool,
-) -> str:
-    """POST an Ollama ``/api/chat`` completion and return the message content.
-
-    Goes through :func:`request_public_target`, which resolves the host once and
-    connects to that validated address (keeping the hostname for TLS).
-    ``allow_private`` is server-computed (true only for an operator Ollama
-    connection), never from request input.
+    ``allow_private`` is server-computed by :func:`resolve_ai_settings` (true
+    only for an operator Ollama connection), never from request input.
     """
-    url = base_url.rstrip("/")
+    resolved = await resolve_ai_settings(session, user, guild_id, with_key=True)
+
+    if not resolved.enabled:
+        raise AIGenerationError(AIMessages.NOT_ENABLED)
+
+    if not resolved.provider or (
+        not resolved.api_key and resolved.provider != AIProvider.ollama
+    ):
+        raise AIGenerationError(AIMessages.NOT_CONFIGURED)
+
+    adapter = _ADAPTERS[resolved.provider]
+    base_url = (resolved.base_url or adapter.default_base_url or "").rstrip("/")
+    headers = adapter.headers(resolved.api_key)
+    body = adapter.body(resolved.model or adapter.default_model, *prompt, job)
     try:
-        response = await request_public_target(
-            "POST",
-            f"{url}/api/chat",
-            json={
-                "model": model,
-                "messages": _openai_messages(system_prompt, user_content),
-                "stream": False,
-            },
-            timeout=timeout,
-            allow_private=allow_private,
-        )
+        if adapter.endpoint:
+            async with httpx.AsyncClient(timeout=job.timeout) as client:
+                response = await client.post(
+                    adapter.endpoint, headers=headers, json=body
+                )
+        elif not base_url:
+            raise AIGenerationError(AIMessages.INVALID_BASE_URL)
+        else:
+            response = await request_public_target(
+                "POST",
+                f"{base_url}{adapter.path}",
+                headers=headers,
+                json=body,
+                timeout=job.timeout,
+                allow_private=resolved.allow_private,
+            )
 
         if response.status_code != 200:
-            raise AIGenerationError(f"Ollama API error: {response.status_code}")
-
-        return response.json()["message"]["content"]
-    except (WebhookTargetUrlError, WebhookTargetUrlPrivateError) as exc:
-        raise AIGenerationError(AIMessages.INVALID_BASE_URL) from exc
-    except httpx.ConnectError:
-        raise AIGenerationError("Could not connect to Ollama")
-    except httpx.TimeoutException:
-        raise AIGenerationError("Ollama request timed out")
+            raise AIGenerationError(
+                refusal_code(
+                    resolved.provider, response, sent_key=bool(resolved.api_key)
+                )
+            )
+        return adapter.content(response.json())
     except AIGenerationError:
         raise
-    except Exception as e:
-        raise AIGenerationError(f"Ollama request failed: {str(e)}")
-
-
-# ---------------------------------------------------------------------------
-# Custom OpenAI-compatible implementation
-# ---------------------------------------------------------------------------
-
-
-async def _custom_chat_completion(
-    *,
-    api_key: str | None,
-    base_url: str | None,
-    model: str | None,
-    system_prompt: str,
-    user_content: str,
-    temperature: float,
-    max_tokens: int,
-    timeout: float,
-    allow_private: bool = False,
-) -> str:
-    """POST an OpenAI-compatible chat completion to a stored connection's
-    ``base_url`` and return the message content.
-
-    The request goes through :func:`request_public_target`, which resolves
-    the host once and connects to that validated address, keeping the
-    hostname for TLS. A ``custom`` connection is always public
-    (``allow_private`` stays false); the parameter exists for symmetry.
-    """
-    if not base_url:
-        raise AIGenerationError("Base URL is required for custom provider")
-
-    url = base_url.rstrip("/")
-    headers = {"Content-Type": "application/json"}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
-
-    try:
-        response = await request_public_target(
-            "POST",
-            f"{url}/chat/completions",
-            headers=headers,
-            json={
-                "model": model or "default",
-                "messages": _openai_messages(system_prompt, user_content),
-                "temperature": temperature,
-                "max_tokens": max_tokens,
-            },
-            timeout=timeout,
-            allow_private=allow_private,
-        )
-
-        if response.status_code == 401:
-            raise AIGenerationError("Invalid API key")
-        elif response.status_code != 200:
-            raise AIGenerationError(f"API error: {response.status_code}")
-
-        data = response.json()
-        return data["choices"][0]["message"]["content"]
-    except (WebhookTargetUrlError, WebhookTargetUrlPrivateError) as exc:
-        raise AIGenerationError(AIMessages.INVALID_BASE_URL) from exc
-    except httpx.ConnectError:
-        raise AIGenerationError(f"Could not connect to {url}")
-    except httpx.TimeoutException:
-        raise AIGenerationError("Request timed out")
-    except AIGenerationError:
-        raise
-    except Exception as e:
-        raise AIGenerationError(f"Request failed: {str(e)}")
-
-
-async def _generate_custom_checklist(
-    api_key: str | None,
-    base_url: str | None,
-    model: str | None,
-    system_prompt: str,
-    user_content: str,
-    *,
-    allow_private: bool = False,
-) -> list[str]:
-    """Generate checklist steps using a custom OpenAI-compatible API."""
-    content = await _custom_chat_completion(
-        api_key=api_key,
-        base_url=base_url,
-        model=model,
-        system_prompt=system_prompt,
-        user_content=user_content,
-        temperature=0.7,
-        max_tokens=500,
-        timeout=30.0,
-        allow_private=allow_private,
-    )
-    return _parse_checklist_response(content)
-
-
-async def _generate_custom_description(
-    api_key: str | None,
-    base_url: str | None,
-    model: str | None,
-    system_prompt: str,
-    user_content: str,
-    *,
-    allow_private: bool = False,
-) -> str:
-    """Generate a description using a custom OpenAI-compatible API."""
-    content = await _custom_chat_completion(
-        api_key=api_key,
-        base_url=base_url,
-        model=model,
-        system_prompt=system_prompt,
-        user_content=user_content,
-        temperature=0.7,
-        max_tokens=500,
-        timeout=30.0,
-        allow_private=allow_private,
-    )
-    return _truncate_output(content.strip(), _MAX_DESCRIPTION_LENGTH)
-
-
-async def _generate_custom_summary(
-    api_key: str | None,
-    base_url: str | None,
-    model: str | None,
-    system_prompt: str,
-    user_content: str,
-    *,
-    allow_private: bool = False,
-) -> str:
-    """Generate a summary using a custom OpenAI-compatible API."""
-    content = await _custom_chat_completion(
-        api_key=api_key,
-        base_url=base_url,
-        model=model,
-        system_prompt=system_prompt,
-        user_content=user_content,
-        temperature=0.5,
-        max_tokens=1000,
-        timeout=90.0,
-        allow_private=allow_private,
-    )
-    return _truncate_output(content.strip(), _MAX_SUMMARY_LENGTH)
-
-
-# ---------------------------------------------------------------------------
-# Lexical JSON → Markdown converter
-# ---------------------------------------------------------------------------
-
-
-def lexical_to_markdown(content: dict | None) -> str:
-    """Convert Lexical JSON editor state to Markdown.
-
-    Recursively traverses Lexical nodes and converts to markdown,
-    preserving document structure so AI models can understand:
-    - Document hierarchy via headings
-    - Emphasis via bold/italic
-    - Lists and enumerated items
-    - Code snippets and quotes
-    - Links
-    """
-    if not content:
-        return ""
-
-    root = content.get("root")
-    if not root:
-        return ""
-
-    children = root.get("children", [])
-    return _convert_nodes(children)
-
-
-def _convert_nodes(nodes: list[dict], list_depth: int = 0) -> str:
-    """Convert a list of Lexical nodes to markdown."""
-    result = []
-    for node in nodes:
-        converted = _convert_node(node, list_depth)
-        if converted:
-            result.append(converted)
-    return "\n\n".join(result)
-
-
-def _convert_node(node: dict, list_depth: int = 0) -> str:
-    """Convert a single Lexical node to markdown."""
-    node_type = node.get("type", "")
-
-    if node_type == "paragraph":
-        return _convert_paragraph(node)
-    elif node_type == "heading":
-        return _convert_heading(node)
-    elif node_type == "list":
-        return _convert_list(node, list_depth)
-    elif node_type == "listitem":
-        return _convert_list_item(node, list_depth)
-    elif node_type == "quote":
-        return _convert_quote(node)
-    elif node_type == "callout":
-        return _convert_callout(node, list_depth)
-    elif node_type in ("layout-container", "layout-item"):
-        # Columns read one after another: what matters to a model is the
-        # words and their order, not where they sat on the page.
-        return _convert_nodes(node.get("children", []), list_depth)
-    elif node_type == "code":
-        return _convert_code_block(node)
-    elif node_type == "horizontalrule":
-        return "---"
-    elif node_type == "text":
-        return _convert_text(node)
-    elif node_type == "link":
-        return _convert_link(node)
-    elif node_type == "linebreak":
-        return "\n"
-    elif node_type in ("mention", "custom-mention"):
-        # Handle mention nodes - extract display text
-        text = node.get("text", "") or node.get("mentionName", "")
-        return f"@{text}" if text else ""
-    else:
-        # For unknown node types, try to extract text from children
-        children = node.get("children", [])
-        if children:
-            return _convert_inline_children(children)
-        return node.get("text", "")
-
-
-def _convert_callout(node: dict, list_depth: int = 0) -> str:
-    """A callout as Obsidian writes one: its kind, then its blocks behind
-    ``>``."""
-    variant = str(node.get("variant") or "note")
-    body = _convert_nodes(node.get("children", []), list_depth)
-    lines = [f"> [!{variant}]"]
-    lines.extend(f"> {line}" if line else ">" for line in body.split("\n"))
-    return "\n".join(lines)
-
-
-def _convert_paragraph(node: dict) -> str:
-    """Convert a paragraph node."""
-    children = node.get("children", [])
-    return _convert_inline_children(children)
-
-
-def _convert_heading(node: dict) -> str:
-    """Convert a heading node."""
-    tag = node.get("tag", "h1")
-    level = int(tag[1]) if tag and len(tag) == 2 and tag[1].isdigit() else 1
-    prefix = "#" * level
-    children = node.get("children", [])
-    text = _convert_inline_children(children)
-    return f"{prefix} {text}"
-
-
-def _convert_list(node: dict, list_depth: int = 0) -> str:
-    """Convert a list node."""
-    list_type = node.get("listType", "bullet")
-    children = node.get("children", [])
-    items = []
-    for i, item in enumerate(children):
-        items.append(_convert_list_item(item, list_depth, list_type, i + 1))
-    return "\n".join(items)
-
-
-def _convert_list_item(
-    node: dict,
-    list_depth: int = 0,
-    list_type: str = "bullet",
-    index: int = 1,
-) -> str:
-    """Convert a list item node."""
-    indent = "  " * list_depth
-    prefix = "-" if list_type == "bullet" else f"{index}."
-    children = node.get("children", [])
-
-    # Check for nested list
-    nested_list = None
-    inline_children = []
-    for child in children:
-        if child.get("type") == "list":
-            nested_list = child
-        else:
-            inline_children.append(child)
-
-    text = _convert_inline_children(inline_children)
-    result = f"{indent}{prefix} {text}"
-
-    if nested_list:
-        nested_md = _convert_list(nested_list, list_depth + 1)
-        result = f"{result}\n{nested_md}"
-
-    return result
-
-
-def _convert_quote(node: dict) -> str:
-    """Convert a quote/blockquote node."""
-    children = node.get("children", [])
-    # Handle nested paragraphs in blockquote
-    lines = []
-    for child in children:
-        if child.get("type") == "paragraph":
-            lines.append(_convert_paragraph(child))
-        else:
-            lines.append(_convert_inline_children([child]))
-    text = "\n".join(lines)
-    # Prefix each line with >
-    return "\n".join(f"> {line}" for line in text.split("\n"))
-
-
-def _convert_code_block(node: dict) -> str:
-    """Convert a code block node."""
-    language = node.get("language", "")
-    # Code blocks store text directly or in children
-    code = node.get("code", "")
-    if not code:
-        children = node.get("children", [])
-        code = _convert_inline_children(children)
-    return f"```{language}\n{code}\n```"
-
-
-def _convert_inline_children(children: list[dict]) -> str:
-    """Convert inline children (text, links, etc.) to markdown."""
-    result = []
-    for child in children:
-        child_type = child.get("type", "")
-        if child_type == "text":
-            result.append(_convert_text(child))
-        elif child_type == "link":
-            result.append(_convert_link(child))
-        elif child_type == "linebreak":
-            result.append("\n")
-        elif child_type in ("mention", "custom-mention"):
-            text = child.get("text", "") or child.get("mentionName", "")
-            result.append(f"@{text}" if text else "")
-        else:
-            # Unknown inline type - try to get text or recurse
-            text = child.get("text", "")
-            if text:
-                result.append(text)
-            elif child.get("children"):
-                result.append(_convert_inline_children(child.get("children", [])))
-    return "".join(result)
-
-
-def _convert_text(node: dict) -> str:
-    """Convert a text node with formatting."""
-    text = node.get("text", "")
-    if not text:
-        return ""
-
-    format_flags = node.get("format", 0)
-    # Lexical format flags: 1=bold, 2=italic, 4=strikethrough, 8=underline, 16=code
-    is_bold = bool(format_flags & 1)
-    is_italic = bool(format_flags & 2)
-    is_code = bool(format_flags & 16)
-
-    if is_code:
-        return f"`{text}`"
-    if is_bold and is_italic:
-        return f"***{text}***"
-    if is_bold:
-        return f"**{text}**"
-    if is_italic:
-        return f"*{text}*"
-    return text
-
-
-def _convert_link(node: dict) -> str:
-    """Convert a link node."""
-    url = node.get("url", "")
-    children = node.get("children", [])
-    text = _convert_inline_children(children)
-    return f"[{text}]({url})"
+    except Exception as exc:
+        raise AIGenerationError(failure_code(resolved.provider, exc)) from exc

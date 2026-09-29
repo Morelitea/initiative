@@ -11,7 +11,7 @@ import { TaskDescription } from "./TaskDescription";
 describe("a task's description", () => {
   it("reads a mentioned person as who they are now, linked to their profile", async () => {
     server.use(
-      http.get("*/api/v1/g/:guildId/users/search", () =>
+      http.get("*/api/v1/c/:guildId/users/search", () =>
         HttpResponse.json({
           items: [
             buildUserSummary({ id: 12, username: "ada", discriminator: 7, full_name: "Ada King" }),

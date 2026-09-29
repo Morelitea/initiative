@@ -3,11 +3,9 @@
 import json
 from pathlib import Path
 
-import pytest
 
 from app.services.export.i18n import et, export_locale
 
-pytestmark = pytest.mark.unit
 
 _LOCALES_DIR = Path(__file__).resolve().parents[2] / "locales"
 _LOCALES = ("en", "de", "es", "fr")
@@ -66,9 +64,7 @@ def test_plural_and_interpolation_variants_present_in_every_locale():
 def test_et_translates_and_interpolates():
     assert et("columns.task", "es") == "Tarea"
     assert et("status.held", "fr") == "En attente"
-    assert et("generatedBy", "de", date="2026-07-13", author="Ada") == (
-        "erstellt am 2026-07-13 von Ada"
-    )
+    assert et("footer.project", "de", name="Ada") == "Ada — Projektbericht"
 
 
 def test_et_selects_plural_by_count():
@@ -91,17 +87,3 @@ def test_export_locale_defaults_to_english():
         locale = "fr"
 
     assert export_locale(_WithLocale()) == "fr"
-
-
-def test_localize_now_shifts_and_falls_back():
-    from datetime import datetime, timezone
-
-    from app.services.export.i18n import localize_now
-
-    utc_now = datetime(2026, 7, 13, 20, 30, tzinfo=timezone.utc)
-    berlin = localize_now(utc_now, "Europe/Berlin")
-    assert berlin.strftime("%H:%M %Z") == "22:30 CEST"  # DST offset +2
-    # Absent or garbage zones keep UTC — a report never fails over a timestamp.
-    assert localize_now(utc_now, None) is utc_now
-    assert localize_now(utc_now, "Not/AZone") is utc_now
-    assert localize_now(utc_now, "../../etc/passwd") is utc_now

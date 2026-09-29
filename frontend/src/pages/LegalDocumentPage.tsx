@@ -47,7 +47,7 @@ export const LegalDocumentPage = () => {
           {!document.isLoading && (!enabled || document.isError) ? (
             <p className="text-muted-foreground text-sm">{t("legal:unavailable")}</p>
           ) : null}
-          {document.data ? <Markdown content={document.data} /> : null}
+          {document.data ? <Markdown remoteImages content={document.data} /> : null}
         </CardContent>
       </Card>
       <Link

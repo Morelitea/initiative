@@ -4,8 +4,6 @@ A new notification type with no category would resolve to nothing, and the
 delivery path would have to guess — so this fails CI instead.
 """
 
-import pytest
-
 from app.core.notification_categories import (
     ALL_CHANNELS,
     CATEGORY_SPECS,
@@ -17,8 +15,6 @@ from app.core.notification_categories import (
     spec_of,
 )
 from app.models.platform.notification import NotificationType
-
-pytestmark = pytest.mark.unit
 
 
 def test_every_notification_type_has_exactly_one_category():

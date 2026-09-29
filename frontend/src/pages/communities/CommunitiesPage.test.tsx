@@ -169,14 +169,14 @@ describe("CommunitiesPage", () => {
   it("puts the guild's banner across the top of its card", async () => {
     directoryFor.mockReturnValue(
       directoryResult([
-        community({ banner: buildBanner({ image_url: "/api/v1/guilds/1/image/abc" }) }),
+        community({ banner: buildBanner({ image_url: "/api/v1/communities/1/image/abc" }) }),
       ])
     );
 
     const { container } = renderDirectory();
 
     await screen.findByText("Riverside Players");
-    const banner = container.querySelector('img[src="/api/v1/guilds/1/image/abc"]');
+    const banner = container.querySelector('img[src="/api/v1/communities/1/image/abc"]');
     expect(banner).not.toBeNull();
     // Decorative: the card already says the guild's name beneath it.
     expect(banner).toHaveAttribute("alt", "");

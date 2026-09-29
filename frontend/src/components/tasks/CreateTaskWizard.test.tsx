@@ -31,21 +31,18 @@ vi.mock(import("@/hooks/useGuilds"), async (importOriginal) => ({
   useGuilds: () => guildsValue,
 }));
 
-vi.mock("@/hooks/useInitiativeAccess", () => ({
-  guildMayWriteContent: () => true,
-}));
-
 // Both of these are held still across renders on purpose: the component keys
 // effects off the identity of what the query returns, so a fresh object each
 // render would have it chasing its own tail.
 const initiativesResult = {
-  data: [buildInitiative({ name: "Spring Play" }), buildInitiative({ name: "Summer Play" })],
+  initiatives: [buildInitiative({ name: "Spring Play" }), buildInitiative({ name: "Summer Play" })],
   isLoading: false,
 };
 const projectsResult = { data: { items: [], has_next: false } };
 
-vi.mock("@/hooks/useInitiatives", () => ({
-  useInitiativesForGuild: () => initiativesResult,
+vi.mock("@/hooks/useInitiativeAccess", () => ({
+  guildMayWriteContent: () => true,
+  useCreatableInitiatives: () => initiativesResult,
 }));
 
 vi.mock("@/hooks/useProjects", () => ({

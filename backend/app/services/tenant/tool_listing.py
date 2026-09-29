@@ -35,7 +35,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
-from app.db.guild_standing import GuildContext
+from app.db.guild_standing import ActorContext
 from app.db.query import apply_pagination, clamp_page
 from app.models.tenant.initiative import Initiative
 from app.services import permissions as permissions_service
@@ -118,9 +118,9 @@ def base_conditions(
     tool: Tool,
     model,
     enabled_column,
-    user_id: int,
+    user_id: int | None,
     *,
-    context: GuildContext,
+    context: ActorContext,
     initiative_id: Optional[int] = None,
     search: Optional[str] = None,
     tag_ids: Optional[Sequence[int]] = None,
@@ -225,8 +225,8 @@ async def count_tool_rows_by_initiative(
     model,
     enabled_column,
     *,
-    user_id: int,
-    context: GuildContext,
+    user_id: int | None,
+    context: ActorContext,
     extra_conditions: Sequence[Any] = (),
 ) -> dict[int, int]:
     """How many of this tool each initiative holds for this reader.

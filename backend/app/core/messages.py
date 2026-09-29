@@ -8,15 +8,14 @@ from app.core.tools import Tool
 
 
 class CommonMessages:
-    """Codes that belong to no one tool.
+    """Codes that belong to no one tool."""
 
-    A timeline is asked for by any tool that has a history, so the answer to
-    "that is not a zone" has to read the same wherever it comes from.
-    """
-
-    #: A time zone that is not one. Months are cut in the reader's own day, so
-    #: the zone is a real parameter rather than a formatting hint.
+    #: A time zone that is not one, wherever a request names a zone.
     UNKNOWN_TIMEZONE = "UNKNOWN_TIMEZONE"
+
+    #: Somebody named on the content (an assignee, an attendee, a person
+    #: property, a queue item's person) cannot open what it sits in.
+    PERSON_CANNOT_READ = "PERSON_CANNOT_READ"
 
     #: The write reached content that is archived or in the trash, or something
     #: under it. One code for both, because the answer is the same either way:
@@ -28,12 +27,19 @@ class CommonMessages:
     #: answer names the container rather than the row.
     PARENT_IS_FROZEN = "PARENT_IS_FROZEN"
 
+    #: The request body is larger than its route takes. Answered by the
+    #: transport (``app.core.body_limit``) before any handler runs.
+    REQUEST_TOO_LARGE = "REQUEST_TOO_LARGE"
+
 
 class AuthMessages:
     EMAIL_ALREADY_REGISTERED = "EMAIL_ALREADY_REGISTERED"
     REGISTRATION_REQUIRES_INVITE = "REGISTRATION_REQUIRES_INVITE"
     UNABLE_TO_CREATE_USER = "UNABLE_TO_CREATE_USER"
     INCORRECT_CREDENTIALS = "INCORRECT_CREDENTIALS"
+    #: Too many wrong passwords or codes lately: password and code sign-in are
+    #: turned off for now. Passkeys are unaffected.
+    SIGN_IN_LOCKED = "SIGN_IN_LOCKED"
     REQUEST_ORIGIN_NOT_RECOGNIZED = "REQUEST_ORIGIN_NOT_RECOGNIZED"
     INACTIVE_USER = "INACTIVE_USER"
     ACCOUNT_SUSPENDED = "ACCOUNT_SUSPENDED"
@@ -293,8 +299,6 @@ class InitiativeMessages:
 class FilterPresetMessages:
     NOT_FOUND = "FILTER_PRESET_NOT_FOUND"
     DUPLICATE_ID = "FILTER_PRESET_DUPLICATE_ID"
-    SLUG_TAKEN = "FILTER_PRESET_SLUG_TAKEN"
-    INVALID_FILTERS = "FILTER_PRESET_INVALID_FILTERS"
     LIMIT_REACHED = "FILTER_PRESET_LIMIT_REACHED"
 
 
@@ -307,9 +311,6 @@ class ProjectMessages:
     # presets) — a project manager, the project owner, or a guild admin.
     CONFIGURE_REQUIRED = "PROJECT_CONFIGURE_REQUIRED"
     DOCUMENT_WRONG_INITIATIVE = "PROJECT_DOCUMENT_WRONG_INITIATIVE"
-    OWNER_HAS_FULL_ACCESS = "PROJECT_OWNER_HAS_FULL_ACCESS"
-    CANNOT_REMOVE_OWNER = "PROJECT_CANNOT_REMOVE_OWNER"
-    ROLE_WRONG_INITIATIVE = "PROJECT_ROLE_WRONG_INITIATIVE"
     # A PAM grant confers content read/write only, never access-control
     # management (adding/removing members or changing permission levels).
 
@@ -323,7 +324,6 @@ class TaskMessages:
     CANNOT_MOVE_TO_TEMPLATE = "TASK_CANNOT_MOVE_TO_TEMPLATE"
     PROJECT_MISMATCH = "TASK_PROJECT_MISMATCH"
     STATUS_NOT_FOUND = "TASK_STATUS_NOT_FOUND_FOR_PROJECT"
-    ASSIGNEES_NOT_FOUND = "TASK_ASSIGNEES_NOT_FOUND"
     INVALID_ASSIGNEE_ID = "TASK_INVALID_ASSIGNEE_ID"
     DUPLICATE_NOT_FOUND = "TASK_DUPLICATE_NOT_FOUND"
 
@@ -423,10 +423,8 @@ class TagMessages:
 class PropertyMessages:
     DEFINITION_NOT_FOUND = "PROPERTY_DEFINITION_NOT_FOUND"
     NAME_ALREADY_EXISTS = "PROPERTY_NAME_ALREADY_EXISTS"
-    TYPE_CHANGE_BLOCKED = "PROPERTY_TYPE_CHANGE_BLOCKED"
     INVALID_VALUE_FOR_TYPE = "PROPERTY_INVALID_VALUE_FOR_TYPE"
     OPTION_NOT_IN_DEFINITION = "PROPERTY_OPTION_NOT_IN_DEFINITION"
-    USER_NOT_IN_INITIATIVE = "PROPERTY_USER_NOT_IN_INITIATIVE"
     NOT_INITIATIVE_MEMBER = "PROPERTY_NOT_INITIATIVE_MEMBER"
     OPTIONS_REQUIRED = "PROPERTY_OPTIONS_REQUIRED"
     DUPLICATE_OPTION_VALUE = "PROPERTY_DUPLICATE_OPTION_VALUE"
@@ -441,14 +439,11 @@ class AttachmentMessages:
 
 
 class DocumentMessages:
-    INITIATIVE_MEMBERSHIP_REQUIRED = "DOCUMENT_INITIATIVE_MEMBERSHIP_REQUIRED"
     NAME_ALREADY_EXISTS = "DOCUMENT_NAME_ALREADY_EXISTS"
     TOO_MANY_IDS = "DOCUMENT_TOO_MANY_IDS"
     NAME_REQUIRED = "DOCUMENT_NAME_REQUIRED"
     LIVE_SESSION_OWNS_CONTENT = "DOCUMENT_LIVE_SESSION_OWNS_CONTENT"
-    USER_MUST_BE_MEMBER = "DOCUMENT_USER_MUST_BE_MEMBER"
-    CANNOT_REMOVE_OWNER = "DOCUMENT_CANNOT_REMOVE_OWNER"
-    ROLE_WRONG_INITIATIVE = "DOCUMENT_ROLE_WRONG_INITIATIVE"
+    COLLABORATION_UPDATE_INVALID = "DOCUMENT_COLLABORATION_UPDATE_INVALID"
     AI_NATIVE_ONLY = "DOCUMENT_AI_NATIVE_ONLY"
     SMART_LINK_URL_REQUIRED = "DOCUMENT_SMART_LINK_URL_REQUIRED"
     SPREADSHEET_INVALID_PAYLOAD = "DOCUMENT_SPREADSHEET_INVALID_PAYLOAD"
@@ -467,7 +462,6 @@ class DocumentMessages:
 class CommentMessages:
     NOT_FOUND = "COMMENT_NOT_FOUND"
     PERMISSION_DENIED = "COMMENT_PERMISSION_DENIED"
-    VALIDATION_ERROR = "COMMENT_VALIDATION_ERROR"
     PARENT_NOT_FOUND = "COMMENT_PARENT_NOT_FOUND"
     TARGET_NOT_FOUND = "COMMENT_TARGET_NOT_FOUND"
     PARENT_MISMATCH = "COMMENT_PARENT_MISMATCH"
@@ -486,19 +480,14 @@ class SharingMessages:
     been given the wording for it.
     """
 
-    #: The grant flow's own refusals. Not per-tool: a grant is the same object
-    #: whatever it names, and these say what was wrong with the grant rather
-    #: than which tool it was pointed at.
-    CANNOT_ASSIGN_OWNER = "CANNOT_ASSIGN_OWNER"
-    CANNOT_MODIFY_OWNER = "CANNOT_MODIFY_OWNER"
-    CANNOT_ASSIGN_OWNER_TO_ROLE = "CANNOT_ASSIGN_OWNER_TO_ROLE"
-    PERMISSION_NOT_FOUND = "PERMISSION_NOT_FOUND"
-    ROLE_PERMISSION_NOT_FOUND = "ROLE_PERMISSION_NOT_FOUND"
-
     #: A grant naming a dashboard, sent to a resource's own sharing. That kind
     #: is made and taken back against the dashboard that publishes it, so this
     #: list neither writes nor removes one.
     DASHBOARD_GRANT_NOT_SET_HERE = "SHARING_DASHBOARD_GRANT_NOT_SET_HERE"
+    #: A grant naming an installed app, sent to a resource's own sharing. What
+    #: an app may reach is granted by the community's seat, so this list
+    #: neither writes nor removes one.
+    APP_INSTALL_GRANT_NOT_SET_HERE = "SHARING_APP_INSTALL_GRANT_NOT_SET_HERE"
 
     @staticmethod
     def grantee_lacks_tool(tool: "Tool") -> str:
@@ -510,7 +499,6 @@ class ReactionMessages:
     TARGET_NOT_FOUND = "REACTION_TARGET_NOT_FOUND"
     PERMISSION_DENIED = "REACTION_PERMISSION_DENIED"
     NOT_FOUND = "REACTION_NOT_FOUND"
-    INVALID_EMOJI = "REACTION_INVALID_EMOJI"
     TOO_MANY = "REACTION_TOO_MANY"
     DISABLED = "REACTION_DISABLED"
 
@@ -587,7 +575,6 @@ class ModerationMessages:
     REPORT_NOT_FOUND = "MODERATION_REPORT_NOT_FOUND"
     REPORT_ALREADY_SETTLED = "MODERATION_REPORT_ALREADY_SETTLED"
     UNKNOWN_TARGET_TYPE = "MODERATION_UNKNOWN_TARGET_TYPE"
-    CANNOT_REPORT_YOURSELF = "MODERATION_CANNOT_REPORT_YOURSELF"
     NOWHERE_TO_SEND = "MODERATION_NOWHERE_TO_SEND"
     TARGET_NOT_FOUND = "MODERATION_TARGET_NOT_FOUND"
     NOT_A_MODERATOR = "MODERATION_NOT_A_MODERATOR"
@@ -613,8 +600,16 @@ class IntakeMessages:
 class OperatorMessages:
     CANNOT_RESET_INACTIVE = "OPERATOR_CANNOT_RESET_INACTIVE"
     USER_ALREADY_ACTIVE = "OPERATOR_USER_ALREADY_ACTIVE"
+    #: Reactivate is for a deactivated account; a suspension is lifted and a
+    #: deletion restored through their own actions.
+    USER_NOT_DEACTIVATED = "OPERATOR_USER_NOT_DEACTIVATED"
+    #: Account actions reach only accounts at or below the caller's own rung.
+    CANNOT_MANAGE_HIGHER_ROLE = "OPERATOR_CANNOT_MANAGE_HIGHER_ROLE"
     #: Restore was asked for an account that has not been deleted.
     USER_NOT_DELETED = "OPERATOR_USER_NOT_DELETED"
+    #: A confirmation letter was asked for an account with no address left to
+    #: confirm.
+    NOTHING_TO_VERIFY = "OPERATOR_NOTHING_TO_VERIFY"
     CANNOT_SUSPEND_SELF = "OPERATOR_CANNOT_SUSPEND_SELF"
     CANNOT_SUSPEND_INACTIVE = "OPERATOR_CANNOT_SUSPEND_INACTIVE"
     CANNOT_SUSPEND_HIGHER_ROLE = "OPERATOR_CANNOT_SUSPEND_HIGHER_ROLE"
@@ -639,6 +634,9 @@ class AccessGrantMessages:
     NOT_ACTIVE = "ACCESS_GRANT_NOT_ACTIVE"
     CANNOT_APPROVE_OWN = "ACCESS_GRANT_CANNOT_APPROVE_OWN"
     CANNOT_CANCEL_OTHERS = "ACCESS_GRANT_CANNOT_CANCEL_OTHERS"
+    #: Approving asks whether the requester may still request access: an
+    #: active account whose role holds ``access.request``.
+    GRANTEE_INELIGIBLE = "ACCESS_GRANT_GRANTEE_INELIGIBLE"
     #: A settings rung reads; changing what it reaches takes a read_write
     #: content grant beside it.
     WRITE_GRANT_REQUIRED = "ACCESS_GRANT_WRITE_REQUIRED"
@@ -678,9 +676,10 @@ class UserMessages:
     AGE_ANSWER_STANDS = "USER_AGE_ANSWER_STANDS"
     #: Asked to lift an age block on an account that has none.
     AGE_NOT_BLOCKED = "USER_AGE_NOT_BLOCKED"
+    #: Asked to turn password sign-in back on for an account where it is on.
+    SIGN_IN_NOT_LOCKED = "USER_SIGN_IN_NOT_LOCKED"
     CURRENT_PASSWORD_REQUIRED = "USER_CURRENT_PASSWORD_REQUIRED"
     CURRENT_PASSWORD_INCORRECT = "USER_CURRENT_PASSWORD_INCORRECT"
-    INVALID_TIMEZONE = "USER_INVALID_TIMEZONE"
     INVALID_WEEK_START = "USER_INVALID_WEEK_START"
     INVALID_TIME_FORMAT = "USER_INVALID_TIME_FORMAT"
     INVALID_REMINDER_MINUTES = "USER_INVALID_REMINDER_MINUTES"
@@ -691,13 +690,16 @@ class UserMessages:
     CANNOT_DELETE_SELF = "USER_CANNOT_DELETE_SELF"
     OWNER_MUST_BE_GUILD_ADMIN = "OWNER_MUST_BE_GUILD_ADMIN"
     OWNER_ALREADY_HOLDS_CONTENT = "OWNER_ALREADY_HOLDS_CONTENT"
+    #: The installed app named as the new owner may not own that content: it
+    #: is off or gone, lacks the tool's write scope, or is not placed in the
+    #: content's initiative.
+    OWNER_APP_NOT_ELIGIBLE = "OWNER_APP_NOT_ELIGIBLE"
     NOT_IN_GUILD = "USER_NOT_IN_GUILD"
     AVATAR_INVALID_IMAGE = "USER_AVATAR_INVALID_IMAGE"
     AVATAR_NOT_SQUARE = "USER_AVATAR_NOT_SQUARE"
     AVATAR_TOO_LARGE_DIMENSIONS = "USER_AVATAR_TOO_LARGE_DIMENSIONS"
     # A read payload's ``avatar_url`` is a path this API serves; writing one
     # back would store it as though it were an external picture URL.
-    AVATAR_URL_NOT_EXTERNAL = "USER_AVATAR_URL_NOT_EXTERNAL"
     #: A decoration this account's library does not answer for — one it does
     #: not have, or one it has for a different slot.
     DECORATION_NOT_OWNED = "USER_DECORATION_NOT_OWNED"
@@ -710,7 +712,6 @@ class UserMessages:
 class ProjectExportMessages:
     SCHEMA_VERSION_UNSUPPORTED = "PROJECT_EXPORT_SCHEMA_VERSION_UNSUPPORTED"
     INVALID_PAYLOAD = "PROJECT_EXPORT_INVALID_PAYLOAD"
-    INITIATIVE_NOT_FOUND = "PROJECT_EXPORT_INITIATIVE_NOT_FOUND"
     NO_TASK_STATUSES = "PROJECT_EXPORT_NO_TASK_STATUSES"
 
 
@@ -724,11 +725,19 @@ class ExportMessages:
     EXPORT_OWNER_REQUIRED = "EXPORT_OWNER_REQUIRED"
     EXPORT_JOB_NOT_FOUND = "EXPORT_JOB_NOT_FOUND"
     EXPORT_NOT_READY = "EXPORT_NOT_READY"
+    #: A finished export whose artifact is past its expiry.
+    EXPORT_EXPIRED = "EXPORT_EXPIRED"
     EXPORT_SUPERADMIN_REQUIRED = "EXPORT_SUPERADMIN_REQUIRED"
     EXPORT_THIRD_PARTY_APP = "EXPORT_THIRD_PARTY_APP"
     EXPORT_DESTINATION_REQUIRED = "EXPORT_DESTINATION_REQUIRED"
     EXPORT_COOLDOWN_ACTIVE = "EXPORT_COOLDOWN_ACTIVE"
     EXPORT_DELIVERED = "EXPORT_DELIVERED"
+    #: Recorded on a job whose creator's account is no longer active.
+    EXPORT_CREATOR_INACTIVE = "EXPORT_CREATOR_INACTIVE"
+    #: Recorded on a job whose creator no longer reaches the community.
+    EXPORT_ACCESS_REVOKED = "EXPORT_ACCESS_REVOKED"
+    #: Recorded on a job whose render failed for any other reason.
+    EXPORT_RENDER_FAILED = "EXPORT_RENDER_FAILED"
 
 
 class ImportEngineMessages:
@@ -755,6 +764,9 @@ class ImportEngineMessages:
     IMPORT_ARCHIVE_NO_ENVELOPE = "IMPORT_ARCHIVE_NO_ENVELOPE"
     #: An export of a different tool than the one it was imported from.
     IMPORT_WRONG_TOOL = "IMPORT_WRONG_TOOL"
+    #: A backup's file entry whose file was not restored: left out of the
+    #: backup, or refused when it was read.
+    IMPORT_ASSET_MISSING = "IMPORT_ASSET_MISSING"
 
     # Reading a foreign source. These name what the SOURCE said or did, which
     # is a different thing from anything the envelope path can go wrong at:
@@ -841,6 +853,10 @@ class QueryMessages:
     TIMED_OUT = "QUERY_TIMED_OUT"
     #: This guild already has as many queries running as it may.
     BUSY = "QUERY_BUSY"
+    #: The database stopped the statement for reasons of its own — a read
+    #: replica catching up with the primary — so the same statement may well
+    #: run if asked again.
+    INTERRUPTED = "QUERY_INTERRUPTED"
     #: The statement parsed and resolved, and the database refused it while
     #: running it — dividing by zero, a value that will not convert, a
     #: function called with types it does not take.
@@ -866,13 +882,17 @@ class CalendarMessages:
     # and what its removal takes with it. Without the app there is nowhere to
     # put one.
     GUILD_APP_REQUIRED = "CALENDAR_GUILD_APP_REQUIRED"
+    # An installed app creates a calendar in an initiative; a guild calendar
+    # is recorded on the calendar app's install, which is the community's own
+    # configuration.
+    APP_INITIATIVE_REQUIRED = "CALENDAR_APP_INITIATIVE_REQUIRED"
 
 
 class CalendarEventMessages:
     NOT_FOUND = "CALENDAR_EVENT_NOT_FOUND"
-    INVALID_ATTENDEE_IDS = "CALENDAR_EVENT_INVALID_ATTENDEE_IDS"
     ICAL_PARSE_FAILED = "ICAL_PARSE_FAILED"
     ICAL_NO_EVENTS = "ICAL_NO_EVENTS_FOUND"
+    ENDS_BEFORE_START = "CALENDAR_EVENT_ENDS_BEFORE_START"
     # A guild calendar holds guild-level content only. Things defined on an
     # initiative — custom properties, documents — have no counterpart at guild
     # scope, so an event there cannot carry them; and an event cannot be moved
@@ -881,6 +901,8 @@ class CalendarEventMessages:
     GUILD_CALENDAR_NO_PROPERTIES = "CALENDAR_EVENT_GUILD_CALENDAR_NO_PROPERTIES"
     GUILD_CALENDAR_NO_DOCUMENTS = "CALENDAR_EVENT_GUILD_CALENDAR_NO_DOCUMENTS"
     CANNOT_CROSS_SCOPE = "CALENDAR_EVENT_CANNOT_CROSS_SCOPE"
+    # A calendar read's date window ends before it starts or spans too long.
+    WINDOW_INVALID = "CALENDAR_WINDOW_INVALID"
 
 
 class DashboardMessages:
@@ -928,9 +950,6 @@ class PostMessages:
     ALREADY_PUBLISHED = "POST_ALREADY_PUBLISHED"
     #: A poll was asked for on a notice that does not have one.
     POLL_NOT_FOUND = "POST_POLL_NOT_FOUND"
-    #: A notice already has its question; a second one would have to be a
-    #: second notice.
-    POLL_EXISTS = "POST_POLL_EXISTS"
     #: The choices were rewritten after somebody had already answered. A ballot
     #: cast for one option must not become a ballot for whatever replaced it.
     POLL_HAS_VOTES = "POST_POLL_HAS_VOTES"
@@ -1033,50 +1052,45 @@ class MarketplaceMessages:
 
 
 class MarketplaceRegistryMessages:
-    """Outcomes of a signed-registry refresh.
+    """Outcomes of a registry refresh or a bundle upload.
 
-    Every code here either answers an operator's "refresh now" or is recorded
-    as the last refusal so the status panel can say why the catalog did not
-    move. The refusals are deliberately specific: an operator reading one has
-    to be able to tell a misconfigured key from an index their host is serving
-    from cache.
+    Every code here either answers an operator's "refresh now" or upload, or is
+    recorded as the last refusal so the status panel can say why the catalog
+    did not move.
     """
 
-    #: No registry URL and key set are configured, or the operator switched
-    #: ingestion off. The remote provider is absent rather than broken.
+    #: This build ships no trusted root yet, so there is no registry to follow.
     NOT_CONFIGURED = "MARKETPLACE_REGISTRY_NOT_CONFIGURED"
+    #: The platform switch is off.
+    DISABLED = "MARKETPLACE_REGISTRY_DISABLED"
     #: A refresh is already running; the second caller is told rather than
-    #: queued, because both would be fetching the same index.
+    #: queued, because both would be reading the same repository.
     REFRESH_IN_PROGRESS = "MARKETPLACE_REGISTRY_REFRESH_IN_PROGRESS"
-    #: The configured key set could not be read as a JWKS document.
-    KEYS_INVALID = "MARKETPLACE_REGISTRY_KEYS_INVALID"
-
-    #: The index or its signature could not be fetched.
+    #: The trusted root file could not be read as TUF root metadata.
+    ROOT_INVALID = "MARKETPLACE_REGISTRY_ROOT_INVALID"
+    #: The repository's metadata could not be fetched.
     UNREACHABLE = "MARKETPLACE_REGISTRY_UNREACHABLE"
-    #: The index exceeded the size a registry index is allowed to be.
-    INDEX_TOO_LARGE = "MARKETPLACE_REGISTRY_INDEX_TOO_LARGE"
-    #: The index parsed as JSON but is not shaped like an index.
-    INDEX_MALFORMED = "MARKETPLACE_REGISTRY_INDEX_MALFORMED"
-    #: The signature does not match the index bytes that were received.
-    SIGNATURE_INVALID = "MARKETPLACE_REGISTRY_SIGNATURE_INVALID"
-    #: The index was signed by a key this deployment does not trust.
-    KEY_UNKNOWN = "MARKETPLACE_REGISTRY_KEY_UNKNOWN"
-    #: The index is older than the one already accepted, or reuses its serial
-    #: for different content.
-    SERIAL_REGRESSION = "MARKETPLACE_REGISTRY_SERIAL_REGRESSION"
-    #: The index is outside the freshness window this deployment accepts.
-    INDEX_STALE = "MARKETPLACE_REGISTRY_INDEX_STALE"
+    #: The repository's metadata did not verify against the trusted root.
+    METADATA_REJECTED = "MARKETPLACE_REGISTRY_METADATA_REJECTED"
+    #: The repository's metadata verified but has expired.
+    EXPIRED = "MARKETPLACE_REGISTRY_EXPIRED"
+    #: An uploaded bundle is not a readable archive of a repository.
+    BUNDLE_INVALID = "MARKETPLACE_REGISTRY_BUNDLE_INVALID"
 
-    #: The signing key is not authorized for that listing's publisher prefix.
-    PUBLISHER_NOT_AUTHORIZED = "MARKETPLACE_REGISTRY_PUBLISHER_NOT_AUTHORIZED"
+    #: A file a listing names is not in the repository, could not be fetched,
+    #: or does not match the metadata.
+    TARGET_REJECTED = "MARKETPLACE_REGISTRY_TARGET_REJECTED"
+    #: A listing entry is not in the expected format.
+    ENTRY_INVALID = "MARKETPLACE_REGISTRY_ENTRY_INVALID"
     #: ``core.*`` names listings shipped in this repo and is never published
     #: by a registry.
     RESERVED_NAMESPACE = "MARKETPLACE_REGISTRY_RESERVED_NAMESPACE"
-    #: A manifest or image the index named could not be fetched.
-    ARTIFACT_UNREACHABLE = "MARKETPLACE_REGISTRY_ARTIFACT_UNREACHABLE"
-    #: A manifest or image did not match what the index says it is — digest,
-    #: size, type, or the origin it is served from.
-    ARTIFACT_INVALID = "MARKETPLACE_REGISTRY_ARTIFACT_INVALID"
+    #: The listing's uid or name is already published by another source here.
+    SOURCE_CONFLICT = "MARKETPLACE_REGISTRY_SOURCE_CONFLICT"
+    #: This deployment's operator added a publisher with the same prefix.
+    PUBLISHER_CONFLICT = "MARKETPLACE_REGISTRY_PUBLISHER_CONFLICT"
+    #: This deployment's operator registered an app with the same id.
+    REGISTRATION_CONFLICT = "MARKETPLACE_REGISTRY_REGISTRATION_CONFLICT"
     #: The listing itself was refused by the catalog's validator.
     LISTING_REJECTED = "MARKETPLACE_REGISTRY_LISTING_REJECTED"
 
@@ -1084,7 +1098,6 @@ class MarketplaceRegistryMessages:
 class QueueMessages:
     ITEM_NOT_FOUND = "QUEUE_ITEM_NOT_FOUND"
     NOT_ACTIVE = "QUEUE_NOT_ACTIVE"
-    ALREADY_ACTIVE = "QUEUE_ALREADY_ACTIVE"
     NO_ITEMS = "QUEUE_NO_ITEMS"
     NO_CURRENT_ITEM = "QUEUE_NO_CURRENT_ITEM"
     ITEM_NOT_HELD = "QUEUE_ITEM_NOT_HELD"
@@ -1092,24 +1105,19 @@ class QueueMessages:
 
 class CounterMessages:
     NOT_FOUND = "COUNTER_NOT_FOUND"
-    INITIATIVE_NOT_FOUND = "COUNTER_INITIATIVE_NOT_FOUND"
     VIEW_MODE_REQUIRES_BOUNDS = "COUNTER_VIEW_MODE_REQUIRES_BOUNDS"
     MIN_GREATER_THAN_MAX = "COUNTER_MIN_GREATER_THAN_MAX"
     STEP_MUST_BE_POSITIVE = "COUNTER_STEP_MUST_BE_POSITIVE"
-    OUT_OF_RANGE = "COUNTER_OUT_OF_RANGE"
 
 
 class TrashMessages:
     NOT_FOUND = "TRASH_ITEM_NOT_FOUND"
-    NEEDS_REASSIGNMENT = "TRASH_NEEDS_REASSIGNMENT"
-    INVALID_OWNER = "TRASH_INVALID_OWNER"
     PURGE_REQUIRES_ADMIN = "TRASH_PURGE_REQUIRES_ADMIN"
     UNKNOWN_ENTITY_TYPE = "TRASH_UNKNOWN_ENTITY_TYPE"
 
 
 class GuildAppMessages:
     NOT_FOUND = "GUILD_APP_NOT_FOUND"
-    SUPERADMIN_REQUIRED = "GUILD_APP_SUPERADMIN_REQUIRED"
     #: The listing named is not an app, or names an app kind this build cannot
     #: install.
     NOT_AN_APP = "GUILD_APP_LISTING_NOT_AN_APP"
@@ -1151,13 +1159,15 @@ class GuildAppMessages:
     CONNECTION_BLOCKED = "GUILD_APP_CONNECTION_BLOCKED"
     #: The app is installed but turned off, so nothing flows through it.
     DISABLED = "GUILD_APP_DISABLED"
+    #: The connection's flow needs values this deployment's operator has not
+    #: supplied for the app's vendor client, or a field it names is empty.
+    CONNECTION_VENDOR_NOT_CONFIGURED = "GUILD_APP_CONNECTION_VENDOR_NOT_CONFIGURED"
 
     # --- acting as a member ---
-    #: This app never acts as anybody, so there is nothing for a member to
-    #: authorize.
-    DELEGATION_NOT_OFFERED = "GUILD_APP_DELEGATION_NOT_OFFERED"
-    #: No authorization from this member for this app.
-    DELEGATION_NOT_FOUND = "GUILD_APP_DELEGATION_NOT_FOUND"
+    #: No request from this app to act as the caller, by that id.
+    CONSENT_NOT_FOUND = "GUILD_APP_CONSENT_NOT_FOUND"
+    #: The answer allows more than the app asked for.
+    CONSENT_EXCEEDS_REQUEST = "GUILD_APP_CONSENT_EXCEEDS_REQUEST"
 
     # --- apps the deployment provides ---
     #: The deployment installs this app in every guild and a guild admin does
@@ -1172,38 +1182,27 @@ class GuildAppMessages:
     SERVICE_NOT_REGISTERED = "GUILD_APP_SERVICE_NOT_REGISTERED"
     #: The pinned definition declares no surface under that id.
     SURFACE_NOT_FOUND = "GUILD_APP_SURFACE_NOT_FOUND"
-    #: The surface is declared for the guild's admins, or for an initiative's
-    #: managers and opened guild-wide, where only admins clear that rung.
+    #: The surface is opened at the community level, or is marked
+    #: ``admin_only``, and the caller is not a guild admin.
     SURFACE_ADMIN_ONLY = "GUILD_APP_SURFACE_ADMIN_ONLY"
-    #: The surface is declared for an initiative's managers, was opened in an
-    #: initiative, and the caller does not manage it.
-    SURFACE_MANAGER_ONLY = "GUILD_APP_SURFACE_MANAGER_ONLY"
-    #: The placement sent is not a shape this build stores, or it names an
-    #: initiative that is not one of this guild's.
+    #: The surface was opened in an initiative the app is placed in, and the
+    #: caller holds none of the roles that placement allows.
+    SURFACE_ROLE_NOT_ALLOWED = "GUILD_APP_SURFACE_ROLE_NOT_ALLOWED"
+    #: The placement sent names an initiative that is not one of this guild's.
     PLACEMENT_INVALID = "GUILD_APP_PLACEMENT_INVALID"
-
-
-class DelegationExchangeMessages:
-    """Codes for re-addressing a delegate's token to the app it will act at.
-
-    Read by a delegate deciding whether to park the work or give up on it, so
-    the three states it can actually do something about are told apart.
-
-    Machine-to-machine (a delegate, not the SPA), so these are consumed by the
-    caller's logs and retry logic rather than ``errors.json`` — the same
-    reasoning as :class:`BillingMessages`. No surface renders one to a person,
-    and a translation for one would be a string nothing reads.
-    """
-
-    #: No app of this deployment answers to that public id.
-    UNKNOWN_AUDIENCE = "APP_DELEGATION_UNKNOWN_AUDIENCE"
-    #: The guild the caller's token names has not installed that app.
-    NOT_INSTALLED = "APP_DELEGATION_NOT_INSTALLED"
-    #: Installed, and the guild has switched it off.
-    INSTALL_DISABLED = "APP_DELEGATION_INSTALL_DISABLED"
-    #: Reached with something that is not a delegation, so there is nothing
-    #: held to re-address.
-    NOT_DELEGATED = "APP_DELEGATION_NOT_DELEGATED"
+    #: The placement names a role that is not one of its initiative's.
+    PLACEMENT_ROLE_INVALID = "GUILD_APP_PLACEMENT_ROLE_INVALID"
+    #: A scope granted to an install that its manifest does not request.
+    SCOPE_NOT_REQUESTED = "GUILD_APP_SCOPE_NOT_REQUESTED"
+    #: A scope granted to an install beyond what this deployment allows the app.
+    SCOPE_ABOVE_CEILING = "GUILD_APP_SCOPE_ABOVE_CEILING"
+    #: The version an upgrade would apply asks for more than the install holds,
+    #: and the request carried no consent to it. The response names what it
+    #: asks for.
+    UPGRADE_NEEDS_CONSENT = "GUILD_APP_UPGRADE_NEEDS_CONSENT"
+    #: The consent or the decline names a version other than the one the
+    #: catalog offers now.
+    UPGRADE_VERSION_MOVED = "GUILD_APP_UPGRADE_VERSION_MOVED"
 
 
 class BundledChannelMessages:
@@ -1252,28 +1251,78 @@ class AppServiceMessages:
     #: address Initiative's own server calls.
     INVALID_EMBED_ORIGIN = "APP_SERVICE_INVALID_EMBED_ORIGIN"
     INVALID_ORIGIN = "APP_SERVICE_INVALID_ORIGIN"
-    #: A grant outside the closed operator-conferred vocabulary.
-    UNKNOWN_GRANT = "APP_SERVICE_UNKNOWN_GRANT"
-    #: The delegation key set is not a JWKS this build can verify against, or
-    #: an entry in it carries no ``kid`` for a token to name.
-    INVALID_DELEGATION_JWKS = "APP_SERVICE_INVALID_DELEGATION_JWKS"
-    #: A registration with no stored secret cannot complete a handshake.
-    SECRET_REQUIRED = "APP_SERVICE_SECRET_REQUIRED"
+    #: A scope ceiling naming something outside the app scope vocabulary.
+    UNKNOWN_SCOPE = "APP_SERVICE_UNKNOWN_SCOPE"
+    #: The key set is not a JWKS this build can verify against, or an entry in
+    #: it carries no ``kid`` for a JWT to name.
+    INVALID_JWKS = "APP_SERVICE_INVALID_JWKS"
     #: The APP_PLATFORM_* signing keypair is not configured. It is required and
-    #: has no fallback, so registration and verification fail closed until an
-    #: operator supplies one.
+    #: has no fallback, so registration fails closed until an operator
+    #: supplies one.
     SIGNING_NOT_CONFIGURED = "APP_SERVICE_SIGNING_NOT_CONFIGURED"
-    #: The service could not be reached, or did not answer with a manifest.
-    UNREACHABLE = "APP_SERVICE_UNREACHABLE"
-    #: The manifest was served but this build will not accept it (unknown
-    #: protocol version, missing fields, or a definition the validator refuses).
-    INVALID_MANIFEST = "APP_SERVICE_INVALID_MANIFEST"
-    #: The served manifest no longer hashes to the one recorded at registration.
-    MANIFEST_CHANGED = "APP_SERVICE_MANIFEST_CHANGED"
-    #: The manifest names a different app than the registration does.
-    PUBLIC_ID_MISMATCH = "APP_SERVICE_PUBLIC_ID_MISMATCH"
-    #: The challenge came back signed with a different secret.
-    SIGNATURE_MISMATCH = "APP_SERVICE_SIGNATURE_MISMATCH"
+    #: The listing uid is missing or is not a catalog uid.
+    INVALID_LISTING_UID = "APP_SERVICE_INVALID_LISTING_UID"
+    #: The key set address is not https on the base URL's own origin.
+    INVALID_JWKS_URI = "APP_SERVICE_INVALID_JWKS_URI"
+    #: No publisher has that id.
+    PUBLISHER_NOT_FOUND = "APP_PUBLISHER_NOT_FOUND"
+    #: Another publisher already has that prefix.
+    DUPLICATE_PUBLISHER = "APP_PUBLISHER_DUPLICATE_PREFIX"
+    #: A publisher prefix this build refuses.
+    INVALID_PUBLISHER_PREFIX = "APP_PUBLISHER_INVALID_PREFIX"
+    #: A publisher's name is empty or too long.
+    INVALID_PUBLISHER_NAME = "APP_PUBLISHER_INVALID_NAME"
+    #: The registration arrived from the registry, which keeps the fields
+    #: asked to change. The operator keeps its switch, mandatory flag, origins
+    #: and, for a container, its location.
+    REGISTRY_MANAGED = "APP_SERVICE_REGISTRY_MANAGED"
+    #: A vendor value named a field the app's manifest does not declare.
+    UNKNOWN_VENDOR_FIELD = "APP_SERVICE_UNKNOWN_VENDOR_FIELD"
+    #: A vendor value that is too long, or not the address its field asks for.
+    INVALID_VENDOR_VALUE = "APP_SERVICE_INVALID_VENDOR_VALUE"
+
+
+class AppMessages:
+    """Codes for an installed app calling a route with its access token."""
+
+    #: The route names a scope the token does not carry.
+    SCOPE_REQUIRED = "APP_SCOPE_REQUIRED"
+    #: The request names a person or a community by something that is not one
+    #: of this install's references.
+    REFERENCE_UNKNOWN = "APP_REFERENCE_UNKNOWN"
+    #: A consent request names an initiative the install is not placed in.
+    CONSENT_INITIATIVE_NOT_PLACED = "APP_CONSENT_INITIATIVE_NOT_PLACED"
+    #: A token narrowed to one initiative asks for consent beyond it.
+    CONSENT_OUTSIDE_TOKEN = "APP_CONSENT_OUTSIDE_TOKEN"
+    #: A consent request names an initiative the member is not in.
+    CONSENT_MEMBER_NOT_IN_INITIATIVE = "APP_CONSENT_MEMBER_NOT_IN_INITIATIVE"
+    #: The install has asked for consent too often; it tries again later.
+    CONSENT_RATE_LIMITED = "APP_CONSENT_RATE_LIMITED"
+    #: The request asks an installed app to change sharing without
+    #: ``sharing:write``, or to name an owner for something it creates, which
+    #: is its own.
+    SHARING_NOT_AVAILABLE = "APP_SHARING_NOT_AVAILABLE"
+
+
+class AppHubMessages:
+    """Codes for an installed app calling another app through Initiative.
+
+    OAuth-style, so a caller reads them the way it reads the token endpoint's
+    errors: each names the check that refused.
+    """
+
+    #: The caller's token, grant or pinned version does not hold
+    #: ``apps:<target>``, or a member's consent allows reading only and the
+    #: endpoint writes.
+    INSUFFICIENT_SCOPE = "insufficient_scope"
+    #: The app called is not installed, switched on and live in this community.
+    TARGET_NOT_INSTALLED = "target_not_installed"
+    #: The endpoint is not part of the app's public surface.
+    ENDPOINT_NOT_PUBLIC = "endpoint_not_public"
+    #: The endpoint does not take calls for this actor.
+    ACTOR_NOT_SUPPORTED = "actor_not_supported"
+    #: The caller is confined to an initiative the app called is not placed in.
+    TARGET_NOT_PLACED = "target_not_placed"
 
 
 class AppDataMessages:
@@ -1287,7 +1336,7 @@ class AppDataMessages:
     #: The install names no such data source, or the pinned definition is not a
     #: service app's at all.
     ENDPOINT_NOT_FOUND = "APP_DATA_ENDPOINT_NOT_FOUND"
-    #: The source is declared for guild admins and the caller is a member.
+    #: The endpoint is marked ``admin_only`` and the caller is not a guild admin.
     ADMIN_ONLY = "APP_DATA_ADMIN_ONLY"
     #: The source declares no such parameter, so there is nothing to fill in.
     PARAM_NOT_FOUND = "APP_DATA_PARAM_NOT_FOUND"
@@ -1313,32 +1362,15 @@ class AppDataMessages:
     #: This worker already has as many calls in flight to this app as it will
     #: hold open, so one slow app cannot consume the pool.
     BUSY = "APP_DATA_BUSY"
-    #: Reserved for the platform-wide limiter, which spans containers and
-    #: arrives with the rate-limiting workstream.
-    RATE_LIMITED = "APP_DATA_RATE_LIMITED"
 
 
 class AppChannelMessages:
-    """Codes for the channels an app service calls back into Initiative on.
+    """Codes for an installed app's calls about its own installation.
 
     Read by an app author rather than by a person in the UI, so each names the
-    step that refused: an envelope this build will not accept, an install this
-    caller does not own, or a payload outside what the pinned manifest declared.
+    step that refused: an install this caller does not own, or a payload
+    outside what the pinned manifest declared.
     """
-
-    # --- the signed envelope ---
-    #: A required signing header is absent or unusably shaped.
-    MISSING_SIGNATURE = "APP_CHANNEL_MISSING_SIGNATURE"
-    #: The signed timestamp sits outside the freshness window.
-    STALE_TIMESTAMP = "APP_CHANNEL_STALE_TIMESTAMP"
-    #: No registration answers to the app id the request named.
-    UNKNOWN_APP = "APP_CHANNEL_UNKNOWN_APP"
-    #: The signature does not match what this registration's secret produces.
-    INVALID_SIGNATURE = "APP_CHANNEL_INVALID_SIGNATURE"
-    #: This nonce was already spent, so the request has been seen before.
-    REPLAYED_REQUEST = "APP_CHANNEL_REPLAYED_REQUEST"
-    #: The operator turned this registration off; every channel it backs stops.
-    APP_DISABLED = "APP_CHANNEL_APP_DISABLED"
 
     # --- the install being addressed ---
     #: No install of this app in that guild — never installed, uninstalled, or
@@ -1352,9 +1384,13 @@ class AppChannelMessages:
     CONNECTION_NOT_FOUND = "APP_CHANNEL_CONNECTION_NOT_FOUND"
     #: A guild admin stopped this member's connection; the app may not revive it.
     CONNECTION_BLOCKED = "APP_CHANNEL_CONNECTION_BLOCKED"
-    #: This install declares more than one per-member connection, and the
-    #: request did not say which of them it meant.
-    CONNECTION_UNSPECIFIED = "APP_CHANNEL_CONNECTION_UNSPECIFIED"
+    #: The member's connection could not be refreshed and has to be made again.
+    CONNECTION_EXPIRED = "APP_CHANNEL_CONNECTION_EXPIRED"
+    #: The connection holds no token: never completed, or one whose flow keeps
+    #: none and declares no token of its own.
+    CONNECTION_NO_TOKEN = "APP_CHANNEL_CONNECTION_NO_TOKEN"
+    #: The vendor did not answer with a token.
+    TOKEN_UNAVAILABLE = "APP_CHANNEL_TOKEN_UNAVAILABLE"
 
     # --- what the app sent ---
     #: The body is not the JSON object this channel expects.
@@ -1364,6 +1400,9 @@ class AppChannelMessages:
     UNKNOWN_EVENT_TYPE = "APP_CHANNEL_UNKNOWN_EVENT_TYPE"
     #: The event body is larger than this build will carry.
     EVENT_TOO_LARGE = "APP_CHANNEL_EVENT_TOO_LARGE"
+    #: The event names an initiative the install is not placed in, or one
+    #: other than the initiative its token is narrowed to.
+    INITIATIVE_NOT_PLACED = "APP_CHANNEL_INITIATIVE_NOT_PLACED"
     #: A config state outside what an app may report.
     INVALID_CONFIG_STATE = "APP_CHANNEL_INVALID_CONFIG_STATE"
 
@@ -1378,14 +1417,25 @@ class WebhookSubscriptionMessages:
 
 class AIMessages:
     INVALID_BASE_URL = "AI_INVALID_BASE_URL"
-    PROVIDER_NOT_ALLOWED = "AI_PROVIDER_NOT_ALLOWED"
     CONNECTION_NOT_FOUND = "AI_CONNECTION_NOT_FOUND"
     MEMBER_KEYS_DISABLED = "AI_MEMBER_KEYS_DISABLED"
     INVALID_API_KEY = "AI_INVALID_API_KEY"
+    NOT_ENABLED = "AI_NOT_ENABLED"
+    #: No provider is chosen, or the chosen one needs a key and has none.
+    NOT_CONFIGURED = "AI_NOT_CONFIGURED"
+    #: The provider could not be reached or did not answer in time.
+    PROVIDER_UNAVAILABLE = "AI_PROVIDER_UNAVAILABLE"
+    #: The provider answered with an error or a reply that could not be read.
+    PROVIDER_ERROR = "AI_PROVIDER_ERROR"
+    DOCUMENT_EMPTY = "AI_DOCUMENT_EMPTY"
+    #: The connection names a model its provider does not list.
+    MODEL_NOT_FOUND = "AI_MODEL_NOT_FOUND"
 
 
 class NativeMessages:
     OTA_BUNDLE_NOT_AVAILABLE = "NATIVE_OTA_BUNDLE_NOT_AVAILABLE"
+    #: The app's sign-in is from before the code flow, and its grace has run out.
+    APP_UPDATE_REQUIRED = "NATIVE_APP_UPDATE_REQUIRED"
 
 
 class LegalMessages:
@@ -1477,6 +1527,9 @@ class DirectMessageTransportMessages:
     ROSTER_TOO_SMALL = "DM_ROSTER_TOO_SMALL"
     #: Answering an invitation that is not there, or is already answered.
     NO_INVITATION = "DM_NO_INVITATION"
+    #: A device's or key's signature is missing where one is required, or does
+    #: not verify against the device's own fingerprint key.
+    INVALID_SIGNATURE = "DM_INVALID_SIGNATURE"
 
 
 class ContactGrantMessages:

@@ -5,7 +5,6 @@ saved — create, edit, duplicate — and each has its own answer to "who hears
 about it".
 """
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -17,7 +16,7 @@ from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.relationship import EntityRelationship
 from app.services.tenant.relationships import Endpoint
 from app.services.tenant.task_description import newly_mentioned
-from app.testing import create_document, create_task, create_user
+from app.testing import create_document, create_resource_grant, create_task, create_user
 from app.testing.schema_harness import route_session_to_guild
 
 
@@ -53,8 +52,9 @@ async def _references(session: AsyncSession, guild_id: int, task_id: int) -> set
     return set(rows.all())
 
 
-async def _workspace(acting_user):
-    """A writer, and a teammate in the same initiative for them to name."""
+async def _workspace(acting_user, session: AsyncSession):
+    """A writer, and a teammate in the same initiative for them to name, in a
+    project every member of it can read."""
     writer = await acting_user(
         guild_role=GuildRole.member, initiative=True, project=True
     )
@@ -64,14 +64,14 @@ async def _workspace(acting_user):
         initiative=writer.initiative,
         initiative_role="member",
     )
+    await create_resource_grant(session, writer.project, all_initiative_members=True)
     return writer, teammate
 
 
-@pytest.mark.integration
 async def test_creating_a_task_tells_whoever_its_description_names(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    writer, teammate = await _workspace(acting_user)
+    writer, teammate = await _workspace(acting_user, session)
 
     response = await client.post(
         writer.g("/tasks/"),
@@ -87,15 +87,15 @@ async def test_creating_a_task_tells_whoever_its_description_names(
 
     [notice] = await _mentions_for(session, teammate.user.id)
     assert notice["task_id"] == task_id
-    assert notice["task_title"] == "Ship it"
+    # The title is guild content: the bell reads it back from ``task_id``.
+    assert "task_title" not in notice
     assert notice["target_path"] == f"/go/task/{task_id}"
 
 
-@pytest.mark.integration
 async def test_an_edit_tells_only_the_people_it_adds(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    writer, teammate = await _workspace(acting_user)
+    writer, teammate = await _workspace(acting_user, session)
     newcomer = await acting_user(
         guild_role=GuildRole.member,
         guild=writer.guild,
@@ -125,7 +125,6 @@ async def test_an_edit_tells_only_the_people_it_adds(
     assert len(await _mentions_for(session, newcomer.user.id)) == 1
 
 
-@pytest.mark.integration
 async def test_nobody_outside_the_initiative_is_told(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -150,7 +149,6 @@ async def test_nobody_outside_the_initiative_is_told(
     assert await _mentions_for(session, outsider.id) == []
 
 
-@pytest.mark.integration
 async def test_naming_yourself_tells_nobody(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -172,7 +170,6 @@ async def test_naming_yourself_tells_nobody(
     assert await _mentions_for(session, writer.user.id) == []
 
 
-@pytest.mark.integration
 async def test_a_description_s_hash_becomes_the_task_s_reference(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -204,11 +201,10 @@ async def test_a_description_s_hash_becomes_the_task_s_reference(
     assert await _references(session, writer.guild.id, task.id) == set()
 
 
-@pytest.mark.integration
 async def test_a_duplicate_points_where_its_original_does_and_tells_nobody(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    writer, teammate = await _workspace(acting_user)
+    writer, teammate = await _workspace(acting_user, session)
     doc = await create_document(session, writer.initiative, writer.user)
     task = await create_task(
         session,

@@ -15,18 +15,13 @@ from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import delete as sa_delete
-from sqlalchemy import or_
 from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import ProjectMessages
-from app.core.tools import Tool
-from app.models.tenant.initiative import (
-    InitiativeMember,
-)
 from app.models.tenant.project import Project
-from app.models.tenant.resource_grant import WRITE_LEVELS, ResourceGrant
+from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.task import Task, TaskAssignee
 
 
@@ -40,7 +35,7 @@ async def get_project(session: AsyncSession, project_id: int) -> Project | None:
         .options(
             selectinload(Project.grants).selectinload(ResourceGrant.role),
             selectinload(Project.initiative),
-            undefer(Project.access_level),
+            undefer(Project.actions),
         )
     )
     return (await session.exec(stmt)).one_or_none()
@@ -67,7 +62,7 @@ async def get_project_hydrated(
                 selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
             ),
             selectinload(Project.initiative),
-            undefer(Project.access_level),
+            undefer(Project.actions),
             selectinload(Project.task_statuses),
         )
     )
@@ -85,40 +80,12 @@ def ensure_grantable(project: Project) -> None:
         )
 
 
-async def write_holder_ids(session: AsyncSession, project: Project) -> set[int]:
-    """Initiative members holding write or owner on the project — the people
-    eligible to be its task assignees.
-
-    Asked of the roster and the grant rows together: a member holds the level
-    through a grant naming them, one on the role they hold, or one shared with
-    every member.
-    """
-    held = (
-        select(ResourceGrant.id)
-        .where(
-            ResourceGrant.resource_type == Tool.project.value,
-            ResourceGrant.resource_id == project.id,
-            ResourceGrant.level.in_(WRITE_LEVELS),
-            or_(
-                ResourceGrant.user_id == InitiativeMember.user_id,
-                ResourceGrant.role_id == InitiativeMember.role_id,
-                ResourceGrant.all_initiative_members.is_(True),
-            ),
-        )
-        .exists()
-    )
-    stmt = select(InitiativeMember.user_id).where(
-        InitiativeMember.initiative_id == project.initiative_id, held
-    )
-    return set((await session.exec(stmt)).all())
-
-
 async def remove_user_task_assignments(
     session: Any, project_id: int, user_ids: set[int]
 ) -> None:
     """Unassign the given users from every task in the project. Called when a grant
-    change drops a user below write access, since a user cannot be assigned to
-    tasks they can no longer edit."""
+    change leaves them unable to open it, since only people who can are named on
+    its tasks."""
     if not user_ids:
         return
     task_ids = (

@@ -10,7 +10,6 @@ Runs against the same fake IdP harness as the operator flow tests.
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
-import pytest
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -32,8 +31,6 @@ from app.testing.factories import (
 )
 from app.testing.factories import NARROWED_CLAIM, NARROWED_VALUE
 from app.testing.oidc import ISSUER as OIDC_ISSUER, FakeIdp, mint_id_token
-
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 
 # ── Arriving ───────────────────────────────────────────────────────────────
@@ -110,7 +107,7 @@ async def test_a_communitys_page_offers_the_deployments_sign_in(
     provider = await create_auth_provider(session, slug="corp")
     await create_guild_provider_connection(session, guild=guild, provider=provider)
 
-    response = await client.get(f"/api/v1/auth/g/{guild.id}/providers")
+    response = await client.get(f"/api/v1/auth/c/{guild.id}/providers")
 
     assert response.status_code == 200, response.text
     body = response.json()
@@ -125,7 +122,7 @@ async def test_a_provider_it_does_not_connect_to_is_not_listed(
     guild = await create_guild(session)
     await create_auth_provider(session, slug="corp")
 
-    response = await client.get(f"/api/v1/auth/g/{guild.id}/providers")
+    response = await client.get(f"/api/v1/auth/c/{guild.id}/providers")
 
     assert response.status_code == 200
     assert response.json()["providers"] == []
@@ -287,7 +284,7 @@ async def test_coming_in_the_named_way_and_counted_as_theirs_admits(
     member, guild, provider, _ = await _member_of_a_narrowed_community(session)
 
     allowed = await client.get(
-        f"/api/v1/g/{guild.id}/initiatives/",
+        f"/api/v1/c/{guild.id}/initiatives/",
         headers=_arrived_as(member, provider.id, {"hd": ["acme.com"]}),
     )
 
@@ -302,7 +299,7 @@ async def test_the_same_provider_without_the_communitys_claim_does_not(
     member, guild, provider, _ = await _member_of_a_narrowed_community(session)
 
     blocked = await client.get(
-        f"/api/v1/g/{guild.id}/initiatives/",
+        f"/api/v1/c/{guild.id}/initiatives/",
         headers=_arrived_as(member, provider.id, {"hd": ["elsewhere.com"]}),
     )
 
@@ -316,7 +313,7 @@ async def test_a_session_that_asserted_nothing_does_not(
     member, guild, provider, _ = await _member_of_a_narrowed_community(session)
 
     blocked = await client.get(
-        f"/api/v1/g/{guild.id}/initiatives/",
+        f"/api/v1/c/{guild.id}/initiatives/",
         headers=_arrived_as(member, provider.id, None),
     )
 
@@ -335,7 +332,7 @@ async def test_the_rule_is_the_one_in_force_now(
     headers = _arrived_as(member, provider.id, {"hd": ["acme.com"]})
 
     assert (
-        await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
+        await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=headers)
     ).status_code == 200
 
     connection.claim_values = ["someone-else.com"]
@@ -343,7 +340,7 @@ async def test_the_rule_is_the_one_in_force_now(
     await session.commit()
 
     assert (
-        await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
+        await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=headers)
     ).status_code == 401
 
 
@@ -366,11 +363,11 @@ async def test_any_of_ours_is_answered_by_the_connections(
     await session.commit()
 
     allowed = await client.get(
-        f"/api/v1/g/{guild.id}/initiatives/",
+        f"/api/v1/c/{guild.id}/initiatives/",
         headers=_arrived_as(member, ours.id, {NARROWED_CLAIM: [NARROWED_VALUE]}),
     )
     blocked = await client.get(
-        f"/api/v1/g/{guild.id}/initiatives/",
+        f"/api/v1/c/{guild.id}/initiatives/",
         headers=_arrived_as(member, theirs.id, None),
     )
 
@@ -386,7 +383,7 @@ async def test_disconnecting_is_what_ends_it(
     member, guild, provider, connection = await _member_of_a_narrowed_community(session)
     headers = _arrived_as(member, provider.id, {"hd": ["acme.com"]})
     assert (
-        await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
+        await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=headers)
     ).status_code == 200
 
     connection.enabled = False
@@ -394,5 +391,5 @@ async def test_disconnecting_is_what_ends_it(
     await session.commit()
 
     assert (
-        await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
+        await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=headers)
     ).status_code == 401

@@ -1,4 +1,6 @@
 {
+  "user": "Usuario",
+  "userWithId": "Usuario #{{id}}",
   "save": "Guardar",
   "cancel": "Cancelar",
   "delete": "Eliminar",
@@ -157,6 +159,7 @@
   },
   "reactions": {
     "add": "Añadir una reacción",
+    "quick": "Reaccionar con {{emoji}}",
     "chipLabel_one": "{{emoji}}, {{count}} reacción",
     "chipLabel_other": "{{emoji}}, {{count}} reacciones",
     "countOnly_one": "{{count}} reacción",
@@ -174,7 +177,9 @@
     "description": "Usa las flechas o desliza para pasar de una imagen a otra.",
     "position": "{{current}} / {{total}}",
     "zoomIn": "Acercar",
-    "zoomOut": "Alejar"
+    "zoomOut": "Alejar",
+    "open": "Ver esta imagen a tamaño completo",
+    "openNamed": "Ver {{name}} a tamaño completo"
   },
   "timeline": {
     "label": "Ir a un mes",
@@ -234,5 +239,8 @@
   "notFoundPage": {
     "title": "Página no encontrada",
     "description": "No hay nada en esta dirección. Puede que el enlace esté mal escrito o que la página se haya movido."
+  },
+  "nativeUpdate": {
+    "unsigned": "La actualización de este servidor no la publicó Initiative, así que la app se queda en la versión {{version}}."
   }
 }

@@ -2,8 +2,8 @@ import { HttpResponse, http } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { server } from "@/__tests__/helpers/msw-server";
-import { clearRefreshToken, REFRESH_TOKEN_KEY, storeRefreshToken } from "@/lib/nativeSession";
-import { removeItem } from "@/lib/storage";
+import { clearRefreshToken, storeRefreshToken } from "@/lib/nativeSession";
+import { CREDENTIAL_KEYS, removeItem } from "@/lib/storage";
 
 import {
   AUTH_FACTOR_REQUIRED_EVENT,
@@ -90,7 +90,7 @@ afterEach(() => {
 describe("renewal for a client that holds its own refresh token", () => {
   afterEach(() => {
     clearRefreshToken();
-    removeItem(REFRESH_TOKEN_KEY);
+    removeItem(CREDENTIAL_KEYS.refreshToken);
   });
 
   it("sends the stored token and keeps the one that comes back", async () => {
@@ -322,7 +322,7 @@ describe("silent session renewal", () => {
     [
       "a community's step-up, naming the provider whose login flow serves it",
       {
-        path: "/g/1/projects/",
+        path: "/c/1/projects/",
         status: 401,
         detail: "GUILD_AUTH_STEP_UP_REQUIRED",
         headers: { "X-Auth-Step-Up": "corp", "X-Auth-Step-Up-Guild": "1" },
@@ -333,7 +333,7 @@ describe("silent session renewal", () => {
     [
       "GUILD_AUTH_FACTOR_REQUIRED as a challenge naming the factor",
       {
-        path: "/g/7/projects/",
+        path: "/c/7/projects/",
         status: 401,
         detail: "GUILD_AUTH_FACTOR_REQUIRED",
         headers: { "X-Auth-Step-Up-Guild": "7" },
@@ -344,7 +344,7 @@ describe("silent session renewal", () => {
     [
       "GUILD_AUTH_PASSKEY_REQUIRED as a challenge naming the factor",
       {
-        path: "/g/7/projects/",
+        path: "/c/7/projects/",
         status: 401,
         detail: "GUILD_AUTH_PASSKEY_REQUIRED",
         headers: { "X-Auth-Step-Up-Guild": "7" },
@@ -354,7 +354,7 @@ describe("silent session renewal", () => {
     ],
     [
       "the deployment's own ask, which names no community",
-      { path: "/guilds/", status: 401, detail: "PLATFORM_AUTH_FACTOR_REQUIRED" },
+      { path: "/communities/", status: 401, detail: "PLATFORM_AUTH_FACTOR_REQUIRED" },
       AUTH_FACTOR_REQUIRED_EVENT,
       { guildId: null, kind: "totp", platform: true },
     ],

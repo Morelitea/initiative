@@ -27,6 +27,8 @@ router = APIRouter()
 _OTA_DIR = Path(__file__).resolve().parents[4] / "ota"
 _BUNDLE_PATH = _OTA_DIR / "bundle.zip"
 _CHECKSUM_PATH = _OTA_DIR / "bundle.sha256"
+_STATEMENT_PATH = _OTA_DIR / "statement.json"
+_SIGNATURE_PATH = _OTA_DIR / "statement.sig"
 
 
 @router.get("/native/bundle/manifest")
@@ -38,17 +40,27 @@ def get_bundle_manifest() -> dict[str, object]:
     and ``minNativeVersion`` — the minimum native app (APK/IPA) version the bundle requires.
     The client refuses the update (and prompts to update from the store) when its installed
     native app version is older.
+
+    A release image also carries ``statement`` — the same facts as JSON — and its
+    ``signature``, made with the project's release key when the image was built. The app
+    installs only a bundle whose statement verifies against a key it was built with, and
+    reads the version, digest and native floor from the statement. The loose fields stay
+    for app bundles from before the statement existed.
     """
     if not _BUNDLE_PATH.is_file() or not _CHECKSUM_PATH.is_file():
         raise HTTPException(
             status_code=404, detail=NativeMessages.OTA_BUNDLE_NOT_AVAILABLE
         )
-    return {
+    manifest: dict[str, object] = {
         "version": __version__,
         "url": f"{API_V1_STR}/native/bundle/download",
         "checksum": _CHECKSUM_PATH.read_text().strip(),
         "minNativeVersion": get_min_native_version(),
     }
+    if _STATEMENT_PATH.is_file() and _SIGNATURE_PATH.is_file():
+        manifest["statement"] = _STATEMENT_PATH.read_text()
+        manifest["signature"] = _SIGNATURE_PATH.read_text().strip()
+    return manifest
 
 
 @router.get("/native/bundle/download")

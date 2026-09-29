@@ -8,7 +8,9 @@ IMPORT_MAX_ROWS = 10_000
 #: Per-user cap on jobs that are staged, queued, or running at once.
 IMPORT_MAX_ACTIVE_JOBS_PER_USER = 5
 #: Byte bound on a single envelope request body (rows bound the content, but a
-#: single-field envelope must be bounded in bytes too).
+#: single-field envelope must be bounded in bytes too). One JSON member of an
+#: uploaded zip — an envelope or its manifest — is held to it as well, so an
+#: envelope reads the same whether it arrives alone or zipped.
 IMPORT_MAX_ENVELOPE_BYTES = 20_971_520  # 20 MiB
 #: Staged payloads awaiting confirm/apply expire after this.
 IMPORT_STAGED_TTL_HOURS = 24
@@ -41,6 +43,18 @@ IMPORT_FETCH_MAX_ROWS = 250_000
 IMPORT_FETCH_MAX_BUNDLE_BYTES = 20 * 1024 * 1024 * 1024  # 20 GiB
 #: Members of a fetched bundle.
 IMPORT_FETCH_MAX_ZIP_MEMBERS = 250_000
+#: One JSON member of a fetched bundle — an envelope or the manifest. A Jira
+#: project's envelope has no byte bound of its own, only the row bound, and a
+#: full row budget of envelopes runs to about a gigabyte
+#: (``jira_attachments._BUNDLE_RESERVE_BYTES``), all of which one project may
+#: hold. A wiki's is bounded tighter by ``IMPORT_FETCH_MAX_SPACE_BYTES``.
+IMPORT_FETCH_MAX_ENVELOPE_BYTES = 1024 * 1024 * 1024  # 1 GiB
 #: The converted content one Confluence space may carry; pages past it are
 #: reported and left behind.
 IMPORT_FETCH_MAX_SPACE_BYTES = 150 * 1024 * 1024  # 150 MiB
+
+#: How deep a foreign document may nest before the converters stop
+#: descending: an ADF body's nodes, a Confluence page's elements. Real content
+#: sits well under it; past it, the walk costs a bounded amount of work rather
+#: than a recursion error.
+MAX_NESTING_DEPTH = 64

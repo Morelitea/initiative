@@ -26,11 +26,6 @@ from app.services.platform import user_stream
 RESOURCE = "account"
 
 
-async def signal_account(user_id: int, action: str = "changed") -> None:
-    """Tell one user's open tabs to re-read their own account."""
-    await user_stream.publish(user_id, user_stream.build_frame(RESOURCE, action))
-
-
 def queue_account_signal(
     session: Any, user_id: int | None, action: str = "changed"
 ) -> None:

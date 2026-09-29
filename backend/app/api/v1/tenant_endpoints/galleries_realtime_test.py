@@ -9,17 +9,14 @@ a wall re-reads.
 
 import io
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
-from app.services.realtime import manager
-from app.services.realtime_test import FakeWebSocket
+from app.services.content_sockets import sockets
+from app.testing.sockets import FakeWebSocket, settle, watch_events_bus
 from app.services.tenant import room_sink
 from app.testing import create_gallery, create_gallery_image, create_tag, png_bytes
-
-pytestmark = pytest.mark.integration
 
 
 async def _galleries_enabled(session: AsyncSession, initiative) -> None:
@@ -37,18 +34,19 @@ class _Room:
         self.socket = FakeWebSocket()
 
     async def __aenter__(self) -> "_Room":
-        await manager.connect(
+        watch_events_bus(
             self._guild_id, [self._initiative_id], self.socket, user_id=self._user_id
         )
         await room_sink.process_room_sweep()
         return self
 
     async def __aexit__(self, *exc) -> None:
-        await manager.disconnect(self.socket)
+        sockets.leave(self.socket)  # type: ignore[arg-type]
         room_sink._delivered.pop(self._guild_id, None)
 
     async def catch_up(self) -> None:
         await room_sink.process_room_sweep()
+        await settle()
 
     def changes(self, resource_type: str = "galleries") -> list[dict]:
         return [
@@ -59,7 +57,6 @@ class _Room:
         ]
 
 
-@pytest.mark.asyncio
 async def test_a_picture_arriving_tells_the_room_about_its_gallery(
     client: AsyncClient, acting_user, session
 ):
@@ -83,10 +80,12 @@ async def test_a_picture_arriving_tells_the_room_about_its_gallery(
         assert all(
             c["resource"] == {"type": "galleries", "id": gallery.id} for c in changes
         )
-        assert all(set(c) == {"resource", "parents", "action"} for c in changes)
+        assert all(
+            set(c) == {"resource", "parents", "initiative_id", "action"}
+            for c in changes
+        )
 
 
-@pytest.mark.asyncio
 async def test_retagging_and_removing_a_picture_each_tell_the_room(
     client: AsyncClient, acting_user, session
 ):
@@ -119,7 +118,6 @@ async def test_retagging_and_removing_a_picture_each_tell_the_room(
         )
 
 
-@pytest.mark.asyncio
 async def test_a_comment_on_a_gallery_names_it_as_the_parent(
     client: AsyncClient, acting_user, session
 ):

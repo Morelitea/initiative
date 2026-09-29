@@ -57,6 +57,11 @@ class DmDevice(SQLModel, table=True):
     identity_key: bytes = Field(sa_column=Column(LargeBinary, nullable=False))
     #: Ed25519. What a safety number is computed over.
     fingerprint_key: bytes = Field(sa_column=Column(LargeBinary, nullable=False))
+    #: The device's Ed25519 signature over its keys and account. NULL for a
+    #: device registered before signing, until it next opens and signs itself.
+    signature: Optional[bytes] = Field(
+        default=None, sa_column=Column(LargeBinary, nullable=True)
+    )
     device_token_id: Optional[int] = Field(
         default=None,
         sa_column=Column(

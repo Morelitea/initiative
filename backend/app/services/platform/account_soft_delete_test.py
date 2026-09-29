@@ -7,7 +7,6 @@ used to run immediately actually runs.
 
 from datetime import datetime, timedelta, timezone
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -29,7 +28,6 @@ from app.testing.factories import (
     get_auth_headers,
 )
 
-pytestmark = pytest.mark.integration
 
 PASSWORD = "testpassword123"
 
@@ -115,16 +113,16 @@ async def test_a_deleted_account_is_gone_from_the_roster(
     await create_guild_membership(session, user=leaver, guild=guild)
 
     listed = await client.get(
-        f"/api/v1/g/{guild.id}/users/", headers=get_auth_headers(admin)
+        f"/api/v1/c/{guild.id}/users/", headers=get_auth_headers(admin)
     )
-    assert leaver.id in [u["id"] for u in listed.json()]
+    assert leaver.id in [u["id"] for u in listed.json()["items"]]
 
     await _delete_own_account(client, leaver)
 
     listed = await client.get(
-        f"/api/v1/g/{guild.id}/users/", headers=get_auth_headers(admin)
+        f"/api/v1/c/{guild.id}/users/", headers=get_auth_headers(admin)
     )
-    assert leaver.id not in [u["id"] for u in listed.json()]
+    assert leaver.id not in [u["id"] for u in listed.json()["items"]]
 
 
 async def test_a_deleted_account_is_not_a_seat(
@@ -264,6 +262,41 @@ async def test_the_purge_waits_out_the_window_then_erases(
     assert row.status == UserStatus.anonymized
 
 
+async def test_each_account_is_erased_and_told_once(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """An account another sweep is erasing is left to it, and one already
+    erased is not erased again: the receipt goes once."""
+    from app.db.session import SystemSessionLocal
+    from app.services import email as email_service
+
+    letters: list[list[str]] = []
+
+    async def _record(_session, *, recipients, locale="en"):
+        letters.append(list(recipients))
+
+    monkeypatch.setattr(email_service, "announce_account_erased", _record)
+    user = await create_user(session)
+    await _delete_own_account(client, user)
+    session.expunge_all()
+    later = datetime.now(timezone.utc) + timedelta(
+        days=DEFAULT_ACCOUNT_RETENTION_DAYS + 1
+    )
+
+    async with SystemSessionLocal() as other_sweep:
+        await other_sweep.exec(
+            select(User.id).where(User.id == user.id).with_for_update()
+        )
+        assert await account_purge.purge_due_accounts(session, now=later) == 0
+        await other_sweep.rollback()
+
+    session.expunge_all()
+    assert await account_purge.purge_due_accounts(session, now=later) == 1
+    session.expunge_all()
+    assert await account_purge.purge_due_accounts(session, now=later) == 0
+    assert len(letters) == 1
+
+
 async def test_the_purge_leaves_every_other_status_alone(session: AsyncSession):
     """Somebody on a break is never erased by a timer."""
     kept: list[int] = []
@@ -361,7 +394,7 @@ async def test_the_operator_shape_carries_the_erasure_date(
     session.expunge_all()
 
     listed = await client.get("/api/v1/operator/users", headers=operator.headers)
-    entry = next(u for u in listed.json() if u["id"] == user.id)
+    entry = next(u for u in listed.json()["items"] if u["id"] == user.id)
     assert entry["status"] == "deleted"
     assert entry["purge_at"] is not None
 

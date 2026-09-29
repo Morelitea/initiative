@@ -16,21 +16,34 @@ import logging
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Request,
+    Response,
+    status,
+)
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import SystemSessionDep
 from app.api.v1.platform_endpoints.session_opening import (
+    EMAIL_CODE_LEG,
+    count_wrong_answer,
     open_session,
     record_sign_in_failure,
+    refuse_if_locked,
     require_login_method,
+    second_factor_outstanding,
 )
-from app.core.audit_events import AuditEventType
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages
 from app.core.email_i18n import SUPPORTED_EMAIL_LOCALES
 from app.core.rate_limit import get_real_client_ip, limiter
-from app.db.session import get_system_session, get_session
+from app.db import session as db_session
+from app.db.session import get_session
 from app.models.platform.user import SIGN_IN_STATUSES, User
 from app.models.platform.user_email import UserEmail
 from app.schemas.platform.email_otp import (
@@ -40,51 +53,18 @@ from app.schemas.platform.email_otp import (
     EmailOtpVerify,
 )
 from app.schemas.platform.token import Token
-from app.services import audit as audit_service
 from app.services import captcha as captcha_service
 from app.services import email as email_service
 from app.services.auth import addresses
 from app.services.auth import challenges as challenge_service
 from app.services.auth import email_otp as email_otp_service
-from app.services.auth import totp as totp_service
-from app.services.platform import auth_posture
-from app.services.platform import user_tokens
-from app.services.stream_authz import authority as stream_authority
+from app.services.content_sockets import sockets as content_sockets
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-SystemSessionDep = Annotated[AsyncSession, Depends(get_system_session)]
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
-
-
-async def _retire_credentials_predating_proof(
-    session: AsyncSession, *, user: User
-) -> None:
-    """Drop every credential the account held before this address was proved.
-
-    Reached only where the code confirmed an address nobody had proved. The
-    account keeps its handle, its memberships and its content; what it gives
-    up is the password and the standing credentials that were set while the
-    address was unproven. Whoever proved it signs in, and sets a password
-    afterwards if they want one.
-    """
-    user.hashed_password = None
-    user.password_set_at = None
-    session.add(user)
-    # Staged rather than committed: the session this sign-in opens lands in
-    # the same transaction, so the account never sits with nothing.
-    await user_tokens.revoke_user_sessions(session, user=user, commit=False)
-    await audit_service.record(
-        session,
-        event_type=AuditEventType.AUTH_CREDENTIALS_RETIRED,
-        actor_user_id=user.id,
-        target_user_id=user.id,
-        target_type="user",
-        target_id=user.id,
-        detail={"reason": "address_first_proved"},
-    )
 
 
 def _requested_locale(request: Request) -> str:
@@ -130,11 +110,41 @@ async def _registration_open(
     return True
 
 
+async def _post_code_letter(
+    *, user_id: int | None, email: str, code: str, minutes: int, locale: str
+) -> None:
+    """Post a sign-in or sign-up code once the response has gone.
+
+    After the response, on a session of its own, so the answer takes the same
+    time whichever address it names. A letter that cannot be posted is logged;
+    the person asks again.
+    """
+    try:
+        async with db_session.SystemSessionLocal() as letter_session:
+            if user_id is None:
+                await email_service.send_sign_up_code_email(
+                    letter_session,
+                    email=email,
+                    code=code,
+                    minutes=minutes,
+                    locale=locale,
+                )
+                return
+            user = await letter_session.get(User, user_id)
+            if user is not None:
+                await email_service.send_sign_in_code_email(
+                    letter_session, user, email=email, code=code, minutes=minutes
+                )
+    except Exception:
+        logger.exception("Could not post a sign-in code")
+
+
 @router.post("/email-otp/send", response_model=EmailOtpSent)
 @limiter.limit("5/15minutes")
 async def send_sign_in_code(
     request: Request,
     payload: EmailOtpSend,
+    background: BackgroundTasks,
     session: SessionDep,
     system_session: SystemSessionDep,
 ) -> EmailOtpSent:
@@ -177,30 +187,16 @@ async def send_sign_in_code(
         native=payload.native,
         email=address if signing_up else None,
     )
-    minutes = int(email_otp_service.CODE_TTL.total_seconds() // 60)
-    try:
-        if recipient is not None:
-            await email_service.send_sign_in_code_email(
-                system_session,
-                recipient,
-                email=address,
-                code=issued.code,
-                minutes=minutes,
-            )
-        elif signing_up:
-            await email_service.send_sign_up_code_email(
-                system_session,
-                email=address,
-                code=issued.code,
-                minutes=minutes,
-                locale=_requested_locale(request),
-            )
-    except email_service.EmailNotConfiguredError:  # pragma: no cover
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AuthMessages.EMAIL_OTP_CANNOT_SEND,
-        ) from None
     await system_session.commit()
+    if recipient is not None or signing_up:
+        background.add_task(
+            _post_code_letter,
+            user_id=recipient.id if recipient is not None else None,
+            email=address,
+            code=issued.code,
+            minutes=int(email_otp_service.CODE_TTL.total_seconds() // 60),
+            locale=_requested_locale(request),
+        )
     return EmailOtpSent(challenge=issued.handle)
 
 
@@ -215,12 +211,23 @@ async def verify_sign_in_code(
 ) -> Token | Response:
     """Take the code back and open the session it earned."""
     await require_login_method(session, LoginMethod.email_otp)
-    challenge = await email_otp_service.claim(
+    claimed = await email_otp_service.claim(
         system_session, handle=payload.challenge, code=payload.code
     )
-    if challenge is None:
+    owner_id = claimed.challenge.user_id if claimed.challenge is not None else None
+    if owner_id is not None:
+        try:
+            await refuse_if_locked(system_session, owner_id)
+        except HTTPException:
+            # The attempt the claim took stands.
+            await system_session.commit()
+            raise
+    challenge = claimed.challenge
+    if challenge is None or not claimed.answered:
         # The attempt is counted whether or not the code was any good, so the
         # commit comes before the refusal.
+        if owner_id is not None:
+            await count_wrong_answer(system_session, owner_id)
         await system_session.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -281,7 +288,9 @@ async def verify_sign_in_code(
             system_session, address_id=challenge.user_email_id
         )
         if first_proof:
-            await _retire_credentials_predating_proof(system_session, user=user)
+            await addresses.retire_credentials_predating_proof(
+                system_session, user=user
+            )
             retired = True
         row = await system_session.get(UserEmail, challenge.user_email_id)
         if row is not None:
@@ -291,42 +300,28 @@ async def verify_sign_in_code(
     native = email_otp_service.is_native(challenge)
     # The code proved the address; an account holding a second factor still
     # presents it, the same way a password sign-in does.
-    if await auth_posture.login_method_allowed(
-        session, LoginMethod.totp
-    ) and await totp_service.is_enrolled(system_session, user_id=user_id):
-        follow_on = await challenge_service.create(
-            system_session,
-            user_id=user_id,
-            purpose=(
-                challenge_service.ChallengePurpose.sign_in_native
-                if native
-                else challenge_service.ChallengePurpose.sign_in
-            ),
-        )
-        await system_session.commit()
+    token_version = user.token_version
+    challenge_response = await second_factor_outstanding(
+        session, system_session, user_id=user_id, leg=EMAIL_CODE_LEG, native=native
+    )
+    if challenge_response is not None:
         if retired:
-            await stream_authority.revoke_user_everywhere(user_id)
-        return JSONResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            content={
-                "detail": AuthMessages.TOTP_REQUIRED,
-                "challenge": follow_on.value,
-            },
-        )
+            await content_sockets.revoke_user_everywhere(user_id)
+        return challenge_response
 
     opened = await open_session(
         request,
         response,
         system_session,
         user_id=user_id,
-        token_version=user.token_version,
-        amr=["otp"],
-        audit_detail={"method": "email_otp"},
+        token_version=token_version,
+        amr=EMAIL_CODE_LEG.amr,
+        audit_detail={"method": EMAIL_CODE_LEG.method},
         return_refresh_token=native,
     )
     if retired:
         # Connections opened on the credentials retired above close now.
-        await stream_authority.revoke_user_everywhere(user_id)
+        await content_sockets.revoke_user_everywhere(user_id)
     return opened
 
 
@@ -396,7 +391,7 @@ async def register_with_code(
         system_session,
         user_id=registered.user.id,
         token_version=registered.user.token_version,
-        amr=["otp"],
-        audit_detail={"method": "email_otp", "during": "registration"},
+        amr=EMAIL_CODE_LEG.amr,
+        audit_detail={"method": EMAIL_CODE_LEG.method, "during": "registration"},
         return_refresh_token=email_otp_service.is_native(ticket),
     )

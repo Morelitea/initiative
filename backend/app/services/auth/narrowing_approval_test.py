@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -21,8 +20,6 @@ from app.testing import (
     create_guild_provider_connection,
     create_user,
 )
-
-pytestmark = pytest.mark.integration
 
 
 async def _connection(session: AsyncSession, **overrides) -> GuildProviderConnection:

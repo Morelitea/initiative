@@ -1,16 +1,18 @@
 from datetime import date, datetime
-from typing import Dict, List, Literal, Optional
+from typing import Annotated, Dict, List, Literal, Optional
 
 from pydantic import (
     ConfigDict,
     EmailStr,
     Field,
+    PlainSerializer,
     computed_field,
     field_validator,
     model_validator,
 )
 
 from app.schemas.base import RawTextStr, SanitizedBaseModel, TitleStr
+from app.schemas.query import PageMeta
 
 from app.core.capabilities import Capability, standing_capabilities
 from app.core.cookie_categories import CookieCategory
@@ -28,7 +30,9 @@ from app.core.profile_decorations import (
     validate_decoration_id,
     validate_tint,
 )
+from app.core.identity_boundary import PersonId, responding_to_install
 from app.models.platform.user import Presence, UserRole, UserStatus
+from app.services.platform.user_avatars import is_avatar_url
 from app.core.config import settings
 
 # ``avatar_url`` is where a user's picture is: either a path this API serves
@@ -91,7 +95,7 @@ class UserCreate(SanitizedBaseModel):
     password: RawTextStr = Field(max_length=256)
     # Optional IANA timezone forwarded by the SPA on registration so a
     # new account starts at the user's wall clock instead of the model
-    # default ``"UTC"``. Validated server-side by ``_normalize_timezone``;
+    # default ``"UTC"``. Validated server-side by ``normalize_timezone``;
     # omitted by non-SPA callers, in which case the model default applies.
     timezone: Optional[str] = None
     # Optional captcha token supplied by the SPA's widget when the
@@ -99,6 +103,20 @@ class UserCreate(SanitizedBaseModel):
     # server-side via ``app.services.captcha`` before the row is
     # written. Ignored when captcha isn't configured.
     captcha_token: Optional[str] = None
+
+
+def _avatar_out(value: Optional[str]) -> Optional[str]:
+    if value is not None and responding_to_install() and is_avatar_url(value):
+        return None
+    return value
+
+
+#: A person's picture. One this API serves is addressed by the person's row id,
+#: so an installed app's response leaves it out; a picture hosted elsewhere
+#: comes along.
+AvatarUrl = Annotated[
+    Optional[str], PlainSerializer(_avatar_out, return_type=Optional[str])
+]
 
 
 class UserIdentity(SanitizedBaseModel):
@@ -119,10 +137,10 @@ class UserIdentity(SanitizedBaseModel):
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
 
-    id: int
+    id: PersonId
     username: str
     discriminator: int
-    avatar_url: Optional[str] = None
+    avatar_url: AvatarUrl = None
     status: UserStatus = UserStatus.active
 
 
@@ -131,6 +149,36 @@ class UserPublic(UserIdentity):
     the guild being read renders one."""
 
     full_name: Optional[str] = None
+
+
+class AppMemberRead(SanitizedBaseModel):
+    """A member, as an installed app reads them under ``members:read``.
+
+    What its install calls them (``id``, a :data:`PersonId`), their handle,
+    the name where the guild renders one, and their picture. Built from the
+    shape the guild's own roster serves, so it carries no address to drop.
+    A picture this API serves is addressed by the member's row id, so only a
+    picture hosted elsewhere comes along.
+    """
+
+    id: PersonId
+    username: str
+    discriminator: int
+    full_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+    @classmethod
+    def from_public(cls, user: UserIdentity) -> "AppMemberRead":
+        avatar = user.avatar_url
+        if avatar is not None and is_avatar_url(avatar):
+            avatar = None
+        return cls(
+            id=user.id,
+            username=user.username,
+            discriminator=user.discriminator,
+            full_name=getattr(user, "full_name", None),
+            avatar_url=avatar,
+        )
 
 
 class UserGuildRead(UserIdentity):
@@ -171,6 +219,12 @@ class UserGuildMember(UserGuildRead):
     oidc_managed: bool = False  # Whether membership is managed via OIDC claim mappings
 
 
+class UserGuildMemberListResponse(PageMeta):
+    """One page of the guild's roster."""
+
+    items: List[UserGuildMember]
+
+
 class UserSummary(UserIdentity):
     """Slim user projection for typeahead and picker surfaces.
 
@@ -197,17 +251,10 @@ class UserSummary(UserIdentity):
     guild_role: Optional[str] = None
 
 
-class UserSummaryListResponse(SanitizedBaseModel):
+class UserSummaryListResponse(PageMeta):
     """Paginated envelope for the slim user search/typeahead endpoints."""
 
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
     items: List[UserSummary]
-    total_count: int
-    page: int
-    page_size: int
-    has_next: bool
-    has_prev: bool
 
 
 #: How long the line beside the emoji may run. Short on purpose: the bubble is
@@ -664,10 +711,20 @@ class OperatorUserRead(UserRead):
     #: columns beside it rather than stored, so the window is stated once.
     purge_at: Optional[datetime] = None
 
+    #: Set while wrong passwords or codes have turned the account's password
+    #: and code sign-in off; it turns back on by itself at that time.
+    sign_in_locked_until: Optional[datetime] = None
+
     @field_validator("email", mode="after")
     @classmethod
     def _mask_email(cls, value: str) -> str:
         return mask_email(value) or value
+
+
+class OperatorUserListResponse(PageMeta):
+    """One page of the operator roster."""
+
+    items: List[OperatorUserRead]
 
 
 class UsernameClaim(SanitizedBaseModel):
@@ -712,7 +769,8 @@ class UserSelfUpdate(SanitizedBaseModel):
     # Required to set a new ``password`` (verified server-side). Exempt for
     # OIDC-only accounts, which have no local password to confirm.
     current_password: Optional[RawTextStr] = Field(default=None, max_length=256)
-    avatar_url: Optional[str] = None
+    # A picture hosted elsewhere, by an https address; empty takes it off.
+    avatar_url: Optional[str] = Field(default=None, max_length=2000)
     # Sending ``null`` takes the status off; leaving it out leaves it alone.
     custom_status: Optional[CustomStatus] = None
     presence: Optional[Presence] = None
@@ -729,6 +787,13 @@ class UserSelfUpdate(SanitizedBaseModel):
     task_completion_audio_feedback: Optional[bool] = None
     task_completion_haptic_feedback: Optional[bool] = None
     locale: Optional[str] = Field(default=None, pattern=r"^[a-z]{2}(-[A-Z]{2})?$")
+
+    @field_validator("avatar_url")
+    @classmethod
+    def _https_picture(cls, value: Optional[str]) -> Optional[str]:
+        if value and not (value.startswith("https://") and len(value) > 8):
+            raise ValueError("avatar_url must be an https:// URL")
+        return value
 
 
 class AccountDeletionRequest(SanitizedBaseModel):

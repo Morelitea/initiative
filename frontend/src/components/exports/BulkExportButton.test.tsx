@@ -1,6 +1,7 @@
 import { screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { ownerCan, writerCan } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 
@@ -12,8 +13,8 @@ describe("BulkExportButton", () => {
       <BulkExportButton
         tool={Tool.queue}
         items={[
-          { id: 1, my_permission_level: "owner" },
-          { id: 2, my_permission_level: "owner" },
+          { id: 1, can: ownerCan() },
+          { id: 2, can: ownerCan() },
         ]}
       />
     );
@@ -26,8 +27,8 @@ describe("BulkExportButton", () => {
       <BulkExportButton
         tool={Tool.queue}
         items={[
-          { id: 1, my_permission_level: "owner" },
-          { id: 2, my_permission_level: "write" },
+          { id: 1, can: ownerCan() },
+          { id: 2, can: writerCan() },
         ]}
       />
     );

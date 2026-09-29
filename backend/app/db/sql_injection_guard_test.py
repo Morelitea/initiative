@@ -25,9 +25,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-import pytest
-
-pytestmark = pytest.mark.unit
 
 # app/ package dir and the backend root the keys are expressed relative to.
 _APP_DIR = Path(__file__).resolve().parents[1]
@@ -48,12 +45,8 @@ ALLOWED_DYNAMIC_SQL: dict[str, str] = {
         "reflected catalog identifiers from the Alembic-owned guild_template, "
         "quoted; no request data"
     ),
-    "app/db/schema_provisioning.py::_ensure_role": (
-        "role name quoted server-side via format('%I'); password via set_config "
-        "bind + format('%L')"
-    ),
-    "app/db/schema_provisioning.py::provision_guild_schema": (
-        "int-derived guild_<id> schema/role names + module-constant grants"
+    "app/db/schema_provisioning.py::_apply_parts": (
+        "int-derived guild_<id> schema name + hex-digest stamp"
     ),
     "app/db/schema_provisioning.py::apply_guild_schema": (
         "int-derived schema name + reflected guild_template DDL"
@@ -68,7 +61,7 @@ ALLOWED_DYNAMIC_SQL: dict[str, str] = {
         "int-derived schema name + registry-rendered trigger DDL (constants)"
     ),
     "app/db/schema_provisioning.py::reindex_guild_search": (
-        "guild_<id> schema name read from pg_namespace, registry-rendered "
+        "int-derived guild_<id> schema name, registry-rendered "
         "reindex statements (constants), and a hex-digest generation marker"
     ),
     "app/db/schema_provisioning.py::drop_guild_schema": (
@@ -116,7 +109,7 @@ ALLOWED_DYNAMIC_SQL: dict[str, str] = {
     ),
     "app/services/storage_backfill.py::_ensure_table": (
         "admin DDL job; GRANT verb list is a module constant from the "
-        "SHARED_TABLE_SYSTEM_GRANTS registry (fixed vocabulary), never request data"
+        "SHARED_TABLE_REGISTRY grants (fixed vocabulary), never request data"
     ),
 }
 

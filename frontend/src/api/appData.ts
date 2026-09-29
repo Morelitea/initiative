@@ -1,8 +1,8 @@
 /**
  * The widget data plane: what an installed app contributes, and its rows.
  *
- * Hand-written rather than generated for the same reason `appConnections.ts` is
- * — these routes carry a rule worth keeping visible at the call site. **A widget
+ * Hand-written rather than generated because these routes carry a rule worth
+ * keeping visible at the call site. **A widget
  * never names an address.** It names a read endpoint on an installed app, and
  * the request below carries the dashboard that widget sits on, because the
  * dashboard's own gates are what decide whether this viewer may see anything
@@ -41,7 +41,7 @@ export type {
 };
 
 export const getAppWidgetCatalog = (guildId: number) =>
-  apiClient.get<AppWidgetCatalogResponse>(`/g/${guildId}/apps/widget-catalog`).then((r) => r.data);
+  apiClient.get<AppWidgetCatalogResponse>(`/c/${guildId}/apps/widget-catalog`).then((r) => r.data);
 
 export interface AppDataRequest {
   guildId: number;
@@ -66,7 +66,7 @@ export const getAppData = ({
 }: AppDataRequest) =>
   apiClient
     .get<AppDataResponse>(
-      `/g/${guildId}/apps/${appId}/endpoints/${encodeURIComponent(endpointId)}`,
+      `/c/${guildId}/apps/${appId}/endpoints/${encodeURIComponent(endpointId)}`,
       {
         params: {
           dashboard_id: dashboardId,
@@ -96,8 +96,8 @@ export interface AppParamOptionsRequest {
  * The one call here that carries no dashboard, and it cannot: a form is filled
  * in before a widget is placed, so there is no dashboard whose gates could
  * decide it. What decides it instead is that the caller does not name what gets
- * called — the source is read out of the app's own declaration, and its own
- * visibility is enforced on the caller's credentials.
+ * called — the source is read out of the app's own declaration, and it is
+ * fetched on the caller's own credentials.
  */
 export const getAppParamOptions = ({
   guildId,
@@ -108,7 +108,7 @@ export const getAppParamOptions = ({
 }: AppParamOptionsRequest) =>
   apiClient
     .get<AppParamOptionsResponse>(
-      `/g/${guildId}/apps/${appId}/endpoints/${encodeURIComponent(endpointId)}/options`,
+      `/c/${guildId}/apps/${appId}/endpoints/${encodeURIComponent(endpointId)}/options`,
       {
         params: {
           param,

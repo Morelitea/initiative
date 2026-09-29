@@ -2,7 +2,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { ArrowUpRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import type { SmartChipKind } from "@/api/generated/initiativeAPI.schemas";
+import { SmartChipAspect, type SmartChipKind } from "@/api/generated/initiativeAPI.schemas";
+import { ChecklistChip } from "@/components/ui/editor/nodes/checklist-chip";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useChipState } from "@/hooks/useSmartChips";
@@ -31,7 +32,16 @@ interface SmartChipProps {
  * Reads from the page's one request rather than making its own, so a document
  * with thirty of these still makes a single call.
  */
-export function SmartChip({ chipKind, entityId, fallback }: SmartChipProps) {
+export function SmartChip(props: SmartChipProps) {
+  // The one chip that is acted on rather than read is drawn as what it is: a
+  // box to tick.
+  if (chipAspect(props.chipKind) === SmartChipAspect.checklist) {
+    return <ChecklistChip entityId={props.entityId} fallback={props.fallback} />;
+  }
+  return <ReadingChip {...props} />;
+}
+
+function ReadingChip({ chipKind, entityId, fallback }: SmartChipProps) {
   const { t, i18n } = useTranslation(["documents", "search"]);
   const navigate = useNavigate();
   const guildId = useActiveGuildId();

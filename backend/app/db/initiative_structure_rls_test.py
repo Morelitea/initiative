@@ -23,8 +23,6 @@ from app.testing import (
 )
 from app.testing.schema_harness import route_session_to_guild
 
-pytestmark = pytest.mark.integration
-
 
 async def _writing_as(role_session, *, user_id: int, guild_id: int):
     s = await role_session("app_user")

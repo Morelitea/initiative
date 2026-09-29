@@ -1,23 +1,19 @@
-import { Browser } from "@capacitor/browser";
-import { useRouter, useSearch } from "@tanstack/react-router";
+import { useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
-import { useServer } from "@/hooks/useServer";
+import { useResumeAfterSignIn } from "@/hooks/useResumeAfterSignIn";
 
 export const OidcCallbackPage = () => {
   const { t } = useTranslation(["auth", "errors"]);
   const searchParams = useSearch({ strict: false }) as {
-    token?: string;
-    token_type?: string;
     error?: string;
     next?: string;
   };
-  const router = useRouter();
   const { completeOidcLogin } = useAuth();
-  const { isNativePlatform } = useServer();
+  const resumeAfterSignIn = useResumeAfterSignIn();
   const [status, setStatus] = useState(t("oidcCallback.finishing"));
   // The exchange is a one-shot side effect that also changes auth state, which
   // re-renders this page. Guard it so the callback is only ever consumed once,
@@ -39,28 +35,19 @@ export const OidcCallbackPage = () => {
     startedRef.current = true;
     const run = async () => {
       try {
-        // token is present for native (device_token); undefined for web (cookie was set by backend)
-        await completeOidcLogin(searchParams.token, searchParams.token_type === "device_token");
-        // Close the browser on mobile before navigating
-        if (isNativePlatform) {
-          try {
-            await Browser.close();
-          } catch {
-            // Browser may already be closed, ignore
-          }
-        }
-        // A step-up sign-in returns to the page it interrupted; the backend
-        // already validated `next` as a relative SPA path, re-checked here.
-        const next = searchParams.next;
-        const returnTo = next?.startsWith("/") && !next.startsWith("//") ? next : "/";
-        router.navigate({ to: returnTo, replace: true });
+        // The server's redirect set this browser's session cookie. The app's
+        // sign-ins are finished by useDeepLinks and only land here to explain
+        // a failure.
+        await completeOidcLogin();
+        // A step-up sign-in returns to the page it interrupted.
+        await resumeAfterSignIn(searchParams.next);
       } catch (err) {
         console.error(err);
         setStatus(t("oidcCallback.error"));
       }
     };
     void run();
-  }, [completeOidcLogin, isNativePlatform, router, searchParams, t]);
+  }, [completeOidcLogin, resumeAfterSignIn, searchParams, t]);
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center">

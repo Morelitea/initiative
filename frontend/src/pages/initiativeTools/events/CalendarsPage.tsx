@@ -6,14 +6,16 @@ import { useTranslation } from "react-i18next";
 
 import type {
   CalendarSummary,
+  ExportEventsApiV1CGuildIdExportsEventsGetParams,
   FilterCondition,
   FilterGroup,
-  ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams,
+  ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams,
   TaskPriority,
   TaskStatusCategory,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
+  buildEventCalendarEntry,
   buildTaskCalendarEntries,
   CALENDAR_VIEW_MODE_KEY,
   type CalendarEntry,
@@ -21,9 +23,11 @@ import {
   CalendarView,
   type CalendarViewMode,
   calendarVisibleRange,
+  useCalendarVisibility,
 } from "@/components/calendar";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
+import { ExportButton, type ExportFormatOption } from "@/components/exports/ExportButton";
 import { useToolImportAction } from "@/components/imports/ToolImportAction";
 import {
   CalendarPanelDropdown,
@@ -57,13 +61,15 @@ import { useCalendarEntries } from "@/hooks/useCalendarEntries";
 import { useRescheduleCalendarEvent } from "@/hooks/useCalendarEvents";
 import { useCalendar, useCalendarsList } from "@/hooks/useCalendars";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
+import { useGuilds } from "@/hooks/useGuilds";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
+import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useProjects } from "@/hooks/useProjects";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { useUpdateTask } from "@/hooks/useTasks";
+import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useGuildPath } from "@/lib/guildUrl";
-import { hasWriteAccess } from "@/lib/permissions";
 import { getProjectColor } from "@/lib/projectColor";
 import { PRIORITY_ORDER } from "@/lib/sorting";
 import { getItem, setItem } from "@/lib/storage";
@@ -71,10 +77,9 @@ import { eventRoute, taskRoute, toolSettingsRoute } from "@/lib/tools";
 
 const STORAGE_KEY = "initiative-calendars-prefs";
 const VISIBILITY_KEY = "initiative-calendar-visibility";
+const ICS_FORMATS: ExportFormatOption[] = [{ format: "ics", labelKey: "export.formatIcs" }];
 
 const STATUS_CATEGORIES: TaskStatusCategory[] = ["backlog", "todo", "in_progress", "done"];
-
-const DEFAULT_EVENT_COLOR = "#6366f1";
 
 interface StoredPrefs {
   statusFilters: TaskStatusCategory[];
@@ -107,37 +112,6 @@ const readStoredPrefs = (): StoredPrefs => {
   } catch {
     return PREFS_DEFAULTS;
   }
-};
-
-// Visibility persists as HIDDEN id sets (per guild) so a newly created
-// calendar or project appears checked by default — tasks default on.
-interface StoredVisibility {
-  hiddenCalendarIds: number[];
-  hiddenProjectIds: number[];
-}
-
-const readStoredVisibility = (guildId: number): StoredVisibility => {
-  try {
-    const raw = getItem(`${VISIBILITY_KEY}:${guildId}`);
-    if (!raw) return { hiddenCalendarIds: [], hiddenProjectIds: [] };
-    const parsed = JSON.parse(raw);
-    return {
-      hiddenCalendarIds: Array.isArray(parsed?.hiddenCalendarIds) ? parsed.hiddenCalendarIds : [],
-      hiddenProjectIds: Array.isArray(parsed?.hiddenProjectIds) ? parsed.hiddenProjectIds : [],
-    };
-  } catch {
-    return { hiddenCalendarIds: [], hiddenProjectIds: [] };
-  }
-};
-
-const toggleInSet = (prev: ReadonlySet<number>, id: number): Set<number> => {
-  const next = new Set(prev);
-  if (next.has(id)) {
-    next.delete(id);
-  } else {
-    next.add(id);
-  }
-  return next;
 };
 
 type CalendarsViewProps = {
@@ -221,40 +195,19 @@ export const CalendarsView = ({
   // longer take the top of the page before the list itself.
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  // Per-calendar / per-project visibility (persisted per guild as hidden sets).
-  const storedVisibility = useMemo(() => readStoredVisibility(guildId), [guildId]);
-  const [hiddenCalendarIds, setHiddenCalendarIds] = useState<Set<number>>(
-    () => new Set(storedVisibility.hiddenCalendarIds)
-  );
-  const [hiddenProjectIds, setHiddenProjectIds] = useState<Set<number>>(
-    () => new Set(storedVisibility.hiddenProjectIds)
-  );
+  // Per-calendar / per-project visibility, kept per guild.
+  const visibility = useCalendarVisibility(`${VISIBILITY_KEY}:${guildId}`);
+  const { showCalendar } = visibility;
 
   // A deep-linked calendar is always shown, whatever the stored toggles say.
   useEffect(() => {
-    if (focusCalendarId === undefined) return;
-    setHiddenCalendarIds((prev) => {
-      if (!prev.has(focusCalendarId)) return prev;
-      const next = new Set(prev);
-      next.delete(focusCalendarId);
-      return next;
-    });
-  }, [focusCalendarId]);
+    if (focusCalendarId !== undefined) showCalendar(guildId, focusCalendarId);
+  }, [focusCalendarId, guildId, showCalendar]);
 
   // Persist preferences
   useEffect(() => {
     setItem(STORAGE_KEY, JSON.stringify({ statusFilters, priorityFilters, propertyFilters }));
   }, [statusFilters, priorityFilters, propertyFilters]);
-
-  useEffect(() => {
-    setItem(
-      `${VISIBILITY_KEY}:${guildId}`,
-      JSON.stringify({
-        hiddenCalendarIds: [...hiddenCalendarIds],
-        hiddenProjectIds: [...hiddenProjectIds],
-      })
-    );
-  }, [guildId, hiddenCalendarIds, hiddenProjectIds]);
 
   // The span the current view renders — the window events + tasks fetch over.
   const visibleRange = useMemo(
@@ -324,7 +277,7 @@ export const CalendarsView = ({
   }, [calendars]);
 
   // --- One request: events + task markers over the visible window. ---
-  const entriesParams = useMemo((): ListCalendarEntriesApiV1GGuildIdCalendarEntriesGetParams => {
+  const entriesParams = useMemo((): ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams => {
     // A guild surface: guild-level events, and nothing task- or
     // initiative-shaped at all. The app asks by scope rather than by naming its
     // calendars — the calendars below arrive one page at a time, and an event
@@ -362,6 +315,41 @@ export const CalendarsView = ({
 
   const entriesQuery = useCalendarEntries(entriesParams);
 
+  // Export every date of the calendars on screen, through the same scope and
+  // filters as the grid. Hidden calendars are left out by their saved ids, so
+  // one past the loaded page of calendars stays out too.
+  const exportParams = useMemo((): ExportEventsApiV1CGuildIdExportsEventsGetParams | null => {
+    const allHidden = calendars.every((calendar) =>
+      visibility.isCalendarHidden(guildId, calendar.id)
+    );
+    if (!solo && allHidden && !calendarsQuery.data?.has_next) {
+      return null;
+    }
+    const hidden = visibility.hiddenCalendarIds(guildId);
+    return {
+      ...(solo
+        ? { calendar_ids: [soloCalendar.id] }
+        : guildScope
+          ? { scope: "guild" as const }
+          : initiativeId
+            ? { initiative_id: initiativeId }
+            : {}),
+      ...(!solo && hidden.length > 0 ? { exclude_calendar_ids: hidden } : {}),
+      ...(!guildOnly && propertyFiltersParam ? { property_filters: propertyFiltersParam } : {}),
+    };
+  }, [
+    calendars,
+    calendarsQuery.data?.has_next,
+    visibility,
+    guildId,
+    solo,
+    soloCalendar?.id,
+    guildScope,
+    guildOnly,
+    initiativeId,
+    propertyFiltersParam,
+  ]);
+
   // Same param shape the sidebar and dashboard use, so this shares their cache.
   const projectsQuery = useProjects(undefined, { staleTime: 30_000, enabled: !guildOnly });
   const projectNamesById = useMemo(() => {
@@ -389,15 +377,16 @@ export const CalendarsView = ({
   // Creating a CALENDAR is the role-permission gate; creating an EVENT is
   // write access on at least one calendar (the project→task pattern). An
   // explicit canCreate prop (e.g. from InitiativeDetailPage) wins.
+  const { activeGuild } = useGuilds();
   const { canCreate: canCreateCalendarsDerived } = useToolCreateAccess(Tool.calendar, {
     initiativeId,
     enabled: !guildOnly,
   });
-  // At guild scope there is no initiative role to consult: any member of the
-  // guild may add a calendar to the app, and owns what they made. The solo deep
-  // link is one calendar's surface, so it offers no list to add to.
+  // At guild scope there is no initiative role to consult: the guild's
+  // calendars are its admins' to add. The solo deep link is one calendar's
+  // surface, so it offers no list to add to.
   const canCreateCalendars = guildScope
-    ? true
+    ? Boolean(activeGuild?.can.administer_content)
     : solo
       ? false
       : (canCreate ?? canCreateCalendarsDerived);
@@ -405,42 +394,32 @@ export const CalendarsView = ({
   const canCreateEvents = writableCalendars.length > 0;
 
   // --- Merge events + tasks into calendar entries (visibility-filtered) ---
+  const unread = useUnreadTree();
   const calendarEntries = useMemo<CalendarEntry[]>(() => {
     const entries: CalendarEntry[] = [];
 
     for (const event of entriesQuery.data?.events ?? []) {
-      if (hiddenCalendarIds.has(event.calendar_id)) continue;
-      const calendar = calendarsById.get(event.calendar_id);
-      entries.push({
-        id: `event-${event.id}`,
-        title: event.title,
-        description: event.description,
-        startAt: event.start_at,
-        endAt: event.end_at,
-        allDay: event.all_day,
-        // Events render in their calendar's stored color.
-        color: calendar?.color ?? DEFAULT_EVENT_COLOR,
-        attendees: (event.attendee_previews ?? []).map((att) => ({
-          name: att.name,
-          avatarUrl: att.avatar_url,
-          userId: att.user_id,
-        })),
-        properties: event.property_values,
-        tags: event.tags,
-        draggable: event.my_permission_level === "write" || event.my_permission_level === "owner",
-        meta: { type: "event", eventId: event.id, calendarId: event.calendar_id },
-      });
+      if (visibility.isCalendarHidden(guildId, event.calendar_id)) continue;
+      entries.push(
+        buildEventCalendarEntry(
+          event,
+          calendarsById.get(event.calendar_id)?.color,
+          unread.hasSubject(event.guild_id, "calendar_event", event.id)
+        )
+      );
     }
 
     for (const task of entriesQuery.data?.tasks ?? []) {
-      if (task.project_id != null && hiddenProjectIds.has(task.project_id)) continue;
+      if (task.project_id != null && visibility.isProjectHidden(guildId, task.project_id)) {
+        continue;
+      }
       // Task chips stay non-draggable here: per-project edit rights vary
       // across the visible projects; the task page is the editing surface.
       entries.push(...buildTaskCalendarEntries(task, getProjectColor(task.project_id), false));
     }
 
     return entries;
-  }, [entriesQuery.data, hiddenCalendarIds, hiddenProjectIds, calendarsById]);
+  }, [entriesQuery.data, visibility, guildId, calendarsById, unread]);
 
   // Create dialog state
   const {
@@ -482,25 +461,14 @@ export const CalendarsView = ({
   // Hidden calendars count too: the reader has narrowed what the grid shows,
   // and nothing else on screen says so once the panel is closed.
   const activeFilterCount =
-    hiddenCalendarIds.size +
-    hiddenProjectIds.size +
-    statusFilters.length +
-    priorityFilters.length +
-    propertyFilters.length;
+    visibility.hiddenCount + statusFilters.length + priorityFilters.length + propertyFilters.length;
 
-  const clearFilters = useCallback(() => {
-    setHiddenCalendarIds(new Set());
-    setHiddenProjectIds(new Set());
+  const clearFilters = () => {
+    visibility.clear();
     setStatusFilters([]);
     setPriorityFilters([]);
     setPropertyFilters([]);
-  }, [
-    setHiddenCalendarIds,
-    setHiddenProjectIds,
-    setStatusFilters,
-    setPriorityFilters,
-    setPropertyFilters,
-  ]);
+  };
 
   const handleEventCreated = (event: { id: number; calendar_id: number }) => {
     void router.navigate({
@@ -584,14 +552,10 @@ export const CalendarsView = ({
     <CalendarPanelDropdown
       calendars={calendars}
       projectCalendars={projectCalendars}
-      isCalendarHidden={(calendar) => hiddenCalendarIds.has(calendar.id)}
-      isProjectHidden={(project) => hiddenProjectIds.has(project.projectId)}
-      onToggleCalendar={(calendar) =>
-        setHiddenCalendarIds((prev) => toggleInSet(prev, calendar.id))
-      }
-      onToggleProject={(project) =>
-        setHiddenProjectIds((prev) => toggleInSet(prev, project.projectId))
-      }
+      isCalendarHidden={(calendar) => visibility.isCalendarHidden(guildId, calendar.id)}
+      isProjectHidden={(project) => visibility.isProjectHidden(guildId, project.projectId)}
+      onToggleCalendar={(calendar) => visibility.toggleCalendar(guildId, calendar.id)}
+      onToggleProject={(project) => visibility.toggleProject(guildId, project.projectId)}
       settingsPathFor={(calendar) =>
         gp(toolSettingsRoute(Tool.calendar, calendar.initiative_id, calendar.id))
       }
@@ -623,6 +587,17 @@ export const CalendarsView = ({
           guildOnly
             ? undefined
             : { open: filtersOpen, onOpenChange: setFiltersOpen, activeCount: activeFilterCount }
+        }
+        trailing={
+          exportParams ? (
+            <ExportButton
+              endpoint="/exports/events"
+              params={exportParams}
+              formats={ICS_FORMATS}
+              filenameStem="events"
+              resumePending
+            />
+          ) : null
         }
         actions={
           guildScope && canCreateCalendars ? (
@@ -787,6 +762,7 @@ export function CalendarFocusPage() {
   // once the read succeeds (access checks passed).
   const recordViewMutation = useRecordRecentView("calendar", Number(guildId));
   const viewedCalendarId = calendar?.id;
+  useReadOnOpen(Tool.calendar, viewedCalendarId);
   useEffect(() => {
     if (!viewedCalendarId) return;
     recordViewMutation.mutate(viewedCalendarId);
@@ -811,15 +787,11 @@ export function CalendarFocusPage() {
       <ToolRelationsPanel
         tool={Tool.calendar}
         entity={calendar}
-        canEdit={hasWriteAccess(calendar.my_permission_level)}
+        canEdit={calendar.can.edit}
         entityTitle={calendar.name}
       />
 
-      <ToolCommentsPanel
-        tool={Tool.calendar}
-        entity={calendar}
-        canModerate={hasWriteAccess(calendar.my_permission_level)}
-      />
+      <ToolCommentsPanel tool={Tool.calendar} entity={calendar} canModerate={calendar.can.edit} />
     </div>
   );
 }

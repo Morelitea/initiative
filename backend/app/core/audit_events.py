@@ -32,6 +32,7 @@ class AuditEventType(str, Enum):
     USER_SUSPENDED = "user.suspended"
     USER_UNSUSPENDED = "user.unsuspended"
     USER_AGE_BLOCK_CLEARED = "user.age_block_cleared"
+    USER_SIGN_IN_LOCK_LIFTED = "user.sign_in_lock_lifted"
 
     # The platform ladder. Granting a rung is an operator's job (``roles.assign``),
     # not a moderator's, so it is recorded apart from the account actions above:
@@ -65,6 +66,7 @@ class AuditEventType(str, Enum):
     AUTH_SECOND_FACTOR_ENROLLED = "auth.second_factor_enrolled"
     AUTH_SECOND_FACTOR_DISABLED = "auth.second_factor_disabled"
     AUTH_SECOND_FACTOR_FAILED = "auth.second_factor_failed"
+    AUTH_SIGN_IN_LOCKED = "auth.sign_in_locked"
     #: Cleared by somebody else — a support path, so actor and target differ.
     AUTH_SECOND_FACTOR_RESET = "auth.second_factor_reset"
     AUTH_RECOVERY_CODE_USED = "auth.recovery_code_used"
@@ -144,9 +146,15 @@ class AuditEventType(str, Enum):
     #: Everything one account owned in a community now belongs to another,
     #: or to nobody. One record per transfer, with counts by tool.
     CONTENT_OWNERSHIP_TRANSFERRED = "content.ownership_transferred"
-    #: A member let an installed app act as them, or took that back.
-    DELEGATION_GRANTED = "delegation.granted"
-    DELEGATION_REVOKED = "delegation.revoked"
+    #: A member allowed an installed app's request to act as them, or took
+    #: that back (or the community's seat ended it for them).
+    APP_CONSENT_GRANTED = "app_consent.granted"
+    APP_CONSENT_REVOKED = "app_consent.revoked"
+    #: One installed app called another through Initiative: which app called,
+    #: which it called, the endpoint, whose behalf it was on, and how it ended.
+    #: It records the reach, as ``pam.request`` does; what the app called then
+    #: changed is its own.
+    APP_HUB_CALL = "app_hub.call"
 
     # Configuration. The record says which fields moved; a value is copied in
     # only where its type rules out a secret (see ``audit.changed_fields``).
@@ -182,7 +190,8 @@ class AuditEventType(str, Enum):
     APP_SERVICE_CREATED = "app_service.created"
     APP_SERVICE_UPDATED = "app_service.updated"
     APP_SERVICE_DELETED = "app_service.deleted"
-    APP_SERVICE_VERIFIED = "app_service.verified"
+    APP_PUBLISHER_CREATED = "app_publisher.created"
+    APP_PUBLISHER_UPDATED = "app_publisher.updated"
     #: An operator re-read the catalogue sources; carries what was published
     #: and withdrawn.
     MARKETPLACE_CATALOG_REFRESHED = "marketplace.catalog_refreshed"
@@ -203,6 +212,7 @@ class AuditEventType(str, Enum):
     # movements of data — out of the deployment, or gone for good.
     USER_CREATED = "user.created"
     USER_DEACTIVATED = "user.deactivated"
+    USER_REACTIVATED = "user.reactivated"
     #: Personal details removed, contributions kept under a placeholder.
     USER_ANONYMIZED = "user.anonymized"
     #: The account and everything it left, removed outright.
@@ -252,7 +262,7 @@ class AuditCategory(str, Enum):
 
     MODERATION = "moderation"
     AUTHENTICATION = "authentication"
-    #: Who may reach what: memberships, roles, shares, delegations, and
+    #: Who may reach what: memberships, roles, shares, app consents, and
     #: privileged access into a community from outside it.
     AUTHORIZATION = "authorization"
     #: The platform itself: who holds which rung of its ladder. Operator
@@ -292,6 +302,9 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
         tier=2, category=AuditCategory.MODERATION, is_write=True
     ),
     AuditEventType.USER_AGE_BLOCK_CLEARED: AuditEventMeta(
+        tier=2, category=AuditCategory.MODERATION, is_write=True
+    ),
+    AuditEventType.USER_SIGN_IN_LOCK_LIFTED: AuditEventMeta(
         tier=2, category=AuditCategory.MODERATION, is_write=True
     ),
     AuditEventType.USER_PLATFORM_ROLE_CHANGED: AuditEventMeta(
@@ -335,6 +348,11 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
     # A refused code changed nothing, like a refused sign-in.
     AuditEventType.AUTH_SECOND_FACTOR_FAILED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=False
+    ),
+    # Wrong answers adding up: the account's password and codes are refused
+    # for a while, longer for each lock within a day.
+    AuditEventType.AUTH_SIGN_IN_LOCKED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
     AuditEventType.AUTH_SECOND_FACTOR_RESET: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
@@ -425,11 +443,14 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
     AuditEventType.CONTENT_OWNERSHIP_TRANSFERRED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHORIZATION, is_write=True
     ),
-    AuditEventType.DELEGATION_GRANTED: AuditEventMeta(
+    AuditEventType.APP_CONSENT_GRANTED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHORIZATION, is_write=True
     ),
-    AuditEventType.DELEGATION_REVOKED: AuditEventMeta(
+    AuditEventType.APP_CONSENT_REVOKED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHORIZATION, is_write=True
+    ),
+    AuditEventType.APP_HUB_CALL: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHORIZATION, is_write=False
     ),
     # Configuration, at either level.
     AuditEventType.PLATFORM_SETTINGS_CHANGED: AuditEventMeta(
@@ -495,7 +516,10 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
     AuditEventType.APP_SERVICE_DELETED: AuditEventMeta(
         tier=2, category=AuditCategory.CONFIGURATION, is_write=True
     ),
-    AuditEventType.APP_SERVICE_VERIFIED: AuditEventMeta(
+    AuditEventType.APP_PUBLISHER_CREATED: AuditEventMeta(
+        tier=2, category=AuditCategory.CONFIGURATION, is_write=True
+    ),
+    AuditEventType.APP_PUBLISHER_UPDATED: AuditEventMeta(
         tier=2, category=AuditCategory.CONFIGURATION, is_write=True
     ),
     AuditEventType.MARKETPLACE_CATALOG_REFRESHED: AuditEventMeta(
@@ -528,6 +552,9 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
         tier=2, category=AuditCategory.LIFECYCLE, is_write=True
     ),
     AuditEventType.USER_DEACTIVATED: AuditEventMeta(
+        tier=2, category=AuditCategory.LIFECYCLE, is_write=True
+    ),
+    AuditEventType.USER_REACTIVATED: AuditEventMeta(
         tier=2, category=AuditCategory.LIFECYCLE, is_write=True
     ),
     AuditEventType.USER_ANONYMIZED: AuditEventMeta(

@@ -1,5 +1,7 @@
 import type { GalleryImageRead, GalleryRead } from "@/api/generated/initiativeAPI.schemas";
 
+import { ownerCan } from "./can";
+
 let counter = 0;
 let imageCounter = 0;
 
@@ -24,8 +26,7 @@ export function buildGallery(overrides: Partial<GalleryRead> = {}): GalleryRead 
     cover: null,
     preview: [],
     archived_at: null,
-    can_unarchive: false,
-    my_permission_level: "owner",
+    can: ownerCan(),
     comments_enabled: true,
     comment_count: 0,
     tags: [],

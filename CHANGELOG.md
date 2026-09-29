@@ -7,6 +7,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.73.0] - 2026-09-28
+
+### Added
+
+- **Safety numbers in messages**, so you can check who you're talking to. A new device has to be approved by your other devices.
+- **Embeds** (`![[`) and **task checkbox chips** in documents. An embedded document or wiki page shows what it says, not just its name.
+- **Callouts and embeds fold** to their first line, and stay folded for everyone who opens the page.
+- **Full-size pictures**: click a picture in any text to open it.
+- **Unread dots that lead to the item**, with unread comments highlighted.
+- **One-tap 👍** on comments and posts.
+- **An email when your password changes.**
+- **Export on the calendars page** saves the calendars on screen, every date, as one `.ics` file. Anyone who can see a calendar can export it. API: `GET /c/{guild_id}/exports/events`.
+- **Resend verification email** in the platform Users menu, for an account that never confirmed its address. It sends the sign-up confirmation again, and an invite the account was waiting on still joins.
+
+### Changed
+
+- **Update the Android app from its APK**, since this release changes the app itself.
+- **Reconnect your app accounts** once, such as GitHub.
+- **Password sign-in pauses** after repeated wrong answers, for longer each time, up to four hours. Passkeys keep working, and resetting your password from the email ends the pause.
+- **A phone restored from backup asks you to sign in again.**
+- **Links to other sites open in a new tab.**
+- **Comments show the newest conversation first.** Replies still read in order.
+- **Pictures from other sites show as links.**
+- **Ticked checklist lines stay readable** instead of being crossed out.
+- **Only people who can open something** can be assigned to it, invited to it or notified about it.
+- **Files belong to their initiative.** A picture or file in a page opens for anyone in that page's initiative. Pasting one from another initiative saves a copy, and moving a task to another initiative takes copies of its pictures.
+- **Opening something marks its notifications read.**
+- **Mentions in the same document** make one notification.
+- **Read notifications clear after 30 days.**
+- **Community calendars belong to admins.** Members add events to the ones shared with them.
+- **Hidden calendars are remembered** in each community.
+- **Ticking tasks in a table is instant.**
+- **The trash shows a page at a time**, newest first.
+- **If you never verified your email address**, verifying it now, with an emailed code or through your organization's sign-in, clears the account's password, passkeys and second factor. Your communities and content stay; set up new sign-in methods from Security. If your address is already verified, nothing changes. Servers without SMTP automatically verify all emails on sign up and are not impacted.
+- **Improved efficiency and security.**
+
+### Removed
+
+- **API routes the app no longer uses**: single reads of an access grant, an app registration, an app's placements, your consents to an app and a target's reactions; editing a community's group rule; clearing one view preference; the smart-chip kinds list; each tool's `DELETE …/view` (use `/recents`); `POST /auth/verification/send`; and a community's `POST /users/{id}/approve`. The lists and detail reads carry the same data.
+
+### Fixed
+
+- **Platform account actions reach only accounts at or below your own role.** Reactivate is for deactivated accounts; lift a suspension or restore a deletion from their own actions.
+- **Switching communities is quicker.**
+- **API:** the member list (`GET /c/{guild_id}/users/`) and both trash lists return pages.
+- **Dashboards load faster.**
+- **Leaving an initiative** takes you off everything in it.
+- **A picture shared by several pages** stays while any of them still shows it, including pages you can't open.
+- **Signing out of the app stops its notifications**, and so does signing out other devices or resetting your password.
+- **Whiteboards and offline edits** are no longer lost.
+- **Large spreadsheets** keep up with your typing.
+- **Duplicated file documents** include the file.
+- **Notifications** open the event or page they're about.
+- **The Markdown view** keeps smart chips, `#` links and @mentions instead of turning them into plain words, and a `|` inside a table cell no longer splits it.
+- **Erased accounts** show as "Deleted user" everywhere they were mentioned.
+- **Exports that keep failing** stop and tell you.
+- **Jira and Confluence CSVs** arrive as spreadsheets.
+- **Comments** go to the trash and come back with their item.
+- **Queues and counters** reconnect after a dropped connection.
+- **Tag pages** list every tool.
+- **Archived projects** show their tasks again.
+- **Signing up in the app with an emailed code** keeps you signed in.
+- **Signing up with a password or passkey** on a server that sends email: confirming your address now lets you sign in, and an invite sent to that address joins you to its community when you confirm.
+
 ## [0.72.0] - 2026-09-24
 
 ### Added
@@ -22,6 +86,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Apps appear where they are placed** — an app placed in "every initiative" is placed in each initiative that exists when you save, and an initiative created later does not get it until you add it under **Community settings → Integrations**. Apps your deployment requires are still added to new initiatives, and can be removed from any one of them.
 - **Exporting a tool belongs to whoever can delete it** — export moved to each tool's **Settings → Advanced**, for its owner, community admins and roles with full access. Every tool can be exported there. Galleries download as a zip with their pictures, and wikis as PDF, Markdown, Word or an importable zip that brings their filed documents along; both zips import back.
 - **Suspension means no access** — a suspended community or account reaches nothing, settings included, until the suspension is lifted, and sees a notice saying who to contact. Nothing is deleted.
 - **Imports live with the community** — Todoist, TickTick and Vikunja imports moved from **My Settings** to **Community settings → Data**. They now bring due dates, tags, assignees and comments along.

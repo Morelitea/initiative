@@ -5,8 +5,6 @@ invariant tests are compared against, so it has to name columns that exist and
 keep the account's own half out by construction.
 """
 
-import pytest
-
 from app.db.user_columns import (
     GUILD_MEMBER_PROFILE_COLUMNS,
     PRIVATE_COLUMNS,
@@ -14,8 +12,6 @@ from app.db.user_columns import (
     PUBLISHED_COLUMNS,
     all_user_columns,
 )
-
-pytestmark = pytest.mark.unit
 
 
 def test_every_named_column_exists_on_the_model():

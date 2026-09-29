@@ -12,14 +12,11 @@ community in ``read_only`` lifecycle status routes a **real member** in while
 keeping the membership GUCs, so the gate runs in full — which is the case here.
 """
 
-import pytest
 from sqlalchemy import text
 
-from app.db.schema_provisioning import guild_readonly_role_name
+from app.db.schema_provisioning import GuildRoleKind, guild_role_name
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.testing.factories import create_auth_provider, create_guild
-
-pytestmark = [pytest.mark.integration, pytest.mark.auth]
 
 
 async def test_the_read_floor_can_answer_the_gate(session, engine):
@@ -42,7 +39,9 @@ async def test_the_read_floor_can_answer_the_gate(session, engine):
     await session.commit()
 
     async with engine.connect() as conn:
-        await conn.execute(text(f'SET ROLE "{guild_readonly_role_name(guild_id)}"'))
+        await conn.execute(
+            text(f'SET ROLE "{guild_role_name(guild_id, GuildRoleKind.read_only)}"')
+        )
         for key, value in (
             ("app.current_user_id", "1"),
             ("app.current_guild_id", str(guild_id)),
@@ -78,7 +77,9 @@ async def test_the_read_floor_reads_a_deployment_wide_answer(session, engine):
     await session.commit()
 
     async with engine.connect() as conn:
-        await conn.execute(text(f'SET ROLE "{guild_readonly_role_name(guild_id)}"'))
+        await conn.execute(
+            text(f'SET ROLE "{guild_role_name(guild_id, GuildRoleKind.read_only)}"')
+        )
         for key, value in (
             ("app.current_user_id", "1"),
             ("app.current_guild_id", str(guild_id)),
@@ -108,7 +109,9 @@ async def test_the_read_floor_reads_what_the_deployment_asks(session, engine):
     await session.commit()
 
     async with engine.connect() as conn:
-        await conn.execute(text(f'SET ROLE "{guild_readonly_role_name(guild_id)}"'))
+        await conn.execute(
+            text(f'SET ROLE "{guild_role_name(guild_id, GuildRoleKind.read_only)}"')
+        )
         for key, value in (
             ("app.current_user_id", "1"),
             ("app.current_guild_id", str(guild_id)),

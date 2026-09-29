@@ -4,6 +4,7 @@ import {
   formatDate,
   formatDateTime,
   fromLocalDateTimeInput,
+  minutesLeft,
   parseDateValue,
   toLocalDateTimeInput,
 } from "@/lib/formatDate";
@@ -38,6 +39,14 @@ describe("formatDate", () => {
 
   it("keeps the time for a timestamp", () => {
     expect(formatDateTime("2026-03-02T15:30:00Z")).toMatch(/2026/);
+  });
+});
+
+describe("minutesLeft", () => {
+  it("counts whole minutes to the deadline, and none once it has passed", () => {
+    expect(minutesLeft(new Date(Date.now() + 90 * 60_000).toISOString())).toBe(90);
+    expect(minutesLeft(new Date(Date.now() - 60_000).toISOString())).toBe(0);
+    expect(minutesLeft(null)).toBeNull();
   });
 });
 

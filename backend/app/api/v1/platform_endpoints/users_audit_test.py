@@ -7,7 +7,6 @@ happened in and runs on the guild-routed session that performs it.
 
 from __future__ import annotations
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -22,8 +21,6 @@ from app.testing.factories import (
     create_user,
     get_auth_headers,
 )
-
-pytestmark = pytest.mark.integration
 
 
 def _where(row) -> tuple:
@@ -56,7 +53,7 @@ async def test_exporting_a_roster_is_recorded_with_its_count(
     capfd.readouterr()
 
     response = await client.get(
-        f"/api/v1/g/{guild_id}/users/export.csv", headers=get_auth_headers(admin)
+        f"/api/v1/c/{guild_id}/users/export.csv", headers=get_auth_headers(admin)
     )
     assert response.status_code == 200, response.text
 
@@ -79,7 +76,7 @@ async def test_an_export_that_matched_nobody_records_nothing(
     capfd.readouterr()
 
     response = await client.get(
-        f"/api/v1/g/{guild.id}/users/export.csv?user_id=9999999",
+        f"/api/v1/c/{guild.id}/users/export.csv?user_id=9999999",
         headers=get_auth_headers(admin),
     )
     assert response.status_code == 404
@@ -104,7 +101,7 @@ async def test_removing_a_member_is_recorded_against_the_admin_who_did_it(
     capfd.readouterr()
 
     response = await client.delete(
-        f"/api/v1/g/{guild_id}/users/{member_id}", headers=get_auth_headers(admin)
+        f"/api/v1/c/{guild_id}/users/{member_id}", headers=get_auth_headers(admin)
     )
     assert response.status_code == 204, response.text
 
@@ -127,7 +124,7 @@ async def test_removing_someone_who_is_not_a_member_records_nothing(
     capfd.readouterr()
 
     response = await client.delete(
-        f"/api/v1/g/{guild.id}/users/{outsider.id}", headers=get_auth_headers(admin)
+        f"/api/v1/c/{guild.id}/users/{outsider.id}", headers=get_auth_headers(admin)
     )
     assert response.status_code == 404
     assert emitted(capfd, AuditEventType.GUILD_MEMBER_REMOVED) == []
@@ -173,7 +170,7 @@ async def test_a_claim_records_the_move_with_no_previous_owner(
     project = await TOOL_FACTORIES[Tool.project](session, admin.initiative, admin.user)
     await route_session_to_guild(session, admin.guild.id)
     await ownership_service.set_resource_owner(
-        session, tool=Tool.project, row=project, new_owner_id=None
+        session, tool=Tool.project, row=project, new_owner=None
     )
     await session.commit()
     capfd.readouterr()

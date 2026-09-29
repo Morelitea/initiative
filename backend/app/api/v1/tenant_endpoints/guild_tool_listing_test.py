@@ -67,7 +67,6 @@ async def _names(client: AsyncClient, actor, path: str, **params) -> list[str]:
     return [item["name"] for item in response.json()["items"]]
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("path,factory", TOOL_LISTS)
 async def test_search_narrows_to_matching_names(
     client: AsyncClient, session, acting_user, path, factory
@@ -89,7 +88,6 @@ async def test_search_narrows_to_matching_names(
     assert body["total_count"] == 1
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("path,factory", TOOL_LISTS)
 async def test_sort_by_name(client: AsyncClient, session, acting_user, path, factory):
     """``sort_by=name`` orders the whole set, in either direction."""
@@ -105,7 +103,6 @@ async def test_sort_by_name(client: AsyncClient, session, acting_user, path, fac
     assert descending == ["Zulu", "Mike", "alpha"]
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("path,factory", TOOL_LISTS)
 async def test_sort_by_initiative(
     client: AsyncClient, session, acting_user, path, factory
@@ -130,7 +127,6 @@ async def test_sort_by_initiative(
     assert descending == ["In Zebra", "In Aardvark"]
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("path,factory", TOOL_LISTS)
 async def test_sort_by_last_updated(
     client: AsyncClient, session, acting_user, path, factory
@@ -154,7 +150,6 @@ async def test_sort_by_last_updated(
     assert oldest_first == ["Stale", "Middling", "Fresh"]
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize("path,factory", TOOL_LISTS)
 async def test_unknown_sort_falls_back_to_the_tool_default(
     client: AsyncClient, session, acting_user, path, factory

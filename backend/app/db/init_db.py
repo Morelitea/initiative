@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 import asyncio
 import logging
-from contextlib import suppress
 
 import asyncpg
 from sqlalchemy import delete as sql_delete
@@ -11,9 +10,9 @@ from sqlalchemy.exc import IntegrityError
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
 from app.core.security import app_platform_signing_enabled, get_password_hash
+from app.core.transitions import TRANSITIONS
 from app.core.version import __version__, get_version
 from app.db.schema_provisioning import (
-    deprovision_guild,
     ensure_shared_table_grants,
     ensure_system_engine_bypassrls,
     verify_effective_shared_grants,
@@ -25,7 +24,6 @@ from app.db.session import (
     migration_lock,
     run_migrations,
 )
-from app.models.platform.guild import Guild
 from app.models.platform.user import User, UserRole
 from app.services import audit as audit_service
 from app.services.auth import addresses
@@ -82,34 +80,15 @@ async def init_owner() -> None:
         )
         await session.commit()
 
-        # ...and their guild the same way the API does: create the shared rows,
-        # commit, then provision the schema and seed its content (settings +
-        # default initiative). No bespoke seeding path — it's a real guild.
-        guild = await guilds_service.create_guild(
-            session, name="Primary Community", creator=user
-        )
-        await session.commit()
-        # Capture ids before the seed: the rollback in the failure path expires the
-        # ORM objects, so reading guild.id / user.id afterwards would reload.
-        guild_id = guild.id
+        # ...and their guild the same way the API does. If it cannot be set
+        # up, the account goes too: a committed owner makes init_owner return
+        # early on every restart, leaving the primary guild without a schema.
         user_id = user.id
         try:
-            await guilds_service.seed_guild_content(
-                session, guild_id=guild_id, owner=user
+            await guilds_service.provision_new_guild(
+                session, name="Primary Community", creator=user
             )
-            await session.commit()
-        except Exception:
-            # Undo the whole first-boot seed so a restart re-initializes cleanly.
-            # Otherwise the committed user makes init_owner short-circuit on
-            # every restart, stranding the primary guild without a schema. Mirrors
-            # the API/registration cleanup. Roll back FIRST (an aborted session
-            # would fault the cleanup queries, and it reverts the seed's SET ROLE
-            # so deprovision can DROP the role); this is a system-engine
-            # session, so the bulk DELETEs aren't RLS-filtered.
-            await session.rollback()
-            with suppress(Exception):
-                await deprovision_guild(guild_id)
-            await session.exec(sql_delete(Guild).where(Guild.id == guild_id))
+        except guilds_service.GuildProvisionError:
             await session.exec(sql_delete(User).where(User.id == user_id))
             await session.commit()
             raise
@@ -281,6 +260,11 @@ async def prepare_database() -> None:
 
     await reject_privileged_database_url()
     await migrate_database()
+    # Who may write the request's session variables. After the migrations,
+    # which create the shared floors that keep the right to.
+    from app.db.bootstrap import ensure_set_config_narrowed
+
+    await ensure_set_config_narrowed()
     # The functions every guild policy defers to, from the module that owns
     # them (app.db.authorization). Before the back-fill below, so a schema
     # rendered in this same boot finds each one its policies name.
@@ -296,11 +280,10 @@ async def prepare_database() -> None:
     # the way the guild schemas get theirs from INITIATIVE_PATHS. Stamped on
     # the public schema, so a boot with nothing changed does nothing.
     await ensure_public_rls()
-    # Re-run the idempotent per-guild provisioning for every guild so any
-    # table/column/index/grant the live guild_template gained since a guild was
-    # provisioned is back-filled, and any guild left without a schema (e.g. a
-    # crash mid-provision) is healed. One broken guild is logged and skipped;
-    # guilds stamped with the current artifact version are skipped entirely.
+    # Bring every guild schema up to date: the parts of provisioning whose
+    # render changed since a guild was stamped are re-applied, and a guild left
+    # without a schema (e.g. a crash mid-provision) gets all of them. One
+    # broken guild is logged and skipped; current guilds are not touched.
     from app.db.schema_provisioning import (
         backfill_guild_schemas,
         backfill_guild_search,
@@ -364,6 +347,11 @@ async def prepare_database() -> None:
     # After the schemas, never before: the sweep writes through functions and
     # into a table whose shape the pass above is what brings up to date.
     await backfill_guild_search()
+    # The back-fill opened every stale schema on the provisioning engine; close
+    # those connections rather than keep them pooled.
+    from app.db import session as db_session
+
+    await db_session.provisioning_engine.dispose()
     # Rotate SECRET_KEY-derived data (encrypted fields + email_hash) when
     # PREVIOUS_SECRET_KEY names a prior key. Runs after guild schemas exist and
     # before traffic is served, so a packaged deploy rotates itself on boot.
@@ -377,7 +365,9 @@ async def prepare_database() -> None:
     try:
         async with SystemSessionLocal() as version_session:
             previous = await app_settings_service.record_running_version(
-                version_session, version=__version__
+                version_session,
+                version=__version__,
+                transitions=[transition.name for transition in TRANSITIONS],
             )
         if previous and previous != __version__:
             logger.info("upgraded from %s to %s", previous, __version__)
@@ -447,18 +437,28 @@ async def prepare_database() -> None:
             )
         except Exception:
             logger.exception("marketplace: operator catalog scan failed")
+    # This project's own app publisher. Added once; a row that exists is left
+    # exactly as it is, so an operator's switch survives a restart.
+    try:
+        from app.services.marketplace import publishers as app_publishers
+
+        async with SystemSessionLocal() as publisher_session:
+            if await app_publishers.seed_publishers(publisher_session):
+                logger.info("app publishers: seeded this project's publisher")
+    except Exception:
+        logger.exception("app publishers: seeding failed")
     # App services the deployment declares in a mounted file (APP_SERVICES_CONFIG).
-    # Database-only: an app's container may boot after this one, so the handshake
-    # is a separate step and a declared registration lands unverified rather than
-    # holding up startup. No-op when the setting is unset.
+    # Database-only: an app's container may boot after this one, and nothing is
+    # fetched from it. No-op when the setting is unset.
     if settings.APP_SERVICES_CONFIG:
         if not app_platform_signing_enabled():
-            # Registrations reconcile fine, but verifying one (and later minting
-            # its context tokens) needs the platform's own keypair.
+            # Registrations reconcile fine, but minting what Initiative sends an
+            # app (its context tokens and handoffs) needs the platform's own
+            # keypair.
             logger.warning(
                 "APP_SERVICES_CONFIG is set but APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM "
-                "is not; app service verification will fail closed until a signing "
-                "key is configured."
+                "is not; app services will fail closed until a signing key is "
+                "configured."
             )
         try:
             from app.services.marketplace import registrations as app_registrations
