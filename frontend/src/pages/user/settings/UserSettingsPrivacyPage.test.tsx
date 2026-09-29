@@ -146,4 +146,16 @@ describe("UserSettingsPrivacyPage", () => {
     });
     expect(field).toHaveValue("");
   });
+
+  it("drops a handle's error once the handle changes", async () => {
+    renderPage(UserSettingsPrivacyPage);
+
+    const field = await screen.findByRole("textbox", { name: /ignore by handle/i });
+    await userEvent.type(field, "bram{Enter}");
+    expect(field).toHaveAttribute("aria-invalid", "true");
+
+    await userEvent.type(field, "#4410");
+    expect(field).not.toHaveAttribute("aria-invalid");
+    expect(mocks.ignoreByHandle).not.toHaveBeenCalled();
+  });
 });
