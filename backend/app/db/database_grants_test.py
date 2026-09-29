@@ -15,8 +15,11 @@ free to differ.
 
 from __future__ import annotations
 
-from sqlalchemy import text
+from sqlalchemy import make_url, text
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.pool import NullPool
 
+from app.core.config import settings
 from app.db.bootstrap import (
     PROVISIONER_DATABASE_PRIVILEGES,
     bootstrap_sql,
@@ -58,3 +61,36 @@ async def test_the_provisioner_holds_every_database_privilege_by_name(session):
         params={"role": provisioner},
     )
     assert set(PROVISIONER_DATABASE_PRIVILEGES) <= {privilege for (privilege,) in rows}
+
+
+async def test_the_provisioner_makes_a_temporary_table_without_public_s_grant():
+    """The single-URL shape: the provisioning login does not own the database,
+    and PUBLIC holds no TEMPORARY. A migration's temporary table still works."""
+    from conftest import TEST_DATABASE_URL, TEST_DB_NAME
+
+    owner = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
+    provisioner = create_async_engine(
+        make_url(settings.DATABASE_URL).set(database=TEST_DB_NAME),
+        poolclass=NullPool,
+    )
+    database = f'DATABASE "{TEST_DB_NAME}"'
+    try:
+        async with owner.begin() as conn:
+            await conn.execute(text(f"REVOKE TEMPORARY ON {database} FROM PUBLIC"))
+        try:
+            async with provisioner.begin() as conn:
+                assert not await conn.scalar(
+                    text(
+                        "SELECT datdba = CAST(session_user AS regrole)"
+                        " FROM pg_database WHERE datname = current_database()"
+                    )
+                )
+                await conn.execute(
+                    text("CREATE TEMP TABLE _probe (x int) ON COMMIT DROP")
+                )
+        finally:
+            async with owner.begin() as conn:
+                await conn.execute(text(f"GRANT TEMPORARY ON {database} TO PUBLIC"))
+    finally:
+        await owner.dispose()
+        await provisioner.dispose()
