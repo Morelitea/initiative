@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,8 +28,10 @@ export const HandleField = ({
 }: HandleFieldProps) => {
   const [handle, setHandle] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const messageId = useId();
 
   const submit = () => {
+    if (pending) return;
     const parsed = parseHandle(handle);
     if (!parsed) {
       setError(hint);
@@ -37,7 +39,8 @@ export const HandleField = ({
     }
     setError(null);
     onSubmit(parsed).then(
-      () => setHandle(""),
+      // A handle typed while the request was out stays.
+      () => setHandle((current) => (current === handle ? "" : current)),
       (err: unknown) => setError(getErrorMessage(err, errorFallback))
     );
   };
@@ -50,6 +53,8 @@ export const HandleField = ({
           onChange={(event) => setHandle(event.target.value)}
           placeholder={placeholder}
           aria-label={label}
+          aria-describedby={messageId}
+          aria-invalid={error ? true : undefined}
           onKeyDown={(event) => {
             if (event.key === "Enter") submit();
           }}
@@ -58,7 +63,11 @@ export const HandleField = ({
           {submitLabel}
         </Button>
       </div>
-      <p className={error ? "text-destructive text-xs" : "text-muted-foreground text-xs"}>
+      <p
+        id={messageId}
+        aria-live="polite"
+        className={error ? "text-destructive text-xs" : "text-muted-foreground text-xs"}
+      >
         {error ?? hint}
       </p>
     </div>
