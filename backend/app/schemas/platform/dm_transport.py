@@ -283,3 +283,28 @@ class DmQueueResponse(BaseModel):
 class DmQueueAck(BaseModel):
     device_id: uuid.UUID
     message_ids: list[int] = Field(min_length=1, max_length=500)
+
+
+#: The longest verification message a client sends. The largest is a handful of
+#: base64 keys and MACs in JSON, well under this.
+MAX_VERIFICATION_BODY = 4096
+
+
+class DmVerificationSend(BaseModel):
+    """One message of a verification, from one of the caller's devices to
+    another of them. ``body`` is the client's own JSON, relayed as-is."""
+
+    device_id: uuid.UUID
+    to_device_id: uuid.UUID
+    body: str = Field(min_length=1, max_length=MAX_VERIFICATION_BODY)
+
+
+class DmVerificationMessage(BaseModel):
+    id: int
+    sender_device_id: uuid.UUID
+    body: str
+    created_at: datetime
+
+
+class DmVerificationInbox(BaseModel):
+    items: list[DmVerificationMessage]
