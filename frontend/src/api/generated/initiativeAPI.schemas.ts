@@ -5148,6 +5148,14 @@ export interface ICalParseResult {
 }
 
 /**
+ * Ignoring by handle, the same address a connection request takes.
+ */
+export interface IgnoreAccountCreate {
+  username: string;
+  discriminator: number;
+}
+
+/**
  * One row of the holder's own list.
  */
 export interface IgnoredAccountRead {
