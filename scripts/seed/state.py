@@ -9,6 +9,7 @@ from pathlib import Path
 from sqlmodel import select
 
 import app.db.session as db_session
+from app.db.request_context import Unattributed
 from app.db.session import SystemSessionLocal, set_rls_context
 from app.models.platform.user import User
 from app.services.platform.app_settings import get_app_settings
