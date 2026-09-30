@@ -10,8 +10,8 @@ the vendor. :func:`receive` takes each delivery through four steps:
    ``webhooks.route`` names, and matched against the install index
    (:func:`app_installs.routed`). A delivery nothing matches is answered 202
    and nothing is stored.
-3. For each matched install, in its own community: a delivery id the install
-   has already accepted (``app_hook_deliveries``) is skipped; otherwise the
+3. For each matched install, in its own community and several communities at
+   once: a delivery id the install has already accepted (``app_hook_deliveries``) is skipped; otherwise the
    raw body and the vendor's ``x-`` headers go to the app's ``webhook`` hook
    with a ``lifecycle`` token naming that install, and a 2xx records the id
    for 24 hours.
@@ -25,6 +25,7 @@ checked at the vendor.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -58,6 +59,8 @@ __all__ = ["DELIVERY_TTL", "receive"]
 
 #: How long an accepted delivery id is remembered.
 DELIVERY_TTL = timedelta(hours=24)
+#: How many communities one delivery is forwarded to at once.
+FORWARD_CONCURRENCY = 8
 
 _DIGESTS = {"hmac_sha256": hashlib.sha256, "hmac_sha1": hashlib.sha1}
 
@@ -237,10 +240,15 @@ async def receive(public_id: str, headers: Mapping[str, str], body: bytes) -> in
         "headers": _vendor_headers(headers, str(verify["header"])),
         "body": body.decode("utf-8", errors="replace"),
     }
-    held = [
-        await _forward(install, registration, delivery_id=delivery_id, call=call)
-        for install in installs
-    ]
+    limit = asyncio.Semaphore(FORWARD_CONCURRENCY)
+
+    async def bounded(install: app_installs.IndexedInstall) -> bool:
+        async with limit:
+            return await _forward(
+                install, registration, delivery_id=delivery_id, call=call
+            )
+
+    held = await asyncio.gather(*(bounded(install) for install in installs))
     outcome = "delivered" if all(held) else "failed"
     metrics.app_hook_deliveries.labels(outcome=outcome).inc()
     return 202 if all(held) else 502

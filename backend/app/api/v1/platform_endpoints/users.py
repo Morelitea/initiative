@@ -4,6 +4,7 @@ from typing import Annotated, List, Optional
 
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Depends,
     File,
     HTTPException,
@@ -1825,6 +1826,7 @@ async def delete_user(
     system_session: SystemSessionDep,
     current_admin: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
+    background_tasks: BackgroundTasks,
 ) -> None:
     """Remove a member from this guild.
 
@@ -1913,9 +1915,7 @@ async def delete_user(
     # Kicked from the guild — drop the user's live content streams immediately
     # (guild-level access change), consistent with the other removal paths.
     await content_sockets.revoke_user(guild_context.guild_id, user_id)
-    await app_revocation_service.dispatch_revocations(
-        app_revocation_service.drain_revocations(session)
-    )
+    app_revocation_service.send_after_response(session, background_tasks)
 
 
 # --- profile pictures --------------------------------------------------------

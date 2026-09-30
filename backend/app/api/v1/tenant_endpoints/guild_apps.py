@@ -34,7 +34,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Annotated, Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import func, union
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlmodel import select
@@ -313,17 +313,6 @@ def _connection_or_404(app: GuildApp, connection_id: str) -> dict:
     return connection
 
 
-async def _flush_revocations(session) -> None:
-    """Deliver whatever the just-committed transaction queued.
-
-    After the commit, always: the app is told a credential is finished only once
-    the deletion that finished it is durable.
-    """
-    intents = revocation_service.drain_revocations(session)
-    if intents:
-        await revocation_service.dispatch_revocations(intents)
-
-
 async def _read(
     session: AsyncSession, app: GuildApp, context: GuildContext
 ) -> GuildAppRead:
@@ -546,6 +535,7 @@ async def upgrade_guild_app(
     session: SeatWriteSessionDep,
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
+    background_tasks: BackgroundTasks,
     payload: Optional[GuildAppUpgrade] = None,
 ) -> GuildAppDetail:
     """Re-pin an installed app to its listing's current version, now.
@@ -648,7 +638,7 @@ async def upgrade_guild_app(
         detail=record,
     )
     await session.commit()
-    await _flush_revocations(session)
+    revocation_service.send_after_response(session, background_tasks)
     await session.refresh(app)
     await app_schedules_service.reconcile(
         guild_context.guild_id, app.id, app.definition
@@ -776,6 +766,7 @@ async def uninstall_guild_app(
     session: SeatWriteSessionDep,
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
+    background_tasks: BackgroundTasks,
 ) -> None:
     """Remove an app, ending its access and trashing what it created
     (:func:`~app.services.tenant.guild_apps.uninstall_app`).
@@ -792,13 +783,17 @@ async def uninstall_guild_app(
     install_id, guild_id = app.id, routed_guild_id(session)
     await guild_apps_service.uninstall_app(session, app, actor_user_id=current_user.id)
     await session.commit()
-    await _flush_revocations(session)
     await app_installs_service.forget(guild_id, install_id)
-    # What this install called each member. Removed explicitly, because the
-    # reference lives in a platform-wide table that no foreign key reaches from
-    # here — and last, after the revocations the commit above queued, so those
-    # are dispatched either way. A reference left behind names an install that
-    # no longer exists, so it resolves to nobody.
+    revocation_service.send_after_response(session, background_tasks)
+    # Queued after the revocations, which name the guild by these references.
+    background_tasks.add_task(_drop_install_refs, guild_id, install_id)
+
+
+async def _drop_install_refs(guild_id: int, install_id: int) -> None:
+    """Remove what an uninstalled install called each member. Explicit, because
+    the reference lives in a platform-wide table that no foreign key reaches
+    from here. A reference left behind names an install that no longer exists,
+    so it resolves to nobody."""
     try:
         await app_refs.drop_install_refs(guild_id=guild_id, app_install_id=install_id)
     except SQLAlchemyError:
@@ -1189,6 +1184,7 @@ async def disconnect_guild_app(
     session: RLSSessionDep,
     current_user: CurrentUser,
     guild_context: GuildContextDep,
+    background_tasks: BackgroundTasks,
 ) -> None:
     """Disconnect: a member's own account, or a guild-wide credential.
 
@@ -1215,7 +1211,7 @@ async def disconnect_guild_app(
         )
 
     await session.commit()
-    await _flush_revocations(session)
+    revocation_service.send_after_response(session, background_tasks)
     if connection.get("scope") == "static":
         await session.refresh(app)
         await app_installs_service.record(guild_context.guild_id, app)
@@ -1403,6 +1399,7 @@ async def revoke_member_connection(
     session: SeatWriteSessionDep,
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
+    background_tasks: BackgroundTasks,
 ) -> None:
     """End one member's connection. They may connect again unless blocked."""
     app = await _load(session, app_id)
@@ -1416,7 +1413,7 @@ async def revoke_member_connection(
         reason="admin_revoked",
     )
     await session.commit()
-    await _flush_revocations(session)
+    revocation_service.send_after_response(session, background_tasks)
 
 
 @router.post(
@@ -1430,6 +1427,7 @@ async def block_member_connection(
     session: SeatWriteSessionDep,
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
+    background_tasks: BackgroundTasks,
 ) -> None:
     """Revoke a member's connection and refuse the next one.
 
@@ -1447,7 +1445,7 @@ async def block_member_connection(
         blocked_by_id=current_user.id,
     )
     await session.commit()
-    await _flush_revocations(session)
+    revocation_service.send_after_response(session, background_tasks)
 
 
 @router.delete(
@@ -1534,6 +1532,7 @@ async def revoke_all_member_connections(
     session: SeatWriteSessionDep,
     current_user: CurrentUser,
     guild_context: SeatWriteContextDep,
+    background_tasks: BackgroundTasks,
 ) -> None:
     """End every member's connection at once, leaving the install standing.
 
@@ -1544,4 +1543,4 @@ async def revoke_all_member_connections(
 
     await connections_service.revoke_all(session, app=app)
     await session.commit()
-    await _flush_revocations(session)
+    revocation_service.send_after_response(session, background_tasks)

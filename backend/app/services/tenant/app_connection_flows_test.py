@@ -997,6 +997,28 @@ class TestRevocation:
         assert response.status_code == 204
         assert len(vendor.revocations) == app_revocation.REVOKE_ATTEMPTS
 
+    async def test_revocations_are_sent_together(self, monkeypatch):
+        """Each delivery waits for the other, so both finish only when they run
+        at once."""
+        both = asyncio.Barrier(2)
+        delivered = []
+
+        async def deliver(intent):
+            await asyncio.wait_for(both.wait(), timeout=1)
+            delivered.append(intent.connection_id)
+
+        monkeypatch.setattr(app_revocation, "_deliver", deliver)
+        intents = [
+            app_revocation.RevocationIntent(
+                guild_id=1, app_id=1, listing_uid="l", connection_id=connection_id
+            )
+            for connection_id in ("a", "b")
+        ]
+
+        await app_revocation.dispatch_revocations(intents)
+
+        assert sorted(delivered) == ["a", "b"]
+
     async def test_a_hook_revocation_hands_the_app_the_tokens(
         self, client: AsyncClient, acting_user, session, vendor, registration
     ):
@@ -1128,7 +1150,7 @@ class TestVendorWebhooks:
             )
             for _, token in forwarded
         ]
-        assert [claim["app_install_id"] for claim in claims] == [
+        assert sorted(claim["app_install_id"] for claim in claims) == [
             apps[0].id,
             apps[1].id,
         ]

@@ -22,6 +22,11 @@ Two properties this module keeps:
   failure is logged. A member who left a community has left it whether or not
   the vendor answered.
 
+Intents are sent several at a time, since each is its own vendor round trip
+with its own tries. A request that queued some hands them to its response's
+background tasks (:func:`send_after_response`), so the answer does not wait on
+the vendors.
+
 Every path that deletes a connection's stored values queues an intent here,
 whether or not the connection declares a way to revoke it, so each ending is
 logged in one place.
@@ -33,6 +38,8 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Iterable, Mapping, Optional
+
+from fastapi import BackgroundTasks
 
 from app.db.session import routed_guild_id
 from app.models.tenant.guild_app import GuildApp
@@ -48,6 +55,7 @@ __all__ = [
     "drain_revocations",
     "queue_install_revocations",
     "queue_revocations_for_rows",
+    "send_after_response",
 ]
 
 _SESSION_INFO_KEY = "app_credential_revocations"
@@ -56,6 +64,8 @@ _SESSION_INFO_KEY = "app_credential_revocations"
 REVOKE_ATTEMPTS = 3
 #: The pause before the second and third tries, in seconds.
 retry_delays: tuple[float, ...] = (0.5, 1.0)
+#: How many intents are sent at once.
+REVOKE_CONCURRENCY = 8
 
 
 @dataclass(frozen=True)
@@ -194,28 +204,45 @@ def drain_revocations(session: Any) -> list[RevocationIntent]:
     return session.info.pop(_SESSION_INFO_KEY, [])
 
 
+def send_after_response(session: Any, background_tasks: BackgroundTasks) -> None:
+    """Take the queued intents and send them once the response has gone. Call
+    after commit."""
+    intents = drain_revocations(session)
+    if intents:
+        background_tasks.add_task(dispatch_revocations, intents)
+
+
 async def dispatch_revocations(intents: list[RevocationIntent]) -> None:
-    """Send queued intents. Best-effort, and never raises."""
-    for intent in intents:
-        logger.info(
-            "app credential revoked: guild=%s app=%s listing=%s connection=%s "
-            "ref=%s reason=%s",
+    """Send queued intents, several at a time. Best-effort, and never raises."""
+    limit = asyncio.Semaphore(REVOKE_CONCURRENCY)
+
+    async def bounded(intent: RevocationIntent) -> None:
+        async with limit:
+            await _dispatch_one(intent)
+
+    await asyncio.gather(*(bounded(intent) for intent in intents))
+
+
+async def _dispatch_one(intent: RevocationIntent) -> None:
+    logger.info(
+        "app credential revoked: guild=%s app=%s listing=%s connection=%s "
+        "ref=%s reason=%s",
+        intent.guild_id,
+        intent.app_id,
+        intent.listing_uid,
+        intent.connection_id,
+        intent.connection_ref or "-",
+        intent.reason,
+    )
+    try:
+        await _deliver(intent)
+    except Exception:
+        logger.exception(
+            "app credential revocation: guild=%s app=%s connection=%s failed",
             intent.guild_id,
             intent.app_id,
-            intent.listing_uid,
             intent.connection_id,
-            intent.connection_ref or "-",
-            intent.reason,
         )
-        try:
-            await _deliver(intent)
-        except Exception:
-            logger.exception(
-                "app credential revocation: guild=%s app=%s connection=%s failed",
-                intent.guild_id,
-                intent.app_id,
-                intent.connection_id,
-            )
 
 
 async def _deliver(intent: RevocationIntent) -> None:
