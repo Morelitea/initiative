@@ -59,7 +59,12 @@ class CalendarEventsAdapter:
             guild_id=guild_id,
             template_id=self.template_id,
             format=format,
-            batch=(RenderItem(key="events", data={"layout": "ical", "events": dicts}),),
+            batch=(
+                RenderItem(
+                    key="events",
+                    data={"layout": "ical", "events": dicts, "tz": params.get("tz")},
+                ),
+            ),
         )
 
 

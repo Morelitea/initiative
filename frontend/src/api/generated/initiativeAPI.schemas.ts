@@ -5148,6 +5148,7 @@ export interface ICalImportRequest {
   calendar_id: number;
   /** @maxLength 2000000 */
   ics_content: string;
+  tz?: string | null;
 }
 
 export interface ICalImportResult {
@@ -5159,6 +5160,7 @@ export interface ICalImportResult {
 export interface ICalParseRequest {
   /** @maxLength 2000000 */
   ics_content: string;
+  tz?: string | null;
 }
 
 export interface ICalParseResult {
@@ -10587,6 +10589,10 @@ export type ExportEventsApiV1CGuildIdExportsEventsGetParams = {
    * Same JSON property filters as the event list
    */
   property_filters?: string | null;
+  /**
+   * IANA timezone the events' dates and repeats are read in
+   */
+  tz?: string | null;
 };
 
 export type ExportProjectApiV1CGuildIdExportsProjectGetParams = {

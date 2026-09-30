@@ -66,6 +66,8 @@ export const ICalImportDialog = ({
   const writableCalendars = (calendarsQuery.data?.items ?? []).filter(isWritableCalendar);
 
   const MAX_ICS_SIZE = 2_000_000;
+  // Dates and floating times in the file are read in the importer's zone.
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -78,7 +80,7 @@ export const ICalImportDialog = ({
     reader.onload = (e) => {
       const content = e.target?.result as string;
       setIcsContent(content);
-      parseIcal.mutate({ ics_content: content }, { onSuccess: setParseResult });
+      parseIcal.mutate({ ics_content: content, tz }, { onSuccess: setParseResult });
     };
     reader.readAsText(file);
   };
@@ -86,7 +88,7 @@ export const ICalImportDialog = ({
   const handleImport = () => {
     if (!selectedCalendarId || !icsContent) return;
     importIcal.mutate(
-      { calendar_id: selectedCalendarId, ics_content: icsContent },
+      { calendar_id: selectedCalendarId, ics_content: icsContent, tz },
       {
         onSuccess: (result) => {
           setImportResult(result);

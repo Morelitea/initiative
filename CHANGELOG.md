@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Exporting a calendar with a repeating event works again.** A repeat such as "the second Monday of every month" no longer fails the export, and every repeat setting now carries over to other calendar apps and back on import.
+- **Exported and imported events keep their days in your timezone.** All-day events no longer land a day early, a repeat's weekdays and last day stay put, and an imported all-day event covers exactly its days.
+
 ## [0.73.2] - 2026-09-29
 
 ### Fixed
