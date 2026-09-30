@@ -109,6 +109,20 @@ async def overrides(
     )
 
 
+def has_plain_from(
+    series: CalendarEvent, at: datetime, changed: Iterable[datetime]
+) -> bool:
+    """Whether the series has an occurrence from ``at`` on without a row of
+    its own: one more start than there are rows is enough to know."""
+    if not series.recurrence:
+        return False
+    own = {_utc(value) for value in changed if _utc(value) >= _utc(at)}
+    starts = recurrence.starting(
+        series.recurrence, series.start_at, series.recurrence_shift, at, len(own) + 1
+    )
+    return any(start not in own for start in starts)
+
+
 async def attendees_of(
     session: AsyncSession, event_ids: Iterable[int]
 ) -> dict[int, RSVPStatus]:

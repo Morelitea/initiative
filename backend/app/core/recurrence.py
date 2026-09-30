@@ -278,6 +278,15 @@ def between(
     ]
 
 
+def starting(
+    text: str, start: datetime, shift: int, at: datetime, n: int
+) -> list[datetime]:
+    """The series' first ``n`` starts at or after ``at``."""
+    series, offset = _series(parse(text), start, shift)
+    moved = (at.astimezone(timezone.utc) + offset).replace(tzinfo=None)
+    return [_back(value, offset) for value in series.xafter(moved, count=n, inc=True)]
+
+
 def upcoming(text: str, start: datetime, shift: int, now: datetime) -> datetime:
     """The first occurrence starting at or after ``now``, or, once the series
     has ended, its last."""

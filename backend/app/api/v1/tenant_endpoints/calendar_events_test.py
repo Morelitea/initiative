@@ -391,6 +391,58 @@ async def test_one_occurrence_changes_alone(
     assert [title for title, _start, _location in await month()] == ["Retro"]
 
 
+async def test_a_cancellation_tells_who_was_coming_to_what_goes(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Twice, a week apart. The second has its own row, and the attendee
+    declined it: ending the series there cancels only that one, so they are
+    not told."""
+    (
+        organizer,
+        attendee,
+        _guild,
+        _initiative,
+        calendar,
+    ) = await _setup_organizer_and_attendee(session, acting_user)
+    created = await client.post(
+        organizer.g("/calendar-events/"),
+        headers=organizer.headers,
+        json={
+            "calendar_id": calendar.id,
+            "title": "Standup",
+            "start_at": "2026-10-05T09:00:00Z",
+            "end_at": "2026-10-05T09:30:00Z",
+            "recurrence": "FREQ=WEEKLY;COUNT=2",
+            "attendee_ids": [attendee.user.id],
+        },
+    )
+    series = created.json()["id"]
+    second = "2026-10-12T09:00:00Z"
+    opened = await client.post(
+        organizer.g(f"/calendar-events/{series}/occurrences"),
+        headers=organizer.headers,
+        json={"start": second},
+    )
+    await client.patch(
+        attendee.g(f"/calendar-events/{series}/rsvp"),
+        headers=attendee.headers,
+        json={"rsvp_status": "declined", "occurrence": second},
+    )
+
+    ended = await client.delete(
+        organizer.g(f"/calendar-events/{opened.json()['id']}"),
+        headers=organizer.headers,
+        params={"scope": "following"},
+    )
+    assert ended.status_code == 204
+    assert (
+        await _notifications_for(
+            session, attendee.user.id, NotificationType.event_cancelled
+        )
+        == []
+    )
+
+
 async def test_an_event_repeat_is_stored_as_picked(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

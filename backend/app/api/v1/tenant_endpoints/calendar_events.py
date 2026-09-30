@@ -1227,19 +1227,29 @@ async def delete_calendar_event(
     else:
         at = occurrence
     if scope in ("following", "all") and event.recurrence:
-        # Everyone whose meeting goes: the series', and each occurrence's own
-        # from the one named on.
-        told_ids = [event.id] + [
-            override.id
+        # Everyone attending an occurrence that goes: each one's own row from
+        # the one named on (every one, for all), and the series' attendees if
+        # any occurrence that goes has no row of its own.
+        since = (
+            event.start_at
+            if scope == "all" or at is None
+            else at.astimezone(timezone.utc)
+        )
+        rows = [
+            override
             for override in await occurrences_service.overrides(session, event)
-            if scope == "all"
-            or at is None
-            or (
-                override.original_start is not None
-                and override.original_start.astimezone(timezone.utc)
-                >= at.astimezone(timezone.utc)
-            )
+            if override.original_start is not None
         ]
+        told_ids = [
+            override.id
+            for override in rows
+            if cast(datetime, override.original_start).astimezone(timezone.utc)
+            >= since.astimezone(timezone.utc)
+        ]
+        if occurrences_service.has_plain_from(
+            event, since, [cast(datetime, override.original_start) for override in rows]
+        ):
+            told_ids.append(event.id)
     else:
         told_ids = [told.id]
     # A declined attendee already isn't attending, so skip the cancellation
