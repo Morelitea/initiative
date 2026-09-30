@@ -383,6 +383,31 @@ therefore also runs with `fsync=off`, `full_page_writes=off`,
 `max_wal_size=512MB` — safe for a cluster holding only the dev database and
 throwaway test databases, and not something to copy into any deployment.
 
+**Which backend tests a pull request runs.** CI picks one of two modes in its
+Detect Changes job, and the run's summary page says which:
+
+- **Every test**, when the change touches something test selection cannot
+  see: `alembic/` (migrations run before any test), `app/db/`,
+  `app/core/capabilities.py` or `config.py` (the roles, grants and policies a
+  start renders), `app/testing/`, `conftest.py`, `pytest.ini`, the
+  dependencies, `backend/scripts/ci/`, non-Python files under `app/`, or the CI
+  workflow. Every push to `main` and `dev` runs every test too.
+- **Otherwise, two passes**: the **always-run core**, then the tests the
+  change reaches. The second pass uses
+  [pytest-testmon](https://testmon.org): every full run records which code each
+  test executed, dev's recording is published as the `test-selection-data`
+  artifact, and a pull request runs the tests whose recorded code it changed.
+  A change inside a function selects the tests that ran it; a change at a
+  file's top level (a pydantic field, a constant) selects every test that used
+  the file.
+
+The **always-run core** is every test marked `always`
+(`pytestmark = pytest.mark.always`). Mark a test file `always` when it checks
+something across *every* table, route, registry, capability or migration:
+selection only knows code a test has already run, so a new file (a model, a
+route, a revision) reaches no test until one of these catches it. Keep the core
+cheap: it runs on every pull request.
+
 Coverage is **opt-in** — it roughly doubles the wall time of a targeted run and
 nothing consumes the report on the normal path:
 

@@ -13,6 +13,7 @@ honest:
   rows come from one declaration, and this is what keeps them there.
 """
 
+import pytest
 from sqlalchemy import text
 
 from app.core.reactions import ReactionTarget
@@ -36,6 +37,8 @@ from app.db.tenancy import (
     OWN_ROW_TABLES,
     SEAT_TABLES,
 )
+
+pytestmark = pytest.mark.always
 
 _EXPECTED_POLICIES = {
     "initiative_member_select",

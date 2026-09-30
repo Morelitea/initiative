@@ -7,8 +7,12 @@ either direction) is ``security_invariants_test`` (integration).
 
 from dataclasses import fields
 
+import pytest
+
 from app.db.public_rls import PLATFORM_TIER_ROLES, SHARED_TABLE_REGISTRY, Grants
 from app.db.system_grants import VALID_GRANT_VERBS, grant_sql, tier_table_grants
+
+pytestmark = pytest.mark.always
 
 
 def test_registry_uses_only_known_dml_verbs():

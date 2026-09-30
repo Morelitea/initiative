@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import pathlib
 
+import pytest
+
 
 from app.core.builtin_announcements import BUILTIN_ANNOUNCEMENTS, builtin_by_key
 from app.core.version import compare_versions
@@ -18,6 +20,8 @@ from app.schemas.platform.announcement import (
     MAX_DISMISSALS_REQUIRED,
     MAX_SECTIONS,
 )
+
+pytestmark = pytest.mark.always
 
 #: Where a builtin's pictures are shipped: static assets in the SPA's public
 #: directory, served at ``/announcement-images/…``.

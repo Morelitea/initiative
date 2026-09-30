@@ -17,6 +17,8 @@ from app.db.schema_provisioning import PLATFORM_SUSPENDED, platform_role_name
 from app.testing import as_role, create_user
 from app.models.platform.notification import NotificationType
 
+pytestmark = pytest.mark.always
+
 
 def _writable() -> str:
     return platform_role_name("base")

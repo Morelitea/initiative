@@ -9,6 +9,8 @@ up here as a difference until the migration that adds it says which it is.
 import pytest
 from sqlalchemy import text
 
+pytestmark = pytest.mark.always
+
 
 WRITABLE_FLOOR = "app_guild_base"
 READ_FLOOR = "app_guild_base_ro"

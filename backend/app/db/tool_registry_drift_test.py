@@ -16,6 +16,7 @@ Three joins, one per way a tool reaches the schema:
 - the **endpoint kind code** the ``relationships`` node ids are packed from.
 """
 
+import pytest
 from sqlalchemy import text
 
 from app.core.relationships import ENDPOINT_KINDS, node_id
@@ -26,6 +27,8 @@ from app.db.schema_provisioning import (
     guild_schema_name,
     provision_guild_schema,
 )
+
+pytestmark = pytest.mark.always
 
 _GID_DRIFT = 990_401
 

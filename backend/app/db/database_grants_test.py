@@ -15,6 +15,7 @@ free to differ.
 
 from __future__ import annotations
 
+import pytest
 from sqlalchemy import make_url, text
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
@@ -25,6 +26,8 @@ from app.db.bootstrap import (
     bootstrap_sql,
     login_roles,
 )
+
+pytestmark = pytest.mark.always
 
 
 _REVOKE = "REVOKE TEMPORARY ON DATABASE"

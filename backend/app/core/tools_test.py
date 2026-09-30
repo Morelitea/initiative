@@ -12,7 +12,11 @@ The plain ``set(registry) == set(enum)`` rows live together in
 ``app/core/registry_coverage_test.py``, one row per registry.
 """
 
+import pytest
+
 from app.core.tools import Tool
+
+pytestmark = pytest.mark.always
 
 
 def test_trash_listing_covers_every_soft_delete_model():
