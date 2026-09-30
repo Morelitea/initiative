@@ -100,6 +100,7 @@ def test_channels_are_registered_by_the_android_app():
     )
 
 
+@pytest.mark.always
 def test_the_manifest_falls_back_to_a_channel_the_app_creates():
     """The web bundle updates over the air; channels ship with the APK.
 
